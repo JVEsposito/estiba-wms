@@ -33,12 +33,12 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 |---|---|
 | API y reglas de negocio | PHP 8.3 + Laravel 13 |
 | Base de datos central | MySQL |
-| Aplicación para tablets | React Native + TypeScript |
-| Persistencia local | SQLite |
+| Aplicación para tablets | Blade + JavaScript + CSS responsive |
+| Persistencia local futura | IndexedDB / cola offline |
 | Integración futura | Adaptadores de entrada/salida desacoplados |
 | Repositorio | Monorepo: Laravel en la raíz y cliente móvil en `mobile/` |
 
-La base central será la autoridad del estado confirmado. La aplicación móvil mantendrá una cola local de operaciones para tolerar interrupciones de red y resolver conflictos al sincronizar.
+La base central será la autoridad del estado confirmado. El cliente para tablets utiliza la API Laravel y conserva un identificador idempotente por operación. La cola local para tolerar interrupciones de red se incorporará después del flujo conectado.
 
 ## Documentación de producto
 
@@ -51,15 +51,33 @@ Estas definiciones son la referencia previa para diseñar migraciones, endpoints
 
 ## Estado del proyecto
 
-El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central fue reconstruido para proteger la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. Las migraciones exploratorias de temperatura, repaletizaje y despacho fueron retiradas del núcleo actual.
+El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
+
+## Puesta en marcha local
+
+```bash
+composer install
+npm ci
+cp .env.example .env
+php artisan key:generate
+php artisan migrate:fresh --seed
+npm run build
+php artisan serve
+```
+
+Los datos de demostración solo se crean en entornos `local` y `testing`:
+
+- Usuario: `operador@estiba.local`
+- Contraseña: `password`
+- Código de tablet: `TABLET-01`
 
 ## Orden de implementación propuesto
 
 1. [x] Auditar el esquema exploratorio.
 2. [x] Reconstruir migraciones para cámaras, posiciones, folios, sesiones y movimientos.
 3. [x] Instalar Sanctum y habilitar las rutas API.
-4. [ ] Implementar servicios transaccionales y completar las pruebas del dominio.
-5. [ ] Publicar el contrato de la API REST.
-6. [ ] Construir el flujo principal para tablets.
+4. [x] Implementar servicios transaccionales y completar las pruebas del dominio.
+5. [x] Publicar el contrato de la API REST.
+6. [x] Construir el flujo conectado principal para tablets.
 7. [ ] Incorporar sincronización offline y resolución de conflictos.
 8. [ ] Añadir cargas y despachos como módulo posterior.

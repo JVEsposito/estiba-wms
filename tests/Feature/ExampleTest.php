@@ -14,6 +14,10 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        $response
+            ->assertStatus(200)
+            ->assertSee('Estiba WMS')
+            ->assertSee('Iniciar turno')
+            ->assertSee('Acciones rápidas');
     }
 }
