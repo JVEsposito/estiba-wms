@@ -13,7 +13,7 @@ El primer producto se concentrará en:
 1. Configuración de cámaras y posiciones.
 2. Consulta del plano de estiba.
 3. Creación automática de folios al ubicarlos.
-4. Ubicación, reubicación y retiro de bultos.
+4. Ubicación inicial, reubicación, traslado entre cámaras y retiro de bultos.
 5. Sesiones exclusivas de edición por cámara.
 6. Historial de movimientos.
 7. Operación offline y sincronización.
@@ -55,8 +55,10 @@ No existirá un formulario operacional separado para dar de alta folios.
 - Consultar una cámara sin bloquearla.
 - Obtener una sesión exclusiva para modificarla.
 - Advertir quién está editando y desde qué momento.
-- Ubicar un folio en una posición libre.
-- Reubicar un folio.
+- Ubicar o ingresar un folio en una posición libre; ambos términos representan la misma operación inicial.
+- Reubicar un folio entre posiciones de una misma cámara.
+- Trasladar un folio desde una cámara hacia otra, liberando el origen y ocupando el destino en una sola operación.
+- Exigir autorización exclusiva de edición sobre ambas cámaras durante un traslado.
 - Retirar un folio de su posición.
 - Revertir movimientos mediante una nueva operación autorizada.
 - Mantener origen, destino, usuario, dispositivo, sesión y fechas.
@@ -68,7 +70,7 @@ No existirá un formulario operacional separado para dar de alta folios.
 - Registrar operaciones localmente.
 - Sincronizar operaciones en orden.
 - Evitar ejecuciones duplicadas.
-- Detectar conflictos de versión, posición o folio.
+- Detectar conflictos de versión, posición, cámara o folio.
 - Mantener visibles las operaciones pendientes o rechazadas.
 
 ## Preparado para el futuro
@@ -116,6 +118,7 @@ El MVP se considerará operativo cuando:
 - Solo un usuario pueda modificarla.
 - No sea posible duplicar una posición ni ubicar un folio dos veces.
 - Cada movimiento conserve trazabilidad completa.
+- Un traslado entre cámaras nunca deje ocupadas ambas posiciones ni libere el origen sin confirmar el destino.
 - Un folio inexistente pueda crearse durante su ubicación.
 - Una operación repetida no vuelva a ejecutarse.
 - La tablet conserve movimientos al perder conexión o reiniciarse.
