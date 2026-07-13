@@ -51,14 +51,15 @@ Estas definiciones son la referencia previa para diseñar migraciones, endpoints
 
 ## Estado del proyecto
 
-El repositorio contiene el esqueleto inicial de Laravel y migraciones exploratorias. La documentación acordada no valida todavía ese esquema: el siguiente paso es contrastar las migraciones con el dominio documentado y proponer los cambios mediante una revisión separada.
+El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central fue reconstruido para proteger la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. Las migraciones exploratorias de temperatura, repaletizaje y despacho fueron retiradas del núcleo actual.
 
 ## Orden de implementación propuesto
 
-1. Revisar el esquema actual sin modificarlo.
-2. Diseñar migraciones para cámaras, posiciones, folios, sesiones y movimientos.
-3. Implementar restricciones transaccionales y pruebas del dominio.
-4. Publicar la API REST y su contrato.
-5. Construir el flujo principal para tablets.
-6. Incorporar sincronización offline y resolución de conflictos.
-7. Añadir cargas y despachos como módulo posterior.
+1. [x] Auditar el esquema exploratorio.
+2. [x] Reconstruir migraciones para cámaras, posiciones, folios, sesiones y movimientos.
+3. [x] Instalar Sanctum y habilitar las rutas API.
+4. [ ] Implementar servicios transaccionales y completar las pruebas del dominio.
+5. [ ] Publicar el contrato de la API REST.
+6. [ ] Construir el flujo principal para tablets.
+7. [ ] Incorporar sincronización offline y resolución de conflictos.
+8. [ ] Añadir cargas y despachos como módulo posterior.
