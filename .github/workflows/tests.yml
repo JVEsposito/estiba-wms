@@ -62,3 +62,29 @@ jobs:
 
       - name: Ejecutar pruebas
         run: php artisan test --fail-on-warning
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependencias móviles
+        run: npm ci
+
+      - name: Validar TypeScript
+        run: npm run typecheck
+
+      - name: Validar bundle Android
+        run: npm run export:android
