@@ -2,6 +2,4 @@
 
 namespace App\Exceptions;
 
-use DomainException;
-
-class ConflictoMovimiento extends DomainException {}
+class ConflictoMovimiento extends ConflictoOperacion {}

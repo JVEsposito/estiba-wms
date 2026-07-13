@@ -1,5 +1,7 @@
 <?php
 
+use App\Exceptions\ConflictoOperacion;
+use App\Exceptions\OperacionNoAutorizada;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,4 +21,43 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->render(function (
+            ConflictoOperacion $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'conflicto_operacional',
+            ], 409);
+        });
+
+        $exceptions->render(function (
+            OperacionNoAutorizada $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'operacion_no_autorizada',
+            ], 403);
+        });
+
+        $exceptions->render(function (DomainException $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'regla_de_negocio',
+            ], 422);
+        });
     })->create();

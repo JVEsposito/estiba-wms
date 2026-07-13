@@ -8,6 +8,7 @@ use App\Enums\EstadoPosicion;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\RolUsuario;
 use App\Enums\TipoMovimiento;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
 use App\Models\Camara;
 use App\Models\Dispositivo;
@@ -78,7 +79,9 @@ class ValidadorMovimiento
         $operacion = OperacionSincronizacion::query()->find($movimiento->operacion_id);
 
         if (! $usuarioActivo || ! $dispositivoActivo) {
-            throw new DomainException('El usuario o el dispositivo no se encuentra activo.');
+            throw new OperacionNoAutorizada(
+                'El usuario o el dispositivo no se encuentra autorizado.',
+            );
         }
 
         if (! $operacion
