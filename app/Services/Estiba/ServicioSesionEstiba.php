@@ -5,6 +5,8 @@ namespace App\Services\Estiba;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\RolUsuario;
+use App\Exceptions\CamaraEnUso;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
 use App\Models\Camara;
 use App\Models\Dispositivo;
@@ -41,7 +43,7 @@ class ServicioSesionEstiba
                         ->exists();
 
                 if ($camaraOcupada) {
-                    throw new DomainException('La cámara ya está siendo modificada por otra sesión.');
+                    throw new CamaraEnUso('La cámara ya está siendo modificada por otra sesión.');
                 }
 
                 $sesion = SesionEstiba::create([
@@ -63,7 +65,7 @@ class ServicioSesionEstiba
                 return $sesion->load('bloqueo');
             }, attempts: 3);
         } catch (UniqueConstraintViolationException $exception) {
-            throw new DomainException(
+            throw new CamaraEnUso(
                 'La cámara ya está siendo modificada por otra sesión.',
                 previous: $exception,
             );
@@ -85,7 +87,9 @@ class ServicioSesionEstiba
             }
 
             if (! $usuarioBloqueado->activo) {
-                throw new DomainException('Un usuario inactivo no puede cerrar sesiones de estiba.');
+                throw new OperacionNoAutorizada(
+                    'Un usuario inactivo no puede cerrar sesiones de estiba.',
+                );
             }
 
             $cierrePropio = $sesionBloqueada->user_id === $usuarioBloqueado->id;
@@ -94,7 +98,9 @@ class ServicioSesionEstiba
                 RolUsuario::Supervisor,
                 RolUsuario::Administrador,
             ], true)) {
-                throw new DomainException('El usuario no puede cerrar una sesión ajena.');
+                throw new OperacionNoAutorizada(
+                    'El usuario no puede cerrar una sesión ajena.',
+                );
             }
 
             $bloqueo = BloqueoCamara::query()
@@ -134,11 +140,13 @@ class ServicioSesionEstiba
         }
 
         if (! $usuario->activo || $usuario->rol === RolUsuario::Consulta) {
-            throw new DomainException('El usuario no está autorizado para abrir sesiones de estiba.');
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para abrir sesiones de estiba.',
+            );
         }
 
         if (! $dispositivo->activo) {
-            throw new DomainException('El dispositivo no se encuentra activo.');
+            throw new OperacionNoAutorizada('El dispositivo no se encuentra activo.');
         }
     }
 }
