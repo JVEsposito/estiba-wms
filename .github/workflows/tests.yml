@@ -41,6 +41,9 @@ jobs:
       - name: Descargar código
         uses: actions/checkout@v4
 
+      - name: Preparar entorno
+        run: cp .env.example .env
+
       - name: Preparar PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -58,4 +61,4 @@ jobs:
         run: php artisan migrate:fresh --force
 
       - name: Ejecutar pruebas
-        run: php artisan test
+        run: php artisan test --fail-on-warning
