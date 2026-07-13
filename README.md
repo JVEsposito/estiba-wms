@@ -1,67 +1,62 @@
-Estiba WMS - Sistema de Gestión de Cámaras de Frío
-Visión General del Proyecto
-Estiba WMS es un sistema de gestión de almacenes (Micro-WMS) diseñado específicamente para resolver la trazabilidad y ubicación espacial de pallets en cámaras frigoríficas frutícolas.
+# Estiba WMS
 
-El proyecto nace de la necesidad operativa real de reemplazar los planos de estiba en papel, eliminando los tiempos muertos en la búsqueda de lotes y mitigando los errores humanos. Su diseño contempla las condiciones físicas de las cámaras de frío (que actúan como jaulas de Faraday), por lo que la arquitectura final apunta a un modelo Offline-First.
+Aplicación orientada a tablets para gestionar la ubicación y el movimiento de bultos en cámaras frigoríficas. El objetivo del MVP es reemplazar el plano de estiba en papel por un mapa operativo, auditable y preparado para trabajar con conectividad intermitente.
 
-Stack Tecnológico
-Entorno de Desarrollo Local: Laragon, Node.js.
+> Esta rama define el dominio y el alcance antes de modificar migraciones o implementar reglas de negocio.
 
-Backend & API REST: PHP con Laravel.
+## Prioridad del MVP
 
-Base de Datos Central: MySQL.
+1. Crear cámaras y configurar sus posiciones.
+2. Abrir una sesión de edición sobre el plano de una cámara.
+3. Ubicar, mover y retirar bultos identificados por un folio único.
+4. Mantener la ocupación actual y el historial completo de movimientos.
+5. Permitir consulta concurrente, pero una sola sesión de edición por cámara.
+6. Sincronizar operaciones de tablet de forma segura e idempotente.
 
-Frontend Móvil (Proyección): React Native (compilación a APK nativo con SQLite/WatermelonDB para sincronización offline).
+En este dominio, una **estiba** es la asignación espacial de bultos a posiciones de una cámara. La posición física la ocupa un bulto —pallet completo o saldo— identificado por su folio.
 
-Control de Versiones: Git & GitHub.
+## Decisiones principales
 
-Decisiones de Arquitectura Clave
-Uso de UUIDs: Se descartaron los IDs numéricos auto-incrementables en favor de UUIDs para todas las tablas primarias. Esto es vital para la futura operación offline en la tablet, evitando colisiones de IDs cuando múltiples usuarios sincronicen datos simultáneamente al recuperar conexión WiFi en los pasillos.
+- El folio se crea automáticamente durante su primera ubicación si todavía no existe.
+- No habrá un módulo independiente para crear folios.
+- Cada cambio del plano pertenece a una sesión de estiba y queda auditado.
+- Una cámara puede ser consultada por varias personas, pero solo una puede editarla a la vez.
+- El repaletizaje y el control de temperatura quedan fuera del MVP.
+- Cargas y despachos se abordarán después del núcleo de estibas y movimientos.
+- La arquitectura dejará una interfaz preparada para una futura integración con el ERP utilizado por la empresa, sin acoplar el MVP a Suit Export.
 
-Sistema de Cuadrícula Visual (Coordenadas): Las posiciones físicas no se manejan con múltiples tablas (bandas, pasillos), sino como un sistema de coordenadas X, Y, Z (fila, profundidad, altura) dentro de una sola tabla, optimizando las consultas para renderizar el mapa 2D en el dispositivo móvil.
+## Arquitectura prevista
 
-Gestión de Saldos (Repas): Los pallets incompletos no se separan en tablas anexas para mantener la integridad del mapa de estiba. Se identifican mediante un flag booleano (es_saldo) y, al ser consolidados, cambian a un estado histórico (consolidado_repa) liberando su posición espacial.
+| Componente | Tecnología |
+|---|---|
+| API y reglas de negocio | PHP 8.3 + Laravel 13 |
+| Base de datos central | MySQL |
+| Aplicación para tablets | React Native + TypeScript |
+| Persistencia local | SQLite |
+| Integración futura | Adaptadores de entrada/salida desacoplados |
+| Repositorio | Monorepo: Laravel en la raíz y cliente móvil en `mobile/` |
 
-Esquema de Base de Datos (Migraciones Actuales)
-El modelo relacional inicial consta de 6 entidades principales:
+La base central será la autoridad del estado confirmado. La aplicación móvil mantendrá una cola local de operaciones para tolerar interrupciones de red y resolver conflictos al sincronizar.
 
-camaras: Contenedores físicos.
+## Documentación de producto
 
-Define el nombre, tipo (pre_frio, almacenaje, despacho) y capacidad_maxima.
+- [Glosario operacional](docs/glosario-operacional.md)
+- [Alcance del MVP](docs/alcance-mvp.md)
+- [Reglas de negocio](docs/reglas-negocio.md)
+- [Arquitectura propuesta](docs/arquitectura.md)
 
-registros_temperatura: Historial térmico.
+Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
-Vinculada a camaras. Registra grados, observacion y el timestamp de la medición para control de calidad.
+## Estado del proyecto
 
-despachos: Cabecera de salida.
+El repositorio contiene el esqueleto inicial de Laravel y migraciones exploratorias. La documentación acordada no valida todavía ese esquema: el siguiente paso es contrastar las migraciones con el dominio documentado y proponer los cambios mediante una revisión separada.
 
-Agrupa lotes bajo una guia_despacho, identificando exportadora, patente_camion y destino.
+## Orden de implementación propuesto
 
-folios: Entidad central (Pallets/Carga).
-
-Contiene la metadata del código de barras (numero_folio, variedad, calibre, marca, exportadora).
-
-Depende opcionalmente de despachos_id.
-
-Controla el flujo mediante estado ('en_recepcion', 'en_camara', 'despachado', 'consolidado_repa') y el flag es_saldo.
-
-posicions: El mapa físico (Asientos).
-
-Vincula una camara_id con un folio_id (si está ocupado).
-
-Almacena las coordenadas exactas de la estiba.
-
-movimientos: Bitácora de trazabilidad.
-
-Registra cada interacción (ingreso, reubicacion, despacho), vinculando el pallet con su posición de origen y destino, permitiendo auditar la cadena de movimientos cronológicamente.
-
-Estado Actual
-[x] Diseño del Modelo Entidad-Relación.
-
-[x] Configuración del entorno local.
-
-[x] Ejecución exitosa de Migraciones en MySQL.
-
-[ ] (Siguiente paso) Configuración de Modelos Eloquent y sus relaciones.
-
-[ ] (Siguiente paso) Creación de Seeders para inyección de volumen de prueba.
+1. Revisar el esquema actual sin modificarlo.
+2. Diseñar migraciones para cámaras, posiciones, folios, sesiones y movimientos.
+3. Implementar restricciones transaccionales y pruebas del dominio.
+4. Publicar la API REST y su contrato.
+5. Construir el flujo principal para tablets.
+6. Incorporar sincronización offline y resolución de conflictos.
+7. Añadir cargas y despachos como módulo posterior.
