@@ -2,13 +2,13 @@
 
 Aplicación orientada a tablets para gestionar la ubicación y el movimiento de bultos en cámaras frigoríficas. El objetivo del MVP es reemplazar el plano de estiba en papel por un mapa operativo, auditable y preparado para trabajar con conectividad intermitente.
 
-> Esta rama define el dominio y el alcance antes de modificar migraciones o implementar reglas de negocio.
+> Esta documentación define el dominio y el alcance antes de modificar migraciones o implementar reglas de negocio.
 
 ## Prioridad del MVP
 
 1. Crear cámaras y configurar sus posiciones.
 2. Abrir una sesión de edición sobre el plano de una cámara.
-3. Ubicar, mover y retirar bultos identificados por un folio único.
+3. Ubicar, reubicar dentro de una cámara, trasladar entre cámaras y retirar bultos identificados por un folio único.
 4. Mantener la ocupación actual y el historial completo de movimientos.
 5. Permitir consulta concurrente, pero una sola sesión de edición por cámara.
 6. Sincronizar operaciones de tablet de forma segura e idempotente.
@@ -18,6 +18,8 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 ## Decisiones principales
 
 - El folio se crea automáticamente durante su primera ubicación si todavía no existe.
+- El ingreso a cámara y la ubicación inicial representan la misma operación.
+- Un traslado entre cámaras libera el origen y ocupa el destino dentro de una única operación transaccional.
 - No habrá un módulo independiente para crear folios.
 - Cada cambio del plano pertenece a una sesión de estiba y queda auditado.
 - Una cámara puede ser consultada por varias personas, pero solo una puede editarla a la vez.
