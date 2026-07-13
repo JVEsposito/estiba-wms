@@ -16,7 +16,10 @@ Este documento establece el significado de los términos utilizados por Estiba W
 | Plano de estiba | Representación visual del estado actual de las posiciones de una cámara. |
 | Sesión de estiba | Periodo durante el cual un usuario obtiene autorización exclusiva para modificar el plano de una cámara. |
 | Ubicación actual | Relación vigente entre un folio y una posición. |
-| Movimiento | Registro inalterable de una ubicación inicial, reubicación, retiro o reversión. |
+| Ubicación inicial o ingreso a cámara | Primera asignación de un bulto a una posición de cámara. Ambos nombres representan la misma operación. |
+| Reubicación | Cambio de un bulto entre dos posiciones de la misma cámara. |
+| Traslado entre cámaras | Cambio de un bulto desde una posición de una cámara hacia una posición de otra cámara. Libera el origen y ocupa el destino en una sola operación. |
+| Movimiento | Registro inalterable de una ubicación inicial, reubicación, traslado entre cámaras, retiro o reversión. |
 | Carga | Agrupación lógica de entre 1 y 26 bultos seleccionados para una futura salida. Se implementará después de estabilizar el núcleo de estibas. |
 | Despacho | Acto mediante el cual una carga sale físicamente de la instalación. |
 | Condición SAG | Condición operacional o regulatoria asociada al folio. Sus valores serán administrados mediante un catálogo configurable. |
@@ -34,6 +37,7 @@ Este documento establece el significado de los términos utilizados por Estiba W
 - La estiba es un plano vivo y puede modificarse continuamente mediante nuevas sesiones.
 - Varios usuarios pueden consultar una cámara, pero solo uno puede editarla.
 - Cada cambio de ubicación debe producir un movimiento auditable.
+- Un traslado entre cámaras debe actualizar los dos planos sin dejar estados parciales.
 - Los movimientos históricos no se eliminan ni se reemplazan.
 - Las cargas y despachos no forman parte del primer núcleo funcional.
 - El repaletizaje podrá desarrollarse como otro módulo o proyecto.
