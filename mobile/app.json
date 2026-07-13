@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Estiba WMS",
+    "slug": "estiba-wms-mobile",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "predictiveBackGestureEnabled": false
+    }
+  }
+}
