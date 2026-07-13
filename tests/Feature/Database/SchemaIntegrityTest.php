@@ -4,6 +4,7 @@ namespace Tests\Feature\Database;
 
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\EstadoSesionEstiba;
+use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Models\BloqueoCamara;
@@ -115,7 +116,7 @@ class SchemaIntegrityTest extends TestCase
 
     public function test_solo_puede_existir_un_bloqueo_activo_por_camara(): void
     {
-        [$user, $dispositivo, $camara, $sesionUno] = $this->crearContexto();
+        [$user, $dispositivo, $camara, $sesionUno] = $this->crearContexto(false);
         $sesionDos = SesionEstiba::create([
             'camara_id' => $camara->id,
             'user_id' => $user->id,
@@ -154,7 +155,7 @@ class SchemaIntegrityTest extends TestCase
             $dispositivo,
         );
 
-        $this->expectException(QueryException::class);
+        $this->expectException(\DomainException::class);
 
         $folio->delete();
     }
@@ -162,9 +163,9 @@ class SchemaIntegrityTest extends TestCase
     /**
      * @return array{User, Dispositivo, Camara, SesionEstiba}
      */
-    private function crearContexto(): array
+    private function crearContexto(bool $crearBloqueo = true): array
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['rol' => RolUsuario::Operador]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',
             'nombre' => 'Tablet de prueba',
@@ -178,6 +179,14 @@ class SchemaIntegrityTest extends TestCase
             'version_inicial' => 0,
             'iniciada_at' => now(),
         ]);
+
+        if ($crearBloqueo) {
+            BloqueoCamara::create([
+                'camara_id' => $camara->id,
+                'sesion_estiba_id' => $sesion->id,
+                'adquirido_at' => now(),
+            ]);
+        }
 
         return [$user, $dispositivo, $camara, $sesion];
     }

@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\EstadoIntegracionFolio;
+use App\Enums\EstadoOperacionalFolio;
 use App\Enums\TipoBulto;
+use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class Folio extends Model
 {
-    use HasUuids;
+    use HasUuids, ImpideEliminacionFisica;
 
     public function condicionSag(): BelongsTo
     {
@@ -50,10 +53,12 @@ class Folio extends Model
     {
         return [
             'tipo_bulto' => TipoBulto::class,
+            'estado_operacional' => EstadoOperacionalFolio::class,
             'fecha_ingreso' => 'datetime',
             'activo' => 'boolean',
             'sincronizado_at' => 'datetime',
             'datos_externos' => 'array',
+            'estado_integracion' => EstadoIntegracionFolio::class,
         ];
     }
 }

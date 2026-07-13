@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['codigo', 'nombre', 'plataforma', 'activo', 'ultimo_acceso_at'])]
 class Dispositivo extends Model
 {
-    use HasUuids;
+    use HasUuids, ImpideEliminacionFisica;
 
     public function sesionesEstiba(): HasMany
     {
@@ -25,6 +26,11 @@ class Dispositivo extends Model
     public function movimientos(): HasMany
     {
         return $this->hasMany(Movimiento::class);
+    }
+
+    public function tokens(): HasMany
+    {
+        return $this->hasMany(PersonalAccessToken::class);
     }
 
     protected function casts(): array

@@ -3,10 +3,14 @@
 namespace App\Models;
 
 use App\Enums\TipoMovimiento;
+use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Services\Estiba\ValidadorMovimiento;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'operacion_id',
@@ -30,9 +34,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Movimiento extends Model
 {
-    use HasUuids;
+    use HasUuids, ImpideEliminacionFisica;
 
     public const UPDATED_AT = null;
+
+    protected static function booted(): void
+    {
+        static::creating(
+            fn (Movimiento $movimiento) => app(ValidadorMovimiento::class)->validar($movimiento),
+        );
+
+        static::updating(function (): never {
+            throw new DomainException(
+                'Los movimientos son inalterables; registre una reversión o un nuevo movimiento.',
+            );
+        });
+    }
 
     public function operacion(): BelongsTo
     {
@@ -84,12 +101,21 @@ class Movimiento extends Model
         return $this->belongsTo(SesionEstiba::class, 'sesion_destino_id');
     }
 
+    public function ubicacionActual(): HasOne
+    {
+        return $this->hasOne(UbicacionActual::class);
+    }
+
     protected function casts(): array
     {
         return [
             'tipo_movimiento' => TipoMovimiento::class,
             'generado_dispositivo_at' => 'datetime',
             'recibido_servidor_at' => 'datetime',
+            'version_origen_anterior' => 'integer',
+            'version_origen_resultante' => 'integer',
+            'version_destino_anterior' => 'integer',
+            'version_destino_resultante' => 'integer',
         ];
     }
 }
