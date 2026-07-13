@@ -56,7 +56,7 @@ La sesión conserva usuario, dispositivo, inicio, actividad, cierre y versiones 
 
 ### Movimientos
 
-Los movimientos forman una bitácora inalterable. Guardan el cambio de ubicación y todo su contexto operacional.
+Los movimientos forman una bitácora inalterable. La ubicación inicial y el ingreso a cámara son la misma operación. Una reubicación ocurre dentro de una cámara y un traslado cambia el bulto entre cámaras, conservando todo su contexto operacional.
 
 ### Operaciones de sincronización
 
@@ -64,24 +64,30 @@ Cada comando generado en tablet usa un UUID idempotente. El servidor conserva su
 
 ## Flujo transaccional de ubicación
 
-Una solicitud de ubicación debe:
+Una solicitud de ubicación o movimiento debe:
 
-1. Validar usuario, dispositivo y sesión.
-2. Bloquear los registros necesarios.
+1. Validar usuario, dispositivo y las sesiones de todas las cámaras afectadas.
+2. Bloquear las cámaras y posiciones necesarias en un orden estable.
 3. Buscar el folio por su número.
-4. Crearlo si no existe.
-5. Validar estado del folio y disponibilidad de la posición.
+4. Crearlo si no existe durante una ubicación inicial.
+5. Validar el estado del folio, su origen vigente y la disponibilidad del destino.
 6. Crear o actualizar la ubicación actual.
 7. Registrar el movimiento.
-8. Incrementar la versión de la cámara.
+8. Incrementar las versiones de todas las cámaras afectadas.
 9. Registrar el resultado de la operación idempotente.
 10. Confirmar toda la transacción.
 
 Si un paso falla, ninguno de los cambios debe persistir.
 
+### Traslado entre cámaras
+
+Un traslado exige sesiones activas del mismo usuario y dispositivo sobre las cámaras de origen y destino. Laravel bloquea ambas cámaras en un orden determinista, verifica la posición de origen, ocupa el destino, libera el origen, registra un único movimiento e incrementa ambas versiones dentro de una sola transacción MySQL.
+
+Si otra persona está editando cualquiera de las cámaras, el traslado queda bloqueado o pasa a conflicto. Nunca se confirma solo una parte del cambio.
+
 ## Control de edición por cámara
 
-La apertura de sesión utiliza bloqueo transaccional para impedir dos editores.
+La apertura de sesión utiliza bloqueo transaccional para impedir dos editores. En un traslado, el operador debe obtener la edición exclusiva de ambas cámaras antes de ejecutar el movimiento.
 
 La tablet enviará señales de actividad cuando tenga conexión. Una sesión sin actividad se marca como potencialmente abandonada, pero requiere cierre explícito o intervención de un supervisor antes de autorizar otro editor.
 
@@ -97,11 +103,11 @@ SQLite mantiene:
 - Posiciones.
 - Folios necesarios.
 - Ubicaciones visibles.
-- Sesión activa.
+- Sesiones activas.
 - Operaciones pendientes.
 - Resultados y conflictos.
 
-Cada operación incluye el UUID, la versión conocida de la cámara y una marca temporal del dispositivo.
+Cada operación incluye el UUID, las sesiones y versiones conocidas de todas las cámaras afectadas, además de una marca temporal del dispositivo.
 
 ### En Laravel
 
@@ -112,16 +118,17 @@ La API recibe lotes ordenados:
 3. Valida sesión y versión.
 4. Aplica la regla dentro de una transacción.
 5. Registra éxito, rechazo o conflicto.
-6. Devuelve la identidad central del folio y la nueva versión.
+6. Devuelve la identidad central del folio y las nuevas versiones de las cámaras afectadas.
 
 ### Conflictos
 
 Se consideran conflictos, entre otros:
 
 - Posición ocupada después de la descarga local.
-- Folio ubicado desde otra cámara.
+- El origen del folio cambió desde la descarga local.
+- La cámara de origen o destino está siendo editada por otra persona.
 - Sesión cerrada o forzada.
-- Versión incompatible.
+- Versión incompatible en cualquiera de las cámaras afectadas.
 - Folio bloqueado o inactivo.
 
 La tablet debe mostrar el conflicto y descargar el estado central. No debe resolverlo sobrescribiendo automáticamente.
@@ -176,6 +183,8 @@ Las pruebas del backend deben cubrir:
 - Doble ocupación.
 - Reintentos idempotentes.
 - Reubicaciones concurrentes.
+- Traslado atómico entre cámaras.
+- Traslados cruzados y adquisición ordenada de bloqueos.
 - Creación automática de folios.
 - Cierre forzado.
 - Operaciones offline fuera de orden.
