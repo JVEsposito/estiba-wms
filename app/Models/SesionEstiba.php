@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Enums\EstadoSesionEstiba;
+use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -24,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class SesionEstiba extends Model
 {
-    use HasUuids;
+    use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'sesiones_estiba';
 
@@ -53,6 +55,16 @@ class SesionEstiba extends Model
         return $this->hasOne(BloqueoCamara::class);
     }
 
+    public function movimientosOrigen(): HasMany
+    {
+        return $this->hasMany(Movimiento::class, 'sesion_origen_id');
+    }
+
+    public function movimientosDestino(): HasMany
+    {
+        return $this->hasMany(Movimiento::class, 'sesion_destino_id');
+    }
+
     protected function casts(): array
     {
         return [
@@ -60,6 +72,8 @@ class SesionEstiba extends Model
             'iniciada_at' => 'datetime',
             'ultima_actividad_at' => 'datetime',
             'cerrada_at' => 'datetime',
+            'version_inicial' => 'integer',
+            'version_final' => 'integer',
         ];
     }
 }

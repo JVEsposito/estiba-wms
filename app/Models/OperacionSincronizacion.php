@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EstadoOperacionSincronizacion;
+use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class OperacionSincronizacion extends Model
 {
-    use HasUuids;
+    use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'operaciones_sincronizacion';
 
