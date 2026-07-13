@@ -1,0 +1,61 @@
+name: Pruebas
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: estiba_wms_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CACHE_STORE: array
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: estiba_wms_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Validar estilo
+        run: vendor/bin/pint --test
+
+      - name: Crear esquema limpio
+        run: php artisan migrate:fresh --force
+
+      - name: Ejecutar pruebas
+        run: php artisan test

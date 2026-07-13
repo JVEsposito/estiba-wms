@@ -61,7 +61,7 @@ No existirá un formulario operacional separado para dar de alta folios.
 - Exigir autorización exclusiva de edición sobre ambas cámaras durante un traslado.
 - Retirar un folio de su posición.
 - Revertir movimientos mediante una nueva operación autorizada.
-- Mantener origen, destino, usuario, dispositivo, sesión y fechas.
+- Mantener origen, destino, usuario, dispositivo, sesión o sesiones y fechas.
 
 ### Operación offline
 
