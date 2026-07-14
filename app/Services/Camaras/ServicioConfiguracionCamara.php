@@ -2,6 +2,7 @@
 
 namespace App\Services\Camaras;
 
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoPosicion;
 use App\Models\Camara;
 use App\Models\Posicion;
@@ -37,6 +38,7 @@ class ServicioConfiguracionCamara
                 'codigo' => $this->siguienteCodigo(),
                 'nombre' => trim($datos['nombre']),
                 'tipo' => $datos['tipo'],
+                'estado' => EstadoCamara::Activa->value,
                 'creado_por_user_id' => $usuario->id,
                 'actualizado_por_user_id' => $usuario->id,
             ]);

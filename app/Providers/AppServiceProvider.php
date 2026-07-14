@@ -46,7 +46,7 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 if ($token->dispositivo_id === null) {
-                    return $token->can('oficina');
+                    return in_array('oficina', $token->abilities ?? [], true);
                 }
 
                 return $token->dispositivo()->where('activo', true)->exists();
