@@ -28,6 +28,7 @@ export type LocateFormValue = {
 type LocateModalProps = {
   busy: boolean;
   conditions: SagCondition[];
+  error: string;
   onCancel: () => void;
   onConfirm: (value: LocateFormValue) => Promise<void>;
   plan: CameraPlan | null;
@@ -38,6 +39,7 @@ type LocateModalProps = {
 export function LocateModal({
   busy,
   conditions,
+  error,
   onCancel,
   onConfirm,
   plan,
@@ -136,6 +138,8 @@ export function LocateModal({
             <FormField label="Exportadora" onChangeText={setExporter} placeholder="Opcional" value={exporter} />
           </ScrollView>
 
+          <ModalError message={error} />
+
           <DialogActions
             busy={busy}
             compact={compact}
@@ -155,6 +159,7 @@ type MoveModalProps = {
   busy: boolean;
   cameras: CameraSummary[];
   destinationPlan: CameraPlan | null;
+  error: string;
   onCancel: () => void;
   onChooseCamera: (cameraId: string) => void;
   onConfirm: () => Promise<void>;
@@ -169,6 +174,7 @@ export function MoveModal({
   busy,
   cameras,
   destinationPlan,
+  error,
   onCancel,
   onChooseCamera,
   onConfirm,
@@ -250,6 +256,8 @@ export function MoveModal({
             </ScrollView>
           )}
 
+          <ModalError message={error} />
+
           <DialogActions
             busy={busy}
             compact={compact}
@@ -325,6 +333,17 @@ function Choice({ active, label, onPress }: { active: boolean; label: string; on
     >
       <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function ModalError({ message }: { message: string }) {
+  if (!message) return null;
+
+  return (
+    <View accessibilityLiveRegion="assertive" style={styles.modalError}>
+      <Text style={styles.modalErrorTitle}>No fue posible confirmar la operación</Text>
+      <Text style={styles.modalErrorText}>{message}</Text>
+    </View>
   );
 }
 
@@ -453,6 +472,16 @@ const styles = StyleSheet.create({
   destinationMeta: { marginTop: 4, color: colors.muted, fontSize: 7 },
   loader: { height: 150 },
   empty: { paddingVertical: 30, color: colors.muted, fontSize: 10, textAlign: 'center' },
+  modalError: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.red,
+    backgroundColor: '#421B21',
+  },
+  modalErrorTitle: { color: '#FFD0D0', fontSize: 9, fontWeight: '900' },
+  modalErrorText: { marginTop: 3, color: '#FFB7B7', fontSize: 9, lineHeight: 13 },
   actions: { marginTop: 18, flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   actionsCompact: { marginTop: 10 },
   cancel: {

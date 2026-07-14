@@ -18,6 +18,7 @@ import { DemoEstibaApi } from './estibaApiDemo';
 export interface EstibaApi {
   readonly mode: ApiMode;
   readonly baseUrl: string | null;
+  readonly configurationError: string | null;
   login(payload: LoginPayload): Promise<AuthSession>;
   logout(token: string): Promise<void>;
   listCameras(token: string): Promise<CameraSummary[]>;
@@ -43,6 +44,7 @@ function validationMessage(data: unknown, fallback: string) {
 
 class HttpEstibaApi implements EstibaApi {
   readonly mode = 'connected' as const;
+  readonly configurationError = null;
 
   constructor(public readonly baseUrl: string) {}
 
@@ -138,6 +140,44 @@ class HttpEstibaApi implements EstibaApi {
 }
 
 export function createEstibaApi(): EstibaApi {
+  const demoEnabled = process.env.EXPO_PUBLIC_DEMO_MODE?.trim().toLowerCase() === 'true';
   const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
-  return configuredUrl ? new HttpEstibaApi(configuredUrl) : new DemoEstibaApi();
+
+  if (demoEnabled) return new DemoEstibaApi();
+
+  if (!configuredUrl) {
+    return createUnavailableApi(
+      'La API no está configurada. Define EXPO_PUBLIC_API_URL en mobile/.env y reinicia Expo.',
+    );
+  }
+
+  if (!/^https?:\/\/[^\s]+$/i.test(configuredUrl)) {
+    return createUnavailableApi(
+      'EXPO_PUBLIC_API_URL no es una dirección válida. Usa, por ejemplo, http://192.168.1.100:8000.',
+    );
+  }
+
+  return new HttpEstibaApi(configuredUrl);
+}
+
+function createUnavailableApi(message: string): EstibaApi {
+  const unavailable = async (): Promise<never> => {
+    throw new ApiError(message, 0);
+  };
+
+  return {
+    mode: 'unconfigured',
+    baseUrl: null,
+    configurationError: message,
+    login: unavailable,
+    logout: unavailable,
+    listCameras: unavailable,
+    listConditions: unavailable,
+    getPlan: unavailable,
+    listRecent: unavailable,
+    openSession: unavailable,
+    closeSession: unavailable,
+    locate: unavailable,
+    move: unavailable,
+  };
 }

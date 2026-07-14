@@ -10,9 +10,24 @@ Cliente nativo para tablets Android, construido con Expo, React Native y TypeScr
 
 PHP, Composer y MySQL no son necesarios para trabajar únicamente en esta carpeta. Serán necesarios cuando se quiera ejecutar el backend Laravel en el mismo equipo.
 
-## Primer inicio en modo demostración
+## Modo conectado con Laravel y MySQL
 
-Si no existe un archivo `.env`, la app usa datos locales interactivos. No requiere levantar Laravel y permite probar el login, abrir una estiba, ubicar un folio y moverlo.
+El modo conectado es el comportamiento esperado para la prueba operacional. Copia `.env.example` como `.env`, conserva `EXPO_PUBLIC_DEMO_MODE=false` y reemplaza la IP por la IPv4 del computador que ejecuta Laravel:
+
+```bash
+EXPO_PUBLIC_DEMO_MODE=false
+EXPO_PUBLIC_API_URL=http://192.168.1.100:8000
+```
+
+Sin una URL válida, la aplicación muestra **API no configurada** y bloquea el acceso. Ya no entra silenciosamente en demostración.
+
+1. Desde la raíz, inicia Laravel en la red local:
+
+```bash
+php artisan serve --host=0.0.0.0 --port=8000
+```
+
+2. Inicia Expo limpiando su caché para que lea el nuevo `.env`:
 
 ```bash
 cd mobile
@@ -20,26 +35,28 @@ npm ci
 npm run start:clear
 ```
 
-Las credenciales vienen cargadas en el formulario. La aplicación está fijada en orientación horizontal porque el flujo está diseñado para tablets.
+3. Abre la aplicación en Expo Go. Antes de operar, verifica que el encabezado diga **API conectada**, no **Demo local**.
 
-## Conectar con Laravel
+Desde la tablet, `localhost` apuntaría a la propia tablet. El computador y la tablet deben estar en la misma red y el firewall debe permitir Node.js y PHP en la red privada.
 
-1. Copiar `.env.example` como `.env`.
-2. Reemplazar `192.168.1.100` por la IPv4 del computador en la red local. Desde el teléfono, `localhost` apuntaría al propio teléfono.
-3. En la raíz del repositorio, iniciar Laravel para que escuche en la red:
+La guía completa para preparar MySQL, ejecutar un movimiento y comprobarlo directamente en la base está en [`docs/prueba-escritura-mysql.md`](../docs/prueba-escritura-mysql.md).
+
+## Modo demostración explícito
+
+El simulador local sigue disponible, pero debe habilitarse deliberadamente:
 
 ```bash
-php artisan serve --host=0.0.0.0 --port=8000
+EXPO_PUBLIC_DEMO_MODE=true
+EXPO_PUBLIC_API_URL=
 ```
 
-4. En otra terminal, iniciar Expo:
+Después de cambiar el modo, reinicia Metro:
 
 ```bash
-cd mobile
 npm run start:clear
 ```
 
-El computador y la tablet deben estar en la misma red y el firewall debe permitir Node.js y PHP en la red privada. Si la red bloquea la conexión LAN, se puede intentar `npm run start:tunnel`.
+Los cambios del modo demo viven únicamente durante esa ejecución y nunca llegan a MySQL.
 
 ## Validaciones
 
@@ -54,7 +71,10 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 ## Alcance actual
 
 - Login por email, contraseña y código del dispositivo.
-- Modo demo automático y modo conectado mediante `EXPO_PUBLIC_API_URL`.
+- Modo conectado seguro mediante `EXPO_PUBLIC_API_URL` y demo únicamente por activación explícita.
+- Confirmación visual después de guardar una ubicación o movimiento en el servidor.
+- Errores operacionales visibles dentro de los modales.
+- Actualización automática del plano cada 30 segundos y al volver a la aplicación.
 - Selector de cámaras, ocupación, bloqueo y modo de solo lectura.
 - Apertura y cierre de sesiones de estiba.
 - Ubicación inicial con datos del folio y condición SAG.

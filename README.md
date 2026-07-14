@@ -47,6 +47,7 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Alcance del MVP](docs/alcance-mvp.md)
 - [Reglas de negocio](docs/reglas-negocio.md)
 - [Arquitectura propuesta](docs/arquitectura.md)
+- [Prueba de escritura desde Expo Go hacia MySQL](docs/prueba-escritura-mysql.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 

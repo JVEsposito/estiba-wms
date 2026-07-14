@@ -16,11 +16,13 @@ import { colors } from '../theme/colors';
 
 type LoginScreenProps = {
   baseUrl: string | null;
+  configurationError: string | null;
   mode: ApiMode;
   onLogin: (payload: LoginPayload) => Promise<void>;
 };
 
-export function LoginScreen({ baseUrl, mode, onLogin }: LoginScreenProps) {
+export function LoginScreen({ baseUrl, configurationError, mode, onLogin }: LoginScreenProps) {
+  const unconfigured = mode === 'unconfigured';
   const [email, setEmail] = useState(mode === 'demo' ? 'operador@estiba.local' : '');
   const [password, setPassword] = useState(mode === 'demo' ? 'password' : '');
   const [deviceCode, setDeviceCode] = useState(mode === 'demo' ? 'TABLET-01' : '');
@@ -64,10 +66,20 @@ export function LoginScreen({ baseUrl, mode, onLogin }: LoginScreenProps) {
         </View>
 
         <View style={styles.formPanel}>
-          <View style={[styles.modeChip, mode === 'demo' && styles.demoChip]}>
-            <View style={[styles.modeDot, mode === 'demo' && styles.demoDot]} />
+          <View style={[
+            styles.modeChip,
+            mode === 'demo' && styles.demoChip,
+            unconfigured && styles.unconfiguredChip,
+          ]}>
+            <View style={[
+              styles.modeDot,
+              mode === 'demo' && styles.demoDot,
+              unconfigured && styles.unconfiguredDot,
+            ]} />
             <Text style={styles.modeText}>
-              {mode === 'demo' ? 'DEMOSTRACIÓN LOCAL' : 'API · ' + baseUrl}
+              {mode === 'demo'
+                ? 'DEMOSTRACIÓN LOCAL'
+                : unconfigured ? 'API NO CONFIGURADA' : 'API · ' + baseUrl}
             </Text>
           </View>
           <Text style={styles.formTitle}>Iniciar turno</Text>
@@ -99,12 +111,22 @@ export function LoginScreen({ baseUrl, mode, onLogin }: LoginScreenProps) {
             value={deviceCode}
           />
 
+          {configurationError ? (
+            <View style={styles.configurationError}>
+              <Text style={styles.configurationErrorText}>{configurationError}</Text>
+            </View>
+          ) : null}
+
           <Text style={styles.error}>{error}</Text>
           <Pressable
             accessibilityRole="button"
-            disabled={busy}
+            disabled={busy || unconfigured}
             onPress={submit}
-            style={({ pressed }) => [styles.submit, busy && styles.disabled, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.submit,
+              (busy || unconfigured) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
           >
             {busy ? <ActivityIndicator color="#032022" /> : (
               <>
@@ -117,7 +139,9 @@ export function LoginScreen({ baseUrl, mode, onLogin }: LoginScreenProps) {
           <Text style={styles.help}>
             {mode === 'demo'
               ? 'Este modo no necesita Laravel. Los cambios viven solo durante esta ejecución.'
-              : 'La API debe estar disponible desde la misma red de la tablet.'}
+              : unconfigured
+                ? 'Configura mobile/.env y reinicia Expo con npm run start:clear.'
+                : 'Modo conectado: las operaciones confirmadas se guardan mediante Laravel en MySQL.'}
           </Text>
         </View>
       </ScrollView>
@@ -208,8 +232,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   demoChip: { borderColor: colors.amber },
+  unconfiguredChip: { borderColor: colors.red },
   modeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.green },
   demoDot: { backgroundColor: colors.amber },
+  unconfiguredDot: { backgroundColor: colors.red },
   modeText: { maxWidth: 360, color: colors.muted, fontSize: 8, fontWeight: '900' },
   formTitle: { color: colors.text, fontSize: 30, fontWeight: '900' },
   formIntro: { marginTop: 7, marginBottom: 17, color: colors.muted, fontSize: 12 },
@@ -226,6 +252,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   error: { minHeight: 17, marginTop: 8, color: colors.red, fontSize: 9 },
+  configurationError: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.red,
+    backgroundColor: '#421B21',
+  },
+  configurationErrorText: { color: '#FFB7B7', fontSize: 9, lineHeight: 13 },
   submit: {
     height: 50,
     paddingHorizontal: 16,
