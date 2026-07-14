@@ -7,3 +7,4 @@ Route::get('/', function () {
 });
 
 Route::view('/oficina/camaras', 'office.cameras');
+Route::view('/oficina/cargas', 'office.loads');
