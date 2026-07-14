@@ -3,8 +3,8 @@
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\CamaraController;
-use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\CondicionSagController;
+use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use Illuminate\Http\Request;
