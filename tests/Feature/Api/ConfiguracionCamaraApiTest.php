@@ -31,7 +31,8 @@ class ConfiguracionCamaraApiTest extends TestCase
         $respuesta
             ->assertOk()
             ->assertJsonPath('usuario.rol', 'supervisor')
-            ->assertJsonPath('usuario.puede_configurar_camaras', true);
+            ->assertJsonPath('usuario.puede_configurar_camaras', true)
+            ->assertJsonPath('usuario.puede_administrar_camaras', false);
 
         $this->assertNotEmpty($respuesta->json('token'));
         $this->assertDatabaseHas('personal_access_tokens', [
@@ -54,6 +55,23 @@ class ConfiguracionCamaraApiTest extends TestCase
             'password' => 'password',
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('email');
+    }
+
+    public function test_administrador_recibe_permiso_para_editar_camaras(): void
+    {
+        $usuario = User::factory()->create([
+            'email' => 'administrador@estiba.local',
+            'password' => 'password',
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->postJson('/api/acceso-oficina', [
+            'email' => $usuario->email,
+            'password' => 'password',
+        ])->assertOk()
+            ->assertJsonPath('usuario.puede_configurar_camaras', true)
+            ->assertJsonPath('usuario.puede_administrar_camaras', true);
     }
 
     public function test_crea_codigo_correlativo_y_posiciones_en_una_transaccion(): void

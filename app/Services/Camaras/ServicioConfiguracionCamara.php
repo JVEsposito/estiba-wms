@@ -7,6 +7,8 @@ use App\Enums\EstadoPosicion;
 use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\User;
+use DomainException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -39,6 +41,9 @@ class ServicioConfiguracionCamara
                 'nombre' => trim($datos['nombre']),
                 'tipo' => $datos['tipo'],
                 'estado' => EstadoCamara::Activa->value,
+                'cantidad_bandas' => (int) $datos['bandas'],
+                'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],
+                'cantidad_niveles' => (int) $datos['niveles'],
                 'creado_por_user_id' => $usuario->id,
                 'actualizado_por_user_id' => $usuario->id,
             ]);
@@ -88,6 +93,70 @@ class ServicioConfiguracionCamara
         }, attempts: 3);
     }
 
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function actualizar(Camara $camara, array $datos, User $usuario): Camara
+    {
+        return DB::transaction(function () use ($camara, $datos, $usuario): Camara {
+            $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
+            $this->asegurarSinSesionActiva($camaraBloqueada);
+
+            $posiciones = Posicion::query()
+                ->where('camara_id', $camaraBloqueada->id)
+                ->with('ubicacionActual.folio:id,numero_folio')
+                ->lockForUpdate()
+                ->get();
+
+            $estado = EstadoCamara::from(
+                $datos['estado'] ?? $camaraBloqueada->estado->value,
+            );
+
+            if ($estado === EstadoCamara::Inactiva) {
+                $this->asegurarSinFolios($posiciones);
+            }
+
+            $this->sincronizarPosiciones($camaraBloqueada, $posiciones, $datos);
+
+            $camaraBloqueada->update([
+                'nombre' => trim($datos['nombre']),
+                'tipo' => $datos['tipo'],
+                'estado' => $estado,
+                'cantidad_bandas' => (int) $datos['bandas'],
+                'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],
+                'cantidad_niveles' => (int) $datos['niveles'],
+                'version_plano' => $camaraBloqueada->version_plano + 1,
+                'actualizado_por_user_id' => $usuario->id,
+            ]);
+
+            return $camaraBloqueada->refresh();
+        }, attempts: 3);
+    }
+
+    public function desactivar(Camara $camara, User $usuario): Camara
+    {
+        return DB::transaction(function () use ($camara, $usuario): Camara {
+            $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
+            $this->asegurarSinSesionActiva($camaraBloqueada);
+
+            $posiciones = Posicion::query()
+                ->where('camara_id', $camaraBloqueada->id)
+                ->with('ubicacionActual.folio:id,numero_folio')
+                ->lockForUpdate()
+                ->get();
+
+            $this->asegurarSinFolios($posiciones);
+
+            $camaraBloqueada->update([
+                'estado' => EstadoCamara::Inactiva,
+                'version_plano' => $camaraBloqueada->version_plano + 1,
+                'actualizado_por_user_id' => $usuario->id,
+            ]);
+
+            return $camaraBloqueada->refresh();
+        }, attempts: 3);
+    }
+
     public function etiqueta(int $banda, int $posicion, int $nivel): string
     {
         return sprintf('B%02d-P%02d-N%d', $banda, $posicion, $nivel);
@@ -96,5 +165,107 @@ class ServicioConfiguracionCamara
     private function clave(int $banda, int $posicion, int $nivel): string
     {
         return "{$banda}:{$posicion}:{$nivel}";
+    }
+
+    private function asegurarSinSesionActiva(Camara $camara): void
+    {
+        if ($camara->bloqueo()->exists()) {
+            throw new DomainException(
+                'La cámara está siendo modificada desde una tablet. Cierre esa sesión antes de administrarla.',
+            );
+        }
+    }
+
+    /**
+     * @param  Collection<int, Posicion>  $posiciones
+     */
+    private function asegurarSinFolios(Collection $posiciones): void
+    {
+        $ocupada = $posiciones->first(fn (Posicion $posicion): bool => $posicion->ubicacionActual !== null);
+
+        if ($ocupada) {
+            throw new DomainException(sprintf(
+                'La cámara contiene el folio %s en %s. Muévalo antes de desactivar la cámara.',
+                $ocupada->ubicacionActual->folio->numero_folio,
+                $ocupada->etiqueta,
+            ));
+        }
+    }
+
+    /**
+     * @param  Collection<int, Posicion>  $posiciones
+     * @param  array<string, mixed>  $datos
+     */
+    private function sincronizarPosiciones(
+        Camara $camara,
+        Collection $posiciones,
+        array $datos,
+    ): void {
+        $bandas = (int) $datos['bandas'];
+        $cantidadPosiciones = (int) $datos['posiciones_por_banda'];
+        $niveles = (int) $datos['niveles'];
+        $fueraServicio = collect($datos['posiciones_fuera_servicio'] ?? [])
+            ->mapWithKeys(fn (array $coordenada): array => [
+                $this->clave(
+                    (int) $coordenada['banda'],
+                    (int) $coordenada['posicion'],
+                    (int) $coordenada['nivel'],
+                ) => true,
+            ]);
+        $existentes = $posiciones->keyBy(
+            fn (Posicion $posicion): string => $this->clave(
+                $posicion->banda,
+                $posicion->posicion,
+                $posicion->nivel,
+            ),
+        );
+
+        foreach ($posiciones as $posicion) {
+            $dentroDelPlano = $posicion->banda <= $bandas
+                && $posicion->posicion <= $cantidadPosiciones
+                && $posicion->nivel <= $niveles;
+            $fuera = $dentroDelPlano === false || $fueraServicio->has($this->clave(
+                $posicion->banda,
+                $posicion->posicion,
+                $posicion->nivel,
+            ));
+
+            if ($fuera && $posicion->ubicacionActual) {
+                throw new DomainException(sprintf(
+                    'No se puede retirar %s: contiene el folio %s.',
+                    $posicion->etiqueta,
+                    $posicion->ubicacionActual->folio->numero_folio,
+                ));
+            }
+
+            $posicion->update([
+                'estado' => $fuera
+                    ? EstadoPosicion::FueraDeServicio
+                    : EstadoPosicion::Activa,
+            ]);
+        }
+
+        for ($banda = 1; $banda <= $bandas; $banda++) {
+            for ($posicion = 1; $posicion <= $cantidadPosiciones; $posicion++) {
+                for ($nivel = 1; $nivel <= $niveles; $nivel++) {
+                    $clave = $this->clave($banda, $posicion, $nivel);
+
+                    if ($existentes->has($clave)) {
+                        continue;
+                    }
+
+                    Posicion::create([
+                        'camara_id' => $camara->id,
+                        'banda' => $banda,
+                        'posicion' => $posicion,
+                        'nivel' => $nivel,
+                        'etiqueta' => $this->etiqueta($banda, $posicion, $nivel),
+                        'estado' => $fueraServicio->has($clave)
+                            ? EstadoPosicion::FueraDeServicio
+                            : EstadoPosicion::Activa,
+                    ]);
+                }
+            }
+        }
     }
 }

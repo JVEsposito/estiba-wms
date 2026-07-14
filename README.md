@@ -83,6 +83,11 @@ Para probar la configuración desde oficina:
 - Usuario: `supervisor@estiba.local`
 - Contraseña: `password`
 
+Para editar, redimensionar, desactivar o reactivar cámaras:
+
+- Usuario: `administrador@estiba.local`
+- Contraseña: `password`
+
 ## Orden de implementación propuesto
 
 1. [x] Auditar el esquema exploratorio.

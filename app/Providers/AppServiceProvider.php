@@ -35,6 +35,12 @@ class AppServiceProvider extends ServiceProvider
                 ], true),
         );
 
+        Gate::define(
+            'administrar-camaras',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
+        );
+
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
                 if (! $esValido || ! $token->tokenable instanceof User) {

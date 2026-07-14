@@ -135,6 +135,7 @@ class CamaraApiTest extends TestCase
      */
     private function crearPosiciones(Camara $camara, int $cantidad = 1): array
     {
+        $camara->update(['posiciones_por_banda' => $cantidad]);
         $posiciones = [];
 
         for ($indice = 1; $indice <= $cantidad; $indice++) {

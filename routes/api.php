@@ -27,6 +27,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/configuracion/camaras', [ConfiguracionCamaraController::class, 'index']);
     Route::get('/configuracion/camaras/siguiente-codigo', [ConfiguracionCamaraController::class, 'siguienteCodigo']);
     Route::post('/configuracion/camaras', [ConfiguracionCamaraController::class, 'store']);
+    Route::get('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'show']);
+    Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update']);
+    Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy']);
     Route::post('/camaras/{camara}/sesiones', [SesionEstibaController::class, 'store']);
     Route::post('/sesiones/{sesion}/cerrar', [SesionEstibaController::class, 'cerrar']);
 

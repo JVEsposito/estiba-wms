@@ -16,6 +16,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'nombre',
     'tipo',
     'estado',
+    'version_plano',
+    'cantidad_bandas',
+    'posiciones_por_banda',
+    'cantidad_niveles',
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
@@ -63,6 +67,9 @@ class Camara extends Model
         return [
             'estado' => EstadoCamara::class,
             'version_plano' => 'integer',
+            'cantidad_bandas' => 'integer',
+            'posiciones_por_banda' => 'integer',
+            'cantidad_niveles' => 'integer',
         ];
     }
 }

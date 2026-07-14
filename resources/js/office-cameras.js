@@ -15,6 +15,14 @@ const elements = {
     createForm: byId('createCameraForm'),
     createError: byId('createCameraError'),
     reset: byId('resetCameraButton'),
+    cancelEdit: byId('cancelEditCameraButton'),
+    deactivate: byId('deactivateCameraButton'),
+    save: byId('saveCameraButton'),
+    saveText: byId('saveCameraButtonText'),
+    eyebrow: byId('configurationEyebrow'),
+    title: byId('configurationTitle'),
+    description: byId('configurationDescription'),
+    codeLabel: byId('cameraCodeLabel'),
     preview: byId('cameraPreview'),
     levelTabs: byId('previewLevelTabs'),
     capacity: byId('previewCapacity'),
@@ -36,6 +44,9 @@ const state = {
     cameras: [],
     selectedLevel: 1,
     disabled: new Set(),
+    mode: 'create',
+    editingCamera: null,
+    originalDimensions: null,
 };
 
 class ApiError extends Error {
@@ -185,14 +196,78 @@ function renderCameras() {
         return;
     }
 
+    const canAdminister = state.identity?.puede_administrar_camaras === true;
     elements.cameraList.innerHTML = state.cameras.map((camera) => `
-        <article class="camera-item">
-            <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot"></span></div>
+        <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
+            <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
             <h3>${escapeHtml(camera.nombre)}</h3>
             <p>${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
-            <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.fuera_servicio} fuera de servicio</span></div>
+            <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
+            ${canAdminister ? `<div class="camera-item__actions"><button data-edit-camera="${camera.id}" type="button">Editar cámara</button></div>` : ''}
         </article>
     `).join('');
+}
+
+function resetForm() {
+    state.mode = 'create';
+    state.editingCamera = null;
+    state.originalDimensions = null;
+    state.disabled.clear();
+    state.selectedLevel = 1;
+    elements.createForm.reset();
+    elements.createForm.elements.bandas.value = 3;
+    elements.createForm.elements.posiciones_por_banda.value = 4;
+    elements.createForm.elements.niveles.value = 2;
+    elements.eyebrow.textContent = 'NUEVO PLANO';
+    elements.title.textContent = 'Crear cámara';
+    elements.description.textContent = 'Define la estructura y revisa cada banda antes de confirmar.';
+    elements.codeLabel.textContent = 'PRÓXIMO CÓDIGO';
+    elements.saveText.textContent = 'Crear cámara y posiciones';
+    elements.cancelEdit.classList.add('is-hidden');
+    elements.deactivate.classList.add('is-hidden');
+    elements.createError.textContent = '';
+    renderPreview();
+}
+
+function editForm(camera) {
+    state.mode = 'edit';
+    state.editingCamera = camera;
+    state.originalDimensions = { ...camera.dimensiones };
+    state.selectedLevel = 1;
+    state.disabled = new Set((camera.posiciones_fuera_servicio || []).map((coordinate) => keyOf(
+        coordinate.banda,
+        coordinate.posicion,
+        coordinate.nivel,
+    )));
+    elements.createForm.elements.nombre.value = camera.nombre;
+    elements.createForm.elements.tipo.value = camera.tipo;
+    elements.createForm.elements.bandas.value = camera.dimensiones.bandas;
+    elements.createForm.elements.posiciones_por_banda.value = camera.dimensiones.posiciones_por_banda;
+    elements.createForm.elements.niveles.value = camera.dimensiones.niveles;
+    elements.eyebrow.textContent = 'ADMINISTRAR PLANO';
+    elements.title.textContent = `Editar ${camera.codigo}`;
+    elements.description.textContent = 'Los cambios de tamaño conservan el historial de todas las posiciones retiradas.';
+    elements.codeLabel.textContent = 'CÓDIGO INMUTABLE';
+    elements.nextCode.textContent = camera.codigo;
+    elements.saveText.textContent = 'Guardar cambios';
+    elements.cancelEdit.classList.remove('is-hidden');
+    elements.deactivate.classList.remove('is-hidden');
+    elements.deactivate.textContent = camera.estado === 'activa' ? 'Desactivar cámara' : 'Reactivar cámara';
+    elements.createError.textContent = '';
+    renderPreview();
+    document.querySelector('.configuration')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function loadCameraForEdit(id) {
+    setBusy(true, 'Cargando plano de la cámara…');
+    try {
+        const response = await api(`/api/configuracion/camaras/${id}`);
+        editForm(response.data);
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
 }
 
 async function loadConfiguration() {
@@ -243,9 +318,24 @@ elements.preview.addEventListener('click', (event) => {
 });
 
 elements.reset.addEventListener('click', () => {
+    if (state.mode === 'edit' && state.editingCamera) {
+        editForm(state.editingCamera);
+        return;
+    }
     state.disabled.clear();
     state.selectedLevel = 1;
     renderPreview();
+});
+
+elements.cancelEdit.addEventListener('click', async () => {
+    resetForm();
+    await loadConfiguration();
+});
+
+elements.cameraList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-edit-camera]');
+    if (!button) return;
+    void loadCameraForEdit(button.dataset.editCamera);
 });
 
 elements.createForm.addEventListener('submit', async (event) => {
@@ -264,17 +354,68 @@ elements.createForm.addEventListener('submit', async (event) => {
         }),
     };
 
-    setBusy(true, 'Creando cámara y posiciones…');
+    if (state.mode === 'edit' && state.originalDimensions) {
+        const shrinks = payload.bandas < state.originalDimensions.bandas
+            || payload.posiciones_por_banda < state.originalDimensions.posiciones_por_banda
+            || payload.niveles < state.originalDimensions.niveles;
+        if (shrinks && !window.confirm('El nuevo plano es menor. Las posiciones retiradas conservarán su historial y una posición ocupada impedirá el cambio. ¿Deseas continuar?')) {
+            return;
+        }
+    }
+
+    setBusy(true, state.mode === 'edit' ? 'Guardando cambios…' : 'Creando cámara y posiciones…');
     try {
-        const response = await api('/api/configuracion/camaras', { method: 'POST', body: JSON.stringify(payload) });
-        toast(`${response.data.codigo} fue creada correctamente.`);
-        elements.createForm.reset();
-        elements.createForm.elements.bandas.value = 3;
-        elements.createForm.elements.posiciones_por_banda.value = 4;
-        elements.createForm.elements.niveles.value = 2;
-        state.disabled.clear();
-        state.selectedLevel = 1;
-        renderPreview();
+        const editing = state.mode === 'edit';
+        const path = editing
+            ? `/api/configuracion/camaras/${state.editingCamera.id}`
+            : '/api/configuracion/camaras';
+        const response = await api(path, {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(payload),
+        });
+        toast(`${response.data.codigo} fue ${editing ? 'actualizada' : 'creada'} correctamente.`);
+        resetForm();
+        await loadConfiguration();
+    } catch (error) {
+        elements.createError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.deactivate.addEventListener('click', async () => {
+    if (!state.editingCamera) return;
+    const activate = state.editingCamera.estado === 'inactiva';
+    const message = activate
+        ? `¿Reactivar ${state.editingCamera.codigo} para la operación en tablets?`
+        : `¿Desactivar ${state.editingCamera.codigo}? Dejará de aparecer en tablets y no puede contener folios.`;
+    if (!window.confirm(message)) return;
+
+    const form = new FormData(elements.createForm);
+    setBusy(true, activate ? 'Reactivando cámara…' : 'Desactivando cámara…');
+    try {
+        let response;
+        if (activate) {
+            response = await api(`/api/configuracion/camaras/${state.editingCamera.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    nombre: String(form.get('nombre') || '').trim(),
+                    tipo: form.get('tipo'),
+                    bandas: Number(form.get('bandas')),
+                    posiciones_por_banda: Number(form.get('posiciones_por_banda')),
+                    niveles: Number(form.get('niveles')),
+                    estado: 'activa',
+                    posiciones_fuera_servicio: [...state.disabled].map((key) => {
+                        const [banda, posicion, nivel] = key.split(':').map(Number);
+                        return { banda, posicion, nivel };
+                    }),
+                }),
+            });
+        } else {
+            response = await api(`/api/configuracion/camaras/${state.editingCamera.id}`, { method: 'DELETE' });
+        }
+        toast(`${response.data.codigo} fue ${activate ? 'reactivada' : 'desactivada'} correctamente.`);
+        resetForm();
         await loadConfiguration();
     } catch (error) {
         elements.createError.textContent = error.message;

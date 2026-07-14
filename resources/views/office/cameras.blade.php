@@ -74,11 +74,11 @@
                 <section class="configuration panel">
                     <div class="configuration__heading">
                         <div>
-                            <p class="eyebrow">NUEVO PLANO</p>
-                            <h1>Crear cámara</h1>
-                            <p>Define la estructura y revisa cada banda antes de confirmar.</p>
+                            <p class="eyebrow" id="configurationEyebrow">NUEVO PLANO</p>
+                            <h1 id="configurationTitle">Crear cámara</h1>
+                            <p id="configurationDescription">Define la estructura y revisa cada banda antes de confirmar.</p>
                         </div>
-                        <div class="next-code"><span>PRÓXIMO CÓDIGO</span><strong id="nextCameraCode">CAM-—</strong></div>
+                        <div class="next-code"><span id="cameraCodeLabel">PRÓXIMO CÓDIGO</span><strong id="nextCameraCode">CAM-—</strong></div>
                     </div>
 
                     <form id="createCameraForm" novalidate>
@@ -106,8 +106,10 @@
 
                         <p class="form-error" id="createCameraError" role="alert"></p>
                         <div class="form-actions">
+                            <button class="danger-button is-hidden" id="deactivateCameraButton" type="button">Desactivar cámara</button>
+                            <button class="secondary-button is-hidden" id="cancelEditCameraButton" type="button">Cancelar edición</button>
                             <button class="secondary-button" id="resetCameraButton" type="button">Restablecer plano</button>
-                            <button class="primary-button" type="submit">Crear cámara y posiciones <span>→</span></button>
+                            <button class="primary-button" id="saveCameraButton" type="submit"><span id="saveCameraButtonText">Crear cámara y posiciones</span> <span>→</span></button>
                         </div>
                     </form>
                 </section>

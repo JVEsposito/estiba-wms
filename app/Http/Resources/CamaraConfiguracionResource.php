@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoPosicion;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,7 +13,9 @@ class CamaraConfiguracionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $total = (int) ($this->posiciones_count ?? 0);
+        $total = $this->cantidad_bandas
+            * $this->posiciones_por_banda
+            * $this->cantidad_niveles;
         $activas = (int) ($this->posiciones_activas_count ?? 0);
 
         return [
@@ -23,19 +26,35 @@ class CamaraConfiguracionResource extends JsonResource
             'estado' => $this->estado->value,
             'version_plano' => $this->version_plano,
             'dimensiones' => [
-                'bandas' => (int) ($this->posiciones_max_banda ?? 0),
-                'posiciones_por_banda' => (int) ($this->posiciones_max_posicion ?? 0),
-                'niveles' => (int) ($this->posiciones_max_nivel ?? 0),
+                'bandas' => $this->cantidad_bandas,
+                'posiciones_por_banda' => $this->posiciones_por_banda,
+                'niveles' => $this->cantidad_niveles,
             ],
             'capacidad' => [
                 'total' => $total,
                 'activas' => $activas,
                 'fuera_servicio' => max(0, $total - $activas),
+                'ocupadas' => (int) ($this->posiciones_ocupadas_count ?? 0),
             ],
+            'posiciones_fuera_servicio' => $this->whenLoaded(
+                'posiciones',
+                fn () => $this->posiciones
+                    ->filter(fn ($posicion): bool => $posicion->estado !== EstadoPosicion::Activa)
+                    ->map(fn ($posicion): array => [
+                        'banda' => $posicion->banda,
+                        'posicion' => $posicion->posicion,
+                        'nivel' => $posicion->nivel,
+                    ])
+                    ->values(),
+            ),
             'auditoria' => [
                 'creado_por' => $this->whenLoaded('creadoPor', fn () => [
                     'id' => $this->creadoPor?->id,
                     'nombre' => $this->creadoPor?->name,
+                ]),
+                'actualizado_por' => $this->whenLoaded('actualizadoPor', fn () => [
+                    'id' => $this->actualizadoPor?->id,
+                    'nombre' => $this->actualizadoPor?->name,
                 ]),
                 'created_at' => $this->created_at?->toAtomString(),
                 'updated_at' => $this->updated_at?->toAtomString(),

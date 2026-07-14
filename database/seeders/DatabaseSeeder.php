@@ -42,6 +42,16 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        User::query()->firstOrCreate(
+            ['email' => 'administrador@estiba.local'],
+            [
+                'name' => 'Administrador de prueba',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::Administrador,
+                'activo' => true,
+            ],
+        );
+
         Dispositivo::query()->firstOrCreate(
             ['codigo' => 'TABLET-01'],
             [
@@ -74,7 +84,13 @@ class DatabaseSeeder extends Seeder
     ): void {
         $camara = Camara::query()->firstOrCreate(
             ['codigo' => $codigo],
-            ['nombre' => $nombre, 'tipo' => $tipo],
+            [
+                'nombre' => $nombre,
+                'tipo' => $tipo,
+                'cantidad_bandas' => 3,
+                'posiciones_por_banda' => 4,
+                'cantidad_niveles' => 2,
+            ],
         );
 
         foreach (range(1, 3) as $banda) {

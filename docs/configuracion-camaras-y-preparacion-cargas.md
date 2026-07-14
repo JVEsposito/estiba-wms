@@ -45,16 +45,24 @@ dispositivo. Una advertencia no confirmada no produce cambios.
 ## Configuración desde oficina
 
 La configuración se realiza normalmente desde PC y no exige que el equipo esté
-registrado como tablet. Solo los roles `administrador` y `supervisor` pueden:
+registrado como tablet. Los roles `administrador` y `supervisor` pueden:
 
 - crear cámaras;
 - definir bandas, posiciones y niveles;
 - revisar el plano antes de guardarlo;
 - marcar posiciones fuera de servicio;
-- inactivar cámaras sin eliminar su historial.
 
-La creación de una cámara y sus posiciones se realiza en una única transacción.
-No se eliminan físicamente cámaras o posiciones con historia operacional.
+Solo el rol `administrador` puede editar una cámara existente, cambiar su
+nombre o tipo, ampliar o reducir el plano, desactivarla y reactivarla. El código
+`CAM-xx` es inmutable.
+
+Una reducción nunca elimina posiciones físicamente: las coordenadas que quedan
+fuera del plano se archivan como fuera de servicio. Si una de ellas contiene un
+folio, la reducción se rechaza hasta que el bulto sea movido. Una cámara tampoco
+puede desactivarse mientras contenga folios o tenga una sesión de estiba abierta.
+
+La creación, edición y desactivación se realizan en transacciones. No se
+eliminan físicamente cámaras o posiciones con historia operacional.
 
 ## Preparación de cargas
 
@@ -101,4 +109,3 @@ usuario, dispositivo y fecha. Los andenes tendrán códigos como `AND-01`.
 
 1. Configuración de cámaras, nomenclatura, plano vertical y advertencias.
 2. Configuración de andenes, órdenes de carga, separación y despacho.
-
