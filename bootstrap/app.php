@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\ConflictoOperacion;
+use App\Exceptions\AdvertenciasMovimientoPendientes;
 use App\Exceptions\OperacionNoAutorizada;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +22,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        $exceptions->render(function (
+            AdvertenciasMovimientoPendientes $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'confirmacion_requerida',
+                'advertencias' => $exception->advertencias,
+            ], 409);
+        });
 
         $exceptions->render(function (
             ConflictoOperacion $exception,

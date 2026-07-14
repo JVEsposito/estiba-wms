@@ -33,6 +33,7 @@ class MovimientoResource extends JsonResource
                 'id' => $this->user_id,
                 'nombre' => $this->whenLoaded('usuario', fn () => $this->usuario->name),
             ],
+            'advertencias_confirmadas' => $this->advertencias_confirmadas ?? [],
             'generado_dispositivo_at' => $this->generado_dispositivo_at?->toAtomString(),
             'recibido_servidor_at' => $this->recibido_servidor_at?->toAtomString(),
             'created_at' => $this->created_at?->toAtomString(),
@@ -62,8 +63,8 @@ class MovimientoResource extends JsonResource
             ],
             'posicion' => [
                 'id' => $posicionId,
-                'fila' => $posicion?->fila,
-                'profundidad' => $posicion?->profundidad,
+                'banda' => $posicion?->banda,
+                'posicion' => $posicion?->posicion,
                 'nivel' => $posicion?->nivel,
                 'etiqueta' => $posicion?->etiqueta,
             ],

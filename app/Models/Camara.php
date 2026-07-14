@@ -7,10 +7,18 @@ use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['codigo', 'nombre', 'tipo', 'estado'])]
+#[Fillable([
+    'codigo',
+    'nombre',
+    'tipo',
+    'estado',
+    'creado_por_user_id',
+    'actualizado_por_user_id',
+])]
 class Camara extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
@@ -38,6 +46,16 @@ class Camara extends Model
     public function movimientosDestino(): HasMany
     {
         return $this->hasMany(Movimiento::class, 'camara_destino_id');
+    }
+
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_user_id');
+    }
+
+    public function actualizadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actualizado_por_user_id');
     }
 
     protected function casts(): array

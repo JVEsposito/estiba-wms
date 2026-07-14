@@ -42,10 +42,15 @@ class ServicioMovimientoEstiba
         'datos_externos',
     ];
 
+    public function __construct(
+        private readonly DetectorAdvertenciasMovimiento $detectorAdvertencias,
+    ) {}
+
     /**
      * Ubica un folio por primera vez y lo crea si todavía no existe.
      *
      * @param  array<string, mixed>  $datosFolio
+     * @param  array<int, string>  $advertenciasConfirmadas
      */
     public function ubicar(
         string $operacionId,
@@ -58,9 +63,11 @@ class ServicioMovimientoEstiba
         int $versionDestinoConocida,
         DateTimeInterface $generadoDispositivoAt,
         array $datosFolio = [],
+        array $advertenciasConfirmadas = [],
     ): Movimiento {
         $numeroFolio = trim($numeroFolio);
         $this->validarNumeroFolio($numeroFolio);
+        sort($advertenciasConfirmadas, SORT_STRING);
 
         $payload = [
             'numero_folio' => $numeroFolio,
@@ -70,6 +77,7 @@ class ServicioMovimientoEstiba
             'version_destino_conocida' => $versionDestinoConocida,
             'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
             'datos_folio' => $this->filtrarDatosFolio($datosFolio),
+            'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
 
         return $this->ejecutarOperacion(
@@ -91,12 +99,15 @@ class ServicioMovimientoEstiba
                 $generadoDispositivoAt,
                 $recibidoServidorAt,
                 $datosFolio,
+                $advertenciasConfirmadas,
             ),
         );
     }
 
     /**
      * Reubica un folio o lo traslada entre cámaras según el destino indicado.
+     *
+     * @param  array<int, string>  $advertenciasConfirmadas
      */
     public function mover(
         string $operacionId,
@@ -109,10 +120,12 @@ class ServicioMovimientoEstiba
         int $versionOrigenConocida,
         int $versionDestinoConocida,
         DateTimeInterface $generadoDispositivoAt,
+        array $advertenciasConfirmadas = [],
     ): Movimiento {
         $tipo = $sesionOrigen->camara_id === $posicionDestino->camara_id
             ? TipoMovimiento::Reubicacion
             : TipoMovimiento::TrasladoEntreCamaras;
+        sort($advertenciasConfirmadas, SORT_STRING);
 
         $payload = [
             'folio_id' => $folio->id,
@@ -122,6 +135,7 @@ class ServicioMovimientoEstiba
             'version_origen_conocida' => $versionOrigenConocida,
             'version_destino_conocida' => $versionDestinoConocida,
             'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
+            'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
 
         return $this->ejecutarOperacion(
@@ -144,6 +158,7 @@ class ServicioMovimientoEstiba
                 $versionDestinoConocida,
                 $generadoDispositivoAt,
                 $recibidoServidorAt,
+                $advertenciasConfirmadas,
             ),
         );
     }
@@ -360,6 +375,7 @@ class ServicioMovimientoEstiba
 
     /**
      * @param  array<string, mixed>  $datosFolio
+     * @param  array<int, string>  $advertenciasConfirmadas
      */
     private function procesarUbicacionInicial(
         OperacionSincronizacion $operacion,
@@ -373,6 +389,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $generadoDispositivoAt,
         DateTimeInterface $recibidoServidorAt,
         array $datosFolio,
+        array $advertenciasConfirmadas,
     ): Movimiento {
         $camara = Camara::query()
             ->lockForUpdate()
@@ -412,6 +429,11 @@ class ServicioMovimientoEstiba
             throw new ConflictoMovimiento('La posición de destino ya se encuentra ocupada.');
         }
 
+        $advertencias = $this->detectorAdvertencias->paraUbicacion(
+            $posicion,
+            $advertenciasConfirmadas,
+        );
+
         $versionResultante = $camara->version_plano + 1;
         $movimiento = Movimiento::create([
             'operacion_id' => $operacion->id,
@@ -422,6 +444,7 @@ class ServicioMovimientoEstiba
             'sesion_destino_id' => $sesion->id,
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo->id,
+            'advertencias_confirmadas' => $advertencias !== [] ? $advertencias : null,
             'version_destino_anterior' => $camara->version_plano,
             'version_destino_resultante' => $versionResultante,
             'generado_dispositivo_at' => $generadoDispositivoAt,
@@ -454,6 +477,7 @@ class ServicioMovimientoEstiba
         int $versionDestinoConocida,
         DateTimeInterface $generadoDispositivoAt,
         DateTimeInterface $recibidoServidorAt,
+        array $advertenciasConfirmadas,
     ): Movimiento {
         $ubicacionLeida = UbicacionActual::query()
             ->where('folio_id', $folio->id)
@@ -521,6 +545,12 @@ class ServicioMovimientoEstiba
         $this->validarVersion($camaraOrigen, $versionOrigenConocida, 'origen');
         $this->validarVersion($camaraDestino, $versionDestinoConocida, 'destino');
 
+        $advertencias = $this->detectorAdvertencias->paraMovimiento(
+            $posicionOrigen,
+            $destino,
+            $advertenciasConfirmadas,
+        );
+
         $versionOrigenResultante = $camaraOrigen->version_plano + 1;
         $versionDestinoResultante = $camaraOrigen->id === $camaraDestino->id
             ? $versionOrigenResultante
@@ -538,6 +568,7 @@ class ServicioMovimientoEstiba
             'sesion_destino_id' => $sesionDestinoBloqueada->id,
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo->id,
+            'advertencias_confirmadas' => $advertencias !== [] ? $advertencias : null,
             'version_origen_anterior' => $camaraOrigen->version_plano,
             'version_origen_resultante' => $versionOrigenResultante,
             'version_destino_anterior' => $camaraDestino->version_plano,

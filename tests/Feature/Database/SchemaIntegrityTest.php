@@ -30,19 +30,19 @@ class SchemaIntegrityTest extends TestCase
     {
         $camara = $this->crearCamara('CAM-01');
 
-        $this->crearPosicion($camara, 'A', 1, 1);
+        $this->crearPosicion($camara, 1, 1, 1);
 
         $this->expectException(QueryException::class);
 
-        $this->crearPosicion($camara, 'A', 1, 1);
+        $this->crearPosicion($camara, 1, 1, 1);
     }
 
     public function test_un_folio_no_puede_ocupar_dos_posiciones(): void
     {
         [$user, $dispositivo, $camara, $sesion] = $this->crearContexto();
         $folio = $this->crearFolio('FOLIO-001');
-        $posicionUno = $this->crearPosicion($camara, 'A', 1, 1);
-        $posicionDos = $this->crearPosicion($camara, 'A', 2, 1);
+        $posicionUno = $this->crearPosicion($camara, 1, 1, 1);
+        $posicionDos = $this->crearPosicion($camara, 1, 2, 1);
 
         $movimientoUno = $this->crearMovimientoInicial(
             $folio,
@@ -79,7 +79,7 @@ class SchemaIntegrityTest extends TestCase
     public function test_una_posicion_no_puede_contener_dos_folios(): void
     {
         [$user, $dispositivo, $camara, $sesion] = $this->crearContexto();
-        $posicion = $this->crearPosicion($camara, 'A', 1, 1);
+        $posicion = $this->crearPosicion($camara, 1, 1, 1);
         $folioUno = $this->crearFolio('FOLIO-001');
         $folioDos = $this->crearFolio('FOLIO-002');
         $movimientoUno = $this->crearMovimientoInicial(
@@ -145,7 +145,7 @@ class SchemaIntegrityTest extends TestCase
     {
         [$user, $dispositivo, $camara, $sesion] = $this->crearContexto();
         $folio = $this->crearFolio('FOLIO-001');
-        $posicion = $this->crearPosicion($camara, 'A', 1, 1);
+        $posicion = $this->crearPosicion($camara, 1, 1, 1);
 
         $this->crearMovimientoInicial(
             $folio,
@@ -202,14 +202,14 @@ class SchemaIntegrityTest extends TestCase
 
     private function crearPosicion(
         Camara $camara,
-        string $fila,
-        int $profundidad,
+        int $banda,
+        int $posicion,
         int $nivel,
     ): Posicion {
         return Posicion::create([
             'camara_id' => $camara->id,
-            'fila' => $fila,
-            'profundidad' => $profundidad,
+            'banda' => $banda,
+            'posicion' => $posicion,
             'nivel' => $nivel,
         ]);
     }

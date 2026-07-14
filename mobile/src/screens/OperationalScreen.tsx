@@ -251,7 +251,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     };
 
     const succeeded = await runOperation(
-      () => api.locate(auth.token, payload),
+      () => executeWithWarnings(payload, (confirmedPayload) => api.locate(auth.token, confirmedPayload)),
       setModalError,
     );
 
@@ -317,7 +317,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         version_destino_conocida: destinationPlan.version_plano,
         generado_dispositivo_at: new Date().toISOString(),
       };
-      await api.move(auth.token, payload);
+      await executeWithWarnings(payload, (confirmedPayload) => api.move(auth.token, confirmedPayload));
     }, setModalError);
 
     if (succeeded) {
@@ -346,6 +346,40 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     } finally {
       setBusy(false);
     }
+  }
+
+  async function executeWithWarnings<T extends { advertencias_confirmadas?: string[] }>(
+    payload: T,
+    operation: (confirmedPayload: T) => Promise<void>,
+  ) {
+    try {
+      await operation(payload);
+    } catch (reason) {
+      const warnings = warningResponse(reason);
+      if (!warnings.length) throw reason;
+
+      const accepted = await confirmWarnings(warnings);
+      if (!accepted) throw new Error('Operación cancelada: no se confirmaron las advertencias físicas.');
+
+      await operation({
+        ...payload,
+        advertencias_confirmadas: warnings.map((warning) => warning.codigo),
+      });
+    }
+  }
+
+  function confirmWarnings(warnings: MovementWarning[]): Promise<boolean> {
+    return new Promise((resolve) => {
+      Alert.alert(
+        'Confirmar excepción física',
+        warnings.map((warning) => `${warning.titulo}\n${warning.mensaje}`).join('\n\n'),
+        [
+          { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Continuar', style: 'destructive', onPress: () => resolve(true) },
+        ],
+        { cancelable: false },
+      );
+    });
   }
 
   async function logout() {
@@ -529,6 +563,20 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   );
 }
 
+type MovementWarning = {
+  codigo: string;
+  titulo: string;
+  mensaje: string;
+};
+
+function warningResponse(reason: unknown): MovementWarning[] {
+  if (!(reason instanceof ApiError) || !reason.data || typeof reason.data !== 'object') return [];
+  const data = reason.data as { codigo?: string; advertencias?: MovementWarning[] };
+  return data.codigo === 'confirmacion_requerida' && Array.isArray(data.advertencias)
+    ? data.advertencias
+    : [];
+}
+
 function Status({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.status}>
@@ -544,7 +592,7 @@ function initials(name: string) {
 
 function positionLabel(position: Position) {
   return position.etiqueta
-    ?? `${position.fila}-${position.profundidad}-N${position.nivel}`;
+    ?? `B${String(position.banda).padStart(2, '0')}-P${String(position.posicion).padStart(2, '0')}-N${position.nivel}`;
 }
 
 function messageFrom(reason: unknown) {

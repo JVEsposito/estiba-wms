@@ -17,6 +17,7 @@ use App\Models\SesionEstiba;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioMovimientoEstiba;
+use App\Services\Estiba\DetectorAdvertenciasMovimiento;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -171,6 +172,9 @@ class ServicioMovimientoEstibaTest extends TestCase
             versionOrigenConocida: 1,
             versionDestinoConocida: 1,
             generadoDispositivoAt: now(),
+            advertenciasConfirmadas: [
+                DetectorAdvertenciasMovimiento::POSICIONES_FONDO_LIBRES,
+            ],
         );
 
         $this->assertSame(TipoMovimiento::Reubicacion, $movimiento->tipo_movimiento);
@@ -379,8 +383,8 @@ class ServicioMovimientoEstibaTest extends TestCase
         for ($numero = 1; $numero <= $cantidadPosiciones; $numero++) {
             $resultado[] = Posicion::create([
                 'camara_id' => $camara->id,
-                'fila' => 'A',
-                'profundidad' => $numero,
+                'banda' => 1,
+                'posicion' => $numero,
                 'nivel' => 1,
                 'etiqueta' => "A-{$numero}-1",
             ]);

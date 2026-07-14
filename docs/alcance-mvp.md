@@ -24,14 +24,14 @@ El primer producto se concentrará en:
 ### Usuarios y dispositivos
 
 - Autenticación.
-- Roles de administrador, supervisor, operador y consulta.
+- Roles de administrador, supervisor, despachador, operador y consulta.
 - Registro y autorización de tablets.
 - Identificación del usuario y dispositivo en cada sesión y movimiento.
 
 ### Cámaras y posiciones
 
 - Crear y editar cámaras.
-- Definir filas o bandas, profundidades o posiciones y niveles.
+- Definir bandas numéricas verticales, posiciones desde el fondo hacia la entrada y niveles.
 - Previsualizar y generar la cuadrícula.
 - Ajustar posiciones individuales.
 - Activar, bloquear o desactivar posiciones.

@@ -839,26 +839,50 @@ select:focus {
     content: '';
 }
 
-.position-level-grid {
-    display: grid;
-    align-items: stretch;
-    gap: 7px;
+.map-orientation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+    color: var(--cyan);
+    font-size: 0.6rem;
 }
 
-.row-label,
-.depth-label {
+.map-orientation span {
+    color: var(--muted);
+}
+
+.map-orientation--entrance {
+    margin: 7px 0 0;
+}
+
+.band-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    min-width: max-content;
+}
+
+.band-column {
     display: grid;
-    min-height: 24px;
-    place-items: center;
-    color: #6e8994;
-    font-size: 0.58rem;
-    font-weight: 800;
+    width: 112px;
+    gap: 6px;
+    border: 1px solid rgba(40, 80, 94, 0.48);
+    border-radius: 12px;
+    background: rgba(3, 13, 19, 0.55);
+    padding: 7px;
+}
+
+.band-heading {
+    color: var(--cyan);
+    font-size: 0.59rem;
+    text-align: center;
 }
 
 .position-cell {
     position: relative;
     display: grid;
-    min-width: 66px;
+    width: 100%;
     min-height: 72px;
     align-content: space-between;
     gap: 6px;

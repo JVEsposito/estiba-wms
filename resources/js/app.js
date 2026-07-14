@@ -112,6 +112,16 @@ function compactObject(object) {
     );
 }
 
+function operationUuid() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function validationMessage(data, fallback) {
     const messages = Object.values(data?.errors || {}).flat();
     return messages[0] || data?.message || fallback;
@@ -154,6 +164,35 @@ async function api(path, options = {}) {
     }
 
     return data;
+}
+
+async function apiWithPhysicalWarnings(path, payload) {
+    try {
+        return await api(path, { method: 'POST', body: JSON.stringify(payload) });
+    } catch (error) {
+        const warnings = error.data?.codigo === 'confirmacion_requerida'
+            && Array.isArray(error.data?.advertencias)
+            ? error.data.advertencias
+            : [];
+
+        if (warnings.length === 0) throw error;
+
+        const message = warnings
+            .map((warning) => `${warning.titulo}\n${warning.mensaje}`)
+            .join('\n\n');
+
+        if (! window.confirm(`Confirmar excepción física\n\n${message}`)) {
+            throw new ApiError('Operación cancelada: no se confirmaron las advertencias físicas.', 499);
+        }
+
+        return api(path, {
+            method: 'POST',
+            body: JSON.stringify({
+                ...payload,
+                advertencias_confirmadas: warnings.map((warning) => warning.codigo),
+            }),
+        });
+    }
 }
 
 function setBusy(active, message = 'Sincronizando…') {
@@ -238,7 +277,7 @@ function canOperate() {
 }
 
 function positionLabel(position) {
-    return position?.etiqueta || `Fila ${position?.fila} · P${position?.profundidad} · N${position?.nivel}`;
+    return position?.etiqueta || `B${String(position?.banda).padStart(2, '0')}-P${String(position?.posicion).padStart(2, '0')}-N${position?.nivel}`;
 }
 
 function typeLabel(type) {
@@ -467,35 +506,36 @@ function renderPositionMap() {
     }
 
     const levels = [...new Set(positions.map((position) => Number(position.nivel)))].sort((a, b) => a - b);
-    const rows = [...new Set(positions.map((position) => position.fila))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const maxDepth = Math.max(...positions.map((position) => Number(position.profundidad)));
+    const bands = [...new Set(positions.map((position) => Number(position.banda)))].sort((a, b) => a - b);
+    const maxPosition = Math.max(...positions.map((position) => Number(position.posicion)));
     const lookup = new Map(positions.map((position) => [
-        `${position.nivel}|${position.fila}|${position.profundidad}`,
+        `${position.nivel}|${position.banda}|${position.posicion}`,
         position,
     ]));
 
     elements.positionMap.innerHTML = levels.map((level) => {
-        const cells = ['<span class="depth-label"></span>'];
-
-        for (let depth = 1; depth <= maxDepth; depth += 1) {
-            cells.push(`<span class="depth-label">P${depth}</span>`);
-        }
-
-        rows.forEach((row) => {
-            cells.push(`<span class="row-label">${escapeHtml(row)}</span>`);
-
-            for (let depth = 1; depth <= maxDepth; depth += 1) {
-                const position = lookup.get(`${level}|${row}|${depth}`);
+        const bandColumns = bands.map((band) => {
+            const cells = [];
+            for (let positionNumber = 1; positionNumber <= maxPosition; positionNumber += 1) {
+                const position = lookup.get(`${level}|${band}|${positionNumber}`);
                 cells.push(position ? renderPositionCell(position) : '<span class="position-cell--gap"></span>');
             }
-        });
+
+            return `
+                <div class="band-column">
+                    <strong class="band-heading">BANDA ${String(band).padStart(2, '0')}</strong>
+                    ${cells.join('')}
+                </div>`;
+        }).join('');
 
         return `
             <section class="level-group">
                 <div class="level-heading">NIVEL ${level}</div>
-                <div class="position-level-grid" style="grid-template-columns:42px repeat(${maxDepth}, minmax(66px, 1fr))">
-                    ${cells.join('')}
+                <div class="map-orientation"><strong>↑ FONDO</strong><span>P01 se ocupa primero</span></div>
+                <div class="band-layout">
+                    ${bandColumns}
                 </div>
+                <div class="map-orientation map-orientation--entrance"><strong>↓ ENTRADA</strong></div>
             </section>`;
     }).join('');
 
@@ -523,7 +563,7 @@ function renderPositionCell(position) {
 
     return `
         <button class="${classes}" type="button" data-position-id="${escapeHtml(position.id)}">
-            <span class="position-cell__location">${escapeHtml(position.etiqueta || `F${position.fila} · P${position.profundidad}`)}</span>
+            <span class="position-cell__location">${escapeHtml(position.etiqueta || `B${position.banda} · P${position.posicion}`)}</span>
             <strong class="position-cell__folio">${escapeHtml(folio)}</strong>
             <span class="position-cell__meta"><span>${escapeHtml(detail)}</span><span>${occupied ? (saldo ? 'S' : 'P') : '○'}</span></span>
         </button>`;
@@ -655,7 +695,7 @@ async function locateFolio(form) {
         exportadora: values.exportadora?.trim(),
     });
     const payload = {
-        operacion_id: crypto.randomUUID(),
+        operacion_id: operationUuid(),
         numero_folio: values.numero_folio.trim().toUpperCase(),
         tipo_bulto: values.tipo_bulto,
         posicion_destino_id: position.id,
@@ -668,10 +708,10 @@ async function locateFolio(form) {
     elements.locateError.textContent = '';
 
     try {
-        await withBusy('Registrando ubicación…', () => api('/api/movimientos/ubicar', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        }));
+        await withBusy(
+            'Registrando ubicación…',
+            () => apiWithPhysicalWarnings('/api/movimientos/ubicar', payload),
+        );
         elements.locateDialog.close();
         showToast(`Folio ${payload.numero_folio} ubicado correctamente.`);
         await refreshCurrent({ quiet: true });
@@ -744,7 +784,7 @@ function renderDestinations() {
     elements.moveDestinationGrid.innerHTML = free.map((position) => `
         <button class="destination-button" type="button" data-destination-id="${escapeHtml(position.id)}">
             <strong>${escapeHtml(positionLabel(position))}</strong>
-            <small>Fila ${escapeHtml(position.fila)} · Prof. ${position.profundidad} · Nivel ${position.nivel}</small>
+            <small>Banda ${position.banda} · Posición ${position.posicion} · Nivel ${position.nivel}</small>
         </button>`).join('');
 
     elements.moveDestinationGrid.querySelectorAll('[data-destination-id]').forEach((button) => {
@@ -797,10 +837,8 @@ async function moveFolio() {
     try {
         await withBusy('Confirmando movimiento…', async () => {
             const destinationSessionId = await ensureDestinationSession();
-            await api('/api/movimientos/mover', {
-                method: 'POST',
-                body: JSON.stringify({
-                    operacion_id: crypto.randomUUID(),
+            await apiWithPhysicalWarnings('/api/movimientos/mover', {
+                    operacion_id: operationUuid(),
                     folio_id: origin.folio.id,
                     posicion_destino_id: destination.id,
                     sesion_origen_id: originSession.id,
@@ -808,7 +846,6 @@ async function moveFolio() {
                     version_origen_conocida: state.plan.version_plano,
                     version_destino_conocida: state.destinationPlan.version_plano,
                     generado_dispositivo_at: new Date().toISOString(),
-                }),
             });
         });
 
@@ -835,10 +872,10 @@ function renderRecent(movements) {
 
     elements.recentList.innerHTML = movements.map((movement) => {
         const origin = movement.origen
-            ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta || movement.origen.posicion.fila}`
+            ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta || `B${movement.origen.posicion.banda}`}`
             : 'Ingreso';
         const destination = movement.destino
-            ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta || movement.destino.posicion.fila}`
+            ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta || `B${movement.destino.posicion.banda}`}`
             : 'Salida';
         const date = new Date(movement.created_at || movement.recibido_servidor_at);
 

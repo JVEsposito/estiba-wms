@@ -40,6 +40,7 @@ class MovimientoController extends Controller
                 $datos['generado_dispositivo_at'],
             ),
             datosFolio: $datos['datos_folio'] ?? [],
+            advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
         );
 
         return (new MovimientoResource($this->cargarRelaciones($movimiento)))
@@ -67,6 +68,7 @@ class MovimientoController extends Controller
             generadoDispositivoAt: CarbonImmutable::parse(
                 $datos['generado_dispositivo_at'],
             ),
+            advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
         );
 
         return (new MovimientoResource($this->cargarRelaciones($movimiento)))
@@ -109,9 +111,9 @@ class MovimientoController extends Controller
             'folio',
             'usuario:id,name',
             'camaraOrigen:id,codigo,nombre',
-            'posicionOrigen:id,fila,profundidad,nivel,etiqueta',
+            'posicionOrigen:id,banda,posicion,nivel,etiqueta',
             'camaraDestino:id,codigo,nombre',
-            'posicionDestino:id,fila,profundidad,nivel,etiqueta',
+            'posicionDestino:id,banda,posicion,nivel,etiqueta',
         ];
     }
 }

@@ -77,17 +77,17 @@ class DatabaseSeeder extends Seeder
             ['nombre' => $nombre, 'tipo' => $tipo],
         );
 
-        foreach (['A', 'B', 'C'] as $fila) {
-            foreach (range(1, 4) as $profundidad) {
+        foreach (range(1, 3) as $banda) {
+            foreach (range(1, 4) as $posicion) {
                 foreach (range(1, 2) as $nivel) {
                     Posicion::query()->firstOrCreate(
                         [
                             'camara_id' => $camara->id,
-                            'fila' => $fila,
-                            'profundidad' => $profundidad,
+                            'banda' => $banda,
+                            'posicion' => $posicion,
                             'nivel' => $nivel,
                         ],
-                        ['etiqueta' => "{$fila}-{$profundidad}-N{$nivel}"],
+                        ['etiqueta' => sprintf('B%02d-P%02d-N%d', $banda, $posicion, $nivel)],
                     );
                 }
             }

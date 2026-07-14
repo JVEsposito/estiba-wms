@@ -248,7 +248,7 @@ export function MoveModal({
                 >
                   <Text style={styles.destinationLabel}>{position.etiqueta}</Text>
                   <Text style={styles.destinationMeta}>
-                    Fila {position.fila} · Prof. {position.profundidad} · Nivel {position.nivel}
+                    Banda {position.banda} · Posición {position.posicion} · Nivel {position.nivel}
                   </Text>
                 </Pressable>
               ))}

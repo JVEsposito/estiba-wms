@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoPosicion;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CamaraPlanoResource;
 use App\Http\Resources\CamaraResumenResource;
@@ -13,9 +14,13 @@ class CamaraController extends Controller
     public function index(): AnonymousResourceCollection
     {
         $camaras = Camara::query()
-            ->withCount('posiciones')
+            ->withCount([
+                'posiciones' => fn ($consulta) => $consulta
+                    ->where('estado', EstadoPosicion::Activa->value),
+            ])
             ->withCount([
                 'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
+                    ->where('estado', EstadoPosicion::Activa->value)
                     ->whereHas('ubicacionActual'),
             ])
             ->with($this->relacionesBloqueo())
@@ -27,18 +32,22 @@ class CamaraController extends Controller
 
     public function plano(Camara $camara): CamaraPlanoResource
     {
-        $camara->loadCount('posiciones');
+        $camara->loadCount([
+            'posiciones' => fn ($consulta) => $consulta
+                ->where('estado', EstadoPosicion::Activa->value),
+        ]);
         $camara->loadCount([
             'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
+                ->where('estado', EstadoPosicion::Activa->value)
                 ->whereHas('ubicacionActual'),
         ]);
         $camara->load([
             ...$this->relacionesBloqueo(),
             'posiciones' => fn ($consulta) => $consulta
                 ->with('ubicacionActual.folio.condicionSag')
-                ->orderBy('fila')
+                ->orderBy('banda')
                 ->orderBy('nivel')
-                ->orderBy('profundidad'),
+                ->orderBy('posicion'),
         ]);
 
         return new CamaraPlanoResource($camara);
