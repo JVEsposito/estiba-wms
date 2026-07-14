@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState } from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthSession, LoginPayload } from './src/domain/estiba';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -17,14 +18,16 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.app}>
-      <StatusBar style="light" />
-      {auth ? (
-        <OperationalScreen api={api} auth={auth} onLogout={() => setAuth(null)} />
-      ) : (
-        <LoginScreen mode={api.mode} baseUrl={api.baseUrl} onLogin={login} />
-      )}
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.app}>
+        <StatusBar style="light" />
+        {auth ? (
+          <OperationalScreen api={api} auth={auth} onLogout={() => setAuth(null)} />
+        ) : (
+          <LoginScreen mode={api.mode} baseUrl={api.baseUrl} onLogin={login} />
+        )}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

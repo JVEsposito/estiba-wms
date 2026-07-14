@@ -40,8 +40,8 @@ type OperationalScreenProps = {
 };
 
 export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProps) {
-  const { width } = useWindowDimensions();
-  const wideLayout = width >= 1180;
+  const { height, width } = useWindowDimensions();
+  const wideLayout = width >= 1180 && height >= 700;
   const [cameras, setCameras] = useState<CameraSummary[]>([]);
   const [conditions, setConditions] = useState<SagCondition[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
@@ -334,7 +334,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           )}
 
           {plan ? (
-            <View style={styles.operationArea}>
+            <View style={[styles.operationArea, !wideLayout && styles.operationAreaCompact]}>
               <PositionMap
                 onSelectPosition={(position) => setSelectedPositionId(position.id)}
                 plan={plan}
@@ -343,6 +343,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               <ActionPanel
                 busy={busy}
                 canOperate={canOperate}
+                compact={!wideLayout}
                 onLocate={() => setLocateVisible(true)}
                 onMove={() => void openMove()}
                 onRefresh={() => void refreshCurrent()}
@@ -491,6 +492,7 @@ const styles = StyleSheet.create({
   cameraList: { marginTop: 12, gap: 9 },
   cameraListHorizontal: { paddingBottom: 2, flexDirection: 'row', gap: 10 },
   operationArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  operationAreaCompact: { width: '100%', flexDirection: 'column' },
   emptyPlan: {
     flex: 1,
     minHeight: 350,

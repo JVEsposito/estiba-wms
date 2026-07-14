@@ -6,6 +6,7 @@ import { colors } from '../theme/colors';
 type ActionPanelProps = {
   busy: boolean;
   canOperate: boolean;
+  compact?: boolean;
   plan: CameraPlan;
   selectedPosition: Position | null;
   onLocate: () => void;
@@ -17,6 +18,7 @@ type ActionPanelProps = {
 export function ActionPanel({
   busy,
   canOperate,
+  compact = false,
   onLocate,
   onMove,
   onRefresh,
@@ -30,7 +32,7 @@ export function ActionPanel({
   const moveDisabled = busy || !canOperate || !selectedPosition?.ocupada || selectedPosition.estado !== 'activa';
 
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, compact && styles.panelCompact]}>
       <View>
         <Text style={styles.eyebrow}>OPERACIÓN</Text>
         <Text style={styles.title}>Acciones rápidas</Text>
@@ -61,8 +63,9 @@ export function ActionPanel({
         </View>
       )}
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, compact && styles.actionsCompact]}>
         <ActionButton
+          compact={compact}
           disabled={locateDisabled}
           icon="＋"
           label="Ubicar folio"
@@ -71,6 +74,7 @@ export function ActionPanel({
           subtitle="Registrar un bulto nuevo"
         />
         <ActionButton
+          compact={compact}
           disabled={moveDisabled}
           icon="⇄"
           label="Mover folio"
@@ -78,6 +82,7 @@ export function ActionPanel({
           subtitle="Reubicar o cambiar cámara"
         />
         <ActionButton
+          compact={compact}
           disabled={busy || readOnly}
           icon="⌁"
           label={editing ? 'Cerrar estiba' : readOnly ? 'Cámara en uso' : 'Abrir estiba'}
@@ -85,6 +90,7 @@ export function ActionPanel({
           subtitle={editing ? 'Liberar la cámara' : readOnly ? 'Edición bloqueada' : 'Iniciar sesión de edición'}
         />
         <ActionButton
+          compact={compact}
           disabled={busy}
           icon="↻"
           label="Actualizar plano"
@@ -114,6 +120,7 @@ function Detail({ label, value }: { label: string; value?: string | null }) {
 }
 
 type ActionButtonProps = {
+  compact?: boolean;
   disabled: boolean;
   icon: string;
   label: string;
@@ -122,7 +129,7 @@ type ActionButtonProps = {
   subtitle: string;
 };
 
-function ActionButton({ disabled, icon, label, onPress, primary, subtitle }: ActionButtonProps) {
+function ActionButton({ compact, disabled, icon, label, onPress, primary, subtitle }: ActionButtonProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -130,6 +137,7 @@ function ActionButton({ disabled, icon, label, onPress, primary, subtitle }: Act
       onPress={onPress}
       style={({ pressed }) => [
         styles.actionButton,
+        compact && styles.actionButtonCompact,
         primary && styles.actionPrimary,
         disabled && styles.actionDisabled,
         pressed && styles.actionPressed,
@@ -154,6 +162,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
     gap: 12,
   },
+  panelCompact: { width: '100%' },
   eyebrow: { color: colors.cyan, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   title: { marginTop: 3, color: colors.text, fontSize: 18, fontWeight: '900' },
   selection: {
@@ -181,6 +190,7 @@ const styles = StyleSheet.create({
   detailLabel: { color: colors.muted, fontSize: 8 },
   detailValue: { color: colors.text, fontSize: 8, fontWeight: '800' },
   actions: { gap: 8 },
+  actionsCompact: { flexDirection: 'row', flexWrap: 'wrap' },
   actionButton: {
     minHeight: 54,
     paddingHorizontal: 11,
@@ -192,6 +202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  actionButtonCompact: { minWidth: 220, flex: 1 },
   actionPrimary: { borderColor: colors.cyan, backgroundColor: colors.cyan },
   actionDisabled: { opacity: 0.38 },
   actionPressed: { opacity: 0.72 },
