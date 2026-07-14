@@ -33,12 +33,13 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 |---|---|
 | API y reglas de negocio | PHP 8.3 + Laravel 13 |
 | Base de datos central | MySQL |
-| Aplicación para tablets | Blade + JavaScript + CSS responsive |
+| Interfaz web para tablets | Blade + JavaScript + CSS responsive |
+| Cliente nativo para tablets | Expo + React Native + TypeScript en `mobile/` |
 | Persistencia local futura | IndexedDB / cola offline |
 | Integración futura | Adaptadores de entrada/salida desacoplados |
-| Repositorio | Monorepo: Laravel en la raíz y cliente móvil en `mobile/` |
+| Repositorio | Monorepo: Laravel y web en la raíz; cliente nativo en `mobile/` |
 
-La base central será la autoridad del estado confirmado. El cliente para tablets utiliza la API Laravel y conserva un identificador idempotente por operación. La cola local para tolerar interrupciones de red se incorporará después del flujo conectado.
+La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. La cola local para tolerar interrupciones de red se incorporará después del flujo conectado.
 
 ## Documentación de producto
 

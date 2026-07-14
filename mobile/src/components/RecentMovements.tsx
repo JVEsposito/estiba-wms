@@ -1,109 +1,95 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { RecentMovement } from '../domain/dashboard';
+import { Movement } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
 type RecentMovementsProps = {
-  movements: RecentMovement[];
+  movements: Movement[];
+  lastSync: string | null;
 };
 
-const labels = {
-  ingreso: 'INGRESO',
-  reubicacion: 'REUBICACIÓN',
-  traslado: 'TRASLADO',
-} as const;
+const labels: Record<Movement['tipo_movimiento'], string> = {
+  ubicacion_inicial: 'Ubicación inicial',
+  reubicacion: 'Reubicación',
+  traslado_entre_camaras: 'Cambio de cámara',
+  retiro: 'Retiro',
+  reversion: 'Reversión',
+};
 
-export function RecentMovements({ movements }: RecentMovementsProps) {
+export function RecentMovements({ movements, lastSync }: RecentMovementsProps) {
   return (
     <View style={styles.panel}>
-      <Text style={styles.title}>ÚLTIMOS MOVIMIENTOS</Text>
-      <View style={styles.list}>
-        {movements.map((movement) => (
-          <View key={movement.id} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.time}>{movement.time}</Text>
-              <Text style={[styles.type, movement.type === 'traslado' && styles.typeTransfer]}>
-                {labels[movement.type]}
-              </Text>
-            </View>
-            <Text style={styles.folio}>{movement.folio}</Text>
-            <Text numberOfLines={1} style={styles.route}>{movement.source}</Text>
-            <Text numberOfLines={1} style={styles.destination}>→ {movement.destination}</Text>
-          </View>
-        ))}
+      <View style={styles.heading}>
+        <View>
+          <Text style={styles.eyebrow}>TRAZABILIDAD</Text>
+          <Text style={styles.title}>Movimientos recientes</Text>
+        </View>
+        <Text style={styles.sync}>{lastSync ? `Actualizado ${lastSync}` : 'Sin sincronizar'}</Text>
       </View>
+
+      {movements.length === 0 ? (
+        <Text style={styles.empty}>Aún no hay movimientos registrados en esta cámara.</Text>
+      ) : (
+        <View style={styles.list}>
+          {movements.slice(0, 4).map((movement) => {
+            const origin = movement.origen
+              ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta ?? movement.origen.posicion.fila}`
+              : 'Ingreso';
+            const destination = movement.destino
+              ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta ?? movement.destino.posicion.fila}`
+              : 'Salida';
+            const time = new Date(movement.created_at).toLocaleTimeString('es-CL', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+
+            return (
+              <View key={movement.id} style={styles.item}>
+                <Text style={styles.icon}>{movement.tipo_movimiento === 'ubicacion_inicial' ? '＋' : '⇄'}</Text>
+                <View style={styles.copy}>
+                  <Text numberOfLines={1} style={styles.itemTitle}>
+                    {movement.folio.numero_folio} · {labels[movement.tipo_movimiento]}
+                  </Text>
+                  <Text numberOfLines={1} style={styles.route}>{origin} → {destination}</Text>
+                </View>
+                <Text style={styles.time}>{time}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   panel: {
-    marginTop: 14,
-    padding: 16,
+    marginTop: 12,
+    padding: 14,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.panel,
   },
-  title: {
-    marginBottom: 10,
-    color: colors.cyan,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  list: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  card: {
-    minWidth: 240,
+  heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  eyebrow: { color: colors.cyan, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  title: { marginTop: 3, color: colors.text, fontSize: 15, fontWeight: '900' },
+  sync: { color: colors.muted, fontSize: 8 },
+  list: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  item: {
+    minWidth: 245,
     flex: 1,
-    padding: 13,
-    borderRadius: 12,
-    borderLeftWidth: 5,
-    borderLeftColor: colors.green,
+    padding: 10,
+    borderRadius: 10,
     backgroundColor: colors.panelStrong,
-  },
-  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
-  time: {
-    color: colors.muted,
-    fontSize: 11,
-  },
-  type: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: colors.green,
-    color: colors.green,
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  typeTransfer: {
-    borderColor: colors.cyan,
-    color: colors.cyan,
-  },
-  folio: {
-    marginTop: 8,
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  route: {
-    marginTop: 4,
-    color: colors.muted,
-    fontSize: 11,
-  },
-  destination: {
-    marginTop: 4,
-    color: colors.cyan,
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  icon: { color: colors.cyan, fontSize: 18, fontWeight: '900' },
+  copy: { flex: 1, minWidth: 0 },
+  itemTitle: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  route: { marginTop: 3, color: colors.muted, fontSize: 7 },
+  time: { color: colors.muted, fontSize: 8 },
+  empty: { marginTop: 10, color: colors.muted, fontSize: 9 },
 });
