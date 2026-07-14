@@ -57,6 +57,7 @@ class AccesoOficinaController extends Controller
                     RolUsuario::Administrador,
                     RolUsuario::Supervisor,
                 ], true),
+                'puede_administrar_camaras' => $usuario->rol === RolUsuario::Administrador,
             ],
         ]);
     }

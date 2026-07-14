@@ -8,9 +8,11 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 2. La combinación de cámara, banda, posición y nivel debe ser única.
 3. Una posición puede estar activa, bloqueada o fuera de servicio.
 4. Solo una posición activa puede recibir un bulto.
-5. Una cámara con historial no se elimina; se desactiva.
-6. La capacidad se calcula desde las posiciones activas y no desde un total mantenido manualmente.
-7. Cada movimiento aceptado incrementa la versión de todas las cámaras afectadas; un traslado incrementa las versiones del origen y del destino.
+5. Una cámara no se elimina físicamente; se desactiva.
+6. Una cámara con folios o una sesión abierta no puede desactivarse ni reducirse.
+7. Reducir un plano archiva las coordenadas retiradas y conserva todo su historial.
+8. La capacidad configurada se obtiene de bandas, posiciones y niveles; la capacidad disponible considera solo posiciones activas.
+9. Cada movimiento aceptado incrementa la versión de todas las cámaras afectadas; un traslado incrementa las versiones del origen y del destino.
 
 ## 2. Folios
 
@@ -104,7 +106,9 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 | Retirar | Sí | Sí | Sí | No |
 | Revertir | No | Sí | Sí | No |
 | Cerrar sesión ajena | No | Sí | Sí | No |
-| Configurar cámaras | No | Sí | Sí | No |
+| Crear cámaras | No | Sí | Sí | No |
+| Editar o redimensionar cámaras | No | No | Sí | No |
+| Desactivar o reactivar cámaras | No | No | Sí | No |
 | Administrar usuarios y dispositivos | No | No | Sí | No |
 
 La matriz podrá refinarse, pero cualquier ampliación deberá conservar la trazabilidad.

@@ -42,9 +42,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .office-access__form p { color: var(--muted); }
 .office-access__form label, .field { display: grid; gap: 8px; color: #c5d4da; font-size: .82rem; font-weight: 700; }
 input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); border-radius: 12px; background: #091a23; color: var(--text); padding: 0 15px; }
-.primary-button, .secondary-button { display: flex; min-height: 50px; align-items: center; justify-content: center; gap: 18px; border-radius: 12px; padding: 0 20px; font-weight: 900; }
+.primary-button, .secondary-button, .danger-button { display: flex; min-height: 50px; align-items: center; justify-content: center; gap: 18px; border-radius: 12px; padding: 0 20px; font-weight: 900; }
 .primary-button { border: 0; background: linear-gradient(135deg, var(--cyan-light), var(--cyan)); color: #032326; }
 .secondary-button { border: 1px solid var(--line); background: var(--raised); color: var(--text); }
+.danger-button { border: 1px solid rgba(255, 112, 112, .55); background: rgba(255, 112, 112, .1); color: #ffaaaa; }
 .form-error { min-height: 20px; margin: 0; color: var(--red) !important; font-size: .8rem; font-weight: 800; }
 
 .office-app { min-height: 100vh; }
@@ -69,12 +70,16 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 .icon-button { width: 38px; height: 38px; border-radius: 9px; font-size: 1.2rem; }
 .camera-catalog__list { display: grid; gap: 9px; margin-top: 18px; }
 .camera-item { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--deep); }
+.camera-item.is-inactive { opacity: .68; }
 .camera-item > div:first-child, .camera-item__capacity { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .camera-item > div:first-child strong { font-size: 1.05rem; }
 .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(85, 216, 137, .1); }
+.state-dot.is-inactive { background: var(--muted); box-shadow: 0 0 0 4px rgba(143, 168, 179, .1); }
 .camera-item h3 { margin: 8px 0 4px; font-size: .85rem; }
 .camera-item p, .camera-item__capacity { margin: 0; color: var(--muted); font-size: .68rem; line-height: 1.5; }
 .camera-item__capacity { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+.camera-item__actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+.camera-item__actions button { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--cyan); padding: 0 12px; font-size: .7rem; font-weight: 900; }
 .empty-state { padding: 28px 16px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; font-size: .82rem; }
 
 .configuration { padding: 24px; }
@@ -107,7 +112,7 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 .preview-position.is-disabled { border-color: #4d5960; background: #29353b; opacity: .65; }
 .preview-position.is-disabled span, .preview-position.is-disabled small { color: var(--amber); }
 .form-actions { justify-content: flex-end; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); }
-.form-actions button { min-width: 220px; }
+.form-actions button { min-width: 170px; }
 
 .loading { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; gap: 12px; background: rgba(2, 8, 12, .72); backdrop-filter: blur(4px); }
 .loading span { width: 25px; height: 25px; border: 3px solid rgba(85, 229, 223, .25); border-top-color: var(--cyan-light); border-radius: 50%; animation: spin .8s linear infinite; }
