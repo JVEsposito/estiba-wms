@@ -10,8 +10,9 @@ La interfaz puede evolucionar sin alterar las reglas del backend ni el modelo ce
 
 | Componente | Responsabilidad |
 |---|---|
-| React Native y TypeScript | Aplicación principal para tablets |
-| SQLite local | Plano descargado, datos mínimos y cola offline |
+| Blade, JavaScript y CSS | Interfaz web conectada para tablets |
+| React Native y TypeScript | Cliente nativo para tablets Android |
+| IndexedDB / SQLite futuros | Plano descargado, datos mínimos y cola offline según el cliente |
 | Laravel API REST | Autenticación, reglas, transacciones y sincronización |
 | MySQL | Inventario central, ubicaciones y auditoría |
 | Panel Laravel | Configuración y supervisión administrativa |
@@ -21,8 +22,8 @@ La interfaz puede evolucionar sin alterar las reglas del backend ni el modelo ce
 
 El proyecto se mantendrá como monorepositorio:
 
-- La aplicación Laravel permanece en la raíz.
-- La aplicación para tablets se incorporará en la carpeta mobile.
+- La aplicación Laravel y la interfaz web permanecen en la raíz.
+- El cliente nativo para tablets vive en la carpeta mobile.
 - Las decisiones funcionales y técnicas viven en docs.
 - Los flujos automáticos viven en .github/workflows.
 

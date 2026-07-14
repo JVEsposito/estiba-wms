@@ -1,141 +1,101 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Camera } from '../domain/dashboard';
+import { CameraSummary } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
 type CameraCardProps = {
-  camera: Camera;
+  camera: CameraSummary;
   selected: boolean;
   onPress: () => void;
 };
 
 export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
-  const statusText = camera.status === 'editing' ? 'EN EDICIÓN' : 'DISPONIBLE';
+  const ownSession = camera.acceso.modo === 'edicion' && camera.acceso.sesion?.es_propia;
+  const locked = camera.acceso.modo === 'solo_lectura';
+  const status = ownSession ? 'Edición propia' : locked ? 'En uso' : 'Disponible';
+  const statusColor = ownSession ? colors.cyan : locked ? colors.amber : colors.green;
 
   return (
     <Pressable
-      accessibilityLabel={`Abrir ${camera.name}`}
+      accessibilityLabel={`Abrir ${camera.codigo}, ${status}`}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        selected && styles.cardSelected,
-        pressed && styles.cardPressed,
+        selected && styles.selected,
+        pressed && styles.pressed,
       ]}
     >
-      <View style={styles.summary}>
-        <Text style={styles.name}>{camera.name}</Text>
-        <Text style={styles.occupancy}>
-          <Text style={styles.occupancyValue}>{camera.occupied}</Text>
-          <Text style={styles.capacity}> / {camera.capacity}</Text>
-        </Text>
-        <Text style={styles.caption}>posiciones ocupadas</Text>
-        <View style={[styles.status, camera.status === 'editing' && styles.statusEditing]}>
-          <Text style={[styles.statusText, camera.status === 'editing' && styles.statusTextEditing]}>
-            {statusText}
-          </Text>
+      <View style={styles.topRow}>
+        <Text style={styles.code}>{camera.codigo}</Text>
+        <View style={styles.state}>
+          <View style={[styles.dot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.stateText, { color: statusColor }]}>{status}</Text>
         </View>
       </View>
-
-      <View style={styles.preview}>
-        {camera.positions.map((position) => (
-          <View
-            key={position.id}
-            style={[styles.previewCell, position.folio && styles.previewCellOccupied]}
-          />
-        ))}
+      <Text numberOfLines={1} style={styles.name}>{camera.nombre}</Text>
+      <View style={styles.occupancyRow}>
+        <Text style={styles.occupancyLabel}>Ocupación</Text>
+        <Text style={styles.occupancyValue}>{camera.ocupacion.porcentaje}%</Text>
       </View>
+      <View style={styles.progress}>
+        <View
+          style={[
+            styles.progressValue,
+            { width: `${Math.min(100, camera.ocupacion.porcentaje)}%` },
+          ]}
+        />
+      </View>
+      <Text style={styles.detail}>
+        {camera.ocupacion.ocupadas} de {camera.ocupacion.total} posiciones
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    minWidth: 250,
-    flex: 1,
-    minHeight: 142,
-    padding: 16,
-    borderRadius: 16,
+    width: 238,
+    padding: 15,
+    borderRadius: 15,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.panel,
-    flexDirection: 'row',
-    gap: 12,
   },
-  cardSelected: {
-    borderWidth: 2,
+  selected: {
     borderColor: colors.cyan,
     backgroundColor: colors.panelStrong,
   },
-  cardPressed: {
-    opacity: 0.82,
-  },
-  summary: {
-    flex: 1,
-  },
-  name: {
-    color: colors.text,
-    fontSize: 21,
-    fontWeight: '700',
-  },
-  occupancy: {
-    marginTop: 8,
-  },
-  occupancyValue: {
-    color: colors.green,
-    fontSize: 29,
-    fontWeight: '800',
-  },
-  capacity: {
-    color: colors.muted,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  caption: {
-    color: colors.muted,
-    fontSize: 12,
-  },
-  status: {
-    alignSelf: 'flex-start',
-    marginTop: 9,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: colors.green,
-  },
-  statusEditing: {
-    borderColor: colors.amber,
-  },
-  statusText: {
-    color: colors.green,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  statusTextEditing: {
-    color: colors.amber,
-  },
-  preview: {
-    width: 96,
-    alignSelf: 'center',
+  pressed: { opacity: 0.78 },
+  topRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    padding: 8,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  previewCell: {
-    width: 7,
-    height: 11,
-    borderRadius: 2,
-    backgroundColor: colors.muted,
-    opacity: 0.72,
+  code: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
   },
-  previewCellOccupied: {
-    backgroundColor: colors.green,
-    opacity: 1,
+  state: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  stateText: { fontSize: 10, fontWeight: '800' },
+  name: { marginTop: 7, color: colors.muted, fontSize: 12 },
+  occupancyRow: {
+    marginTop: 13,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
+  occupancyLabel: { color: colors.muted, fontSize: 10, fontWeight: '700' },
+  occupancyValue: { color: colors.text, fontSize: 12, fontWeight: '900' },
+  progress: {
+    height: 6,
+    marginTop: 7,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: colors.borderSoft,
+  },
+  progressValue: { height: '100%', borderRadius: 3, backgroundColor: colors.cyan },
+  detail: { marginTop: 7, color: colors.muted, fontSize: 9 },
 });
