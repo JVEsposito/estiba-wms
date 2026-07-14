@@ -48,7 +48,10 @@ class CamaraController extends Controller
         $camara->load([
             ...$this->relacionesBloqueo(),
             'posiciones' => fn ($consulta) => $consulta
-                ->with('ubicacionActual.folio.condicionSag')
+                ->with([
+                    'ubicacionActual.folio.condicionSag',
+                    'ubicacionActual.folio.asignacionCargaActual.carga',
+                ])
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
                 ->where('nivel', '<=', $camara->cantidad_niveles)

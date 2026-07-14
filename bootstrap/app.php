@@ -2,6 +2,7 @@
 
 use App\Exceptions\AdvertenciasMovimientoPendientes;
 use App\Exceptions\ConflictoOperacion;
+use App\Exceptions\FoliosCargaInvalidos;
 use App\Exceptions\OperacionNoAutorizada;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -64,6 +65,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => $exception->getMessage(),
                 'codigo' => 'operacion_no_autorizada',
             ], 403);
+        });
+
+        $exceptions->render(function (
+            FoliosCargaInvalidos $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'folios_no_asignables',
+                'errores' => $exception->errores,
+            ], 422);
         });
 
         $exceptions->render(function (DomainException $exception, Request $request) {

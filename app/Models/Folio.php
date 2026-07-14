@@ -44,6 +44,11 @@ class Folio extends Model
         return $this->hasOne(UbicacionActual::class);
     }
 
+    public function asignacionCargaActual(): HasOne
+    {
+        return $this->hasOne(CargaFolio::class);
+    }
+
     public function movimientos(): HasMany
     {
         return $this->hasMany(Movimiento::class);
