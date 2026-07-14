@@ -192,8 +192,8 @@ class IntegridadMovimientoTest extends TestCase
         $camara = Camara::create(['codigo' => 'CAM-01', 'nombre' => 'Cámara 01']);
         $posicion = Posicion::create([
             'camara_id' => $camara->id,
-            'fila' => 'A',
-            'profundidad' => 1,
+            'banda' => 1,
+            'posicion' => 1,
             'nivel' => 1,
         ]);
         $sesion = app(ServicioSesionEstiba::class)

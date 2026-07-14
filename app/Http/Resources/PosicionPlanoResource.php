@@ -19,8 +19,8 @@ class PosicionPlanoResource extends JsonResource
 
         return [
             'id' => $this->id,
-            'fila' => $this->fila,
-            'profundidad' => $this->profundidad,
+            'banda' => $this->banda,
+            'posicion' => $this->posicion,
             'nivel' => $this->nivel,
             'etiqueta' => $this->etiqueta,
             'estado' => $this->estado->value,

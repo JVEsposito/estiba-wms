@@ -62,15 +62,15 @@ function createPositions(cameraId: string, occupiedIndexes: number[]): Position[
   const positions: Position[] = [];
 
   for (const level of [1, 2]) {
-    for (const row of ['A', 'B', 'C']) {
-      for (const depth of [1, 2, 3, 4]) {
+    for (const band of [1, 2, 3]) {
+      for (const position of [1, 2, 3, 4]) {
         const occupied = occupiedIndexes.includes(index);
         positions.push({
-          id: `${cameraId}-${row}-${depth}-N${level}`,
-          fila: row,
-          profundidad: depth,
+          id: `${cameraId}-B${band}-P${position}-N${level}`,
+          banda: band,
+          posicion: position,
           nivel: level,
-          etiqueta: `${row}-${depth}-N${level}`,
+          etiqueta: `B${String(band).padStart(2, '0')}-P${String(position).padStart(2, '0')}-N${level}`,
           estado: index === 22 ? 'bloqueada' : 'activa',
           ocupada: occupied,
           folio: occupied ? createFolio(index, index % 5 === 0 ? 'saldo' : 'pallet') : null,
@@ -152,8 +152,8 @@ function movementEnd(plan: CameraPlan, position: Position) {
     camara: { id: plan.id, codigo: plan.codigo, nombre: plan.nombre },
     posicion: {
       id: position.id,
-      fila: position.fila,
-      profundidad: position.profundidad,
+      banda: position.banda,
+      posicion: position.posicion,
       nivel: position.nivel,
       etiqueta: position.etiqueta,
     },

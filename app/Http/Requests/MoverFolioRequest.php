@@ -25,6 +25,8 @@ class MoverFolioRequest extends FormRequest
             'version_origen_conocida' => ['required', 'integer', 'min:0'],
             'version_destino_conocida' => ['required', 'integer', 'min:0'],
             'generado_dispositivo_at' => ['required', 'date'],
+            'advertencias_confirmadas' => ['sometimes', 'array', 'max:5'],
+            'advertencias_confirmadas.*' => ['required', 'string', 'max:100', 'distinct'],
         ];
     }
 }

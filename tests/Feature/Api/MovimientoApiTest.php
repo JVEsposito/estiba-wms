@@ -209,8 +209,8 @@ class MovimientoApiTest extends TestCase
         for ($indice = 1; $indice <= $cantidadPosiciones; $indice++) {
             $resultado[] = Posicion::create([
                 'camara_id' => $camara->id,
-                'fila' => 'A',
-                'profundidad' => $indice,
+                'banda' => 1,
+                'posicion' => $indice,
                 'nivel' => 1,
                 'etiqueta' => "A-{$indice}-1",
             ]);

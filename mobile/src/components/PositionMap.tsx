@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CameraPlan, Position } from '../domain/estiba';
@@ -11,8 +12,13 @@ type PositionMapProps = {
 
 export function PositionMap({ plan, selectedPositionId, onSelectPosition }: PositionMapProps) {
   const levels = [...new Set(plan.posiciones.map((position) => position.nivel))].sort((a, b) => a - b);
-  const rows = [...new Set(plan.posiciones.map((position) => position.fila))].sort();
-  const maxDepth = Math.max(1, ...plan.posiciones.map((position) => position.profundidad));
+  const bands = [...new Set(plan.posiciones.map((position) => position.banda))].sort((a, b) => a - b);
+  const maxPosition = Math.max(1, ...plan.posiciones.map((position) => position.posicion));
+  const [selectedLevel, setSelectedLevel] = useState(levels[0] ?? 1);
+
+  useEffect(() => {
+    if (!levels.includes(selectedLevel)) setSelectedLevel(levels[0] ?? 1);
+  }, [levels, selectedLevel]);
 
   return (
     <View style={styles.panel}>
@@ -47,101 +53,118 @@ export function PositionMap({ plan, selectedPositionId, onSelectPosition }: Posi
         </View>
       )}
 
-      <View style={styles.legend}>
-        <Legend color={colors.free} label="Libre" />
-        <Legend color={colors.greenDark} label="Pallet" />
-        <Legend color={colors.amberDark} border={colors.amber} label="Saldo" />
-        <Legend color="#303D45" label="Bloqueada" />
+      <View style={styles.toolbar}>
+        <View style={styles.legend}>
+          <Legend color={colors.free} label="Libre" />
+          <Legend color={colors.greenDark} label="Pallet" />
+          <Legend color={colors.amberDark} border={colors.amber} label="Saldo" />
+          <Legend color="#303D45" label="Bloqueada" />
+        </View>
+        <View style={styles.levelPicker}>
+          {levels.map((level) => (
+            <Pressable
+              key={level}
+              onPress={() => setSelectedLevel(level)}
+              style={[styles.levelButton, selectedLevel === level && styles.levelButtonActive]}
+            >
+              <Text style={[styles.levelText, selectedLevel === level && styles.levelTextActive]}>
+                NIVEL {level}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.orientationRow}>
+        <Text style={styles.orientation}>↑ FONDO</Text>
+        <Text style={styles.orientationHint}>Bandas verticales · P01 se ocupa primero</Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={styles.mapContent}>
-          {levels.map((level) => (
-            <LevelGrid
-              key={level}
-              level={level}
-              maxDepth={maxDepth}
+        <View style={styles.bandRow}>
+          {bands.map((band) => (
+            <Band
+              band={band}
+              key={band}
+              level={selectedLevel}
+              maxPosition={maxPosition}
               onSelectPosition={onSelectPosition}
               plan={plan}
-              rows={rows}
               selectedPositionId={selectedPositionId}
             />
           ))}
         </View>
       </ScrollView>
+
+      <Text style={styles.entrance}>↓ ENTRADA</Text>
     </View>
   );
 }
 
-type LevelGridProps = PositionMapProps & {
+type BandProps = PositionMapProps & {
+  band: number;
   level: number;
-  maxDepth: number;
-  rows: string[];
+  maxPosition: number;
 };
 
-function LevelGrid({
+function Band({
+  band,
   level,
-  maxDepth,
+  maxPosition,
   onSelectPosition,
   plan,
-  rows,
   selectedPositionId,
-}: LevelGridProps) {
-  const depths = Array.from({ length: maxDepth }, (_, index) => index + 1);
+}: BandProps) {
+  const positions = Array.from({ length: maxPosition }, (_, index) => index + 1);
 
   return (
-    <View style={styles.levelGroup}>
-      <Text style={styles.levelHeading}>NIVEL {level}</Text>
-      <View style={styles.depthRow}>
-        <Text style={styles.rowSpacer} />
-        {depths.map((depth) => <Text key={depth} style={styles.depthLabel}>P{depth}</Text>)}
-      </View>
-      {rows.map((row) => (
-        <View key={row} style={styles.positionRow}>
-          <Text style={styles.rowLabel}>{row}</Text>
-          {depths.map((depth) => {
-            const position = plan.posiciones.find((candidate) => (
-              candidate.nivel === level
-              && candidate.fila === row
-              && candidate.profundidad === depth
-            ));
-            if (!position) return <View key={depth} style={styles.gap} />;
+    <View style={styles.band}>
+      <Text style={styles.bandHeading}>BANDA {String(band).padStart(2, '0')}</Text>
+      {positions.map((number) => {
+        const position = plan.posiciones.find((candidate) => (
+          candidate.nivel === level
+          && candidate.banda === band
+          && candidate.posicion === number
+        ));
 
-            const blocked = position.estado !== 'activa';
-            const occupied = position.ocupada;
-            const saldo = position.folio?.tipo_bulto === 'saldo';
-            const selected = position.id === selectedPositionId;
+        if (!position) return <View key={number} style={styles.gap} />;
 
-            return (
-              <Pressable
-                accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : 'libre')}`}
-                accessibilityRole="button"
-                key={position.id}
-                onPress={() => onSelectPosition(position)}
-                style={({ pressed }) => [
-                  styles.cell,
-                  occupied && styles.occupied,
-                  saldo && styles.saldo,
-                  blocked && styles.blocked,
-                  selected && styles.selected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.cellLocation}>{position.etiqueta}</Text>
-                <Text numberOfLines={1} style={styles.cellFolio}>
-                  {position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
-                </Text>
-                <View style={styles.cellMetaRow}>
-                  <Text numberOfLines={1} style={styles.cellMeta}>
-                    {position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
-                  </Text>
-                  <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : '○'}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
+        const blocked = position.estado !== 'activa';
+        const occupied = position.ocupada;
+        const saldo = position.folio?.tipo_bulto === 'saldo';
+        const selected = position.id === selectedPositionId;
+
+        return (
+          <Pressable
+            accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : 'libre')}`}
+            accessibilityRole="button"
+            key={position.id}
+            onPress={() => onSelectPosition(position)}
+            style={({ pressed }) => [
+              styles.cell,
+              occupied && styles.occupied,
+              saldo && styles.saldo,
+              blocked && styles.blocked,
+              selected && styles.selected,
+              pressed && styles.pressed,
+            ]}
+          >
+            <View style={styles.cellTop}>
+              <Text style={styles.positionNumber}>P{String(number).padStart(2, '0')}</Text>
+              <Text style={styles.cellLocation}>{position.etiqueta}</Text>
+            </View>
+            <Text numberOfLines={1} style={styles.cellFolio}>
+              {position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
+            </Text>
+            <View style={styles.cellMetaRow}>
+              <Text numberOfLines={1} style={styles.cellMeta}>
+                {position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
+              </Text>
+              <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : '○'}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -199,28 +222,47 @@ const styles = StyleSheet.create({
   lockCopy: { flex: 1 },
   lockTitle: { color: colors.amber, fontSize: 11, fontWeight: '900' },
   lockText: { marginTop: 2, color: colors.text, fontSize: 9, lineHeight: 13 },
-  legend: { marginVertical: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  toolbar: {
+    marginVertical: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   swatch: { width: 14, height: 14, borderRadius: 3, borderWidth: 1 },
   legendText: { color: colors.muted, fontSize: 9, fontWeight: '700' },
-  mapContent: { gap: 14, paddingBottom: 2 },
-  levelGroup: {
-    padding: 10,
-    borderRadius: 12,
+  levelPicker: { flexDirection: 'row', gap: 5 },
+  levelButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  levelButtonActive: { borderColor: colors.cyan, backgroundColor: colors.cyanDark },
+  levelText: { color: colors.muted, fontSize: 8, fontWeight: '900' },
+  levelTextActive: { color: colors.cyan },
+  orientationRow: { marginBottom: 7, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  orientation: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
+  orientationHint: { color: colors.muted, fontSize: 8 },
+  bandRow: { flexDirection: 'row', gap: 8, paddingBottom: 3 },
+  band: {
+    width: 132,
+    padding: 7,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: colors.borderSoft,
     backgroundColor: colors.background,
+    gap: 5,
   },
-  levelHeading: { marginBottom: 7, color: colors.cyan, fontSize: 10, fontWeight: '900' },
-  depthRow: { flexDirection: 'row', gap: 5, marginBottom: 5 },
-  rowSpacer: { width: 26 },
-  depthLabel: { width: 82, color: colors.muted, textAlign: 'center', fontSize: 8, fontWeight: '800' },
-  positionRow: { flexDirection: 'row', gap: 5, marginBottom: 5 },
-  rowLabel: { width: 26, alignSelf: 'center', color: colors.cyan, textAlign: 'center', fontWeight: '900' },
-  gap: { width: 82, height: 64 },
+  bandHeading: { color: colors.cyan, textAlign: 'center', fontSize: 9, fontWeight: '900' },
+  gap: { height: 68 },
   cell: {
-    width: 82,
-    height: 64,
+    height: 68,
     padding: 7,
     borderRadius: 8,
     borderWidth: 1,
@@ -233,9 +275,12 @@ const styles = StyleSheet.create({
   blocked: { borderColor: '#46545C', backgroundColor: '#303D45', opacity: 0.72 },
   selected: { borderWidth: 3, borderColor: colors.cyan },
   pressed: { opacity: 0.72 },
-  cellLocation: { color: colors.muted, fontSize: 8, fontWeight: '800' },
+  cellTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
+  positionNumber: { color: colors.cyan, fontSize: 8, fontWeight: '900' },
+  cellLocation: { color: colors.muted, fontSize: 7, fontWeight: '800' },
   cellFolio: { color: colors.text, fontSize: 10, fontWeight: '900' },
   cellMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 3 },
   cellMeta: { flex: 1, color: colors.text, fontSize: 7 },
   cellKind: { color: colors.text, fontSize: 8, fontWeight: '900' },
+  entrance: { marginTop: 7, color: colors.cyan, fontSize: 9, fontWeight: '900' },
 });

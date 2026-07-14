@@ -26,6 +26,8 @@ class UbicarFolioRequest extends FormRequest
             'sesion_destino_id' => ['required', 'uuid', 'exists:sesiones_estiba,id'],
             'version_destino_conocida' => ['required', 'integer', 'min:0'],
             'generado_dispositivo_at' => ['required', 'date'],
+            'advertencias_confirmadas' => ['sometimes', 'array', 'max:5'],
+            'advertencias_confirmadas.*' => ['required', 'string', 'max:100', 'distinct'],
             'datos_folio' => [
                 'sometimes',
                 'array:condicion_sag_id,fecha_ingreso,variedad,calibre,marca,exportadora',

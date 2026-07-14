@@ -21,7 +21,10 @@ Este documento establece el significado de los términos utilizados por Estiba W
 | Traslado entre cámaras | Cambio de un bulto desde una posición de una cámara hacia una posición de otra cámara. Libera el origen y ocupa el destino en una sola operación. |
 | Movimiento | Registro inalterable de una ubicación inicial, reubicación, traslado entre cámaras, retiro o reversión. |
 | Carga | Agrupación lógica de entre 1 y 26 bultos seleccionados para una futura salida. Se implementará después de estabilizar el núcleo de estibas. |
-| Despacho | Acto mediante el cual una carga sale físicamente de la instalación. |
+| Despacho | Acto de retirar uno o más folios de una cámara y enviarlos al andén. La carga queda despachada cuando todos sus folios fueron enviados. |
+| Banda | Línea vertical numerada dentro de una cámara. |
+| Posición | Lugar numerado dentro de una banda; `P01` corresponde al fondo y la numeración avanza hacia la entrada. |
+| Andén | Destino físico al que se envían los folios durante el despacho. |
 | Condición SAG | Condición operacional o regulatoria asociada al folio. Sus valores serán administrados mediante un catálogo configurable. |
 | Dispositivo | Tablet autorizada para consultar o modificar la WMS. |
 | Operación offline | Acción creada en una tablet sin conexión y enviada posteriormente al servidor. |

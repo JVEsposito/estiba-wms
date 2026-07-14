@@ -5,7 +5,7 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 ## 1. Cámaras y posiciones
 
 1. Una cámara debe existir antes de generar sus posiciones.
-2. La combinación de cámara, fila o banda, profundidad o posición y nivel debe ser única.
+2. La combinación de cámara, banda, posición y nivel debe ser única.
 3. Una posición puede estar activa, bloqueada o fuera de servicio.
 4. Solo una posición activa puede recibir un bulto.
 5. Una cámara con historial no se elimina; se desactiva.

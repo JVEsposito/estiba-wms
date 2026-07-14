@@ -33,7 +33,7 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 |---|---|
 | API y reglas de negocio | PHP 8.3 + Laravel 13 |
 | Base de datos central | MySQL |
-| Interfaz web para tablets | Blade + JavaScript + CSS responsive |
+| Interfaz web operacional y de oficina | Blade + JavaScript + CSS responsive |
 | Cliente nativo para tablets | Expo + React Native + TypeScript en `mobile/` |
 | Persistencia local futura | IndexedDB / cola offline |
 | Integración futura | Adaptadores de entrada/salida desacoplados |
@@ -48,12 +48,17 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Reglas de negocio](docs/reglas-negocio.md)
 - [Arquitectura propuesta](docs/arquitectura.md)
 - [Prueba de escritura desde Expo Go hacia MySQL](docs/prueba-escritura-mysql.md)
+- [Configuración de cámaras y preparación de cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
 ## Estado del proyecto
 
 El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
+
+La configuración de cámaras se realiza desde PC en `/oficina/camaras`. El acceso
+de oficina no solicita código de tablet y está restringido a supervisores y
+administradores.
 
 ## Puesta en marcha local
 
@@ -72,6 +77,11 @@ Los datos de demostración solo se crean en entornos `local` y `testing`:
 - Usuario: `operador@estiba.local`
 - Contraseña: `password`
 - Código de tablet: `TABLET-01`
+
+Para probar la configuración desde oficina:
+
+- Usuario: `supervisor@estiba.local`
+- Contraseña: `password`
 
 ## Orden de implementación propuesto
 

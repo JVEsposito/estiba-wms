@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'user_id',
     'dispositivo_id',
     'motivo',
+    'advertencias_confirmadas',
     'version_origen_anterior',
     'version_origen_resultante',
     'version_destino_anterior',
@@ -110,6 +111,7 @@ class Movimiento extends Model
     {
         return [
             'tipo_movimiento' => TipoMovimiento::class,
+            'advertencias_confirmadas' => 'array',
             'generado_dispositivo_at' => 'datetime',
             'recibido_servidor_at' => 'datetime',
             'version_origen_anterior' => 'integer',

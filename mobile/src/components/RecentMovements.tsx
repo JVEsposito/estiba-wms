@@ -33,10 +33,10 @@ export function RecentMovements({ movements, lastSync }: RecentMovementsProps) {
         <View style={styles.list}>
           {movements.slice(0, 4).map((movement) => {
             const origin = movement.origen
-              ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta ?? movement.origen.posicion.fila}`
+              ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta ?? `B${movement.origen.posicion.banda}`}`
               : 'Ingreso';
             const destination = movement.destino
-              ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta ?? movement.destino.posicion.fila}`
+              ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta ?? `B${movement.destino.posicion.banda}`}`
               : 'Salida';
             const time = new Date(movement.created_at).toLocaleTimeString('es-CL', {
               hour: '2-digit',

@@ -87,8 +87,8 @@ export type Folio = {
 
 export type Position = {
   id: string;
-  fila: string;
-  profundidad: number;
+  banda: number;
+  posicion: number;
   nivel: number;
   etiqueta: string | null;
   estado: string;
@@ -104,8 +104,8 @@ export type MovementEnd = {
   camara: { id: string; codigo: string; nombre: string | null };
   posicion: {
     id: string;
-    fila: string;
-    profundidad: number;
+    banda: number;
+    posicion: number;
     nivel: number;
     etiqueta: string | null;
   };
@@ -148,6 +148,7 @@ export type LocatePayload = {
   sesion_destino_id: string;
   version_destino_conocida: number;
   generado_dispositivo_at: string;
+  advertencias_confirmadas?: string[];
   datos_folio?: {
     condicion_sag_id?: string;
     variedad?: string;
@@ -166,6 +167,7 @@ export type MovePayload = {
   version_origen_conocida: number;
   version_destino_conocida: number;
   generado_dispositivo_at: string;
+  advertencias_confirmadas?: string[];
 };
 
 export type ApiList<T> = { data: T[] };

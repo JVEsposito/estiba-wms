@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['camara_id', 'fila', 'profundidad', 'nivel', 'etiqueta', 'estado'])]
+#[Fillable(['camara_id', 'banda', 'posicion', 'nivel', 'etiqueta', 'estado'])]
 class Posicion extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
@@ -42,7 +42,8 @@ class Posicion extends Model
     {
         return [
             'estado' => EstadoPosicion::class,
-            'profundidad' => 'integer',
+            'banda' => 'integer',
+            'posicion' => 'integer',
             'nivel' => 'integer',
         ];
     }
