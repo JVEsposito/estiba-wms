@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CameraPlan, CameraSummary, Position, SagCondition } from '../domain/estiba';
 import { colors } from '../theme/colors';
@@ -42,6 +44,8 @@ export function LocateModal({
   position,
   visible,
 }: LocateModalProps) {
+  const { height, width } = useWindowDimensions();
+  const compact = height < 700 || width < 1000;
   const [folio, setFolio] = useState('');
   const [type, setType] = useState<'pallet' | 'saldo'>('pallet');
   const [conditionId, setConditionId] = useState<string>();
@@ -76,15 +80,22 @@ export function LocateModal({
 
   return (
     <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
-      <View style={styles.backdrop}>
-        <View style={styles.dialog}>
+      <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.modalSafeArea}>
+        <View style={[styles.backdrop, compact && styles.backdropCompact]}>
+        <View style={[styles.dialog, compact && styles.dialogCompact]}>
           <DialogHeading
+            compact={compact}
             eyebrow="UBICACIÓN INICIAL"
             onClose={onCancel}
             subtitle={'Destino: ' + (plan?.codigo ?? '') + ' · ' + (position?.etiqueta ?? '')}
             title="Registrar folio"
           />
-          <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={styles.form}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            style={styles.formScroll}
+          >
             <FormField
               autoCapitalize="characters"
               label="Número de folio *"
@@ -127,13 +138,15 @@ export function LocateModal({
 
           <DialogActions
             busy={busy}
+            compact={compact}
             confirmDisabled={!folio.trim()}
             confirmLabel="Confirmar ubicación"
             onCancel={onCancel}
             onConfirm={submit}
           />
         </View>
-      </View>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -165,6 +178,8 @@ export function MoveModal({
   selectedDestination,
   visible,
 }: MoveModalProps) {
+  const { height, width } = useWindowDimensions();
+  const compact = height < 700 || width < 1000;
   const freePositions = destinationPlan?.posiciones.filter((position) => (
     position.estado === 'activa'
     && !position.ocupada
@@ -173,9 +188,11 @@ export function MoveModal({
 
   return (
     <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
-      <View style={styles.backdrop}>
-        <View style={[styles.dialog, styles.moveDialog]}>
+      <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.modalSafeArea}>
+        <View style={[styles.backdrop, compact && styles.backdropCompact]}>
+        <View style={[styles.dialog, styles.moveDialog, compact && styles.dialogCompact]}>
           <DialogHeading
+            compact={compact}
             eyebrow="MOVIMIENTO DE FOLIO"
             onClose={onCancel}
             subtitle={'Origen: ' + (originPlan?.codigo ?? '') + ' · ' + (originPosition?.etiqueta ?? '')}
@@ -210,7 +227,8 @@ export function MoveModal({
           ) : (
             <ScrollView
               contentContainerStyle={styles.destinationGrid}
-              style={styles.destinationScroll}
+              nestedScrollEnabled
+              style={[styles.destinationScroll, compact && styles.destinationScrollCompact]}
             >
               {freePositions.map((position) => (
                 <Pressable
@@ -234,33 +252,37 @@ export function MoveModal({
 
           <DialogActions
             busy={busy}
+            compact={compact}
             confirmDisabled={!selectedDestination}
             confirmLabel="Confirmar movimiento"
             onCancel={onCancel}
             onConfirm={onConfirm}
           />
         </View>
-      </View>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 function DialogHeading({
+  compact,
   eyebrow,
   onClose,
   subtitle,
   title,
 }: {
+  compact?: boolean;
   eyebrow: string;
   onClose: () => void;
   subtitle: string;
   title: string;
 }) {
   return (
-    <View style={styles.heading}>
+    <View style={[styles.heading, compact && styles.headingCompact]}>
       <View style={styles.headingCopy}>
         <Text style={styles.eyebrow}>{eyebrow}</Text>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, compact && styles.titleCompact]}>{title}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
       <Pressable accessibilityLabel="Cerrar" onPress={onClose} style={styles.close}>
@@ -308,26 +330,32 @@ function Choice({ active, label, onPress }: { active: boolean; label: string; on
 
 function DialogActions({
   busy,
+  compact,
   confirmDisabled,
   confirmLabel,
   onCancel,
   onConfirm,
 }: {
   busy: boolean;
+  compact?: boolean;
   confirmDisabled: boolean;
   confirmLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   return (
-    <View style={styles.actions}>
-      <Pressable disabled={busy} onPress={onCancel} style={styles.cancel}>
+    <View style={[styles.actions, compact && styles.actionsCompact]}>
+      <Pressable disabled={busy} onPress={onCancel} style={[styles.cancel, compact && styles.buttonCompact]}>
         <Text style={styles.cancelText}>Cancelar</Text>
       </Pressable>
       <Pressable
         disabled={busy || confirmDisabled}
         onPress={onConfirm}
-        style={[styles.confirm, (busy || confirmDisabled) && styles.disabled]}
+        style={[
+          styles.confirm,
+          compact && styles.buttonCompact,
+          (busy || confirmDisabled) && styles.disabled,
+        ]}
       >
         {busy ? <ActivityIndicator color="#032022" /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
       </Pressable>
@@ -336,13 +364,14 @@ function DialogActions({
 }
 
 const styles = StyleSheet.create({
+  modalSafeArea: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)' },
   backdrop: {
     flex: 1,
     padding: 24,
-    backgroundColor: 'rgba(0,0,0,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  backdropCompact: { padding: 8 },
   dialog: {
     width: '92%',
     maxWidth: 820,
@@ -353,11 +382,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.panel,
   },
+  dialogCompact: { width: '100%', maxHeight: '100%', padding: 14, borderRadius: 14 },
   moveDialog: { maxWidth: 900 },
   heading: { marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  headingCompact: { marginBottom: 10 },
   headingCopy: { flex: 1 },
   eyebrow: { color: colors.cyan, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   title: { marginTop: 4, color: colors.text, fontSize: 23, fontWeight: '900' },
+  titleCompact: { fontSize: 19 },
   subtitle: { marginTop: 4, color: colors.muted, fontSize: 10 },
   close: {
     width: 36,
@@ -369,7 +401,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeText: { color: colors.text, fontSize: 24, lineHeight: 25 },
-  form: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  formScroll: { flexShrink: 1 },
+  form: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingBottom: 2 },
   field: { width: '48%', gap: 6 },
   wide: { width: '100%' },
   label: { color: colors.text, fontSize: 9, fontWeight: '800' },
@@ -404,7 +437,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   destinationCount: { color: colors.muted, fontSize: 8 },
-  destinationScroll: { maxHeight: 260 },
+  destinationScroll: { minHeight: 80, maxHeight: 260, flexShrink: 1 },
+  destinationScrollCompact: { maxHeight: 150 },
   destinationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   destination: {
     width: '31.8%',
@@ -420,6 +454,7 @@ const styles = StyleSheet.create({
   loader: { height: 150 },
   empty: { paddingVertical: 30, color: colors.muted, fontSize: 10, textAlign: 'center' },
   actions: { marginTop: 18, flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
+  actionsCompact: { marginTop: 10 },
   cancel: {
     minWidth: 110,
     height: 44,
@@ -440,6 +475,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   confirmText: { color: '#032022', fontSize: 10, fontWeight: '900' },
+  buttonCompact: { height: 40 },
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.72 },
 });
