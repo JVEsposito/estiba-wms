@@ -1,7 +1,7 @@
 <?php
 
-use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\AdvertenciasMovimientoPendientes;
+use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\OperacionNoAutorizada;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;

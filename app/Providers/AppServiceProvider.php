@@ -2,9 +2,9 @@
 
 namespace App\Providers;
 
+use App\Enums\RolUsuario;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
-use App\Enums\RolUsuario;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;

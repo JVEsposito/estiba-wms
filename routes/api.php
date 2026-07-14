@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\AccesoOficinaController;
+use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\CondicionSagController;
