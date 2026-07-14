@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'nombre',
     'tipo',
     'estado',
+    'version_plano',
     'cantidad_bandas',
     'posiciones_por_banda',
     'cantidad_niveles',
