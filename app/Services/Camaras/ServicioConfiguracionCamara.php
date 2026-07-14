@@ -225,7 +225,7 @@ class ServicioConfiguracionCamara
             $dentroDelPlano = $posicion->banda <= $bandas
                 && $posicion->posicion <= $cantidadPosiciones
                 && $posicion->nivel <= $niveles;
-            $fuera = ! $dentroDelPlano || $fueraServicio->has($this->clave(
+            $fuera = $dentroDelPlano === false || $fueraServicio->has($this->clave(
                 $posicion->banda,
                 $posicion->posicion,
                 $posicion->nivel,
