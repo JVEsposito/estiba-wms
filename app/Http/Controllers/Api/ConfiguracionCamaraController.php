@@ -43,8 +43,7 @@ class ConfiguracionCamaraController extends Controller
 
     public function siguienteCodigo(
         ServicioConfiguracionCamara $servicio,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         Gate::authorize('configurar-camaras');
 
         return response()->json([
@@ -55,8 +54,7 @@ class ConfiguracionCamaraController extends Controller
     public function store(
         CrearCamaraRequest $request,
         ServicioConfiguracionCamara $servicio,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $camara = $servicio->crear($request->validated(), $request->user());
 
         return (new CamaraConfiguracionResource($camara->load('creadoPor:id,name')))
@@ -75,8 +73,7 @@ class ConfiguracionCamaraController extends Controller
         ActualizarCamaraRequest $request,
         Camara $camara,
         ServicioConfiguracionCamara $servicio,
-    ): CamaraConfiguracionResource
-    {
+    ): CamaraConfiguracionResource {
         $actualizada = $servicio->actualizar(
             $camara,
             $request->validated(),
@@ -90,8 +87,7 @@ class ConfiguracionCamaraController extends Controller
         Request $request,
         Camara $camara,
         ServicioConfiguracionCamara $servicio,
-    ): CamaraConfiguracionResource
-    {
+    ): CamaraConfiguracionResource {
         Gate::authorize('administrar-camaras');
 
         $desactivada = $servicio->desactivar($camara, $request->user());

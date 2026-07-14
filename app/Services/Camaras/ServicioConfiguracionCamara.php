@@ -200,8 +200,7 @@ class ServicioConfiguracionCamara
         Camara $camara,
         Collection $posiciones,
         array $datos,
-    ): void
-    {
+    ): void {
         $bandas = (int) $datos['bandas'];
         $cantidadPosiciones = (int) $datos['posiciones_por_banda'];
         $niveles = (int) $datos['niveles'];
