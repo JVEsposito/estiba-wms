@@ -35,6 +35,10 @@ return new class extends Migration
         }
 
         Schema::table('posiciones', function (Blueprint $table) {
+            $table->index('camara_id', 'posiciones_camara_id_index');
+        });
+
+        Schema::table('posiciones', function (Blueprint $table) {
             $table->dropUnique('posiciones_coordenadas_unique');
             $table->dropColumn('fila');
         });
@@ -124,6 +128,7 @@ return new class extends Migration
                 ['camara_id', 'fila', 'profundidad', 'nivel'],
                 'posiciones_coordenadas_unique',
             );
+            $table->dropIndex('posiciones_camara_id_index');
         });
     }
 };
