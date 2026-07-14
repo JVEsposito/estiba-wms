@@ -52,6 +52,16 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        User::query()->firstOrCreate(
+            ['email' => 'despachador@estiba.local'],
+            [
+                'name' => 'Despachador de prueba',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::Despachador,
+                'activo' => true,
+            ],
+        );
+
         Dispositivo::query()->firstOrCreate(
             ['codigo' => 'TABLET-01'],
             [

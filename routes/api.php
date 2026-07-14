@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\CamaraController;
+use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\MovimientoController;
@@ -23,6 +24,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
+
+    Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
+    Route::get('/cargas', [CargaController::class, 'index']);
+    Route::post('/cargas', [CargaController::class, 'store']);
+    Route::get('/cargas/{carga}', [CargaController::class, 'show']);
+    Route::put('/cargas/{carga}', [CargaController::class, 'update']);
+    Route::post('/cargas/{carga}/folios', [CargaController::class, 'agregarFolios']);
+    Route::delete('/cargas/{carga}/folios/{folio}', [CargaController::class, 'quitarFolio']);
+    Route::post('/cargas/{carga}/publicar', [CargaController::class, 'publicar']);
+    Route::post('/cargas/{carga}/cancelar', [CargaController::class, 'cancelar']);
 
     Route::get('/configuracion/camaras', [ConfiguracionCamaraController::class, 'index']);
     Route::get('/configuracion/camaras/siguiente-codigo', [ConfiguracionCamaraController::class, 'siguienteCodigo']);

@@ -24,7 +24,7 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 - Cada cambio del plano pertenece a una sesión de estiba y queda auditado.
 - Una cámara puede ser consultada por varias personas, pero solo una puede editarla a la vez.
 - El repaletizaje y el control de temperatura quedan fuera del MVP.
-- Cargas y despachos se abordarán después del núcleo de estibas y movimientos.
+- Las órdenes de carga se incorporan sobre el núcleo estable de estibas; el despacho físico hacia andenes permanece como una etapa posterior.
 - La arquitectura dejará una interfaz preparada para una futura integración con el ERP utilizado por la empresa, sin acoplar el MVP a Suit Export.
 
 ## Arquitectura prevista
@@ -57,8 +57,8 @@ Estas definiciones son la referencia previa para diseñar migraciones, endpoints
 El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
 
 La configuración de cámaras se realiza desde PC en `/oficina/camaras`. El acceso
-de oficina no solicita código de tablet y está restringido a supervisores y
-administradores.
+de oficina no solicita código de tablet y admite despachadores, supervisores y
+administradores; cada módulo conserva permisos independientes.
 
 ## Puesta en marcha local
 
@@ -88,6 +88,11 @@ Para editar, redimensionar, desactivar o reactivar cámaras:
 - Usuario: `administrador@estiba.local`
 - Contraseña: `password`
 
+Para probar la API de órdenes de carga:
+
+- Usuario: `despachador@estiba.local`
+- Contraseña: `password`
+
 ## Orden de implementación propuesto
 
 1. [x] Auditar el esquema exploratorio.
@@ -97,4 +102,4 @@ Para editar, redimensionar, desactivar o reactivar cámaras:
 5. [x] Publicar el contrato de la API REST.
 6. [x] Construir el flujo conectado principal para tablets.
 7. [ ] Incorporar sincronización offline y resolución de conflictos.
-8. [ ] Añadir cargas y despachos como módulo posterior.
+8. [ ] Completar la interfaz de cargas y el despacho físico hacia andenes.

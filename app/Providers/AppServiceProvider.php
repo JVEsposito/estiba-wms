@@ -41,6 +41,28 @@ class AppServiceProvider extends ServiceProvider
                 && $usuario->rol === RolUsuario::Administrador,
         );
 
+        Gate::define(
+            'gestionar-cargas',
+            fn (User $usuario): bool => $usuario->activo
+                && in_array($usuario->rol, [
+                    RolUsuario::Administrador,
+                    RolUsuario::Supervisor,
+                    RolUsuario::Despachador,
+                ], true),
+        );
+
+        Gate::define(
+            'consultar-cargas-operacion',
+            fn (User $usuario): bool => $usuario->activo
+                && in_array($usuario->rol, [
+                    RolUsuario::Administrador,
+                    RolUsuario::Supervisor,
+                    RolUsuario::Despachador,
+                    RolUsuario::Operador,
+                    RolUsuario::Consulta,
+                ], true),
+        );
+
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
                 if (! $esValido || ! $token->tokenable instanceof User) {

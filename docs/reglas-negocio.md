@@ -96,19 +96,34 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 6. La ausencia de integración no impide la operación manual.
 7. Toda importación debe registrar origen, fecha, resultado y errores.
 
-## 9. Autorizaciones
+## 9. Órdenes de carga
 
-| Acción | Operador | Supervisor | Administrador | Consulta |
-|---|---:|---:|---:|---:|
-| Consultar cámaras | Sí | Sí | Sí | Sí |
-| Abrir sesión | Sí | Sí | Sí | No |
-| Ubicar, reubicar y trasladar | Sí | Sí | Sí | No |
-| Retirar | Sí | Sí | Sí | No |
-| Revertir | No | Sí | Sí | No |
-| Cerrar sesión ajena | No | Sí | Sí | No |
-| Crear cámaras | No | Sí | Sí | No |
-| Editar o redimensionar cámaras | No | No | Sí | No |
-| Desactivar o reactivar cámaras | No | No | Sí | No |
-| Administrar usuarios y dispositivos | No | No | Sí | No |
+1. Una carga en borrador puede contener entre 0 y 26 folios.
+2. Publicar exige entre 1 y 26 folios activos, disponibles y con ubicación actual.
+3. Un folio solo puede mantener una asignación de carga vigente.
+4. Los borradores reservan sus folios, pero no aparecen en tablets ni en el plano operacional.
+5. Una carga pendiente puede modificarse mientras no haya iniciado su separación.
+6. Cada mutación exige la versión conocida e incrementa la versión de la carga una sola vez.
+7. Una versión desactualizada se rechaza como conflicto y no sobrescribe cambios ajenos.
+8. Cancelar una carga libera sus asignaciones actuales, pero conserva eventos por cada folio.
+9. La distribución por cámara se calcula desde las ubicaciones actuales y no se almacena como copia.
+10. Las cargas y sus eventos no se eliminan físicamente.
+
+## 10. Autorizaciones
+
+| Acción | Operador | Despachador | Supervisor | Administrador | Consulta |
+|---|---:|---:|---:|---:|---:|
+| Consultar cámaras | Sí | Sí | Sí | Sí | Sí |
+| Abrir sesión | Sí | No | Sí | Sí | No |
+| Ubicar, reubicar y trasladar | Sí | No | Sí | Sí | No |
+| Retirar | Sí | No | Sí | Sí | No |
+| Revertir | No | No | Sí | Sí | No |
+| Cerrar sesión ajena | No | No | Sí | Sí | No |
+| Crear y editar cargas | No | Sí | Sí | Sí | No |
+| Consultar cargas operacionales | Sí | Sí | Sí | Sí | Sí |
+| Crear cámaras | No | No | Sí | Sí | No |
+| Editar o redimensionar cámaras | No | No | No | Sí | No |
+| Desactivar o reactivar cámaras | No | No | No | Sí | No |
+| Administrar usuarios y dispositivos | No | No | No | Sí | No |
 
 La matriz podrá refinarse, pero cualquier ampliación deberá conservar la trazabilidad.

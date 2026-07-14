@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoCarga;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,6 +17,16 @@ class PosicionPlanoResource extends JsonResource
             ? $this->ubicacionActual
             : null;
         $folio = $ubicacion?->folio;
+        $asignacionCarga = $folio?->relationLoaded('asignacionCargaActual')
+            ? $folio->asignacionCargaActual
+            : null;
+        $carga = $asignacionCarga?->relationLoaded('carga')
+            ? $asignacionCarga->carga
+            : null;
+
+        if ($carga && ! in_array($carga->estado, EstadoCarga::visiblesEnOperacion(), true)) {
+            $carga = null;
+        }
 
         return [
             'id' => $this->id,
@@ -41,6 +52,13 @@ class PosicionPlanoResource extends JsonResource
                 'marca' => $folio->marca,
                 'exportadora' => $folio->exportadora,
                 'ubicado_at' => $ubicacion->ubicado_at?->toAtomString(),
+                'carga_actual' => $carga ? [
+                    'id' => $carga->id,
+                    'codigo' => $carga->codigo,
+                    'estado' => $carga->estado->value,
+                    'prioridad' => $carga->prioridad->value,
+                    'version' => $carga->version,
+                ] : null,
             ] : null,
         ];
     }
