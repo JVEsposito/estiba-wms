@@ -165,6 +165,7 @@ function movementEnd(plan: CameraPlan, position: Position) {
 export class DemoEstibaApi implements EstibaApi {
   readonly mode = 'demo' as const;
   readonly baseUrl = null;
+  readonly configurationError = null;
   private plans = [
     createPlan('camera-01', 'CAM-01', 'Cámara de tránsito 01', [0, 2, 5, 7, 9, 13, 16]),
     createPlan('camera-02', 'CAM-02', 'Cámara de tránsito 02', [1, 3, 4, 8, 10, 12, 15, 18], true),

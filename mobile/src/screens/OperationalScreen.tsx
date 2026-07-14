@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +32,7 @@ import {
   SagCondition,
 } from '../domain/estiba';
 import { EstibaApi } from '../services/estibaApi';
+import { ApiError } from '../services/apiError';
 import { colors } from '../theme/colors';
 
 type OperationalScreenProps = {
@@ -54,7 +56,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [moveVisible, setMoveVisible] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [connectionState, setConnectionState] = useState<'connected' | 'offline'>('connected');
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const refreshInFlight = useRef(false);
 
   const selectedPosition = useMemo(
     () => plan?.posiciones.find((position) => position.id === selectedPositionId) ?? null,
@@ -69,6 +75,30 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     void initialize();
   }, []);
 
+  useEffect(() => {
+    if (!selectedCameraId || busy || locateVisible || moveVisible) return;
+
+    const timer = setInterval(() => {
+      void refreshCurrent({ quiet: true });
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, [selectedCameraId, busy, locateVisible, moveVisible]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active'
+        && selectedCameraId
+        && !busy
+        && !locateVisible
+        && !moveVisible) {
+        void refreshCurrent({ quiet: true });
+      }
+    });
+
+    return () => subscription.remove();
+  }, [selectedCameraId, busy, locateVisible, moveVisible]);
+
   async function initialize() {
     setBusy(true);
     setError('');
@@ -79,12 +109,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       ]);
       setCameras(loadedCameras);
       setConditions(loadedConditions);
+      setError('');
+      setConnectionState('connected');
       if (loadedCameras[0]) {
         setSelectedCameraId(loadedCameras[0].id);
         await loadCamera(loadedCameras[0].id, false);
       }
     } catch (reason) {
-      setError(messageFrom(reason));
+      reportFailure(reason, setError);
     } finally {
       setBusy(false);
     }
@@ -101,9 +133,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       ]);
       setPlan(loadedPlan);
       setMovements(loadedMovements);
+      setError('');
+      setConnectionState('connected');
       setLastSync(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
     } catch (reason) {
-      setError(messageFrom(reason));
+      reportFailure(reason, setError);
     } finally {
       if (showBusy) setBusy(false);
     }
@@ -111,21 +145,39 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
   async function selectCamera(cameraId: string) {
     setSelectedCameraId(cameraId);
+    setNotice('');
     await loadCamera(cameraId);
   }
 
-  async function refreshCurrent() {
-    if (!selectedCameraId) return;
-    setBusy(true);
-    setError('');
+  async function refreshCurrent({ quiet = false }: { quiet?: boolean } = {}) {
+    if (!selectedCameraId || refreshInFlight.current) return;
+
+    refreshInFlight.current = true;
+    if (!quiet) setBusy(true);
+
     try {
-      const loadedCameras = await api.listCameras(auth.token);
+      const [loadedCameras, loadedPlan, loadedMovements] = await Promise.all([
+        api.listCameras(auth.token),
+        api.getPlan(auth.token, selectedCameraId),
+        api.listRecent(auth.token, selectedCameraId),
+      ]);
+
       setCameras(loadedCameras);
-      await loadCamera(selectedCameraId, false);
+      setPlan(loadedPlan);
+      setMovements(loadedMovements);
+      setError('');
+      setSelectedPositionId((current) => (
+        current && loadedPlan.posiciones.some((position) => position.id === current)
+          ? current
+          : null
+      ));
+      setConnectionState('connected');
+      setLastSync(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
     } catch (reason) {
-      setError(messageFrom(reason));
+      reportFailure(reason, setError);
     } finally {
-      setBusy(false);
+      refreshInFlight.current = false;
+      if (!quiet) setBusy(false);
     }
   }
 
@@ -153,22 +205,30 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
   async function openCurrentSession() {
     if (!plan) return;
-    await runOperation(async () => {
+    const succeeded = await runOperation(async () => {
       await api.openSession(auth.token, plan.id);
-      await refreshCurrent();
     });
+
+    if (succeeded) {
+      setNotice(`Estiba abierta en ${plan.codigo}. La cámara quedó reservada para esta tablet.`);
+      await refreshCurrent();
+    }
   }
 
   async function closeCurrentSession() {
     if (!ownSession) return;
-    await runOperation(async () => {
-      await api.closeSession(auth.token, ownSession.id);
+    const cameraCode = plan?.codigo ?? 'la cámara';
+    const succeeded = await runOperation(() => api.closeSession(auth.token, ownSession.id));
+
+    if (succeeded) {
+      setNotice(`Estiba cerrada en ${cameraCode}. La cámara quedó disponible.`);
       await refreshCurrent();
-    });
+    }
   }
 
   async function confirmLocate(form: LocateFormValue) {
     if (!plan || !selectedPosition || !ownSession) return;
+    setModalError('');
     const data = {
       condicion_sag_id: form.condicion_sag_id,
       variedad: form.variedad,
@@ -190,15 +250,23 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       ...(Object.keys(compactData).length ? { datos_folio: compactData } : {}),
     };
 
-    await runOperation(async () => {
-      await api.locate(auth.token, payload);
+    const succeeded = await runOperation(
+      () => api.locate(auth.token, payload),
+      setModalError,
+    );
+
+    if (succeeded) {
       setLocateVisible(false);
+      setNotice(
+        `Folio ${payload.numero_folio} guardado en el servidor y ubicado en ${positionLabel(selectedPosition)}.`,
+      );
       await refreshCurrent();
-    });
+    }
   }
 
   async function openMove() {
     if (!plan || !selectedPosition?.folio || !ownSession) return;
+    setModalError('');
     setDestinationPlan(plan);
     setSelectedDestination(null);
     setMoveVisible(true);
@@ -207,14 +275,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   async function chooseDestinationCamera(cameraId: string) {
     setBusy(true);
     setSelectedDestination(null);
-    setError('');
+    setModalError('');
     try {
       const loadedPlan = cameraId === plan?.id
         ? plan
         : await api.getPlan(auth.token, cameraId);
       setDestinationPlan(loadedPlan);
+      setConnectionState('connected');
     } catch (reason) {
-      setError(messageFrom(reason));
+      reportFailure(reason, setModalError);
     } finally {
       setBusy(false);
     }
@@ -223,8 +292,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   async function confirmMove() {
     if (!plan || !selectedPosition?.folio || !ownSession || !destinationPlan || !selectedDestination) return;
     const folio = selectedPosition.folio;
+    const destinationLabel = `${destinationPlan.codigo} · ${positionLabel(selectedDestination)}`;
+    setModalError('');
 
-    await runOperation(async () => {
+    const succeeded = await runOperation(async () => {
       let destinationSessionId: string;
       if (destinationPlan.id === plan.id) {
         destinationSessionId = ownSession.id;
@@ -247,26 +318,49 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         generado_dispositivo_at: new Date().toISOString(),
       };
       await api.move(auth.token, payload);
+    }, setModalError);
+
+    if (succeeded) {
       setMoveVisible(false);
       setDestinationPlan(null);
       setSelectedDestination(null);
+      setNotice(`Folio ${folio.numero_folio} movido y guardado en ${destinationLabel}.`);
       await refreshCurrent();
-    });
+    }
   }
 
-  async function runOperation(operation: () => Promise<void>) {
+  async function runOperation(
+    operation: () => Promise<void>,
+    errorTarget: (message: string) => void = setError,
+  ): Promise<boolean> {
     setBusy(true);
-    setError('');
+    errorTarget('');
+    setNotice('');
     try {
       await operation();
+      setConnectionState('connected');
+      return true;
     } catch (reason) {
-      setError(messageFrom(reason));
+      reportFailure(reason, errorTarget);
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
   async function logout() {
+    const openCameras = cameras
+      .filter((camera) => camera.acceso.modo === 'edicion' && camera.acceso.sesion?.es_propia)
+      .map((camera) => camera.codigo);
+
+    if (openCameras.length > 0) {
+      Alert.alert(
+        'Estibas todavía abiertas',
+        `Cierra las sesiones de ${openCameras.join(', ')} antes de finalizar el turno.`,
+      );
+      return;
+    }
+
     setBusy(true);
     try {
       await api.logout(auth.token);
@@ -277,6 +371,20 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     }
   }
 
+  function reportFailure(reason: unknown, target: (message: string) => void) {
+    if (reason instanceof ApiError) {
+      setConnectionState(reason.status === 0 ? 'offline' : 'connected');
+
+      if (reason.status === 401) {
+        Alert.alert('Sesión vencida', 'Vuelve a iniciar el turno para continuar.');
+        onLogout();
+        return;
+      }
+    }
+
+    target(messageFrom(reason));
+  }
+
   const cameraCards = cameras.map((camera) => (
     <CameraCard
       camera={camera}
@@ -285,6 +393,12 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       selected={camera.id === selectedCameraId}
     />
   ));
+  const connectionLabel = api.mode === 'demo'
+    ? 'Demo local'
+    : connectionState === 'offline' ? 'API sin conexión' : 'API conectada';
+  const connectionColor = api.mode === 'demo'
+    ? colors.amber
+    : connectionState === 'offline' ? colors.red : colors.green;
 
   return (
     <View style={styles.screen}>
@@ -298,7 +412,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             </View>
           </View>
           <View style={styles.statuses}>
-            <Status color={api.mode === 'demo' ? colors.amber : colors.green} label={api.mode === 'demo' ? 'Demo local' : 'API conectada'} />
+            <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
           </View>
           <View style={styles.operator}>
@@ -317,6 +431,13 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           <Pressable onPress={() => setError('')} style={styles.errorBanner}>
             <Text style={styles.errorText}>{error}</Text>
             <Text style={styles.errorClose}>×</Text>
+          </Pressable>
+        ) : null}
+
+        {notice ? (
+          <Pressable onPress={() => setNotice('')} style={styles.noticeBanner}>
+            <Text style={styles.noticeText}>{notice}</Text>
+            <Text style={styles.noticeClose}>×</Text>
           </Pressable>
         ) : null}
 
@@ -344,7 +465,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                 busy={busy}
                 canOperate={canOperate}
                 compact={!wideLayout}
-                onLocate={() => setLocateVisible(true)}
+                onLocate={() => {
+                  setModalError('');
+                  setNotice('');
+                  setLocateVisible(true);
+                }}
                 onMove={() => void openMove()}
                 onRefresh={() => void refreshCurrent()}
                 onToggleSession={toggleSession}
@@ -373,7 +498,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       <LocateModal
         busy={busy}
         conditions={conditions}
-        onCancel={() => setLocateVisible(false)}
+        error={modalError}
+        onCancel={() => {
+          setModalError('');
+          setLocateVisible(false);
+        }}
         onConfirm={confirmLocate}
         plan={plan}
         position={selectedPosition}
@@ -383,7 +512,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         busy={busy}
         cameras={cameras}
         destinationPlan={destinationPlan}
-        onCancel={() => setMoveVisible(false)}
+        error={modalError}
+        onCancel={() => {
+          setModalError('');
+          setMoveVisible(false);
+        }}
         onChooseCamera={(cameraId) => void chooseDestinationCamera(cameraId)}
         onConfirm={confirmMove}
         onSelectPosition={setSelectedDestination}
@@ -407,6 +540,11 @@ function Status({ color, label }: { color: string; label: string }) {
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+}
+
+function positionLabel(position: Position) {
+  return position.etiqueta
+    ?? `${position.fila}-${position.profundidad}-N${position.nivel}`;
 }
 
 function messageFrom(reason: unknown) {
@@ -477,6 +615,19 @@ const styles = StyleSheet.create({
   },
   errorText: { flex: 1, color: '#FFB7B7', fontSize: 9 },
   errorClose: { color: colors.text, fontSize: 16 },
+  noticeBanner: {
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.green,
+    backgroundColor: colors.greenDark,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  noticeText: { flex: 1, color: colors.text, fontSize: 9, fontWeight: '800' },
+  noticeClose: { color: colors.text, fontSize: 16 },
   workspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   workspaceCompact: { flexDirection: 'column' },
   cameraPanel: {

@@ -24,7 +24,12 @@ export default function App() {
         {auth ? (
           <OperationalScreen api={api} auth={auth} onLogout={() => setAuth(null)} />
         ) : (
-          <LoginScreen mode={api.mode} baseUrl={api.baseUrl} onLogin={login} />
+          <LoginScreen
+            baseUrl={api.baseUrl}
+            configurationError={api.configurationError}
+            mode={api.mode}
+            onLogin={login}
+          />
         )}
       </SafeAreaView>
     </SafeAreaProvider>

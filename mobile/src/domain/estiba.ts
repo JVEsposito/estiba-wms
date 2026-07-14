@@ -1,4 +1,4 @@
-export type ApiMode = 'demo' | 'connected';
+export type ApiMode = 'demo' | 'connected' | 'unconfigured';
 export type AccessMode = 'disponible' | 'edicion' | 'solo_lectura';
 export type MovementType =
   | 'ubicacion_inicial'
