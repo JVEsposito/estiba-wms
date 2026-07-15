@@ -130,6 +130,28 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonValidationErrors(['codigo']);
     }
 
+    public function test_informa_claramente_una_contrasena_demasiado_corta(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/usuarios', [
+                'nombre' => 'Camarero de prueba',
+                'email' => 'camarero@empresa.cl',
+                'rol' => RolUsuario::Operador->value,
+                'password' => 'Abc12',
+                'password_confirmation' => 'Abc12',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'errors.password.0',
+                'La contraseña debe tener al menos 10 caracteres.',
+            );
+    }
+
     public function test_el_acceso_de_oficina_informa_el_permiso_administrativo(): void
     {
         User::factory()->create([
