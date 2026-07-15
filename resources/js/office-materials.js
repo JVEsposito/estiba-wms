@@ -20,6 +20,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     items: [], destinations: [], dispatches: [], inventory: [], dispatchOperationId: null,
+    cancellationOperations: new Map(),
 };
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
@@ -80,7 +81,8 @@ function renderDispatches() {
     elements.dispatchList.innerHTML = state.dispatches.map((dispatch) => {
         const detail = dispatch.items.map((item) => `${item.item.codigo}: ${quantity(item.cantidad_despachada)}/${quantity(item.cantidad_solicitada)} ${item.unidad_medida}`).join(' · ');
         const shortage = dispatch.items.some((item) => Number(item.cantidad_reservada) + Number(item.cantidad_despachada) < Number(item.cantidad_solicitada));
-        return `<article class="dispatch-row"><div><strong>${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)}</strong><small>${escapeHtml(dispatch.destino.centro_costo)} · ${escapeHtml(detail)}${shortage ? ' · Falta existencia por reservar' : ''}</small></div><div class="dispatch-row__state"><span>${escapeHtml(statusText(dispatch.estado))}</span>${['pendiente', 'parcial'].includes(dispatch.estado) ? `<button data-cancel-dispatch="${dispatch.id}" type="button">Cancelar</button>` : ''}</div></article>`;
+        const canCancel = state.identity?.puede_cancelar_despachos_materiales === true;
+        return `<article class="dispatch-row"><div><strong>${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)}</strong><small>${escapeHtml(dispatch.destino.centro_costo)} · ${escapeHtml(detail)}${shortage ? ' · Falta existencia por reservar' : ''}</small></div><div class="dispatch-row__state"><span>${escapeHtml(statusText(dispatch.estado))}</span>${canCancel && ['pendiente', 'parcial'].includes(dispatch.estado) ? `<button data-cancel-dispatch="${dispatch.id}" type="button">Cancelar</button>` : ''}</div></article>`;
     }).join('') || '<p class="empty-state">No existen despachos de materiales.</p>';
 }
 function renderInventory() {
@@ -117,7 +119,37 @@ elements.itemCancel.addEventListener('click', resetItemForm); elements.destinati
 elements.addDispatchLine.addEventListener('click', () => { state.dispatchOperationId = null; addDispatchLine(); }); elements.dispatchLines.addEventListener('click', (event) => { if (event.target.closest('[data-remove-line]') && elements.dispatchLines.children.length > 1) { state.dispatchOperationId = null; event.target.closest('.dispatch-line').remove(); } });
 elements.dispatchForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.dispatchError.textContent = ''; const form = new FormData(elements.dispatchForm); const items = [...elements.dispatchLines.querySelectorAll('.dispatch-line')].map((row) => ({ item_material_id: row.querySelector('[name="item_material_id"]').value, cantidad: row.querySelector('[name="cantidad"]').value })); state.dispatchOperationId ||= operationUuid(); const payload = { operacion_id: state.dispatchOperationId, destino_material_id: form.get('destino_material_id'), observacion: form.get('observacion'), items }; setBusy(true, 'Creando despacho y reservando existencia…'); try { const response = await api('/api/materiales/despachos', { method: 'POST', body: JSON.stringify(payload) }); state.dispatchOperationId = null; elements.dispatchForm.reset(); elements.dispatchLines.innerHTML = ''; addDispatchLine(); await loadAll(); toast(`${response.data.codigo} fue creado correctamente.`); } catch (error) { elements.dispatchError.textContent = error.message; } finally { setBusy(false); } });
 elements.dispatchForm.addEventListener('input', () => { state.dispatchOperationId = null; });
-elements.dispatchList.addEventListener('click', async (event) => { const button = event.target.closest('[data-cancel-dispatch]'); if (!button || !window.confirm('¿Cancelar el despacho y liberar sus cantidades reservadas?')) return; setBusy(true, 'Cancelando despacho…'); try { await api(`/api/materiales/despachos/${button.dataset.cancelDispatch}/cancelar`, { method: 'POST' }); await loadAll(); toast('Despacho cancelado.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
+elements.dispatchList.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-cancel-dispatch]');
+    if (!button) return;
+    const dispatchId = button.dataset.cancelDispatch;
+    const previous = state.cancellationOperations.get(dispatchId);
+    const reason = window.prompt(
+        'Indica el motivo de la cancelación. Se liberarán las cantidades reservadas:',
+        previous?.reason || '',
+    );
+    if (reason === null) return;
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 3) { toast('El motivo debe contener al menos 3 caracteres.', true); return; }
+    const operation = previous?.reason === normalizedReason
+        ? previous
+        : { id: operationUuid(), reason: normalizedReason };
+    state.cancellationOperations.set(dispatchId, operation);
+    setBusy(true, 'Cancelando despacho…');
+    try {
+        await api(`/api/materiales/despachos/${dispatchId}/cancelar`, {
+            method: 'POST',
+            body: JSON.stringify({ operacion_id: operation.id, motivo: operation.reason }),
+        });
+        state.cancellationOperations.delete(dispatchId);
+        await loadAll();
+        toast('Despacho cancelado y reservas liberadas.');
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+});
 elements.inventorySearch.addEventListener('input', renderInventory); elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando materiales…'); try { await loadAll(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 

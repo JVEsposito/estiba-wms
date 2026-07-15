@@ -2,12 +2,16 @@
 
 namespace App\Services\Cargas;
 
+use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\PrioridadCarga;
+use App\Enums\TipoBulto;
 use App\Enums\TipoEventoCarga;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\FoliosCargaInvalidos;
+use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\EventoCarga;
@@ -26,6 +30,9 @@ class ServicioCarga
     public function crear(array $datos, User $usuario): Carga
     {
         return DB::transaction(function () use ($datos, $usuario): Carga {
+            $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
+            $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
+
             $carga = Carga::create([
                 'codigo' => $this->siguienteCodigoBloqueado(),
                 'numero_orden_externa' => $this->textoOpcional($datos['numero_orden_externa'] ?? null),
@@ -33,7 +40,7 @@ class ServicioCarga
                 'prioridad' => PrioridadCarga::from(
                     $datos['prioridad'] ?? PrioridadCarga::Normal->value,
                 ),
-                'camara_objetivo_id' => $datos['camara_objetivo_id'] ?? null,
+                'camara_objetivo_id' => $camaraObjetivoId,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
                 'version' => 1,
                 'creada_por_user_id' => $usuario->id,
@@ -59,6 +66,8 @@ class ServicioCarga
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarEditable($cargaBloqueada);
             $this->asegurarVersion($cargaBloqueada, $versionEsperada);
+            $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
+            $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
 
             $cargaBloqueada->update([
                 'numero_orden_externa' => $this->textoOpcional(
@@ -67,7 +76,7 @@ class ServicioCarga
                 'prioridad' => PrioridadCarga::from(
                     $datos['prioridad'] ?? $cargaBloqueada->prioridad->value,
                 ),
-                'camara_objetivo_id' => $datos['camara_objetivo_id'] ?? null,
+                'camara_objetivo_id' => $camaraObjetivoId,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
                 'version' => $cargaBloqueada->version + 1,
                 'actualizada_por_user_id' => $usuario->id,
@@ -116,7 +125,7 @@ class ServicioCarga
 
             $folios = Folio::query()
                 ->whereIn('numero_folio', $numeros)
-                ->with('ubicacionActual')
+                ->with('ubicacionActual.posicion.camara')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get()
@@ -281,6 +290,7 @@ class ServicioCarga
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarBorrador($cargaBloqueada);
             $this->asegurarVersion($cargaBloqueada, $versionEsperada);
+            $this->asegurarCamaraObjetivoValida($cargaBloqueada->camara_objetivo_id);
 
             $asignaciones = CargaFolio::query()
                 ->where('carga_id', $cargaBloqueada->id)
@@ -296,7 +306,7 @@ class ServicioCarga
 
             $folios = Folio::query()
                 ->whereIn('id', $asignaciones->pluck('folio_id'))
-                ->with('ubicacionActual')
+                ->with('ubicacionActual.posicion.camara')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
@@ -463,6 +473,16 @@ class ServicioCarga
      */
     private function motivoFolioNoAsignable(Folio $folio): ?array
     {
+        if (! in_array($folio->tipo_bulto, [
+            TipoBulto::Pallet,
+            TipoBulto::Saldo,
+        ], true)) {
+            return [
+                'codigo' => 'tipo_bulto_no_permitido',
+                'mensaje' => "El folio {$folio->numero_folio} corresponde a materiales y no puede incorporarse a una carga CAR-*.",
+            ];
+        }
+
         if (! $folio->activo) {
             return [
                 'codigo' => 'inactivo',
@@ -488,7 +508,38 @@ class ServicioCarga
             ];
         }
 
+        $camara = $folio->ubicacionActual->posicion?->camara;
+
+        if (! $camara
+            || $camara->estado !== EstadoCamara::Activa
+            || $camara->contenido !== ContenidoCamara::Productos) {
+            return [
+                'codigo' => 'camara_no_productos',
+                'mensaje' => "El folio {$folio->numero_folio} no está ubicado en una cámara de productos.",
+            ];
+        }
+
         return null;
+    }
+
+    private function asegurarCamaraObjetivoValida(?string $camaraId): void
+    {
+        if ($camaraId === null) {
+            return;
+        }
+
+        $camara = Camara::query()
+            ->whereKey($camaraId)
+            ->where('estado', EstadoCamara::Activa->value)
+            ->where('contenido', ContenidoCamara::Productos->value)
+            ->lockForUpdate()
+            ->first(['id']);
+
+        if (! $camara) {
+            throw new DomainException(
+                'La cámara objetivo debe estar activa y clasificada como cámara de productos.',
+            );
+        }
     }
 
     /**
