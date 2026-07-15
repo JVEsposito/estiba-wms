@@ -13,6 +13,7 @@ import {
   SagCondition,
 } from '../domain/estiba';
 import { ApiError } from './apiError';
+import { normalizeApiBaseUrl } from './apiConfiguration';
 import { DemoEstibaApi } from './estibaApiDemo';
 
 export interface EstibaApi {
@@ -139,21 +140,25 @@ class HttpEstibaApi implements EstibaApi {
   }
 }
 
-export function createEstibaApi(): EstibaApi {
+export function createEstibaApi(
+  runtimeUrl: string | null = process.env.EXPO_PUBLIC_API_URL?.trim() || null,
+): EstibaApi {
   const demoEnabled = process.env.EXPO_PUBLIC_DEMO_MODE?.trim().toLowerCase() === 'true';
-  const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
 
   if (demoEnabled) return new DemoEstibaApi();
 
-  if (!configuredUrl) {
+  if (!runtimeUrl) {
     return createUnavailableApi(
-      'La API no está configurada. Define EXPO_PUBLIC_API_URL en mobile/.env y reinicia Expo.',
+      'La API no está configurada. Abre Configurar servidor e ingresa la IP de Laravel.',
     );
   }
 
-  if (!/^https?:\/\/[^\s]+$/i.test(configuredUrl)) {
+  let configuredUrl: string;
+  try {
+    configuredUrl = normalizeApiBaseUrl(runtimeUrl);
+  } catch {
     return createUnavailableApi(
-      'EXPO_PUBLIC_API_URL no es una dirección válida. Usa, por ejemplo, http://192.168.1.100:8000.',
+      'La dirección configurada no es válida. Usa, por ejemplo, 192.168.1.100:8000.',
     );
   }
 

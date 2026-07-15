@@ -1,0 +1,20 @@
+{
+  "cli": {
+    "version": ">= 21.0.1"
+  },
+  "build": {
+    "apk-camaras": {
+      "distribution": "internal",
+      "channel": "production",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}

@@ -445,13 +445,6 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               <Text style={styles.brandModule}>OPERACIÓN TABLET</Text>
             </View>
           </View>
-          {wideLayout ? (
-            <View style={styles.moduleNav} accessibilityLabel="Módulos disponibles">
-              <View style={styles.moduleActive}><Text style={styles.moduleActiveText}>Estibas</Text></View>
-              <Text style={styles.moduleDisabled}>Inventario</Text>
-              <Text style={styles.moduleDisabled}>Despachos</Text>
-            </View>
-          ) : null}
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
@@ -636,27 +629,6 @@ const styles = StyleSheet.create({
   brandIcon: { color: colors.cyan, fontSize: 23 },
   brandName: { color: colors.text, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
   brandModule: { marginTop: 2, color: colors.cyan, fontSize: 7, fontWeight: '900', letterSpacing: 1.7 },
-  moduleNav: {
-    minHeight: 40,
-    padding: 4,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.panel,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  moduleActive: {
-    minHeight: 30,
-    paddingHorizontal: 17,
-    borderRadius: 8,
-    backgroundColor: colors.selected,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  moduleActiveText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
-  moduleDisabled: { paddingHorizontal: 12, color: colors.muted, fontSize: 9, opacity: .45 },
   statuses: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   status: {
     paddingHorizontal: 10,

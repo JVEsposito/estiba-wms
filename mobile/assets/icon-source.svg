@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="34%" r="72%">
+      <stop offset="0" stop-color="#2d2b25"/>
+      <stop offset="1" stop-color="#0d1217"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6cf97"/>
+      <stop offset="1" stop-color="#9e824c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#glow)"/>
+  <rect x="70" y="70" width="884" height="884" rx="184" fill="none" stroke="#c9aa68" stroke-opacity=".42" stroke-width="10"/>
+  <g transform="translate(212 145) scale(18.75)" fill="none" stroke="url(#gold)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.85">
+    <path d="M5 9.5 16 4l11 5.5v13L16 28 5 22.5z"/>
+    <path d="m5 9.5 11 5.7 11-5.7M16 15.2V28"/>
+  </g>
+  <text x="512" y="820" fill="#f2f0e9" font-family="Arial, sans-serif" font-size="96" font-weight="700" letter-spacing="18" text-anchor="middle">ESTIBA</text>
+  <text x="512" y="885" fill="#c9aa68" font-family="Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="16" text-anchor="middle">CÁMARAS</text>
+</svg>
