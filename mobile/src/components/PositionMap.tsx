@@ -55,10 +55,10 @@ export function PositionMap({ plan, selectedPositionId, onSelectPosition }: Posi
 
       <View style={styles.toolbar}>
         <View style={styles.legend}>
-          <Legend color={colors.free} label="Libre" />
-          <Legend color={colors.greenDark} label="Pallet" />
-          <Legend color={colors.amberDark} border={colors.amber} label="Saldo" />
-          <Legend color="#303D45" label="Bloqueada" />
+          <Legend color={colors.free} border={colors.freeBorder} label="Libre" />
+          <Legend color={colors.pallet} border={colors.palletBorder} label="Pallet" />
+          <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />
+          <Legend color={colors.blocked} border={colors.blockedBorder} label="Bloqueada" />
         </View>
         <View style={styles.levelPicker}>
           {levels.map((level) => (
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   orientationHint: { color: colors.muted, fontSize: 8 },
   bandRow: { flexDirection: 'row', gap: 8, paddingBottom: 3 },
   band: {
-    width: 132,
+    width: 138,
     padding: 7,
     borderRadius: 11,
     borderWidth: 1,
@@ -259,28 +259,43 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     gap: 5,
   },
-  bandHeading: { color: colors.cyan, textAlign: 'center', fontSize: 9, fontWeight: '900' },
-  gap: { height: 68 },
+  bandHeading: {
+    marginHorizontal: -7,
+    marginTop: -7,
+    marginBottom: 2,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: colors.panelStrong,
+    color: colors.cyan,
+    textAlign: 'center',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: .4,
+  },
+  gap: { height: 76 },
   cell: {
-    height: 68,
-    padding: 7,
+    height: 76,
+    padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.freeBorder,
     backgroundColor: colors.free,
     justifyContent: 'space-between',
   },
-  occupied: { borderColor: colors.green, backgroundColor: colors.greenDark },
-  saldo: { borderColor: colors.amber, backgroundColor: colors.amberDark },
-  blocked: { borderColor: '#46545C', backgroundColor: '#303D45', opacity: 0.72 },
+  occupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
+  saldo: { borderColor: colors.saldoBorder, backgroundColor: colors.saldo },
+  blocked: { borderColor: colors.blockedBorder, backgroundColor: colors.blocked, opacity: 0.82 },
   selected: { borderWidth: 3, borderColor: colors.cyan },
   pressed: { opacity: 0.72 },
   cellTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
-  positionNumber: { color: colors.cyan, fontSize: 8, fontWeight: '900' },
-  cellLocation: { color: colors.muted, fontSize: 7, fontWeight: '800' },
-  cellFolio: { color: colors.text, fontSize: 10, fontWeight: '900' },
+  positionNumber: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
+  cellLocation: { color: colors.muted, fontSize: 8, fontWeight: '800' },
+  cellFolio: { color: colors.text, fontSize: 11, fontWeight: '900' },
   cellMetaRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 3 },
-  cellMeta: { flex: 1, color: colors.text, fontSize: 7 },
-  cellKind: { color: colors.text, fontSize: 8, fontWeight: '900' },
+  cellMeta: { flex: 1, color: colors.text, fontSize: 8 },
+  cellKind: { color: colors.text, fontSize: 9, fontWeight: '900' },
   entrance: { marginTop: 7, color: colors.cyan, fontSize: 9, fontWeight: '900' },
 });

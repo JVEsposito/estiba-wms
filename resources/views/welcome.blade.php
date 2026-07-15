@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <meta name="theme-color" content="#07151e">
+        <meta name="theme-color" content="#090d11">
         <meta name="color-scheme" content="dark">
 
         <title>Estiba WMS · Operación de cámaras</title>

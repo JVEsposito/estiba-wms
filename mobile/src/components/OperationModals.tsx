@@ -376,7 +376,7 @@ function DialogActions({
           (busy || confirmDisabled) && styles.disabled,
         ]}
       >
-        {busy ? <ActivityIndicator color="#032022" /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
+        {busy ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
       </Pressable>
     </View>
   );
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  confirmText: { color: '#032022', fontSize: 10, fontWeight: '900' },
+  confirmText: { color: colors.accentText, fontSize: 10, fontWeight: '900' },
   buttonCompact: { height: 40 },
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.72 },

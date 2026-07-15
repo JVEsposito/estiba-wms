@@ -128,7 +128,7 @@ export function LoginScreen({ baseUrl, configurationError, mode, onLogin }: Logi
               pressed && styles.pressed,
             ]}
           >
-            {busy ? <ActivityIndicator color="#032022" /> : (
+            {busy ? <ActivityIndicator color={colors.accentText} /> : (
               <>
                 <Text style={styles.submitText}>Acceder al plano</Text>
                 <Text style={styles.submitArrow}>→</Text>
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.75 },
-  submitText: { color: '#032022', fontSize: 12, fontWeight: '900' },
-  submitArrow: { color: '#032022', fontSize: 21, fontWeight: '900' },
+  submitText: { color: colors.accentText, fontSize: 12, fontWeight: '900' },
+  submitArrow: { color: colors.accentText, fontSize: 21, fontWeight: '900' },
   help: { marginTop: 12, color: colors.muted, fontSize: 8, lineHeight: 12, textAlign: 'center' },
 });
