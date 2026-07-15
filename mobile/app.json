@@ -10,7 +10,8 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "NEVER",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/4c609028-6c9f-4bbe-9c4e-2aff780c4244"
     },
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
@@ -36,6 +37,11 @@
         }
       ],
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4c609028-6c9f-4bbe-9c4e-2aff780c4244"
+      }
+    }
   }
 }
