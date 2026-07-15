@@ -583,6 +583,7 @@ function renderSelection() {
         elements.selectedPositionLabel.textContent = 'Ninguna';
         elements.selectedPositionState.textContent = 'Toca una posición del plano';
         elements.folioCard.classList.add('is-hidden');
+        elements.folioCard.classList.remove('is-saldo');
         return;
     }
 
@@ -593,11 +594,13 @@ function renderSelection() {
 
     if (! position.folio) {
         elements.folioCard.classList.add('is-hidden');
+        elements.folioCard.classList.remove('is-saldo');
         return;
     }
 
     const folio = position.folio;
     elements.folioCard.classList.remove('is-hidden');
+    elements.folioCard.classList.toggle('is-saldo', folio.tipo_bulto === 'saldo');
     elements.selectedFolioType.textContent = folio.tipo_bulto.toUpperCase();
     elements.selectedFolioNumber.textContent = folio.numero_folio;
     elements.selectedFolioVariety.textContent = folio.variedad || '—';

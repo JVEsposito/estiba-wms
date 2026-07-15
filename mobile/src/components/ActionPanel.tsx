@@ -28,6 +28,7 @@ export function ActionPanel({
 }: ActionPanelProps) {
   const editing = plan.acceso.modo === 'edicion';
   const readOnly = plan.acceso.modo === 'solo_lectura';
+  const selectedSaldo = selectedPosition?.folio?.tipo_bulto === 'saldo';
   const locateDisabled = busy || !canOperate || !selectedPosition || selectedPosition.ocupada || selectedPosition.estado !== 'activa';
   const moveDisabled = busy || !canOperate || !selectedPosition?.ocupada || selectedPosition.estado !== 'activa';
 
@@ -51,10 +52,10 @@ export function ActionPanel({
       </View>
 
       {selectedPosition?.folio && (
-        <View style={styles.folioCard}>
+        <View style={[styles.folioCard, selectedSaldo && styles.folioCardSaldo]}>
           <View style={styles.folioTop}>
-            <Text style={styles.folioType}>{selectedPosition.folio.tipo_bulto.toUpperCase()}</Text>
-            <View style={styles.folioDot} />
+            <Text style={[styles.folioType, selectedSaldo && styles.folioTypeSaldo]}>{selectedPosition.folio.tipo_bulto.toUpperCase()}</Text>
+            <View style={[styles.folioDot, selectedSaldo && styles.folioDotSaldo]} />
           </View>
           <Text style={styles.folioNumber}>{selectedPosition.folio.numero_folio}</Text>
           <Detail label="Variedad" value={selectedPosition.folio.variedad} />
@@ -179,12 +180,15 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 11,
     borderWidth: 1,
-    borderColor: colors.cyanDark,
+    borderColor: colors.palletBorder,
     backgroundColor: colors.panelStrong,
   },
+  folioCardSaldo: { borderColor: colors.saldoBorder },
   folioTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  folioType: { color: colors.cyan, fontSize: 8, fontWeight: '900' },
-  folioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.cyan },
+  folioType: { color: colors.palletBorder, fontSize: 8, fontWeight: '900' },
+  folioTypeSaldo: { color: colors.saldoBorder },
+  folioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.palletBorder },
+  folioDotSaldo: { backgroundColor: colors.saldoBorder },
   folioNumber: { marginVertical: 8, color: colors.text, fontSize: 18, fontWeight: '900' },
   detailRow: { marginTop: 3, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   detailLabel: { color: colors.muted, fontSize: 8 },
@@ -192,7 +196,7 @@ const styles = StyleSheet.create({
   actions: { gap: 8 },
   actionsCompact: { flexDirection: 'row', flexWrap: 'wrap' },
   actionButton: {
-    minHeight: 54,
+    minHeight: 60,
     paddingHorizontal: 11,
     borderRadius: 11,
     borderWidth: 1,
@@ -210,7 +214,7 @@ const styles = StyleSheet.create({
   actionCopy: { flex: 1 },
   actionLabel: { color: colors.text, fontSize: 11, fontWeight: '900' },
   actionSubtitle: { marginTop: 2, color: colors.muted, fontSize: 8 },
-  actionPrimaryText: { color: '#032022' },
-  actionPrimarySubtitle: { color: '#10585A' },
+  actionPrimaryText: { color: colors.accentText },
+  actionPrimarySubtitle: { color: '#5D4A28' },
   note: { color: colors.muted, fontSize: 8, lineHeight: 12 },
 });

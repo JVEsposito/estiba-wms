@@ -445,6 +445,13 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               <Text style={styles.brandModule}>OPERACIÓN TABLET</Text>
             </View>
           </View>
+          {wideLayout ? (
+            <View style={styles.moduleNav} accessibilityLabel="Módulos disponibles">
+              <View style={styles.moduleActive}><Text style={styles.moduleActiveText}>Estibas</Text></View>
+              <Text style={styles.moduleDisabled}>Inventario</Text>
+              <Text style={styles.moduleDisabled}>Despachos</Text>
+            </View>
+          ) : null}
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
@@ -615,7 +622,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  brand: { minWidth: 220, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { minWidth: 190, flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandMark: {
     width: 40,
     height: 40,
@@ -629,6 +636,27 @@ const styles = StyleSheet.create({
   brandIcon: { color: colors.cyan, fontSize: 23 },
   brandName: { color: colors.text, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
   brandModule: { marginTop: 2, color: colors.cyan, fontSize: 7, fontWeight: '900', letterSpacing: 1.7 },
+  moduleNav: {
+    minHeight: 40,
+    padding: 4,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  moduleActive: {
+    minHeight: 30,
+    paddingHorizontal: 17,
+    borderRadius: 8,
+    backgroundColor: colors.selected,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moduleActiveText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
+  moduleDisabled: { paddingHorizontal: 12, color: colors.muted, fontSize: 9, opacity: .45 },
   statuses: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   status: {
     paddingHorizontal: 10,
@@ -642,7 +670,7 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusText: { color: colors.text, fontSize: 8, fontWeight: '800' },
-  operator: { minWidth: 230, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  operator: { minWidth: 205, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
   avatar: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
   operatorCopy: { maxWidth: 130 },
@@ -706,7 +734,7 @@ const styles = StyleSheet.create({
   emptyTitle: { marginTop: 8, color: colors.text, fontSize: 15, fontWeight: '900' },
   busyOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(4,13,19,0.72)',
+    backgroundColor: 'rgba(5,8,11,0.76)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,

@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   selected: {
     borderColor: colors.cyan,
-    backgroundColor: colors.panelStrong,
+    backgroundColor: colors.selected,
   },
   pressed: { opacity: 0.78 },
   topRow: {
