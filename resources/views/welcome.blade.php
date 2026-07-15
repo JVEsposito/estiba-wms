@@ -294,7 +294,7 @@
 
                 <div class="move-destination">
                     <div class="move-destination__heading">
-                        <span>POSICIONES LIBRES</span>
+                        <span>PLANO DE DESTINO · POSICIONES LIBRES</span>
                         <small id="moveDestinationHint">Selecciona una posición</small>
                     </div>
                     <div class="destination-grid" id="moveDestinationGrid"></div>

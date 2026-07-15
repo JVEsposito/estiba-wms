@@ -220,7 +220,7 @@ export function MoveModal({
           </ScrollView>
 
           <View style={styles.destinationHeading}>
-            <Text style={styles.label}>POSICIONES LIBRES</Text>
+            <Text style={styles.label}>PLANO DE DESTINO · POSICIONES LIBRES</Text>
             <Text style={styles.destinationCount}>
               {destinationPlan ? freePositions.length + ' disponibles' : 'Cargando plano…'}
             </Text>
@@ -231,29 +231,13 @@ export function MoveModal({
           ) : destinationPlan.acceso.modo === 'solo_lectura' ? (
             <Text style={styles.empty}>La cámara de destino está siendo modificada por otro operador.</Text>
           ) : (
-            <ScrollView
-              contentContainerStyle={styles.destinationGrid}
-              nestedScrollEnabled
-              style={[styles.destinationScroll, compact && styles.destinationScrollCompact]}
-            >
-              {freePositions.map((position) => (
-                <Pressable
-                  key={position.id}
-                  onPress={() => onSelectPosition(position)}
-                  style={({ pressed }) => [
-                    styles.destination,
-                    selectedDestination?.id === position.id && styles.destinationSelected,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.destinationLabel}>{position.etiqueta}</Text>
-                  <Text style={styles.destinationMeta}>
-                    Banda {position.banda} · Posición {position.posicion} · Nivel {position.nivel}
-                  </Text>
-                </Pressable>
-              ))}
-              {freePositions.length === 0 && <Text style={styles.empty}>No hay posiciones libres.</Text>}
-            </ScrollView>
+            <DestinationPlanMap
+              compact={compact}
+              onSelectPosition={onSelectPosition}
+              originPositionId={originPosition?.id ?? null}
+              plan={destinationPlan}
+              selectedPositionId={selectedDestination?.id ?? null}
+            />
           )}
 
           <ModalError message={error} />
@@ -270,6 +254,150 @@ export function MoveModal({
         </View>
       </SafeAreaView>
     </Modal>
+  );
+}
+
+function DestinationPlanMap({
+  compact,
+  onSelectPosition,
+  originPositionId,
+  plan,
+  selectedPositionId,
+}: {
+  compact: boolean;
+  onSelectPosition: (position: Position) => void;
+  originPositionId: string | null;
+  plan: CameraPlan;
+  selectedPositionId: string | null;
+}) {
+  const levels = [...new Set(plan.posiciones.map((position) => position.nivel))].sort((a, b) => a - b);
+  const bands = [...new Set(plan.posiciones.map((position) => position.banda))].sort((a, b) => a - b);
+  const maxPosition = Math.max(1, ...plan.posiciones.map((position) => position.posicion));
+  const [selectedLevel, setSelectedLevel] = useState(levels[0] ?? 1);
+
+  useEffect(() => {
+    setSelectedLevel(levels[0] ?? 1);
+  }, [plan.id, plan.version_plano]);
+
+  return (
+    <View style={styles.destinationMap}>
+      {levels.length > 1 && (
+        <View style={styles.destinationLevelPicker}>
+          {levels.map((level) => (
+            <Pressable
+              key={level}
+              onPress={() => setSelectedLevel(level)}
+              style={[
+                styles.destinationLevelButton,
+                selectedLevel === level && styles.destinationLevelButtonActive,
+              ]}
+            >
+              <Text style={[
+                styles.destinationLevelText,
+                selectedLevel === level && styles.destinationLevelTextActive,
+              ]}>
+                NIVEL {level}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.destinationOrientationRow}>
+        <Text style={styles.destinationOrientation}>↑ FONDO</Text>
+        <Text style={styles.destinationOrientationHint}>Bandas verticales · P01 se ocupa primero</Text>
+      </View>
+
+      <ScrollView
+        nestedScrollEnabled
+        style={[styles.destinationScroll, compact && styles.destinationScrollCompact]}
+      >
+        <ScrollView
+          contentContainerStyle={styles.destinationBandRow}
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator
+        >
+          {bands.map((band) => (
+            <DestinationBand
+              band={band}
+              key={band}
+              level={selectedLevel}
+              maxPosition={maxPosition}
+              onSelectPosition={onSelectPosition}
+              originPositionId={originPositionId}
+              plan={plan}
+              selectedPositionId={selectedPositionId}
+            />
+          ))}
+        </ScrollView>
+      </ScrollView>
+
+      <Text style={styles.destinationEntrance}>↓ ENTRADA</Text>
+    </View>
+  );
+}
+
+function DestinationBand({
+  band,
+  level,
+  maxPosition,
+  onSelectPosition,
+  originPositionId,
+  plan,
+  selectedPositionId,
+}: {
+  band: number;
+  level: number;
+  maxPosition: number;
+  onSelectPosition: (position: Position) => void;
+  originPositionId: string | null;
+  plan: CameraPlan;
+  selectedPositionId: string | null;
+}) {
+  const positions = Array.from({ length: maxPosition }, (_, index) => index + 1);
+
+  return (
+    <View style={styles.destinationBand}>
+      <Text style={styles.destinationBandHeading}>BANDA {String(band).padStart(2, '0')}</Text>
+      {positions.map((number) => {
+        const position = plan.posiciones.find((candidate) => (
+          candidate.nivel === level
+          && candidate.banda === band
+          && candidate.posicion === number
+        ));
+
+        if (!position) return <View key={number} style={styles.destinationGap} />;
+
+        const isOrigin = position.id === originPositionId;
+        const available = position.estado === 'activa' && !position.ocupada && !isOrigin;
+        const status = isOrigin
+          ? 'ORIGEN'
+          : position.ocupada
+            ? `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
+            : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
+
+        return (
+          <Pressable
+            accessibilityLabel={`${position.etiqueta ?? `Banda ${band}, posición ${number}`}, ${status}`}
+            accessibilityRole="button"
+            disabled={!available}
+            key={position.id}
+            onPress={() => onSelectPosition(position)}
+            style={({ pressed }) => [
+              styles.destination,
+              !available && styles.destinationUnavailable,
+              selectedPositionId === position.id && styles.destinationSelected,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.destinationPositionNumber}>P{String(number).padStart(2, '0')}</Text>
+            <Text numberOfLines={1} style={styles.destinationLabel}>{position.etiqueta}</Text>
+            <Text numberOfLines={1} style={styles.destinationMeta}>{status}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -456,20 +584,75 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   destinationCount: { color: colors.muted, fontSize: 8 },
-  destinationScroll: { minHeight: 80, maxHeight: 260, flexShrink: 1 },
-  destinationScrollCompact: { maxHeight: 150 },
-  destinationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  destination: {
-    width: '31.8%',
-    padding: 11,
-    borderRadius: 10,
+  destinationMap: {
+    minHeight: 100,
+    padding: 8,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
+  destinationLevelPicker: { marginBottom: 8, flexDirection: 'row', gap: 6 },
+  destinationLevelButton: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  destinationLevelButtonActive: { borderColor: colors.cyan, backgroundColor: colors.cyanDark },
+  destinationLevelText: { color: colors.muted, fontSize: 8, fontWeight: '900' },
+  destinationLevelTextActive: { color: colors.cyan },
+  destinationOrientationRow: {
+    marginBottom: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  destinationOrientation: { color: colors.cyan, fontSize: 8, fontWeight: '900' },
+  destinationOrientationHint: { color: colors.muted, fontSize: 7 },
+  destinationScroll: { minHeight: 80, maxHeight: 270, flexShrink: 1 },
+  destinationScrollCompact: { maxHeight: 210 },
+  destinationBandRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, paddingBottom: 3 },
+  destinationBand: {
+    width: 122,
+    padding: 6,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.panel,
+    gap: 5,
+  },
+  destinationBandHeading: {
+    marginHorizontal: -6,
+    marginTop: -6,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: colors.panelStrong,
+    color: colors.cyan,
+    textAlign: 'center',
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  destination: {
+    height: 66,
+    padding: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    justifyContent: 'space-between',
+  },
   destinationSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
-  destinationLabel: { color: colors.text, fontSize: 11, fontWeight: '900' },
-  destinationMeta: { marginTop: 4, color: colors.muted, fontSize: 7 },
+  destinationUnavailable: { opacity: 0.48, backgroundColor: colors.panelStrong },
+  destinationGap: { height: 66 },
+  destinationPositionNumber: { color: colors.cyan, fontSize: 8, fontWeight: '900' },
+  destinationLabel: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  destinationMeta: { color: colors.muted, fontSize: 7 },
+  destinationEntrance: { marginTop: 6, color: colors.cyan, fontSize: 8, fontWeight: '900' },
   loader: { height: 150 },
   empty: { paddingVertical: 30, color: colors.muted, fontSize: 10, textAlign: 'center' },
   modalError: {
