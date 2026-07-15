@@ -437,7 +437,7 @@ class ServicioMovimientoEstiba
         } elseif ($tipoBulto === TipoBulto::Material) {
             $tieneFichaMaterial = FolioMaterial::query()->whereKey($folio->id)->exists();
 
-            if (! $tieneFichaMaterial) {
+            if ($tieneFichaMaterial === false) {
                 throw new DomainException('El folio de material no posee una ficha de inventario válida.');
             }
         }
@@ -748,7 +748,7 @@ class ServicioMovimientoEstiba
             ->first();
         $cantidad = round((float) ($datos['cantidad'] ?? 0), 3);
 
-        if (! $item) {
+        if ($item === null) {
             throw new DomainException('El ítem de material no existe o se encuentra inactivo.');
         }
 
