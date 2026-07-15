@@ -16,6 +16,8 @@ const elements = {
     search: byId('loadSearch'),
     statusFilter: byId('loadStatusFilter'),
     catalogSummary: byId('loadCatalogSummary'),
+    loadPageSize: byId('loadPageSize'),
+    loadPagination: byId('loadPagination'),
     list: byId('loadList'),
     empty: byId('loadEmptyState'),
     editor: byId('loadEditorContent'),
@@ -43,6 +45,14 @@ const elements = {
     folioInputCount: byId('folioInputCount'),
     addFolios: byId('addFoliosButton'),
     folioErrors: byId('folioErrors'),
+    availableFolioSearch: byId('availableFolioSearch'),
+    availableFolioSummary: byId('availableFolioSummary'),
+    availableFolioList: byId('availableFolioList'),
+    availableFolioTableBody: byId('availableFolioTableBody'),
+    availableFolioSelectPage: byId('availableFolioSelectPage'),
+    availableFolioPageSize: byId('availableFolioPageSize'),
+    availableFolioPagination: byId('availableFolioPagination'),
+    reloadAvailableFolios: byId('reloadAvailableFoliosButton'),
     folioTableBody: byId('folioTableBody'),
     folioTableHint: byId('folioTableHint'),
     commandBar: byId('loadCommandBar'),
@@ -81,9 +91,17 @@ const state = {
     identity: readJson(keys.identity),
     loads: [],
     cameras: [],
+    availableFolios: [],
+    loadPagination: emptyPagination(25),
+    availablePagination: emptyPagination(10),
+    loadRequestId: 0,
+    availableRequestId: 0,
     selected: null,
     mode: 'empty',
 };
+
+let loadSearchTimer;
+let availableSearchTimer;
 
 class ApiError extends Error {
     constructor(message, status, data = {}) {
@@ -100,6 +118,29 @@ function readJson(key) {
     } catch {
         return null;
     }
+}
+
+function emptyPagination(perPage) {
+    return {
+        currentPage: 1,
+        lastPage: 1,
+        perPage,
+        from: 0,
+        to: 0,
+        total: 0,
+    };
+}
+
+function paginationFrom(response, fallbackPerPage) {
+    const meta = response?.meta || {};
+    return {
+        currentPage: Number(meta.current_page || 1),
+        lastPage: Math.max(1, Number(meta.last_page || 1)),
+        perPage: Number(meta.per_page || fallbackPerPage),
+        from: Number(meta.from || 0),
+        to: Number(meta.to || 0),
+        total: Number(meta.total || 0),
+    };
 }
 
 function escapeHtml(value) {
@@ -173,6 +214,9 @@ function clearSession() {
     state.identity = null;
     state.loads = [];
     state.cameras = [];
+    state.availableFolios = [];
+    state.loadPagination = emptyPagination(Number(elements.loadPageSize.value));
+    state.availablePagination = emptyPagination(Number(elements.availableFolioPageSize.value));
     state.selected = null;
     state.mode = 'empty';
     localStorage.removeItem(keys.token);
@@ -194,10 +238,7 @@ function showApp() {
         .map((part) => part[0])
         .join('')
         .toUpperCase();
-    elements.camerasNav.classList.toggle(
-        'is-hidden',
-        state.identity?.puede_configurar_camaras !== true,
-    );
+    elements.camerasNav.classList.remove('is-hidden');
 }
 
 function statusText(value) {
@@ -245,26 +286,6 @@ function remainingFolioSlots(load = state.selected) {
     return Math.max(0, 26 - Number(load?.total_folios || 0));
 }
 
-function loadSearchText(load) {
-    return [
-        load.codigo,
-        load.numero_orden_externa,
-        load.observacion,
-        load.camara_objetivo?.codigo,
-        load.camara_objetivo?.nombre,
-    ].filter(Boolean).join(' ').toLocaleLowerCase('es-CL');
-}
-
-function filteredLoads() {
-    const query = elements.search.value.trim().toLocaleLowerCase('es-CL');
-    const status = elements.statusFilter.value;
-    return state.loads.filter((load) => {
-        const matchesQuery = !query || loadSearchText(load).includes(query);
-        const matchesStatus = !status || load.estado === status;
-        return matchesQuery && matchesStatus;
-    });
-}
-
 function statusClass(status) {
     return String(status || 'draft').replaceAll('_', '-');
 }
@@ -280,9 +301,26 @@ function distributionText(load) {
         .join(' · ');
 }
 
+function renderPagination(element, pagination, dataAttribute) {
+    if (pagination.total === 0) {
+        element.innerHTML = '';
+        return;
+    }
+
+    element.innerHTML = `
+        <button data-${dataAttribute}="${pagination.currentPage - 1}" type="button"${pagination.currentPage <= 1 ? ' disabled' : ''}>Anterior</button>
+        <span>Página <strong>${pagination.currentPage}</strong> de ${pagination.lastPage}</span>
+        <button data-${dataAttribute}="${pagination.currentPage + 1}" type="button"${pagination.currentPage >= pagination.lastPage ? ' disabled' : ''}>Siguiente</button>
+    `;
+}
+
 function renderCatalog() {
-    const loads = filteredLoads();
-    elements.catalogSummary.textContent = `${loads.length} ${loads.length === 1 ? 'orden' : 'órdenes'}`;
+    const loads = state.loads;
+    const pagination = state.loadPagination;
+    elements.catalogSummary.textContent = pagination.total
+        ? `${pagination.from}–${pagination.to} de ${pagination.total} órdenes`
+        : '0 órdenes';
+    renderPagination(elements.loadPagination, pagination, 'load-page');
 
     if (!loads.length) {
         elements.list.innerHTML = `
@@ -297,15 +335,15 @@ function renderCatalog() {
         const selected = state.selected?.id === load.id;
         return `
             <button class="load-card${selected ? ' is-selected' : ''}" data-load-id="${escapeHtml(load.id)}" type="button">
-                <div class="load-card__topline">
-                    <strong>${escapeHtml(load.codigo)}</strong>
+                <div class="load-card__line load-card__line--main">
+                    <strong class="load-card__code">${escapeHtml(load.codigo)}</strong>
+                    <span class="load-card__external">${escapeHtml(load.numero_orden_externa || 'Sin orden externa')}</span>
                     <span class="status-badge status-badge--${statusClass(load.estado)}">${escapeHtml(statusLabels[load.estado] || statusText(load.estado))}</span>
                 </div>
-                <h3>${escapeHtml(load.numero_orden_externa || 'Sin orden externa')}</h3>
-                <p>${escapeHtml(distributionText(load))}</p>
-                <div class="load-card__footer">
+                <div class="load-card__line load-card__line--detail">
+                    <span class="load-card__distribution">${escapeHtml(distributionText(load))}</span>
                     <span class="priority-dot priority-dot--${priorityClass(load.prioridad)}">${escapeHtml(priorityLabels[load.prioridad] || statusText(load.prioridad))}</span>
-                    <span>${load.total_folios} / 26 folios</span>
+                    <span class="load-card__count">${load.total_folios} / 26</span>
                 </div>
             </button>
         `;
@@ -315,11 +353,17 @@ function renderCatalog() {
 function populateCameraOptions(selectedId = '') {
     elements.targetCamera.innerHTML = [
         '<option value="">Sin cámara objetivo</option>',
-        ...state.cameras.map((camera) => `
-            <option value="${escapeHtml(camera.id)}"${camera.id === selectedId ? ' selected' : ''}>
-                ${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)}
-            </option>
-        `),
+        ...state.cameras.map((camera) => {
+            const total = Number(camera.ocupacion?.total || 0);
+            const occupied = Number(camera.ocupacion?.ocupadas || 0);
+            const available = Math.max(0, total - occupied);
+
+            return `
+                <option value="${escapeHtml(camera.id)}"${camera.id === selectedId ? ' selected' : ''}>
+                    ${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)} · ${available} libres de ${total}
+                </option>
+            `;
+        }),
     ].join('');
 }
 
@@ -350,6 +394,51 @@ function showFolioErrors(error) {
         `;
     }
     elements.folioErrors.classList.remove('is-hidden');
+}
+
+function renderAvailableFolios() {
+    const selected = new Set(parseFolios());
+    const folios = state.availableFolios;
+    const pagination = state.availablePagination;
+
+    elements.availableFolioSummary.textContent = pagination.total
+        ? `Mostrando ${pagination.from}–${pagination.to} de ${pagination.total} folios disponibles · ${selected.size} seleccionados`
+        : '0 folios disponibles';
+    renderPagination(elements.availableFolioPagination, pagination, 'available-page');
+    elements.availableFolioSelectPage.disabled = folios.length === 0;
+    elements.availableFolioSelectPage.checked = folios.length > 0
+        && folios.every((folio) => selected.has(folio.numero_folio));
+    elements.availableFolioSelectPage.indeterminate = !elements.availableFolioSelectPage.checked
+        && folios.some((folio) => selected.has(folio.numero_folio));
+
+    if (!folios.length) {
+        elements.availableFolioTableBody.innerHTML = `
+            <tr class="available-folios__empty">
+                <td colspan="9">${elements.availableFolioSearch.value.trim() ? 'No hay folios que coincidan con la búsqueda.' : 'No existen folios ubicados y disponibles sin una carga asignada.'}</td>
+            </tr>
+        `;
+        return;
+    }
+
+    elements.availableFolioTableBody.innerHTML = folios.map((folio) => {
+        const isSelected = selected.has(folio.numero_folio);
+        const sag = folio.condicion_sag
+            ? `${folio.condicion_sag.codigo} · ${folio.condicion_sag.nombre}`
+            : '—';
+        return `
+            <tr class="${isSelected ? 'is-selected' : ''}">
+                <td class="available-folios__check"><input data-available-folio="${escapeHtml(folio.numero_folio)}" type="checkbox" aria-label="Seleccionar ${escapeHtml(folio.numero_folio)}"${isSelected ? ' checked' : ''}></td>
+                <td><strong>${escapeHtml(folio.numero_folio)}</strong></td>
+                <td><span class="folio-type">${escapeHtml(statusText(folio.tipo_bulto))}</span></td>
+                <td><strong>${escapeHtml(folio.variedad || '—')}</strong><small>${escapeHtml(folio.calibre || 'Sin calibre')}</small></td>
+                <td><strong>${escapeHtml(folio.marca || '—')}</strong><small>${escapeHtml(folio.exportadora || 'Sin exportadora')}</small></td>
+                <td>${escapeHtml(sag)}</td>
+                <td><strong class="location-label">${escapeHtml(folio.ubicacion.camara.codigo)}</strong><small>${escapeHtml(folio.ubicacion.camara.nombre)}</small></td>
+                <td><span class="location-label">${escapeHtml(folio.ubicacion.posicion.etiqueta)}</span></td>
+                <td>${escapeHtml(formatDate(folio.fecha_ingreso))}</td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function showEmpty() {
@@ -496,6 +585,7 @@ function renderSelected(load) {
     renderCommands(load);
     elements.folioInput.value = '';
     updateFolioInputCount();
+    renderAvailableFolios();
     renderCatalog();
 }
 
@@ -506,9 +596,28 @@ function syncLoad(load) {
     renderSelected(load);
 }
 
-async function loadCatalog() {
-    const response = await api('/api/cargas');
+async function loadCatalog(page = state.loadPagination.currentPage) {
+    const requestId = ++state.loadRequestId;
+    const params = new URLSearchParams({
+        page: String(page),
+        per_page: elements.loadPageSize.value,
+    });
+    const query = elements.search.value.trim();
+    const status = elements.statusFilter.value;
+    if (query) params.set('q', query);
+    if (status) params.set('estado', status);
+
+    const response = await api(`/api/cargas?${params}`);
+    if (requestId !== state.loadRequestId) return;
+
+    const pagination = paginationFrom(response, Number(elements.loadPageSize.value));
+    if (pagination.currentPage > pagination.lastPage) {
+        await loadCatalog(pagination.lastPage);
+        return;
+    }
+
     state.loads = response.data;
+    state.loadPagination = pagination;
     renderCatalog();
 }
 
@@ -518,8 +627,31 @@ async function loadCameras() {
     populateCameraOptions(state.selected?.camara_objetivo?.id || '');
 }
 
+async function loadAvailableFolios(page = state.availablePagination.currentPage) {
+    const requestId = ++state.availableRequestId;
+    const params = new URLSearchParams({
+        page: String(page),
+        per_page: elements.availableFolioPageSize.value,
+    });
+    const query = elements.availableFolioSearch.value.trim();
+    if (query) params.set('q', query);
+
+    const response = await api(`/api/cargas/folios-disponibles?${params}`);
+    if (requestId !== state.availableRequestId) return;
+
+    const pagination = paginationFrom(response, Number(elements.availableFolioPageSize.value));
+    if (pagination.currentPage > pagination.lastPage) {
+        await loadAvailableFolios(pagination.lastPage);
+        return;
+    }
+
+    state.availableFolios = response.data;
+    state.availablePagination = pagination;
+    renderAvailableFolios();
+}
+
 async function loadInitialData() {
-    await Promise.all([loadCatalog(), loadCameras()]);
+    await Promise.all([loadCatalog(1), loadCameras(), loadAvailableFolios(1)]);
 }
 
 async function selectLoad(id, { busy = true } = {}) {
@@ -539,6 +671,7 @@ async function recoverConflict(error) {
     const id = state.selected.id;
     toast('La orden cambió en otra sesión. Recargamos la versión más reciente.', true);
     await selectLoad(id, { busy: false });
+    await loadAvailableFolios(state.availablePagination.currentPage);
     elements.headerError.textContent = 'La acción no se guardó porque otra persona había modificado la orden. Revisa los datos actualizados y vuelve a intentarlo.';
     return true;
 }
@@ -598,8 +731,27 @@ elements.loginForm.addEventListener('submit', async (event) => {
 
 elements.discardNew.addEventListener('click', showEmpty);
 
-elements.search.addEventListener('input', renderCatalog);
-elements.statusFilter.addEventListener('change', renderCatalog);
+elements.search.addEventListener('input', () => {
+    window.clearTimeout(loadSearchTimer);
+    elements.catalogSummary.textContent = 'Buscando órdenes…';
+    loadSearchTimer = window.setTimeout(() => {
+        void loadCatalog(1).catch((error) => toast(error.message, true));
+    }, 300);
+});
+
+elements.statusFilter.addEventListener('change', () => {
+    void loadCatalog(1).catch((error) => toast(error.message, true));
+});
+
+elements.loadPageSize.addEventListener('change', () => {
+    void loadCatalog(1).catch((error) => toast(error.message, true));
+});
+
+elements.loadPagination.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-load-page]');
+    if (!button || button.disabled) return;
+    void loadCatalog(Number(button.dataset.loadPage)).catch((error) => toast(error.message, true));
+});
 
 elements.list.addEventListener('click', (event) => {
     const button = event.target.closest('[data-load-id]');
@@ -623,6 +775,7 @@ elements.headerForm.addEventListener('submit', async (event) => {
             },
         );
         syncLoad(response.data);
+        await loadCatalog(creating ? 1 : state.loadPagination.currentPage);
         toast(`${response.data.codigo} fue ${creating ? 'creada' : 'actualizada'} correctamente.`);
     } catch (error) {
         if (!(await recoverConflict(error))) elements.headerError.textContent = error.message;
@@ -634,6 +787,86 @@ elements.headerForm.addEventListener('submit', async (event) => {
 elements.folioInput.addEventListener('input', () => {
     clearFolioErrors();
     updateFolioInputCount();
+    renderAvailableFolios();
+});
+
+elements.availableFolioSearch.addEventListener('input', () => {
+    window.clearTimeout(availableSearchTimer);
+    elements.availableFolioSummary.textContent = 'Buscando folios disponibles…';
+    availableSearchTimer = window.setTimeout(() => {
+        void loadAvailableFolios(1).catch((error) => toast(error.message, true));
+    }, 300);
+});
+
+elements.availableFolioPageSize.addEventListener('change', () => {
+    void loadAvailableFolios(1).catch((error) => toast(error.message, true));
+});
+
+elements.availableFolioPagination.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-available-page]');
+    if (!button || button.disabled) return;
+    void loadAvailableFolios(Number(button.dataset.availablePage))
+        .catch((error) => toast(error.message, true));
+});
+
+elements.availableFolioList.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('[data-available-folio]');
+    if (!checkbox) return;
+
+    const folios = new Set(parseFolios());
+    if (checkbox.checked) {
+        if (!folios.has(checkbox.dataset.availableFolio) && folios.size >= remainingFolioSlots()) {
+            checkbox.checked = false;
+            toast('La orden alcanzó el máximo de 26 folios.', true);
+            renderAvailableFolios();
+            return;
+        }
+        folios.add(checkbox.dataset.availableFolio);
+    } else {
+        folios.delete(checkbox.dataset.availableFolio);
+    }
+    elements.folioInput.value = [...folios].join('\n');
+    clearFolioErrors();
+    updateFolioInputCount();
+    renderAvailableFolios();
+});
+
+elements.availableFolioSelectPage.addEventListener('change', () => {
+    const folios = new Set(parseFolios());
+
+    if (!elements.availableFolioSelectPage.checked) {
+        state.availableFolios.forEach((folio) => folios.delete(folio.numero_folio));
+    } else {
+        let remaining = Math.max(0, remainingFolioSlots() - folios.size);
+        let omitted = 0;
+        state.availableFolios.forEach((folio) => {
+            if (folios.has(folio.numero_folio)) return;
+            if (remaining <= 0) {
+                omitted += 1;
+                return;
+            }
+            folios.add(folio.numero_folio);
+            remaining -= 1;
+        });
+        if (omitted > 0) toast(`Se alcanzó el máximo de 26 folios; ${omitted} quedaron sin seleccionar.`, true);
+    }
+
+    elements.folioInput.value = [...folios].join('\n');
+    clearFolioErrors();
+    updateFolioInputCount();
+    renderAvailableFolios();
+});
+
+elements.reloadAvailableFolios.addEventListener('click', async () => {
+    setBusy(true, 'Actualizando folios disponibles…');
+    try {
+        await loadAvailableFolios(state.availablePagination.currentPage);
+        toast('Existencia de folios actualizada.');
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
 });
 
 elements.addFolios.addEventListener('click', async () => {
@@ -650,6 +883,10 @@ elements.addFolios.addEventListener('click', async () => {
             }),
         });
         syncLoad(response.data);
+        await Promise.all([
+            loadCatalog(state.loadPagination.currentPage),
+            loadAvailableFolios(state.availablePagination.currentPage),
+        ]);
         toast(`${folios.length} ${folios.length === 1 ? 'folio incorporado' : 'folios incorporados'} a ${response.data.codigo}.`);
     } catch (error) {
         if (!(await recoverConflict(error))) showFolioErrors(error);
@@ -677,6 +914,10 @@ elements.folioTableBody.addEventListener('click', async (event) => {
             },
         );
         syncLoad(response.data);
+        await Promise.all([
+            loadCatalog(state.loadPagination.currentPage),
+            loadAvailableFolios(state.availablePagination.currentPage),
+        ]);
         toast(`${folioNumber} fue retirado de la orden.`);
     } catch (error) {
         if (!(await recoverConflict(error))) toast(error.message, true);
@@ -696,6 +937,7 @@ elements.publish.addEventListener('click', async () => {
             body: JSON.stringify({ version_esperada: state.selected.version }),
         });
         syncLoad(response.data);
+        await loadCatalog(state.loadPagination.currentPage);
         toast(`${response.data.codigo} fue publicada para la operación.`);
     } catch (error) {
         if (!(await recoverConflict(error))) toast(error.message, true);
@@ -722,6 +964,10 @@ elements.cancel.addEventListener('click', async () => {
             }),
         });
         syncLoad(response.data);
+        await Promise.all([
+            loadCatalog(state.loadPagination.currentPage),
+            loadAvailableFolios(state.availablePagination.currentPage),
+        ]);
         toast(`${response.data.codigo} fue cancelada. Sus folios quedaron liberados.`);
     } catch (error) {
         if (!(await recoverConflict(error))) toast(error.message, true);

@@ -63,28 +63,80 @@
 }
 
 .load-catalog__summary {
-    margin: 15px 0 8px;
+    margin: 0;
     color: var(--muted);
     font-size: .7rem;
     font-weight: 800;
 }
 
+.load-catalog__status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 13px 0 8px;
+}
+
+.page-size-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: .62rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.page-size-control select {
+    min-height: 32px;
+    border-radius: 7px;
+    padding: 0 24px 0 8px;
+    font-size: .65rem;
+}
+
 .load-catalog__list {
     display: grid;
-    gap: 8px;
+    gap: 5px;
     max-height: calc(100vh - 275px);
     overflow-y: auto;
     padding-right: 3px;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 34px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: .62rem;
+}
+
+.pagination button {
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--raised);
+    color: var(--text);
+    padding: 0 9px;
+    font-size: .62rem;
+    font-weight: 800;
+}
+
+.pagination button:not(:disabled):hover {
+    border-color: var(--cyan);
+    color: var(--cyan-light);
 }
 
 .load-card {
     display: block;
     width: 100%;
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 9px;
     background: var(--deep);
     color: var(--text);
-    padding: 13px;
+    padding: 8px 10px;
     text-align: left;
     transition: border-color .16s ease, background .16s ease, transform .16s ease;
 }
@@ -119,6 +171,57 @@
 .load-card__topline strong {
     color: var(--cyan-light);
     font-size: .92rem;
+}
+
+.load-card__line {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+}
+
+.load-card__line--detail {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: .61rem;
+}
+
+.load-card__code {
+    color: var(--cyan-light);
+    font-size: .78rem;
+}
+
+.load-card__external,
+.load-card__distribution {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.load-card__external {
+    color: var(--text);
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.load-card__distribution {
+    color: var(--muted);
+}
+
+.load-card__count {
+    color: var(--muted);
+    font-weight: 900;
+}
+
+.load-card .status-badge {
+    min-height: 21px;
+    padding: 0 7px;
+    font-size: .55rem;
+}
+
+.load-card .priority-dot {
+    font-size: .56rem;
 }
 
 .load-card h3 {
@@ -500,6 +603,154 @@ button:disabled {
     font-size: .8rem;
 }
 
+.available-folios {
+    grid-column: 1 / -1;
+    min-width: 0;
+    border-top: 1px solid rgba(22, 201, 194, .2);
+    padding-top: 15px;
+}
+
+.available-folios__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.available-folios__heading h3 {
+    margin: 0;
+    font-size: .95rem;
+}
+
+.available-folios__tools {
+    display: grid;
+    grid-template-columns: minmax(260px, 420px) auto 38px;
+    gap: 7px;
+}
+
+.available-folios__tools input {
+    min-height: 38px;
+    border-radius: 9px;
+    font-size: .72rem;
+}
+
+.available-folios__summary {
+    margin: 10px 0 7px;
+    color: var(--muted);
+    font-size: .67rem;
+    font-weight: 800;
+}
+
+.available-folios__table-scroll {
+    max-height: 355px;
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--deep);
+}
+
+.available-folios__table {
+    width: 100%;
+    min-width: 1040px;
+    border-collapse: collapse;
+    font-size: .66rem;
+}
+
+.available-folios__table th,
+.available-folios__table td {
+    padding: 8px 10px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.available-folios__table th:last-child,
+.available-folios__table td:last-child {
+    border-right: 0;
+}
+
+.available-folios__table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0d222d;
+    color: var(--muted);
+    font-size: .57rem;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.available-folios__table tbody tr:hover td {
+    background: rgba(22, 201, 194, .035);
+}
+
+.available-folios__table tbody tr.is-selected td {
+    background: rgba(22, 201, 194, .085);
+}
+
+.available-folios__table td strong,
+.available-folios__table td small {
+    display: block;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.available-folios__table td small {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: .57rem;
+}
+
+.available-folios__check {
+    width: 38px;
+    text-align: center !important;
+}
+
+.available-folios__check input {
+    width: 16px;
+    min-height: 16px;
+    margin: 0;
+    accent-color: var(--cyan);
+}
+
+.folio-type {
+    display: inline-flex;
+    min-height: 22px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 7px;
+    color: var(--cyan-light);
+    font-size: .56rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.available-folios__empty td {
+    padding: 28px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.available-folios__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-size: .61rem;
+}
+
+.available-folios__footer .pagination {
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
 .folio-add__footer {
     margin-top: 8px;
 }
@@ -716,6 +967,15 @@ button:disabled {
 
     .folio-add {
         grid-template-columns: 1fr;
+    }
+
+    .available-folios__heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .available-folios__tools {
+        grid-template-columns: minmax(260px, 1fr) auto 38px;
     }
 
     .load-form-grid {

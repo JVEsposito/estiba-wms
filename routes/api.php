@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
     Route::get('/cargas', [CargaController::class, 'index']);
     Route::post('/cargas', [CargaController::class, 'store']);
+    Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles']);
     Route::get('/cargas/{carga}', [CargaController::class, 'show']);
     Route::put('/cargas/{carga}', [CargaController::class, 'update']);
     Route::post('/cargas/{carga}/folios', [CargaController::class, 'agregarFolios']);

@@ -9,6 +9,9 @@ const elements = {
     userRole: byId('officeUserRole'),
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
+    workspace: byId('officeWorkspace'),
+    catalogEyebrow: byId('cameraCatalogEyebrow'),
+    catalogTitle: byId('cameraCatalogTitle'),
     reload: byId('reloadOfficeButton'),
     cameraList: byId('officeCameraList'),
     nextCode: byId('nextCameraCode'),
@@ -101,6 +104,8 @@ async function api(path, options = {}) {
 function setBusy(active, message = 'Procesando…') {
     elements.loadingText.textContent = message;
     elements.loading.classList.toggle('is-hidden', !active);
+    elements.loading.setAttribute('aria-hidden', String(!active));
+    elements.app.setAttribute('aria-busy', String(active));
 }
 
 function toast(message, error = false) {
@@ -134,6 +139,16 @@ function showApp() {
     elements.userName.textContent = name;
     elements.userRole.textContent = state.identity?.rol || 'oficina';
     elements.initials.textContent = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+    const readOnly = state.identity?.puede_configurar_camaras !== true;
+    elements.workspace.classList.toggle('is-read-only', readOnly);
+    elements.catalogEyebrow.textContent = readOnly ? 'CONSULTA OPERACIONAL' : 'CONFIGURACIÓN';
+    elements.catalogTitle.textContent = readOnly ? 'Disponibilidad de cámaras' : 'Cámaras creadas';
+}
+
+function statusText(value) {
+    return String(value || '')
+        .replaceAll('_', ' ')
+        .replace(/^./, (character) => character.toUpperCase());
 }
 
 function dimensions() {
@@ -193,6 +208,37 @@ function renderPreview() {
 function renderCameras() {
     if (!state.cameras.length) {
         elements.cameraList.innerHTML = '<div class="empty-state">Aún no existen cámaras configuradas.</div>';
+        return;
+    }
+
+    const canConfigure = state.identity?.puede_configurar_camaras === true;
+    if (!canConfigure) {
+        elements.cameraList.innerHTML = state.cameras.map((camera) => {
+            const occupied = Number(camera.ocupacion?.ocupadas || 0);
+            const total = Number(camera.ocupacion?.total || 0);
+            const available = Math.max(0, total - occupied);
+            const percentage = total > 0 ? Math.min(100, (occupied / total) * 100) : 0;
+            const session = camera.acceso?.sesion;
+            const accessText = camera.acceso?.bloqueada
+                ? `En edición por ${session?.usuario?.nombre || 'otro usuario'}`
+                : 'Disponible para operación';
+
+            return `
+                <article class="camera-item camera-item--consultation">
+                    <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot" title="Activa"></span></div>
+                    <h3>${escapeHtml(camera.nombre)}</h3>
+                    <p>${escapeHtml(statusText(camera.tipo))} · ${escapeHtml(accessText)}</p>
+                    <div class="camera-availability">
+                        <div><strong>${available}</strong><span>libres</span></div>
+                        <div><strong>${occupied}</strong><span>ocupadas</span></div>
+                        <div><strong>${total}</strong><span>totales</span></div>
+                    </div>
+                    <div class="camera-occupancy" aria-label="${escapeHtml(`${occupied} de ${total} posiciones ocupadas`)}">
+                        <span style="width: ${percentage}%"></span>
+                    </div>
+                </article>
+            `;
+        }).join('');
         return;
     }
 
@@ -271,6 +317,13 @@ async function loadCameraForEdit(id) {
 }
 
 async function loadConfiguration() {
+    if (state.identity?.puede_configurar_camaras !== true) {
+        const cameras = await api('/api/camaras');
+        state.cameras = cameras.data;
+        renderCameras();
+        return;
+    }
+
     const [cameras, next] = await Promise.all([
         api('/api/configuracion/camaras'),
         api('/api/configuracion/camaras/siguiente-codigo'),
@@ -287,7 +340,6 @@ elements.loginForm.addEventListener('submit', async (event) => {
     setBusy(true, 'Validando acceso…');
     try {
         const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(data) });
-        if (!payload.usuario.puede_configurar_camaras) throw new ApiError('Tu perfil no puede configurar cámaras.', 403);
         persistSession(payload);
         showApp();
         await loadConfiguration();
@@ -428,7 +480,9 @@ elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando cámaras…');
     try {
         await loadConfiguration();
-        toast('Configuración actualizada.');
+        toast(state.identity?.puede_configurar_camaras === true
+            ? 'Configuración actualizada.'
+            : 'Disponibilidad de cámaras actualizada.');
     } catch (error) {
         toast(error.message, true);
     } finally {
@@ -446,9 +500,17 @@ elements.logout.addEventListener('click', async () => {
 
 async function boot() {
     renderPreview();
-    if (!state.token || !state.identity?.puede_configurar_camaras) return;
+    if (!state.token || (
+        state.identity?.puede_configurar_camaras !== true
+        && state.identity?.puede_gestionar_cargas !== true
+    )) return;
     showApp();
-    setBusy(true, 'Cargando configuración…');
+    setBusy(
+        true,
+        state.identity?.puede_configurar_camaras === true
+            ? 'Cargando configuración…'
+            : 'Cargando disponibilidad de cámaras…',
+    );
     try {
         await loadConfiguration();
     } catch (error) {

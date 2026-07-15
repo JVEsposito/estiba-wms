@@ -2,31 +2,67 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
+use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoPosicion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarCargaRequest;
 use App\Http\Requests\AgregarFoliosCargaRequest;
 use App\Http\Requests\CrearCargaRequest;
 use App\Http\Requests\VersionCargaRequest;
 use App\Http\Resources\CargaResource;
+use App\Http\Resources\FolioDisponibleCargaResource;
 use App\Models\Carga;
 use App\Models\Folio;
 use App\Services\Cargas\ServicioCarga;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class CargaController extends Controller
 {
-    public function index(): AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('gestionar-cargas');
 
+        $filtros = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'estado' => ['nullable', Rule::enum(EstadoCarga::class)],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $busqueda = trim((string) ($filtros['q'] ?? ''));
+
         $cargas = Carga::query()
             ->with($this->relacionesDetalle())
+            ->when(
+                $busqueda !== '',
+                fn (Builder $consulta): Builder => $consulta->where(
+                    fn (Builder $coincidencia): Builder => $coincidencia
+                        ->where('codigo', 'like', "%{$busqueda}%")
+                        ->orWhere('numero_orden_externa', 'like', "%{$busqueda}%")
+                        ->orWhere('observacion', 'like', "%{$busqueda}%")
+                        ->orWhereHas(
+                            'camaraObjetivo',
+                            fn (Builder $camara): Builder => $camara
+                                ->where('codigo', 'like', "%{$busqueda}%")
+                                ->orWhere('nombre', 'like', "%{$busqueda}%"),
+                        ),
+                ),
+            )
+            ->when(
+                isset($filtros['estado']),
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('estado', $filtros['estado']),
+            )
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate((int) ($filtros['per_page'] ?? 25))
+            ->withQueryString();
 
         return CargaResource::collection($cargas);
     }
@@ -50,6 +86,71 @@ class CargaController extends Controller
             ->get();
 
         return CargaResource::collection($cargas);
+    }
+
+    public function foliosDisponibles(Request $request): AnonymousResourceCollection
+    {
+        Gate::authorize('gestionar-cargas');
+
+        $filtros = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $busqueda = trim((string) ($filtros['q'] ?? ''));
+
+        $folios = Folio::query()
+            ->where('activo', true)
+            ->where('estado_operacional', EstadoOperacionalFolio::Disponible->value)
+            ->whereDoesntHave('asignacionCargaActual')
+            ->whereHas(
+                'ubicacionActual.posicion',
+                fn (Builder $posicion): Builder => $posicion
+                    ->where('estado', EstadoPosicion::Activa->value)
+                    ->whereHas(
+                        'camara',
+                        fn (Builder $camara): Builder => $camara
+                            ->where('estado', EstadoCamara::Activa->value),
+                    ),
+            )
+            ->when(
+                $busqueda !== '',
+                fn (Builder $consulta): Builder => $consulta->where(
+                    fn (Builder $coincidencia): Builder => $coincidencia
+                        ->where('numero_folio', 'like', "%{$busqueda}%")
+                        ->orWhere('tipo_bulto', 'like', "%{$busqueda}%")
+                        ->orWhere('variedad', 'like', "%{$busqueda}%")
+                        ->orWhere('calibre', 'like', "%{$busqueda}%")
+                        ->orWhere('marca', 'like', "%{$busqueda}%")
+                        ->orWhere('exportadora', 'like', "%{$busqueda}%")
+                        ->orWhereHas(
+                            'condicionSag',
+                            fn (Builder $condicion): Builder => $condicion
+                                ->where('codigo', 'like', "%{$busqueda}%")
+                                ->orWhere('nombre', 'like', "%{$busqueda}%"),
+                        )
+                        ->orWhereHas(
+                            'ubicacionActual.posicion',
+                            fn (Builder $posicion): Builder => $posicion
+                                ->where('etiqueta', 'like', "%{$busqueda}%")
+                                ->orWhereHas(
+                                    'camara',
+                                    fn (Builder $camara): Builder => $camara
+                                        ->where('codigo', 'like', "%{$busqueda}%")
+                                        ->orWhere('nombre', 'like', "%{$busqueda}%"),
+                                ),
+                        ),
+                ),
+            )
+            ->with([
+                'condicionSag:id,codigo,nombre',
+                'ubicacionActual.posicion.camara:id,codigo,nombre',
+            ])
+            ->orderBy('numero_folio')
+            ->paginate((int) ($filtros['per_page'] ?? 25))
+            ->withQueryString();
+
+        return FolioDisponibleCargaResource::collection($folios);
     }
 
     public function store(
