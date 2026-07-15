@@ -434,9 +434,12 @@ class ServicioMovimientoEstiba
             }
         } elseif ($folio->tipo_bulto !== $tipoBulto) {
             throw new DomainException('El tipo de bulto no coincide con el folio existente.');
-        } elseif ($tipoBulto === TipoBulto::Material
-            && ! FolioMaterial::query()->whereKey($folio->id)->exists()) {
-            throw new DomainException('El folio de material no posee una ficha de inventario válida.');
+        } elseif ($tipoBulto === TipoBulto::Material) {
+            $tieneFichaMaterial = FolioMaterial::query()->whereKey($folio->id)->exists();
+
+            if (! $tieneFichaMaterial) {
+                throw new DomainException('El folio de material no posee una ficha de inventario válida.');
+            }
         }
 
         $this->validarVersion($camara, $versionDestinoConocida, 'destino');
@@ -719,9 +722,12 @@ class ServicioMovimientoEstiba
             : ContenidoCamara::Productos;
 
         if ($camara->contenido !== $contenidoEsperado) {
-            throw new DomainException($tipoBulto === TipoBulto::Material
-                ? 'Los folios de materiales solo pueden ubicarse en cámaras de materiales.'
-                : 'Los pallets y saldos solo pueden ubicarse en cámaras de productos.');
+            $mensaje = match ($tipoBulto) {
+                TipoBulto::Material => 'Los folios de materiales solo pueden ubicarse en cámaras de materiales.',
+                default => 'Los pallets y saldos solo pueden ubicarse en cámaras de productos.',
+            };
+
+            throw new DomainException($mensaje);
         }
     }
 

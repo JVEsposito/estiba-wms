@@ -8,8 +8,8 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\RolUsuario;
-use App\Enums\TipoMovimiento;
 use App\Enums\TipoBulto;
+use App\Enums\TipoMovimiento;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
 use App\Models\Camara;
@@ -161,9 +161,11 @@ class ValidadorMovimiento
         }
 
         $folio = Folio::query()->find($movimiento->folio_id);
-        $contenidoEsperado = $folio?->tipo_bulto === TipoBulto::Material
-            ? ContenidoCamara::Materiales
-            : ContenidoCamara::Productos;
+        $contenidoEsperado = ContenidoCamara::Productos;
+
+        if ($folio && $folio->tipo_bulto === TipoBulto::Material) {
+            $contenidoEsperado = ContenidoCamara::Materiales;
+        }
 
         if ($camara->contenido !== $contenidoEsperado) {
             throw new DomainException('El contenido del folio no corresponde al tipo de cámara.');

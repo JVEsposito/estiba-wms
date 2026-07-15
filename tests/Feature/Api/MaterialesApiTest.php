@@ -7,7 +7,6 @@ use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
-use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\Posicion;
@@ -156,8 +155,8 @@ class MaterialesApiTest extends TestCase
             'destino_material_id' => $destino->id,
             'observacion' => 'Reposición de línea',
             'items' => [[
-                    'item_material_id' => $item->id,
-                    'cantidad' => 12,
+                'item_material_id' => $item->id,
+                'cantidad' => 12,
             ]],
         ];
         $despachoId = $this->withToken($tokenOficina)
@@ -185,9 +184,9 @@ class MaterialesApiTest extends TestCase
         $retiroParcial = [
             'operacion_id' => $operacionRetiroParcial,
             'retiros' => [[
-                    'folio_id' => $folio1,
-                    'cantidad' => 4,
-                    'sesion_estiba_id' => $sesion,
+                'folio_id' => $folio1,
+                'cantidad' => 4,
+                'sesion_estiba_id' => $sesion,
             ]],
         ];
         $this->withToken($tokenTablet)

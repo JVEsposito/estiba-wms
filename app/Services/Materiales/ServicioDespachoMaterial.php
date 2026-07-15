@@ -287,9 +287,8 @@ class ServicioDespachoMaterial
 
             $despacho->load('detalles');
             $completo = $despacho->detalles->every(
-                fn (DetalleDespachoMaterial $detalle): bool =>
-                    (float) $detalle->cantidad_despachada + 0.0001
-                        >= (float) $detalle->cantidad_solicitada,
+                fn (DetalleDespachoMaterial $detalle): bool => (float) $detalle->cantidad_despachada + 0.0001
+                    >= (float) $detalle->cantidad_solicitada,
             );
             $despacho->update([
                 'estado' => $completo
