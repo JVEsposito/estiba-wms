@@ -68,6 +68,20 @@ function errorMessage(data, fallback) {
     return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
 }
 
+function userValidationMessage(data) {
+    const password = String(data.password || '');
+
+    if (password.length < 10) return 'La contraseña debe tener al menos 10 caracteres.';
+    if (!/\p{L}/u.test(password) || !/\p{N}/u.test(password)) {
+        return 'La contraseña debe contener al menos una letra y un número.';
+    }
+    if (password !== String(data.password_confirmation || '')) {
+        return 'La confirmación de la contraseña no coincide.';
+    }
+
+    return null;
+}
+
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
@@ -240,6 +254,11 @@ elements.userForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     elements.userError.textContent = '';
     const data = Object.fromEntries(new FormData(elements.userForm));
+    const validationMessage = userValidationMessage(data);
+    if (validationMessage) {
+        elements.userError.textContent = validationMessage;
+        return;
+    }
     setBusy(true, 'Creando usuario…');
     try {
         const response = await api('/api/administracion/usuarios', {

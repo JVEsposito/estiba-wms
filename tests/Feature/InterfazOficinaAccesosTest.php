@@ -12,6 +12,7 @@ class InterfazOficinaAccesosTest extends TestCase
             ->assertOk()
             ->assertSee('Administración de accesos')
             ->assertSee('Usuarios y tablets autorizadas')
+            ->assertSee('Mínimo 10 caracteres; debe contener al menos una letra y un número.')
             ->assertSee('createUserForm', false)
             ->assertSee('createDeviceForm', false)
             ->assertSee('/oficina/camaras', false)
