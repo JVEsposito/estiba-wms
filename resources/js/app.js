@@ -30,11 +30,15 @@ const elements = {
     folioCard: $('folioCard'),
     selectedFolioType: $('selectedFolioType'),
     selectedFolioNumber: $('selectedFolioNumber'),
+    selectedFolioVarietyLabel: $('selectedFolioVarietyLabel'),
     selectedFolioVariety: $('selectedFolioVariety'),
+    selectedFolioCaliberLabel: $('selectedFolioCaliberLabel'),
     selectedFolioCaliber: $('selectedFolioCaliber'),
+    selectedFolioSagLabel: $('selectedFolioSagLabel'),
     selectedFolioSag: $('selectedFolioSag'),
     locateButton: $('locateButton'),
     moveButton: $('moveButton'),
+    materialDispatchButton: $('materialDispatchButton'),
     sessionButton: $('sessionButton'),
     sessionButtonTitle: $('sessionButtonTitle'),
     sessionButtonSubtitle: $('sessionButtonSubtitle'),
@@ -47,6 +51,19 @@ const elements = {
     locateDestinationText: $('locateDestinationText'),
     locateError: $('locateError'),
     sagSelect: $('sagSelect'),
+    locateTypeSelect: $('locateTypeSelect'),
+    materialItemSelect: $('materialItemSelect'),
+    materialDispatchDialog: $('materialDispatchDialog'),
+    materialDispatchForm: $('materialDispatchForm'),
+    materialDispatchTitle: $('materialDispatchTitle'),
+    materialDispatchOrigin: $('materialDispatchOrigin'),
+    materialBalance: $('materialBalance'),
+    materialDispatchSelect: $('materialDispatchSelect'),
+    materialDestinationField: $('materialDestinationField'),
+    materialDestinationSelect: $('materialDestinationSelect'),
+    materialAmountLabel: $('materialAmountLabel'),
+    materialFifoNotice: $('materialFifoNotice'),
+    materialDispatchError: $('materialDispatchError'),
     moveDialog: $('moveDialog'),
     moveForm: $('moveForm'),
     moveDialogTitle: $('moveDialogTitle'),
@@ -72,11 +89,15 @@ const state = {
     identity: readStoredJson(storageKeys.identity),
     cameras: [],
     conditions: [],
+    materialCatalog: { items: [], destinos: [] },
+    materialDispatches: [],
     selectedCameraId: null,
     plan: null,
     selectedPosition: null,
     destinationPlan: null,
     moveDestination: null,
+    materialCreateOperationId: null,
+    materialWithdrawOperationId: null,
     polling: false,
 };
 
@@ -234,6 +255,8 @@ function clearSession() {
     state.plan = null;
     state.selectedCameraId = null;
     state.selectedPosition = null;
+    state.materialCatalog = { items: [], destinos: [] };
+    state.materialDispatches = [];
     localStorage.removeItem(storageKeys.token);
     localStorage.removeItem(storageKeys.identity);
     elements.appShell.classList.add('is-hidden');
@@ -330,14 +353,19 @@ async function signOut() {
 
 async function loadApplication() {
     await withBusy('Cargando cámaras…', async () => {
-        const [cameraResponse, conditionResponse] = await Promise.all([
+        const [cameraResponse, conditionResponse, materialCatalog, materialDispatchResponse] = await Promise.all([
             api('/api/camaras'),
             api('/api/condiciones-sag'),
+            api('/api/materiales/catalogo'),
+            api('/api/materiales/despachos?estados=pendiente,parcial'),
         ]);
 
         state.cameras = cameraResponse.data || [];
         state.conditions = conditionResponse.data || [];
+        state.materialCatalog = materialCatalog || { items: [], destinos: [] };
+        state.materialDispatches = materialDispatchResponse.data || [];
         renderConditions();
+        renderMaterialCatalog();
         renderCameras();
 
         if (state.cameras.length > 0) {
@@ -354,6 +382,17 @@ function renderConditions() {
     ));
 
     elements.sagSelect.innerHTML = '<option value="">Sin especificar</option>' + options.join('');
+}
+
+function renderMaterialCatalog() {
+    elements.materialItemSelect.innerHTML = '<option value="">Selecciona un ítem</option>'
+        + state.materialCatalog.items.map((item) => (
+            `<option value="${escapeHtml(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)} · ${escapeHtml(item.unidad_medida)}</option>`
+        )).join('');
+    elements.materialDestinationSelect.innerHTML = '<option value="">Selecciona un destino</option>'
+        + state.materialCatalog.destinos.map((destination) => (
+            `<option value="${escapeHtml(destination.id)}">${escapeHtml(destination.nombre)} · ${escapeHtml(destination.centro_costo)}</option>`
+        )).join('');
 }
 
 function renderEmptyCameras() {
@@ -389,7 +428,7 @@ function renderCameras() {
                     <span class="camera-card__state"><i class="status-dot ${dot}"></i>${label}</span>
                 </span>
                 <span class="camera-card__meta">
-                    <span>${escapeHtml(camera.nombre)}</span>
+                    <span>${camera.contenido === 'materiales' ? 'MATERIALES · ' : ''}${escapeHtml(camera.nombre)}</span>
                     <span>${percentage}%</span>
                 </span>
                 <span class="mini-progress"><i style="width:${Math.min(100, percentage)}%"></i></span>
@@ -454,7 +493,9 @@ function renderPlan() {
 
     if (! plan) return;
 
-    elements.planBreadcrumb.textContent = `PLANO DE ESTIBA · ${plan.tipo.toUpperCase()}`;
+    elements.planBreadcrumb.textContent = plan.contenido === 'materiales'
+        ? `BODEGA DE MATERIALES · ${plan.tipo.toUpperCase()}`
+        : `PLANO DE ESTIBA · ${plan.tipo.toUpperCase()}`;
     elements.planTitle.textContent = `${plan.codigo} · ${plan.nombre}`;
     elements.planSubtitle.textContent = `${plan.posiciones.length} posiciones configuradas`;
     elements.planVersion.textContent = `v${plan.version_plano}`;
@@ -549,23 +590,25 @@ function renderPositionCell(position) {
     const blocked = position.estado !== 'activa';
     const occupied = position.ocupada;
     const saldo = position.folio?.tipo_bulto === 'saldo';
+    const material = position.folio?.tipo_bulto === 'material';
     const classes = [
         'position-cell',
         selected ? 'is-selected' : '',
         occupied ? 'is-occupied' : '',
         saldo ? 'is-saldo' : '',
+        material ? 'is-material' : '',
         blocked ? 'is-blocked' : '',
     ].filter(Boolean).join(' ');
     const folio = position.folio?.numero_folio || (blocked ? 'NO DISPONIBLE' : 'LIBRE');
     const detail = occupied
-        ? (position.folio?.variedad || position.folio?.tipo_bulto || 'Bulto')
+        ? (position.folio?.material?.item?.nombre || position.folio?.variedad || position.folio?.tipo_bulto || 'Bulto')
         : (blocked ? position.estado.replaceAll('_', ' ') : 'Disponible');
 
     return `
         <button class="${classes}" type="button" data-position-id="${escapeHtml(position.id)}">
             <span class="position-cell__location">${escapeHtml(position.etiqueta || `B${position.banda} · P${position.posicion}`)}</span>
             <strong class="position-cell__folio">${escapeHtml(folio)}</strong>
-            <span class="position-cell__meta"><span>${escapeHtml(detail)}</span><span>${occupied ? (saldo ? 'S' : 'P') : '○'}</span></span>
+            <span class="position-cell__meta"><span>${escapeHtml(detail)}</span><span>${occupied ? (material ? 'M' : saldo ? 'S' : 'P') : '○'}</span></span>
         </button>`;
 }
 
@@ -584,6 +627,7 @@ function renderSelection() {
         elements.selectedPositionState.textContent = 'Toca una posición del plano';
         elements.folioCard.classList.add('is-hidden');
         elements.folioCard.classList.remove('is-saldo');
+        elements.folioCard.classList.remove('is-material');
         return;
     }
 
@@ -595,17 +639,31 @@ function renderSelection() {
     if (! position.folio) {
         elements.folioCard.classList.add('is-hidden');
         elements.folioCard.classList.remove('is-saldo');
+        elements.folioCard.classList.remove('is-material');
         return;
     }
 
     const folio = position.folio;
     elements.folioCard.classList.remove('is-hidden');
     elements.folioCard.classList.toggle('is-saldo', folio.tipo_bulto === 'saldo');
+    elements.folioCard.classList.toggle('is-material', folio.tipo_bulto === 'material');
     elements.selectedFolioType.textContent = folio.tipo_bulto.toUpperCase();
     elements.selectedFolioNumber.textContent = folio.numero_folio;
-    elements.selectedFolioVariety.textContent = folio.variedad || '—';
-    elements.selectedFolioCaliber.textContent = folio.calibre || '—';
-    elements.selectedFolioSag.textContent = folio.condicion_sag?.codigo || '—';
+    if (folio.tipo_bulto === 'material') {
+        elements.selectedFolioVarietyLabel.textContent = 'Ítem';
+        elements.selectedFolioCaliberLabel.textContent = 'Saldo';
+        elements.selectedFolioSagLabel.textContent = 'Disponible';
+        elements.selectedFolioVariety.textContent = folio.material?.item?.nombre || '—';
+        elements.selectedFolioCaliber.textContent = `${folio.material?.cantidad_actual || '0'} ${folio.material?.unidad_medida || ''}`;
+        elements.selectedFolioSag.textContent = `${folio.material?.cantidad_disponible || '0'} ${folio.material?.unidad_medida || ''}`;
+    } else {
+        elements.selectedFolioVarietyLabel.textContent = 'Variedad';
+        elements.selectedFolioCaliberLabel.textContent = 'Calibre';
+        elements.selectedFolioSagLabel.textContent = 'Condición';
+        elements.selectedFolioVariety.textContent = folio.variedad || '—';
+        elements.selectedFolioCaliber.textContent = folio.calibre || '—';
+        elements.selectedFolioSag.textContent = folio.condicion_sag?.codigo || '—';
+    }
 }
 
 function updateActions() {
@@ -622,6 +680,9 @@ function updateActions() {
     elements.moveButton.disabled = ! operating
         || ! position?.ocupada
         || position.estado !== 'activa';
+    const canDispatchMaterial = operating && position?.folio?.tipo_bulto === 'material';
+    elements.materialDispatchButton.classList.toggle('is-hidden', state.plan?.contenido !== 'materiales');
+    elements.materialDispatchButton.disabled = ! canDispatchMaterial;
 
     if (! plan) {
         elements.sessionButton.disabled = true;
@@ -681,6 +742,19 @@ function openLocateDialog() {
     elements.locateError.textContent = '';
     elements.locateDestinationText.textContent = `Destino: ${state.plan.codigo} · ${positionLabel(position)}`;
     renderConditions();
+    renderMaterialCatalog();
+    const isMaterial = state.plan.contenido === 'materiales';
+    elements.locateTypeSelect.innerHTML = isMaterial
+        ? '<option value="material">Material</option>'
+        : '<option value="pallet">Pallet completo</option><option value="saldo">Saldo incompleto</option>';
+    document.querySelectorAll('.product-locate-field').forEach((field) => {
+        field.classList.toggle('is-hidden', isMaterial);
+    });
+    document.querySelectorAll('.material-locate-field').forEach((field) => {
+        field.classList.toggle('is-hidden', ! isMaterial);
+    });
+    elements.materialItemSelect.required = isMaterial;
+    elements.locateForm.cantidad_material.required = isMaterial;
     elements.locateDialog.showModal();
     window.setTimeout(() => elements.locateForm.numero_folio.focus(), 50);
 }
@@ -706,6 +780,15 @@ async function locateFolio(form) {
         version_destino_conocida: state.plan.version_plano,
         generado_dispositivo_at: new Date().toISOString(),
         ...(Object.keys(descriptiveData).length > 0 ? { datos_folio: descriptiveData } : {}),
+        ...(values.tipo_bulto === 'material' ? {
+            datos_material: compactObject({
+                item_material_id: values.item_material_id,
+                cantidad: Number(values.cantidad_material),
+                lote: values.lote_material?.trim(),
+                proveedor: values.proveedor_material?.trim(),
+                observacion: values.observacion_material?.trim(),
+            }),
+        } : {}),
     };
 
     elements.locateError.textContent = '';
@@ -727,6 +810,157 @@ async function locateFolio(form) {
     }
 }
 
+function materialDispatchDetail(dispatch, folio) {
+    return dispatch?.items?.find((detail) => detail.item.id === folio?.material?.item?.id) || null;
+}
+
+function matchingMaterialDispatches(folio = state.selectedPosition?.folio) {
+    return state.materialDispatches.filter((dispatch) => {
+        const detail = materialDispatchDetail(dispatch, folio);
+        return detail && Number(detail.cantidad_pendiente) > 0;
+    });
+}
+
+function openMaterialDispatchDialog() {
+    const position = state.selectedPosition;
+    const material = position?.folio?.material;
+    if (! material || ! canOperate()) return;
+
+    elements.materialDispatchForm.reset();
+    state.materialCreateOperationId = operationUuid();
+    state.materialWithdrawOperationId = operationUuid();
+    elements.materialDispatchError.textContent = '';
+    elements.materialDispatchTitle.textContent = material.item.nombre;
+    elements.materialDispatchOrigin.textContent = `${position.folio.numero_folio} · ${state.plan.codigo} · ${positionLabel(position)}`;
+    elements.materialBalance.innerHTML = `
+        <div><span>SALDO ACTUAL</span><strong>${escapeHtml(material.cantidad_actual)} ${escapeHtml(material.unidad_medida)}</strong></div>
+        <div><span>DISPONIBLE</span><strong>${escapeHtml(material.cantidad_disponible)} ${escapeHtml(material.unidad_medida)}</strong></div>`;
+    elements.materialDispatchSelect.innerHTML = '<option value="">Nuevo despacho directo</option>'
+        + matchingMaterialDispatches(position.folio).map((dispatch) => (
+            `<option value="${escapeHtml(dispatch.id)}">${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)} · ${escapeHtml(dispatch.destino.centro_costo)}</option>`
+        )).join('');
+    renderMaterialCatalog();
+    updateMaterialDispatchForm();
+    elements.materialDispatchDialog.showModal();
+}
+
+function materialDispatchMaximum() {
+    const folio = state.selectedPosition?.folio;
+    const material = folio?.material;
+    const dispatch = state.materialDispatches.find((candidate) => (
+        candidate.id === elements.materialDispatchSelect.value
+    ));
+    const detail = materialDispatchDetail(dispatch, folio);
+    const ownReservation = Number(detail?.sugerencias_fifo?.find((suggestion) => (
+        suggestion.folio_id === folio?.id
+    ))?.cantidad || 0);
+    const folioAvailable = Number(material?.cantidad_disponible || 0) + ownReservation;
+
+    return detail
+        ? Math.min(folioAvailable, Number(detail.cantidad_pendiente))
+        : folioAvailable;
+}
+
+function updateMaterialDispatchForm() {
+    const folio = state.selectedPosition?.folio;
+    const material = folio?.material;
+    const dispatch = state.materialDispatches.find((candidate) => (
+        candidate.id === elements.materialDispatchSelect.value
+    ));
+    const detail = materialDispatchDetail(dispatch, folio);
+    const maximum = materialDispatchMaximum();
+    const amountInput = elements.materialDispatchForm.cantidad;
+
+    elements.materialDestinationField.classList.toggle('is-hidden', Boolean(dispatch));
+    elements.materialDestinationSelect.required = ! dispatch;
+    elements.materialAmountLabel.textContent = `Cantidad a despachar * · máximo ${maximum.toFixed(3)} ${material?.unidad_medida || ''}`;
+    amountInput.max = String(maximum);
+
+    if (! dispatch || ! detail) {
+        elements.materialFifoNotice.classList.add('is-hidden');
+        elements.materialFifoNotice.classList.remove('is-override');
+        elements.materialFifoNotice.textContent = '';
+        return;
+    }
+
+    const followsFifo = detail.sugerencias_fifo.some((suggestion) => suggestion.folio_id === folio.id);
+    elements.materialFifoNotice.classList.remove('is-hidden');
+    elements.materialFifoNotice.classList.toggle('is-override', ! followsFifo);
+    elements.materialFifoNotice.innerHTML = followsFifo
+        ? `<strong>Folio sugerido por FIFO.</strong> <span>Pendiente ${escapeHtml(detail.cantidad_pendiente)} ${escapeHtml(detail.unidad_medida)} para ${escapeHtml(dispatch.destino.nombre)}.</span>`
+        : `<strong>Selección distinta de FIFO.</strong> <span>Se permitirá el retiro y quedará registrado en la trazabilidad.</span>`;
+}
+
+async function dispatchMaterial(form) {
+    const position = state.selectedPosition;
+    const material = position?.folio?.material;
+    const session = ownSession();
+    if (! material || ! session) return;
+
+    const values = Object.fromEntries(new FormData(form));
+    const amount = Number(values.cantidad);
+    const maximum = materialDispatchMaximum();
+    elements.materialDispatchError.textContent = '';
+
+    if (! Number.isFinite(amount) || amount <= 0 || amount > maximum) {
+        elements.materialDispatchError.textContent = `Ingresa una cantidad entre 0,001 y ${maximum.toFixed(3)} ${material.unidad_medida}.`;
+        return;
+    }
+
+    try {
+        await withBusy('Despachando material…', async () => {
+            let dispatchId = values.despacho_id;
+
+            if (! dispatchId) {
+                if (! values.destino_material_id) {
+                    throw new ApiError('Selecciona el destino y centro de costo.', 422);
+                }
+                const created = await api('/api/materiales/despachos', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        operacion_id: state.materialCreateOperationId,
+                        destino_material_id: values.destino_material_id,
+                        items: [{
+                            item_material_id: material.item.id,
+                            cantidad: amount,
+                        }],
+                    }),
+                });
+                dispatchId = created.data.id;
+            }
+
+            await api(`/api/materiales/despachos/${dispatchId}/retirar`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    operacion_id: state.materialWithdrawOperationId,
+                    retiros: [{
+                        folio_id: position.folio.id,
+                        cantidad: amount,
+                        sesion_estiba_id: session.id,
+                    }],
+                }),
+            });
+        });
+        elements.materialDispatchDialog.close();
+        showToast(`${amount} ${material.unidad_medida} despachadas desde ${position.folio.numero_folio}.`);
+        await refreshMaterialData();
+        await refreshCurrent({ quiet: true });
+    } catch (error) {
+        elements.materialDispatchError.textContent = error.message;
+        if (error.status === 409) await refreshCurrent({ quiet: true });
+    }
+}
+
+async function refreshMaterialData() {
+    const [catalog, dispatchResponse] = await Promise.all([
+        api('/api/materiales/catalogo'),
+        api('/api/materiales/despachos?estados=pendiente,parcial'),
+    ]);
+    state.materialCatalog = catalog || { items: [], destinos: [] };
+    state.materialDispatches = dispatchResponse.data || [];
+    renderMaterialCatalog();
+}
+
 async function openMoveDialog() {
     const position = state.selectedPosition;
     if (! position?.folio || ! canOperate()) return;
@@ -736,7 +970,7 @@ async function openMoveDialog() {
     elements.moveDialogTitle.textContent = `Mover ${position.folio.numero_folio}`;
     elements.moveOriginText.textContent = `Origen: ${state.plan.codigo} · ${positionLabel(position)}`;
     elements.moveCameraSelect.innerHTML = state.cameras
-        .filter((camera) => camera.estado === 'activa')
+        .filter((camera) => camera.estado === 'activa' && camera.contenido === state.plan.contenido)
         .map((camera) => `<option value="${escapeHtml(camera.id)}">${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)}</option>`)
         .join('');
     elements.moveCameraSelect.value = state.plan.id;
@@ -963,7 +1197,8 @@ async function poll() {
         || ! navigator.onLine
         || document.hidden
         || elements.locateDialog.open
-        || elements.moveDialog.open) {
+        || elements.moveDialog.open
+        || elements.materialDispatchDialog.open) {
         return;
     }
 
@@ -1008,6 +1243,7 @@ elements.sessionButton?.addEventListener('click', async () => {
 });
 elements.locateButton?.addEventListener('click', openLocateDialog);
 elements.moveButton?.addEventListener('click', openMoveDialog);
+elements.materialDispatchButton?.addEventListener('click', openMaterialDispatchDialog);
 elements.locateForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     locateFolio(event.currentTarget);
@@ -1015,6 +1251,14 @@ elements.locateForm?.addEventListener('submit', (event) => {
 elements.moveForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     moveFolio();
+});
+elements.materialDispatchForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    dispatchMaterial(event.currentTarget);
+});
+elements.materialDispatchSelect?.addEventListener('change', () => {
+    elements.materialDispatchError.textContent = '';
+    updateMaterialDispatchForm();
 });
 elements.moveCameraSelect?.addEventListener('change', (event) => {
     elements.moveError.textContent = '';

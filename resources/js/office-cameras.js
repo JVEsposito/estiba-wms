@@ -232,7 +232,7 @@ function renderCameras() {
                 <article class="camera-item camera-item--consultation">
                     <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot" title="Activa"></span></div>
                     <h3>${escapeHtml(camera.nombre)}</h3>
-                    <p>${escapeHtml(statusText(camera.tipo))} · ${escapeHtml(accessText)}</p>
+                    <p>${escapeHtml(statusText(camera.tipo))} · ${escapeHtml(statusText(camera.contenido))} · ${escapeHtml(accessText)}</p>
                     <div class="camera-availability">
                         <div><strong>${available}</strong><span>libres</span></div>
                         <div><strong>${occupied}</strong><span>ocupadas</span></div>
@@ -252,7 +252,7 @@ function renderCameras() {
         <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
             <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
             <h3>${escapeHtml(camera.nombre)}</h3>
-            <p>${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
+            <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
             <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
             ${canAdminister ? `<div class="camera-item__actions"><button data-edit-camera="${camera.id}" type="button">Editar cámara</button></div>` : ''}
         </article>
@@ -269,6 +269,7 @@ function resetForm() {
     elements.createForm.elements.bandas.value = 3;
     elements.createForm.elements.posiciones_por_banda.value = 4;
     elements.createForm.elements.niveles.value = 2;
+    elements.createForm.elements.contenido.value = 'productos';
     elements.eyebrow.textContent = 'NUEVO PLANO';
     elements.title.textContent = 'Crear cámara';
     elements.description.textContent = 'Define la estructura y revisa cada banda antes de confirmar.';
@@ -292,6 +293,7 @@ function editForm(camera) {
     )));
     elements.createForm.elements.nombre.value = camera.nombre;
     elements.createForm.elements.tipo.value = camera.tipo;
+    elements.createForm.elements.contenido.value = camera.contenido;
     elements.createForm.elements.bandas.value = camera.dimensiones.bandas;
     elements.createForm.elements.posiciones_por_banda.value = camera.dimensiones.posiciones_por_banda;
     elements.createForm.elements.niveles.value = camera.dimensiones.niveles;
@@ -402,6 +404,7 @@ elements.createForm.addEventListener('submit', async (event) => {
     const payload = {
         nombre: String(form.get('nombre') || '').trim(),
         tipo: form.get('tipo'),
+        contenido: form.get('contenido'),
         bandas: Number(form.get('bandas')),
         posiciones_por_banda: Number(form.get('posiciones_por_banda')),
         niveles: Number(form.get('niveles')),
@@ -458,6 +461,7 @@ elements.deactivate.addEventListener('click', async () => {
                 body: JSON.stringify({
                     nombre: String(form.get('nombre') || '').trim(),
                     tipo: form.get('tipo'),
+                    contenido: form.get('contenido'),
                     bandas: Number(form.get('bandas')),
                     posiciones_por_banda: Number(form.get('posiciones_por_banda')),
                     niveles: Number(form.get('niveles')),

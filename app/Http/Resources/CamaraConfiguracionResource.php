@@ -23,6 +23,7 @@ class CamaraConfiguracionResource extends JsonResource
             'codigo' => $this->codigo,
             'nombre' => $this->nombre,
             'tipo' => $this->tipo,
+            'contenido' => $this->contenido->value,
             'estado' => $this->estado->value,
             'version_plano' => $this->version_plano,
             'dimensiones' => [

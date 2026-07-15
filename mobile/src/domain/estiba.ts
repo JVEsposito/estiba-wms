@@ -65,6 +65,7 @@ export type CameraSummary = {
   codigo: string;
   nombre: string;
   tipo: string;
+  contenido: 'productos' | 'materiales';
   estado: string;
   version_plano: number;
   ocupacion: Occupancy;
@@ -74,7 +75,7 @@ export type CameraSummary = {
 export type Folio = {
   id: string;
   numero_folio: string;
-  tipo_bulto: 'pallet' | 'saldo';
+  tipo_bulto: 'pallet' | 'saldo' | 'material';
   estado_operacional: string;
   condicion_sag: SagCondition | null;
   fecha_ingreso: string | null;
@@ -82,7 +83,70 @@ export type Folio = {
   calibre: string | null;
   marca: string | null;
   exportadora: string | null;
+  material: FolioMaterial | null;
   ubicado_at: string | null;
+};
+
+export type MaterialItem = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  categoria: string | null;
+  unidad_medida: string;
+  activo: boolean;
+};
+
+export type MaterialDestination = {
+  id: string;
+  nombre: string;
+  centro_costo: string;
+  descripcion: string | null;
+  activo: boolean;
+};
+
+export type FolioMaterial = {
+  item: Omit<MaterialItem, 'unidad_medida' | 'activo'>;
+  cantidad_inicial: string;
+  cantidad_actual: string;
+  cantidad_reservada: string;
+  cantidad_disponible: string;
+  unidad_medida: string;
+  lote: string | null;
+  proveedor: string | null;
+  observacion: string | null;
+};
+
+export type MaterialCatalog = {
+  items: MaterialItem[];
+  destinos: MaterialDestination[];
+};
+
+export type MaterialDispatchItem = {
+  detalle_id: string;
+  item: Omit<MaterialItem, 'unidad_medida' | 'activo'>;
+  cantidad_solicitada: string;
+  cantidad_despachada: string;
+  cantidad_pendiente: string;
+  cantidad_reservada: string;
+  unidad_medida: string;
+  sugerencias_fifo: Array<{
+    folio_id: string;
+    numero_folio: string;
+    cantidad: string;
+    camara: { id: string; codigo: string; nombre: string } | null;
+    posicion: { id: string; etiqueta: string } | null;
+  }>;
+};
+
+export type MaterialDispatch = {
+  id: string;
+  codigo: string;
+  origen: 'oficina' | 'tablet';
+  estado: 'pendiente' | 'parcial' | 'completado' | 'cancelado';
+  destino: { id: string; nombre: string; centro_costo: string };
+  observacion: string | null;
+  items: MaterialDispatchItem[];
+  created_at: string;
 };
 
 export type Position = {
@@ -143,7 +207,7 @@ export type OpenedSession = {
 export type LocatePayload = {
   operacion_id: string;
   numero_folio: string;
-  tipo_bulto: 'pallet' | 'saldo';
+  tipo_bulto: 'pallet' | 'saldo' | 'material';
   posicion_destino_id: string;
   sesion_destino_id: string;
   version_destino_conocida: number;
@@ -156,6 +220,25 @@ export type LocatePayload = {
     marca?: string;
     exportadora?: string;
   };
+  datos_material?: {
+    item_material_id: string;
+    cantidad: number;
+    lote?: string;
+    proveedor?: string;
+    observacion?: string;
+  };
+};
+
+export type CreateMaterialDispatchPayload = {
+  operacion_id: string;
+  destino_material_id: string;
+  observacion?: string;
+  items: Array<{ item_material_id: string; cantidad: number }>;
+};
+
+export type WithdrawMaterialPayload = {
+  operacion_id: string;
+  retiros: Array<{ folio_id: string; cantidad: number; sesion_estiba_id: string }>;
 };
 
 export type MovePayload = {

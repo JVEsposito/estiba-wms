@@ -17,6 +17,8 @@ import { CameraCard } from '../components/CameraCard';
 import {
   LocateFormValue,
   LocateModal,
+  MaterialDispatchFormValue,
+  MaterialDispatchModal,
   MoveModal,
 } from '../components/OperationModals';
 import { PositionMap } from '../components/PositionMap';
@@ -26,6 +28,8 @@ import {
   CameraPlan,
   CameraSummary,
   LocatePayload,
+  MaterialCatalog,
+  MaterialDispatch,
   Movement,
   MovePayload,
   Position,
@@ -46,6 +50,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const wideLayout = width >= 1180 && height >= 700;
   const [cameras, setCameras] = useState<CameraSummary[]>([]);
   const [conditions, setConditions] = useState<SagCondition[]>([]);
+  const [materialCatalog, setMaterialCatalog] = useState<MaterialCatalog>({ items: [], destinos: [] });
+  const [materialDispatches, setMaterialDispatches] = useState<MaterialDispatch[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [plan, setPlan] = useState<CameraPlan | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -54,6 +60,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [selectedDestination, setSelectedDestination] = useState<Position | null>(null);
   const [locateVisible, setLocateVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
+  const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -61,6 +68,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [connectionState, setConnectionState] = useState<'connected' | 'offline'>('connected');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
+  const materialCreateOperationId = useRef(Crypto.randomUUID());
+  const materialWithdrawOperationId = useRef(Crypto.randomUUID());
 
   const selectedPosition = useMemo(
     () => plan?.posiciones.find((position) => position.id === selectedPositionId) ?? null,
@@ -76,14 +85,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   }, []);
 
   useEffect(() => {
-    if (!selectedCameraId || busy || locateVisible || moveVisible) return;
+    if (!selectedCameraId || busy || locateVisible || moveVisible || materialDispatchVisible) return;
 
     const timer = setInterval(() => {
       void refreshCurrent({ quiet: true });
     }, 30000);
 
     return () => clearInterval(timer);
-  }, [selectedCameraId, busy, locateVisible, moveVisible]);
+  }, [selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -91,24 +100,29 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         && selectedCameraId
         && !busy
         && !locateVisible
-        && !moveVisible) {
+        && !moveVisible
+        && !materialDispatchVisible) {
         void refreshCurrent({ quiet: true });
       }
     });
 
     return () => subscription.remove();
-  }, [selectedCameraId, busy, locateVisible, moveVisible]);
+  }, [selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
 
   async function initialize() {
     setBusy(true);
     setError('');
     try {
-      const [loadedCameras, loadedConditions] = await Promise.all([
+      const [loadedCameras, loadedConditions, loadedMaterialCatalog, loadedMaterialDispatches] = await Promise.all([
         api.listCameras(auth.token),
         api.listConditions(auth.token),
+        api.getMaterialCatalog(auth.token),
+        api.listMaterialDispatches(auth.token),
       ]);
       setCameras(loadedCameras);
       setConditions(loadedConditions);
+      setMaterialCatalog(loadedMaterialCatalog);
+      setMaterialDispatches(loadedMaterialDispatches);
       setError('');
       setConnectionState('connected');
       if (loadedCameras[0]) {
@@ -248,6 +262,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       version_destino_conocida: plan.version_plano,
       generado_dispositivo_at: new Date().toISOString(),
       ...(Object.keys(compactData).length ? { datos_folio: compactData } : {}),
+      ...(form.tipo_bulto === 'material' && form.item_material_id && form.cantidad ? {
+        datos_material: {
+          item_material_id: form.item_material_id,
+          cantidad: form.cantidad,
+          lote: form.lote,
+          proveedor: form.proveedor,
+          observacion: form.observacion_material,
+        },
+      } : {}),
     };
 
     const succeeded = await runOperation(
@@ -325,6 +348,49 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       setDestinationPlan(null);
       setSelectedDestination(null);
       setNotice(`Folio ${folio.numero_folio} movido y guardado en ${destinationLabel}.`);
+      await refreshCurrent();
+    }
+  }
+
+  async function confirmMaterialDispatch(form: MaterialDispatchFormValue) {
+    if (!selectedPosition?.folio?.material || !ownSession) return;
+    setModalError('');
+    let dispatchId = form.despacho_id;
+
+    const succeeded = await runOperation(async () => {
+      if (!dispatchId) {
+        if (!form.destino_material_id) throw new Error('Selecciona el destino del material.');
+        const created = await api.createMaterialDispatch(auth.token, {
+          operacion_id: materialCreateOperationId.current,
+          destino_material_id: form.destino_material_id,
+          items: [{
+            item_material_id: selectedPosition.folio!.material!.item.id,
+            cantidad: form.cantidad,
+          }],
+        });
+        dispatchId = created.id;
+      }
+
+      await api.withdrawMaterial(auth.token, dispatchId, {
+        operacion_id: materialWithdrawOperationId.current,
+        retiros: [{
+          folio_id: selectedPosition.folio!.id,
+          cantidad: form.cantidad,
+          sesion_estiba_id: ownSession.id,
+        }],
+      });
+    }, setModalError);
+
+    if (succeeded) {
+      const folioNumber = selectedPosition.folio.numero_folio;
+      setMaterialDispatchVisible(false);
+      setNotice(`${form.cantidad} ${selectedPosition.folio.material.unidad_medida} despachadas desde ${folioNumber}.`);
+      const [catalog, dispatches] = await Promise.all([
+        api.getMaterialCatalog(auth.token),
+        api.listMaterialDispatches(auth.token),
+      ]);
+      setMaterialCatalog(catalog);
+      setMaterialDispatches(dispatches);
       await refreshCurrent();
     }
   }
@@ -505,6 +571,13 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                   setLocateVisible(true);
                 }}
                 onMove={() => void openMove()}
+                onDispatchMaterial={() => {
+                  setModalError('');
+                  setNotice('');
+                  materialCreateOperationId.current = Crypto.randomUUID();
+                  materialWithdrawOperationId.current = Crypto.randomUUID();
+                  setMaterialDispatchVisible(true);
+                }}
                 onRefresh={() => void refreshCurrent()}
                 onToggleSession={toggleSession}
                 plan={plan}
@@ -532,6 +605,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       <LocateModal
         busy={busy}
         conditions={conditions}
+        materialItems={materialCatalog.items}
         error={modalError}
         onCancel={() => {
           setModalError('');
@@ -544,7 +618,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       />
       <MoveModal
         busy={busy}
-        cameras={cameras}
+        cameras={cameras.filter((camera) => camera.contenido === plan?.contenido)}
         destinationPlan={destinationPlan}
         error={modalError}
         onCancel={() => {
@@ -558,6 +632,19 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         originPosition={selectedPosition}
         selectedDestination={selectedDestination}
         visible={moveVisible}
+      />
+      <MaterialDispatchModal
+        busy={busy}
+        destinations={materialCatalog.destinos}
+        dispatches={materialDispatches}
+        error={modalError}
+        onCancel={() => {
+          setModalError('');
+          setMaterialDispatchVisible(false);
+        }}
+        onConfirm={confirmMaterialDispatch}
+        position={selectedPosition}
+        visible={materialDispatchVisible}
       />
     </View>
   );

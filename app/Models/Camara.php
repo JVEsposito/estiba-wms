@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'codigo',
     'nombre',
     'tipo',
+    'contenido',
     'estado',
     'version_plano',
     'cantidad_bandas',
@@ -66,6 +68,7 @@ class Camara extends Model
     {
         return [
             'estado' => EstadoCamara::class,
+            'contenido' => ContenidoCamara::class,
             'version_plano' => 'integer',
             'cantidad_bandas' => 'integer',
             'posiciones_por_banda' => 'integer',

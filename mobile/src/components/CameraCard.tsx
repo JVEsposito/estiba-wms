@@ -33,7 +33,7 @@ export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
           <Text style={[styles.stateText, { color: statusColor }]}>{status}</Text>
         </View>
       </View>
-      <Text numberOfLines={1} style={styles.name}>{camera.nombre}</Text>
+      <Text numberOfLines={1} style={styles.name}>{camera.contenido === 'materiales' ? 'MATERIALES · ' : ''}{camera.nombre}</Text>
       <View style={styles.occupancyRow}>
         <Text style={styles.occupancyLabel}>Ocupación</Text>
         <Text style={styles.occupancyValue}>{camera.ocupacion.porcentaje}%</Text>

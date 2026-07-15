@@ -51,6 +51,27 @@ class PosicionPlanoResource extends JsonResource
                 'calibre' => $folio->calibre,
                 'marca' => $folio->marca,
                 'exportadora' => $folio->exportadora,
+                'material' => $folio->relationLoaded('material') && $folio->material ? [
+                    'item' => [
+                        'id' => $folio->material->item->id,
+                        'codigo' => $folio->material->item->codigo,
+                        'nombre' => $folio->material->item->nombre,
+                        'categoria' => $folio->material->item->categoria,
+                    ],
+                    'cantidad_inicial' => $folio->material->cantidad_inicial,
+                    'cantidad_actual' => $folio->material->cantidad_actual,
+                    'cantidad_reservada' => $folio->material->cantidad_reservada,
+                    'cantidad_disponible' => number_format(
+                        max(0, (float) $folio->material->cantidad_actual - (float) $folio->material->cantidad_reservada),
+                        3,
+                        '.',
+                        '',
+                    ),
+                    'unidad_medida' => $folio->material->unidad_medida,
+                    'lote' => $folio->material->lote,
+                    'proveedor' => $folio->material->proveedor,
+                    'observacion' => $folio->material->observacion,
+                ] : null,
                 'ubicado_at' => $ubicacion->ubicado_at?->toAtomString(),
                 'carga_actual' => $carga ? [
                     'id' => $carga->id,

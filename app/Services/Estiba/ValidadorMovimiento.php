@@ -2,11 +2,13 @@
 
 namespace App\Services\Estiba;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\RolUsuario;
+use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
@@ -156,6 +158,17 @@ class ValidadorMovimiento
 
         if (! $camara || $camara->estado !== EstadoCamara::Activa) {
             throw new DomainException("La cámara de {$extremo} no se encuentra activa.");
+        }
+
+        $folio = Folio::query()->find($movimiento->folio_id);
+        $contenidoEsperado = ContenidoCamara::Productos;
+
+        if ($folio && $folio->tipo_bulto === TipoBulto::Material) {
+            $contenidoEsperado = ContenidoCamara::Materiales;
+        }
+
+        if ($camara->contenido !== $contenidoEsperado) {
+            throw new DomainException('El contenido del folio no corresponde al tipo de cámara.');
         }
 
         if (! $posicion || $posicion->camara_id !== $camara->id) {

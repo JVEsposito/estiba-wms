@@ -54,6 +54,11 @@ class Folio extends Model
         return $this->hasMany(Movimiento::class);
     }
 
+    public function material(): HasOne
+    {
+        return $this->hasOne(FolioMaterial::class, 'folio_id');
+    }
+
     protected function casts(): array
     {
         return [

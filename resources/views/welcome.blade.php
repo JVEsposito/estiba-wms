@@ -144,6 +144,7 @@
                             <span><i class="legend-box legend-box--free"></i> Libre</span>
                             <span><i class="legend-box legend-box--pallet"></i> Pallet</span>
                             <span><i class="legend-box legend-box--saldo"></i> Saldo</span>
+                            <span><i class="legend-box legend-box--material"></i> Material</span>
                             <span><i class="legend-box legend-box--blocked"></i> Bloqueada</span>
                         </div>
                         <span class="map-hint">Toca una posición para ver su detalle</span>
@@ -179,9 +180,9 @@
                         </div>
                         <strong id="selectedFolioNumber">—</strong>
                         <dl>
-                            <div><dt>Variedad</dt><dd id="selectedFolioVariety">—</dd></div>
-                            <div><dt>Calibre</dt><dd id="selectedFolioCaliber">—</dd></div>
-                            <div><dt>Condición</dt><dd id="selectedFolioSag">—</dd></div>
+                            <div><dt id="selectedFolioVarietyLabel">Variedad</dt><dd id="selectedFolioVariety">—</dd></div>
+                            <div><dt id="selectedFolioCaliberLabel">Calibre</dt><dd id="selectedFolioCaliber">—</dd></div>
+                            <div><dt id="selectedFolioSagLabel">Condición</dt><dd id="selectedFolioSag">—</dd></div>
                         </dl>
                     </div>
 
@@ -193,6 +194,10 @@
                         <button class="action-button" id="moveButton" type="button" disabled>
                             <span class="action-button__icon">⇄</span>
                             <span><strong>Mover folio</strong><small>Reubicar o cambiar cámara</small></span>
+                        </button>
+                        <button class="action-button action-button--material is-hidden" id="materialDispatchButton" type="button" disabled>
+                            <span class="action-button__icon">−</span>
+                            <span><strong>Despachar material</strong><small>Retirar una cantidad del folio</small></span>
                         </button>
                         <button class="action-button" id="sessionButton" type="button" disabled>
                             <span class="action-button__icon">⌁</span>
@@ -238,40 +243,94 @@
                         <span>Número de folio *</span>
                         <input type="text" name="numero_folio" autocomplete="off" autocapitalize="characters" placeholder="Ej. 00498127" required>
                     </label>
-                    <label class="form-field">
+                    <label class="form-field" id="locateTypeField">
                         <span>Tipo de bulto *</span>
-                        <select name="tipo_bulto" required>
+                        <select name="tipo_bulto" id="locateTypeSelect" required>
                             <option value="pallet">Pallet completo</option>
                             <option value="saldo">Saldo incompleto</option>
                         </select>
                     </label>
-                    <label class="form-field">
+                    <label class="form-field product-locate-field">
                         <span>Condición SAG</span>
                         <select name="condicion_sag_id" id="sagSelect">
                             <option value="">Sin especificar</option>
                         </select>
                     </label>
-                    <label class="form-field">
+                    <label class="form-field product-locate-field">
                         <span>Variedad</span>
                         <input type="text" name="variedad" autocomplete="off" placeholder="Ej. Santina">
                     </label>
-                    <label class="form-field">
+                    <label class="form-field product-locate-field">
                         <span>Calibre</span>
                         <input type="text" name="calibre" autocomplete="off" placeholder="Ej. 2J">
                     </label>
-                    <label class="form-field">
+                    <label class="form-field product-locate-field">
                         <span>Marca</span>
                         <input type="text" name="marca" autocomplete="off">
                     </label>
-                    <label class="form-field">
+                    <label class="form-field product-locate-field">
                         <span>Exportadora</span>
                         <input type="text" name="exportadora" autocomplete="off">
+                    </label>
+                    <label class="form-field form-field--wide material-locate-field is-hidden">
+                        <span>Ítem de material *</span>
+                        <select name="item_material_id" id="materialItemSelect"></select>
+                    </label>
+                    <label class="form-field material-locate-field is-hidden">
+                        <span>Cantidad inicial *</span>
+                        <input type="number" name="cantidad_material" min="0.001" step="0.001" inputmode="decimal" placeholder="0">
+                    </label>
+                    <label class="form-field material-locate-field is-hidden">
+                        <span>Lote</span>
+                        <input type="text" name="lote_material" autocomplete="off">
+                    </label>
+                    <label class="form-field material-locate-field is-hidden">
+                        <span>Proveedor</span>
+                        <input type="text" name="proveedor_material" autocomplete="off">
+                    </label>
+                    <label class="form-field material-locate-field is-hidden">
+                        <span>Observación</span>
+                        <input type="text" name="observacion_material" autocomplete="off">
                     </label>
                 </div>
                 <p class="form-error" id="locateError" role="alert"></p>
                 <div class="dialog-actions">
                     <button class="button button--secondary" type="button" data-close-dialog="locateDialog">Cancelar</button>
                     <button class="button button--primary" type="submit">Confirmar ubicación</button>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog class="operation-dialog" id="materialDispatchDialog">
+            <form method="dialog" class="dialog-shell" id="materialDispatchForm">
+                <div class="dialog-heading">
+                    <div>
+                        <p class="eyebrow">DESPACHO DE MATERIALES</p>
+                        <h2 id="materialDispatchTitle">Retirar material</h2>
+                        <p id="materialDispatchOrigin">Selecciona un folio de material.</p>
+                    </div>
+                    <button class="dialog-close" type="button" data-close-dialog="materialDispatchDialog" aria-label="Cerrar">×</button>
+                </div>
+                <div class="material-balance" id="materialBalance"></div>
+                <div class="form-grid">
+                    <label class="form-field form-field--wide">
+                        <span>Orden existente o despacho directo</span>
+                        <select name="despacho_id" id="materialDispatchSelect"></select>
+                    </label>
+                    <label class="form-field form-field--wide" id="materialDestinationField">
+                        <span>Destino y centro de costo *</span>
+                        <select name="destino_material_id" id="materialDestinationSelect"></select>
+                    </label>
+                    <label class="form-field form-field--wide">
+                        <span id="materialAmountLabel">Cantidad a despachar *</span>
+                        <input type="number" name="cantidad" min="0.001" step="0.001" inputmode="decimal" required>
+                    </label>
+                </div>
+                <div class="fifo-notice is-hidden" id="materialFifoNotice"></div>
+                <p class="form-error" id="materialDispatchError" role="alert"></p>
+                <div class="dialog-actions">
+                    <button class="button button--secondary" type="button" data-close-dialog="materialDispatchDialog">Cancelar</button>
+                    <button class="button button--primary" type="submit">Confirmar despacho</button>
                 </div>
             </form>
         </dialog>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -10,7 +11,8 @@ class UbicarFolioRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->activo === true
+            && $this->user()->rol !== RolUsuario::Consulta;
     }
 
     /**
@@ -42,6 +44,24 @@ class UbicarFolioRequest extends FormRequest
             'datos_folio.calibre' => ['nullable', 'string', 'max:100'],
             'datos_folio.marca' => ['nullable', 'string', 'max:150'],
             'datos_folio.exportadora' => ['nullable', 'string', 'max:150'],
+            'datos_material' => [
+                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'array:item_material_id,cantidad,lote,proveedor,observacion',
+            ],
+            'datos_material.item_material_id' => [
+                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'uuid',
+                'exists:items_materiales,id',
+            ],
+            'datos_material.cantidad' => [
+                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'numeric',
+                'gt:0',
+                'decimal:0,3',
+            ],
+            'datos_material.lote' => ['nullable', 'string', 'max:100'],
+            'datos_material.proveedor' => ['nullable', 'string', 'max:180'],
+            'datos_material.observacion' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }

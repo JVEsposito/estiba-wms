@@ -11,6 +11,7 @@ type ActionPanelProps = {
   selectedPosition: Position | null;
   onLocate: () => void;
   onMove: () => void;
+  onDispatchMaterial: () => void;
   onRefresh: () => void;
   onToggleSession: () => void;
 };
@@ -21,6 +22,7 @@ export function ActionPanel({
   compact = false,
   onLocate,
   onMove,
+  onDispatchMaterial,
   onRefresh,
   onToggleSession,
   plan,
@@ -29,6 +31,7 @@ export function ActionPanel({
   const editing = plan.acceso.modo === 'edicion';
   const readOnly = plan.acceso.modo === 'solo_lectura';
   const selectedSaldo = selectedPosition?.folio?.tipo_bulto === 'saldo';
+  const selectedMaterial = selectedPosition?.folio?.tipo_bulto === 'material';
   const locateDisabled = busy || !canOperate || !selectedPosition || selectedPosition.ocupada || selectedPosition.estado !== 'activa';
   const moveDisabled = busy || !canOperate || !selectedPosition?.ocupada || selectedPosition.estado !== 'activa';
 
@@ -58,9 +61,19 @@ export function ActionPanel({
             <View style={[styles.folioDot, selectedSaldo && styles.folioDotSaldo]} />
           </View>
           <Text style={styles.folioNumber}>{selectedPosition.folio.numero_folio}</Text>
-          <Detail label="Variedad" value={selectedPosition.folio.variedad} />
-          <Detail label="Calibre" value={selectedPosition.folio.calibre} />
-          <Detail label="Condición" value={selectedPosition.folio.condicion_sag?.codigo} />
+          {selectedMaterial ? (
+            <>
+              <Detail label="Ítem" value={selectedPosition.folio.material?.item.nombre} />
+              <Detail label="Cantidad" value={`${selectedPosition.folio.material?.cantidad_actual ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
+              <Detail label="Disponible" value={`${selectedPosition.folio.material?.cantidad_disponible ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
+            </>
+          ) : (
+            <>
+              <Detail label="Variedad" value={selectedPosition.folio.variedad} />
+              <Detail label="Calibre" value={selectedPosition.folio.calibre} />
+              <Detail label="Condición" value={selectedPosition.folio.condicion_sag?.codigo} />
+            </>
+          )}
         </View>
       )}
 
@@ -74,6 +87,16 @@ export function ActionPanel({
           primary
           subtitle="Registrar un bulto nuevo"
         />
+        {plan.contenido === 'materiales' && (
+          <ActionButton
+            compact={compact}
+            disabled={busy || !canOperate || !selectedMaterial || Number(selectedPosition?.folio?.material?.cantidad_disponible ?? 0) <= 0}
+            icon="⇥"
+            label="Despachar material"
+            onPress={onDispatchMaterial}
+            subtitle="Retirar una cantidad"
+          />
+        )}
         <ActionButton
           compact={compact}
           disabled={moveDisabled}
