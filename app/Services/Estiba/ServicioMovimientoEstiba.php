@@ -5,9 +5,9 @@ namespace App\Services\Estiba;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionSincronizacion;
-use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoMovimiento;
 use App\Models\Camara;
 use App\Models\Dispositivo;
@@ -717,9 +717,11 @@ class ServicioMovimientoEstiba
 
     private function validarContenidoCamara(Camara $camara, TipoBulto $tipoBulto): void
     {
-        $contenidoEsperado = $tipoBulto === TipoBulto::Material
-            ? ContenidoCamara::Materiales
-            : ContenidoCamara::Productos;
+        $contenidoEsperado = ContenidoCamara::Productos;
+
+        if ($tipoBulto === TipoBulto::Material) {
+            $contenidoEsperado = ContenidoCamara::Materiales;
+        }
 
         if ($camara->contenido !== $contenidoEsperado) {
             $mensaje = match ($tipoBulto) {
