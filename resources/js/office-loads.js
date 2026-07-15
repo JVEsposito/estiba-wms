@@ -43,6 +43,10 @@ const elements = {
     folioInputCount: byId('folioInputCount'),
     addFolios: byId('addFoliosButton'),
     folioErrors: byId('folioErrors'),
+    availableFolioSearch: byId('availableFolioSearch'),
+    availableFolioSummary: byId('availableFolioSummary'),
+    availableFolioList: byId('availableFolioList'),
+    reloadAvailableFolios: byId('reloadAvailableFoliosButton'),
     folioTableBody: byId('folioTableBody'),
     folioTableHint: byId('folioTableHint'),
     commandBar: byId('loadCommandBar'),
@@ -81,6 +85,7 @@ const state = {
     identity: readJson(keys.identity),
     loads: [],
     cameras: [],
+    availableFolios: [],
     selected: null,
     mode: 'empty',
 };
@@ -173,6 +178,7 @@ function clearSession() {
     state.identity = null;
     state.loads = [];
     state.cameras = [];
+    state.availableFolios = [];
     state.selected = null;
     state.mode = 'empty';
     localStorage.removeItem(keys.token);
@@ -194,10 +200,7 @@ function showApp() {
         .map((part) => part[0])
         .join('')
         .toUpperCase();
-    elements.camerasNav.classList.toggle(
-        'is-hidden',
-        state.identity?.puede_configurar_camaras !== true,
-    );
+    elements.camerasNav.classList.remove('is-hidden');
 }
 
 function statusText(value) {
@@ -297,15 +300,15 @@ function renderCatalog() {
         const selected = state.selected?.id === load.id;
         return `
             <button class="load-card${selected ? ' is-selected' : ''}" data-load-id="${escapeHtml(load.id)}" type="button">
-                <div class="load-card__topline">
-                    <strong>${escapeHtml(load.codigo)}</strong>
+                <div class="load-card__line load-card__line--main">
+                    <strong class="load-card__code">${escapeHtml(load.codigo)}</strong>
+                    <span class="load-card__external">${escapeHtml(load.numero_orden_externa || 'Sin orden externa')}</span>
                     <span class="status-badge status-badge--${statusClass(load.estado)}">${escapeHtml(statusLabels[load.estado] || statusText(load.estado))}</span>
                 </div>
-                <h3>${escapeHtml(load.numero_orden_externa || 'Sin orden externa')}</h3>
-                <p>${escapeHtml(distributionText(load))}</p>
-                <div class="load-card__footer">
+                <div class="load-card__line load-card__line--detail">
+                    <span class="load-card__distribution">${escapeHtml(distributionText(load))}</span>
                     <span class="priority-dot priority-dot--${priorityClass(load.prioridad)}">${escapeHtml(priorityLabels[load.prioridad] || statusText(load.prioridad))}</span>
-                    <span>${load.total_folios} / 26 folios</span>
+                    <span class="load-card__count">${load.total_folios} / 26</span>
                 </div>
             </button>
         `;
@@ -315,11 +318,17 @@ function renderCatalog() {
 function populateCameraOptions(selectedId = '') {
     elements.targetCamera.innerHTML = [
         '<option value="">Sin cámara objetivo</option>',
-        ...state.cameras.map((camera) => `
-            <option value="${escapeHtml(camera.id)}"${camera.id === selectedId ? ' selected' : ''}>
-                ${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)}
-            </option>
-        `),
+        ...state.cameras.map((camera) => {
+            const total = Number(camera.ocupacion?.total || 0);
+            const occupied = Number(camera.ocupacion?.ocupadas || 0);
+            const available = Math.max(0, total - occupied);
+
+            return `
+                <option value="${escapeHtml(camera.id)}"${camera.id === selectedId ? ' selected' : ''}>
+                    ${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)} · ${available} libres de ${total}
+                </option>
+            `;
+        }),
     ].join('');
 }
 
@@ -350,6 +359,48 @@ function showFolioErrors(error) {
         `;
     }
     elements.folioErrors.classList.remove('is-hidden');
+}
+
+function availableFolioSearchText(folio) {
+    return [
+        folio.numero_folio,
+        folio.tipo_bulto,
+        folio.ubicacion?.camara?.codigo,
+        folio.ubicacion?.camara?.nombre,
+        folio.ubicacion?.posicion?.etiqueta,
+    ].filter(Boolean).join(' ').toLocaleLowerCase('es-CL');
+}
+
+function renderAvailableFolios() {
+    const query = elements.availableFolioSearch.value.trim().toLocaleLowerCase('es-CL');
+    const selected = new Set(parseFolios());
+    const folios = state.availableFolios.filter((folio) => (
+        !query || availableFolioSearchText(folio).includes(query)
+    ));
+
+    elements.availableFolioSummary.textContent = query
+        ? `${folios.length} de ${state.availableFolios.length} folios disponibles`
+        : `${state.availableFolios.length} ${state.availableFolios.length === 1 ? 'folio disponible' : 'folios disponibles'}`;
+
+    if (!folios.length) {
+        elements.availableFolioList.innerHTML = `
+            <div class="available-folios__empty">
+                ${state.availableFolios.length ? 'No hay folios que coincidan con la búsqueda.' : 'No existen folios ubicados y disponibles sin una carga asignada.'}
+            </div>
+        `;
+        return;
+    }
+
+    elements.availableFolioList.innerHTML = folios.map((folio) => {
+        const location = `${folio.ubicacion.camara.codigo} · ${folio.ubicacion.posicion.etiqueta}`;
+        return `
+            <label class="available-folio${selected.has(folio.numero_folio) ? ' is-selected' : ''}">
+                <input data-available-folio="${escapeHtml(folio.numero_folio)}" type="checkbox"${selected.has(folio.numero_folio) ? ' checked' : ''}>
+                <span><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(location)}</small></span>
+                <em>${escapeHtml(statusText(folio.tipo_bulto))}</em>
+            </label>
+        `;
+    }).join('');
 }
 
 function showEmpty() {
@@ -496,6 +547,7 @@ function renderSelected(load) {
     renderCommands(load);
     elements.folioInput.value = '';
     updateFolioInputCount();
+    renderAvailableFolios();
     renderCatalog();
 }
 
@@ -518,8 +570,14 @@ async function loadCameras() {
     populateCameraOptions(state.selected?.camara_objetivo?.id || '');
 }
 
+async function loadAvailableFolios() {
+    const response = await api('/api/cargas/folios-disponibles');
+    state.availableFolios = response.data;
+    renderAvailableFolios();
+}
+
 async function loadInitialData() {
-    await Promise.all([loadCatalog(), loadCameras()]);
+    await Promise.all([loadCatalog(), loadCameras(), loadAvailableFolios()]);
 }
 
 async function selectLoad(id, { busy = true } = {}) {
@@ -539,6 +597,7 @@ async function recoverConflict(error) {
     const id = state.selected.id;
     toast('La orden cambió en otra sesión. Recargamos la versión más reciente.', true);
     await selectLoad(id, { busy: false });
+    await loadAvailableFolios();
     elements.headerError.textContent = 'La acción no se guardó porque otra persona había modificado la orden. Revisa los datos actualizados y vuelve a intentarlo.';
     return true;
 }
@@ -634,6 +693,34 @@ elements.headerForm.addEventListener('submit', async (event) => {
 elements.folioInput.addEventListener('input', () => {
     clearFolioErrors();
     updateFolioInputCount();
+    renderAvailableFolios();
+});
+
+elements.availableFolioSearch.addEventListener('input', renderAvailableFolios);
+
+elements.availableFolioList.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('[data-available-folio]');
+    if (!checkbox) return;
+
+    const folios = new Set(parseFolios());
+    if (checkbox.checked) folios.add(checkbox.dataset.availableFolio);
+    else folios.delete(checkbox.dataset.availableFolio);
+    elements.folioInput.value = [...folios].join('\n');
+    clearFolioErrors();
+    updateFolioInputCount();
+    renderAvailableFolios();
+});
+
+elements.reloadAvailableFolios.addEventListener('click', async () => {
+    setBusy(true, 'Actualizando folios disponibles…');
+    try {
+        await loadAvailableFolios();
+        toast('Existencia de folios actualizada.');
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
 });
 
 elements.addFolios.addEventListener('click', async () => {
@@ -650,6 +737,7 @@ elements.addFolios.addEventListener('click', async () => {
             }),
         });
         syncLoad(response.data);
+        await loadAvailableFolios();
         toast(`${folios.length} ${folios.length === 1 ? 'folio incorporado' : 'folios incorporados'} a ${response.data.codigo}.`);
     } catch (error) {
         if (!(await recoverConflict(error))) showFolioErrors(error);
@@ -677,6 +765,7 @@ elements.folioTableBody.addEventListener('click', async (event) => {
             },
         );
         syncLoad(response.data);
+        await loadAvailableFolios();
         toast(`${folioNumber} fue retirado de la orden.`);
     } catch (error) {
         if (!(await recoverConflict(error))) toast(error.message, true);
@@ -722,6 +811,7 @@ elements.cancel.addEventListener('click', async () => {
             }),
         });
         syncLoad(response.data);
+        await loadAvailableFolios();
         toast(`${response.data.codigo} fue cancelada. Sus folios quedaron liberados.`);
     } catch (error) {
         if (!(await recoverConflict(error))) toast(error.message, true);

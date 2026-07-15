@@ -80,6 +80,16 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 .camera-item__capacity { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
 .camera-item__actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 .camera-item__actions button { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--cyan); padding: 0 12px; font-size: .7rem; font-weight: 900; }
+.office-workspace.is-read-only { grid-template-columns: 1fr; }
+.office-workspace.is-read-only .configuration { display: none; }
+.office-workspace.is-read-only .camera-catalog__list { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.camera-item--consultation { display: grid; align-content: start; }
+.camera-availability { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 13px; }
+.camera-availability > div { display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); padding: 8px; text-align: center; }
+.camera-availability strong { color: var(--text); font-size: 1rem; }
+.camera-availability span { color: var(--muted); font-size: .6rem; text-transform: uppercase; }
+.camera-occupancy { height: 6px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: var(--soft); }
+.camera-occupancy span { display: block; height: 100%; border-radius: inherit; background: var(--cyan); }
 .empty-state { padding: 28px 16px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; font-size: .82rem; }
 
 .configuration { padding: 24px; }

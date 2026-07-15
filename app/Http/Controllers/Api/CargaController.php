@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EstadoCarga;
+use App\Enums\EstadoOperacionalFolio;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarCargaRequest;
 use App\Http\Requests\AgregarFoliosCargaRequest;
 use App\Http\Requests\CrearCargaRequest;
 use App\Http\Requests\VersionCargaRequest;
 use App\Http\Resources\CargaResource;
+use App\Http\Resources\FolioDisponibleCargaResource;
 use App\Models\Carga;
 use App\Models\Folio;
 use App\Services\Cargas\ServicioCarga;
@@ -50,6 +52,22 @@ class CargaController extends Controller
             ->get();
 
         return CargaResource::collection($cargas);
+    }
+
+    public function foliosDisponibles(): AnonymousResourceCollection
+    {
+        Gate::authorize('gestionar-cargas');
+
+        $folios = Folio::query()
+            ->where('activo', true)
+            ->where('estado_operacional', EstadoOperacionalFolio::Disponible->value)
+            ->whereDoesntHave('asignacionCargaActual')
+            ->whereHas('ubicacionActual.posicion.camara')
+            ->with('ubicacionActual.posicion.camara:id,codigo,nombre')
+            ->orderBy('numero_folio')
+            ->get();
+
+        return FolioDisponibleCargaResource::collection($folios);
     }
 
     public function store(

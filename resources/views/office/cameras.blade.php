@@ -6,7 +6,7 @@
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="dark">
 
-        <title>Estiba WMS · Configuración de cámaras</title>
+        <title>Estiba WMS · Cámaras</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/js/office-cameras.js'])
@@ -17,8 +17,8 @@
             <div class="office-access__brand">
                 <div class="office-logo" aria-hidden="true">❄</div>
                 <p class="eyebrow">ESTIBA WMS · OFICINA</p>
-                <h1 id="officeAccessTitle">Configura la operación antes de entrar a cámara.</h1>
-                <p>Crea planos con el mismo lenguaje que utilizan los camareros: bandas, posiciones y niveles.</p>
+                <h1 id="officeAccessTitle">Consulta la disponibilidad antes de preparar una carga.</h1>
+                <p>Despachadores pueden revisar ocupación y disponibilidad. Supervisores y administradores conservan sus herramientas de configuración.</p>
                 <div class="feature-row">
                     <span>Bandas verticales</span>
                     <span>Trazabilidad</span>
@@ -29,8 +29,8 @@
             <form class="office-access__form" id="officeLoginForm" novalidate>
                 <div>
                     <p class="eyebrow">ACCESO DE OFICINA</p>
-                    <h2>Ingresar a configuración</h2>
-                    <p>Disponible para supervisores y administradores.</p>
+                    <h2>Ingresar a cámaras</h2>
+                    <p>Disponible para despachadores, supervisores y administradores.</p>
                 </div>
                 <label>
                     <span>Correo electrónico</span>
@@ -62,13 +62,13 @@
                 </div>
             </header>
 
-            <section class="office-workspace">
+            <section class="office-workspace" id="officeWorkspace">
                 <aside class="camera-catalog panel">
                     <div class="panel-heading">
-                        <div><p class="eyebrow">CONFIGURACIÓN</p><h2>Cámaras creadas</h2></div>
+                        <div><p class="eyebrow" id="cameraCatalogEyebrow">CONFIGURACIÓN</p><h2 id="cameraCatalogTitle">Cámaras creadas</h2></div>
                         <button class="icon-button" id="reloadOfficeButton" type="button" aria-label="Actualizar">↻</button>
                     </div>
-                    <div class="camera-catalog__list" id="officeCameraList"></div>
+                    <div class="camera-catalog__list" id="officeCameraList" aria-live="polite"></div>
                 </aside>
 
                 <section class="configuration panel">
@@ -116,7 +116,7 @@
             </section>
         </main>
 
-        <div class="loading is-hidden" id="officeLoading"><span></span><strong id="officeLoadingText">Procesando…</strong></div>
+        <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>
     </body>
 </html>

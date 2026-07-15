@@ -186,6 +186,23 @@
                                         <button class="primary-button" id="addFoliosButton" type="button">Agregar a la orden</button>
                                     </div>
                                 </div>
+                                <section class="available-folios" aria-labelledby="availableFoliosTitle">
+                                    <div class="available-folios__heading">
+                                        <div>
+                                            <p class="eyebrow">EXISTENCIA DISPONIBLE</p>
+                                            <h3 id="availableFoliosTitle">Seleccionar desde inventario</h3>
+                                        </div>
+                                        <div class="available-folios__tools">
+                                            <label>
+                                                <span class="sr-only">Buscar folio disponible</span>
+                                                <input id="availableFolioSearch" type="search" placeholder="Buscar folio, cámara o posición">
+                                            </label>
+                                            <button class="icon-button" id="reloadAvailableFoliosButton" type="button" aria-label="Actualizar folios disponibles">↻</button>
+                                        </div>
+                                    </div>
+                                    <p class="available-folios__summary" id="availableFolioSummary" role="status" aria-live="polite">Cargando existencia…</p>
+                                    <div class="available-folios__list" id="availableFolioList"></div>
+                                </section>
                                 <div class="folio-errors is-hidden" id="folioErrors" role="alert"></div>
                             </div>
 
