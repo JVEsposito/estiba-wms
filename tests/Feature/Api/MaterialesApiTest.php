@@ -25,7 +25,7 @@ class MaterialesApiTest extends TestCase
         [$administrador, $tokenOficina] = $this->crearAdministrador();
         [, , $tokenTablet] = $this->crearOperador();
 
-        $itemId = $this->withToken($tokenOficina)
+        $itemId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/items', [
                 'codigo' => '  film-01 ',
                 'nombre' => ' Film stretch ',
@@ -37,7 +37,7 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.unidad_medida', 'rollos')
             ->json('data.id');
 
-        $destinoId = $this->withToken($tokenOficina)
+        $destinoId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/destinos', [
                 'nombre' => ' Packing norte ',
                 'centro_costo' => ' cc-100 ',
@@ -47,13 +47,13 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.centro_costo', 'CC-100')
             ->json('data.id');
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->getJson('/api/materiales/catalogo')
             ->assertOk()
             ->assertJsonPath('items.0.id', $itemId)
             ->assertJsonPath('destinos.0.id', $destinoId);
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson('/api/administracion/materiales/items', [
                 'codigo' => 'NO-AUTORIZADO',
                 'nombre' => 'No autorizado',
@@ -74,7 +74,7 @@ class MaterialesApiTest extends TestCase
         $sesionMaterial = $this->abrirSesion($tokenTablet, $camaraMaterial);
         $sesionProducto = $this->abrirSesion($tokenTablet, $camaraProducto);
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicionProducto,
                 $sesionProducto,
@@ -86,7 +86,7 @@ class MaterialesApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('codigo', 'regla_de_negocio');
 
-        $folioId = $this->withToken($tokenTablet)
+        $folioId = $this->conToken($tokenTablet)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicionMaterial,
                 $sesionMaterial,
@@ -159,7 +159,7 @@ class MaterialesApiTest extends TestCase
                 'cantidad' => 12,
             ]],
         ];
-        $despachoId = $this->withToken($tokenOficina)
+        $despachoId = $this->conToken($tokenOficina)
             ->postJson('/api/materiales/despachos', $payloadDespacho)
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'MAT-DES-000001')
@@ -171,7 +171,7 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.items.0.sugerencias_fifo.1.cantidad', '2.000')
             ->json('data.id');
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/despachos', $payloadDespacho)
             ->assertCreated()
             ->assertJsonPath('data.id', $despachoId);
@@ -189,14 +189,14 @@ class MaterialesApiTest extends TestCase
                 'sesion_estiba_id' => $sesion,
             ]],
         ];
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", $retiroParcial)
             ->assertOk()
             ->assertJsonPath('data.estado', 'parcial')
             ->assertJsonPath('data.items.0.cantidad_despachada', '4.000')
             ->assertJsonPath('data.items.0.cantidad_pendiente', '8.000');
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", $retiroParcial)
             ->assertOk()
             ->assertJsonPath('data.items.0.cantidad_despachada', '4.000');
@@ -210,7 +210,7 @@ class MaterialesApiTest extends TestCase
             'posicion_id' => $posicion1->id,
         ]);
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
                 'operacion_id' => (string) Str::uuid(),
                 'retiros' => [
@@ -259,7 +259,7 @@ class MaterialesApiTest extends TestCase
         $this->ubicarMaterial($tokenTablet, $posicion1, $sesion, $item, 'MAT-FIFO', 0, 5, now()->subDay()->toAtomString());
         $folioNoSugerido = $this->ubicarMaterial($tokenTablet, $posicion2, $sesion, $item, 'MAT-OTRO', 1, 5, now()->toAtomString());
 
-        $despachoId = $this->withToken($tokenOficina)
+        $despachoId = $this->conToken($tokenOficina)
             ->postJson('/api/materiales/despachos', [
                 'operacion_id' => (string) Str::uuid(),
                 'destino_material_id' => $destino->id,
@@ -272,7 +272,7 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.items.0.sugerencias_fifo.0.numero_folio', 'MAT-FIFO')
             ->json('data.id');
 
-        $this->withToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
                 'operacion_id' => (string) Str::uuid(),
                 'retiros' => [[
@@ -369,7 +369,7 @@ class MaterialesApiTest extends TestCase
 
     private function abrirSesion(string $token, Camara $camara): string
     {
-        return $this->withToken($token)
+        return $this->conToken($token)
             ->postJson("/api/camaras/{$camara->id}/sesiones")
             ->assertCreated()
             ->json('data.id');
@@ -385,7 +385,7 @@ class MaterialesApiTest extends TestCase
         float $cantidad,
         string $fecha,
     ): string {
-        return $this->withToken($token)
+        return $this->conToken($token)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicion,
                 $sesion,
@@ -423,5 +423,12 @@ class MaterialesApiTest extends TestCase
                 'proveedor' => 'Proveedor de prueba',
             ],
         ];
+    }
+
+    private function conToken(string $token): static
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
     }
 }
