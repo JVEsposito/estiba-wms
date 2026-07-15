@@ -40,6 +40,7 @@ class ServicioConfiguracionCamara
                 'codigo' => $this->siguienteCodigo(),
                 'nombre' => trim($datos['nombre']),
                 'tipo' => $datos['tipo'],
+                'contenido' => $datos['contenido'],
                 'estado' => EstadoCamara::Activa->value,
                 'cantidad_bandas' => (int) $datos['bandas'],
                 'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],
@@ -116,11 +117,16 @@ class ServicioConfiguracionCamara
                 $this->asegurarSinFolios($posiciones);
             }
 
+            if ($camaraBloqueada->contenido->value !== $datos['contenido']) {
+                $this->asegurarSinFolios($posiciones);
+            }
+
             $this->sincronizarPosiciones($camaraBloqueada, $posiciones, $datos);
 
             $camaraBloqueada->update([
                 'nombre' => trim($datos['nombre']),
                 'tipo' => $datos['tipo'],
+                'contenido' => $datos['contenido'],
                 'estado' => $estado,
                 'cantidad_bandas' => (int) $datos['bandas'],
                 'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],

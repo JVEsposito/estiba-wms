@@ -5,12 +5,16 @@ import {
   AuthSession,
   CameraPlan,
   CameraSummary,
+  CreateMaterialDispatchPayload,
   LocatePayload,
   LoginPayload,
   Movement,
+  MaterialCatalog,
+  MaterialDispatch,
   MovePayload,
   OpenedSession,
   SagCondition,
+  WithdrawMaterialPayload,
 } from '../domain/estiba';
 import { ApiError } from './apiError';
 import { normalizeApiBaseUrl } from './apiConfiguration';
@@ -30,6 +34,10 @@ export interface EstibaApi {
   closeSession(token: string, sessionId: string): Promise<void>;
   locate(token: string, payload: LocatePayload): Promise<void>;
   move(token: string, payload: MovePayload): Promise<void>;
+  getMaterialCatalog(token: string): Promise<MaterialCatalog>;
+  listMaterialDispatches(token: string): Promise<MaterialDispatch[]>;
+  createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
+  withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
 }
 
 function validationMessage(data: unknown, fallback: string) {
@@ -138,6 +146,33 @@ class HttpEstibaApi implements EstibaApi {
       body: JSON.stringify(payload),
     });
   }
+
+  getMaterialCatalog(token: string) {
+    return this.request<MaterialCatalog>('/api/materiales/catalogo', token);
+  }
+
+  async listMaterialDispatches(token: string) {
+    const response = await this.request<ApiList<MaterialDispatch>>(
+      '/api/materiales/despachos?estados=pendiente,parcial',
+      token,
+    );
+    return response.data;
+  }
+
+  async createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload) {
+    return (await this.request<ApiItem<MaterialDispatch>>('/api/materiales/despachos', token, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })).data;
+  }
+
+  async withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload) {
+    return (await this.request<ApiItem<MaterialDispatch>>(
+      `/api/materiales/despachos/${dispatchId}/retirar`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
 }
 
 export function createEstibaApi(
@@ -184,5 +219,9 @@ function createUnavailableApi(message: string): EstibaApi {
     closeSession: unavailable,
     locate: unavailable,
     move: unavailable,
+    getMaterialCatalog: unavailable,
+    listMaterialDispatches: unavailable,
+    createMaterialDispatch: unavailable,
+    withdrawMaterial: unavailable,
   };
 }

@@ -2,15 +2,19 @@ import {
   AuthSession,
   CameraPlan,
   CameraSummary,
+  CreateMaterialDispatchPayload,
   EditSession,
   Folio,
   LocatePayload,
   LoginPayload,
   Movement,
+  MaterialCatalog,
+  MaterialDispatch,
   MovePayload,
   OpenedSession,
   Position,
   SagCondition,
+  WithdrawMaterialPayload,
 } from '../domain/estiba';
 import { ApiError } from './apiError';
 import type { EstibaApi } from './estibaApi';
@@ -22,17 +26,17 @@ const conditions: SagCondition[] = [
 ];
 
 const demoIdentity: AuthSession = {
-  token: 'demo-token',
+  token: `local-session-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   token_type: 'Bearer',
   usuario: {
     id: 'user-demo',
     nombre: 'Operador de prueba',
-    email: 'operador@estiba.local',
+    email: 'operador@demo.invalid',
     rol: 'operador',
   },
   dispositivo: {
     id: 'device-demo',
-    codigo: 'TABLET-01',
+    codigo: 'DEMO-LOCAL',
     nombre: 'Tablet cámara 01',
   },
 };
@@ -53,6 +57,7 @@ function createFolio(index: number, type: 'pallet' | 'saldo' = 'pallet'): Folio 
     calibre: ['2J', '3J', 'J'][index % 3],
     marca: 'Demo Frío',
     exportadora: 'Exportadora Demo',
+    material: null,
     ubicado_at: new Date().toISOString(),
   };
 }
@@ -119,6 +124,7 @@ function createPlan(
     codigo: code,
     nombre: name,
     tipo: code.startsWith('DES') ? 'despacho' : 'transito',
+    contenido: 'productos',
     estado: 'activa',
     version_plano: 3,
     ocupacion: { ocupadas: 0, total: 0, porcentaje: 0 },
@@ -211,6 +217,22 @@ export class DemoEstibaApi implements EstibaApi {
     return clone(conditions);
   }
 
+  async getMaterialCatalog(): Promise<MaterialCatalog> {
+    return { items: [], destinos: [] };
+  }
+
+  async listMaterialDispatches(): Promise<MaterialDispatch[]> {
+    return [];
+  }
+
+  async createMaterialDispatch(_token: string, _payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch> {
+    throw new ApiError('El despacho de materiales no está disponible en modo demo.', 422);
+  }
+
+  async withdrawMaterial(_token: string, _dispatchId: string, _payload: WithdrawMaterialPayload): Promise<MaterialDispatch> {
+    throw new ApiError('El despacho de materiales no está disponible en modo demo.', 422);
+  }
+
   async getPlan(_token: string, cameraId: string) {
     const plan = this.findPlan(cameraId);
     return clone(syncOccupancy(plan));
@@ -270,6 +292,7 @@ export class DemoEstibaApi implements EstibaApi {
       calibre: payload.datos_folio?.calibre ?? null,
       marca: payload.datos_folio?.marca ?? null,
       exportadora: payload.datos_folio?.exportadora ?? null,
+      material: null,
       ubicado_at: new Date().toISOString(),
     };
     destination.position.ocupada = true;

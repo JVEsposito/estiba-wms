@@ -56,8 +56,8 @@ export function PositionMap({ plan, selectedPositionId, onSelectPosition }: Posi
       <View style={styles.toolbar}>
         <View style={styles.legend}>
           <Legend color={colors.free} border={colors.freeBorder} label="Libre" />
-          <Legend color={colors.pallet} border={colors.palletBorder} label="Pallet" />
-          <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />
+          <Legend color={colors.pallet} border={colors.palletBorder} label={plan.contenido === 'materiales' ? 'Material' : 'Pallet'} />
+          {plan.contenido !== 'materiales' && <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />}
           <Legend color={colors.blocked} border={colors.blockedBorder} label="Bloqueada" />
         </View>
         <View style={styles.levelPicker}>
@@ -158,7 +158,9 @@ function Band({
             </Text>
             <View style={styles.cellMetaRow}>
               <Text numberOfLines={1} style={styles.cellMeta}>
-                {position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
+                {position.folio?.material
+                  ? `${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
+                  : position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
               </Text>
               <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : '○'}</Text>
             </View>

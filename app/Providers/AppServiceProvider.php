@@ -69,6 +69,28 @@ class AppServiceProvider extends ServiceProvider
                 ], true),
         );
 
+        Gate::define(
+            'administrar-catalogos-materiales',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
+        );
+
+        Gate::define(
+            'gestionar-despachos-materiales',
+            fn (User $usuario): bool => $usuario->activo
+                && in_array($usuario->rol, [
+                    RolUsuario::Administrador,
+                    RolUsuario::Supervisor,
+                    RolUsuario::Despachador,
+                    RolUsuario::Operador,
+                ], true),
+        );
+
+        Gate::define(
+            'consultar-materiales',
+            fn (User $usuario): bool => $usuario->activo,
+        );
+
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
                 if (! $esValido || ! $token->tokenable instanceof User) {

@@ -54,6 +54,7 @@
                 <nav aria-label="Módulos de oficina">
                     <a href="/oficina/camaras">Cámaras</a>
                     <a href="/oficina/cargas">Cargas</a>
+                    <a href="/oficina/materiales">Materiales</a>
                     <a class="is-active" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">

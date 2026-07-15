@@ -40,6 +40,7 @@ class MovimientoController extends Controller
                 $datos['generado_dispositivo_at'],
             ),
             datosFolio: $datos['datos_folio'] ?? [],
+            datosMaterial: $datos['datos_material'] ?? [],
             advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
         );
 

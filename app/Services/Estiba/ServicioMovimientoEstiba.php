@@ -2,15 +2,20 @@
 
 namespace App\Services\Estiba;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionSincronizacion;
+use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Exceptions\ConflictoMovimiento;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\FolioMaterial;
+use App\Models\ItemMaterial;
 use App\Models\Movimiento;
+use App\Models\MovimientoInventarioMaterial;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
@@ -50,6 +55,7 @@ class ServicioMovimientoEstiba
      * Ubica un folio por primera vez y lo crea si todavía no existe.
      *
      * @param  array<string, mixed>  $datosFolio
+     * @param  array<string, mixed>  $datosMaterial
      * @param  array<int, string>  $advertenciasConfirmadas
      */
     public function ubicar(
@@ -63,6 +69,7 @@ class ServicioMovimientoEstiba
         int $versionDestinoConocida,
         DateTimeInterface $generadoDispositivoAt,
         array $datosFolio = [],
+        array $datosMaterial = [],
         array $advertenciasConfirmadas = [],
     ): Movimiento {
         $numeroFolio = trim($numeroFolio);
@@ -77,6 +84,7 @@ class ServicioMovimientoEstiba
             'version_destino_conocida' => $versionDestinoConocida,
             'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
             'datos_folio' => $this->filtrarDatosFolio($datosFolio),
+            'datos_material' => $this->normalizarDatosMaterial($datosMaterial),
             'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
 
@@ -99,6 +107,7 @@ class ServicioMovimientoEstiba
                 $generadoDispositivoAt,
                 $recibidoServidorAt,
                 $datosFolio,
+                $datosMaterial,
                 $advertenciasConfirmadas,
             ),
         );
@@ -375,6 +384,7 @@ class ServicioMovimientoEstiba
 
     /**
      * @param  array<string, mixed>  $datosFolio
+     * @param  array<string, mixed>  $datosMaterial
      * @param  array<int, string>  $advertenciasConfirmadas
      */
     private function procesarUbicacionInicial(
@@ -389,6 +399,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $generadoDispositivoAt,
         DateTimeInterface $recibidoServidorAt,
         array $datosFolio,
+        array $datosMaterial,
         array $advertenciasConfirmadas,
     ): Movimiento {
         $camara = Camara::query()
@@ -396,6 +407,8 @@ class ServicioMovimientoEstiba
             ->findOrFail($posicionDestino->camara_id);
         $posicion = Posicion::query()->lockForUpdate()->findOrFail($posicionDestino->id);
         $sesion = SesionEstiba::query()->lockForUpdate()->findOrFail($sesionDestino->id);
+
+        $this->validarContenidoCamara($camara, $tipoBulto);
 
         $folio = Folio::query()
             ->where('numero_folio', $numeroFolio)
@@ -409,8 +422,21 @@ class ServicioMovimientoEstiba
                 $generadoDispositivoAt,
                 $datosFolio,
             ));
+
+            if ($tipoBulto === TipoBulto::Material) {
+                $this->crearFichaMaterial(
+                    $folio,
+                    $datosMaterial,
+                    $usuario,
+                    $dispositivo,
+                    $recibidoServidorAt,
+                );
+            }
         } elseif ($folio->tipo_bulto !== $tipoBulto) {
             throw new DomainException('El tipo de bulto no coincide con el folio existente.');
+        } elseif ($tipoBulto === TipoBulto::Material
+            && ! FolioMaterial::query()->whereKey($folio->id)->exists()) {
+            throw new DomainException('El folio de material no posee una ficha de inventario válida.');
         }
 
         $this->validarVersion($camara, $versionDestinoConocida, 'destino');
@@ -542,6 +568,9 @@ class ServicioMovimientoEstiba
             throw new DomainException('No fue posible bloquear los extremos del movimiento.');
         }
 
+        $this->validarContenidoCamara($camaraOrigen, $folioBloqueado->tipo_bulto);
+        $this->validarContenidoCamara($camaraDestino, $folioBloqueado->tipo_bulto);
+
         $this->validarVersion($camaraOrigen, $versionOrigenConocida, 'origen');
         $this->validarVersion($camaraDestino, $versionDestinoConocida, 'destino');
 
@@ -666,6 +695,85 @@ class ServicioMovimientoEstiba
     private function filtrarDatosFolio(array $datosFolio): array
     {
         return array_intersect_key($datosFolio, array_flip(self::CAMPOS_FOLIO_PERMITIDOS));
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     * @return array<string, mixed>
+     */
+    private function normalizarDatosMaterial(array $datos): array
+    {
+        return array_intersect_key($datos, array_flip([
+            'item_material_id',
+            'cantidad',
+            'lote',
+            'proveedor',
+            'observacion',
+        ]));
+    }
+
+    private function validarContenidoCamara(Camara $camara, TipoBulto $tipoBulto): void
+    {
+        $contenidoEsperado = $tipoBulto === TipoBulto::Material
+            ? ContenidoCamara::Materiales
+            : ContenidoCamara::Productos;
+
+        if ($camara->contenido !== $contenidoEsperado) {
+            throw new DomainException($tipoBulto === TipoBulto::Material
+                ? 'Los folios de materiales solo pueden ubicarse en cámaras de materiales.'
+                : 'Los pallets y saldos solo pueden ubicarse en cámaras de productos.');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    private function crearFichaMaterial(
+        Folio $folio,
+        array $datos,
+        User $usuario,
+        Dispositivo $dispositivo,
+        DateTimeInterface $fecha,
+    ): void {
+        $item = ItemMaterial::query()
+            ->whereKey($datos['item_material_id'] ?? null)
+            ->where('activo', true)
+            ->lockForUpdate()
+            ->first();
+        $cantidad = round((float) ($datos['cantidad'] ?? 0), 3);
+
+        if (! $item) {
+            throw new DomainException('El ítem de material no existe o se encuentra inactivo.');
+        }
+
+        if ($cantidad <= 0) {
+            throw new DomainException('La cantidad inicial del material debe ser mayor que cero.');
+        }
+
+        FolioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'cantidad_inicial' => $cantidad,
+            'cantidad_actual' => $cantidad,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => $item->unidad_medida,
+            'lote' => $datos['lote'] ?? null,
+            'proveedor' => $datos['proveedor'] ?? null,
+            'observacion' => $datos['observacion'] ?? null,
+        ]);
+
+        MovimientoInventarioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'tipo' => TipoMovimientoInventarioMaterial::Ingreso,
+            'cantidad' => $cantidad,
+            'cantidad_anterior' => 0,
+            'cantidad_resultante' => $cantidad,
+            'user_id' => $usuario->id,
+            'dispositivo_id' => $dispositivo->id,
+            'motivo' => 'Ingreso inicial del folio a cámara de materiales.',
+            'ocurrido_at' => $fecha,
+        ]);
     }
 
     private function validarNumeroFolio(string $numeroFolio): void

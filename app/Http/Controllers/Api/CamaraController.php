@@ -50,6 +50,7 @@ class CamaraController extends Controller
             'posiciones' => fn ($consulta) => $consulta
                 ->with([
                     'ubicacionActual.folio.condicionSag',
+                    'ubicacionActual.folio.material.item',
                     'ubicacionActual.folio.asignacionCargaActual.carga',
                 ])
                 ->where('banda', '<=', $camara->cantidad_bandas)

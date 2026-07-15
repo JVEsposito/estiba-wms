@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ContenidoCamara;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -24,6 +25,7 @@ class CrearCamaraRequest extends FormRequest
                 'required',
                 Rule::in(['transito', 'almacenaje', 'preparacion', 'despacho']),
             ],
+            'contenido' => ['required', Rule::enum(ContenidoCamara::class)],
             'bandas' => ['required', 'integer', 'min:1', 'max:40'],
             'posiciones_por_banda' => ['required', 'integer', 'min:1', 'max:40'],
             'niveles' => ['required', 'integer', 'min:1', 'max:10'],
@@ -36,6 +38,13 @@ class CrearCamaraRequest extends FormRequest
             'posiciones_fuera_servicio.*.posicion' => ['required', 'integer', 'min:1'],
             'posiciones_fuera_servicio.*.nivel' => ['required', 'integer', 'min:1'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'contenido' => $this->input('contenido', ContenidoCamara::Productos->value),
+        ]);
     }
 
     /**

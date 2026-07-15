@@ -12,22 +12,36 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CameraPlan, CameraSummary, Position, SagCondition } from '../domain/estiba';
+import {
+  CameraPlan,
+  CameraSummary,
+  MaterialDestination,
+  MaterialDispatch,
+  MaterialItem,
+  Position,
+  SagCondition,
+} from '../domain/estiba';
 import { colors } from '../theme/colors';
 
 export type LocateFormValue = {
   numero_folio: string;
-  tipo_bulto: 'pallet' | 'saldo';
+  tipo_bulto: 'pallet' | 'saldo' | 'material';
   condicion_sag_id?: string;
   variedad?: string;
   calibre?: string;
   marca?: string;
   exportadora?: string;
+  item_material_id?: string;
+  cantidad?: number;
+  lote?: string;
+  proveedor?: string;
+  observacion_material?: string;
 };
 
 type LocateModalProps = {
   busy: boolean;
   conditions: SagCondition[];
+  materialItems: MaterialItem[];
   error: string;
   onCancel: () => void;
   onConfirm: (value: LocateFormValue) => Promise<void>;
@@ -39,6 +53,7 @@ type LocateModalProps = {
 export function LocateModal({
   busy,
   conditions,
+  materialItems,
   error,
   onCancel,
   onConfirm,
@@ -48,27 +63,45 @@ export function LocateModal({
 }: LocateModalProps) {
   const { height, width } = useWindowDimensions();
   const compact = height < 700 || width < 1000;
+  const isMaterial = plan?.contenido === 'materiales';
   const [folio, setFolio] = useState('');
-  const [type, setType] = useState<'pallet' | 'saldo'>('pallet');
+  const [type, setType] = useState<'pallet' | 'saldo' | 'material'>('pallet');
   const [conditionId, setConditionId] = useState<string>();
   const [variety, setVariety] = useState('');
   const [caliber, setCaliber] = useState('');
   const [brand, setBrand] = useState('');
   const [exporter, setExporter] = useState('');
+  const [materialSearch, setMaterialSearch] = useState('');
+  const [materialItemId, setMaterialItemId] = useState<string>();
+  const [materialQuantity, setMaterialQuantity] = useState('');
+  const [materialLot, setMaterialLot] = useState('');
+  const [materialSupplier, setMaterialSupplier] = useState('');
+  const [materialObservation, setMaterialObservation] = useState('');
+  const filteredMaterialItems = materialItems.filter((item) => (
+    `${item.codigo} ${item.nombre} ${item.categoria ?? ''}`
+      .toLowerCase()
+      .includes(materialSearch.trim().toLowerCase())
+  ));
 
   useEffect(() => {
     if (!visible) return;
     setFolio('');
-    setType('pallet');
+    setType(isMaterial ? 'material' : 'pallet');
     setConditionId(undefined);
     setVariety('');
     setCaliber('');
     setBrand('');
     setExporter('');
-  }, [visible]);
+    setMaterialSearch('');
+    setMaterialItemId(undefined);
+    setMaterialQuantity('');
+    setMaterialLot('');
+    setMaterialSupplier('');
+    setMaterialObservation('');
+  }, [visible, isMaterial]);
 
   async function submit() {
-    if (!folio.trim()) return;
+    if (!folio.trim() || (isMaterial && (!materialItemId || Number(materialQuantity) <= 0))) return;
     await onConfirm({
       numero_folio: folio.trim().toUpperCase(),
       tipo_bulto: type,
@@ -77,6 +110,11 @@ export function LocateModal({
       calibre: caliber.trim() || undefined,
       marca: brand.trim() || undefined,
       exportadora: exporter.trim() || undefined,
+      item_material_id: materialItemId,
+      cantidad: isMaterial ? Number(materialQuantity) : undefined,
+      lote: materialLot.trim() || undefined,
+      proveedor: materialSupplier.trim() || undefined,
+      observacion_material: materialObservation.trim() || undefined,
     });
   }
 
@@ -107,35 +145,53 @@ export function LocateModal({
               wide
             />
 
-            <View style={styles.field}>
-              <Text style={styles.label}>Tipo de bulto *</Text>
-              <View style={styles.choiceRow}>
-                <Choice active={type === 'pallet'} label="Pallet completo" onPress={() => setType('pallet')} />
-                <Choice active={type === 'saldo'} label="Saldo incompleto" onPress={() => setType('saldo')} />
-              </View>
-            </View>
-
-            <View style={[styles.field, styles.wide]}>
-              <Text style={styles.label}>Condición SAG</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={styles.choiceRow}>
-                  <Choice active={!conditionId} label="Sin especificar" onPress={() => setConditionId(undefined)} />
-                  {conditions.map((condition) => (
-                    <Choice
-                      active={conditionId === condition.id}
-                      key={condition.id}
-                      label={condition.codigo}
-                      onPress={() => setConditionId(condition.id)}
-                    />
-                  ))}
+            {isMaterial ? (
+              <>
+                <FormField label="Buscar ítem *" onChangeText={setMaterialSearch} placeholder="Código o descripción" value={materialSearch} wide />
+                <View style={[styles.field, styles.wide]}>
+                  <Text style={styles.label}>Ítem contenido *</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator>
+                    <View style={styles.choiceRow}>
+                      {filteredMaterialItems.map((item) => (
+                        <Choice active={materialItemId === item.id} key={item.id} label={`${item.codigo} · ${item.nombre}`} onPress={() => setMaterialItemId(item.id)} />
+                      ))}
+                    </View>
+                  </ScrollView>
+                  {filteredMaterialItems.length === 0 && <Text style={styles.emptyInline}>No hay ítems coincidentes. Solicita su creación en la oficina.</Text>}
                 </View>
-              </ScrollView>
-            </View>
+                <FormField label={`Cantidad inicial *${materialItems.find((item) => item.id === materialItemId)?.unidad_medida ? ` · ${materialItems.find((item) => item.id === materialItemId)?.unidad_medida}` : ''}`} onChangeText={setMaterialQuantity} placeholder="Ej. 450" value={materialQuantity} />
+                <FormField label="Lote" onChangeText={setMaterialLot} placeholder="Opcional" value={materialLot} />
+                <FormField label="Proveedor" onChangeText={setMaterialSupplier} placeholder="Opcional" value={materialSupplier} />
+                <FormField label="Observación" onChangeText={setMaterialObservation} placeholder="Opcional" value={materialObservation} />
+              </>
+            ) : (
+              <>
+                <View style={styles.field}>
+                  <Text style={styles.label}>Tipo de bulto *</Text>
+                  <View style={styles.choiceRow}>
+                    <Choice active={type === 'pallet'} label="Pallet completo" onPress={() => setType('pallet')} />
+                    <Choice active={type === 'saldo'} label="Saldo incompleto" onPress={() => setType('saldo')} />
+                  </View>
+                </View>
 
-            <FormField label="Variedad" onChangeText={setVariety} placeholder="Ej. Santina" value={variety} />
-            <FormField label="Calibre" onChangeText={setCaliber} placeholder="Ej. 2J" value={caliber} />
-            <FormField label="Marca" onChangeText={setBrand} placeholder="Opcional" value={brand} />
-            <FormField label="Exportadora" onChangeText={setExporter} placeholder="Opcional" value={exporter} />
+                <View style={[styles.field, styles.wide]}>
+                  <Text style={styles.label}>Condición SAG</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.choiceRow}>
+                      <Choice active={!conditionId} label="Sin especificar" onPress={() => setConditionId(undefined)} />
+                      {conditions.map((condition) => (
+                        <Choice active={conditionId === condition.id} key={condition.id} label={condition.codigo} onPress={() => setConditionId(condition.id)} />
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+
+                <FormField label="Variedad" onChangeText={setVariety} placeholder="Ej. Santina" value={variety} />
+                <FormField label="Calibre" onChangeText={setCaliber} placeholder="Ej. 2J" value={caliber} />
+                <FormField label="Marca" onChangeText={setBrand} placeholder="Opcional" value={brand} />
+                <FormField label="Exportadora" onChangeText={setExporter} placeholder="Opcional" value={exporter} />
+              </>
+            )}
           </ScrollView>
 
           <ModalError message={error} />
@@ -143,7 +199,7 @@ export function LocateModal({
           <DialogActions
             busy={busy}
             compact={compact}
-            confirmDisabled={!folio.trim()}
+            confirmDisabled={!folio.trim() || (isMaterial && (!materialItemId || Number(materialQuantity) <= 0))}
             confirmLabel="Confirmar ubicación"
             onCancel={onCancel}
             onConfirm={submit}
@@ -251,6 +307,133 @@ export function MoveModal({
             onConfirm={onConfirm}
           />
         </View>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+export type MaterialDispatchFormValue = {
+  cantidad: number;
+  despacho_id?: string;
+  destino_material_id?: string;
+};
+
+export function MaterialDispatchModal({
+  busy,
+  destinations,
+  dispatches,
+  error,
+  onCancel,
+  onConfirm,
+  position,
+  visible,
+}: {
+  busy: boolean;
+  destinations: MaterialDestination[];
+  dispatches: MaterialDispatch[];
+  error: string;
+  onCancel: () => void;
+  onConfirm: (value: MaterialDispatchFormValue) => Promise<void>;
+  position: Position | null;
+  visible: boolean;
+}) {
+  const { height, width } = useWindowDimensions();
+  const compact = height < 700 || width < 1000;
+  const material = position?.folio?.material;
+  const matchingDispatches = dispatches.filter((dispatch) => dispatch.items.some((detail) => (
+    detail.item.id === material?.item.id && Number(detail.cantidad_pendiente) > 0
+  )));
+  const [dispatchId, setDispatchId] = useState<string>();
+  const [destinationId, setDestinationId] = useState<string>();
+  const [amount, setAmount] = useState('');
+
+  useEffect(() => {
+    if (!visible) return;
+    setDispatchId(undefined);
+    setDestinationId(undefined);
+    setAmount('');
+  }, [visible, position?.folio?.id]);
+
+  const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
+  const selectedDetail = selectedDispatch?.items.find((detail) => detail.item.id === material?.item.id);
+  const followsFifo = selectedDetail?.sugerencias_fifo.some((suggestion) => (
+    suggestion.folio_id === position?.folio?.id
+  ));
+  const ownReservation = Number(selectedDetail?.sugerencias_fifo.find((suggestion) => (
+    suggestion.folio_id === position?.folio?.id
+  ))?.cantidad ?? 0);
+  const maximum = Math.min(
+    Number(material?.cantidad_disponible ?? 0) + ownReservation,
+    selectedDetail ? Number(selectedDetail.cantidad_pendiente) : Number(material?.cantidad_disponible ?? 0),
+  );
+
+  async function submit() {
+    const parsed = Number(amount);
+    if (parsed <= 0 || parsed > maximum || (!dispatchId && !destinationId)) return;
+    await onConfirm({
+      cantidad: parsed,
+      despacho_id: dispatchId,
+      destino_material_id: dispatchId ? undefined : destinationId,
+    });
+  }
+
+  return (
+    <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
+      <SafeAreaView edges={['top', 'right', 'bottom', 'left']} style={styles.modalSafeArea}>
+        <View style={[styles.backdrop, compact && styles.backdropCompact]}>
+          <View style={[styles.dialog, compact && styles.dialogCompact]}>
+            <DialogHeading
+              compact={compact}
+              eyebrow="DESPACHO DE MATERIALES"
+              onClose={onCancel}
+              subtitle={`${position?.folio?.numero_folio ?? ''} · ${position?.etiqueta ?? ''}`}
+              title={material?.item.nombre ?? 'Retirar material'}
+            />
+
+            <View style={styles.materialBalance}>
+              <View><Text style={styles.label}>SALDO ACTUAL</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_actual ?? '0'} {material?.unidad_medida}</Text></View>
+              <View><Text style={styles.label}>DISPONIBLE</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_disponible ?? '0'} {material?.unidad_medida}</Text></View>
+            </View>
+
+            <Text style={styles.label}>Orden existente o despacho directo</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator>
+              <View style={styles.choiceRow}>
+                <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => setDispatchId(undefined)} />
+                {matchingDispatches.map((dispatch) => (
+                  <Choice active={dispatchId === dispatch.id} key={dispatch.id} label={`${dispatch.codigo} · ${dispatch.destino.nombre}`} onPress={() => setDispatchId(dispatch.id)} />
+                ))}
+              </View>
+            </ScrollView>
+
+            {!dispatchId && (
+              <View style={[styles.field, styles.wide, styles.materialField]}>
+                <Text style={styles.label}>Destino y centro de costo *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator>
+                  <View style={styles.choiceRow}>
+                    {destinations.map((destination) => (
+                      <Choice active={destinationId === destination.id} key={destination.id} label={`${destination.nombre} · ${destination.centro_costo}`} onPress={() => setDestinationId(destination.id)} />
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {dispatchId && (
+              <View style={[styles.fifoNotice, followsFifo === false && styles.fifoNoticeOverride]}>
+                <Text style={styles.fifoNoticeTitle}>{followsFifo ? 'Folio sugerido por FIFO' : 'Selección distinta de FIFO'}</Text>
+                <Text style={styles.fifoNoticeText}>{selectedDispatch?.destino.nombre} · {selectedDispatch?.destino.centro_costo} · pendiente {selectedDetail?.cantidad_pendiente} {selectedDetail?.unidad_medida}</Text>
+              </View>
+            )}
+
+            <View style={[styles.field, styles.wide, styles.materialField]}>
+              <Text style={styles.label}>Cantidad a despachar * · máximo {maximum} {material?.unidad_medida}</Text>
+              <TextInput keyboardType="decimal-pad" onChangeText={setAmount} placeholder="0" placeholderTextColor="#627C88" selectionColor={colors.cyan} style={styles.input} value={amount} />
+            </View>
+
+            <ModalError message={error} />
+            <DialogActions busy={busy} compact={compact} confirmDisabled={Number(amount) <= 0 || Number(amount) > maximum || (!dispatchId && !destinationId)} confirmLabel="Confirmar despacho" onCancel={onCancel} onConfirm={submit} />
+          </View>
         </View>
       </SafeAreaView>
     </Modal>
@@ -655,6 +838,14 @@ const styles = StyleSheet.create({
   destinationEntrance: { marginTop: 6, color: colors.cyan, fontSize: 8, fontWeight: '900' },
   loader: { height: 150 },
   empty: { paddingVertical: 30, color: colors.muted, fontSize: 10, textAlign: 'center' },
+  emptyInline: { color: colors.muted, fontSize: 8 },
+  materialBalance: { marginBottom: 14, flexDirection: 'row', gap: 10 },
+  materialBalanceValue: { marginTop: 4, color: colors.text, fontSize: 17, fontWeight: '900' },
+  materialField: { marginTop: 14 },
+  fifoNotice: { marginTop: 14, padding: 10, borderRadius: 9, borderWidth: 1, borderColor: colors.green, backgroundColor: '#12372F' },
+  fifoNoticeOverride: { borderColor: colors.amber, backgroundColor: colors.amberDark },
+  fifoNoticeTitle: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  fifoNoticeText: { marginTop: 3, color: colors.muted, fontSize: 8 },
   modalError: {
     marginTop: 10,
     padding: 10,

@@ -54,6 +54,7 @@
                 <nav aria-label="Módulos de oficina">
                     <a class="is-active" href="/oficina/camaras">Cámaras</a>
                     <a href="/oficina/cargas">Cargas</a>
+                    <a href="/oficina/materiales">Materiales</a>
                     <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">
@@ -86,6 +87,7 @@
                         <div class="form-grid">
                             <label class="field field--wide"><span>Nombre de la cámara *</span><input name="nombre" maxlength="150" placeholder="Ej. Cámara de tránsito norte" required></label>
                             <label class="field"><span>Tipo *</span><select name="tipo" required><option value="transito">Tránsito</option><option value="almacenaje">Almacenaje</option><option value="preparacion">Preparación</option><option value="despacho">Despacho</option></select></label>
+                            <label class="field"><span>Contenido permitido *</span><select name="contenido" required><option value="productos">Productos / fruta</option><option value="materiales">Materiales</option></select></label>
                             <label class="field"><span>Bandas *</span><input name="bandas" type="number" min="1" max="40" value="3" required></label>
                             <label class="field"><span>Posiciones por banda *</span><input name="posiciones_por_banda" type="number" min="1" max="40" value="4" required></label>
                             <label class="field"><span>Niveles *</span><input name="niveles" type="number" min="1" max="10" value="2" required></label>
