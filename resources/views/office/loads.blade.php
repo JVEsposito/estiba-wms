@@ -54,6 +54,7 @@
                 <nav aria-label="Módulos de oficina">
                     <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-active" href="/oficina/cargas">Cargas</a>
+                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">
                     <span class="identity__avatar" id="officeInitials">DP</span>

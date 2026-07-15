@@ -8,3 +8,4 @@ Route::get('/', function () {
 
 Route::view('/oficina/camaras', 'office.cameras');
 Route::view('/oficina/cargas', 'office.loads');
+Route::view('/oficina/accesos', 'office.accesses');

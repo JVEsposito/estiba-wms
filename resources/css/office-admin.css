@@ -1,0 +1,244 @@
+.admin-access-brand {
+    background:
+        radial-gradient(circle at 18% 25%, rgba(243, 185, 79, .13), transparent 24rem),
+        linear-gradient(145deg, rgba(15, 59, 68, .92), rgba(4, 15, 21, .98));
+}
+
+.admin-workspace {
+    padding: 24px;
+}
+
+.admin-heading,
+.admin-panel__heading,
+.admin-form__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.admin-heading h1 {
+    margin: 0;
+    font-size: clamp(2rem, 3vw, 3rem);
+}
+
+.admin-heading p:not(.eyebrow) {
+    max-width: 760px;
+    margin: 8px 0 0;
+    color: var(--muted);
+    line-height: 1.6;
+}
+
+.admin-reload {
+    min-width: 190px;
+}
+
+.admin-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.admin-metrics article {
+    display: grid;
+    min-height: 82px;
+    align-content: center;
+    gap: 5px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--deep);
+    padding: 15px 17px;
+}
+
+.admin-metrics span {
+    color: var(--muted);
+    font-size: .62rem;
+    font-weight: 900;
+    letter-spacing: .1em;
+}
+
+.admin-metrics strong {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 1.25rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.admin-panel {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.admin-panel__heading {
+    padding: 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.admin-panel__heading h2 {
+    margin: 0;
+    font-size: 1.35rem;
+}
+
+.admin-panel__heading > span {
+    color: var(--muted);
+    font-size: .7rem;
+    font-weight: 800;
+}
+
+.admin-form {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(3, 11, 16, .25);
+}
+
+.admin-form__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px;
+}
+
+.admin-form__grid--device {
+    grid-template-columns: minmax(180px, .7fr) minmax(240px, 1.3fr);
+}
+
+.admin-form .field--wide {
+    grid-column: 1 / -1;
+}
+
+.admin-form input,
+.admin-form select {
+    min-height: 44px;
+    border-radius: 9px;
+    font-size: .78rem;
+}
+
+.admin-form__hint {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: .68rem;
+}
+
+.admin-form .form-error {
+    margin-top: 8px;
+}
+
+.admin-form__actions {
+    justify-content: flex-end;
+    margin-top: 5px;
+}
+
+.admin-form__actions button {
+    min-width: 170px;
+    min-height: 44px;
+    border-radius: 9px;
+    font-size: .75rem;
+}
+
+.admin-table-scroll {
+    max-height: 400px;
+    overflow: auto;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .75rem;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--line);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.admin-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0d222d;
+    color: var(--muted);
+    font-size: .6rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.admin-table tbody tr:hover td {
+    background: rgba(22, 201, 194, .025);
+}
+
+.admin-table td strong,
+.admin-table td small {
+    display: block;
+}
+
+.admin-table td small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: .62rem;
+}
+
+.access-status,
+.role-badge {
+    display: inline-flex;
+    min-height: 23px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 8px;
+    font-size: .58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.access-status--active {
+    border-color: rgba(85, 216, 137, .4);
+    background: rgba(85, 216, 137, .08);
+    color: var(--green);
+}
+
+.access-status--inactive {
+    color: var(--muted);
+}
+
+.role-badge {
+    color: var(--cyan-light);
+}
+
+.admin-empty td {
+    padding: 30px;
+    color: var(--muted);
+    text-align: center;
+}
+
+@media (max-width: 1120px) {
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .admin-workspace {
+        min-width: 720px;
+    }
+
+    .admin-metrics {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

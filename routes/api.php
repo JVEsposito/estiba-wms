@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
+use App\Http\Controllers\Api\AdministracionAccesoController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CondicionSagController;
@@ -42,6 +43,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'show']);
     Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update']);
     Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy']);
+
+    Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
+    Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
+    Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
     Route::post('/camaras/{camara}/sesiones', [SesionEstibaController::class, 'store']);
     Route::post('/sesiones/{sesion}/cerrar', [SesionEstibaController::class, 'cerrar']);
 

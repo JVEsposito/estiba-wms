@@ -10,6 +10,7 @@ const elements = {
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'),
+    accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
     emptyNewLoad: byId('emptyNewLoadButton'),
@@ -239,6 +240,10 @@ function showApp() {
         .join('')
         .toUpperCase();
     elements.camerasNav.classList.remove('is-hidden');
+    elements.accessesNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_administrar_accesos !== true,
+    );
 }
 
 function statusText(value) {

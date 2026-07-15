@@ -14,6 +14,7 @@ class InterfazOficinaCargasTest extends TestCase
             ->assertSee('Ingresar a cargas')
             ->assertSee('Crear primera orden')
             ->assertSee('/oficina/camaras', false)
+            ->assertSee('/oficina/accesos', false)
             ->assertSee('aria-labelledby="folioAddTitle"', false)
             ->assertSee('availableFolioSelectPage', false)
             ->assertSee('availableFolioPagination', false)
@@ -26,6 +27,7 @@ class InterfazOficinaCargasTest extends TestCase
         $this->get('/oficina/camaras')
             ->assertOk()
             ->assertSee('/oficina/cargas', false)
+            ->assertSee('/oficina/accesos', false)
             ->assertSee('Consulta la disponibilidad')
             ->assertDontSee('Cargas · próximamente');
     }

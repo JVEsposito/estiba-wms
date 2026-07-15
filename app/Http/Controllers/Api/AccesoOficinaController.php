@@ -58,6 +58,7 @@ class AccesoOficinaController extends Controller
                     RolUsuario::Supervisor,
                 ], true),
                 'puede_administrar_camaras' => $usuario->rol === RolUsuario::Administrador,
+                'puede_administrar_accesos' => $usuario->rol === RolUsuario::Administrador,
                 'puede_gestionar_cargas' => in_array($usuario->rol, [
                     RolUsuario::Administrador,
                     RolUsuario::Supervisor,
