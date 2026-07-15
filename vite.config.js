@@ -10,6 +10,8 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/css/office.css',
                 'resources/js/office-cameras.js',
+                'resources/css/office-loads.css',
+                'resources/js/office-loads.js',
             ],
             refresh: true,
         }),

@@ -53,7 +53,7 @@
                 </div>
                 <nav aria-label="Módulos de oficina">
                     <a class="is-active" href="/oficina/camaras">Cámaras</a>
-                    <span title="Próxima entrega">Cargas · próximamente</span>
+                    <a href="/oficina/cargas">Cargas</a>
                 </nav>
                 <div class="identity">
                     <span class="identity__avatar" id="officeInitials">SP</span>
