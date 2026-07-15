@@ -765,11 +765,8 @@ async function loadDestinationPlan(cameraId) {
 
 function renderDestinations() {
     const plan = state.destinationPlan;
-    const free = (plan?.posiciones || []).filter((position) => (
-        position.estado === 'activa'
-        && ! position.ocupada
-        && position.id !== state.selectedPosition?.id
-    ));
+    const positions = plan?.posiciones || [];
+    const free = positions.filter(isAvailableDestination);
 
     if (plan?.acceso?.modo === 'solo_lectura') {
         elements.moveDestinationGrid.innerHTML = '<div class="recent-empty">La cámara de destino está siendo modificada por otro operador.</div>';
@@ -784,11 +781,39 @@ function renderDestinations() {
     }
 
     elements.moveDestinationHint.textContent = `${free.length} posiciones disponibles`;
-    elements.moveDestinationGrid.innerHTML = free.map((position) => `
-        <button class="destination-button" type="button" data-destination-id="${escapeHtml(position.id)}">
-            <strong>${escapeHtml(positionLabel(position))}</strong>
-            <small>Banda ${position.banda} · Posición ${position.posicion} · Nivel ${position.nivel}</small>
-        </button>`).join('');
+    const levels = [...new Set(positions.map((position) => Number(position.nivel)))].sort((a, b) => a - b);
+    const bands = [...new Set(positions.map((position) => Number(position.banda)))].sort((a, b) => a - b);
+    const maxPosition = Math.max(...positions.map((position) => Number(position.posicion)));
+    const lookup = new Map(positions.map((position) => [
+        `${position.nivel}|${position.banda}|${position.posicion}`,
+        position,
+    ]));
+
+    elements.moveDestinationGrid.innerHTML = levels.map((level) => {
+        const bandColumns = bands.map((band) => {
+            const cells = [];
+            for (let positionNumber = 1; positionNumber <= maxPosition; positionNumber += 1) {
+                const position = lookup.get(`${level}|${band}|${positionNumber}`);
+                cells.push(position
+                    ? renderDestinationPosition(position)
+                    : '<span class="destination-position destination-position--gap" aria-hidden="true"></span>');
+            }
+
+            return `
+                <div class="destination-band">
+                    <strong class="destination-band__heading">BANDA ${String(band).padStart(2, '0')}</strong>
+                    ${cells.join('')}
+                </div>`;
+        }).join('');
+
+        return `
+            <section class="destination-level">
+                <div class="destination-level__heading">NIVEL ${level}</div>
+                <div class="destination-orientation"><strong>↑ FONDO</strong><span>P01 se ocupa primero</span></div>
+                <div class="destination-band-layout">${bandColumns}</div>
+                <div class="destination-orientation destination-orientation--entrance"><strong>↓ ENTRADA</strong></div>
+            </section>`;
+    }).join('');
 
     elements.moveDestinationGrid.querySelectorAll('[data-destination-id]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -799,6 +824,35 @@ function renderDestinations() {
             elements.confirmMoveButton.disabled = false;
         });
     });
+}
+
+function isAvailableDestination(position) {
+    return position.estado === 'activa'
+        && ! position.ocupada
+        && position.id !== state.selectedPosition?.id;
+}
+
+function renderDestinationPosition(position) {
+    const available = isAvailableDestination(position);
+    const isOrigin = position.id === state.selectedPosition?.id;
+    const status = isOrigin
+        ? 'ORIGEN'
+        : position.ocupada
+            ? `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
+            : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
+    const content = `
+        <span class="destination-position__number">P${String(position.posicion).padStart(2, '0')}</span>
+        <strong>${escapeHtml(positionLabel(position))}</strong>
+        <small>${escapeHtml(status)}</small>`;
+
+    if (! available) {
+        return `<div class="destination-position is-unavailable" aria-disabled="true">${content}</div>`;
+    }
+
+    return `
+        <button class="destination-position destination-button" type="button" data-destination-id="${escapeHtml(position.id)}">
+            ${content}
+        </button>`;
 }
 
 async function ensureDestinationSession() {
