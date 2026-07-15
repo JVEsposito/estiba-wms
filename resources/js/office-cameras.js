@@ -9,6 +9,7 @@ const elements = {
     userRole: byId('officeUserRole'),
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
+    accessesNav: byId('officeAccessesNav'),
     workspace: byId('officeWorkspace'),
     catalogEyebrow: byId('cameraCatalogEyebrow'),
     catalogTitle: byId('cameraCatalogTitle'),
@@ -139,6 +140,10 @@ function showApp() {
     elements.userName.textContent = name;
     elements.userRole.textContent = state.identity?.rol || 'oficina';
     elements.initials.textContent = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+    elements.accessesNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_administrar_accesos !== true,
+    );
     const readOnly = state.identity?.puede_configurar_camaras !== true;
     elements.workspace.classList.toggle('is-read-only', readOnly);
     elements.catalogEyebrow.textContent = readOnly ? 'CONSULTA OPERACIONAL' : 'CONFIGURACIÓN';

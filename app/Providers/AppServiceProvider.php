@@ -42,6 +42,12 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::define(
+            'administrar-accesos',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
+        );
+
+        Gate::define(
             'gestionar-cargas',
             fn (User $usuario): bool => $usuario->activo
                 && in_array($usuario->rol, [
