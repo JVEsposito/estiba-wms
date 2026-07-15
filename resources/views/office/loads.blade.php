@@ -78,7 +78,7 @@
                     <div class="load-filters">
                         <label>
                             <span>Buscar</span>
-                            <input id="loadSearch" type="search" placeholder="Código u orden externa">
+                            <input id="loadSearch" type="search" maxlength="100" placeholder="Código u orden externa">
                         </label>
                         <label>
                             <span>Estado</span>
@@ -95,8 +95,19 @@
                         </label>
                     </div>
 
-                    <div class="load-catalog__summary" id="loadCatalogSummary" role="status" aria-live="polite">0 órdenes</div>
+                    <div class="load-catalog__status">
+                        <div class="load-catalog__summary" id="loadCatalogSummary" role="status" aria-live="polite">0 órdenes</div>
+                        <label class="page-size-control">
+                            <span>Mostrar</span>
+                            <select id="loadPageSize" aria-label="Órdenes por página">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </label>
+                    </div>
                     <div class="load-catalog__list" id="loadList" aria-label="Listado de órdenes de carga"></div>
+                    <div class="pagination" id="loadPagination" aria-label="Paginación de órdenes"></div>
                 </aside>
 
                 <section class="load-editor panel">
@@ -195,13 +206,44 @@
                                         <div class="available-folios__tools">
                                             <label>
                                                 <span class="sr-only">Buscar folio disponible</span>
-                                                <input id="availableFolioSearch" type="search" placeholder="Buscar folio, cámara o posición">
+                                                <input id="availableFolioSearch" type="search" maxlength="100" placeholder="Folio, variedad, calibre, marca, cámara o posición">
+                                            </label>
+                                            <label class="page-size-control">
+                                                <span>Mostrar</span>
+                                                <select id="availableFolioPageSize" aria-label="Folios por página">
+                                                    <option value="10" selected>10</option>
+                                                    <option value="25">25</option>
+                                                    <option value="50">50</option>
+                                                </select>
                                             </label>
                                             <button class="icon-button" id="reloadAvailableFoliosButton" type="button" aria-label="Actualizar folios disponibles">↻</button>
                                         </div>
                                     </div>
                                     <p class="available-folios__summary" id="availableFolioSummary" role="status" aria-live="polite">Cargando existencia…</p>
-                                    <div class="available-folios__list" id="availableFolioList"></div>
+                                    <div class="available-folios__table-scroll" id="availableFolioList">
+                                        <table class="available-folios__table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="available-folios__check">
+                                                        <input id="availableFolioSelectPage" type="checkbox" aria-label="Seleccionar todos los folios de esta página">
+                                                    </th>
+                                                    <th>Folio</th>
+                                                    <th>Tipo</th>
+                                                    <th>Variedad / calibre</th>
+                                                    <th>Marca / exportadora</th>
+                                                    <th>Condición SAG</th>
+                                                    <th>Cámara</th>
+                                                    <th>Posición</th>
+                                                    <th>Ingreso</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="availableFolioTableBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="available-folios__footer">
+                                        <span>La selección se conserva al cambiar de página.</span>
+                                        <div class="pagination" id="availableFolioPagination" aria-label="Paginación de folios disponibles"></div>
+                                    </div>
                                 </section>
                                 <div class="folio-errors is-hidden" id="folioErrors" role="alert"></div>
                             </div>

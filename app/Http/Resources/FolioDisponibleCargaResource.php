@@ -19,6 +19,15 @@ class FolioDisponibleCargaResource extends JsonResource
             'id' => $this->id,
             'numero_folio' => $this->numero_folio,
             'tipo_bulto' => $this->tipo_bulto->value,
+            'condicion_sag' => $this->whenLoaded('condicionSag', fn () => $this->condicionSag ? [
+                'id' => $this->condicionSag->id,
+                'codigo' => $this->condicionSag->codigo,
+                'nombre' => $this->condicionSag->nombre,
+            ] : null),
+            'variedad' => $this->variedad,
+            'calibre' => $this->calibre,
+            'marca' => $this->marca,
+            'exportadora' => $this->exportadora,
             'fecha_ingreso' => $this->fecha_ingreso?->toAtomString(),
             'ubicacion' => [
                 'camara' => [

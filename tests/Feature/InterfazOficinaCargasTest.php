@@ -15,6 +15,9 @@ class InterfazOficinaCargasTest extends TestCase
             ->assertSee('Crear primera orden')
             ->assertSee('/oficina/camaras', false)
             ->assertSee('aria-labelledby="folioAddTitle"', false)
+            ->assertSee('availableFolioSelectPage', false)
+            ->assertSee('availableFolioPagination', false)
+            ->assertSee('Variedad / calibre')
             ->assertSee('aria-live="assertive"', false);
     }
 
