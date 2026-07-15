@@ -287,6 +287,144 @@ class MaterialesApiTest extends TestCase
         $this->assertFalse(RetiroMaterial::query()->latest()->firstOrFail()->siguio_fifo);
     }
 
+    public function test_operador_no_puede_cancelar_un_despacho_de_materiales(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenOperador] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        $despachoId = $this->crearDespacho(
+            $tokenOficina,
+            $item,
+            $destino,
+            5,
+        );
+
+        $this->conToken($tokenOperador)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Solicitud anulada por producción.',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('despachos_materiales', [
+            'id' => $despachoId,
+            'estado' => 'pendiente',
+            'cancelado_at' => null,
+        ]);
+    }
+
+    public function test_cancelacion_autorizada_libera_reservas_audita_y_es_idempotente(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara(
+            'CAM-MAT-CANCELA',
+            ContenidoCamara::Materiales,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-CANCELA',
+            0,
+            10,
+            now()->toAtomString(),
+        );
+        $despachoId = $this->crearDespacho(
+            $tokenOficina,
+            $item,
+            $destino,
+            6,
+        );
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'motivo' => 'Orden interna anulada por producción.',
+        ];
+
+        $this->assertSame('6.000', FolioMaterial::findOrFail($folioId)->cantidad_reservada);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cancelado')
+            ->assertJsonPath('data.cancelacion.motivo', $payload['motivo'])
+            ->assertJsonPath('data.cancelacion.usuario.id', $administrador->id)
+            ->assertJsonPath('data.cancelacion.dispositivo', null);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cancelado');
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", [
+                'operacion_id' => $operacionId,
+                'motivo' => 'Mismo UUID con un motivo diferente.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $this->assertSame('0.000', FolioMaterial::findOrFail($folioId)->cantidad_reservada);
+        $this->assertDatabaseHas('despachos_materiales', [
+            'id' => $despachoId,
+            'estado' => 'cancelado',
+            'cancelacion_operacion_id' => $operacionId,
+            'cancelado_por_user_id' => $administrador->id,
+            'cancelado_desde_dispositivo_id' => null,
+            'cancelacion_motivo' => $payload['motivo'],
+        ]);
+        $this->assertDatabaseHas('reservas_materiales', [
+            'folio_id' => $folioId,
+            'estado' => 'liberada',
+        ]);
+    }
+
+    public function test_cancelacion_desde_tablet_autorizada_registra_dispositivo(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        $despachoId = $this->crearDespacho(
+            $tokenOficina,
+            $item,
+            $destino,
+            1,
+        );
+        $supervisor = User::factory()->create([
+            'rol' => RolUsuario::Supervisor,
+            'activo' => true,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-SUPERVISOR',
+            'nombre' => 'Tablet supervisor',
+            'activo' => true,
+        ]);
+        $tokenSupervisor = $supervisor
+            ->crearTokenParaDispositivo($dispositivo, 'tablet-supervisor')
+            ->plainTextToken;
+
+        $this->conToken($tokenSupervisor)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Cancelación supervisada desde cámara.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.cancelacion.usuario.id', $supervisor->id)
+            ->assertJsonPath('data.cancelacion.dispositivo.id', $dispositivo->id);
+
+        $this->assertDatabaseHas('despachos_materiales', [
+            'id' => $despachoId,
+            'cancelado_por_user_id' => $supervisor->id,
+            'cancelado_desde_dispositivo_id' => $dispositivo->id,
+        ]);
+    }
+
     private function crearAdministrador(): array
     {
         $usuario = User::factory()->create([
@@ -340,6 +478,25 @@ class MaterialesApiTest extends TestCase
             'creado_por_user_id' => $usuario->id,
             'actualizado_por_user_id' => $usuario->id,
         ]);
+    }
+
+    private function crearDespacho(
+        string $token,
+        ItemMaterial $item,
+        DestinoMaterial $destino,
+        float $cantidad,
+    ): string {
+        return $this->conToken($token)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'items' => [[
+                    'item_material_id' => $item->id,
+                    'cantidad' => $cantidad,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data.id');
     }
 
     private function crearCamara(

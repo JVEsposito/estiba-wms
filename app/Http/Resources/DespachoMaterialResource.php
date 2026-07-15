@@ -80,7 +80,19 @@ class DespachoMaterialResource extends JsonResource
                 },
             )),
             'completado_at' => $this->completado_at?->toAtomString(),
-            'cancelado_at' => $this->cancelado_at?->toAtomString(),
+            'cancelacion' => $this->cancelado_at ? [
+                'motivo' => $this->cancelacion_motivo,
+                'usuario' => $this->whenLoaded('canceladoPor', fn () => $this->canceladoPor ? [
+                    'id' => $this->canceladoPor->id,
+                    'nombre' => $this->canceladoPor->name,
+                ] : null),
+                'dispositivo' => $this->whenLoaded('dispositivoCancelacion', fn () => $this->dispositivoCancelacion ? [
+                    'id' => $this->dispositivoCancelacion->id,
+                    'codigo' => $this->dispositivoCancelacion->codigo,
+                    'nombre' => $this->dispositivoCancelacion->nombre,
+                ] : null),
+                'cancelado_at' => $this->cancelado_at->toAtomString(),
+            ] : null,
             'created_at' => $this->created_at?->toAtomString(),
             'updated_at' => $this->updated_at?->toAtomString(),
         ];

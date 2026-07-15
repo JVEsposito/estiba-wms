@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
+use App\Enums\TipoBulto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarCargaRequest;
 use App\Http\Requests\AgregarFoliosCargaRequest;
@@ -102,6 +104,10 @@ class CargaController extends Controller
         $folios = Folio::query()
             ->where('activo', true)
             ->where('estado_operacional', EstadoOperacionalFolio::Disponible->value)
+            ->whereIn('tipo_bulto', [
+                TipoBulto::Pallet->value,
+                TipoBulto::Saldo->value,
+            ])
             ->whereDoesntHave('asignacionCargaActual')
             ->whereHas(
                 'ubicacionActual.posicion',
@@ -110,7 +116,8 @@ class CargaController extends Controller
                     ->whereHas(
                         'camara',
                         fn (Builder $camara): Builder => $camara
-                            ->where('estado', EstadoCamara::Activa->value),
+                            ->where('estado', EstadoCamara::Activa->value)
+                            ->where('contenido', ContenidoCamara::Productos->value),
                     ),
             )
             ->when(

@@ -2,18 +2,23 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Carga;
+use App\Models\CargaFolio;
 use App\Models\Dispositivo;
 use App\Models\EventoCarga;
 use App\Models\Folio;
+use App\Models\ItemMaterial;
 use App\Models\Posicion;
 use App\Models\User;
+use App\Services\Cargas\ServicioCarga;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
+use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -362,6 +367,85 @@ class CargaApiTest extends TestCase
             ->assertJsonValidationErrors('folios.1');
     }
 
+    public function test_los_materiales_no_aparecen_entre_los_folios_disponibles_para_cargas(): void
+    {
+        $despachador = $this->despachador();
+        [, $producto] = $this->crearFolioUbicado('FOLIO-PRODUCTO');
+        [, $material] = $this->crearFolioMaterialUbicado('MAT-OCULTO');
+
+        $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/cargas/folios-disponibles')
+            ->assertOk()
+            ->assertJsonFragment(['numero_folio' => $producto->numero_folio])
+            ->assertJsonMissing(['numero_folio' => $material->numero_folio]);
+    }
+
+    public function test_rechaza_incorporar_un_material_directamente_a_una_carga(): void
+    {
+        $despachador = $this->despachador();
+        [, $material] = $this->crearFolioMaterialUbicado('MAT-NO-CARGA');
+        $carga = $this->crearCarga($despachador);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$carga->id}/folios", [
+                'folios' => [$material->numero_folio],
+                'version_esperada' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'folios_no_asignables')
+            ->assertJsonPath('errores.0.codigo', 'tipo_bulto_no_permitido');
+
+        $this->assertDatabaseMissing('carga_folios', [
+            'carga_id' => $carga->id,
+            'folio_id' => $material->id,
+        ]);
+    }
+
+    public function test_publicar_rechaza_una_carga_previamente_contaminada_con_materiales(): void
+    {
+        $despachador = $this->despachador();
+        [, $material] = $this->crearFolioMaterialUbicado('MAT-CONTAMINADO');
+        $carga = $this->crearCarga($despachador);
+        CargaFolio::create([
+            'carga_id' => $carga->id,
+            'folio_id' => $material->id,
+            'asignado_por_user_id' => $despachador->id,
+            'asignado_at' => now(),
+        ]);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$carga->id}/publicar", [
+                'version_esperada' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'folios_no_asignables')
+            ->assertJsonPath('errores.0.codigo', 'tipo_bulto_no_permitido');
+
+        $this->assertSame('borrador', $carga->refresh()->estado->value);
+    }
+
+    public function test_rechaza_una_camara_de_materiales_como_objetivo_en_api_y_servicio(): void
+    {
+        $despachador = $this->despachador();
+        [$camaraMateriales] = $this->crearFolioMaterialUbicado('MAT-CAMARA-OBJETIVO');
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson('/api/cargas', [
+                'camara_objetivo_id' => $camaraMateriales->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('camara_objetivo_id');
+
+        try {
+            app(ServicioCarga::class)->crear([
+                'camara_objetivo_id' => $camaraMateriales->id,
+            ], $despachador);
+            $this->fail('El servicio aceptó una cámara de materiales como objetivo.');
+        } catch (DomainException $exception) {
+            $this->assertStringContainsString('cámara de productos', $exception->getMessage());
+        }
+    }
+
     private function despachador(): User
     {
         return User::factory()->create([
@@ -419,6 +503,68 @@ class CargaApiTest extends TestCase
             dispositivo: $dispositivo,
             versionDestinoConocida: 0,
             generadoDispositivoAt: now(),
+        );
+
+        return [$camara, $movimiento->folio];
+    }
+
+    /**
+     * @return array{Camara, Folio}
+     */
+    private function crearFolioMaterialUbicado(string $numeroFolio): array
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $operador = User::factory()->create([
+            'rol' => RolUsuario::Operador,
+            'activo' => true,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-'.Str::upper(Str::random(6)),
+            'nombre' => 'Tablet de materiales',
+        ]);
+        $item = ItemMaterial::create([
+            'codigo' => 'ITEM-'.Str::upper(Str::random(6)),
+            'nombre' => 'Material de prueba',
+            'unidad_medida' => 'unidades',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        $camara = Camara::create([
+            'codigo' => 'MAT-'.Str::upper(Str::random(5)),
+            'nombre' => 'Cámara de materiales',
+            'contenido' => ContenidoCamara::Materiales,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $posicion = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P01-N1',
+        ]);
+        $sesion = app(ServicioSesionEstiba::class)
+            ->abrir($camara, $operador, $dispositivo);
+        $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
+            operacionId: (string) Str::uuid(),
+            numeroFolio: $numeroFolio,
+            tipoBulto: TipoBulto::Material,
+            posicionDestino: $posicion,
+            sesionDestino: $sesion,
+            usuario: $operador,
+            dispositivo: $dispositivo,
+            versionDestinoConocida: 0,
+            generadoDispositivoAt: now(),
+            datosMaterial: [
+                'item_material_id' => $item->id,
+                'cantidad' => 10,
+            ],
         );
 
         return [$camara, $movimiento->folio];

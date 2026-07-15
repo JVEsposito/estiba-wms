@@ -87,6 +87,16 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::define(
+            'cancelar-despachos-materiales',
+            fn (User $usuario): bool => $usuario->activo
+                && in_array($usuario->rol, [
+                    RolUsuario::Administrador,
+                    RolUsuario::Supervisor,
+                    RolUsuario::Despachador,
+                ], true),
+        );
+
+        Gate::define(
             'consultar-materiales',
             fn (User $usuario): bool => $usuario->activo,
         );

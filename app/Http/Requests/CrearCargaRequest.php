@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\PrioridadCarga;
 use Illuminate\Foundation\Http\FormRequest;
@@ -33,7 +34,7 @@ class CrearCargaRequest extends FormRequest
                 Rule::exists('camaras', 'id')->where(
                     'estado',
                     EstadoCamara::Activa->value,
-                ),
+                )->where('contenido', ContenidoCamara::Productos->value),
             ],
             'observacion' => ['nullable', 'string', 'max:1000'],
         ];

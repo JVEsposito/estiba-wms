@@ -37,8 +37,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:gestionar-despachos-materiales')->group(function () {
         Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store']);
         Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar']);
-        Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar']);
     });
+    Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
+        ->middleware('can:cancelar-despachos-materiales');
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
 use App\Http\Requests\RetirarDespachoMaterialRequest;
 use App\Http\Resources\DespachoMaterialResource;
@@ -82,12 +83,23 @@ class DespachoMaterialController extends Controller
     }
 
     public function cancelar(
+        CancelarDespachoMaterialRequest $request,
         DespachoMaterial $despachoMaterial,
         ServicioDespachoMaterial $servicio,
     ): DespachoMaterialResource {
-        Gate::authorize('gestionar-despachos-materiales');
+        $token = $request->user()->currentAccessToken();
+        $dispositivo = $token instanceof PersonalAccessToken && $token->dispositivo_id
+            ? $token->dispositivo()->first()
+            : null;
+        $despacho = $servicio->cancelar(
+            $despachoMaterial,
+            $request->validated('operacion_id'),
+            $request->validated('motivo'),
+            $request->user(),
+            $dispositivo,
+        );
 
-        return new DespachoMaterialResource($servicio->cancelar($despachoMaterial));
+        return new DespachoMaterialResource($despacho);
     }
 
     public function inventario(): JsonResponse

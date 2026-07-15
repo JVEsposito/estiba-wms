@@ -70,6 +70,11 @@ class AccesoOficinaController extends Controller
                     RolUsuario::Supervisor,
                     RolUsuario::Despachador,
                 ], true),
+                'puede_cancelar_despachos_materiales' => in_array($usuario->rol, [
+                    RolUsuario::Administrador,
+                    RolUsuario::Supervisor,
+                    RolUsuario::Despachador,
+                ], true),
             ],
         ]);
     }

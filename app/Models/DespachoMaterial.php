@@ -25,6 +25,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'creado_desde_dispositivo_id',
     'completado_at',
     'cancelado_at',
+    'cancelacion_operacion_id',
+    'cancelacion_payload_hash',
+    'cancelado_por_user_id',
+    'cancelado_desde_dispositivo_id',
+    'cancelacion_motivo',
 ])]
 class DespachoMaterial extends Model
 {
@@ -50,6 +55,16 @@ class DespachoMaterial extends Model
     public function dispositivo(): BelongsTo
     {
         return $this->belongsTo(Dispositivo::class, 'creado_desde_dispositivo_id');
+    }
+
+    public function canceladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelado_por_user_id');
+    }
+
+    public function dispositivoCancelacion(): BelongsTo
+    {
+        return $this->belongsTo(Dispositivo::class, 'cancelado_desde_dispositivo_id');
     }
 
     protected function casts(): array

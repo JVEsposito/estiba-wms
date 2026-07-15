@@ -25,8 +25,10 @@ use App\Models\SesionEstiba;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use DomainException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ServicioDespachoMaterial
 {
@@ -309,19 +311,79 @@ class ServicioDespachoMaterial
         }, attempts: 3);
     }
 
-    public function cancelar(DespachoMaterial $despacho): DespachoMaterial
-    {
-        return DB::transaction(function () use ($despacho): DespachoMaterial {
-            $despacho = DespachoMaterial::query()
-                ->with('detalles')
-                ->lockForUpdate()
-                ->findOrFail($despacho->id);
+    public function cancelar(
+        DespachoMaterial $despacho,
+        string $operacionId,
+        string $motivo,
+        User $usuario,
+        ?Dispositivo $dispositivo,
+    ): DespachoMaterial {
+        if (! Str::isUuid($operacionId)) {
+            throw new DomainException('El identificador de la cancelación debe ser un UUID válido.');
+        }
 
-            if ($despacho->estado === EstadoDespachoMaterial::Completado) {
-                throw new DomainException('Un despacho completado no puede cancelarse.');
-            }
+        $motivo = trim($motivo);
 
-            if ($despacho->estado !== EstadoDespachoMaterial::Cancelado) {
+        if (mb_strlen($motivo) < 3) {
+            throw new DomainException('El motivo de cancelación debe contener al menos 3 caracteres.');
+        }
+
+        try {
+            return DB::transaction(function () use (
+                $despacho,
+                $operacionId,
+                $motivo,
+                $usuario,
+                $dispositivo,
+            ): DespachoMaterial {
+                $despacho = DespachoMaterial::query()
+                    ->with('detalles')
+                    ->lockForUpdate()
+                    ->findOrFail($despacho->id);
+                $payloadHash = $this->payloadHash([
+                    'despacho_material_id' => $despacho->id,
+                    'motivo' => $motivo,
+                ]);
+                $otraCancelacion = DespachoMaterial::query()
+                    ->where('cancelacion_operacion_id', $operacionId)
+                    ->where('id', '!=', $despacho->id)
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($otraCancelacion) {
+                    throw new ConflictoOperacion(
+                        'El UUID de cancelación ya fue utilizado en otro despacho.',
+                    );
+                }
+
+                if ($despacho->cancelacion_operacion_id !== null) {
+                    $mismaOperacion = $despacho->cancelacion_operacion_id === $operacionId
+                        && $despacho->cancelado_por_user_id === $usuario->id
+                        && $despacho->cancelado_desde_dispositivo_id === $dispositivo?->id
+                        && hash_equals(
+                            (string) $despacho->cancelacion_payload_hash,
+                            $payloadHash,
+                        );
+
+                    if (! $mismaOperacion) {
+                        throw new ConflictoOperacion(
+                            'El despacho ya fue cancelado con una operación diferente.',
+                        );
+                    }
+
+                    return $this->cargar($despacho);
+                }
+
+                if ($despacho->estado === EstadoDespachoMaterial::Completado) {
+                    throw new DomainException('Un despacho completado no puede cancelarse.');
+                }
+
+                if ($despacho->estado === EstadoDespachoMaterial::Cancelado) {
+                    throw new DomainException(
+                        'El despacho ya se encontraba cancelado antes de registrar esta operación.',
+                    );
+                }
+
                 foreach ($despacho->detalles as $detalle) {
                     $this->liberarReservas($detalle);
                 }
@@ -329,11 +391,21 @@ class ServicioDespachoMaterial
                 $despacho->update([
                     'estado' => EstadoDespachoMaterial::Cancelado,
                     'cancelado_at' => now(),
+                    'cancelacion_operacion_id' => $operacionId,
+                    'cancelacion_payload_hash' => $payloadHash,
+                    'cancelado_por_user_id' => $usuario->id,
+                    'cancelado_desde_dispositivo_id' => $dispositivo?->id,
+                    'cancelacion_motivo' => $motivo,
                 ]);
-            }
 
-            return $this->cargar($despacho->refresh());
-        }, attempts: 3);
+                return $this->cargar($despacho->refresh());
+            }, attempts: 3);
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ConflictoOperacion(
+                'El UUID de cancelación fue utilizado por otra operación concurrente.',
+                previous: $exception,
+            );
+        }
     }
 
     public function cargar(DespachoMaterial $despacho): DespachoMaterial
@@ -341,6 +413,8 @@ class ServicioDespachoMaterial
         return $despacho->load([
             'creadoPor:id,name',
             'dispositivo:id,codigo,nombre',
+            'canceladoPor:id,name',
+            'dispositivoCancelacion:id,codigo,nombre',
             'detalles.item',
             'detalles.reservas' => fn ($consulta) => $consulta
                 ->where('estado', EstadoReservaMaterial::Activa->value)
