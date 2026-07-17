@@ -62,6 +62,10 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 .identity button, .icon-button { border: 1px solid var(--line); background: transparent; color: var(--muted); }
 .identity button { min-height: 36px; margin-left: 10px; border-radius: 8px; padding: 0 12px; font-size: .74rem; font-weight: 800; }
 
+.configuration-module-tabs { display: flex; width: fit-content; gap: 4px; margin: 16px 16px 0; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
+.configuration-module-tabs button { min-height: 38px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); padding: 0 18px; font-size: .76rem; font-weight: 900; }
+.configuration-module-tabs button.is-active { background: var(--soft); color: var(--cyan); }
+
 .office-workspace { display: grid; grid-template-columns: 320px minmax(700px, 1fr); gap: 16px; padding: 16px; }
 .panel { border: 1px solid var(--line); border-radius: 17px; background: rgba(10, 27, 37, .96); box-shadow: 0 18px 48px rgba(0, 0, 0, .2); }
 .camera-catalog { min-height: calc(100vh - 104px); padding: 17px; }
@@ -100,6 +104,13 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 .next-code span { color: var(--muted); font-size: .65rem; font-weight: 900; letter-spacing: .12em; }
 .next-code strong { color: var(--cyan); font-size: 1.4rem; }
 .form-grid { display: grid; grid-template-columns: 2fr repeat(4, minmax(130px, 1fr)); gap: 12px; margin-top: 20px; }
+.dock-form-grid { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(240px, 1.3fr) minmax(220px, 1fr); gap: 12px; margin-top: 20px; }
+.dock-status-toggle { display: flex; align-items: center; gap: 13px; margin: 18px 0; border: 1px solid var(--line); border-radius: 11px; background: var(--deep); padding: 13px 15px; color: var(--text); cursor: pointer; }
+.dock-status-toggle input { width: 20px; min-height: 20px; flex: 0 0 20px; accent-color: var(--cyan); }
+.dock-status-toggle span { display: grid; gap: 3px; }
+.dock-status-toggle strong { font-size: .8rem; }
+.dock-status-toggle small, .dock-item__status { color: var(--muted); font-size: .68rem; line-height: 1.4; }
+.dock-item__status { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
 .field--wide { grid-column: span 1; }
 .field input, .field select { min-height: 46px; }
 .capacity-summary { justify-content: flex-start; flex-wrap: wrap; margin: 18px 0; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--deep); }
@@ -136,6 +147,7 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
     .office-topbar nav { display: none; }
     .office-workspace { grid-template-columns: 260px minmax(650px, 1fr); overflow-x: auto; }
     .form-grid { grid-template-columns: repeat(2, 1fr); }
+    .dock-form-grid { grid-template-columns: repeat(2, 1fr); }
     .field--wide { grid-column: span 2; }
 }
 

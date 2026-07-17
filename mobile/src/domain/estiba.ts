@@ -24,6 +24,7 @@ export type UserCapabilities = {
   puede_consultar_cargas: boolean;
   puede_consultar_catalogo_cargas: boolean;
   puede_gestionar_cargas: boolean;
+  puede_gestionar_andenes: boolean;
   puede_consultar_despachos_materiales: boolean;
   puede_gestionar_despachos_materiales: boolean;
   puede_retirar_materiales: boolean;

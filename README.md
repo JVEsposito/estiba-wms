@@ -57,10 +57,12 @@ Estas definiciones son la referencia previa para diseñar migraciones, endpoints
 
 El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
 
-La configuración de cámaras se realiza desde PC en `/oficina/camaras`. El acceso
-de oficina no solicita código de tablet. Los perfiles de frío y materiales
-reciben cámaras, sesiones y acciones de su propia área; `despachador` y
-`consulta` pueden observar ambas sin abrir sesiones operacionales.
+La configuración de cámaras se realiza desde PC en `/oficina/camaras`; desde la
+misma pantalla el administrador puede crear, editar, activar y desactivar
+andenes. El acceso de oficina no solicita código de tablet. Los perfiles de frío
+y materiales reciben cámaras, sesiones y acciones de su propia área;
+`despachador` y `consulta` pueden observar ambas sin abrir sesiones
+operacionales.
 
 ## Puesta en marcha local
 

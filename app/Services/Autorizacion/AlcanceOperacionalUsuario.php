@@ -269,6 +269,7 @@ class AlcanceOperacionalUsuario
             'puede_resolver_reparacion_carga' => $this->puedeResolverReparacionCarga($usuario),
             'puede_enviar_folios_anden' => $this->puedeEnviarFoliosAnden($usuario),
             'puede_cerrar_despacho_frigorifico' => $this->puedeCerrarDespachoFrigorifico($usuario),
+            'puede_gestionar_andenes' => $this->puedeGestionarAndenes($usuario),
             'puede_consultar_despachos_materiales' => $this->puedeConsultarDespachosMateriales($usuario),
             'puede_gestionar_despachos_materiales' => $this->puedeGestionarDespachosMateriales($usuario),
             'puede_retirar_materiales' => $this->puedeRetirarMateriales($usuario),
