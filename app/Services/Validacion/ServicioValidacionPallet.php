@@ -57,7 +57,10 @@ class ServicioValidacionPallet
                 );
             }
 
-            $temporada = DB::table('temporadas')->where('id', $datos['temporada_id'])->lockForUpdate()->first();
+            $temporada = DB::table('temporadas')
+                ->where('id', $datos['temporada_id'])
+                ->lockForUpdate()
+                ->first();
             if (! $temporada || ! $temporada->activa) {
                 throw new DomainException('La temporada no existe o no se encuentra activa.');
             }
@@ -75,6 +78,17 @@ class ServicioValidacionPallet
 
             if (! $articulo || ! $origen) {
                 throw new DomainException('El artículo o el origen no pertenecen al catálogo activo de la temporada.');
+            }
+
+            $combinacion = DB::table('combinaciones_validacion')
+                ->where('temporada_id', $temporada->id)
+                ->where('articulo_validacion_id', $articulo->id)
+                ->where('origen_validacion_id', $origen->id)
+                ->where('activo', true)
+                ->first();
+
+            if (! $combinacion) {
+                throw new DomainException('La combinación de artículo y origen no se encuentra habilitada.');
             }
 
             $numeroFolio = $payload['numero_folio'];
@@ -122,6 +136,10 @@ class ServicioValidacionPallet
                     'marca' => $origen->marca,
                     'csg' => $origen->csg,
                     'predio' => $origen->predio,
+                ],
+                'combinacion' => [
+                    'id' => $combinacion->id,
+                    'codigo_externo' => $combinacion->codigo_externo,
                 ],
                 'payload' => $payload,
             ];
@@ -171,6 +189,7 @@ class ServicioValidacionPallet
                         'predio' => $origen->predio,
                         'cantidad_cajas' => $datos['cantidad_cajas'],
                         'validacion_id' => $validacion->id,
+                        'combinacion_validacion_id' => $combinacion->id,
                     ],
                 ]);
                 $validacion->update(['folio_id' => $folio->id]);
