@@ -19,7 +19,7 @@ class ConfiguracionCamaraApiTest extends TestCase
         $usuario = User::factory()->create([
             'email' => 'supervisor@estiba.local',
             'password' => 'password',
-            'rol' => RolUsuario::Supervisor,
+            'rol' => RolUsuario::SupervisorFrio,
             'activo' => true,
         ]);
 
@@ -30,7 +30,7 @@ class ConfiguracionCamaraApiTest extends TestCase
 
         $respuesta
             ->assertOk()
-            ->assertJsonPath('usuario.rol', 'supervisor')
+            ->assertJsonPath('usuario.rol', 'supervisor_frio')
             ->assertJsonPath('usuario.puede_configurar_camaras', true)
             ->assertJsonPath('usuario.puede_administrar_camaras', false);
 
@@ -46,7 +46,7 @@ class ConfiguracionCamaraApiTest extends TestCase
         $usuario = User::factory()->create([
             'email' => 'operador@estiba.local',
             'password' => 'password',
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
 
@@ -78,7 +78,7 @@ class ConfiguracionCamaraApiTest extends TestCase
     {
         Camara::create(['codigo' => 'CAM-01', 'nombre' => 'Cámara existente']);
         $supervisor = User::factory()->create([
-            'rol' => RolUsuario::Supervisor,
+            'rol' => RolUsuario::SupervisorFrio,
             'activo' => true,
         ]);
 
@@ -127,7 +127,7 @@ class ConfiguracionCamaraApiTest extends TestCase
     public function test_solo_supervisor_o_administrador_puede_configurar_camaras(): void
     {
         $operador = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
 
@@ -147,7 +147,7 @@ class ConfiguracionCamaraApiTest extends TestCase
     public function test_rechaza_planos_mayores_a_mil_posiciones(): void
     {
         $supervisor = User::factory()->create([
-            'rol' => RolUsuario::Supervisor,
+            'rol' => RolUsuario::SupervisorFrio,
             'activo' => true,
         ]);
 

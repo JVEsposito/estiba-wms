@@ -133,7 +133,7 @@ class IntegridadMovimientoTest extends TestCase
     public function test_la_operacion_debe_pertenecer_al_mismo_usuario_y_dispositivo(): void
     {
         [$usuario, $dispositivo, $camara, $posicion, $sesion] = $this->crearContexto();
-        $otroUsuario = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $otroUsuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $folio = $this->crearFolio();
         $operacion = $this->crearOperacion($otroUsuario, $dispositivo);
 
@@ -184,7 +184,7 @@ class IntegridadMovimientoTest extends TestCase
 
     private function crearContexto(): array
     {
-        $usuario = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $usuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',
             'nombre' => 'Tablet 01',

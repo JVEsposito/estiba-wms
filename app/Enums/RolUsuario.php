@@ -5,8 +5,10 @@ namespace App\Enums;
 enum RolUsuario: string
 {
     case Administrador = 'administrador';
-    case Supervisor = 'supervisor';
+    case SupervisorFrio = 'supervisor_frio';
+    case SupervisorMateriales = 'supervisor_materiales';
     case Despachador = 'despachador';
-    case Operador = 'operador';
+    case CamareroFrio = 'camarero_frio';
+    case CamareroMateriales = 'camarero_materiales';
     case Consulta = 'consulta';
 }

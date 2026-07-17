@@ -2,13 +2,18 @@
 
 namespace App\Http\Requests;
 
+use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Http\FormRequest;
 
 class MoverFolioRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $usuario = $this->user();
+
+        return $usuario instanceof User
+            && app(AlcanceOperacionalUsuario::class)->puedeOperarAlgunaCamara($usuario);
     }
 
     /**

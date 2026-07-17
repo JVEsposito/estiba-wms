@@ -68,13 +68,14 @@ class MaterialesApiTest extends TestCase
     {
         [$administrador] = $this->crearAdministrador();
         [$operador, $dispositivo, $tokenTablet] = $this->crearOperador();
+        [, , $tokenFrio] = $this->crearCamareroFrio();
         $item = $this->crearItem($administrador);
         [$camaraMaterial, $posicionMaterial] = $this->crearCamara('CAM-01', ContenidoCamara::Materiales);
         [$camaraProducto, $posicionProducto] = $this->crearCamara('CAM-02', ContenidoCamara::Productos);
         $sesionMaterial = $this->abrirSesion($tokenTablet, $camaraMaterial);
-        $sesionProducto = $this->abrirSesion($tokenTablet, $camaraProducto);
+        $sesionProducto = $this->abrirSesion($tokenFrio, $camaraProducto);
 
-        $this->conToken($tokenTablet)
+        $this->conToken($tokenFrio)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicionProducto,
                 $sesionProducto,
@@ -301,6 +302,10 @@ class MaterialesApiTest extends TestCase
         );
 
         $this->conToken($tokenOperador)
+            ->postJson('/api/materiales/despachos', [])
+            ->assertForbidden();
+
+        $this->conToken($tokenOperador)
             ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", [
                 'operacion_id' => (string) Str::uuid(),
                 'motivo' => 'Solicitud anulada por producción.',
@@ -397,7 +402,7 @@ class MaterialesApiTest extends TestCase
             1,
         );
         $supervisor = User::factory()->create([
-            'rol' => RolUsuario::Supervisor,
+            'rol' => RolUsuario::SupervisorMateriales,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([
@@ -439,7 +444,7 @@ class MaterialesApiTest extends TestCase
     private function crearOperador(): array
     {
         $usuario = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroMateriales,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([
@@ -449,6 +454,24 @@ class MaterialesApiTest extends TestCase
         ]);
         $token = $usuario
             ->crearTokenParaDispositivo($dispositivo, 'tablet-materiales')
+            ->plainTextToken;
+
+        return [$usuario, $dispositivo, $token];
+    }
+
+    private function crearCamareroFrio(): array
+    {
+        $usuario = User::factory()->create([
+            'rol' => RolUsuario::CamareroFrio,
+            'activo' => true,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-FRIO-'.Str::upper(Str::random(6)),
+            'nombre' => 'Tablet frío',
+            'activo' => true,
+        ]);
+        $token = $usuario
+            ->crearTokenParaDispositivo($dispositivo, 'tablet-frio')
             ->plainTextToken;
 
         return [$usuario, $dispositivo, $token];

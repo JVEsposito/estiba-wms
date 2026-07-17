@@ -171,7 +171,7 @@ class ConsultaDespachadorApiTest extends TestCase
     private function crearFolioUbicado(string $numeroFolio): Folio
     {
         $operador = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([

@@ -22,27 +22,27 @@ class DatabaseSeeder extends Seeder
             return;
         }
 
-        User::query()->firstOrCreate(
+        User::query()->updateOrCreate(
             ['email' => 'operador@estiba.local'],
             [
                 'name' => 'Operador de prueba',
                 'password' => Hash::make('password'),
-                'rol' => RolUsuario::Operador,
+                'rol' => RolUsuario::CamareroFrio,
                 'activo' => true,
             ],
         );
 
-        User::query()->firstOrCreate(
+        User::query()->updateOrCreate(
             ['email' => 'supervisor@estiba.local'],
             [
                 'name' => 'Supervisor de prueba',
                 'password' => Hash::make('password'),
-                'rol' => RolUsuario::Supervisor,
+                'rol' => RolUsuario::SupervisorFrio,
                 'activo' => true,
             ],
         );
 
-        User::query()->firstOrCreate(
+        User::query()->updateOrCreate(
             ['email' => 'administrador@estiba.local'],
             [
                 'name' => 'Administrador de prueba',
@@ -52,12 +52,32 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
-        User::query()->firstOrCreate(
+        User::query()->updateOrCreate(
             ['email' => 'despachador@estiba.local'],
             [
                 'name' => 'Despachador de prueba',
                 'password' => Hash::make('password'),
                 'rol' => RolUsuario::Despachador,
+                'activo' => true,
+            ],
+        );
+
+        User::query()->updateOrCreate(
+            ['email' => 'camarero.materiales@estiba.local'],
+            [
+                'name' => 'Camarero de materiales',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::CamareroMateriales,
+                'activo' => true,
+            ],
+        );
+
+        User::query()->updateOrCreate(
+            ['email' => 'supervisor.materiales@estiba.local'],
+            [
+                'name' => 'Supervisor de materiales',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::SupervisorMateriales,
                 'activo' => true,
             ],
         );

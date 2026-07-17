@@ -7,6 +7,7 @@ use App\Http\Requests\AccesoTabletRequest;
 use App\Models\Dispositivo;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,8 +17,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AccesoTabletController extends Controller
 {
-    public function store(AccesoTabletRequest $request): JsonResponse
-    {
+    public function store(
+        AccesoTabletRequest $request,
+        AlcanceOperacionalUsuario $alcance,
+    ): JsonResponse {
         $datos = $request->validated();
         $usuario = User::query()
             ->where('email', mb_strtolower($datos['email']))
@@ -63,6 +66,8 @@ class AccesoTabletController extends Controller
                 'nombre' => $usuario->name,
                 'email' => $usuario->email,
                 'rol' => $usuario->rol->value,
+                'ambito_camaras' => $alcance->ambitoCamaras($usuario),
+                'capacidades' => $alcance->capacidadesApi($usuario),
             ],
             'dispositivo' => [
                 'id' => $dispositivo->id,

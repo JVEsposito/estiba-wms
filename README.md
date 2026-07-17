@@ -49,6 +49,7 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Arquitectura propuesta](docs/arquitectura.md)
 - [Prueba de escritura desde Expo Go hacia MySQL](docs/prueba-escritura-mysql.md)
 - [Configuración de cámaras y preparación de cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
+- [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
@@ -57,8 +58,9 @@ Estas definiciones son la referencia previa para diseñar migraciones, endpoints
 El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
 
 La configuración de cámaras se realiza desde PC en `/oficina/camaras`. El acceso
-de oficina no solicita código de tablet y admite despachadores, supervisores y
-administradores; cada módulo conserva permisos independientes.
+de oficina no solicita código de tablet. Los perfiles de frío y materiales
+reciben cámaras, sesiones y acciones de su propia área; `despachador` y
+`consulta` pueden observar ambas sin abrir sesiones operacionales.
 
 ## Puesta en marcha local
 
@@ -74,13 +76,19 @@ php artisan serve
 
 Los datos de demostración solo se crean en entornos `local` y `testing`:
 
-- Usuario: `operador@estiba.local`
+- Usuario: `operador@estiba.local` (`camarero_frio`)
 - Contraseña: `password`
 - Código de tablet: `TABLET-01`
 
 Para probar la configuración desde oficina:
 
 - Usuario: `supervisor@estiba.local`
+- Contraseña: `password`
+
+Para probar materiales:
+
+- Camarero: `camarero.materiales@estiba.local`
+- Supervisor: `supervisor.materiales@estiba.local`
 - Contraseña: `password`
 
 Para editar, redimensionar, desactivar o reactivar cámaras:

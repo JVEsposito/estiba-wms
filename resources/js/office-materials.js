@@ -2,7 +2,8 @@ const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
     loginError: byId('officeLoginError'), userName: byId('officeUserName'), userRole: byId('officeUserRole'),
-    initials: byId('officeInitials'), logout: byId('officeLogoutButton'), accessesNav: byId('officeAccessesNav'),
+    initials: byId('officeInitials'), logout: byId('officeLogoutButton'), camerasNav: byId('officeCamerasNav'),
+    loadsNav: byId('officeLoadsNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadMaterialsButton'), admin: byId('materialsAdminCatalogs'), itemForm: byId('itemMaterialForm'),
     itemError: byId('itemMaterialError'), itemCancel: byId('cancelItemEdit'), itemList: byId('itemsMaterialList'),
     destinationForm: byId('destinationMaterialForm'), destinationError: byId('destinationMaterialError'),
@@ -56,7 +57,12 @@ function showApp() {
     const name = state.identity?.nombre || 'Usuario'; elements.userName.textContent = name; elements.userRole.textContent = statusText(state.identity?.rol);
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
+    elements.loadsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cargas !== true);
     elements.admin.classList.toggle('is-hidden', state.identity?.puede_administrar_catalogos_materiales !== true);
+    elements.dispatchForm.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_gestionar_despachos_materiales !== true,
+    );
 }
 
 function activeItems() { return state.items.filter((item) => item.activo); }
@@ -67,14 +73,16 @@ function renderMetrics() {
     elements.destinationCount.textContent = String(activeDestinations().length);
 }
 function renderItems() {
+    const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     elements.itemsSummary.textContent = `${state.items.length} registrados`;
-    elements.itemList.innerHTML = state.items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div><button data-edit-item="${item.id}" type="button">Editar</button></article>`).join('') || '<p class="empty-state">No existen ítems.</p>';
+    elements.itemList.innerHTML = state.items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems.</p>';
     const options = activeItems().map((item) => `<option value="${item.id}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)} (${escapeHtml(item.unidad_medida)})</option>`).join('');
     elements.dispatchLines.querySelectorAll('select[name="item_material_id"]').forEach((select) => { const current = select.value; select.innerHTML = options; if ([...select.options].some((option) => option.value === current)) select.value = current; });
 }
 function renderDestinations() {
+    const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     elements.destinationsSummary.textContent = `${state.destinations.length} registrados`;
-    elements.destinationList.innerHTML = state.destinations.map((destination) => `<article class="material-row${destination.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(destination.nombre)}</strong><small>${escapeHtml(destination.centro_costo)}${destination.descripcion ? ` · ${escapeHtml(destination.descripcion)}` : ''}</small></div><button data-edit-destination="${destination.id}" type="button">Editar</button></article>`).join('') || '<p class="empty-state">No existen destinos.</p>';
+    elements.destinationList.innerHTML = state.destinations.map((destination) => `<article class="material-row${destination.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(destination.nombre)}</strong><small>${escapeHtml(destination.centro_costo)}${destination.descripcion ? ` · ${escapeHtml(destination.descripcion)}` : ''}</small></div>${canAdminister ? `<button data-edit-destination="${destination.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen destinos.</p>';
     elements.dispatchDestination.innerHTML = '<option value="">Selecciona un destino</option>' + activeDestinations().map((destination) => `<option value="${destination.id}">${escapeHtml(destination.nombre)} · ${escapeHtml(destination.centro_costo)}</option>`).join('');
 }
 function renderDispatches() {
@@ -110,7 +118,7 @@ function addDispatchLine(itemId = '', amount = '') {
 function resetItemForm() { elements.itemForm.reset(); elements.itemForm.elements.id.value = ''; elements.itemForm.elements.activo.checked = true; elements.itemCancel.classList.add('is-hidden'); elements.itemError.textContent = ''; }
 function resetDestinationForm() { elements.destinationForm.reset(); elements.destinationForm.elements.id.value = ''; elements.destinationForm.elements.activo.checked = true; elements.destinationCancel.classList.add('is-hidden'); elements.destinationError.textContent = ''; }
 
-elements.login.addEventListener('submit', async (event) => { event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…'); try { const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.login))) }); persist(payload); showApp(); await loadAll(); } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); } });
+elements.login.addEventListener('submit', async (event) => { event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…'); try { const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.login))) }); if (payload.usuario.puede_consultar_despachos_materiales !== true) throw new ApiError('Tu perfil no puede consultar materiales.', 403); persist(payload); showApp(); await loadAll(); } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); } });
 elements.itemForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.itemError.textContent = ''; const data = Object.fromEntries(new FormData(elements.itemForm)); const id = data.id; delete data.id; data.activo = elements.itemForm.elements.activo.checked; setBusy(true, 'Guardando ítem…'); try { await api(id ? `/api/administracion/materiales/items/${id}` : '/api/administracion/materiales/items', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetItemForm(); await loadAll(); toast('Ítem guardado correctamente.'); } catch (error) { elements.itemError.textContent = error.message; } finally { setBusy(false); } });
 elements.destinationForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.destinationError.textContent = ''; const data = Object.fromEntries(new FormData(elements.destinationForm)); const id = data.id; delete data.id; data.activo = elements.destinationForm.elements.activo.checked; setBusy(true, 'Guardando destino…'); try { await api(id ? `/api/administracion/materiales/destinos/${id}` : '/api/administracion/materiales/destinos', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetDestinationForm(); await loadAll(); toast('Destino guardado correctamente.'); } catch (error) { elements.destinationError.textContent = error.message; } finally { setBusy(false); } });
 elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
@@ -153,5 +161,5 @@ elements.dispatchList.addEventListener('click', async (event) => {
 elements.inventorySearch.addEventListener('input', renderInventory); elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando materiales…'); try { await loadAll(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 
-async function boot() { addDispatchLine(); if (!state.token) return; showApp(); setBusy(true, 'Cargando materiales…'); try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); } }
+async function boot() { addDispatchLine(); if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) return; showApp(); setBusy(true, 'Cargando materiales…'); try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); } }
 void boot();

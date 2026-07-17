@@ -321,6 +321,7 @@ export type MaterialDispatchFormValue = {
 
 export function MaterialDispatchModal({
   busy,
+  canCreate,
   destinations,
   dispatches,
   error,
@@ -330,6 +331,7 @@ export function MaterialDispatchModal({
   visible,
 }: {
   busy: boolean;
+  canCreate: boolean;
   destinations: MaterialDestination[];
   dispatches: MaterialDispatch[];
   error: string;
@@ -344,16 +346,17 @@ export function MaterialDispatchModal({
   const matchingDispatches = dispatches.filter((dispatch) => dispatch.items.some((detail) => (
     detail.item.id === material?.item.id && Number(detail.cantidad_pendiente) > 0
   )));
+  const firstMatchingDispatchId = matchingDispatches[0]?.id;
   const [dispatchId, setDispatchId] = useState<string>();
   const [destinationId, setDestinationId] = useState<string>();
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
     if (!visible) return;
-    setDispatchId(undefined);
+    setDispatchId(canCreate ? undefined : firstMatchingDispatchId);
     setDestinationId(undefined);
     setAmount('');
-  }, [visible, position?.folio?.id]);
+  }, [canCreate, firstMatchingDispatchId, visible, position?.folio?.id]);
 
   const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
   const selectedDetail = selectedDispatch?.items.find((detail) => detail.item.id === material?.item.id);
@@ -396,17 +399,17 @@ export function MaterialDispatchModal({
               <View><Text style={styles.label}>DISPONIBLE</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_disponible ?? '0'} {material?.unidad_medida}</Text></View>
             </View>
 
-            <Text style={styles.label}>Orden existente o despacho directo</Text>
+            <Text style={styles.label}>{canCreate ? 'Orden existente o despacho directo' : 'Orden de despacho asignada'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator>
               <View style={styles.choiceRow}>
-                <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => setDispatchId(undefined)} />
+                {canCreate && <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => setDispatchId(undefined)} />}
                 {matchingDispatches.map((dispatch) => (
                   <Choice active={dispatchId === dispatch.id} key={dispatch.id} label={`${dispatch.codigo} · ${dispatch.destino.nombre}`} onPress={() => setDispatchId(dispatch.id)} />
                 ))}
               </View>
             </ScrollView>
 
-            {!dispatchId && (
+            {canCreate && !dispatchId && (
               <View style={[styles.field, styles.wide, styles.materialField]}>
                 <Text style={styles.label}>Destino y centro de costo *</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator>

@@ -52,7 +52,8 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 9. Cerrar una sesión libera la cámara.
 10. Una modificación posterior crea otra sesión; una sesión cerrada no se reutiliza.
 11. Una sesión aparentemente abandonada no se entrega silenciosamente a otro operador.
-12. Un supervisor puede cerrarla forzosamente después de verificar la situación.
+12. Un supervisor puede cerrarla forzosamente solo dentro de su área, desde
+    oficina y registrando un motivo. El administrador puede cerrar cualquiera.
 13. Las operaciones offline asociadas a una sesión cerrada forzosamente pasan a conflicto.
 
 ## 5. Movimientos y auditoría
@@ -111,19 +112,24 @@ Estas reglas son obligatorias para la base de datos, los servicios Laravel, la A
 
 ## 10. Autorizaciones
 
-| Acción | Operador | Despachador | Supervisor | Administrador | Consulta |
-|---|---:|---:|---:|---:|---:|
-| Consultar cámaras | Sí | Sí | Sí | Sí | Sí |
-| Abrir sesión | Sí | No | Sí | Sí | No |
-| Ubicar, reubicar y trasladar | Sí | No | Sí | Sí | No |
-| Retirar | Sí | No | Sí | Sí | No |
-| Revertir | No | No | Sí | Sí | No |
-| Cerrar sesión ajena | No | No | Sí | Sí | No |
-| Crear y editar cargas | No | Sí | Sí | Sí | No |
-| Consultar cargas operacionales | Sí | Sí | Sí | Sí | Sí |
-| Crear cámaras | No | No | Sí | Sí | No |
-| Editar o redimensionar cámaras | No | No | No | Sí | No |
-| Desactivar o reactivar cámaras | No | No | No | Sí | No |
-| Administrar usuarios y dispositivos | No | No | No | Sí | No |
+| Acción | Camarero frío | Supervisor frío | Camarero materiales | Supervisor materiales | Despachador | Administrador | Consulta |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ver cámaras de frío | Sí | Sí | No | No | Sí | Sí | Sí |
+| Ver cámaras de materiales | No | No | Sí | Sí | Sí | Sí | Sí |
+| Abrir sesión del área | Sí | Sí | Sí | Sí | No | Sí | No |
+| Mover folios del área | Sí | Sí | Sí | Sí | No | Sí | No |
+| Cerrar sesión ajena del área | No | Sí | No | Sí | No | Sí | No |
+| Gestionar cargas `CAR-*` | No | Sí | No | No | Sí | Sí | No |
+| Consultar cargas `CAR-*` | Sí | Sí | No | No | Sí | Sí | Sí |
+| Gestionar despachos materiales | No | No | No | Sí | Sí | Sí | No |
+| Retirar materiales | No | No | Sí | Sí | No | Sí | No |
+| Cancelar despacho material | No | No | No | Sí | Sí | Sí | No |
+| Consultar kardex completo | No | No | No | Sí | No | Sí | No |
+| Crear cámaras del área | No | Sí | No | Sí | No | Sí | No |
+| Editar o desactivar cámaras | No | No | No | No | No | Sí | No |
+| Administrar accesos | No | No | No | No | No | Sí | No |
 
-La matriz podrá refinarse, pero cualquier ampliación deberá conservar la trazabilidad.
+Los permisos se calculan en `AlcanceOperacionalUsuario`. Los controladores, los
+servicios de dominio, la oficina y la aplicación móvil deben consumir esa misma
+interpretación; ocultar una acción en la interfaz nunca sustituye la validación
+de Laravel.

@@ -8,14 +8,22 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CamaraPlanoResource;
 use App\Http\Resources\CamaraResumenResource;
 use App\Models\Camara;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class CamaraController extends Controller
 {
-    public function index(): AnonymousResourceCollection
-    {
+    public function index(
+        Request $request,
+        AlcanceOperacionalUsuario $alcance,
+    ): AnonymousResourceCollection {
+        $contenidos = collect($alcance->contenidosVisibles($request->user()))
+            ->map->value
+            ->all();
         $camaras = Camara::query()
             ->where('estado', EstadoCamara::Activa->value)
+            ->whereIn('contenido', $contenidos)
             ->withCount([
                 'posiciones' => fn ($consulta) => $consulta
                     ->where('estado', EstadoPosicion::Activa->value),
@@ -32,9 +40,13 @@ class CamaraController extends Controller
         return CamaraResumenResource::collection($camaras);
     }
 
-    public function plano(Camara $camara): CamaraPlanoResource
-    {
+    public function plano(
+        Request $request,
+        Camara $camara,
+        AlcanceOperacionalUsuario $alcance,
+    ): CamaraPlanoResource {
         abort_unless($camara->estado === EstadoCamara::Activa, 404);
+        abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
 
         $camara->loadCount([
             'posiciones' => fn ($consulta) => $consulta

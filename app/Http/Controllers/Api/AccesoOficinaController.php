@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\RolUsuario;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccesoOficinaRequest;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,8 +15,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AccesoOficinaController extends Controller
 {
-    public function store(AccesoOficinaRequest $request): JsonResponse
-    {
+    public function store(
+        AccesoOficinaRequest $request,
+        AlcanceOperacionalUsuario $alcance,
+    ): JsonResponse {
         $datos = $request->validated();
         $usuario = User::query()
             ->where('email', mb_strtolower($datos['email']))
@@ -30,11 +32,7 @@ class AccesoOficinaController extends Controller
             ]);
         }
 
-        if (! in_array($usuario->rol, [
-            RolUsuario::Administrador,
-            RolUsuario::Supervisor,
-            RolUsuario::Despachador,
-        ], true)) {
+        if (! $alcance->puedeAccederOficina($usuario)) {
             throw ValidationException::withMessages([
                 'email' => 'El usuario no posee acceso a los módulos de oficina.',
             ]);
@@ -45,6 +43,8 @@ class AccesoOficinaController extends Controller
             ['oficina'],
         );
 
+        $capacidades = $alcance->capacidadesApi($usuario);
+
         return response()->json([
             'token' => $token->plainTextToken,
             'token_type' => 'Bearer',
@@ -53,28 +53,22 @@ class AccesoOficinaController extends Controller
                 'nombre' => $usuario->name,
                 'email' => $usuario->email,
                 'rol' => $usuario->rol->value,
-                'puede_configurar_camaras' => in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                ], true),
-                'puede_administrar_camaras' => $usuario->rol === RolUsuario::Administrador,
-                'puede_administrar_accesos' => $usuario->rol === RolUsuario::Administrador,
-                'puede_gestionar_cargas' => in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                ], true),
-                'puede_administrar_catalogos_materiales' => $usuario->rol === RolUsuario::Administrador,
-                'puede_gestionar_despachos_materiales' => in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                ], true),
-                'puede_cancelar_despachos_materiales' => in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                ], true),
+                'ambito_camaras' => $alcance->ambitoCamaras($usuario),
+                'capacidades' => $capacidades,
+                'puede_configurar_camaras' => $usuario->can('crear-camaras-productos')
+                    || $usuario->can('crear-camaras-materiales'),
+                'puede_crear_camaras_productos' => $usuario->can('crear-camaras-productos'),
+                'puede_crear_camaras_materiales' => $usuario->can('crear-camaras-materiales'),
+                'puede_administrar_camaras' => $usuario->can('administrar-camaras'),
+                'puede_administrar_accesos' => $usuario->can('administrar-accesos'),
+                'puede_gestionar_cargas' => $capacidades['puede_gestionar_cargas'],
+                'puede_consultar_cargas' => $capacidades['puede_consultar_cargas'],
+                'puede_consultar_catalogo_cargas' => $capacidades['puede_consultar_catalogo_cargas'],
+                'puede_administrar_catalogos_materiales' => $usuario->can('administrar-catalogos-materiales'),
+                'puede_gestionar_despachos_materiales' => $capacidades['puede_gestionar_despachos_materiales'],
+                'puede_consultar_despachos_materiales' => $capacidades['puede_consultar_despachos_materiales'],
+                'puede_cancelar_despachos_materiales' => $capacidades['puede_cancelar_despachos_materiales'],
+                'puede_consultar_kardex_materiales' => $capacidades['puede_consultar_kardex_materiales'],
             ],
         ]);
     }

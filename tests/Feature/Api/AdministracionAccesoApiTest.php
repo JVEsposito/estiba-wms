@@ -24,14 +24,14 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/usuarios', [
                 'nombre' => '  Camila Operadora  ',
                 'email' => '  CAMILA@EMPRESA.CL  ',
-                'rol' => RolUsuario::Operador->value,
+                'rol' => RolUsuario::CamareroFrio->value,
                 'password' => 'Temporal2026',
                 'password_confirmation' => 'Temporal2026',
             ])
             ->assertCreated()
             ->assertJsonPath('usuario.nombre', 'Camila Operadora')
             ->assertJsonPath('usuario.email', 'camila@empresa.cl')
-            ->assertJsonPath('usuario.rol', RolUsuario::Operador->value)
+            ->assertJsonPath('usuario.rol', RolUsuario::CamareroFrio->value)
             ->assertJsonPath('usuario.activo', true);
 
         $usuario = User::query()->where('email', 'camila@empresa.cl')->firstOrFail();
@@ -64,7 +64,7 @@ class AdministracionAccesoApiTest extends TestCase
     public function test_un_usuario_no_administrador_no_puede_gestionar_accesos(): void
     {
         $supervisor = User::factory()->create([
-            'rol' => RolUsuario::Supervisor,
+            'rol' => RolUsuario::SupervisorFrio,
             'activo' => true,
         ]);
 
@@ -76,7 +76,7 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/usuarios', [
                 'nombre' => 'Usuario no autorizado',
                 'email' => 'sin-permiso@empresa.cl',
-                'rol' => RolUsuario::Operador->value,
+                'rol' => RolUsuario::CamareroFrio->value,
                 'password' => 'Temporal2026',
                 'password_confirmation' => 'Temporal2026',
             ])
@@ -106,7 +106,7 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/usuarios', [
                 'nombre' => 'Duplicado',
                 'email' => 'EXISTENTE@EMPRESA.CL',
-                'rol' => RolUsuario::Operador->value,
+                'rol' => RolUsuario::CamareroFrio->value,
                 'password' => 'solo-letras',
                 'password_confirmation' => 'no-coincide',
             ])
@@ -141,7 +141,7 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/usuarios', [
                 'nombre' => 'Camarero de prueba',
                 'email' => 'camarero@empresa.cl',
-                'rol' => RolUsuario::Operador->value,
+                'rol' => RolUsuario::CamareroFrio->value,
                 'password' => 'Abc12',
                 'password_confirmation' => 'Abc12',
             ])

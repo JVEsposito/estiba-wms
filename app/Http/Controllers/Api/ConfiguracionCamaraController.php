@@ -8,6 +8,7 @@ use App\Http\Requests\ActualizarCamaraRequest;
 use App\Http\Requests\CrearCamaraRequest;
 use App\Http\Resources\CamaraConfiguracionResource;
 use App\Models\Camara;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Camaras\ServicioConfiguracionCamara;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,11 +18,17 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ConfiguracionCamaraController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
-    {
-        Gate::authorize('configurar-camaras');
+    public function index(
+        Request $request,
+        AlcanceOperacionalUsuario $alcance,
+    ): AnonymousResourceCollection {
+        Gate::authorize('consultar-configuracion-camaras');
+        $contenidos = collect($alcance->contenidosVisibles($request->user()))
+            ->map->value
+            ->all();
 
         $camaras = Camara::query()
+            ->whereIn('contenido', $contenidos)
             ->with(['actualizadoPor:id,name', 'creadoPor:id,name'])
             ->withCount([
                 'posiciones as posiciones_activas_count' => fn ($consulta) => $consulta
@@ -44,7 +51,7 @@ class ConfiguracionCamaraController extends Controller
     public function siguienteCodigo(
         ServicioConfiguracionCamara $servicio,
     ): JsonResponse {
-        Gate::authorize('configurar-camaras');
+        Gate::authorize('consultar-configuracion-camaras');
 
         return response()->json([
             'data' => ['codigo' => $servicio->siguienteCodigo()],
@@ -62,9 +69,13 @@ class ConfiguracionCamaraController extends Controller
             ->setStatusCode(Response::HTTP_CREATED);
     }
 
-    public function show(Camara $camara): CamaraConfiguracionResource
-    {
-        Gate::authorize('configurar-camaras');
+    public function show(
+        Request $request,
+        Camara $camara,
+        AlcanceOperacionalUsuario $alcance,
+    ): CamaraConfiguracionResource {
+        Gate::authorize('consultar-configuracion-camaras');
+        abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
 
         return new CamaraConfiguracionResource($this->cargarDetalle($camara));
     }

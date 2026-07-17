@@ -27,24 +27,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
-    Route::middleware('can:consultar-materiales')->group(function () {
+    Route::middleware('can:consultar-despachos-materiales')->group(function () {
         Route::get('/materiales/catalogo', [CatalogoMaterialController::class, 'catalogo']);
         Route::get('/materiales/inventario', [DespachoMaterialController::class, 'inventario']);
-        Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex']);
         Route::get('/materiales/despachos', [DespachoMaterialController::class, 'index']);
         Route::get('/materiales/despachos/{despachoMaterial}', [DespachoMaterialController::class, 'show']);
     });
+    Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex'])
+        ->middleware('can:consultar-kardex-materiales');
     Route::middleware('can:gestionar-despachos-materiales')->group(function () {
         Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store']);
-        Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar']);
     });
+    Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])
+        ->middleware('can:retirar-materiales');
     Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
         ->middleware('can:cancelar-despachos-materiales');
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
+    });
+    Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
+        ->middleware('can:gestionar-cargas');
+    Route::middleware('can:consultar-catalogo-cargas')->group(function () {
         Route::get('/cargas', [CargaController::class, 'index']);
-        Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles']);
         Route::get('/cargas/{carga}', [CargaController::class, 'show']);
     });
     Route::middleware('can:gestionar-cargas')->group(function () {
@@ -56,13 +61,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cargas/{carga}/cancelar', [CargaController::class, 'cancelar']);
     });
 
-    Route::middleware('can:configurar-camaras')->group(function () {
+    Route::middleware('can:consultar-configuracion-camaras')->group(function () {
         Route::get('/configuracion/camaras', [ConfiguracionCamaraController::class, 'index']);
         Route::get('/configuracion/camaras/siguiente-codigo', [ConfiguracionCamaraController::class, 'siguienteCodigo']);
-        Route::post('/configuracion/camaras', [ConfiguracionCamaraController::class, 'store']);
         Route::get('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'show']);
-        Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update']);
     });
+    Route::post('/configuracion/camaras', [ConfiguracionCamaraController::class, 'store']);
+    Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update'])
+        ->middleware('can:administrar-camaras');
     Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy'])
         ->middleware('can:administrar-camaras');
 
@@ -81,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/camaras/{camara}/sesiones', [SesionEstibaController::class, 'store']);
     Route::post('/sesiones/{sesion}/cerrar', [SesionEstibaController::class, 'cerrar']);
+    Route::post('/sesiones/{sesion}/cerrar-forzosamente', [SesionEstibaController::class, 'cerrarForzosamente']);
 
     Route::get('/movimientos/recientes', [MovimientoController::class, 'recientes']);
     Route::post('/movimientos/ubicar', [MovimientoController::class, 'ubicar']);

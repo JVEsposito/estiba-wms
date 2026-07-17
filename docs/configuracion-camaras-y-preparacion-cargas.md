@@ -45,7 +45,9 @@ dispositivo. Una advertencia no confirmada no produce cambios.
 ## Configuración desde oficina
 
 La configuración se realiza normalmente desde PC y no exige que el equipo esté
-registrado como tablet. Los roles `administrador` y `supervisor` pueden:
+registrado como tablet. `supervisor_frio` crea únicamente cámaras de productos,
+`supervisor_materiales` crea únicamente cámaras de materiales y `administrador`
+puede crear ambas. Estos perfiles pueden:
 
 - crear cámaras;
 - definir bandas, posiciones y niveles;

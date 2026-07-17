@@ -53,8 +53,8 @@
                 </div>
                 <nav aria-label="Módulos de oficina">
                     <a class="is-active" href="/oficina/camaras">Cámaras</a>
-                    <a href="/oficina/cargas">Cargas</a>
-                    <a href="/oficina/materiales">Materiales</a>
+                    <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
+                    <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
                     <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">

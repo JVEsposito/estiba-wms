@@ -70,6 +70,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const refreshInFlight = useRef(false);
   const materialCreateOperationId = useRef(Crypto.randomUUID());
   const materialWithdrawOperationId = useRef(Crypto.randomUUID());
+  const capabilities = auth.usuario.capacidades;
+  const canUseMaterials = capabilities.puede_consultar_despachos_materiales;
+  const canCreateMaterialDispatch = capabilities.puede_gestionar_despachos_materiales;
+  const canWithdrawMaterial = capabilities.puede_retirar_materiales;
 
   const selectedPosition = useMemo(
     () => plan?.posiciones.find((position) => position.id === selectedPositionId) ?? null,
@@ -78,7 +82,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const ownSession = plan?.acceso.modo === 'edicion' && plan.acceso.sesion?.es_propia
     ? plan.acceso.sesion
     : null;
-  const canOperate = Boolean(ownSession);
+  const canOpenSession = plan?.contenido === 'materiales'
+    ? capabilities.puede_operar_materiales
+    : capabilities.puede_operar_productos;
+  const canOperate = Boolean(ownSession && canOpenSession);
 
   useEffect(() => {
     void initialize();
@@ -115,9 +122,18 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     try {
       const [loadedCameras, loadedConditions, loadedMaterialCatalog, loadedMaterialDispatches] = await Promise.all([
         api.listCameras(auth.token),
-        api.listConditions(auth.token),
-        api.getMaterialCatalog(auth.token),
-        api.listMaterialDispatches(auth.token),
+        capabilities.puede_operar_productos
+          ? optionalModule(() => api.listConditions(auth.token), [])
+          : Promise.resolve([]),
+        canUseMaterials
+          ? optionalModule(
+            () => api.getMaterialCatalog(auth.token),
+            { items: [], destinos: [] },
+          )
+          : Promise.resolve({ items: [], destinos: [] }),
+        canUseMaterials
+          ? optionalModule(() => api.listMaterialDispatches(auth.token), [])
+          : Promise.resolve([]),
       ]);
       setCameras(loadedCameras);
       setConditions(loadedConditions);
@@ -197,6 +213,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
   function toggleSession() {
     if (!plan) return;
+    if (!canOpenSession) {
+      Alert.alert('Solo consulta', 'Tu perfil no puede operar cámaras de esta área.');
+      return;
+    }
     if (plan.acceso.modo === 'solo_lectura') {
       Alert.alert('Cámara en uso', 'Otro operador mantiene la sesión de edición.');
       return;
@@ -353,12 +373,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   }
 
   async function confirmMaterialDispatch(form: MaterialDispatchFormValue) {
-    if (!selectedPosition?.folio?.material || !ownSession) return;
+    if (!selectedPosition?.folio?.material || !ownSession || !canWithdrawMaterial) return;
     setModalError('');
     let dispatchId = form.despacho_id;
 
     const succeeded = await runOperation(async () => {
       if (!dispatchId) {
+        if (!canCreateMaterialDispatch) {
+          throw new Error('Selecciona una orden de despacho asignada por oficina.');
+        }
         if (!form.destino_material_id) throw new Error('Selecciona el destino del material.');
         const created = await api.createMaterialDispatch(auth.token, {
           operacion_id: materialCreateOperationId.current,
@@ -386,8 +409,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       setMaterialDispatchVisible(false);
       setNotice(`${form.cantidad} ${selectedPosition.folio.material.unidad_medida} despachadas desde ${folioNumber}.`);
       const [catalog, dispatches] = await Promise.all([
-        api.getMaterialCatalog(auth.token),
-        api.listMaterialDispatches(auth.token),
+        optionalModule(
+          () => api.getMaterialCatalog(auth.token),
+          { items: [], destinos: [] },
+        ),
+        optionalModule(() => api.listMaterialDispatches(auth.token), []),
       ]);
       setMaterialCatalog(catalog);
       setMaterialDispatches(dispatches);
@@ -563,6 +589,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               />
               <ActionPanel
                 busy={busy}
+                canDispatchMaterial={canWithdrawMaterial}
+                canOpenSession={canOpenSession}
                 canOperate={canOperate}
                 compact={!wideLayout}
                 onLocate={() => {
@@ -635,6 +663,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       />
       <MaterialDispatchModal
         busy={busy}
+        canCreate={canCreateMaterialDispatch}
         destinations={materialCatalog.destinos}
         dispatches={materialDispatches}
         error={modalError}
@@ -648,6 +677,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       />
     </View>
   );
+}
+
+async function optionalModule<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await operation();
+  } catch (reason) {
+    if (reason instanceof ApiError && reason.status === 403) return fallback;
+    throw reason;
+  }
 }
 
 type MovementWarning = {

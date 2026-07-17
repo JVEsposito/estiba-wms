@@ -183,7 +183,7 @@ class MovimientoApiTest extends TestCase
      */
     private function crearIdentidad(): array
     {
-        $usuario = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $usuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',
             'nombre' => 'Tablet 01',

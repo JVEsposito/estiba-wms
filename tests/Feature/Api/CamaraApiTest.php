@@ -110,7 +110,7 @@ class CamaraApiTest extends TestCase
      */
     private function crearIdentidad(string $codigo): array
     {
-        $usuario = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $usuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $dispositivo = Dispositivo::create([
             'codigo' => $codigo,
             'nombre' => "Tablet {$codigo}",

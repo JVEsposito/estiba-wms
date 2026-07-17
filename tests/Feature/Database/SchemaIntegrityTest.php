@@ -165,7 +165,7 @@ class SchemaIntegrityTest extends TestCase
      */
     private function crearContexto(bool $crearBloqueo = true): array
     {
-        $user = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $user = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',
             'nombre' => 'Tablet de prueba',

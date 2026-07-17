@@ -11,12 +11,14 @@ use App\Enums\TipoBulto;
 use App\Enums\TipoEventoCarga;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\FoliosCargaInvalidos;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -24,11 +26,17 @@ use LogicException;
 
 class ServicioCarga
 {
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $datos
      */
     public function crear(array $datos, User $usuario): Carga
     {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use ($datos, $usuario): Carga {
             $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
             $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
@@ -62,6 +70,8 @@ class ServicioCarga
         User $usuario,
         int $versionEsperada,
     ): Carga {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use ($carga, $datos, $usuario, $versionEsperada): Carga {
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarEditable($cargaBloqueada);
@@ -101,6 +111,8 @@ class ServicioCarga
         User $usuario,
         int $versionEsperada,
     ): Carga {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use (
             $carga,
             $numerosFolio,
@@ -236,6 +248,8 @@ class ServicioCarga
         int $versionEsperada,
         ?string $motivo = null,
     ): Carga {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use (
             $carga,
             $folio,
@@ -286,6 +300,8 @@ class ServicioCarga
         User $usuario,
         int $versionEsperada,
     ): Carga {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use ($carga, $usuario, $versionEsperada): Carga {
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarBorrador($cargaBloqueada);
@@ -353,6 +369,8 @@ class ServicioCarga
         int $versionEsperada,
         ?string $motivo = null,
     ): Carga {
+        $this->asegurarGestionAutorizada($usuario);
+
         return DB::transaction(function () use (
             $carga,
             $usuario,
@@ -420,6 +438,15 @@ class ServicioCarga
 
             return $cargaBloqueada->refresh();
         }, attempts: 3);
+    }
+
+    private function asegurarGestionAutorizada(User $usuario): void
+    {
+        if (! $this->alcance->puedeGestionarCargas($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para gestionar cargas de productos.',
+            );
+        }
     }
 
     private function bloquearCarga(Carga $carga): Carga

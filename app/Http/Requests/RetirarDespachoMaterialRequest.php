@@ -8,7 +8,7 @@ class RetirarDespachoMaterialRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('gestionar-despachos-materiales') === true;
+        return $this->user()?->can('retirar-materiales') === true;
     }
 
     /**
