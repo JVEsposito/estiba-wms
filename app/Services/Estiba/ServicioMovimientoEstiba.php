@@ -21,6 +21,7 @@ use App\Models\Posicion;
 use App\Models\SesionEstiba;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Cargas\ServicioTareasCarga;
 use BackedEnum;
 use DateTimeInterface;
 use DomainException;
@@ -49,6 +50,7 @@ class ServicioMovimientoEstiba
 
     public function __construct(
         private readonly DetectorAdvertenciasMovimiento $detectorAdvertencias,
+        private readonly ServicioTareasCarga $servicioTareasCarga,
     ) {}
 
     /**
@@ -167,6 +169,57 @@ class ServicioMovimientoEstiba
                 $versionDestinoConocida,
                 $generadoDispositivoAt,
                 $recibidoServidorAt,
+                $advertenciasConfirmadas,
+            ),
+        );
+    }
+
+    /**
+     * Retira un folio de su cámara dejando un movimiento físico inmutable.
+     * El destino documental (por ejemplo un andén) lo administra el servicio
+     * de despacho que invoca esta operación.
+     *
+     * @param  array<int, string>  $advertenciasConfirmadas
+     */
+    public function retirar(
+        string $operacionId,
+        Folio $folio,
+        SesionEstiba $sesionOrigen,
+        User $usuario,
+        Dispositivo $dispositivo,
+        int $versionOrigenConocida,
+        DateTimeInterface $generadoDispositivoAt,
+        string $motivo,
+        array $advertenciasConfirmadas = [],
+    ): Movimiento {
+        sort($advertenciasConfirmadas, SORT_STRING);
+
+        $payload = [
+            'folio_id' => $folio->id,
+            'sesion_origen_id' => $sesionOrigen->id,
+            'version_origen_conocida' => $versionOrigenConocida,
+            'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
+            'motivo' => trim($motivo),
+            'advertencias_confirmadas' => $advertenciasConfirmadas,
+        ];
+
+        return $this->ejecutarOperacion(
+            $operacionId,
+            TipoMovimiento::Retiro,
+            $usuario,
+            $dispositivo,
+            $generadoDispositivoAt,
+            $payload,
+            fn (OperacionSincronizacion $operacion, DateTimeInterface $recibidoServidorAt): Movimiento => $this->procesarRetiro(
+                $operacion,
+                $folio,
+                $sesionOrigen,
+                $usuario,
+                $dispositivo,
+                $versionOrigenConocida,
+                $generadoDispositivoAt,
+                $recibidoServidorAt,
+                trim($motivo),
                 $advertenciasConfirmadas,
             ),
         );
@@ -622,6 +675,92 @@ class ServicioMovimientoEstiba
         }
 
         $this->actualizarActividadSesiones($sesiones, $recibidoServidorAt);
+
+        $this->servicioTareasCarga->registrarMovimiento(
+            $folioBloqueado,
+            $movimiento,
+            $usuario,
+        );
+
+        return $movimiento;
+    }
+
+    /**
+     * @param  array<int, string>  $advertenciasConfirmadas
+     */
+    private function procesarRetiro(
+        OperacionSincronizacion $operacion,
+        Folio $folio,
+        SesionEstiba $sesionOrigen,
+        User $usuario,
+        Dispositivo $dispositivo,
+        int $versionOrigenConocida,
+        DateTimeInterface $generadoDispositivoAt,
+        DateTimeInterface $recibidoServidorAt,
+        string $motivo,
+        array $advertenciasConfirmadas,
+    ): Movimiento {
+        if ($motivo === '') {
+            throw new DomainException('Debe indicar el motivo del retiro del folio.');
+        }
+
+        $ubicacionLeida = UbicacionActual::query()
+            ->where('folio_id', $folio->id)
+            ->first();
+
+        if (! $ubicacionLeida) {
+            throw new DomainException('El folio no posee una ubicación desde la cual retirarlo.');
+        }
+
+        $posicionLeida = Posicion::query()->findOrFail($ubicacionLeida->posicion_id);
+        $camara = Camara::query()->lockForUpdate()->findOrFail($posicionLeida->camara_id);
+        $posicion = Posicion::query()->lockForUpdate()->findOrFail($posicionLeida->id);
+        $sesion = SesionEstiba::query()->lockForUpdate()->findOrFail($sesionOrigen->id);
+        $folioBloqueado = Folio::query()->lockForUpdate()->findOrFail($folio->id);
+        $ubicacion = UbicacionActual::query()
+            ->where('folio_id', $folioBloqueado->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $ubicacion || $ubicacion->posicion_id !== $posicion->id) {
+            throw new ConflictoMovimiento(
+                'La ubicación del folio cambió mientras se procesaba el retiro.',
+            );
+        }
+
+        $this->validarContenidoCamara($camara, $folioBloqueado->tipo_bulto);
+        $this->validarVersion($camara, $versionOrigenConocida, 'origen');
+        $advertencias = $this->detectorAdvertencias->paraRetiro(
+            $posicion,
+            $advertenciasConfirmadas,
+        );
+        $versionResultante = $camara->version_plano + 1;
+
+        $movimiento = Movimiento::create([
+            'operacion_id' => $operacion->id,
+            'folio_id' => $folioBloqueado->id,
+            'tipo_movimiento' => TipoMovimiento::Retiro,
+            'camara_origen_id' => $camara->id,
+            'posicion_origen_id' => $posicion->id,
+            'sesion_origen_id' => $sesion->id,
+            'user_id' => $usuario->id,
+            'dispositivo_id' => $dispositivo->id,
+            'motivo' => $motivo,
+            'advertencias_confirmadas' => $advertencias !== [] ? $advertencias : null,
+            'version_origen_anterior' => $camara->version_plano,
+            'version_origen_resultante' => $versionResultante,
+            'generado_dispositivo_at' => $generadoDispositivoAt,
+            'recibido_servidor_at' => $recibidoServidorAt,
+        ]);
+
+        $ubicacion->delete();
+        $this->actualizarVersionCamara($camara, $versionResultante);
+        $this->actualizarActividadSesiones(collect([$sesion]), $recibidoServidorAt);
+        $this->servicioTareasCarga->registrarMovimiento(
+            $folioBloqueado,
+            $movimiento,
+            $usuario,
+        );
 
         return $movimiento;
     }

@@ -5,6 +5,7 @@ namespace App\Services\Cargas;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\PrioridadCarga;
 use App\Enums\TipoBulto;
@@ -12,11 +13,13 @@ use App\Enums\TipoEventoCarga;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\FoliosCargaInvalidos;
 use App\Exceptions\OperacionNoAutorizada;
+use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\EventoCarga;
 use App\Models\Folio;
+use App\Models\ReservaCargaFolio;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
@@ -28,6 +31,7 @@ class ServicioCarga
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ServicioTareasCarga $servicioTareas,
     ) {}
 
     /**
@@ -40,6 +44,8 @@ class ServicioCarga
         return DB::transaction(function () use ($datos, $usuario): Carga {
             $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
             $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
+            $andenPrevistoId = $datos['anden_previsto_id'] ?? null;
+            $this->asegurarAndenValido($andenPrevistoId);
 
             $carga = Carga::create([
                 'codigo' => $this->siguienteCodigoBloqueado(),
@@ -49,6 +55,7 @@ class ServicioCarga
                     $datos['prioridad'] ?? PrioridadCarga::Normal->value,
                 ),
                 'camara_objetivo_id' => $camaraObjetivoId,
+                'anden_previsto_id' => $andenPrevistoId,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
                 'version' => 1,
                 'creada_por_user_id' => $usuario->id,
@@ -78,6 +85,10 @@ class ServicioCarga
             $this->asegurarVersion($cargaBloqueada, $versionEsperada);
             $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
             $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
+            $andenPrevistoId = array_key_exists('anden_previsto_id', $datos)
+                ? $datos['anden_previsto_id']
+                : $cargaBloqueada->anden_previsto_id;
+            $this->asegurarAndenValido($andenPrevistoId);
 
             $cargaBloqueada->update([
                 'numero_orden_externa' => $this->textoOpcional(
@@ -87,6 +98,7 @@ class ServicioCarga
                     $datos['prioridad'] ?? $cargaBloqueada->prioridad->value,
                 ),
                 'camara_objetivo_id' => $camaraObjetivoId,
+                'anden_previsto_id' => $andenPrevistoId,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
                 'version' => $cargaBloqueada->version + 1,
                 'actualizada_por_user_id' => $usuario->id,
@@ -126,6 +138,7 @@ class ServicioCarga
             $numeros = $this->normalizarNumerosFolio($numerosFolio);
             $cantidadActual = CargaFolio::query()
                 ->where('carga_id', $cargaBloqueada->id)
+                ->whereHas('reservaActiva')
                 ->lockForUpdate()
                 ->count();
 
@@ -142,9 +155,9 @@ class ServicioCarga
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('numero_folio');
-            $asignaciones = CargaFolio::query()
+            $reservas = ReservaCargaFolio::query()
                 ->whereIn('folio_id', $folios->pluck('id'))
-                ->with('carga:id,codigo')
+                ->with('asignacion.carga:id,codigo')
                 ->orderBy('folio_id')
                 ->lockForUpdate()
                 ->get()
@@ -165,9 +178,10 @@ class ServicioCarga
                     continue;
                 }
 
-                $asignacion = $asignaciones->get($folio->id);
+                $reserva = $reservas->get($folio->id);
 
-                if ($asignacion) {
+                if ($reserva) {
+                    $asignacion = $reserva->asignacion;
                     $codigo = $asignacion->carga_id === $cargaBloqueada->id
                         ? 'ya_asignado_carga'
                         : 'asignado_otra_carga';
@@ -206,11 +220,16 @@ class ServicioCarga
                 $folio = $folios->get($numero);
 
                 try {
-                    CargaFolio::create([
+                    $asignacion = CargaFolio::create([
                         'carga_id' => $cargaBloqueada->id,
                         'folio_id' => $folio->id,
+                        'estado' => EstadoCargaFolio::Pendiente,
                         'asignado_por_user_id' => $usuario->id,
                         'asignado_at' => now(),
+                    ]);
+                    ReservaCargaFolio::create([
+                        'folio_id' => $folio->id,
+                        'carga_folio_id' => $asignacion->id,
                     ]);
                 } catch (QueryException $exception) {
                     if ($exception->getCode() === '23000') {
@@ -235,6 +254,10 @@ class ServicioCarga
                     $usuario,
                     $folio,
                 );
+            }
+
+            if ($cargaBloqueada->estado === EstadoCarga::Pendiente) {
+                $this->servicioTareas->sincronizar($cargaBloqueada);
             }
 
             return $cargaBloqueada->refresh();
@@ -263,6 +286,7 @@ class ServicioCarga
 
             $asignaciones = CargaFolio::query()
                 ->where('carga_id', $cargaBloqueada->id)
+                ->whereHas('reservaActiva')
                 ->orderBy('folio_id')
                 ->lockForUpdate()
                 ->get();
@@ -281,7 +305,13 @@ class ServicioCarga
                 );
             }
 
-            $asignacion->delete();
+            $asignacion->reservaActiva()->delete();
+            $asignacion->update([
+                'estado' => EstadoCargaFolio::Descartado,
+                'finalizado_por_user_id' => $usuario->id,
+                'finalizado_at' => now(),
+                'motivo_finalizacion' => $this->textoOpcional($motivo),
+            ]);
             $this->incrementarVersion($cargaBloqueada, $usuario);
             $this->registrarEvento(
                 $cargaBloqueada,
@@ -290,6 +320,10 @@ class ServicioCarga
                 $folio,
                 ['motivo' => $this->textoOpcional($motivo)],
             );
+
+            if ($cargaBloqueada->estado === EstadoCarga::Pendiente) {
+                $this->servicioTareas->sincronizar($cargaBloqueada);
+            }
 
             return $cargaBloqueada->refresh();
         }, attempts: 3);
@@ -310,6 +344,12 @@ class ServicioCarga
 
             $asignaciones = CargaFolio::query()
                 ->where('carga_id', $cargaBloqueada->id)
+                ->whereIn('estado', [
+                    EstadoCargaFolio::Pendiente->value,
+                    EstadoCargaFolio::ConIncidencia->value,
+                    EstadoCargaFolio::EnAnden->value,
+                ])
+                ->with('reservaActiva')
                 ->orderBy('folio_id')
                 ->lockForUpdate()
                 ->get();
@@ -338,6 +378,16 @@ class ServicioCarga
                         $error['mensaje'],
                     );
                 }
+
+                $asignacion = $asignaciones->firstWhere('folio_id', $folio->id);
+
+                if ($asignacion && ! $asignacion->reservaActiva) {
+                    $errores[] = $this->errorFolio(
+                        $folio->numero_folio,
+                        'reserva_inconsistente',
+                        "El folio {$folio->numero_folio} no posee una reserva de carga vigente.",
+                    );
+                }
             }
 
             if ($errores !== []) {
@@ -357,6 +407,20 @@ class ServicioCarga
                 TipoEventoCarga::Publicada,
                 $usuario,
                 datos: ['cantidad_folios' => $asignaciones->count()],
+            );
+
+            $this->servicioTareas->sincronizar($cargaBloqueada);
+            $this->registrarEvento(
+                $cargaBloqueada,
+                TipoEventoCarga::TareasGeneradas,
+                $usuario,
+                datos: [
+                    'camaras_origen' => $cargaBloqueada->tareas()
+                        ->where('estado', '!=', 'completada')
+                        ->pluck('camara_origen_id')
+                        ->values()
+                        ->all(),
+                ],
             );
 
             return $cargaBloqueada->refresh();
@@ -391,6 +455,7 @@ class ServicioCarga
 
             $asignaciones = CargaFolio::query()
                 ->where('carga_id', $cargaBloqueada->id)
+                ->whereHas('reservaActiva')
                 ->with('folio:id,numero_folio')
                 ->orderBy('folio_id')
                 ->lockForUpdate()
@@ -416,6 +481,14 @@ class ServicioCarga
                         'causa' => 'cancelacion_carga',
                     ],
                 );
+
+                $asignacion->reservaActiva()->delete();
+                $asignacion->update([
+                    'estado' => EstadoCargaFolio::Descartado,
+                    'finalizado_por_user_id' => $usuario->id,
+                    'finalizado_at' => now(),
+                    'motivo_finalizacion' => $motivoNormalizado,
+                ]);
             }
 
             $this->registrarEvento(
@@ -432,9 +505,7 @@ class ServicioCarga
                 ],
             );
 
-            CargaFolio::query()
-                ->where('carga_id', $cargaBloqueada->id)
-                ->delete();
+            $this->servicioTareas->sincronizar($cargaBloqueada);
 
             return $cargaBloqueada->refresh();
         }, attempts: 3);
@@ -566,6 +637,23 @@ class ServicioCarga
             throw new DomainException(
                 'La cámara objetivo debe estar activa y clasificada como cámara de productos.',
             );
+        }
+    }
+
+    private function asegurarAndenValido(?string $andenId): void
+    {
+        if ($andenId === null) {
+            return;
+        }
+
+        $existe = Anden::query()
+            ->whereKey($andenId)
+            ->where('activo', true)
+            ->lockForUpdate()
+            ->exists();
+
+        if (! $existe) {
+            throw new DomainException('El andén previsto debe existir y estar activo.');
         }
     }
 

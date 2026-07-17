@@ -31,6 +31,11 @@ class CargaResource extends JsonResource
                 'codigo' => $this->camaraObjetivo->codigo,
                 'nombre' => $this->camaraObjetivo->nombre,
             ] : null),
+            'anden_previsto' => $this->whenLoaded('andenPrevisto', fn () => $this->andenPrevisto ? [
+                'id' => $this->andenPrevisto->id,
+                'codigo' => $this->andenPrevisto->codigo,
+                'nombre' => $this->andenPrevisto->nombre,
+            ] : null),
             'total_folios' => $folios->count(),
             'folios' => $folios,
             'distribucion' => $this->distribucion($folios),
@@ -52,6 +57,16 @@ class CargaResource extends JsonResource
             ] : null),
             'publicada_at' => $this->publicada_at?->toAtomString(),
             'cancelada_at' => $this->cancelada_at?->toAtomString(),
+            'cierre' => $this->cerrada_at ? [
+                'patente' => $this->patente,
+                'conductor' => $this->conductor,
+                'observacion' => $this->observacion_cierre,
+                'cerrada_at' => $this->cerrada_at->toAtomString(),
+                'cerrada_por' => $this->whenLoaded('cerradaPor', fn () => [
+                    'id' => $this->cerradaPor?->id,
+                    'nombre' => $this->cerradaPor?->name,
+                ]),
+            ] : null,
             'created_at' => $this->created_at?->toAtomString(),
             'updated_at' => $this->updated_at?->toAtomString(),
         ];
@@ -71,10 +86,17 @@ class CargaResource extends JsonResource
                 $camara = $posicion?->camara;
 
                 return [
+                    'asignacion_id' => $asignacion->id,
                     'id' => $folio?->id,
                     'numero_folio' => $folio?->numero_folio,
                     'tipo_bulto' => $folio?->tipo_bulto?->value,
                     'estado_operacional' => $folio?->estado_operacional?->value,
+                    'estado_carga' => $asignacion->estado->value,
+                    'anden' => $asignacion->relationLoaded('anden') && $asignacion->anden ? [
+                        'id' => $asignacion->anden->id,
+                        'codigo' => $asignacion->anden->codigo,
+                        'nombre' => $asignacion->anden->nombre,
+                    ] : null,
                     'asignado_at' => $asignacion->asignado_at?->toAtomString(),
                     'ubicacion' => $posicion && $camara ? [
                         'camara' => [

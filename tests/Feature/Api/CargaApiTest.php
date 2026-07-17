@@ -146,7 +146,11 @@ class CargaApiTest extends TestCase
             ->assertJsonPath('data.estado', 'cancelada')
             ->assertJsonPath('data.version', 4);
 
-        $this->assertDatabaseMissing('carga_folios', [
+        $this->assertDatabaseHas('carga_folios', [
+            'folio_id' => $folio->id,
+            'estado' => 'descartado',
+        ]);
+        $this->assertDatabaseMissing('reservas_carga_folio', [
             'folio_id' => $folio->id,
         ]);
         $this->assertTrue(
@@ -406,11 +410,15 @@ class CargaApiTest extends TestCase
         $despachador = $this->despachador();
         [, $material] = $this->crearFolioMaterialUbicado('MAT-CONTAMINADO');
         $carga = $this->crearCarga($despachador);
-        CargaFolio::create([
+        $asignacion = CargaFolio::create([
             'carga_id' => $carga->id,
             'folio_id' => $material->id,
             'asignado_por_user_id' => $despachador->id,
             'asignado_at' => now(),
+        ]);
+        \App\Models\ReservaCargaFolio::create([
+            'folio_id' => $material->id,
+            'carga_folio_id' => $asignacion->id,
         ]);
 
         $this->actingAs($despachador, 'sanctum')

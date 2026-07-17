@@ -275,11 +275,14 @@ class CargaController extends Controller
     {
         return [
             'camaraObjetivo:id,codigo,nombre',
+            'andenPrevisto:id,codigo,nombre',
             'creadaPor:id,name',
             'actualizadaPor:id,name',
             'publicadaPor:id,name',
             'canceladaPor:id,name',
+            'cerradaPor:id,name',
             'asignacionesActuales.asignadoPor:id,name',
+            'asignacionesActuales.anden:id,codigo,nombre',
             'asignacionesActuales.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
         ];
     }

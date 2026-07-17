@@ -102,6 +102,11 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Gate::define(
+            'gestionar-andenes',
+            fn (User $usuario): bool => $alcance->puedeGestionarAndenes($usuario),
+        );
+
+        Gate::define(
             'administrar-catalogos-materiales',
             fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
         );

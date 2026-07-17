@@ -46,6 +46,18 @@ class DetectorAdvertenciasMovimiento
     }
 
     /**
+     * @param  array<int, string>  $confirmadas
+     * @return array<int, array<string, mixed>>
+     */
+    public function paraRetiro(Posicion $origen, array $confirmadas): array
+    {
+        return $this->exigirConfirmacion(
+            $this->advertenciasOrigen($origen),
+            $confirmadas,
+        );
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function advertenciasDestino(
@@ -121,7 +133,7 @@ class DetectorAdvertenciasMovimiento
      */
     private function advertenciasOrigen(
         Posicion $origen,
-        Posicion $destino,
+        ?Posicion $destino = null,
     ): array {
         $superiores = Posicion::query()
             ->where('camara_id', $origen->camara_id)
@@ -132,7 +144,8 @@ class DetectorAdvertenciasMovimiento
             ->orderBy('nivel')
             ->get();
 
-        if ($destino->camara_id === $origen->camara_id
+        if ($destino
+            && $destino->camara_id === $origen->camara_id
             && $destino->banda === $origen->banda
             && $destino->posicion === $origen->posicion
             && $destino->nivel > $origen->nivel) {
