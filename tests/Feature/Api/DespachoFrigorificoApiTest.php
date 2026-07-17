@@ -52,7 +52,7 @@ class DespachoFrigorificoApiTest extends TestCase
 
         $incidenciaId = $this->withToken($contexto['token'])
             ->postJson($ruta, $payload)
-            ->assertOk()
+            ->assertCreated()
             ->assertJsonPath('data.estado', 'abierta')
             ->assertJsonPath('data.tipo', 'zuncho_roto')
             ->json('data.id');
@@ -341,7 +341,7 @@ class DespachoFrigorificoApiTest extends TestCase
                 'tipo' => 'caja_aplastada',
                 'sesion_estiba_id' => $contexto['sesion']->id,
             ])
-            ->assertOk()
+            ->assertCreated()
             ->json('data.id');
 
         return IncidenciaCargaFolio::query()->findOrFail($id);

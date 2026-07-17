@@ -414,7 +414,9 @@ class ServicioDespachoFrigorifico
                 ->lockForUpdate()
                 ->pluck('estado');
             $todosEnAnden = $estados->isNotEmpty()
-                && $estados->every(fn (string $estado): bool => $estado === EstadoCargaFolio::EnAnden->value);
+                && $estados->every(
+                    fn (EstadoCargaFolio $estado): bool => $estado === EstadoCargaFolio::EnAnden,
+                );
             $carga->update([
                 'estado' => $todosEnAnden
                     ? EstadoCarga::Despachada
