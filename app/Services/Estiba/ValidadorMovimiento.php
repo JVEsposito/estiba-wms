@@ -7,7 +7,6 @@ use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoSesionEstiba;
-use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Exceptions\OperacionNoAutorizada;
@@ -20,10 +19,15 @@ use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
 
 class ValidadorMovimiento
 {
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
+
     public function validar(Movimiento $movimiento): void
     {
         $tipo = $movimiento->tipo_movimiento;
@@ -69,18 +73,19 @@ class ValidadorMovimiento
         Movimiento $movimiento,
         TipoMovimiento $tipo,
     ): void {
-        $usuarioActivo = User::query()
+        $usuario = User::query()
             ->whereKey($movimiento->user_id)
             ->where('activo', true)
-            ->where('rol', '!=', RolUsuario::Consulta->value)
-            ->exists();
+            ->first();
         $dispositivoActivo = Dispositivo::query()
             ->whereKey($movimiento->dispositivo_id)
             ->where('activo', true)
             ->exists();
         $operacion = OperacionSincronizacion::query()->find($movimiento->operacion_id);
 
-        if (! $usuarioActivo || ! $dispositivoActivo) {
+        if (! $usuario
+            || ! $this->alcance->puedeOperarAlgunaCamara($usuario)
+            || ! $dispositivoActivo) {
             throw new OperacionNoAutorizada(
                 'El usuario o el dispositivo no se encuentra autorizado.',
             );
@@ -169,6 +174,14 @@ class ValidadorMovimiento
 
         if ($camara->contenido !== $contenidoEsperado) {
             throw new DomainException('El contenido del folio no corresponde al tipo de cámara.');
+        }
+
+        $usuario = User::query()->find($movimiento->user_id);
+
+        if (! $usuario || ! $this->alcance->puedeOperarCamara($usuario, $camara)) {
+            throw new OperacionNoAutorizada(
+                "El usuario no puede operar la cámara de {$extremo}.",
+            );
         }
 
         if (! $posicion || $posicion->camara_id !== $camara->id) {

@@ -10,6 +10,7 @@ use App\Enums\EstadoSesionEstiba;
 use App\Enums\OrigenDespachoMaterial;
 use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
 use App\Models\DespachoMaterial;
 use App\Models\DestinoMaterial;
@@ -24,6 +25,7 @@ use App\Models\RetiroMaterial;
 use App\Models\SesionEstiba;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -32,6 +34,10 @@ use Illuminate\Support\Str;
 
 class ServicioDespachoMaterial
 {
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $datos
      */
@@ -40,6 +46,12 @@ class ServicioDespachoMaterial
         User $usuario,
         ?Dispositivo $dispositivo,
     ): DespachoMaterial {
+        if (! $this->alcance->puedeGestionarDespachosMateriales($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para crear despachos de materiales.',
+            );
+        }
+
         return DB::transaction(function () use ($datos, $usuario, $dispositivo): DespachoMaterial {
             $payloadHash = $this->payloadHash($datos);
             $existente = DespachoMaterial::query()
@@ -120,6 +132,12 @@ class ServicioDespachoMaterial
         User $usuario,
         Dispositivo $dispositivo,
     ): DespachoMaterial {
+        if (! $this->alcance->puedeRetirarMateriales($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para retirar materiales.',
+            );
+        }
+
         return DB::transaction(function () use (
             $despacho,
             $operacionId,
@@ -318,6 +336,12 @@ class ServicioDespachoMaterial
         User $usuario,
         ?Dispositivo $dispositivo,
     ): DespachoMaterial {
+        if (! $this->alcance->puedeCancelarDespachosMateriales($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para cancelar despachos de materiales.',
+            );
+        }
+
         if (! Str::isUuid($operacionId)) {
             throw new DomainException('El identificador de la cancelación debe ser un UUID válido.');
         }

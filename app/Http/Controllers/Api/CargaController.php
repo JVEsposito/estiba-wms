@@ -30,7 +30,7 @@ class CargaController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        Gate::authorize('gestionar-cargas');
+        Gate::authorize('consultar-cargas-operacion');
 
         $filtros = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
@@ -176,7 +176,7 @@ class CargaController extends Controller
 
     public function show(Carga $carga): CargaResource
     {
-        Gate::authorize('gestionar-cargas');
+        Gate::authorize('consultar-cargas-operacion');
 
         return new CargaResource($this->cargarDetalle($carga));
     }

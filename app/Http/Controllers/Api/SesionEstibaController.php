@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CerrarSesionEstibaRequest;
+use App\Http\Requests\CerrarSesionEstibaForzosamenteRequest;
 use App\Http\Resources\SesionEstibaResource;
 use App\Models\Camara;
 use App\Models\SesionEstiba;
@@ -39,6 +40,22 @@ class SesionEstibaController extends Controller
         [$usuario] = $contexto->obtener($request);
         $sesionCerrada = $servicio
             ->cerrar($sesion, $usuario, $request->validated('motivo'))
+            ->load('usuario', 'dispositivo');
+
+        return new SesionEstibaResource($sesionCerrada);
+    }
+
+    public function cerrarForzosamente(
+        CerrarSesionEstibaForzosamenteRequest $request,
+        SesionEstiba $sesion,
+        ServicioSesionEstiba $servicio,
+    ): SesionEstibaResource {
+        $sesionCerrada = $servicio
+            ->cerrarForzosamente(
+                $sesion,
+                $request->user(),
+                $request->validated('motivo'),
+            )
             ->load('usuario', 'dispositivo');
 
         return new SesionEstibaResource($sesionCerrada);

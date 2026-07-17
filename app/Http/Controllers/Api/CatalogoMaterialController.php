@@ -18,7 +18,7 @@ class CatalogoMaterialController extends Controller
 {
     public function catalogo(): JsonResponse
     {
-        Gate::authorize('consultar-materiales');
+        Gate::authorize('consultar-despachos-materiales');
 
         return response()->json([
             'items' => ItemMaterialResource::collection(

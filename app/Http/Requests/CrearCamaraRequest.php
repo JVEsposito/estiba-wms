@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\ContenidoCamara;
+use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -11,7 +13,12 @@ class CrearCamaraRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('configurar-camaras') === true;
+        $usuario = $this->user();
+        $contenido = ContenidoCamara::tryFrom((string) $this->input('contenido'));
+
+        return $usuario instanceof User
+            && $contenido instanceof ContenidoCamara
+            && app(AlcanceOperacionalUsuario::class)->puedeCrearCamara($usuario, $contenido);
     }
 
     /**
@@ -42,8 +49,14 @@ class CrearCamaraRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $usuario = $this->user();
+        $contenidoForzado = $usuario instanceof User
+            ? app(AlcanceOperacionalUsuario::class)->contenidoForzadoCreacion($usuario)
+            : null;
+
         $this->merge([
-            'contenido' => $this->input('contenido', ContenidoCamara::Productos->value),
+            'contenido' => $contenidoForzado?->value
+                ?? $this->input('contenido', ContenidoCamara::Productos->value),
         ]);
     }
 

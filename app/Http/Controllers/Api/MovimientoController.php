@@ -9,10 +9,12 @@ use App\Http\Requests\MovimientosRecientesRequest;
 use App\Http\Requests\UbicarFolioRequest;
 use App\Http\Resources\MovimientoResource;
 use App\Models\Folio;
+use App\Models\Camara;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -79,10 +81,27 @@ class MovimientoController extends Controller
 
     public function recientes(
         MovimientosRecientesRequest $request,
+        AlcanceOperacionalUsuario $alcance,
     ): AnonymousResourceCollection {
         $datos = $request->validated();
+        $contenidos = collect($alcance->contenidosVisibles($request->user()))
+            ->map->value
+            ->all();
+
+        if ($camaraId = $datos['camara_id'] ?? null) {
+            $camara = Camara::query()->findOrFail($camaraId);
+            abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
+        }
+
         $movimientos = Movimiento::query()
-            ->when($datos['camara_id'] ?? null, function ($consulta, string $camaraId) {
+            ->where(function ($consulta) use ($contenidos) {
+                $consulta
+                    ->whereHas('camaraOrigen', fn ($camara) => $camara
+                        ->whereIn('contenido', $contenidos))
+                    ->orWhereHas('camaraDestino', fn ($camara) => $camara
+                        ->whereIn('contenido', $contenidos));
+            })
+            ->when($camaraId ?? null, function ($consulta, string $camaraId) {
                 $consulta->where(function ($consulta) use ($camaraId) {
                     $consulta
                         ->where('camara_origen_id', $camaraId)

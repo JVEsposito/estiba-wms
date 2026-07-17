@@ -4,9 +4,12 @@ namespace App\Services\Camaras;
 
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoPosicion;
+use App\Enums\ContenidoCamara;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +17,10 @@ use Illuminate\Support\Str;
 
 class ServicioConfiguracionCamara
 {
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
+
     public function siguienteCodigo(): string
     {
         $mayor = Camara::query()
@@ -33,6 +40,14 @@ class ServicioConfiguracionCamara
      */
     public function crear(array $datos, User $usuario): Camara
     {
+        $contenido = ContenidoCamara::from($datos['contenido']);
+
+        if (! $this->alcance->puedeCrearCamara($usuario, $contenido)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no puede crear cámaras para esta área.',
+            );
+        }
+
         return DB::transaction(function () use ($datos, $usuario): Camara {
             Camara::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
 
@@ -99,6 +114,10 @@ class ServicioConfiguracionCamara
      */
     public function actualizar(Camara $camara, array $datos, User $usuario): Camara
     {
+        if (! $this->alcance->puedeAdministrarCamaras($usuario)) {
+            throw new OperacionNoAutorizada('Solo el administrador puede modificar cámaras.');
+        }
+
         return DB::transaction(function () use ($camara, $datos, $usuario): Camara {
             $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $this->asegurarSinSesionActiva($camaraBloqueada);
@@ -141,6 +160,10 @@ class ServicioConfiguracionCamara
 
     public function desactivar(Camara $camara, User $usuario): Camara
     {
+        if (! $this->alcance->puedeAdministrarCamaras($usuario)) {
+            throw new OperacionNoAutorizada('Solo el administrador puede desactivar cámaras.');
+        }
+
         return DB::transaction(function () use ($camara, $usuario): Camara {
             $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $this->asegurarSinSesionActiva($camaraBloqueada);

@@ -95,6 +95,16 @@ class AlcanceOperacionalUsuario
         return $this->puedeSupervisarCamara($usuario, $contenido);
     }
 
+    public function puedeAdministrarCamaras(User $usuario): bool
+    {
+        return $usuario->activo && $usuario->rol === RolUsuario::Administrador;
+    }
+
+    public function puedeAdministrarAccesos(User $usuario): bool
+    {
+        return $this->puedeAdministrarCamaras($usuario);
+    }
+
     public function contenidoForzadoCreacion(User $usuario): ?ContenidoCamara
     {
         return match ($usuario->rol) {

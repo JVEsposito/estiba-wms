@@ -24,7 +24,7 @@ class DespachoMaterialController extends Controller
         Request $request,
         ServicioDespachoMaterial $servicio,
     ): JsonResponse {
-        Gate::authorize('consultar-materiales');
+        Gate::authorize('consultar-despachos-materiales');
         $estados = array_filter(explode(',', (string) $request->query('estados', '')));
         $despachos = DespachoMaterial::query()
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
@@ -59,7 +59,7 @@ class DespachoMaterialController extends Controller
         DespachoMaterial $despachoMaterial,
         ServicioDespachoMaterial $servicio,
     ): DespachoMaterialResource {
-        Gate::authorize('consultar-materiales');
+        Gate::authorize('consultar-despachos-materiales');
 
         return new DespachoMaterialResource($servicio->cargar($despachoMaterial));
     }
@@ -104,7 +104,7 @@ class DespachoMaterialController extends Controller
 
     public function inventario(): JsonResponse
     {
-        Gate::authorize('consultar-materiales');
+        Gate::authorize('consultar-despachos-materiales');
         $folios = FolioMaterial::query()
             ->with(['item', 'folio.ubicacionActual.posicion.camara'])
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
@@ -148,7 +148,7 @@ class DespachoMaterialController extends Controller
 
     public function kardex(Request $request): JsonResponse
     {
-        Gate::authorize('consultar-materiales');
+        Gate::authorize('consultar-kardex-materiales');
         $movimientos = MovimientoInventarioMaterial::query()
             ->with(['folioMaterial.folio:id,numero_folio', 'item:id,codigo,nombre'])
             ->when($request->query('folio_id'), fn ($consulta, $folio) => $consulta

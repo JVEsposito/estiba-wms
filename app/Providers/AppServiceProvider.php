@@ -2,9 +2,9 @@
 
 namespace App\Providers;
 
-use App\Enums\RolUsuario;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
@@ -26,79 +26,103 @@ class AppServiceProvider extends ServiceProvider
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
+        $alcance = app(AlcanceOperacionalUsuario::class);
+
         Gate::define(
-            'configurar-camaras',
-            fn (User $usuario): bool => $usuario->activo
-                && in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                ], true),
+            'consultar-configuracion-camaras',
+            fn (User $usuario): bool => $alcance->puedeAccederOficina($usuario),
+        );
+        Gate::define(
+            'crear-camaras-productos',
+            fn (User $usuario): bool => $alcance->puedeCrearCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Productos,
+            ),
+        );
+        Gate::define(
+            'crear-camaras-materiales',
+            fn (User $usuario): bool => $alcance->puedeCrearCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Materiales,
+            ),
+        );
+        Gate::define(
+            'operar-camaras-productos',
+            fn (User $usuario): bool => $alcance->puedeOperarCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Productos,
+            ),
+        );
+        Gate::define(
+            'operar-camaras-materiales',
+            fn (User $usuario): bool => $alcance->puedeOperarCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Materiales,
+            ),
+        );
+        Gate::define(
+            'supervisar-camaras-productos',
+            fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Productos,
+            ),
+        );
+        Gate::define(
+            'supervisar-camaras-materiales',
+            fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
+                $usuario,
+                \App\Enums\ContenidoCamara::Materiales,
+            ),
         );
 
         Gate::define(
             'administrar-camaras',
-            fn (User $usuario): bool => $usuario->activo
-                && $usuario->rol === RolUsuario::Administrador,
+            fn (User $usuario): bool => $alcance->puedeAdministrarCamaras($usuario),
         );
 
         Gate::define(
             'administrar-accesos',
-            fn (User $usuario): bool => $usuario->activo
-                && $usuario->rol === RolUsuario::Administrador,
+            fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
         );
 
         Gate::define(
             'gestionar-cargas',
-            fn (User $usuario): bool => $usuario->activo
-                && in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                ], true),
+            fn (User $usuario): bool => $alcance->puedeGestionarCargas($usuario),
         );
 
         Gate::define(
             'consultar-cargas-operacion',
-            fn (User $usuario): bool => $usuario->activo
-                && in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                    RolUsuario::Operador,
-                    RolUsuario::Consulta,
-                ], true),
+            fn (User $usuario): bool => $alcance->puedeConsultarCargas($usuario),
         );
 
         Gate::define(
             'administrar-catalogos-materiales',
-            fn (User $usuario): bool => $usuario->activo
-                && $usuario->rol === RolUsuario::Administrador,
+            fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
         );
 
         Gate::define(
             'gestionar-despachos-materiales',
-            fn (User $usuario): bool => $usuario->activo
-                && in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                    RolUsuario::Operador,
-                ], true),
+            fn (User $usuario): bool => $alcance->puedeGestionarDespachosMateriales($usuario),
+        );
+
+        Gate::define(
+            'consultar-despachos-materiales',
+            fn (User $usuario): bool => $alcance->puedeConsultarDespachosMateriales($usuario),
+        );
+
+        Gate::define(
+            'retirar-materiales',
+            fn (User $usuario): bool => $alcance->puedeRetirarMateriales($usuario),
         );
 
         Gate::define(
             'cancelar-despachos-materiales',
-            fn (User $usuario): bool => $usuario->activo
-                && in_array($usuario->rol, [
-                    RolUsuario::Administrador,
-                    RolUsuario::Supervisor,
-                    RolUsuario::Despachador,
-                ], true),
+            fn (User $usuario): bool => $alcance->puedeCancelarDespachosMateriales($usuario),
         );
 
         Gate::define(
-            'consultar-materiales',
-            fn (User $usuario): bool => $usuario->activo,
+            'consultar-kardex-materiales',
+            fn (User $usuario): bool => $alcance->puedeConsultarKardexMateriales($usuario),
         );
 
         Sanctum::authenticateAccessTokensUsing(
