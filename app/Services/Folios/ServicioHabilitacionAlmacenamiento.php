@@ -13,7 +13,7 @@ use DomainException;
 
 class ServicioHabilitacionAlmacenamiento
 {
-    public function prepararFolioManual(Folio $folio, User $usuario): Folio
+    public function prepararFolioManual(Folio $folio, ?User $usuario = null): Folio
     {
         if ($folio->tipo_bulto === TipoBulto::Material) {
             return $folio;
@@ -28,7 +28,7 @@ class ServicioHabilitacionAlmacenamiento
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fuente_habilitacion_almacenamiento' => FuenteHabilitacionAlmacenamiento::RegularizacionManual,
             'habilitado_almacenamiento_at' => now(),
-            'habilitado_almacenamiento_por_user_id' => $usuario->id,
+            'habilitado_almacenamiento_por_user_id' => $usuario?->id,
             'retencion_termica_motivo' => null,
         ]);
 
@@ -100,6 +100,10 @@ class ServicioHabilitacionAlmacenamiento
 
         if (! $folio->activo) {
             throw new DomainException('El folio se encuentra inactivo y no puede ingresar a cámara.');
+        }
+
+        if ($folio->condicion_termica === null && $folio->habilitacion_almacenamiento === null) {
+            return;
         }
 
         if ($folio->habilitacion_almacenamiento !== HabilitacionAlmacenamientoFolio::Habilitado) {
