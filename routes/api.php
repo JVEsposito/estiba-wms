@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\AdministracionAccesoController;
+use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
@@ -28,12 +29,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
 
-    Route::get('/validacion/catalogos', CatalogoValidacionController::class)->middleware('can:validar-pallets');
-    Route::post('/validacion/pallets', [ValidacionPalletController::class, 'store'])->middleware('can:validar-pallets');
+    Route::get('/validacion/catalogos', CatalogoValidacionController::class)
+        ->middleware('can:validar-pallets');
+    Route::post('/validacion/pallets', [ValidacionPalletController::class, 'store'])
+        ->middleware('can:validar-pallets');
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
     });
+    Route::prefix('/administracion/validacion')
+        ->middleware('can:administrar-catalogos-validacion')
+        ->group(function () {
+            Route::get('/', [AdministracionValidacionController::class, 'index']);
+            Route::post('/temporadas', [AdministracionValidacionController::class, 'storeTemporada']);
+            Route::put('/temporadas/{temporada}', [AdministracionValidacionController::class, 'updateTemporada']);
+            Route::post('/temporadas/{temporada}/activar', [AdministracionValidacionController::class, 'activarTemporada']);
+            Route::post('/articulos', [AdministracionValidacionController::class, 'storeArticulo']);
+            Route::put('/articulos/{articuloValidacion}', [AdministracionValidacionController::class, 'updateArticulo']);
+            Route::post('/origenes', [AdministracionValidacionController::class, 'storeOrigen']);
+            Route::put('/origenes/{origenValidacion}', [AdministracionValidacionController::class, 'updateOrigen']);
+            Route::post('/combinaciones', [AdministracionValidacionController::class, 'storeCombinacion']);
+            Route::put('/combinaciones/{combinacionValidacion}', [AdministracionValidacionController::class, 'updateCombinacion']);
+            Route::post('/importaciones/previsualizar', [AdministracionValidacionController::class, 'previsualizarImportacion']);
+            Route::post('/importaciones/{importacionValidacion}/confirmar', [AdministracionValidacionController::class, 'confirmarImportacion']);
+        });
 
     Route::middleware('can:consultar-despachos-materiales')->group(function () {
         Route::get('/materiales/catalogo', [CatalogoMaterialController::class, 'catalogo']);
@@ -41,10 +60,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/materiales/despachos', [DespachoMaterialController::class, 'index']);
         Route::get('/materiales/despachos/{despachoMaterial}', [DespachoMaterialController::class, 'show']);
     });
-    Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex'])->middleware('can:consultar-kardex-materiales');
-    Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])->middleware('can:gestionar-despachos-materiales');
-    Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])->middleware('can:retirar-materiales');
-    Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])->middleware('can:cancelar-despachos-materiales');
+    Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex'])
+        ->middleware('can:consultar-kardex-materiales');
+    Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])
+        ->middleware('can:gestionar-despachos-materiales');
+    Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])
+        ->middleware('can:retirar-materiales');
+    Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
+        ->middleware('can:cancelar-despachos-materiales');
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
@@ -52,7 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cargas/{carga}/plan-extraccion', [DespachoFrigorificoController::class, 'planExtraccion']);
         Route::get('/andenes', [AndenController::class, 'index']);
     });
-    Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])->middleware('can:gestionar-cargas');
+    Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
+        ->middleware('can:gestionar-cargas');
     Route::middleware('can:consultar-catalogo-cargas')->group(function () {
         Route::get('/cargas/incidencias', [DespachoFrigorificoController::class, 'incidencias']);
         Route::get('/cargas', [CargaController::class, 'index']);
@@ -77,8 +101,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'show']);
     });
     Route::post('/configuracion/camaras', [ConfiguracionCamaraController::class, 'store']);
-    Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update'])->middleware('can:administrar-camaras');
-    Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy'])->middleware('can:administrar-camaras');
+    Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update'])
+        ->middleware('can:administrar-camaras');
+    Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy'])
+        ->middleware('can:administrar-camaras');
 
     Route::middleware('can:administrar-accesos')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
