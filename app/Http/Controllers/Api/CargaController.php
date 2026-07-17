@@ -46,7 +46,7 @@ class CargaController extends Controller
             ->with($this->relacionesDetalle())
             ->withCount([
                 'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
-                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
             ])
             ->when(
                 $busqueda !== '',
@@ -73,7 +73,7 @@ class CargaController extends Controller
                 fn (Builder $consulta): Builder => $consulta->whereHas(
                     'incidencias',
                     fn (Builder $incidencia): Builder => $incidencia
-                        ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                        ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
                 ),
             )
             ->orderByDesc('created_at')
@@ -97,7 +97,7 @@ class CargaController extends Controller
             ->with($this->relacionesDetalle())
             ->withCount([
                 'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
-                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
             ])
             ->orderByRaw(
                 "CASE prioridad WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 ELSE 3 END",
@@ -306,7 +306,7 @@ class CargaController extends Controller
             ->load($this->relacionesDetalle())
             ->loadCount([
                 'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
-                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
             ]);
     }
 

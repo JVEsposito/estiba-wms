@@ -183,7 +183,7 @@ class DespachoFrigorificoController extends Controller
             ])
             ->loadCount([
                 'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
-                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
             ]);
     }
 
