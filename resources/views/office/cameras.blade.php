@@ -64,7 +64,12 @@
                 </div>
             </header>
 
-            <section class="office-workspace" id="officeWorkspace">
+            <div class="configuration-module-tabs is-hidden" id="configurationModuleTabs" role="tablist" aria-label="Configuración de infraestructura">
+                <button class="is-active" id="cameraModuleButton" type="button" role="tab" aria-selected="true" aria-controls="officeWorkspace">Cámaras</button>
+                <button id="dockModuleButton" type="button" role="tab" aria-selected="false" aria-controls="dockWorkspace">Andenes</button>
+            </div>
+
+            <section class="office-workspace" id="officeWorkspace" role="tabpanel" aria-labelledby="cameraModuleButton">
                 <aside class="camera-catalog panel">
                     <div class="panel-heading">
                         <div><p class="eyebrow" id="cameraCatalogEyebrow">CONFIGURACIÓN</p><h2 id="cameraCatalogTitle">Cámaras creadas</h2></div>
@@ -113,6 +118,46 @@
                             <button class="secondary-button is-hidden" id="cancelEditCameraButton" type="button">Cancelar edición</button>
                             <button class="secondary-button" id="resetCameraButton" type="button">Restablecer plano</button>
                             <button class="primary-button" id="saveCameraButton" type="submit"><span id="saveCameraButtonText">Crear cámara y posiciones</span> <span>→</span></button>
+                        </div>
+                    </form>
+                </section>
+            </section>
+
+            <section class="office-workspace is-hidden" id="dockWorkspace" role="tabpanel" aria-labelledby="dockModuleButton">
+                <aside class="camera-catalog panel">
+                    <div class="panel-heading">
+                        <div><p class="eyebrow">DESPACHO</p><h2>Andenes creados</h2></div>
+                        <button class="icon-button" id="reloadDocksButton" type="button" aria-label="Actualizar andenes">↻</button>
+                    </div>
+                    <div class="camera-catalog__list" id="officeDockList" aria-live="polite"></div>
+                </aside>
+
+                <section class="configuration panel" id="dockConfiguration">
+                    <div class="configuration__heading">
+                        <div>
+                            <p class="eyebrow" id="dockFormEyebrow">NUEVO ANDÉN</p>
+                            <h1 id="dockFormTitle">Crear andén</h1>
+                            <p id="dockFormDescription">Registra los puntos físicos donde se concentran y despachan las cargas.</p>
+                        </div>
+                        <div class="next-code"><span>CÓDIGO SUGERIDO</span><strong id="nextDockCode">AND-01</strong></div>
+                    </div>
+
+                    <form id="dockForm" novalidate>
+                        <div class="dock-form-grid">
+                            <label class="field"><span>Código *</span><input name="codigo" maxlength="30" placeholder="AND-01" pattern="[A-Za-z0-9-]+" required></label>
+                            <label class="field"><span>Nombre del andén *</span><input name="nombre" maxlength="100" placeholder="Ej. Andén principal" required></label>
+                            <label class="field"><span>Código externo</span><input name="codigo_externo" maxlength="100" placeholder="Opcional: ERP-AND-01"></label>
+                        </div>
+
+                        <label class="dock-status-toggle">
+                            <input name="activo" type="checkbox" checked>
+                            <span><strong>Andén activo</strong><small>Los andenes inactivos conservan su historial, pero no aparecen al preparar o despachar cargas.</small></span>
+                        </label>
+
+                        <p class="form-error" id="dockFormError" role="alert"></p>
+                        <div class="form-actions">
+                            <button class="secondary-button is-hidden" id="cancelEditDockButton" type="button">Cancelar edición</button>
+                            <button class="primary-button" id="saveDockButton" type="submit"><span id="saveDockButtonText">Crear andén</span> <span>→</span></button>
                         </div>
                     </form>
                 </section>

@@ -166,6 +166,8 @@ class AdministracionAccesoApiTest extends TestCase
             'password' => 'password',
         ])
             ->assertOk()
-            ->assertJsonPath('usuario.puede_administrar_accesos', true);
+            ->assertJsonPath('usuario.puede_administrar_accesos', true)
+            ->assertJsonPath('usuario.puede_gestionar_andenes', true)
+            ->assertJsonPath('usuario.capacidades.puede_gestionar_andenes', true);
     }
 }

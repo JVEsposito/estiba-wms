@@ -12,7 +12,11 @@ const elements = {
     accessesNav: byId('officeAccessesNav'),
     loadsNav: byId('officeLoadsNav'),
     materialsNav: byId('officeMaterialsNav'),
+    moduleTabs: byId('configurationModuleTabs'),
+    cameraModule: byId('cameraModuleButton'),
+    dockModule: byId('dockModuleButton'),
     workspace: byId('officeWorkspace'),
+    dockWorkspace: byId('dockWorkspace'),
     catalogEyebrow: byId('cameraCatalogEyebrow'),
     catalogTitle: byId('cameraCatalogTitle'),
     reload: byId('reloadOfficeButton'),
@@ -37,6 +41,17 @@ const elements = {
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
+    dockList: byId('officeDockList'),
+    reloadDocks: byId('reloadDocksButton'),
+    dockConfiguration: byId('dockConfiguration'),
+    dockForm: byId('dockForm'),
+    dockFormError: byId('dockFormError'),
+    dockFormEyebrow: byId('dockFormEyebrow'),
+    dockFormTitle: byId('dockFormTitle'),
+    dockFormDescription: byId('dockFormDescription'),
+    nextDockCode: byId('nextDockCode'),
+    cancelEditDock: byId('cancelEditDockButton'),
+    saveDockText: byId('saveDockButtonText'),
 };
 
 const keys = {
@@ -53,6 +68,10 @@ const state = {
     mode: 'create',
     editingCamera: null,
     originalDimensions: null,
+    activeModule: 'cameras',
+    docks: [],
+    dockMode: 'create',
+    editingDock: null,
 };
 
 class ApiError extends Error {
@@ -129,6 +148,7 @@ function persistSession(payload) {
 function clearSession() {
     state.token = null;
     state.identity = null;
+    switchConfigurationModule('cameras');
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden');
@@ -154,11 +174,34 @@ function showApp() {
         'is-hidden',
         state.identity?.puede_consultar_despachos_materiales !== true,
     );
+    const canManageDocks = userCanManageDocks();
+    elements.moduleTabs.classList.toggle('is-hidden', !canManageDocks);
+    if (!canManageDocks && state.activeModule === 'docks') {
+        switchConfigurationModule('cameras');
+    }
     applyCreationContentScope();
     const readOnly = state.identity?.puede_configurar_camaras !== true;
     elements.workspace.classList.toggle('is-read-only', readOnly);
     elements.catalogEyebrow.textContent = readOnly ? 'CONSULTA OPERACIONAL' : 'CONFIGURACIÓN';
     elements.catalogTitle.textContent = readOnly ? 'Disponibilidad de cámaras' : 'Cámaras creadas';
+}
+
+function userCanManageDocks() {
+    return state.identity?.puede_gestionar_andenes === true
+        || state.identity?.puede_administrar_camaras === true;
+}
+
+function switchConfigurationModule(module) {
+    if (module === 'docks' && !userCanManageDocks()) return;
+
+    state.activeModule = module;
+    const showDocks = module === 'docks';
+    elements.workspace.classList.toggle('is-hidden', showDocks);
+    elements.dockWorkspace.classList.toggle('is-hidden', !showDocks);
+    elements.cameraModule.classList.toggle('is-active', !showDocks);
+    elements.dockModule.classList.toggle('is-active', showDocks);
+    elements.cameraModule.setAttribute('aria-selected', String(!showDocks));
+    elements.dockModule.setAttribute('aria-selected', String(showDocks));
 }
 
 function allowedCreationContent() {
@@ -382,6 +425,94 @@ async function loadConfiguration() {
     renderCameras();
 }
 
+function suggestedDockCode() {
+    const lastNumber = state.docks.reduce((highest, dock) => {
+        const match = String(dock.codigo || '').match(/^AND-(\d+)$/i);
+        return match ? Math.max(highest, Number(match[1])) : highest;
+    }, 0);
+
+    return `AND-${String(lastNumber + 1).padStart(2, '0')}`;
+}
+
+function renderDocks() {
+    if (!state.docks.length) {
+        elements.dockList.innerHTML = '<div class="empty-state">Aún no existen andenes. Crea el primero desde el formulario.</div>';
+        return;
+    }
+
+    elements.dockList.innerHTML = state.docks.map((dock) => `
+        <article class="camera-item dock-item${dock.activo ? '' : ' is-inactive'}">
+            <div><strong>${escapeHtml(dock.codigo)}</strong><span class="state-dot${dock.activo ? '' : ' is-inactive'}" title="${dock.activo ? 'Activo' : 'Inactivo'}"></span></div>
+            <h3>${escapeHtml(dock.nombre)}</h3>
+            <p>${dock.codigo_externo ? `Código externo: ${escapeHtml(dock.codigo_externo)}` : 'Sin código externo'}</p>
+            <div class="dock-item__status"><span>${dock.activo ? 'Disponible para cargas' : 'Fuera de operación'}</span></div>
+            <div class="camera-item__actions"><button data-edit-dock="${dock.id}" type="button">Editar andén</button></div>
+        </article>
+    `).join('');
+}
+
+function resetDockForm() {
+    state.dockMode = 'create';
+    state.editingDock = null;
+    elements.dockForm.reset();
+    elements.dockForm.elements.codigo.value = suggestedDockCode();
+    elements.dockForm.elements.activo.checked = true;
+    elements.dockFormEyebrow.textContent = 'NUEVO ANDÉN';
+    elements.dockFormTitle.textContent = 'Crear andén';
+    elements.dockFormDescription.textContent = 'Registra los puntos físicos donde se concentran y despachan las cargas.';
+    elements.nextDockCode.parentElement.querySelector('span').textContent = 'CÓDIGO SUGERIDO';
+    elements.nextDockCode.textContent = suggestedDockCode();
+    elements.saveDockText.textContent = 'Crear andén';
+    elements.cancelEditDock.classList.add('is-hidden');
+    elements.dockFormError.textContent = '';
+}
+
+function editDockForm(dock) {
+    state.dockMode = 'edit';
+    state.editingDock = dock;
+    elements.dockForm.elements.codigo.value = dock.codigo;
+    elements.dockForm.elements.nombre.value = dock.nombre;
+    elements.dockForm.elements.codigo_externo.value = dock.codigo_externo || '';
+    elements.dockForm.elements.activo.checked = dock.activo;
+    elements.dockFormEyebrow.textContent = 'ADMINISTRAR ANDÉN';
+    elements.dockFormTitle.textContent = `Editar ${dock.codigo}`;
+    elements.dockFormDescription.textContent = 'Actualiza su identificación o cambia su disponibilidad operacional.';
+    elements.nextDockCode.parentElement.querySelector('span').textContent = 'ESTADO ACTUAL';
+    elements.nextDockCode.textContent = dock.activo ? 'ACTIVO' : 'INACTIVO';
+    elements.saveDockText.textContent = 'Guardar cambios';
+    elements.cancelEditDock.classList.remove('is-hidden');
+    elements.dockFormError.textContent = '';
+    elements.dockConfiguration.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function loadDocks() {
+    const response = await api('/api/andenes?incluir_inactivos=1');
+    state.docks = response.data;
+    renderDocks();
+
+    if (state.dockMode === 'edit' && state.editingDock) {
+        const updated = state.docks.find((dock) => dock.id === state.editingDock.id);
+        updated ? editDockForm(updated) : resetDockForm();
+        return;
+    }
+
+    resetDockForm();
+}
+
+async function openConfigurationModule(module) {
+    switchConfigurationModule(module);
+    if (module !== 'docks') return;
+
+    setBusy(true, 'Cargando andenes…');
+    try {
+        await loadDocks();
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+}
+
 elements.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     elements.loginError.textContent = '';
@@ -569,6 +700,78 @@ elements.reload.addEventListener('click', async () => {
     }
 });
 
+elements.cameraModule.addEventListener('click', () => {
+    void openConfigurationModule('cameras');
+});
+
+elements.dockModule.addEventListener('click', () => {
+    void openConfigurationModule('docks');
+});
+
+elements.reloadDocks.addEventListener('click', async () => {
+    setBusy(true, 'Actualizando andenes…');
+    try {
+        await loadDocks();
+        toast('Listado de andenes actualizado.');
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.dockList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-edit-dock]');
+    if (!button) return;
+
+    const dock = state.docks.find((item) => item.id === button.dataset.editDock);
+    if (dock) editDockForm(dock);
+});
+
+elements.cancelEditDock.addEventListener('click', () => {
+    resetDockForm();
+});
+
+elements.dockForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.dockFormError.textContent = '';
+
+    const form = new FormData(elements.dockForm);
+    const payload = {
+        codigo: String(form.get('codigo') || '').trim().toUpperCase(),
+        nombre: String(form.get('nombre') || '').trim(),
+        codigo_externo: String(form.get('codigo_externo') || '').trim() || null,
+        activo: elements.dockForm.elements.activo.checked,
+    };
+    const editing = state.dockMode === 'edit' && state.editingDock;
+
+    if (editing && state.editingDock.activo && !payload.activo
+        && !window.confirm(`${state.editingDock.codigo} dejará de estar disponible para nuevas operaciones. ¿Deseas continuar?`)) {
+        return;
+    }
+
+    setBusy(true, editing ? 'Guardando andén…' : 'Creando andén…');
+    try {
+        const response = await api(
+            editing
+                ? `/api/administracion/andenes/${state.editingDock.id}`
+                : '/api/administracion/andenes',
+            {
+                method: editing ? 'PUT' : 'POST',
+                body: JSON.stringify(payload),
+            },
+        );
+        toast(`${response.data.codigo} fue ${editing ? 'actualizado' : 'creado'} correctamente.`);
+        state.dockMode = 'create';
+        state.editingDock = null;
+        await loadDocks();
+    } catch (error) {
+        elements.dockFormError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
 elements.logout.addEventListener('click', async () => {
     try {
         await api('/api/acceso-oficina', { method: 'DELETE' });
@@ -579,6 +782,7 @@ elements.logout.addEventListener('click', async () => {
 
 async function boot() {
     renderPreview();
+    resetDockForm();
     if (!state.token) return;
     showApp();
     setBusy(

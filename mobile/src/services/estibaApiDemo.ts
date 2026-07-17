@@ -47,6 +47,7 @@ const demoIdentity: AuthSession = {
       puede_consultar_cargas: true,
       puede_consultar_catalogo_cargas: false,
       puede_gestionar_cargas: false,
+      puede_gestionar_andenes: false,
       puede_consultar_despachos_materiales: false,
       puede_gestionar_despachos_materiales: false,
       puede_retirar_materiales: false,
