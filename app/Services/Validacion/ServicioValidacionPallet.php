@@ -2,9 +2,11 @@
 
 namespace App\Services\Validacion;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Exceptions\ConflictoOperacion;
@@ -173,6 +175,8 @@ class ServicioValidacionPallet
                     'numero_folio' => $numeroFolio,
                     'tipo_bulto' => TipoBulto::from($datos['tipo_bulto']),
                     'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+                    'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
+                    'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
                     'fecha_ingreso' => now(),
                     'activo' => true,
                     'variedad' => $articulo->variedad,
@@ -222,7 +226,7 @@ class ServicioValidacionPallet
     private function cargar(ValidacionPallet $validacion): ValidacionPallet
     {
         return $validacion->load([
-            'folio:id,numero_folio,estado_operacional',
+            'folio:id,numero_folio,estado_operacional,condicion_termica,habilitacion_almacenamiento',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',
