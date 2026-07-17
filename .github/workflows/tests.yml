@@ -69,7 +69,7 @@ jobs:
       - name: Validar estilo
         id: pint
         continue-on-error: true
-        run: vendor/bin/pint --test > pint.log 2>&1
+        run: vendor/bin/pint --test --diff > pint.log 2>&1
 
       - name: Guardar diagnóstico Pint
         if: steps.pint.outcome == 'failure'
