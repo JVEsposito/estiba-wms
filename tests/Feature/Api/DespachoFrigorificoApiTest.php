@@ -86,7 +86,7 @@ class DespachoFrigorificoApiTest extends TestCase
         $asignacion = $carga->asignacionesActuales()->firstOrFail();
         $incidencia = $this->reportarIncidencia($contexto, $asignacion);
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$incidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'reparado',
@@ -99,7 +99,7 @@ class DespachoFrigorificoApiTest extends TestCase
         $this->assertSame('pendiente', $asignacion->refresh()->estado->value);
         $segundaIncidencia = $this->reportarIncidencia($contexto, $asignacion);
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$segundaIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'reemplazo',
@@ -131,14 +131,14 @@ class DespachoFrigorificoApiTest extends TestCase
             ->firstOrFail();
         $terceraIncidencia = $this->reportarIncidencia($contexto, $nuevaAsignacion);
 
-        $this->actingAs($contexto['operador'], 'sanctum')
+        $this->withToken($contexto['token'])
             ->postJson("/api/cargas/incidencias/{$terceraIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'despacho_parcial',
             ])
             ->assertForbidden();
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$terceraIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'despacho_parcial',
@@ -200,14 +200,14 @@ class DespachoFrigorificoApiTest extends TestCase
         ];
         $rutaCierre = "/api/cargas/{$carga->id}/cerrar-despacho";
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, $payloadCierre)
             ->assertOk()
             ->assertJsonPath('data.estado', 'cerrada')
             ->assertJsonPath('data.cierre.patente', 'AB-CD-12')
             ->assertJsonPath('data.cierre.conductor', 'María Pérez');
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, $payloadCierre)
             ->assertOk()
             ->assertJsonPath('data.estado', 'cerrada');
@@ -219,7 +219,7 @@ class DespachoFrigorificoApiTest extends TestCase
         ]);
         $this->assertDatabaseMissing('reservas_carga_folio', ['folio_id' => $folio->id]);
 
-        $this->actingAs($contexto['despachador'], 'sanctum')
+        $this->withToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, [
                 ...$payloadCierre,
                 'conductor' => 'Otra persona',
@@ -249,6 +249,9 @@ class DespachoFrigorificoApiTest extends TestCase
         ]);
         $token = $operador
             ->crearTokenParaDispositivo($dispositivo, 'tablet-01')
+            ->plainTextToken;
+        $tokenOficina = $despachador
+            ->createToken('oficina-despachos', ['oficina'])
             ->plainTextToken;
         $camara = Camara::create([
             'codigo' => 'CAM-01',
@@ -306,6 +309,7 @@ class DespachoFrigorificoApiTest extends TestCase
             'operador',
             'dispositivo',
             'token',
+            'tokenOficina',
             'camara',
             'sesion',
             'anden',
