@@ -13,7 +13,6 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\Posicion;
-use App\Models\SesionEstiba;
 use App\Models\User;
 use App\Services\Cargas\ServicioCarga;
 use App\Services\Estiba\ServicioMovimientoEstiba;
@@ -314,7 +313,9 @@ class DespachoFrigorificoApiTest extends TestCase
         );
     }
 
-    /** @param array<int, Folio> $folios */
+    /**
+     * @param  array<int, Folio>  $folios
+     */
     private function crearCargaPublicada(User $despachador, Anden $anden, array $folios): Carga
     {
         $servicio = app(ServicioCarga::class);
@@ -330,7 +331,7 @@ class DespachoFrigorificoApiTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $contexto
+     * @param  array<string, mixed>  $contexto
      */
     private function reportarIncidencia(array $contexto, CargaFolio $asignacion): IncidenciaCargaFolio
     {
