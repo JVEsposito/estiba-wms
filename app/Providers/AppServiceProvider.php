@@ -12,146 +12,43 @@ use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
-
         $alcance = app(AlcanceOperacionalUsuario::class);
 
-        Gate::define(
-            'consultar-configuracion-camaras',
-            fn (User $usuario): bool => $alcance->puedeAccederOficina($usuario),
-        );
-        Gate::define(
-            'crear-camaras-productos',
-            fn (User $usuario): bool => $alcance->puedeCrearCamara(
-                $usuario,
-                ContenidoCamara::Productos,
-            ),
-        );
-        Gate::define(
-            'crear-camaras-materiales',
-            fn (User $usuario): bool => $alcance->puedeCrearCamara(
-                $usuario,
-                ContenidoCamara::Materiales,
-            ),
-        );
-        Gate::define(
-            'operar-camaras-productos',
-            fn (User $usuario): bool => $alcance->puedeOperarCamara(
-                $usuario,
-                ContenidoCamara::Productos,
-            ),
-        );
-        Gate::define(
-            'operar-camaras-materiales',
-            fn (User $usuario): bool => $alcance->puedeOperarCamara(
-                $usuario,
-                ContenidoCamara::Materiales,
-            ),
-        );
-        Gate::define(
-            'supervisar-camaras-productos',
-            fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
-                $usuario,
-                ContenidoCamara::Productos,
-            ),
-        );
-        Gate::define(
-            'supervisar-camaras-materiales',
-            fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
-                $usuario,
-                ContenidoCamara::Materiales,
-            ),
-        );
+        Gate::define('consultar-configuracion-camaras', fn (User $u): bool => $alcance->puedeAccederOficina($u));
+        Gate::define('crear-camaras-productos', fn (User $u): bool => $alcance->puedeCrearCamara($u, ContenidoCamara::Productos));
+        Gate::define('crear-camaras-materiales', fn (User $u): bool => $alcance->puedeCrearCamara($u, ContenidoCamara::Materiales));
+        Gate::define('operar-camaras-productos', fn (User $u): bool => $alcance->puedeOperarCamara($u, ContenidoCamara::Productos));
+        Gate::define('operar-camaras-materiales', fn (User $u): bool => $alcance->puedeOperarCamara($u, ContenidoCamara::Materiales));
+        Gate::define('supervisar-camaras-productos', fn (User $u): bool => $alcance->puedeSupervisarCamara($u, ContenidoCamara::Productos));
+        Gate::define('supervisar-camaras-materiales', fn (User $u): bool => $alcance->puedeSupervisarCamara($u, ContenidoCamara::Materiales));
+        Gate::define('administrar-camaras', fn (User $u): bool => $alcance->puedeAdministrarCamaras($u));
+        Gate::define('administrar-accesos', fn (User $u): bool => $alcance->puedeAdministrarAccesos($u));
+        Gate::define('gestionar-cargas', fn (User $u): bool => $alcance->puedeGestionarCargas($u));
+        Gate::define('consultar-cargas-operacion', fn (User $u): bool => $alcance->puedeConsultarCargas($u));
+        Gate::define('consultar-catalogo-cargas', fn (User $u): bool => $alcance->puedeConsultarCatalogoCargas($u));
+        Gate::define('gestionar-andenes', fn (User $u): bool => $alcance->puedeGestionarAndenes($u));
+        Gate::define('administrar-catalogos-materiales', fn (User $u): bool => $alcance->puedeAdministrarAccesos($u));
+        Gate::define('gestionar-despachos-materiales', fn (User $u): bool => $alcance->puedeGestionarDespachosMateriales($u));
+        Gate::define('consultar-despachos-materiales', fn (User $u): bool => $alcance->puedeConsultarDespachosMateriales($u));
+        Gate::define('retirar-materiales', fn (User $u): bool => $alcance->puedeRetirarMateriales($u));
+        Gate::define('cancelar-despachos-materiales', fn (User $u): bool => $alcance->puedeCancelarDespachosMateriales($u));
+        Gate::define('consultar-kardex-materiales', fn (User $u): bool => $alcance->puedeConsultarKardexMateriales($u));
+        Gate::define('validar-pallets', fn (User $u): bool => $alcance->puedeValidarPallets($u));
+        Gate::define('rechazar-pallets', fn (User $u): bool => $alcance->puedeRechazarPallets($u));
+        Gate::define('consultar-validaciones-pallet', fn (User $u): bool => $alcance->puedeConsultarValidacionesPallet($u));
 
-        Gate::define(
-            'administrar-camaras',
-            fn (User $usuario): bool => $alcance->puedeAdministrarCamaras($usuario),
-        );
-
-        Gate::define(
-            'administrar-accesos',
-            fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
-        );
-
-        Gate::define(
-            'gestionar-cargas',
-            fn (User $usuario): bool => $alcance->puedeGestionarCargas($usuario),
-        );
-
-        Gate::define(
-            'consultar-cargas-operacion',
-            fn (User $usuario): bool => $alcance->puedeConsultarCargas($usuario),
-        );
-
-        Gate::define(
-            'consultar-catalogo-cargas',
-            fn (User $usuario): bool => $alcance->puedeConsultarCatalogoCargas($usuario),
-        );
-
-        Gate::define(
-            'gestionar-andenes',
-            fn (User $usuario): bool => $alcance->puedeGestionarAndenes($usuario),
-        );
-
-        Gate::define(
-            'administrar-catalogos-materiales',
-            fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
-        );
-
-        Gate::define(
-            'gestionar-despachos-materiales',
-            fn (User $usuario): bool => $alcance->puedeGestionarDespachosMateriales($usuario),
-        );
-
-        Gate::define(
-            'consultar-despachos-materiales',
-            fn (User $usuario): bool => $alcance->puedeConsultarDespachosMateriales($usuario),
-        );
-
-        Gate::define(
-            'retirar-materiales',
-            fn (User $usuario): bool => $alcance->puedeRetirarMateriales($usuario),
-        );
-
-        Gate::define(
-            'cancelar-despachos-materiales',
-            fn (User $usuario): bool => $alcance->puedeCancelarDespachosMateriales($usuario),
-        );
-
-        Gate::define(
-            'consultar-kardex-materiales',
-            fn (User $usuario): bool => $alcance->puedeConsultarKardexMateriales($usuario),
-        );
-
-        Sanctum::authenticateAccessTokensUsing(
-            function (PersonalAccessToken $token, bool $esValido): bool {
-                if (! $esValido || ! $token->tokenable instanceof User) {
-                    return false;
-                }
-
-                if (! $token->tokenable->activo) {
-                    return false;
-                }
-
-                if ($token->dispositivo_id === null) {
-                    return in_array('oficina', $token->abilities ?? [], true);
-                }
-
-                return $token->dispositivo()->where('activo', true)->exists();
-            },
-        );
+        Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $esValido): bool {
+            if (! $esValido || ! $token->tokenable instanceof User || ! $token->tokenable->activo) return false;
+            if ($token->dispositivo_id === null) return in_array('oficina', $token->abilities ?? [], true);
+            return $token->dispositivo()->where('activo', true)->exists();
+        });
     }
 }
