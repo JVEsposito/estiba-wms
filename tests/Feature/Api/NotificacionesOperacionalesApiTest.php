@@ -15,12 +15,12 @@ use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\NotificacionOperacional;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class NotificacionesOperacionalesApiTest extends TestCase
 {
-    use DatabaseMigrations;
+    use RefreshDatabase;
 
     public function test_publicacion_es_visible_para_frio_y_lectura_es_individual_e_idempotente(): void
     {
