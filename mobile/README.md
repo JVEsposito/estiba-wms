@@ -1,6 +1,6 @@
 # Estiba WMS móvil
 
-Cliente nativo para tablets Android, construido con Expo, React Native y TypeScript. Está dedicado exclusivamente al trabajo dentro de cámaras: autenticación del operador y dispositivo, sesiones de estiba, plano, ubicación inicial y movimientos.
+Cliente nativo para tablets Android, construido con Expo, React Native y TypeScript. Está dedicado exclusivamente al trabajo dentro de cámaras: autenticación del operador y dispositivo, sesiones de estiba, plano, ubicación inicial, movimientos y ejecución física de cargas frigoríficas.
 
 ## Requisitos locales
 
@@ -110,5 +110,9 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 - Ubicación inicial con datos del folio y condición SAG.
 - Reubicación dentro de una cámara y traslado entre cámaras.
 - Historial de movimientos recientes.
+- Bandeja compartida de cargas de frío con prioridad, incidencias y concentración.
+- Ruta de extracción calculada desde la entrada hacia el fondo sobre el plano vertical.
+- Reporte de incidencias físicas desde terreno.
+- Envío individual o secuencial de folios a un andén.
 
-Todavía no incluye lectura real de códigos de barras, persistencia offline ni sincronización diferida.
+Todavía no incluye lectura real de códigos de barras, persistencia offline, sincronización diferida ni notificaciones persistentes. La cola de cargas se actualiza manualmente hasta incorporar el polling del PR #31.

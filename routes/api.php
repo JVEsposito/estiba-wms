@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
         Route::get('/cargas/{carga}/tareas', [DespachoFrigorificoController::class, 'tareas']);
+        Route::get('/cargas/{carga}/plan-extraccion', [DespachoFrigorificoController::class, 'planExtraccion']);
         Route::get('/andenes', [AndenController::class, 'index']);
     });
     Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])

@@ -8,9 +8,17 @@ type PositionMapProps = {
   plan: CameraPlan;
   selectedPositionId: string | null;
   onSelectPosition: (position: Position) => void;
+  highlightedFolioIds?: string[];
+  suggestedFolioId?: string | null;
 };
 
-export function PositionMap({ plan, selectedPositionId, onSelectPosition }: PositionMapProps) {
+export function PositionMap({
+  highlightedFolioIds = [],
+  onSelectPosition,
+  plan,
+  selectedPositionId,
+  suggestedFolioId = null,
+}: PositionMapProps) {
   const levels = [...new Set(plan.posiciones.map((position) => position.nivel))].sort((a, b) => a - b);
   const bands = [...new Set(plan.posiciones.map((position) => position.banda))].sort((a, b) => a - b);
   const maxPosition = Math.max(1, ...plan.posiciones.map((position) => position.posicion));
@@ -19,6 +27,11 @@ export function PositionMap({ plan, selectedPositionId, onSelectPosition }: Posi
   useEffect(() => {
     if (!levels.includes(selectedLevel)) setSelectedLevel(levels[0] ?? 1);
   }, [levels, selectedLevel]);
+
+  useEffect(() => {
+    const selected = plan.posiciones.find((position) => position.id === selectedPositionId);
+    if (selected && selected.nivel !== selectedLevel) setSelectedLevel(selected.nivel);
+  }, [plan, selectedLevel, selectedPositionId]);
 
   return (
     <View style={styles.panel}>
@@ -91,6 +104,8 @@ export function PositionMap({ plan, selectedPositionId, onSelectPosition }: Posi
               onSelectPosition={onSelectPosition}
               plan={plan}
               selectedPositionId={selectedPositionId}
+              highlightedFolioIds={highlightedFolioIds}
+              suggestedFolioId={suggestedFolioId}
             />
           ))}
         </View>
@@ -109,11 +124,13 @@ type BandProps = PositionMapProps & {
 
 function Band({
   band,
+  highlightedFolioIds = [],
   level,
   maxPosition,
   onSelectPosition,
   plan,
   selectedPositionId,
+  suggestedFolioId = null,
 }: BandProps) {
   const positions = Array.from({ length: maxPosition }, (_, index) => index + 1);
 
@@ -133,6 +150,8 @@ function Band({
         const occupied = position.ocupada;
         const saldo = position.folio?.tipo_bulto === 'saldo';
         const selected = position.id === selectedPositionId;
+        const loadFolio = Boolean(position.folio && highlightedFolioIds?.includes(position.folio.id));
+        const suggested = position.folio?.id === suggestedFolioId;
 
         return (
           <Pressable
@@ -145,6 +164,8 @@ function Band({
               occupied && styles.occupied,
               saldo && styles.saldo,
               blocked && styles.blocked,
+              loadFolio && styles.loadFolio,
+              suggested && styles.suggested,
               selected && styles.selected,
               pressed && styles.pressed,
             ]}
@@ -290,6 +311,8 @@ const styles = StyleSheet.create({
   occupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
   saldo: { borderColor: colors.saldoBorder, backgroundColor: colors.saldo },
   blocked: { borderColor: colors.blockedBorder, backgroundColor: colors.blocked, opacity: 0.82 },
+  loadFolio: { borderWidth: 2, borderColor: colors.amber },
+  suggested: { borderWidth: 3, borderColor: colors.green },
   selected: { borderWidth: 3, borderColor: colors.cyan },
   pressed: { opacity: 0.72 },
   cellTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },

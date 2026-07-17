@@ -23,6 +23,7 @@ import {
 } from '../components/OperationModals';
 import { PositionMap } from '../components/PositionMap';
 import { RecentMovements } from '../components/RecentMovements';
+import { RefrigeratedLoadOperation } from '../components/RefrigeratedLoadOperation';
 import {
   AuthSession,
   CameraPlan,
@@ -61,6 +62,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [locateVisible, setLocateVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
   const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
+  const [activeModule, setActiveModule] = useState<'camaras' | 'cargas'>('camaras');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -74,6 +76,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const canUseMaterials = capabilities.puede_consultar_despachos_materiales;
   const canCreateMaterialDispatch = capabilities.puede_gestionar_despachos_materiales;
   const canWithdrawMaterial = capabilities.puede_retirar_materiales;
+  const canUseLoads = capabilities.puede_consultar_cargas;
 
   const selectedPosition = useMemo(
     () => plan?.posiciones.find((position) => position.id === selectedPositionId) ?? null,
@@ -92,18 +95,19 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   }, []);
 
   useEffect(() => {
-    if (!selectedCameraId || busy || locateVisible || moveVisible || materialDispatchVisible) return;
+    if (activeModule !== 'camaras' || !selectedCameraId || busy || locateVisible || moveVisible || materialDispatchVisible) return;
 
     const timer = setInterval(() => {
       void refreshCurrent({ quiet: true });
     }, 30000);
 
     return () => clearInterval(timer);
-  }, [selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
+  }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active'
+        && activeModule === 'camaras'
         && selectedCameraId
         && !busy
         && !locateVisible
@@ -114,7 +118,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     });
 
     return () => subscription.remove();
-  }, [selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
+  }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
 
   async function initialize() {
     setBusy(true);
@@ -177,6 +181,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setSelectedCameraId(cameraId);
     setNotice('');
     await loadCamera(cameraId);
+  }
+
+  async function openPositionFromLoad(cameraId: string, positionId: string) {
+    setActiveModule('camaras');
+    setSelectedCameraId(cameraId);
+    setNotice('Folio abierto desde la ruta de despacho.');
+    await loadCamera(cameraId);
+    setSelectedPositionId(positionId);
   }
 
   async function refreshCurrent({ quiet = false }: { quiet?: boolean } = {}) {
@@ -537,6 +549,22 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               <Text style={styles.brandModule}>OPERACIÓN TABLET</Text>
             </View>
           </View>
+          <View style={styles.moduleNav}>
+            <Pressable
+              onPress={() => setActiveModule('camaras')}
+              style={[styles.moduleButton, activeModule === 'camaras' && styles.moduleButtonActive]}
+            >
+              <Text style={[styles.moduleButtonText, activeModule === 'camaras' && styles.moduleButtonTextActive]}>Cámaras</Text>
+            </Pressable>
+            {canUseLoads && (
+              <Pressable
+                onPress={() => setActiveModule('cargas')}
+                style={[styles.moduleButton, activeModule === 'cargas' && styles.moduleButtonActive]}
+              >
+                <Text style={[styles.moduleButtonText, activeModule === 'cargas' && styles.moduleButtonTextActive]}>Cargas</Text>
+              </Pressable>
+            )}
+          </View>
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
@@ -567,7 +595,17 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           </Pressable>
         ) : null}
 
-        <View style={[styles.workspace, !wideLayout && styles.workspaceCompact]}>
+        {activeModule === 'cargas' && canUseLoads ? (
+          <RefrigeratedLoadOperation
+            api={api}
+            auth={auth}
+            onConnectionFailure={(reason) => reportFailure(reason, setError)}
+            onOpenPosition={(cameraId, positionId) => void openPositionFromLoad(cameraId, positionId)}
+            onSessionsChanged={() => void refreshCurrent({ quiet: true })}
+          />
+        ) : (
+          <>
+          <View style={[styles.workspace, !wideLayout && styles.workspaceCompact]}>
           {wideLayout ? (
             <View style={styles.cameraPanel}>
               <Text style={styles.sectionEyebrow}>CÁMARAS</Text>
@@ -618,9 +656,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               <Text style={styles.emptyTitle}>Sin cámaras disponibles</Text>
             </View>
           )}
-        </View>
+          </View>
 
-        <RecentMovements lastSync={lastSync} movements={movements} />
+          <RecentMovements lastSync={lastSync} movements={movements} />
+          </>
+        )}
       </ScrollView>
 
       {busy && (
@@ -755,6 +795,11 @@ const styles = StyleSheet.create({
   brandName: { color: colors.text, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
   brandModule: { marginTop: 2, color: colors.cyan, fontSize: 7, fontWeight: '900', letterSpacing: 1.7 },
   statuses: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  moduleNav: { padding: 3, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, flexDirection: 'row', gap: 3 },
+  moduleButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
+  moduleButtonActive: { backgroundColor: colors.cyan },
+  moduleButtonText: { color: colors.muted, fontSize: 8, fontWeight: '900' },
+  moduleButtonTextActive: { color: colors.accentText },
   status: {
     paddingHorizontal: 10,
     paddingVertical: 7,

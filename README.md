@@ -110,4 +110,4 @@ Para probar la API de órdenes de carga:
 5. [x] Publicar el contrato de la API REST.
 6. [x] Construir el flujo conectado principal para tablets.
 7. [ ] Incorporar sincronización offline y resolución de conflictos.
-8. [ ] Completar la interfaz de cargas y el despacho físico hacia andenes.
+8. [x] Completar la interfaz de cargas y el despacho físico hacia andenes.
