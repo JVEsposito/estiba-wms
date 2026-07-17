@@ -33,11 +33,11 @@ export type UserCapabilities = {
   puede_validar_pallets: boolean;
   puede_rechazar_pallets: boolean;
   puede_consultar_validaciones_pallet: boolean;
-  puede_administrar_catalogos_validacion: boolean;
-  puede_consultar_prefrio: boolean;
-  puede_operar_prefrio: boolean;
-  puede_supervisar_prefrio: boolean;
-  puede_administrar_tuneles_prefrio: boolean;
+  puede_administrar_catalogos_validacion?: boolean;
+  puede_consultar_prefrio?: boolean;
+  puede_operar_prefrio?: boolean;
+  puede_supervisar_prefrio?: boolean;
+  puede_administrar_tuneles_prefrio?: boolean;
 };
 
 export type DeviceIdentity = {
