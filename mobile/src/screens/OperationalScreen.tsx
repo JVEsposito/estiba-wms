@@ -22,6 +22,7 @@ import {
   MoveModal,
 } from '../components/OperationModals';
 import { PositionMap } from '../components/PositionMap';
+import { NotificationCenter } from '../components/NotificationCenter';
 import { RecentMovements } from '../components/RecentMovements';
 import { RefrigeratedLoadOperation } from '../components/RefrigeratedLoadOperation';
 import {
@@ -568,6 +569,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
+            {canUseLoads && (
+              <NotificationCenter
+                api={api}
+                auth={auth}
+                onFailure={(reason) => reportFailure(reason, setError)}
+                onOpenLoads={() => setActiveModule('cargas')}
+                onSuccess={() => setConnectionState('connected')}
+              />
+            )}
           </View>
           <View style={styles.operator}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{initials(auth.usuario.nombre)}</Text></View>

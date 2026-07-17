@@ -274,6 +274,33 @@ export type ExtractionPlan = {
   items: ExtractionRouteItem[];
 };
 
+export type OperationalNotification = {
+  id: string;
+  tipo: 'carga_publicada' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta';
+  severidad: 'informativa' | 'advertencia' | 'critica' | 'exito';
+  titulo: string;
+  mensaje: string;
+  carga: {
+    id: string;
+    codigo: string;
+    prioridad: 'normal' | 'alta' | 'urgente';
+    estado: string;
+  } | null;
+  folio: { id: string; numero_folio: string } | null;
+  incidencia_id: string | null;
+  datos: Record<string, unknown> | null;
+  leida_at: string | null;
+  confirmada_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OperationalNotificationFeed = {
+  items: OperationalNotification[];
+  unread: number;
+  syncedAt: string;
+};
+
 export type ReportLoadIncidentPayload = {
   operacion_id: string;
   tipo: 'caja_aplastada' | 'zuncho_roto' | 'pallet_mojado' | 'pallet_inestable'

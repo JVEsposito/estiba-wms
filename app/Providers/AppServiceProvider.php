@@ -3,9 +3,14 @@
 namespace App\Providers;
 
 use App\Enums\ContenidoCamara;
+use App\Events\EventoCargaRegistrado;
+use App\Listeners\CrearNotificacionesOperacionales;
+use App\Models\EventoCarga;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
+use App\Observers\EventoCargaObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
@@ -26,6 +31,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+        EventoCarga::observe(EventoCargaObserver::class);
+        Event::listen(EventoCargaRegistrado::class, CrearNotificacionesOperacionales::class);
 
         $alcance = app(AlcanceOperacionalUsuario::class);
 

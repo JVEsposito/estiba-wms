@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -75,6 +75,7 @@ export function RefrigeratedLoadOperation({
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const pollInFlight = useRef(false);
 
   const selectedLoad = useMemo(
     () => loads.find((load) => load.id === selectedLoadId) ?? null,
@@ -102,6 +103,49 @@ export function RefrigeratedLoadOperation({
   useEffect(() => {
     void initialize();
   }, []);
+
+  useEffect(() => {
+    if (busy || incidentVisible) return;
+    const timer = setInterval(() => void pollLoads(), 12000);
+
+    return () => clearInterval(timer);
+  }, [busy, incidentVisible, selectedLoadId, selectedRouteId]);
+
+  async function pollLoads() {
+    if (pollInFlight.current) return;
+    pollInFlight.current = true;
+    try {
+      const loadedLoads = await api.listRefrigeratedLoads(auth.token);
+      setLoads(loadedLoads);
+      const nextLoadId = loadedLoads.some((load) => load.id === selectedLoadId)
+        ? selectedLoadId
+        : loadedLoads[0]?.id ?? null;
+      setSelectedLoadId(nextLoadId);
+
+      if (!nextLoadId) {
+        setExtractionPlan(null);
+        setCameraPlan(null);
+        return;
+      }
+
+      const route = await api.getExtractionPlan(auth.token, nextLoadId);
+      setExtractionPlan(route);
+      const selected = route.items.find((item) => item.asignacion_id === selectedRouteId)
+        ?? route.siguiente
+        ?? route.items.find((item) => item.ubicacion !== null)
+        ?? null;
+      setSelectedRouteId(selected?.asignacion_id ?? null);
+      if (selected?.ubicacion) {
+        setCameraPlan(await api.getPlan(auth.token, selected.ubicacion.camara.id));
+      } else {
+        setCameraPlan(null);
+      }
+    } catch (reason) {
+      onConnectionFailure(reason);
+    } finally {
+      pollInFlight.current = false;
+    }
+  }
 
   async function initialize() {
     setBusy(true);
