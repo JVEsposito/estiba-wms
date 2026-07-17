@@ -14,6 +14,7 @@ use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\ItemMaterial;
 use App\Models\Posicion;
+use App\Models\ReservaCargaFolio;
 use App\Models\User;
 use App\Services\Cargas\ServicioCarga;
 use App\Services\Estiba\ServicioMovimientoEstiba;
@@ -416,7 +417,7 @@ class CargaApiTest extends TestCase
             'asignado_por_user_id' => $despachador->id,
             'asignado_at' => now(),
         ]);
-        \App\Models\ReservaCargaFolio::create([
+        ReservaCargaFolio::create([
             'folio_id' => $material->id,
             'carga_folio_id' => $asignacion->id,
         ]);

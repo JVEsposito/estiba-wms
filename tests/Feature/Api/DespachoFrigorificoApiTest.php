@@ -229,19 +229,7 @@ class DespachoFrigorificoApiTest extends TestCase
             ->assertJsonPath('codigo', 'conflicto_operacional');
     }
 
-    /**
-     * @return array{
-     *   administrador: User,
-     *   despachador: User,
-     *   operador: User,
-     *   dispositivo: Dispositivo,
-     *   token: string,
-     *   camara: Camara,
-     *   sesion: SesionEstiba,
-     *   anden: Anden,
-     *   folios: array<int, Folio>
-     * }
-     */
+    /** @return array<string, mixed> */
     private function crearContextoFrio(int $cantidadFolios): array
     {
         $administrador = User::factory()->create([
