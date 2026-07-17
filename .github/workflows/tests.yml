@@ -69,14 +69,18 @@ jobs:
       - name: Validar estilo
         id: pint
         continue-on-error: true
-        run: vendor/bin/pint --test --diff > pint.log 2>&1
+        run: vendor/bin/pint --test
 
-      - name: Guardar diagnóstico Pint
+      - name: Generar archivo formateado
+        if: steps.pint.outcome == 'failure'
+        run: vendor/bin/pint app/Services/Validacion/ServicioImportacionValidacion.php
+
+      - name: Guardar archivo formateado
         if: steps.pint.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: diagnostico-pint
-          path: pint.log
+          name: archivo-formateado-pint
+          path: app/Services/Validacion/ServicioImportacionValidacion.php
 
       - name: Detener por estilo
         if: steps.pint.outcome == 'failure'
@@ -101,6 +105,7 @@ jobs:
       - name: Preparar Node.js
         uses: actions/setup-node@v6
         with:
+          php-version: '8.3'
           node-version: '24'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
@@ -109,20 +114,7 @@ jobs:
         run: npm ci
 
       - name: Validar TypeScript
-        id: typecheck
-        continue-on-error: true
-        run: npm run typecheck > typecheck.log 2>&1
-
-      - name: Guardar diagnóstico TypeScript
-        if: steps.typecheck.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagnostico-typescript
-          path: mobile/typecheck.log
-
-      - name: Detener por TypeScript
-        if: steps.typecheck.outcome == 'failure'
-        run: exit 1
+        run: npm run typecheck
 
       - name: Validar bundle Android
         run: npm run export:android
