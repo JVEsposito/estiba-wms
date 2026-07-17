@@ -50,14 +50,14 @@ class DespachoFrigorificoApiTest extends TestCase
         ];
         $ruta = "/api/cargas/asignaciones/{$asignacion->id}/incidencias";
 
-        $incidenciaId = $this->withToken($contexto['token'])
+        $incidenciaId = $this->conToken($contexto['token'])
             ->postJson($ruta, $payload)
             ->assertCreated()
             ->assertJsonPath('data.estado', 'abierta')
             ->assertJsonPath('data.tipo', 'zuncho_roto')
             ->json('data.id');
 
-        $this->withToken($contexto['token'])
+        $this->conToken($contexto['token'])
             ->postJson($ruta, $payload)
             ->assertOk()
             ->assertJsonPath('data.id', $incidenciaId);
@@ -66,7 +66,7 @@ class DespachoFrigorificoApiTest extends TestCase
         $this->assertSame('con_incidencia', $asignacion->refresh()->estado->value);
         $this->assertSame('en_preparacion', $carga->refresh()->estado->value);
 
-        $this->withToken($contexto['token'])
+        $this->conToken($contexto['token'])
             ->postJson($ruta, [
                 ...$payload,
                 'descripcion' => 'Mismo UUID con otro contenido.',
@@ -86,7 +86,7 @@ class DespachoFrigorificoApiTest extends TestCase
         $asignacion = $carga->asignacionesActuales()->firstOrFail();
         $incidencia = $this->reportarIncidencia($contexto, $asignacion);
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$incidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'reparado',
@@ -99,7 +99,7 @@ class DespachoFrigorificoApiTest extends TestCase
         $this->assertSame('pendiente', $asignacion->refresh()->estado->value);
         $segundaIncidencia = $this->reportarIncidencia($contexto, $asignacion);
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$segundaIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'reemplazo',
@@ -131,14 +131,14 @@ class DespachoFrigorificoApiTest extends TestCase
             ->firstOrFail();
         $terceraIncidencia = $this->reportarIncidencia($contexto, $nuevaAsignacion);
 
-        $this->withToken($contexto['token'])
+        $this->conToken($contexto['token'])
             ->postJson("/api/cargas/incidencias/{$terceraIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'despacho_parcial',
             ])
             ->assertForbidden();
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/incidencias/{$terceraIncidencia->id}/resolver", [
                 'operacion_id' => (string) Str::uuid(),
                 'resolucion' => 'despacho_parcial',
@@ -173,14 +173,14 @@ class DespachoFrigorificoApiTest extends TestCase
         ];
         $rutaRetiro = "/api/cargas/asignaciones/{$asignacion->id}/enviar-anden";
 
-        $this->withToken($contexto['token'])
+        $this->conToken($contexto['token'])
             ->postJson($rutaRetiro, $payloadRetiro)
             ->assertOk()
             ->assertJsonPath('data.estado', 'despachada')
             ->assertJsonPath('data.folios.0.estado_carga', 'en_anden')
             ->assertJsonPath('data.folios.0.anden.codigo', 'AND-01');
 
-        $this->withToken($contexto['token'])
+        $this->conToken($contexto['token'])
             ->postJson($rutaRetiro, $payloadRetiro)
             ->assertOk()
             ->assertJsonPath('data.estado', 'despachada');
@@ -200,14 +200,14 @@ class DespachoFrigorificoApiTest extends TestCase
         ];
         $rutaCierre = "/api/cargas/{$carga->id}/cerrar-despacho";
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, $payloadCierre)
             ->assertOk()
             ->assertJsonPath('data.estado', 'cerrada')
             ->assertJsonPath('data.cierre.patente', 'AB-CD-12')
             ->assertJsonPath('data.cierre.conductor', 'María Pérez');
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, $payloadCierre)
             ->assertOk()
             ->assertJsonPath('data.estado', 'cerrada');
@@ -219,7 +219,7 @@ class DespachoFrigorificoApiTest extends TestCase
         ]);
         $this->assertDatabaseMissing('reservas_carga_folio', ['folio_id' => $folio->id]);
 
-        $this->withToken($contexto['tokenOficina'])
+        $this->conToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, [
                 ...$payloadCierre,
                 'conductor' => 'Otra persona',
@@ -339,7 +339,7 @@ class DespachoFrigorificoApiTest extends TestCase
      */
     private function reportarIncidencia(array $contexto, CargaFolio $asignacion): IncidenciaCargaFolio
     {
-        $id = $this->withToken($contexto['token'])
+        $id = $this->conToken($contexto['token'])
             ->postJson("/api/cargas/asignaciones/{$asignacion->id}/incidencias", [
                 'operacion_id' => (string) Str::uuid(),
                 'tipo' => 'caja_aplastada',
@@ -349,5 +349,12 @@ class DespachoFrigorificoApiTest extends TestCase
             ->json('data.id');
 
         return IncidenciaCargaFolio::query()->findOrFail($id);
+    }
+
+    private function conToken(string $token): static
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
     }
 }
