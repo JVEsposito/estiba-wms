@@ -272,6 +272,15 @@ class ValidacionPalletApiTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        DB::table('combinaciones_validacion')->insert([
+            'id' => (string) Str::uuid(),
+            'temporada_id' => $temporada,
+            'articulo_validacion_id' => $articulo,
+            'origen_validacion_id' => $origen,
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         [, $token] = $this->acceso($rol, $codigo);
 
         return [[

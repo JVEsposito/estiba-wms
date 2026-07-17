@@ -1,0 +1,262 @@
+<?php
+
+namespace App\Services\Validacion;
+
+use App\Models\ArticuloValidacion;
+use App\Models\CombinacionValidacion;
+use App\Models\OrigenValidacion;
+use App\Models\Temporada;
+use DomainException;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+class ServicioCatalogoValidacion
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function datosAdministracion(?Temporada $seleccionada = null): array
+    {
+        $temporadas = Temporada::query()
+            ->withCount(['articulos', 'origenes', 'combinaciones'])
+            ->orderByDesc('activa')
+            ->orderByDesc('fecha_inicio')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $temporada = $seleccionada
+            ?? $temporadas->firstWhere('activa', true)
+            ?? $temporadas->first();
+
+        if (! $temporada) {
+            return [
+                'temporadas' => [],
+                'temporada' => null,
+                'articulos' => [],
+                'origenes' => [],
+                'combinaciones' => [],
+                'importaciones' => [],
+            ];
+        }
+
+        return [
+            'temporadas' => $temporadas->values(),
+            'temporada' => $temporada,
+            'articulos' => ArticuloValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->withCount('combinaciones')
+                ->orderBy('especie')
+                ->orderBy('variedad')
+                ->orderBy('calibre')
+                ->orderBy('envase')
+                ->get(),
+            'origenes' => OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->withCount('combinaciones')
+                ->orderBy('cliente')
+                ->orderBy('marca')
+                ->orderBy('csg')
+                ->get(),
+            'combinaciones' => CombinacionValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->with([
+                    'articulo:id,especie,variedad,calibre,envase,activo',
+                    'origen:id,cliente,marca,csg,predio,activo',
+                ])
+                ->latest('activo')
+                ->latest('updated_at')
+                ->get(),
+            'importaciones' => $temporada->importaciones()
+                ->with(['creadoPor:id,name', 'confirmadoPor:id,name'])
+                ->latest()
+                ->limit(10)
+                ->get(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function guardarTemporada(array $datos, ?Temporada $temporada = null): Temporada
+    {
+        $codigo = mb_strtoupper(Str::of($datos['codigo'])->squish()->toString());
+        $duplicada = Temporada::query()
+            ->where('codigo', $codigo)
+            ->when($temporada, fn ($consulta) => $consulta->whereKeyNot($temporada->id))
+            ->exists();
+
+        if ($duplicada) {
+            throw new DomainException('Ya existe una temporada con ese código.');
+        }
+
+        return DB::transaction(function () use ($datos, $codigo, $temporada): Temporada {
+            $temporada ??= new Temporada;
+            $temporada->fill([
+                'codigo' => $codigo,
+                'nombre' => Str::of($datos['nombre'])->squish()->toString(),
+                'fecha_inicio' => $datos['fecha_inicio'] ?? null,
+                'fecha_fin' => $datos['fecha_fin'] ?? null,
+                'activa' => (bool) ($datos['activa'] ?? false),
+            ]);
+            $temporada->save();
+
+            if ($temporada->activa) {
+                Temporada::query()
+                    ->whereKeyNot($temporada->id)
+                    ->update(['activa' => false]);
+            }
+
+            return $temporada->refresh();
+        });
+    }
+
+    public function activarTemporada(Temporada $temporada): Temporada
+    {
+        return DB::transaction(function () use ($temporada): Temporada {
+            Temporada::query()->whereKeyNot($temporada->id)->update(['activa' => false]);
+            $temporada->update(['activa' => true]);
+
+            return $temporada->refresh();
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function guardarArticulo(array $datos, ?ArticuloValidacion $articulo = null): ArticuloValidacion
+    {
+        $atributos = [
+            'temporada_id' => $datos['temporada_id'],
+            'especie' => Str::of($datos['especie'])->squish()->toString(),
+            'variedad' => Str::of($datos['variedad'])->squish()->toString(),
+            'calibre' => mb_strtoupper(Str::of($datos['calibre'])->squish()->toString()),
+            'envase' => Str::of($datos['envase'])->squish()->toString(),
+        ];
+
+        $duplicado = ArticuloValidacion::query()
+            ->where($atributos)
+            ->when($articulo, fn ($consulta) => $consulta->whereKeyNot($articulo->id))
+            ->exists();
+
+        if ($duplicado) {
+            throw new DomainException('Esa combinación de artículo ya existe en la temporada.');
+        }
+
+        return $this->guardarCatalogo(
+            $articulo ?? new ArticuloValidacion,
+            [
+                ...$atributos,
+                'codigo_externo' => $this->codigoOpcional($datos['codigo_externo'] ?? null),
+                'activo' => (bool) ($datos['activo'] ?? true),
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function guardarOrigen(array $datos, ?OrigenValidacion $origen = null): OrigenValidacion
+    {
+        $atributos = [
+            'temporada_id' => $datos['temporada_id'],
+            'cliente' => Str::of($datos['cliente'])->squish()->toString(),
+            'marca' => Str::of($datos['marca'])->squish()->toString(),
+            'csg' => mb_strtoupper(Str::of($datos['csg'])->squish()->toString()),
+        ];
+
+        $duplicado = OrigenValidacion::query()
+            ->where($atributos)
+            ->when($origen, fn ($consulta) => $consulta->whereKeyNot($origen->id))
+            ->exists();
+
+        if ($duplicado) {
+            throw new DomainException('Ese origen comercial ya existe en la temporada.');
+        }
+
+        return $this->guardarCatalogo(
+            $origen ?? new OrigenValidacion,
+            [
+                ...$atributos,
+                'predio' => $this->textoOpcional($datos['predio'] ?? null),
+                'codigo_externo' => $this->codigoOpcional($datos['codigo_externo'] ?? null),
+                'activo' => (bool) ($datos['activo'] ?? true),
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function guardarCombinacion(
+        array $datos,
+        ?CombinacionValidacion $combinacion = null,
+    ): CombinacionValidacion {
+        $articulo = ArticuloValidacion::query()->findOrFail($datos['articulo_validacion_id']);
+        $origen = OrigenValidacion::query()->findOrFail($datos['origen_validacion_id']);
+
+        if ($articulo->temporada_id !== $datos['temporada_id']
+            || $origen->temporada_id !== $datos['temporada_id']) {
+            throw new DomainException('El artículo y el origen deben pertenecer a la misma temporada.');
+        }
+
+        $atributos = [
+            'temporada_id' => $datos['temporada_id'],
+            'articulo_validacion_id' => $articulo->id,
+            'origen_validacion_id' => $origen->id,
+        ];
+        $duplicada = CombinacionValidacion::query()
+            ->where($atributos)
+            ->when($combinacion, fn ($consulta) => $consulta->whereKeyNot($combinacion->id))
+            ->exists();
+
+        if ($duplicada) {
+            throw new DomainException('La combinación artículo–origen ya se encuentra habilitada.');
+        }
+
+        return $this->guardarCatalogo(
+            $combinacion ?? new CombinacionValidacion,
+            [
+                ...$atributos,
+                'codigo_externo' => $this->codigoOpcional($datos['codigo_externo'] ?? null),
+                'activo' => (bool) ($datos['activo'] ?? true),
+            ],
+            ['articulo', 'origen'],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $atributos
+     * @param  array<int, string>  $relaciones
+     */
+    private function guardarCatalogo(Model $modelo, array $atributos, array $relaciones = []): Model
+    {
+        return DB::transaction(function () use ($modelo, $atributos, $relaciones): Model {
+            $modelo->fill($atributos);
+            $cambio = ! $modelo->exists || $modelo->isDirty();
+            $modelo->save();
+
+            if ($cambio) {
+                Temporada::query()
+                    ->whereKey($atributos['temporada_id'])
+                    ->increment('version_catalogo');
+            }
+
+            return $modelo->refresh()->load($relaciones);
+        });
+    }
+
+    private function textoOpcional(mixed $valor): ?string
+    {
+        $texto = Str::of((string) $valor)->squish()->toString();
+
+        return $texto !== '' ? $texto : null;
+    }
+
+    private function codigoOpcional(mixed $valor): ?string
+    {
+        $texto = $this->textoOpcional($valor);
+
+        return $texto !== null ? mb_strtoupper($texto) : null;
+    }
+}

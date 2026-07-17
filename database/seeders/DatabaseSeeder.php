@@ -3,10 +3,14 @@
 namespace Database\Seeders;
 
 use App\Enums\RolUsuario;
+use App\Models\ArticuloValidacion;
 use App\Models\Camara;
+use App\Models\CombinacionValidacion;
 use App\Models\CondicionSag;
 use App\Models\Dispositivo;
+use App\Models\OrigenValidacion;
 use App\Models\Posicion;
+use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -112,9 +116,63 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        $this->crearCatalogoValidacion();
         $this->crearCamaraConPosiciones('CAM-01', 'Cámara de tránsito 01', 'transito');
         $this->crearCamaraConPosiciones('CAM-02', 'Cámara de tránsito 02', 'transito');
         $this->crearCamaraConPosiciones('DES-01', 'Zona de despacho', 'despacho');
+    }
+
+    private function crearCatalogoValidacion(): void
+    {
+        Temporada::query()->where('codigo', '!=', '2026-2027')->update(['activa' => false]);
+        $temporada = Temporada::query()->updateOrCreate(
+            ['codigo' => '2026-2027'],
+            [
+                'nombre' => 'Temporada cerezas 2026–2027',
+                'fecha_inicio' => '2026-10-01',
+                'fecha_fin' => '2027-02-28',
+                'activa' => true,
+            ],
+        );
+
+        $articulo = ArticuloValidacion::query()->updateOrCreate(
+            [
+                'temporada_id' => $temporada->id,
+                'especie' => 'Cereza',
+                'variedad' => 'Santina',
+                'calibre' => '2J',
+                'envase' => 'Caja 5 kg',
+            ],
+            [
+                'codigo_externo' => 'CER-SAN-2J-5KG',
+                'activo' => true,
+            ],
+        );
+        $origen = OrigenValidacion::query()->updateOrCreate(
+            [
+                'temporada_id' => $temporada->id,
+                'cliente' => 'Exportadora demo',
+                'marca' => 'Estiba Select',
+                'csg' => '105410',
+            ],
+            [
+                'predio' => 'Predio demostrativo',
+                'codigo_externo' => 'ORI-DEMO-01',
+                'activo' => true,
+            ],
+        );
+
+        CombinacionValidacion::query()->updateOrCreate(
+            [
+                'temporada_id' => $temporada->id,
+                'articulo_validacion_id' => $articulo->id,
+                'origen_validacion_id' => $origen->id,
+            ],
+            [
+                'codigo_externo' => 'VAL-DEMO-001',
+                'activo' => true,
+            ],
+        );
     }
 
     private function crearCamaraConPosiciones(

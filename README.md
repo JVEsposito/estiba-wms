@@ -39,7 +39,7 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 | Integración futura | Adaptadores de entrada/salida desacoplados |
 | Repositorio | Monorepo: Laravel y web en la raíz; cliente nativo en `mobile/` |
 
-La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. La cola local para tolerar interrupciones de red se incorporará después del flujo conectado.
+La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. El módulo móvil de Validación conserva además el último catálogo y una bandeja local de capturas para tolerar interrupciones de red.
 
 ## Documentación de producto
 
@@ -50,6 +50,7 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Prueba de escritura desde Expo Go hacia MySQL](docs/prueba-escritura-mysql.md)
 - [Configuración de cámaras y preparación de cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
+- [Módulo de Validación de pallets](docs/MODULO_VALIDACION_PALLETS.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
@@ -63,6 +64,11 @@ andenes. El acceso de oficina no solicita código de tablet. Los perfiles de fr�
 y materiales reciben cámaras, sesiones y acciones de su propia área;
 `despachador` y `consulta` pueden observar ambas sin abrir sesiones
 operacionales.
+
+Validación dispone de dos entradas diferentes:
+
+- `/oficina/validacion`: temporadas, artículos, orígenes, combinaciones, importación y trazabilidad.
+- Aplicación móvil: captura rápida para el perfil `validador`, con catálogo persistente y bandeja de salida.
 
 ## Puesta en marcha local
 
@@ -103,7 +109,14 @@ Para probar la API de órdenes de carga:
 - Usuario: `despachador@estiba.local`
 - Contraseña: `password`
 
-Para probar la validación inicial de pallets:
+Para administrar Validación desde PC:
+
+- Ruta: `/oficina/validacion`
+- Administrador: `administrador@estiba.local`
+- Supervisor en consulta: `supervisor@estiba.local`
+- Contraseña: `password`
+
+Para validar pallets desde la aplicación móvil:
 
 - Usuario: `validador@estiba.local`
 - Contraseña: `password`
@@ -117,6 +130,7 @@ Para probar la validación inicial de pallets:
 4. [x] Implementar servicios transaccionales y completar las pruebas del dominio.
 5. [x] Publicar el contrato de la API REST.
 6. [x] Construir el flujo conectado principal para tablets.
-7. [ ] Incorporar sincronización offline y resolución de conflictos.
+7. [ ] Incorporar sincronización offline y resolución de conflictos en todos los módulos operacionales.
 8. [x] Completar la interfaz de cargas y el despacho físico hacia andenes.
 9. [x] Incorporar notificaciones persistentes y polling resiliente en la APK.
+10. [x] Completar Validación con oficina, importación, PDA y bandeja local.

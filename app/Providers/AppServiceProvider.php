@@ -142,6 +142,10 @@ class AppServiceProvider extends ServiceProvider
             'consultar-validaciones-pallet',
             fn (User $usuario): bool => $alcance->puedeConsultarValidacionesPallet($usuario),
         );
+        Gate::define(
+            'administrar-catalogos-validacion',
+            fn (User $usuario): bool => $alcance->puedeAdministrarCatalogosValidacion($usuario),
+        );
 
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
