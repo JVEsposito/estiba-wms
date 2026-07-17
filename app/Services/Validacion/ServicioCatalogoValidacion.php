@@ -99,12 +99,13 @@ class ServicioCatalogoValidacion
                 'fecha_fin' => $datos['fecha_fin'] ?? null,
                 'activa' => (bool) ($datos['activa'] ?? false),
             ]);
+            $temporada->save();
 
             if ($temporada->activa) {
-                Temporada::query()->whereKeyNot($temporada->id)->update(['activa' => false]);
+                Temporada::query()
+                    ->whereKeyNot($temporada->id)
+                    ->update(['activa' => false]);
             }
-
-            $temporada->save();
 
             return $temporada->refresh();
         });
