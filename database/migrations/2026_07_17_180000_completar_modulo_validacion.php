@@ -2,7 +2,9 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -22,6 +24,35 @@ return new class extends Migration
                 'combinacion_validacion_unique',
             );
         });
+
+        $ahora = now();
+        foreach (DB::table('temporadas')->pluck('id') as $temporadaId) {
+            $articulos = DB::table('articulos_validacion')
+                ->where('temporada_id', $temporadaId)
+                ->pluck('id');
+            $origenes = DB::table('origenes_validacion')
+                ->where('temporada_id', $temporadaId)
+                ->pluck('id');
+            $filas = [];
+
+            foreach ($articulos as $articuloId) {
+                foreach ($origenes as $origenId) {
+                    $filas[] = [
+                        'id' => (string) Str::uuid(),
+                        'temporada_id' => $temporadaId,
+                        'articulo_validacion_id' => $articuloId,
+                        'origen_validacion_id' => $origenId,
+                        'activo' => true,
+                        'created_at' => $ahora,
+                        'updated_at' => $ahora,
+                    ];
+                }
+            }
+
+            foreach (array_chunk($filas, 500) as $lote) {
+                DB::table('combinaciones_validacion')->insert($lote);
+            }
+        }
 
         Schema::create('importaciones_validacion', function (Blueprint $table) {
             $table->uuid('id')->primary();
