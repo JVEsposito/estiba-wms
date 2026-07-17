@@ -15,6 +15,6 @@ class OficinaPrefrioTest extends TestCase
             ->assertSee('Procesos históricos')
             ->assertSee('Nuevo proceso')
             ->assertSee('Nuevo túnel')
-            ->assertSee('Pendientes de verificación');
+            ->assertSee('PENDIENTES DE VERIFICACIÓN');
     }
 }
