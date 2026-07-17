@@ -14,6 +14,8 @@ import {
   MaterialDispatch,
   MovePayload,
   OpenedSession,
+  OperationalNotification,
+  OperationalNotificationFeed,
   Position,
   RefrigeratedLoad,
   SagCondition,
@@ -269,6 +271,18 @@ export class DemoEstibaApi implements EstibaApi {
 
   async sendLoadFolioToDock(): Promise<RefrigeratedLoad> {
     throw new ApiError('No existen cargas publicadas en el modo de demostración.', 422);
+  }
+
+  async listOperationalNotifications(): Promise<OperationalNotificationFeed> {
+    return { items: [], unread: 0, syncedAt: new Date().toISOString() };
+  }
+
+  async readOperationalNotification(): Promise<OperationalNotification> {
+    throw new ApiError('No existen notificaciones en el modo de demostración.', 404);
+  }
+
+  async confirmOperationalNotification(): Promise<OperationalNotification> {
+    throw new ApiError('No existen notificaciones en el modo de demostración.', 404);
   }
 
   async createMaterialDispatch(_token: string, _payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch> {

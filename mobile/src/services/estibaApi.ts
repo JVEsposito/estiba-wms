@@ -15,6 +15,8 @@ import {
   MaterialDispatch,
   MovePayload,
   OpenedSession,
+  OperationalNotification,
+  OperationalNotificationFeed,
   RefrigeratedLoad,
   ReportLoadIncidentPayload,
   SagCondition,
@@ -48,6 +50,9 @@ export interface EstibaApi {
   listDocks(token: string): Promise<Dock[]>;
   reportLoadIncident(token: string, assignmentId: string, payload: ReportLoadIncidentPayload): Promise<void>;
   sendLoadFolioToDock(token: string, assignmentId: string, payload: SendLoadFolioToDockPayload): Promise<RefrigeratedLoad>;
+  listOperationalNotifications(token: string): Promise<OperationalNotificationFeed>;
+  readOperationalNotification(token: string, notificationId: string): Promise<OperationalNotification>;
+  confirmOperationalNotification(token: string, notificationId: string): Promise<OperationalNotification>;
 }
 
 function validationMessage(data: unknown, fallback: string) {
@@ -221,6 +226,34 @@ class HttpEstibaApi implements EstibaApi {
       { method: 'POST', body: JSON.stringify(payload) },
     )).data;
   }
+
+  async listOperationalNotifications(token: string): Promise<OperationalNotificationFeed> {
+    const response = await this.request<{
+      data: OperationalNotification[];
+      resumen: { no_leidas: number; sincronizado_at: string };
+    }>('/api/notificaciones-operacionales?per_page=50', token);
+    return {
+      items: response.data,
+      unread: response.resumen.no_leidas,
+      syncedAt: response.resumen.sincronizado_at,
+    };
+  }
+
+  async readOperationalNotification(token: string, notificationId: string) {
+    return (await this.request<ApiItem<OperationalNotification>>(
+      `/api/notificaciones-operacionales/${notificationId}/leer`,
+      token,
+      { method: 'POST' },
+    )).data;
+  }
+
+  async confirmOperationalNotification(token: string, notificationId: string) {
+    return (await this.request<ApiItem<OperationalNotification>>(
+      `/api/notificaciones-operacionales/${notificationId}/confirmar`,
+      token,
+      { method: 'POST' },
+    )).data;
+  }
 }
 
 export function createEstibaApi(
@@ -276,5 +309,8 @@ function createUnavailableApi(message: string): EstibaApi {
     listDocks: unavailable,
     reportLoadIncident: unavailable,
     sendLoadFolioToDock: unavailable,
+    listOperationalNotifications: unavailable,
+    readOperationalNotification: unavailable,
+    confirmOperationalNotification: unavailable,
   };
 }

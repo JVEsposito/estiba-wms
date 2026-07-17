@@ -1,0 +1,241 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { AuthSession, OperationalNotification } from '../domain/estiba';
+import { EstibaApi } from '../services/estibaApi';
+import { colors } from '../theme/colors';
+
+type Props = {
+  api: EstibaApi;
+  auth: AuthSession;
+  onFailure: (reason: unknown) => void;
+  onOpenLoads: () => void;
+  onSuccess: () => void;
+};
+
+export function NotificationCenter({ api, auth, onFailure, onOpenLoads, onSuccess }: Props) {
+  const [items, setItems] = useState<OperationalNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const pollInFlight = useRef(false);
+
+  useEffect(() => {
+    void poll(false);
+    const timer = setInterval(() => void poll(true), 12000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void poll(true);
+    });
+
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, []);
+
+  async function poll(quiet: boolean) {
+    if (pollInFlight.current) return;
+    pollInFlight.current = true;
+    if (!quiet) setBusy(true);
+    try {
+      const feed = await api.listOperationalNotifications(auth.token);
+      setItems(feed.items);
+      setUnread(feed.unread);
+      setLastSync(feed.syncedAt);
+      onSuccess();
+    } catch (reason) {
+      onFailure(reason);
+    } finally {
+      pollInFlight.current = false;
+      if (!quiet) setBusy(false);
+    }
+  }
+
+  async function read(notification: OperationalNotification) {
+    if (notification.leida_at) return;
+    setBusy(true);
+    try {
+      const updated = await api.readOperationalNotification(auth.token, notification.id);
+      replace(updated);
+      setUnread((current) => Math.max(0, current - 1));
+    } catch (reason) {
+      onFailure(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirm(notification: OperationalNotification) {
+    setBusy(true);
+    try {
+      const updated = await api.confirmOperationalNotification(auth.token, notification.id);
+      replace(updated);
+      if (!notification.leida_at) setUnread((current) => Math.max(0, current - 1));
+    } catch (reason) {
+      onFailure(reason);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function replace(updated: OperationalNotification) {
+    setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+  }
+
+  return (
+    <>
+      <Pressable
+        accessibilityLabel={`${unread} notificaciones sin leer`}
+        onPress={() => setVisible(true)}
+        style={styles.trigger}
+      >
+        <Text style={styles.bell}>●</Text>
+        <Text style={styles.triggerText}>Alertas</Text>
+        {unread > 0 && (
+          <View style={styles.badge}><Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text></View>
+        )}
+      </Pressable>
+
+      <Modal animationType="fade" onRequestClose={() => setVisible(false)} transparent visible={visible}>
+        <View style={styles.backdrop}>
+          <View style={styles.modal}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.eyebrow}>CENTRO OPERACIONAL</Text>
+                <Text style={styles.title}>Notificaciones</Text>
+                <Text style={styles.subtitle}>
+                  {unread} sin leer{lastSync ? ` · sincronizado ${formatTime(lastSync)}` : ''}
+                </Text>
+              </View>
+              <View style={styles.headerActions}>
+                <Pressable onPress={() => void poll(false)} style={styles.secondaryButton}>
+                  <Text style={styles.secondaryText}>Actualizar</Text>
+                </Pressable>
+                <Pressable onPress={() => setVisible(false)} style={styles.closeButton}>
+                  <Text style={styles.closeText}>×</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.list} nestedScrollEnabled>
+              {items.map((notification) => (
+                <Pressable
+                  key={notification.id}
+                  onPress={() => void read(notification)}
+                  style={[
+                    styles.notification,
+                    !notification.leida_at && styles.notificationUnread,
+                    notification.severidad === 'critica' && styles.notificationCritical,
+                  ]}
+                >
+                  <View style={[styles.severity, { backgroundColor: severityColor(notification.severidad) }]} />
+                  <View style={styles.copy}>
+                    <View style={styles.notificationTop}>
+                      <Text style={styles.notificationTitle}>{notification.titulo}</Text>
+                      <Text style={styles.time}>{formatTime(notification.created_at)}</Text>
+                    </View>
+                    <Text style={styles.message}>{notification.mensaje}</Text>
+                    <View style={styles.metaRow}>
+                      {notification.carga && (
+                        <Pressable
+                          onPress={() => {
+                            setVisible(false);
+                            onOpenLoads();
+                          }}
+                          style={styles.loadLink}
+                        >
+                          <Text style={styles.loadLinkText}>Abrir {notification.carga.codigo}</Text>
+                        </Pressable>
+                      )}
+                      {notification.confirmada_at ? (
+                        <Text style={styles.confirmed}>CONFIRMADA</Text>
+                      ) : (
+                        <Pressable onPress={() => void confirm(notification)} style={styles.confirmButton}>
+                          <Text style={styles.confirmText}>Confirmar recepción</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                </Pressable>
+              ))}
+              {!items.length && !busy && (
+                <View style={styles.empty}>
+                  <Text style={styles.emptyTitle}>Sin notificaciones</Text>
+                  <Text style={styles.emptyText}>Las novedades de cargas aparecerán aquí.</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {busy && (
+              <View pointerEvents="none" style={styles.busy}>
+                <ActivityIndicator color={colors.cyan} />
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+function severityColor(severity: OperationalNotification['severidad']) {
+  return {
+    informativa: colors.blue,
+    advertencia: colors.amber,
+    critica: colors.red,
+    exito: colors.green,
+  }[severity];
+}
+
+function formatTime(value: string) {
+  return new Date(value).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+}
+
+const styles = StyleSheet.create({
+  trigger: { minHeight: 32, paddingHorizontal: 9, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  bell: { color: colors.amber, fontSize: 9 },
+  triggerText: { color: colors.text, fontSize: 8, fontWeight: '900' },
+  badge: { minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center' },
+  badgeText: { color: '#fff', fontSize: 7, fontWeight: '900' },
+  backdrop: { flex: 1, padding: 20, backgroundColor: 'rgba(0,0,0,0.78)', alignItems: 'center', justifyContent: 'center' },
+  modal: { width: '100%', maxWidth: 820, maxHeight: '88%', padding: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, position: 'relative' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  eyebrow: { color: colors.cyan, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  title: { marginTop: 3, color: colors.text, fontSize: 21, fontWeight: '900' },
+  subtitle: { marginTop: 3, color: colors.muted, fontSize: 9 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  secondaryButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+  secondaryText: { color: colors.text, fontSize: 8, fontWeight: '900' },
+  closeButton: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  closeText: { color: colors.text, fontSize: 18 },
+  list: { paddingTop: 14, gap: 8 },
+  notification: { padding: 11, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, flexDirection: 'row', gap: 9 },
+  notificationUnread: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  notificationCritical: { borderLeftColor: colors.red, borderLeftWidth: 4 },
+  severity: { width: 7, height: 7, marginTop: 4, borderRadius: 4 },
+  copy: { flex: 1, minWidth: 0 },
+  notificationTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  notificationTitle: { flex: 1, color: colors.text, fontSize: 11, fontWeight: '900' },
+  time: { color: colors.muted, fontSize: 8 },
+  message: { marginTop: 4, color: colors.muted, fontSize: 9, lineHeight: 13 },
+  metaRow: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  loadLink: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 7, backgroundColor: colors.cyan },
+  loadLinkText: { color: colors.accentText, fontSize: 7, fontWeight: '900' },
+  confirmButton: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 7, borderWidth: 1, borderColor: colors.green },
+  confirmText: { color: colors.green, fontSize: 7, fontWeight: '900' },
+  confirmed: { color: colors.green, fontSize: 7, fontWeight: '900' },
+  empty: { minHeight: 180, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { color: colors.text, fontSize: 14, fontWeight: '900' },
+  emptyText: { marginTop: 4, color: colors.muted, fontSize: 9 },
+  busy: { ...StyleSheet.absoluteFill, borderRadius: 18, backgroundColor: 'rgba(5,8,11,0.45)', alignItems: 'center', justifyContent: 'center' },
+});

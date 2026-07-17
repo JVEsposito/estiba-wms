@@ -117,3 +117,4 @@ Para probar la validación inicial de pallets:
 6. [x] Construir el flujo conectado principal para tablets.
 7. [ ] Incorporar sincronización offline y resolución de conflictos.
 8. [x] Completar la interfaz de cargas y el despacho físico hacia andenes.
+9. [x] Incorporar notificaciones persistentes y polling resiliente en la APK.
