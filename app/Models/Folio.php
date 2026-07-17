@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\FuenteHabilitacionAlmacenamiento;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -18,6 +21,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'tipo_bulto',
     'condicion_sag_id',
     'estado_operacional',
+    'condicion_termica',
+    'habilitacion_almacenamiento',
+    'fuente_habilitacion_almacenamiento',
+    'habilitado_almacenamiento_at',
+    'habilitado_almacenamiento_por_user_id',
+    'retencion_termica_motivo',
     'fecha_ingreso',
     'activo',
     'variedad',
@@ -70,11 +79,25 @@ class Folio extends Model
         return $this->hasOne(FolioMaterial::class, 'folio_id');
     }
 
+    public function procesosPrefrio(): HasMany
+    {
+        return $this->hasMany(ProcesoPrefrioFolio::class);
+    }
+
+    public function habilitadoAlmacenamientoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'habilitado_almacenamiento_por_user_id');
+    }
+
     protected function casts(): array
     {
         return [
             'tipo_bulto' => TipoBulto::class,
             'estado_operacional' => EstadoOperacionalFolio::class,
+            'condicion_termica' => CondicionTermicaFolio::class,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::class,
+            'fuente_habilitacion_almacenamiento' => FuenteHabilitacionAlmacenamiento::class,
+            'habilitado_almacenamiento_at' => 'datetime',
             'fecha_ingreso' => 'datetime',
             'activo' => 'boolean',
             'sincronizado_at' => 'datetime',
