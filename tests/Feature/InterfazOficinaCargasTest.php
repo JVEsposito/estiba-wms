@@ -19,6 +19,14 @@ class InterfazOficinaCargasTest extends TestCase
             ->assertSee('availableFolioSelectPage', false)
             ->assertSee('availableFolioPagination', false)
             ->assertSee('Variedad / calibre')
+            ->assertSee('Andén previsto')
+            ->assertSee('Concentración de la carga')
+            ->assertSee('Incidencias de la carga')
+            ->assertSee('Resolver incidencia')
+            ->assertSee('Confirmar salida del camión')
+            ->assertSee('loadIncidentFilter', false)
+            ->assertSee('incidentResolutionDialog', false)
+            ->assertSee('closeDispatchDialog', false)
             ->assertSee('aria-live="assertive"', false);
     }
 

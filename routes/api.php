@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
         ->middleware('can:gestionar-cargas');
     Route::middleware('can:consultar-catalogo-cargas')->group(function () {
+        Route::get('/cargas/incidencias', [DespachoFrigorificoController::class, 'incidencias']);
         Route::get('/cargas', [CargaController::class, 'index']);
         Route::get('/cargas/{carga}', [CargaController::class, 'show']);
     });

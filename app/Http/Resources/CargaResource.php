@@ -2,6 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
+use App\Services\Cargas\CalculadorConcentracionCarga;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
@@ -13,10 +16,13 @@ class CargaResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $asignaciones = $this->resource->relationLoaded('asignacionesActuales')
+        $asignacionesActuales = $this->resource->relationLoaded('asignacionesActuales')
             ? $this->asignacionesActuales
             : collect();
+        $asignaciones = $this->asignacionesVisibles($asignacionesActuales);
         $folios = $this->transformarFolios($asignaciones);
+        $concentracion = app(CalculadorConcentracionCarga::class)
+            ->calcular($asignaciones);
 
         return [
             'id' => $this->id,
@@ -39,6 +45,23 @@ class CargaResource extends JsonResource
             'total_folios' => $folios->count(),
             'folios' => $folios,
             'distribucion' => $this->distribucion($folios),
+            'progreso' => $concentracion,
+            'incidencias_abiertas' => (int) ($this->incidencias_abiertas ?? 0),
+            'tareas' => $this->whenLoaded('tareas', fn () => $this->tareas->map(fn ($tarea): array => [
+                'id' => $tarea->id,
+                'estado' => $tarea->estado->value,
+                'camara_origen' => $tarea->relationLoaded('camaraOrigen') ? [
+                    'id' => $tarea->camaraOrigen->id,
+                    'codigo' => $tarea->camaraOrigen->codigo,
+                    'nombre' => $tarea->camaraOrigen->nombre,
+                ] : null,
+                'responsable' => $tarea->relationLoaded('responsable') && $tarea->responsable ? [
+                    'id' => $tarea->responsable->id,
+                    'nombre' => $tarea->responsable->name,
+                ] : null,
+                'asumida_at' => $tarea->asumida_at?->toAtomString(),
+                'completada_at' => $tarea->completada_at?->toAtomString(),
+            ])->values()),
             'creada_por' => $this->whenLoaded('creadaPor', fn () => [
                 'id' => $this->creadaPor?->id,
                 'nombre' => $this->creadaPor?->name,
@@ -70,6 +93,25 @@ class CargaResource extends JsonResource
             'created_at' => $this->created_at?->toAtomString(),
             'updated_at' => $this->updated_at?->toAtomString(),
         ];
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $actuales
+     * @return Collection<int, mixed>
+     */
+    private function asignacionesVisibles(Collection $actuales): Collection
+    {
+        if ($actuales->isNotEmpty() || $this->estado !== EstadoCarga::Cerrada) {
+            return $actuales;
+        }
+
+        if (! $this->resource->relationLoaded('asignacionesHistoricas')) {
+            return collect();
+        }
+
+        return $this->asignacionesHistoricas
+            ->filter(fn ($asignacion): bool => $asignacion->estado === EstadoCargaFolio::EnAnden)
+            ->values();
     }
 
     /**

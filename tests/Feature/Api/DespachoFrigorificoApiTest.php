@@ -66,6 +66,22 @@ class DespachoFrigorificoApiTest extends TestCase
         $this->assertSame('con_incidencia', $asignacion->refresh()->estado->value);
         $this->assertSame('en_preparacion', $carga->refresh()->estado->value);
 
+        $this->conToken($contexto['tokenOficina'])
+            ->getJson("/api/cargas/incidencias?carga_id={$carga->id}&estado=abierta")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.carga.codigo', $carga->codigo)
+            ->assertJsonPath('data.0.folio.numero_folio', $asignacion->folio->numero_folio)
+            ->assertJsonPath('data.0.ubicacion_reportada.camara.codigo', 'CAM-01')
+            ->assertJsonPath('data.0.reportado_por.nombre', $contexto['operador']->name)
+            ->assertJsonPath('data.0.dispositivo.codigo', 'TABLET-01');
+
+        $this->conToken($contexto['tokenOficina'])
+            ->getJson('/api/cargas?solo_con_incidencias=1')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.incidencias_abiertas', 1);
+
         $this->conToken($contexto['token'])
             ->postJson($ruta, [
                 ...$payload,
@@ -205,7 +221,10 @@ class DespachoFrigorificoApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.estado', 'cerrada')
             ->assertJsonPath('data.cierre.patente', 'AB-CD-12')
-            ->assertJsonPath('data.cierre.conductor', 'María Pérez');
+            ->assertJsonPath('data.cierre.conductor', 'María Pérez')
+            ->assertJsonPath('data.total_folios', 1)
+            ->assertJsonPath('data.folios.0.numero_folio', $folio->numero_folio)
+            ->assertJsonPath('data.progreso.porcentaje', 100);
 
         $this->conToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, $payloadCierre)
@@ -226,6 +245,65 @@ class DespachoFrigorificoApiTest extends TestCase
             ])
             ->assertConflict()
             ->assertJsonPath('codigo', 'conflicto_operacional');
+    }
+
+    public function test_la_oficina_calcula_concentracion_y_filtra_reemplazos_equivalentes(): void
+    {
+        $contexto = $this->crearContextoFrio(7);
+        $carga = $this->crearCargaPublicada(
+            $contexto['despachador'],
+            $contexto['anden'],
+            array_slice($contexto['folios'], 0, 5),
+        );
+        $aislada = Posicion::create([
+            'camara_id' => $contexto['camara']->id,
+            'banda' => 5,
+            'posicion' => 20,
+            'nivel' => 1,
+            'etiqueta' => 'B05-P20-N1',
+        ]);
+        $contexto['folios'][4]
+            ->ubicacionActual()
+            ->update(['posicion_id' => $aislada->id]);
+
+        $this->conToken($contexto['tokenOficina'])
+            ->getJson("/api/cargas/{$carga->id}")
+            ->assertOk()
+            ->assertJsonPath('data.progreso.porcentaje', 80)
+            ->assertJsonPath('data.progreso.cumple_umbral', true)
+            ->assertJsonPath('data.progreso.concentrados', 4)
+            ->assertJsonPath('data.progreso.faltantes', 1)
+            ->assertJsonPath('data.progreso.grupo_principal.camara.codigo', 'CAM-01')
+            ->assertJsonPath('data.progreso.grupo_principal.banda_desde', 1)
+            ->assertJsonPath('data.progreso.grupo_principal.banda_hasta', 1);
+
+        $equivalente = $contexto['folios'][5];
+        $noEquivalente = $contexto['folios'][6];
+        $noEquivalente->update(['calibre' => '3J']);
+        $original = $contexto['folios'][0];
+
+        $this->conToken($contexto['tokenOficina'])
+            ->getJson("/api/cargas/folios-disponibles?equivalente_a={$original->id}&per_page=25")
+            ->assertOk()
+            ->assertJsonFragment(['numero_folio' => $equivalente->numero_folio])
+            ->assertJsonMissing(['numero_folio' => $noEquivalente->numero_folio]);
+    }
+
+    public function test_el_acceso_de_oficina_expone_capacidades_del_despacho_frigorifico(): void
+    {
+        $despachador = User::factory()->create([
+            'rol' => RolUsuario::Despachador,
+            'activo' => true,
+        ]);
+
+        $this->postJson('/api/acceso-oficina', [
+            'email' => $despachador->email,
+            'password' => 'password',
+        ])
+            ->assertOk()
+            ->assertJsonPath('usuario.puede_resolver_comercialmente_carga', true)
+            ->assertJsonPath('usuario.puede_resolver_reparacion_carga', true)
+            ->assertJsonPath('usuario.puede_cerrar_despacho_frigorifico', true);
     }
 
     /** @return array<string, mixed> */

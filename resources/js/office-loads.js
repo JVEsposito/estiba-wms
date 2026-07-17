@@ -17,6 +17,7 @@ const elements = {
     emptyNewLoad: byId('emptyNewLoadButton'),
     search: byId('loadSearch'),
     statusFilter: byId('loadStatusFilter'),
+    incidentFilter: byId('loadIncidentFilter'),
     catalogSummary: byId('loadCatalogSummary'),
     loadPageSize: byId('loadPageSize'),
     loadPagination: byId('loadPagination'),
@@ -34,13 +35,20 @@ const elements = {
     headerForm: byId('loadHeaderForm'),
     headerError: byId('loadHeaderError'),
     targetCamera: byId('targetCameraSelect'),
+    targetDock: byId('targetDockSelect'),
     discardNew: byId('discardNewLoadButton'),
     save: byId('saveLoadButton'),
     saveText: byId('saveLoadButtonText'),
     operation: byId('loadOperation'),
     totalFolios: byId('loadTotalFolios'),
     totalCameras: byId('loadTotalCameras'),
-    updatedBy: byId('loadUpdatedBy'),
+    concentration: byId('loadConcentration'),
+    atDock: byId('loadAtDock'),
+    incidentCount: byId('loadIncidentCount'),
+    concentrationMessage: byId('loadConcentrationMessage'),
+    concentrationBar: byId('loadConcentrationBar'),
+    concentratedFolios: byId('loadConcentratedFolios'),
+    mainCluster: byId('loadMainCluster'),
     distribution: byId('loadDistribution'),
     folioAddSection: byId('folioAddSection'),
     folioInput: byId('folioInput'),
@@ -57,11 +65,27 @@ const elements = {
     reloadAvailableFolios: byId('reloadAvailableFoliosButton'),
     folioTableBody: byId('folioTableBody'),
     folioTableHint: byId('folioTableHint'),
+    incidentsSection: byId('loadIncidentsSection'),
+    incidentsSummary: byId('loadIncidentsSummary'),
+    incidentsList: byId('loadIncidentsList'),
     commandBar: byId('loadCommandBar'),
     commandTitle: byId('loadCommandTitle'),
     commandDescription: byId('loadCommandDescription'),
     cancel: byId('cancelLoadButton'),
+    closeDispatch: byId('closeDispatchButton'),
     publish: byId('publishLoadButton'),
+    incidentDialog: byId('incidentResolutionDialog'),
+    incidentForm: byId('incidentResolutionForm'),
+    incidentContext: byId('incidentResolutionContext'),
+    incidentError: byId('incidentResolutionError'),
+    replacementPicker: byId('replacementPicker'),
+    replacementSearch: byId('replacementSearch'),
+    replacementSummary: byId('replacementSummary'),
+    replacementList: byId('replacementList'),
+    closeDialog: byId('closeDispatchDialog'),
+    closeForm: byId('closeDispatchForm'),
+    closeContext: byId('closeDispatchContext'),
+    closeError: byId('closeDispatchError'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -75,11 +99,27 @@ const keys = {
 const statusLabels = {
     borrador: 'Borrador',
     pendiente: 'Pendiente',
+    en_preparacion: 'En preparación',
+    despacho_parcial: 'Despacho parcial',
     en_separacion: 'En separación',
     separada: 'Separada',
     separacion_completa: 'Separación completa',
-    despachada: 'Despachada',
+    despachada: 'En andén',
+    cerrada: 'Cerrada',
     cancelada: 'Cancelada',
+};
+
+const incidentTypeLabels = {
+    caja_aplastada: 'Caja aplastada',
+    zuncho_roto: 'Zuncho roto',
+    pallet_mojado: 'Pallet mojado',
+    pallet_inestable: 'Pallet inestable',
+    folio_ilegible: 'Folio ilegible',
+    diferencia_ubicacion: 'Diferencia de ubicación',
+    folio_no_encontrado: 'Folio no encontrado',
+    retencion_calidad: 'Retención de calidad',
+    sector_inaccesible: 'Sector inaccesible',
+    otro: 'Otro',
 };
 
 const priorityLabels = {
@@ -93,17 +133,23 @@ const state = {
     identity: readJson(keys.identity),
     loads: [],
     cameras: [],
+    docks: [],
     availableFolios: [],
+    incidents: [],
+    replacements: [],
     loadPagination: emptyPagination(25),
     availablePagination: emptyPagination(10),
     loadRequestId: 0,
     availableRequestId: 0,
     selected: null,
+    selectedIncident: null,
+    selectedReplacement: null,
     mode: 'empty',
 };
 
 let loadSearchTimer;
 let availableSearchTimer;
+let replacementSearchTimer;
 
 class ApiError extends Error {
     constructor(message, status, data = {}) {
@@ -163,6 +209,17 @@ function errorMessage(data, fallback) {
     return firstValidationError(data?.errors) || data?.message || fallback;
 }
 
+function operationId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+    else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
@@ -216,10 +273,15 @@ function clearSession() {
     state.identity = null;
     state.loads = [];
     state.cameras = [];
+    state.docks = [];
     state.availableFolios = [];
+    state.incidents = [];
+    state.replacements = [];
     state.loadPagination = emptyPagination(Number(elements.loadPageSize.value));
     state.availablePagination = emptyPagination(Number(elements.availableFolioPageSize.value));
     state.selected = null;
+    state.selectedIncident = null;
+    state.selectedReplacement = null;
     state.mode = 'empty';
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
@@ -284,6 +346,16 @@ function canPublish(load) {
 function canCancel(load) {
     return state.identity?.puede_gestionar_cargas === true
         && ['borrador', 'pendiente'].includes(load?.estado);
+}
+
+function canResolveIncidents() {
+    return state.identity?.puede_resolver_comercialmente_carga === true
+        || state.identity?.puede_resolver_reparacion_carga === true;
+}
+
+function canCloseDispatch(load) {
+    return state.identity?.puede_cerrar_despacho_frigorifico === true
+        && load?.estado === 'despachada';
 }
 
 function parseFolios(value = elements.folioInput.value) {
@@ -360,7 +432,7 @@ function renderCatalog() {
                 <div class="load-card__line load-card__line--detail">
                     <span class="load-card__distribution">${escapeHtml(distributionText(load))}</span>
                     <span class="priority-dot priority-dot--${priorityClass(load.prioridad)}">${escapeHtml(priorityLabels[load.prioridad] || statusText(load.prioridad))}</span>
-                    <span class="load-card__count">${load.total_folios} / 26</span>
+                    <span class="load-card__count">${load.incidencias_abiertas ? `⚠ ${load.incidencias_abiertas} · ` : ''}${load.total_folios} / 26</span>
                 </div>
             </button>
         `;
@@ -381,6 +453,17 @@ function populateCameraOptions(selectedId = '') {
                 </option>
             `;
         }),
+    ].join('');
+}
+
+function populateDockOptions(selectedId = '') {
+    elements.targetDock.innerHTML = [
+        '<option value="">Sin andén previsto</option>',
+        ...state.docks.map((dock) => `
+            <option value="${escapeHtml(dock.id)}"${dock.id === selectedId ? ' selected' : ''}>
+                ${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}
+            </option>
+        `),
     ].join('');
 }
 
@@ -476,6 +559,7 @@ function startNew() {
     elements.discardNew.classList.remove('is-hidden');
     elements.headerForm.reset();
     populateCameraOptions();
+    populateDockOptions();
     elements.headerError.textContent = '';
     elements.editorEyebrow.textContent = 'NUEVA ORDEN';
     elements.editorTitle.textContent = 'Nuevo borrador';
@@ -505,11 +589,77 @@ function renderDistribution(load) {
     `).join('');
 }
 
+function renderConcentration(load) {
+    const progress = load.progreso || {};
+    const percentage = Math.max(0, Math.min(100, Number(progress.porcentaje || 0)));
+    const total = Number(progress.total || load.total_folios || 0);
+    const concentrated = Number(progress.concentrados || 0);
+    const missing = Number(progress.faltantes || 0);
+    const atDock = Number(progress.en_anden || 0);
+
+    elements.concentration.textContent = `${percentage}%`;
+    elements.atDock.textContent = `${atDock} / ${total}`;
+    elements.incidentCount.textContent = String(load.incidencias_abiertas || 0);
+    elements.concentrationBar.style.width = `${percentage}%`;
+    elements.concentrationBar.classList.toggle('is-ready', progress.cumple_umbral === true);
+    elements.concentratedFolios.textContent = `${concentrated} de ${total} concentrados`;
+
+    if (total === 0) {
+        elements.concentrationMessage.textContent = 'La carga todavía no posee folios vigentes.';
+    } else if (atDock === total) {
+        elements.concentrationMessage.textContent = 'Todos los folios se encuentran en andén. La salida documental ya puede confirmarse.';
+    } else if (progress.cumple_umbral) {
+        elements.concentrationMessage.textContent = missing
+            ? `Cumple el umbral del 80%; todavía faltan ${missing} ${missing === 1 ? 'pallet' : 'pallets'} por incorporar al grupo principal.`
+            : 'La carga está completamente concentrada.';
+    } else {
+        elements.concentrationMessage.textContent = `Faltan ${missing} ${missing === 1 ? 'pallet' : 'pallets'} para alcanzar una concentración operacional suficiente.`;
+    }
+
+    const cluster = progress.grupo_principal;
+    elements.mainCluster.textContent = cluster
+        ? `${cluster.camara.codigo} · nivel ${cluster.nivel} · bandas ${cluster.banda_desde}–${cluster.banda_hasta}`
+        : (atDock ? `${atDock} ${atDock === 1 ? 'folio enviado' : 'folios enviados'} a andén` : 'Sin grupo físico principal');
+}
+
+function renderIncidents() {
+    const incidents = state.incidents;
+    const open = incidents.filter((incident) => incident.estado === 'abierta').length;
+    elements.incidentsSummary.textContent = incidents.length
+        ? `${open} abiertas · ${incidents.length} registradas`
+        : 'Sin incidencias registradas';
+
+    if (!incidents.length) {
+        elements.incidentsList.innerHTML = '<div class="incident-empty">No se han reportado incidencias físicas para esta carga.</div>';
+        return;
+    }
+
+    elements.incidentsList.innerHTML = incidents.map((incident) => {
+        const openIncident = incident.estado === 'abierta';
+        const location = incident.ubicacion_reportada;
+        const locationText = location?.camara?.codigo && location?.posicion?.etiqueta
+            ? `${location.camara.codigo} · ${location.posicion.etiqueta}`
+            : 'Ubicación no disponible';
+        return `
+            <article class="incident-card${openIncident ? ' is-open' : ''}">
+                <div class="incident-card__status"><span>${openIncident ? 'ABIERTA' : 'RESUELTA'}</span><time>${escapeHtml(formatDate(incident.reportada_at))}</time></div>
+                <div class="incident-card__body">
+                    <div><strong>${escapeHtml(incident.folio?.numero_folio || 'Folio')}</strong><span>${escapeHtml(incidentTypeLabels[incident.tipo] || statusText(incident.tipo))}</span></div>
+                    <p>${escapeHtml(incident.descripcion || 'Sin descripción adicional.')}</p>
+                    <small>${escapeHtml(locationText)} · Reportó ${escapeHtml(incident.reportado_por?.nombre || 'operación')}</small>
+                    ${incident.tipo_resolucion ? `<small class="incident-resolution">${escapeHtml(statusText(incident.tipo_resolucion))}${incident.resuelta_por?.nombre ? ` · ${escapeHtml(incident.resuelta_por.nombre)}` : ''}</small>` : ''}
+                </div>
+                ${openIncident && canResolveIncidents() ? `<button class="secondary-button" data-resolve-incident="${escapeHtml(incident.id)}" type="button">Resolver incidencia</button>` : ''}
+            </article>
+        `;
+    }).join('');
+}
+
 function renderFolios(load) {
     if (!load.folios?.length) {
         elements.folioTableBody.innerHTML = `
             <tr class="folio-empty-row">
-                <td colspan="5">Todavía no hay folios asignados a esta orden.</td>
+                <td colspan="6">Todavía no hay folios asignados a esta orden.</td>
             </tr>
         `;
         return;
@@ -524,6 +674,7 @@ function renderFolios(load) {
             <tr>
                 <td><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(folio.estado_operacional || '—')}</small></td>
                 <td>${escapeHtml(statusText(folio.tipo_bulto || '—'))}</td>
+                <td><span class="folio-state folio-state--${statusClass(folio.estado_carga)}">${escapeHtml(statusText(folio.estado_carga || 'pendiente'))}</span></td>
                 <td><span class="location-label">${escapeHtml(location)}</span></td>
                 <td>${escapeHtml(formatDate(folio.asignado_at))}</td>
                 <td class="folio-action-cell">
@@ -542,6 +693,7 @@ function renderCommands(load) {
     elements.folioAddSection.classList.toggle('is-hidden', !editable);
     elements.cancel.classList.toggle('is-hidden', !canCancel(load));
     elements.publish.classList.toggle('is-hidden', !draft);
+    elements.closeDispatch.classList.toggle('is-hidden', !canCloseDispatch(load));
     elements.publish.disabled = !canPublish(load);
 
     if (draft) {
@@ -556,6 +708,14 @@ function renderCommands(load) {
         elements.commandTitle.textContent = 'Orden publicada y todavía editable';
         elements.commandDescription.textContent = 'Podrás modificarla hasta que la operación inicie la separación.';
         elements.folioTableHint.textContent = 'Esta orden ya está disponible para la operación.';
+    } else if (load.estado === 'despachada') {
+        elements.commandTitle.textContent = 'Carga completa en andén';
+        elements.commandDescription.textContent = 'Registra patente y conductor cuando el vehículo haya sido cargado.';
+        elements.folioTableHint.textContent = 'Los folios ya salieron de las cámaras y esperan el cierre documental.';
+    } else if (load.estado === 'cerrada') {
+        elements.commandTitle.textContent = `Despacho cerrado · ${load.cierre?.patente || 'sin patente'}`;
+        elements.commandDescription.textContent = `${load.cierre?.conductor || 'Conductor no informado'} · ${formatDate(load.cierre?.cerrada_at)}`;
+        elements.folioTableHint.textContent = 'Registro histórico de los folios despachados.';
     } else {
         elements.commandTitle.textContent = statusLabels[load.estado] || statusText(load.estado);
         elements.commandDescription.textContent = 'El encabezado y los folios quedan en modo de consulta.';
@@ -591,14 +751,16 @@ function renderSelected(load) {
     elements.headerForm.elements.prioridad.value = load.prioridad || 'normal';
     elements.headerForm.elements.observacion.value = load.observacion || '';
     populateCameraOptions(load.camara_objetivo?.id || '');
+    populateDockOptions(load.anden_previsto?.id || '');
     elements.saveText.textContent = editable ? 'Guardar encabezado' : 'Solo lectura';
     setHeaderDisabled(!editable);
 
     elements.totalFolios.textContent = `${load.total_folios} / 26`;
     elements.totalCameras.textContent = String(load.distribucion?.length || 0);
-    elements.updatedBy.textContent = load.actualizada_por?.nombre || load.creada_por?.nombre || '—';
+    renderConcentration(load);
     renderDistribution(load);
     renderFolios(load);
+    renderIncidents();
     renderCommands(load);
     elements.folioInput.value = '';
     updateFolioInputCount();
@@ -623,6 +785,7 @@ async function loadCatalog(page = state.loadPagination.currentPage) {
     const status = elements.statusFilter.value;
     if (query) params.set('q', query);
     if (status) params.set('estado', status);
+    if (elements.incidentFilter.checked) params.set('solo_con_incidencias', '1');
 
     const response = await api(`/api/cargas?${params}`);
     if (requestId !== state.loadRequestId) return;
@@ -642,6 +805,25 @@ async function loadCameras() {
     const response = await api('/api/camaras');
     state.cameras = response.data;
     populateCameraOptions(state.selected?.camara_objetivo?.id || '');
+}
+
+async function loadDocks() {
+    const response = await api('/api/andenes');
+    state.docks = response.data;
+    populateDockOptions(state.selected?.anden_previsto?.id || '');
+}
+
+async function loadIncidents(loadId) {
+    if (!loadId) {
+        state.incidents = [];
+        renderIncidents();
+        return;
+    }
+
+    const params = new URLSearchParams({ carga_id: loadId, per_page: '50' });
+    const response = await api(`/api/cargas/incidencias?${params}`);
+    state.incidents = response.data;
+    renderIncidents();
 }
 
 async function loadAvailableFolios(page = state.availablePagination.currentPage) {
@@ -668,7 +850,7 @@ async function loadAvailableFolios(page = state.availablePagination.currentPage)
 }
 
 async function loadInitialData() {
-    const requests = [loadCatalog(1), loadCameras()];
+    const requests = [loadCatalog(1), loadCameras(), loadDocks()];
     if (state.identity?.puede_gestionar_cargas === true) {
         requests.push(loadAvailableFolios(1));
     }
@@ -678,7 +860,11 @@ async function loadInitialData() {
 async function selectLoad(id, { busy = true } = {}) {
     if (busy) setBusy(true, 'Cargando orden…');
     try {
-        const response = await api(`/api/cargas/${id}`);
+        const [response, incidents] = await Promise.all([
+            api(`/api/cargas/${id}`),
+            api(`/api/cargas/incidencias?carga_id=${encodeURIComponent(id)}&per_page=50`),
+        ]);
+        state.incidents = incidents.data;
         syncLoad(response.data);
     } catch (error) {
         toast(error.message, true);
@@ -703,6 +889,7 @@ function loadPayload(includeVersion = false) {
         numero_orden_externa: String(form.get('numero_orden_externa') || '').trim() || null,
         prioridad: form.get('prioridad') || 'normal',
         camara_objetivo_id: form.get('camara_objetivo_id') || null,
+        anden_previsto_id: form.get('anden_previsto_id') || null,
         observacion: String(form.get('observacion') || '').trim() || null,
     };
     if (includeVersion) payload.version_esperada = state.selected.version;
@@ -720,6 +907,65 @@ function updateFolioInputCount() {
         : countLabel;
     elements.folioInputCount.classList.toggle('is-error', exceedsCapacity);
     elements.addFolios.disabled = count === 0 || exceedsCapacity;
+}
+
+function renderReplacementCandidates() {
+    elements.replacementSummary.textContent = state.replacements.length
+        ? `${state.replacements.length} folios equivalentes disponibles`
+        : 'No hay folios equivalentes disponibles.';
+
+    elements.replacementList.innerHTML = state.replacements.length
+        ? state.replacements.map((folio) => {
+            const selected = state.selectedReplacement?.id === folio.id;
+            return `
+                <button class="replacement-item${selected ? ' is-selected' : ''}" data-replacement-id="${escapeHtml(folio.id)}" type="button">
+                    <span><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(folio.variedad || 'Sin variedad')} · ${escapeHtml(folio.calibre || 'Sin calibre')}</small></span>
+                    <span><b>${escapeHtml(folio.ubicacion?.camara?.codigo || '—')}</b><small>${escapeHtml(folio.ubicacion?.posicion?.etiqueta || 'Sin ubicación')}</small></span>
+                </button>
+            `;
+        }).join('')
+        : '<div class="replacement-empty">Prueba otra búsqueda o coordina el despacho parcial.</div>';
+}
+
+async function loadReplacementCandidates() {
+    const originalId = state.selectedIncident?.folio?.id;
+    if (!originalId) return;
+    const params = new URLSearchParams({ equivalente_a: originalId, per_page: '25' });
+    const query = elements.replacementSearch.value.trim();
+    if (query) params.set('q', query);
+    elements.replacementSummary.textContent = 'Buscando equivalencias…';
+    const response = await api(`/api/cargas/folios-disponibles?${params}`);
+    state.replacements = response.data;
+    if (!state.replacements.some((folio) => folio.id === state.selectedReplacement?.id)) {
+        state.selectedReplacement = null;
+    }
+    renderReplacementCandidates();
+}
+
+function openIncidentDialog(incident) {
+    state.selectedIncident = incident;
+    state.selectedReplacement = null;
+    state.replacements = [];
+    elements.incidentForm.reset();
+    elements.incidentError.textContent = '';
+    elements.replacementPicker.classList.add('is-hidden');
+    elements.replacementList.innerHTML = '';
+    elements.incidentContext.textContent = `${incident.folio?.numero_folio || 'Folio'} · ${incidentTypeLabels[incident.tipo] || statusText(incident.tipo)}`;
+
+    const canCommercial = state.identity?.puede_resolver_comercialmente_carga === true;
+    for (const input of elements.incidentForm.elements.resolucion) {
+        input.disabled = !canCommercial && input.value !== 'reparado';
+    }
+    elements.incidentForm.elements.resolucion.value = canCommercial ? 'despacho_parcial' : 'reparado';
+    elements.incidentDialog.showModal();
+}
+
+function openCloseDialog() {
+    elements.closeForm.reset();
+    elements.closeError.textContent = '';
+    elements.closeContext.textContent = `${state.selected.codigo} · ${state.selected.total_folios} folios en andén`;
+    elements.closeDialog.showModal();
+    elements.closeForm.elements.patente.focus();
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
@@ -761,6 +1007,10 @@ elements.search.addEventListener('input', () => {
 });
 
 elements.statusFilter.addEventListener('change', () => {
+    void loadCatalog(1).catch((error) => toast(error.message, true));
+});
+
+elements.incidentFilter.addEventListener('change', () => {
     void loadCatalog(1).catch((error) => toast(error.message, true));
 });
 
@@ -995,6 +1245,128 @@ elements.cancel.addEventListener('click', async () => {
     } finally {
         setBusy(false);
     }
+});
+
+elements.incidentsList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-resolve-incident]');
+    if (!button) return;
+    const incident = state.incidents.find((item) => item.id === button.dataset.resolveIncident);
+    if (incident) openIncidentDialog(incident);
+});
+
+elements.incidentForm.addEventListener('change', (event) => {
+    if (event.target.name !== 'resolucion') return;
+    const replacement = event.target.value === 'reemplazo';
+    elements.replacementPicker.classList.toggle('is-hidden', !replacement);
+    elements.incidentError.textContent = '';
+    if (replacement) {
+        void loadReplacementCandidates().catch((error) => {
+            elements.incidentError.textContent = error.message;
+        });
+    }
+});
+
+elements.replacementSearch.addEventListener('input', () => {
+    window.clearTimeout(replacementSearchTimer);
+    replacementSearchTimer = window.setTimeout(() => {
+        void loadReplacementCandidates().catch((error) => {
+            elements.incidentError.textContent = error.message;
+        });
+    }, 300);
+});
+
+elements.replacementList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-replacement-id]');
+    if (!button) return;
+    state.selectedReplacement = state.replacements.find(
+        (folio) => folio.id === button.dataset.replacementId,
+    ) || null;
+    renderReplacementCandidates();
+});
+
+elements.incidentForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const resolution = elements.incidentForm.elements.resolucion.value;
+    const observation = String(elements.incidentForm.elements.observacion.value || '').trim();
+    elements.incidentError.textContent = '';
+
+    if (!resolution) {
+        elements.incidentError.textContent = 'Selecciona un tipo de resolución.';
+        return;
+    }
+    if (resolution === 'reemplazo' && !state.selectedReplacement) {
+        elements.incidentError.textContent = 'Selecciona el folio equivalente que reemplazará al afectado.';
+        return;
+    }
+
+    setBusy(true, 'Resolviendo incidencia…');
+    try {
+        await api(`/api/cargas/incidencias/${state.selectedIncident.id}/resolver`, {
+            method: 'POST',
+            body: JSON.stringify({
+                operacion_id: operationId(),
+                resolucion: resolution,
+                folio_reemplazo_id: resolution === 'reemplazo' ? state.selectedReplacement.id : null,
+                observacion: observation || null,
+            }),
+        });
+        elements.incidentDialog.close();
+        const loadId = state.selected.id;
+        await Promise.all([
+            selectLoad(loadId, { busy: false }),
+            loadCatalog(state.loadPagination.currentPage),
+            loadAvailableFolios(state.availablePagination.currentPage),
+        ]);
+        toast(`Incidencia de ${state.selectedIncident.folio?.numero_folio || 'folio'} resuelta correctamente.`);
+    } catch (error) {
+        elements.incidentError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.closeDispatch.addEventListener('click', () => {
+    if (canCloseDispatch(state.selected)) openCloseDialog();
+});
+
+elements.closeForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(elements.closeForm);
+    const plate = String(form.get('patente') || '').trim().toUpperCase();
+    const driver = String(form.get('conductor') || '').trim();
+    const observation = String(form.get('observacion') || '').trim();
+    elements.closeError.textContent = '';
+
+    if (!plate || !driver) {
+        elements.closeError.textContent = 'La patente y el conductor son obligatorios.';
+        return;
+    }
+
+    setBusy(true, 'Cerrando despacho y confirmando salida…');
+    try {
+        const response = await api(`/api/cargas/${state.selected.id}/cerrar-despacho`, {
+            method: 'POST',
+            body: JSON.stringify({
+                operacion_id: operationId(),
+                patente: plate,
+                conductor: driver,
+                observacion: observation || null,
+            }),
+        });
+        elements.closeDialog.close();
+        state.incidents = [];
+        syncLoad(response.data);
+        await loadCatalog(state.loadPagination.currentPage);
+        toast(`${response.data.codigo} quedó cerrada con salida de ${plate}.`);
+    } catch (error) {
+        elements.closeError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+document.querySelectorAll('[data-close-dialog]').forEach((button) => {
+    button.addEventListener('click', () => button.closest('dialog')?.close());
 });
 
 elements.reload.addEventListener('click', async () => {

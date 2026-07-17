@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
+use App\Enums\EstadoIncidenciaCarga;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\TipoBulto;
@@ -35,6 +36,7 @@ class CargaController extends Controller
         $filtros = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
             'estado' => ['nullable', Rule::enum(EstadoCarga::class)],
+            'solo_con_incidencias' => ['nullable', 'boolean'],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
@@ -42,6 +44,10 @@ class CargaController extends Controller
 
         $cargas = Carga::query()
             ->with($this->relacionesDetalle())
+            ->withCount([
+                'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
+                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+            ])
             ->when(
                 $busqueda !== '',
                 fn (Builder $consulta): Builder => $consulta->where(
@@ -62,6 +68,14 @@ class CargaController extends Controller
                 fn (Builder $consulta): Builder => $consulta
                     ->where('estado', $filtros['estado']),
             )
+            ->when(
+                $request->boolean('solo_con_incidencias'),
+                fn (Builder $consulta): Builder => $consulta->whereHas(
+                    'incidencias',
+                    fn (Builder $incidencia): Builder => $incidencia
+                        ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+                ),
+            )
             ->orderByDesc('created_at')
             ->paginate((int) ($filtros['per_page'] ?? 25))
             ->withQueryString();
@@ -81,6 +95,10 @@ class CargaController extends Controller
                     ->all(),
             )
             ->with($this->relacionesDetalle())
+            ->withCount([
+                'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
+                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+            ])
             ->orderByRaw(
                 "CASE prioridad WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 ELSE 3 END",
             )
@@ -96,10 +114,14 @@ class CargaController extends Controller
 
         $filtros = $request->validate([
             'q' => ['nullable', 'string', 'max:100'],
+            'equivalente_a' => ['nullable', 'uuid', Rule::exists('folios', 'id')],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $busqueda = trim((string) ($filtros['q'] ?? ''));
+        $folioOriginal = isset($filtros['equivalente_a'])
+            ? Folio::query()->findOrFail($filtros['equivalente_a'])
+            : null;
 
         $folios = Folio::query()
             ->where('activo', true)
@@ -109,6 +131,21 @@ class CargaController extends Controller
                 TipoBulto::Saldo->value,
             ])
             ->whereDoesntHave('asignacionCargaActual')
+            ->when($folioOriginal, function (Builder $consulta, Folio $original): Builder {
+                foreach ([
+                    'tipo_bulto',
+                    'condicion_sag_id',
+                    'variedad',
+                    'calibre',
+                    'marca',
+                    'exportadora',
+                ] as $campo) {
+                    $valor = $original->{$campo};
+                    $consulta->where($campo, $valor instanceof \BackedEnum ? $valor->value : $valor);
+                }
+
+                return $consulta->where('id', '!=', $original->id);
+            })
             ->whereHas(
                 'ubicacionActual.posicion',
                 fn (Builder $posicion): Builder => $posicion
@@ -265,7 +302,12 @@ class CargaController extends Controller
 
     private function cargarDetalle(Carga $carga): Carga
     {
-        return $carga->load($this->relacionesDetalle());
+        return $carga
+            ->load($this->relacionesDetalle())
+            ->loadCount([
+                'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
+                    ->where('estado', EstadoIncidenciaCarga::Abierta->value),
+            ]);
     }
 
     /**
@@ -284,6 +326,10 @@ class CargaController extends Controller
             'asignacionesActuales.asignadoPor:id,name',
             'asignacionesActuales.anden:id,codigo,nombre',
             'asignacionesActuales.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
+            'asignacionesHistoricas.anden:id,codigo,nombre',
+            'asignacionesHistoricas.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
+            'tareas.camaraOrigen:id,codigo,nombre',
+            'tareas.responsable:id,name',
         ];
     }
 }

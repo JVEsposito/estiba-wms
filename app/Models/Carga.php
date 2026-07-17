@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
     'codigo',
@@ -89,6 +90,16 @@ class Carga extends Model
     public function tareas(): HasMany
     {
         return $this->hasMany(TareaCarga::class);
+    }
+
+    public function incidencias(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            IncidenciaCargaFolio::class,
+            CargaFolio::class,
+            'carga_id',
+            'carga_folio_id',
+        );
     }
 
     public function eventos(): HasMany
