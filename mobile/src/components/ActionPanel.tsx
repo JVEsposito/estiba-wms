@@ -6,6 +6,8 @@ import { colors } from '../theme/colors';
 type ActionPanelProps = {
   busy: boolean;
   canOperate: boolean;
+  canOpenSession: boolean;
+  canDispatchMaterial: boolean;
   compact?: boolean;
   plan: CameraPlan;
   selectedPosition: Position | null;
@@ -19,6 +21,8 @@ type ActionPanelProps = {
 export function ActionPanel({
   busy,
   canOperate,
+  canOpenSession,
+  canDispatchMaterial,
   compact = false,
   onLocate,
   onMove,
@@ -87,7 +91,7 @@ export function ActionPanel({
           primary
           subtitle="Registrar un bulto nuevo"
         />
-        {plan.contenido === 'materiales' && (
+        {plan.contenido === 'materiales' && canDispatchMaterial && (
           <ActionButton
             compact={compact}
             disabled={busy || !canOperate || !selectedMaterial || Number(selectedPosition?.folio?.material?.cantidad_disponible ?? 0) <= 0}
@@ -107,11 +111,11 @@ export function ActionPanel({
         />
         <ActionButton
           compact={compact}
-          disabled={busy || readOnly}
+          disabled={busy || readOnly || (!editing && !canOpenSession)}
           icon="⌁"
           label={editing ? 'Cerrar estiba' : readOnly ? 'Cámara en uso' : 'Abrir estiba'}
           onPress={onToggleSession}
-          subtitle={editing ? 'Liberar la cámara' : readOnly ? 'Edición bloqueada' : 'Iniciar sesión de edición'}
+          subtitle={editing ? 'Liberar la cámara' : readOnly ? 'Edición bloqueada' : canOpenSession ? 'Iniciar sesión de edición' : 'Perfil de solo consulta'}
         />
         <ActionButton
           compact={compact}

@@ -10,6 +10,8 @@ const elements = {
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
     accessesNav: byId('officeAccessesNav'),
+    loadsNav: byId('officeLoadsNav'),
+    materialsNav: byId('officeMaterialsNav'),
     workspace: byId('officeWorkspace'),
     catalogEyebrow: byId('cameraCatalogEyebrow'),
     catalogTitle: byId('cameraCatalogTitle'),
@@ -144,10 +146,41 @@ function showApp() {
         'is-hidden',
         state.identity?.puede_administrar_accesos !== true,
     );
+    elements.loadsNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_cargas !== true,
+    );
+    elements.materialsNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_despachos_materiales !== true,
+    );
+    applyCreationContentScope();
     const readOnly = state.identity?.puede_configurar_camaras !== true;
     elements.workspace.classList.toggle('is-read-only', readOnly);
     elements.catalogEyebrow.textContent = readOnly ? 'CONSULTA OPERACIONAL' : 'CONFIGURACIÓN';
     elements.catalogTitle.textContent = readOnly ? 'Disponibilidad de cámaras' : 'Cámaras creadas';
+}
+
+function allowedCreationContent() {
+    const canCreateProducts = state.identity?.puede_crear_camaras_productos === true;
+    const canCreateMaterials = state.identity?.puede_crear_camaras_materiales === true;
+
+    if (canCreateProducts && !canCreateMaterials) return 'productos';
+    if (canCreateMaterials && !canCreateProducts) return 'materiales';
+
+    return null;
+}
+
+function applyCreationContentScope() {
+    const content = elements.createForm.elements.contenido;
+    const forced = allowedCreationContent();
+
+    for (const option of content.options) {
+        option.hidden = forced !== null && option.value !== forced;
+        option.disabled = forced !== null && option.value !== forced;
+    }
+
+    if (forced && state.mode === 'create') content.value = forced;
 }
 
 function statusText(value) {
@@ -269,7 +302,8 @@ function resetForm() {
     elements.createForm.elements.bandas.value = 3;
     elements.createForm.elements.posiciones_por_banda.value = 4;
     elements.createForm.elements.niveles.value = 2;
-    elements.createForm.elements.contenido.value = 'productos';
+    elements.createForm.elements.contenido.value = allowedCreationContent() || 'productos';
+    applyCreationContentScope();
     elements.eyebrow.textContent = 'NUEVO PLANO';
     elements.title.textContent = 'Crear cámara';
     elements.description.textContent = 'Define la estructura y revisa cada banda antes de confirmar.';
@@ -509,10 +543,7 @@ elements.logout.addEventListener('click', async () => {
 
 async function boot() {
     renderPreview();
-    if (!state.token || (
-        state.identity?.puede_configurar_camaras !== true
-        && state.identity?.puede_gestionar_cargas !== true
-    )) return;
+    if (!state.token) return;
     showApp();
     setBusy(
         true,

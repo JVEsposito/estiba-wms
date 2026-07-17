@@ -12,6 +12,22 @@ export type UserIdentity = {
   nombre: string;
   email: string;
   rol: string;
+  ambito_camaras: 'productos' | 'materiales' | 'ambos' | 'ninguno';
+  capacidades: UserCapabilities;
+};
+
+export type UserCapabilities = {
+  ambito_camaras: 'productos' | 'materiales' | 'ambos' | 'ninguno';
+  puede_supervisar: boolean;
+  puede_operar_productos: boolean;
+  puede_operar_materiales: boolean;
+  puede_consultar_cargas: boolean;
+  puede_gestionar_cargas: boolean;
+  puede_consultar_despachos_materiales: boolean;
+  puede_gestionar_despachos_materiales: boolean;
+  puede_retirar_materiales: boolean;
+  puede_cancelar_despachos_materiales: boolean;
+  puede_consultar_kardex_materiales: boolean;
 };
 
 export type DeviceIdentity = {

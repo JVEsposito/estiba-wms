@@ -244,6 +244,9 @@ function showApp() {
         'is-hidden',
         state.identity?.puede_administrar_accesos !== true,
     );
+    const canManage = state.identity?.puede_gestionar_cargas === true;
+    elements.newLoad.classList.toggle('is-hidden', !canManage);
+    elements.emptyNewLoad.classList.toggle('is-hidden', !canManage);
 }
 
 function statusText(value) {
@@ -263,15 +266,19 @@ function formatDate(value, fallback = '—') {
 }
 
 function canEdit(load) {
-    return ['borrador', 'pendiente'].includes(load?.estado);
+    return state.identity?.puede_gestionar_cargas === true
+        && ['borrador', 'pendiente'].includes(load?.estado);
 }
 
 function canPublish(load) {
-    return load?.estado === 'borrador' && load.total_folios >= 1;
+    return state.identity?.puede_gestionar_cargas === true
+        && load?.estado === 'borrador'
+        && load.total_folios >= 1;
 }
 
 function canCancel(load) {
-    return ['borrador', 'pendiente'].includes(load?.estado);
+    return state.identity?.puede_gestionar_cargas === true
+        && ['borrador', 'pendiente'].includes(load?.estado);
 }
 
 function parseFolios(value = elements.folioInput.value) {
@@ -656,7 +663,11 @@ async function loadAvailableFolios(page = state.availablePagination.currentPage)
 }
 
 async function loadInitialData() {
-    await Promise.all([loadCatalog(1), loadCameras(), loadAvailableFolios(1)]);
+    const requests = [loadCatalog(1), loadCameras()];
+    if (state.identity?.puede_gestionar_cargas === true) {
+        requests.push(loadAvailableFolios(1));
+    }
+    await Promise.all(requests);
 }
 
 async function selectLoad(id, { busy = true } = {}) {
@@ -716,8 +727,8 @@ elements.loginForm.addEventListener('submit', async (event) => {
             method: 'POST',
             body: JSON.stringify(data),
         });
-        if (!payload.usuario.puede_gestionar_cargas) {
-            throw new ApiError('Tu perfil no puede gestionar órdenes de carga.', 403);
+        if (!payload.usuario.puede_consultar_cargas) {
+            throw new ApiError('Tu perfil no puede consultar órdenes de carga.', 403);
         }
         persistSession(payload);
         showApp();
@@ -1006,7 +1017,7 @@ elements.logout.addEventListener('click', async () => {
 
 async function boot() {
     updateFolioInputCount();
-    if (!state.token || !state.identity?.puede_gestionar_cargas) return;
+    if (!state.token || !state.identity?.puede_consultar_cargas) return;
     showApp();
     setBusy(true, 'Cargando órdenes de carga…');
     try {
