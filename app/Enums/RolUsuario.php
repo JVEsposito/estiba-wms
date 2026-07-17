@@ -10,5 +10,6 @@ enum RolUsuario: string
     case Despachador = 'despachador';
     case CamareroFrio = 'camarero_frio';
     case CamareroMateriales = 'camarero_materiales';
+    case Validador = 'validador';
     case Consulta = 'consulta';
 }

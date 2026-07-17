@@ -63,6 +63,16 @@ class DatabaseSeeder extends Seeder
         );
 
         User::query()->updateOrCreate(
+            ['email' => 'validador@estiba.local'],
+            [
+                'name' => 'Validador de pallets',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::Validador,
+                'activo' => true,
+            ],
+        );
+
+        User::query()->updateOrCreate(
             ['email' => 'camarero.materiales@estiba.local'],
             [
                 'name' => 'Camarero de materiales',

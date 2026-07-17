@@ -50,6 +50,9 @@ const demoIdentity: AuthSession = {
       puede_retirar_materiales: false,
       puede_cancelar_despachos_materiales: false,
       puede_consultar_kardex_materiales: false,
+      puede_validar_pallets: false,
+      puede_rechazar_pallets: false,
+      puede_consultar_validaciones_pallet: false,
     },
   },
   dispositivo: {

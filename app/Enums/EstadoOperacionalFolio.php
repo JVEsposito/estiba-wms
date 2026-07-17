@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum EstadoOperacionalFolio: string
 {
+    case PendientePrefrio = 'pendiente_prefrio';
     case Disponible = 'disponible';
     case Bloqueado = 'bloqueado';
     case Anulado = 'anulado';

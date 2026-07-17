@@ -75,65 +75,65 @@ class AppServiceProvider extends ServiceProvider
                 ContenidoCamara::Materiales,
             ),
         );
-
         Gate::define(
             'administrar-camaras',
             fn (User $usuario): bool => $alcance->puedeAdministrarCamaras($usuario),
         );
-
         Gate::define(
             'administrar-accesos',
             fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
         );
-
         Gate::define(
             'gestionar-cargas',
             fn (User $usuario): bool => $alcance->puedeGestionarCargas($usuario),
         );
-
         Gate::define(
             'consultar-cargas-operacion',
             fn (User $usuario): bool => $alcance->puedeConsultarCargas($usuario),
         );
-
         Gate::define(
             'consultar-catalogo-cargas',
             fn (User $usuario): bool => $alcance->puedeConsultarCatalogoCargas($usuario),
         );
-
         Gate::define(
             'gestionar-andenes',
             fn (User $usuario): bool => $alcance->puedeGestionarAndenes($usuario),
         );
-
         Gate::define(
             'administrar-catalogos-materiales',
             fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
         );
-
         Gate::define(
             'gestionar-despachos-materiales',
             fn (User $usuario): bool => $alcance->puedeGestionarDespachosMateriales($usuario),
         );
-
         Gate::define(
             'consultar-despachos-materiales',
             fn (User $usuario): bool => $alcance->puedeConsultarDespachosMateriales($usuario),
         );
-
         Gate::define(
             'retirar-materiales',
             fn (User $usuario): bool => $alcance->puedeRetirarMateriales($usuario),
         );
-
         Gate::define(
             'cancelar-despachos-materiales',
             fn (User $usuario): bool => $alcance->puedeCancelarDespachosMateriales($usuario),
         );
-
         Gate::define(
             'consultar-kardex-materiales',
             fn (User $usuario): bool => $alcance->puedeConsultarKardexMateriales($usuario),
+        );
+        Gate::define(
+            'validar-pallets',
+            fn (User $usuario): bool => $alcance->puedeValidarPallets($usuario),
+        );
+        Gate::define(
+            'rechazar-pallets',
+            fn (User $usuario): bool => $alcance->puedeRechazarPallets($usuario),
+        );
+        Gate::define(
+            'consultar-validaciones-pallet',
+            fn (User $usuario): bool => $alcance->puedeConsultarValidacionesPallet($usuario),
         );
 
         Sanctum::authenticateAccessTokensUsing(

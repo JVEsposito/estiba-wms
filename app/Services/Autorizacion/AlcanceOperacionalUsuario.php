@@ -26,6 +26,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Administrador,
             RolUsuario::Despachador,
             RolUsuario::Consulta => ContenidoCamara::cases(),
+            RolUsuario::Validador => [],
         };
     }
 
@@ -121,32 +122,32 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarCargas(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::Despachador,
-        ], true);
+        ]);
     }
 
     public function puedeConsultarCargas(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::CamareroFrio,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
-        ], true);
+        ]);
     }
 
     public function puedeConsultarCatalogoCargas(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
-        ], true);
+        ]);
     }
 
     public function puedeReportarIncidenciasCarga(User $usuario): bool
@@ -156,16 +157,13 @@ class AlcanceOperacionalUsuario
 
     public function puedeResolverComercialmenteCarga(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
-            RolUsuario::Administrador,
-            RolUsuario::Despachador,
-        ], true);
+        return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::Despachador]);
     }
 
     public function puedeResolverReparacionCarga(User $usuario): bool
     {
         return $this->puedeResolverComercialmenteCarga($usuario)
-            || ($usuario->activo && $usuario->rol === RolUsuario::SupervisorFrio);
+            || $this->rolActivo($usuario, [RolUsuario::SupervisorFrio]);
     }
 
     public function puedeEnviarFoliosAnden(User $usuario): bool
@@ -180,36 +178,36 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarAndenes(User $usuario): bool
     {
-        return $usuario->activo && $usuario->rol === RolUsuario::Administrador;
+        return $this->rolActivo($usuario, [RolUsuario::Administrador]);
     }
 
     public function puedeGestionarDespachosMateriales(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::Despachador,
-        ], true);
+        ]);
     }
 
     public function puedeConsultarDespachosMateriales(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
-        ], true);
+        ]);
     }
 
     public function puedeRetirarMateriales(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
-        ], true);
+        ]);
     }
 
     public function puedeCancelarDespachosMateriales(User $usuario): bool
@@ -219,21 +217,37 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarKardexMateriales(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::SupervisorMateriales]);
+    }
+
+    public function puedeValidarPallets(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
-            RolUsuario::SupervisorMateriales,
-        ], true);
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Validador,
+        ]);
+    }
+
+    public function puedeRechazarPallets(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::SupervisorFrio]);
+    }
+
+    public function puedeConsultarValidacionesPallet(User $usuario): bool
+    {
+        return $this->puedeValidarPallets($usuario);
     }
 
     public function puedeAccederOficina(User $usuario): bool
     {
-        return $usuario->activo && in_array($usuario->rol, [
+        return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::SupervisorMateriales,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
-        ], true);
+        ]);
     }
 
     /**
@@ -260,6 +274,17 @@ class AlcanceOperacionalUsuario
             'puede_retirar_materiales' => $this->puedeRetirarMateriales($usuario),
             'puede_cancelar_despachos_materiales' => $this->puedeCancelarDespachosMateriales($usuario),
             'puede_consultar_kardex_materiales' => $this->puedeConsultarKardexMateriales($usuario),
+            'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
+            'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
+            'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
         ];
+    }
+
+    /**
+     * @param  array<int, RolUsuario>  $roles
+     */
+    private function rolActivo(User $usuario, array $roles): bool
+    {
+        return $usuario->activo && in_array($usuario->rol, $roles, true);
     }
 }
