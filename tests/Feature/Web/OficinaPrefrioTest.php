@@ -13,7 +13,8 @@ class OficinaPrefrioTest extends TestCase
             ->assertSee('Tablero de Prefrío')
             ->assertSee('Túneles configurables')
             ->assertSee('Procesos históricos')
-            ->assertSee('resources/js/office-prefrio.js', false)
-            ->assertSee('resources/css/office-prefrio.css', false);
+            ->assertSee('Nuevo proceso')
+            ->assertSee('Nuevo túnel')
+            ->assertSee('Pendientes de verificación');
     }
 }
