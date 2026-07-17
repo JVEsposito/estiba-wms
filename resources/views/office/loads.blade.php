@@ -88,12 +88,19 @@
                                 <option value="">Todos</option>
                                 <option value="borrador">Borrador</option>
                                 <option value="pendiente">Pendiente</option>
+                                <option value="en_preparacion">En preparación</option>
+                                <option value="despacho_parcial">Despacho parcial</option>
                                 <option value="en_separacion">En separación</option>
                                 <option value="separada">Separada</option>
                                 <option value="separacion_completa">Separación completa</option>
-                                <option value="despachada">Despachada</option>
+                                <option value="despachada">En andén</option>
+                                <option value="cerrada">Cerrada</option>
                                 <option value="cancelada">Cancelada</option>
                             </select>
+                        </label>
+                        <label class="incident-filter">
+                            <input id="loadIncidentFilter" type="checkbox">
+                            <span>Solo con incidencias abiertas</span>
                         </label>
                     </div>
 
@@ -159,6 +166,12 @@
                                         <option value="">Sin cámara objetivo</option>
                                     </select>
                                 </label>
+                                <label class="field">
+                                    <span>Andén previsto</span>
+                                    <select name="anden_previsto_id" id="targetDockSelect">
+                                        <option value="">Sin andén previsto</option>
+                                    </select>
+                                </label>
                                 <label class="field field--full">
                                     <span>Observación operacional</span>
                                     <textarea name="observacion" maxlength="1000" rows="3" placeholder="Indicaciones para la preparación de esta carga"></textarea>
@@ -175,8 +188,22 @@
                             <div class="load-metrics">
                                 <article><span>FOLIOS ASIGNADOS</span><strong id="loadTotalFolios">0 / 26</strong></article>
                                 <article><span>CÁMARAS INVOLUCRADAS</span><strong id="loadTotalCameras">0</strong></article>
-                                <article><span>ÚLTIMO CAMBIO</span><strong id="loadUpdatedBy">—</strong></article>
+                                <article><span>CONCENTRACIÓN</span><strong id="loadConcentration">0%</strong></article>
+                                <article><span>EN ANDÉN</span><strong id="loadAtDock">0</strong></article>
+                                <article><span>INCIDENCIAS ABIERTAS</span><strong id="loadIncidentCount">0</strong></article>
                             </div>
+
+                            <section class="concentration-panel" aria-labelledby="concentrationTitle">
+                                <div class="concentration-panel__summary">
+                                    <p class="eyebrow">SEGUIMIENTO FÍSICO</p>
+                                    <h2 id="concentrationTitle">Concentración de la carga</h2>
+                                    <p id="loadConcentrationMessage">La concentración se calcula con posiciones correlativas y bandas consecutivas.</p>
+                                </div>
+                                <div class="concentration-panel__progress">
+                                    <div class="concentration-progress" aria-hidden="true"><span id="loadConcentrationBar"></span><i></i></div>
+                                    <div><strong id="loadConcentratedFolios">0 de 0 concentrados</strong><span id="loadMainCluster">Sin grupo principal</span></div>
+                                </div>
+                            </section>
 
                             <div class="distribution-block">
                                 <div>
@@ -264,6 +291,7 @@
                                             <tr>
                                                 <th>Folio</th>
                                                 <th>Tipo</th>
+                                                <th>Estado en carga</th>
                                                 <th>Ubicación actual</th>
                                                 <th>Asignado</th>
                                                 <th><span class="sr-only">Acciones</span></th>
@@ -274,6 +302,17 @@
                                 </div>
                             </div>
 
+                            <section class="load-incidents" id="loadIncidentsSection" aria-labelledby="loadIncidentsTitle">
+                                <div class="load-incidents__heading">
+                                    <div>
+                                        <p class="eyebrow">ALERTAS DE TERRENO</p>
+                                        <h2 id="loadIncidentsTitle">Incidencias de la carga</h2>
+                                    </div>
+                                    <span id="loadIncidentsSummary">Sin incidencias registradas</span>
+                                </div>
+                                <div class="load-incidents__list" id="loadIncidentsList"></div>
+                            </section>
+
                             <footer class="load-command-bar" id="loadCommandBar">
                                 <div>
                                     <strong id="loadCommandTitle">Orden en borrador</strong>
@@ -281,6 +320,7 @@
                                 </div>
                                 <div>
                                     <button class="danger-button" id="cancelLoadButton" type="button">Cancelar orden</button>
+                                    <button class="primary-button is-hidden" id="closeDispatchButton" type="button">Confirmar salida del camión <span>→</span></button>
                                     <button class="primary-button" id="publishLoadButton" type="button">Publicar para operación <span>→</span></button>
                                 </div>
                             </footer>
@@ -289,6 +329,65 @@
                 </section>
             </section>
         </main>
+
+        <dialog class="office-dialog" id="incidentResolutionDialog" aria-labelledby="incidentResolutionTitle">
+            <form id="incidentResolutionForm" method="dialog" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">RESOLUCIÓN COMERCIAL</p>
+                        <h2 id="incidentResolutionTitle">Resolver incidencia</h2>
+                        <p id="incidentResolutionContext">Selecciona cómo continuará el folio.</p>
+                    </div>
+                    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+                </header>
+                <fieldset class="resolution-options">
+                    <legend>Tipo de resolución</legend>
+                    <label><input name="resolucion" type="radio" value="despacho_parcial" required><span><strong>A · Despacho parcial</strong><small>Retira el folio afectado y libera su reserva.</small></span></label>
+                    <label><input name="resolucion" type="radio" value="reemplazo"><span><strong>B · Reemplazar folio</strong><small>Selecciona otro folio con especificaciones equivalentes.</small></span></label>
+                    <label><input name="resolucion" type="radio" value="reparado"><span><strong>C · Incidencia resuelta</strong><small>El folio vuelve a la cola de extracción.</small></span></label>
+                </fieldset>
+                <section class="replacement-picker is-hidden" id="replacementPicker" aria-labelledby="replacementPickerTitle">
+                    <div>
+                        <strong id="replacementPickerTitle">Folios equivalentes disponibles</strong>
+                        <input id="replacementSearch" type="search" maxlength="100" placeholder="Buscar folio o ubicación">
+                    </div>
+                    <p id="replacementSummary">Selecciona un reemplazo.</p>
+                    <div class="replacement-list" id="replacementList"></div>
+                </section>
+                <label class="field">
+                    <span>Observación</span>
+                    <textarea name="observacion" maxlength="1000" rows="3" placeholder="Acuerdo con cliente o detalle de la resolución"></textarea>
+                </label>
+                <p class="form-error" id="incidentResolutionError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Confirmar resolución <span>→</span></button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="office-dialog" id="closeDispatchDialog" aria-labelledby="closeDispatchTitle">
+            <form id="closeDispatchForm" method="dialog" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">SALIDA DOCUMENTAL</p>
+                        <h2 id="closeDispatchTitle">Confirmar salida del camión</h2>
+                        <p id="closeDispatchContext">Todos los folios deben encontrarse en andén.</p>
+                    </div>
+                    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+                </header>
+                <div class="dialog-grid">
+                    <label class="field"><span>Patente *</span><input name="patente" maxlength="20" autocomplete="off" required placeholder="ABCD12"></label>
+                    <label class="field"><span>Conductor *</span><input name="conductor" maxlength="150" required placeholder="Nombre completo"></label>
+                    <label class="field field--full"><span>Observación de salida</span><textarea name="observacion" maxlength="1000" rows="3"></textarea></label>
+                </div>
+                <p class="form-error" id="closeDispatchError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Cerrar despacho <span>→</span></button>
+                </footer>
+            </form>
+        </dialog>
 
         <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>
