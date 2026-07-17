@@ -23,7 +23,8 @@ class ServicioImportacionValidacion
         UploadedFile $archivo,
         Temporada $temporada,
         User $usuario,
-    ): ImportacionValidacion {
+    ): ImportacionValidacion
+    {
         $filasLeidas = $this->lector->leer($archivo);
         $errores = [];
         $filas = [];
