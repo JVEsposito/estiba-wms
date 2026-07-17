@@ -21,6 +21,8 @@ class Anden extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
+    protected $table = 'andenes';
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
