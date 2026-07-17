@@ -91,6 +91,19 @@ export async function listEligiblePrefrioFolios(
   return response.data;
 }
 
+export async function findEligiblePrefrioFolios(
+  baseUrl: string,
+  token: string,
+  folio: string,
+) {
+  const response = await request<{ data: PrefrioFolioCandidate[] }>(
+    baseUrl,
+    `/api/prefrio/folios-disponibles?folio=${encodeURIComponent(folio)}&limit=100`,
+    token,
+  );
+  return response.data;
+}
+
 export async function createPrefrioProcess(
   baseUrl: string,
   token: string,
