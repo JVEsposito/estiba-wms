@@ -85,6 +85,30 @@ class AdministracionValidacionApiTest extends TestCase
             ->assertJsonPath('temporada.version_catalogo', 4);
     }
 
+    public function test_activar_una_temporada_desactiva_la_anterior(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $anterior = Temporada::create([
+            'codigo' => '2025-2026',
+            'nombre' => 'Temporada anterior',
+            'activa' => true,
+        ]);
+
+        $nuevaId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/validacion/temporadas', [
+                'codigo' => '2026-2027',
+                'nombre' => 'Temporada nueva',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.activa', true)
+            ->json('data.id');
+
+        $this->assertFalse($anterior->refresh()->activa);
+        $this->assertTrue(Temporada::query()->findOrFail($nuevaId)->activa);
+        $this->assertSame(1, Temporada::query()->where('activa', true)->count());
+    }
+
     public function test_importador_previsualiza_y_confirma_csv_sin_desactivar_ausencias(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
