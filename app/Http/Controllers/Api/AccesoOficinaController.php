@@ -63,6 +63,7 @@ class AccesoOficinaController extends Controller
                 'puede_administrar_accesos' => $usuario->can('administrar-accesos'),
                 'puede_gestionar_cargas' => $capacidades['puede_gestionar_cargas'],
                 'puede_consultar_cargas' => $capacidades['puede_consultar_cargas'],
+                'puede_consultar_catalogo_cargas' => $capacidades['puede_consultar_catalogo_cargas'],
                 'puede_administrar_catalogos_materiales' => $usuario->can('administrar-catalogos-materiales'),
                 'puede_gestionar_despachos_materiales' => $capacidades['puede_gestionar_despachos_materiales'],
                 'puede_consultar_despachos_materiales' => $capacidades['puede_consultar_despachos_materiales'],

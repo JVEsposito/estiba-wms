@@ -7,6 +7,7 @@ use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\SesionEstiba;
 use App\Models\User;
+use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -83,14 +84,13 @@ class SesionEstibaApiTest extends TestCase
             ->assertJsonPath('codigo', 'operacion_no_autorizada');
     }
 
-    public function test_cierre_forzoso_exige_motivo_y_supervision_de_la_misma_area(): void
+    public function test_supervisor_no_puede_cerrar_forzosamente_una_sesion_de_otra_area(): void
     {
-        [, , $tokenOperador] = $this->crearIdentidad('TABLET-01');
+        [$operador, $dispositivo] = $this->crearIdentidad('TABLET-01');
         $camara = $this->crearCamara();
-        $sesionId = $this->withToken($tokenOperador)
-            ->postJson("/api/camaras/{$camara->id}/sesiones")
-            ->assertCreated()
-            ->json('data.id');
+        $sesionId = app(ServicioSesionEstiba::class)
+            ->abrir($camara, $operador, $dispositivo)
+            ->id;
         $supervisorMateriales = User::factory()->create([
             'rol' => RolUsuario::SupervisorMateriales,
         ]);
@@ -103,6 +103,15 @@ class SesionEstibaApiTest extends TestCase
                 'motivo' => 'Sesión abandonada.',
             ])
             ->assertForbidden();
+    }
+
+    public function test_cierre_forzoso_exige_motivo_y_registra_supervisor_de_la_misma_area(): void
+    {
+        [$operador, $dispositivo] = $this->crearIdentidad('TABLET-01');
+        $camara = $this->crearCamara();
+        $sesionId = app(ServicioSesionEstiba::class)
+            ->abrir($camara, $operador, $dispositivo)
+            ->id;
 
         $supervisorFrio = User::factory()->create([
             'rol' => RolUsuario::SupervisorFrio,

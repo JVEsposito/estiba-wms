@@ -40,6 +40,7 @@ const demoIdentity: AuthSession = {
       puede_operar_productos: true,
       puede_operar_materiales: false,
       puede_consultar_cargas: true,
+      puede_consultar_catalogo_cargas: false,
       puede_gestionar_cargas: false,
       puede_consultar_despachos_materiales: false,
       puede_gestionar_despachos_materiales: false,

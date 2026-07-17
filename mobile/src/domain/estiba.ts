@@ -22,6 +22,7 @@ export type UserCapabilities = {
   puede_operar_productos: boolean;
   puede_operar_materiales: boolean;
   puede_consultar_cargas: boolean;
+  puede_consultar_catalogo_cargas: boolean;
   puede_gestionar_cargas: boolean;
   puede_consultar_despachos_materiales: boolean;
   puede_gestionar_despachos_materiales: boolean;

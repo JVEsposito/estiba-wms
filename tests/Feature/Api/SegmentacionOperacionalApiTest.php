@@ -122,6 +122,23 @@ class SegmentacionOperacionalApiTest extends TestCase
         app(ServicioCarga::class)->crear([], $supervisorMateriales);
     }
 
+    public function test_camarero_frio_consulta_operacion_publicada_pero_no_catalogo_de_oficina(): void
+    {
+        $camareroFrio = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+
+        $this->actingAs($camareroFrio, 'sanctum')
+            ->getJson('/api/cargas/pendientes')
+            ->assertOk();
+
+        $this->actingAs($camareroFrio, 'sanctum')
+            ->getJson('/api/cargas')
+            ->assertForbidden();
+
+        $this->actingAs($camareroFrio, 'sanctum')
+            ->getJson('/api/cargas/folios-disponibles')
+            ->assertForbidden();
+    }
+
     public function test_migracion_convierte_roles_y_revoca_tokens_afectados(): void
     {
         $usuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
@@ -138,6 +155,30 @@ class SegmentacionOperacionalApiTest extends TestCase
             'rol' => RolUsuario::CamareroFrio->value,
         ]);
         $this->assertDatabaseMissing('personal_access_tokens', ['id' => $tokenId]);
+    }
+
+    public function test_rollback_unifica_ambas_areas_en_los_roles_anteriores(): void
+    {
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroMateriales]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorMateriales]);
+        $tokenCamarero = $camarero->createToken('token-camarero')->accessToken->id;
+        $tokenSupervisor = $supervisor->createToken('token-supervisor')->accessToken->id;
+        $migration = require database_path(
+            'migrations/2026_07_17_120000_segmentar_roles_operacionales_por_area.php',
+        );
+
+        $migration->down();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $camarero->id,
+            'rol' => 'operador',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $supervisor->id,
+            'rol' => 'supervisor',
+        ]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $tokenCamarero]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $tokenSupervisor]);
     }
 
     private function crearCamara(string $codigo, ContenidoCamara $contenido): Camara

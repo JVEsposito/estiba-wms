@@ -139,6 +139,16 @@ class AlcanceOperacionalUsuario
         ], true);
     }
 
+    public function puedeConsultarCatalogoCargas(User $usuario): bool
+    {
+        return $usuario->activo && in_array($usuario->rol, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Despachador,
+            RolUsuario::Consulta,
+        ], true);
+    }
+
     public function puedeGestionarDespachosMateriales(User $usuario): bool
     {
         return $usuario->activo && in_array($usuario->rol, [
@@ -204,6 +214,7 @@ class AlcanceOperacionalUsuario
             'puede_operar_productos' => $this->puedeOperarCamara($usuario, ContenidoCamara::Productos),
             'puede_operar_materiales' => $this->puedeOperarCamara($usuario, ContenidoCamara::Materiales),
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),
+            'puede_consultar_catalogo_cargas' => $this->puedeConsultarCatalogoCargas($usuario),
             'puede_gestionar_cargas' => $this->puedeGestionarCargas($usuario),
             'puede_consultar_despachos_materiales' => $this->puedeConsultarDespachosMateriales($usuario),
             'puede_gestionar_despachos_materiales' => $this->puedeGestionarDespachosMateriales($usuario),

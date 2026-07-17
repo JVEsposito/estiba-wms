@@ -2,7 +2,8 @@ const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
     loginError: byId('officeLoginError'), userName: byId('officeUserName'), userRole: byId('officeUserRole'),
-    initials: byId('officeInitials'), logout: byId('officeLogoutButton'), accessesNav: byId('officeAccessesNav'),
+    initials: byId('officeInitials'), logout: byId('officeLogoutButton'), camerasNav: byId('officeCamerasNav'),
+    loadsNav: byId('officeLoadsNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadMaterialsButton'), admin: byId('materialsAdminCatalogs'), itemForm: byId('itemMaterialForm'),
     itemError: byId('itemMaterialError'), itemCancel: byId('cancelItemEdit'), itemList: byId('itemsMaterialList'),
     destinationForm: byId('destinationMaterialForm'), destinationError: byId('destinationMaterialError'),
@@ -56,6 +57,7 @@ function showApp() {
     const name = state.identity?.nombre || 'Usuario'; elements.userName.textContent = name; elements.userRole.textContent = statusText(state.identity?.rol);
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
+    elements.loadsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cargas !== true);
     elements.admin.classList.toggle('is-hidden', state.identity?.puede_administrar_catalogos_materiales !== true);
     elements.dispatchForm.classList.toggle(
         'is-hidden',
@@ -71,14 +73,16 @@ function renderMetrics() {
     elements.destinationCount.textContent = String(activeDestinations().length);
 }
 function renderItems() {
+    const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     elements.itemsSummary.textContent = `${state.items.length} registrados`;
-    elements.itemList.innerHTML = state.items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div><button data-edit-item="${item.id}" type="button">Editar</button></article>`).join('') || '<p class="empty-state">No existen ítems.</p>';
+    elements.itemList.innerHTML = state.items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems.</p>';
     const options = activeItems().map((item) => `<option value="${item.id}">${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)} (${escapeHtml(item.unidad_medida)})</option>`).join('');
     elements.dispatchLines.querySelectorAll('select[name="item_material_id"]').forEach((select) => { const current = select.value; select.innerHTML = options; if ([...select.options].some((option) => option.value === current)) select.value = current; });
 }
 function renderDestinations() {
+    const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     elements.destinationsSummary.textContent = `${state.destinations.length} registrados`;
-    elements.destinationList.innerHTML = state.destinations.map((destination) => `<article class="material-row${destination.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(destination.nombre)}</strong><small>${escapeHtml(destination.centro_costo)}${destination.descripcion ? ` · ${escapeHtml(destination.descripcion)}` : ''}</small></div><button data-edit-destination="${destination.id}" type="button">Editar</button></article>`).join('') || '<p class="empty-state">No existen destinos.</p>';
+    elements.destinationList.innerHTML = state.destinations.map((destination) => `<article class="material-row${destination.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(destination.nombre)}</strong><small>${escapeHtml(destination.centro_costo)}${destination.descripcion ? ` · ${escapeHtml(destination.descripcion)}` : ''}</small></div>${canAdminister ? `<button data-edit-destination="${destination.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen destinos.</p>';
     elements.dispatchDestination.innerHTML = '<option value="">Selecciona un destino</option>' + activeDestinations().map((destination) => `<option value="${destination.id}">${escapeHtml(destination.nombre)} · ${escapeHtml(destination.centro_costo)}</option>`).join('');
 }
 function renderDispatches() {

@@ -18,7 +18,9 @@ return new class extends Migration
     {
         $this->migrarRoles([
             'camarero_frio' => 'operador',
+            'camarero_materiales' => 'operador',
             'supervisor_frio' => 'supervisor',
+            'supervisor_materiales' => 'supervisor',
         ]);
     }
 

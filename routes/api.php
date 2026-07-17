@@ -45,11 +45,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
+    });
+    Route::middleware('can:consultar-catalogo-cargas')->group(function () {
         Route::get('/cargas', [CargaController::class, 'index']);
-        Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles']);
         Route::get('/cargas/{carga}', [CargaController::class, 'show']);
     });
     Route::middleware('can:gestionar-cargas')->group(function () {
+        Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles']);
         Route::post('/cargas', [CargaController::class, 'store']);
         Route::put('/cargas/{carga}', [CargaController::class, 'update']);
         Route::post('/cargas/{carga}/folios', [CargaController::class, 'agregarFolios']);

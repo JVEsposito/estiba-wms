@@ -10,6 +10,7 @@ const elements = {
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'),
+    materialsNav: byId('officeMaterialsNav'),
     accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
@@ -243,6 +244,10 @@ function showApp() {
     elements.accessesNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_administrar_accesos !== true,
+    );
+    elements.materialsNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_despachos_materiales !== true,
     );
     const canManage = state.identity?.puede_gestionar_cargas === true;
     elements.newLoad.classList.toggle('is-hidden', !canManage);
