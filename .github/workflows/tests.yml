@@ -67,24 +67,7 @@ jobs:
         run: npm run build
 
       - name: Validar estilo
-        id: pint
-        continue-on-error: true
         run: vendor/bin/pint --test
-
-      - name: Generar archivo formateado
-        if: steps.pint.outcome == 'failure'
-        run: vendor/bin/pint app/Services/Validacion/ServicioImportacionValidacion.php
-
-      - name: Guardar archivo formateado
-        if: steps.pint.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: archivo-formateado-pint
-          path: app/Services/Validacion/ServicioImportacionValidacion.php
-
-      - name: Detener por estilo
-        if: steps.pint.outcome == 'failure'
-        run: exit 1
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force
@@ -105,7 +88,6 @@ jobs:
       - name: Preparar Node.js
         uses: actions/setup-node@v6
         with:
-          php-version: '8.3'
           node-version: '24'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
