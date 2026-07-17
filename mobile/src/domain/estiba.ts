@@ -33,6 +33,11 @@ export type UserCapabilities = {
   puede_validar_pallets: boolean;
   puede_rechazar_pallets: boolean;
   puede_consultar_validaciones_pallet: boolean;
+  puede_administrar_catalogos_validacion: boolean;
+  puede_consultar_prefrio: boolean;
+  puede_operar_prefrio: boolean;
+  puede_supervisar_prefrio: boolean;
+  puede_administrar_tuneles_prefrio: boolean;
 };
 
 export type DeviceIdentity = {
@@ -98,6 +103,15 @@ export type Folio = {
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo' | 'material';
   estado_operacional: string;
+  condicion_termica?:
+    | 'pendiente_prefrio'
+    | 'en_proceso'
+    | 'prefrio_aprobado'
+    | 'requiere_reproceso'
+    | 'condicion_heredada'
+    | 'retenido'
+    | null;
+  habilitacion_almacenamiento?: 'no_habilitado' | 'habilitado' | 'retenido' | null;
   condicion_sag: SagCondition | null;
   fecha_ingreso: string | null;
   variedad: string | null;
@@ -178,251 +192,3 @@ export type Dock = {
 };
 
 export type LoadFolioState = 'pendiente' | 'con_incidencia' | 'en_anden';
-
-export type LoadFolio = {
-  asignacion_id: string;
-  id: string;
-  numero_folio: string;
-  tipo_bulto: 'pallet' | 'saldo';
-  estado_operacional: string;
-  estado_carga: LoadFolioState;
-  anden: Pick<Dock, 'id' | 'codigo' | 'nombre'> | null;
-  asignado_at: string;
-  ubicacion: {
-    camara: { id: string; codigo: string; nombre: string };
-    posicion: {
-      id: string;
-      banda: number;
-      posicion: number;
-      nivel: number;
-      etiqueta: string | null;
-    };
-  } | null;
-};
-
-export type LoadProgress = {
-  porcentaje: number;
-  umbral_porcentaje: number;
-  cumple_umbral: boolean;
-  concentrados: number;
-  faltantes: number;
-  total: number;
-  en_anden: number;
-  con_incidencia: number;
-  pendientes: number;
-  grupo_principal: {
-    camara: { id: string; codigo: string; nombre: string };
-    nivel: number;
-    banda_desde: number;
-    banda_hasta: number;
-    posicion_desde: number;
-    posicion_hasta: number;
-  } | null;
-};
-
-export type RefrigeratedLoad = {
-  id: string;
-  codigo: string;
-  numero_orden_externa: string | null;
-  estado: 'pendiente' | 'en_preparacion' | 'despacho_parcial' | 'en_separacion' | 'separada' | 'separacion_completa';
-  prioridad: 'normal' | 'alta' | 'urgente';
-  version: number;
-  observacion: string | null;
-  camara_objetivo: { id: string; codigo: string; nombre: string } | null;
-  anden_previsto: Pick<Dock, 'id' | 'codigo' | 'nombre'> | null;
-  total_folios: number;
-  folios: LoadFolio[];
-  progreso: LoadProgress;
-  incidencias_abiertas: number;
-  publicada_at: string | null;
-};
-
-export type ExtractionRouteItem = {
-  orden: number | null;
-  estado_ruta: 'sugerido' | 'disponible' | 'bloqueado' | 'sin_ubicacion' | 'incidencia';
-  asignacion_id: string;
-  folio: { id: string; numero_folio: string; tipo_bulto: 'pallet' | 'saldo' };
-  ubicacion: {
-    camara: { id: string; codigo: string; nombre: string; version_plano: number };
-    posicion: {
-      id: string;
-      banda: number;
-      posicion: number;
-      nivel: number;
-      etiqueta: string | null;
-    };
-  } | null;
-  bloqueadores: Array<{
-    folio_id: string;
-    numero_folio: string;
-    posicion_id: string;
-    etiqueta: string | null;
-  }>;
-};
-
-export type ExtractionPlan = {
-  carga_id: string;
-  carga_codigo: string;
-  generado_at: string;
-  resumen: {
-    pendientes: number;
-    planificables: number;
-    bloqueados: number;
-    sin_ubicacion: number;
-    con_incidencia: number;
-  };
-  siguiente: ExtractionRouteItem | null;
-  items: ExtractionRouteItem[];
-};
-
-export type OperationalNotification = {
-  id: string;
-  tipo: 'carga_publicada' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta';
-  severidad: 'informativa' | 'advertencia' | 'critica' | 'exito';
-  titulo: string;
-  mensaje: string;
-  carga: {
-    id: string;
-    codigo: string;
-    prioridad: 'normal' | 'alta' | 'urgente';
-    estado: string;
-  } | null;
-  folio: { id: string; numero_folio: string } | null;
-  incidencia_id: string | null;
-  datos: Record<string, unknown> | null;
-  leida_at: string | null;
-  confirmada_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type OperationalNotificationFeed = {
-  items: OperationalNotification[];
-  unread: number;
-  syncedAt: string;
-};
-
-export type ReportLoadIncidentPayload = {
-  operacion_id: string;
-  tipo: 'caja_aplastada' | 'zuncho_roto' | 'pallet_mojado' | 'pallet_inestable'
-    | 'folio_ilegible' | 'diferencia_ubicacion' | 'folio_no_encontrado'
-    | 'retencion_calidad' | 'sector_inaccesible' | 'otro';
-  descripcion?: string;
-  sesion_estiba_id: string;
-};
-
-export type SendLoadFolioToDockPayload = {
-  operacion_id: string;
-  anden_id: string;
-  sesion_estiba_id: string;
-  version_camara_conocida: number;
-  generado_dispositivo_at: string;
-  advertencias_confirmadas?: string[];
-};
-
-export type Position = {
-  id: string;
-  banda: number;
-  posicion: number;
-  nivel: number;
-  etiqueta: string | null;
-  estado: string;
-  ocupada: boolean;
-  folio: Folio | null;
-};
-
-export type CameraPlan = CameraSummary & {
-  posiciones: Position[];
-};
-
-export type MovementEnd = {
-  camara: { id: string; codigo: string; nombre: string | null };
-  posicion: {
-    id: string;
-    banda: number;
-    posicion: number;
-    nivel: number;
-    etiqueta: string | null;
-  };
-  version_anterior: number;
-  version_resultante: number;
-};
-
-export type Movement = {
-  id: string;
-  operacion_id: string;
-  tipo_movimiento: MovementType;
-  folio: { id: string; numero_folio: string; tipo_bulto: string };
-  origen: MovementEnd | null;
-  destino: MovementEnd | null;
-  usuario: { id: string; nombre: string };
-  generado_dispositivo_at: string;
-  recibido_servidor_at: string;
-  created_at: string;
-};
-
-export type OpenedSession = {
-  id: string;
-  camara_id: string;
-  estado: string;
-  version_inicial: number;
-  version_final: number | null;
-  iniciada_at: string;
-  ultima_actividad_at: string;
-  cerrada_at: string | null;
-  motivo_cierre: string | null;
-  usuario: { id: string; nombre: string };
-  dispositivo: { id: string; nombre: string };
-};
-
-export type LocatePayload = {
-  operacion_id: string;
-  numero_folio: string;
-  tipo_bulto: 'pallet' | 'saldo' | 'material';
-  posicion_destino_id: string;
-  sesion_destino_id: string;
-  version_destino_conocida: number;
-  generado_dispositivo_at: string;
-  advertencias_confirmadas?: string[];
-  datos_folio?: {
-    condicion_sag_id?: string;
-    variedad?: string;
-    calibre?: string;
-    marca?: string;
-    exportadora?: string;
-  };
-  datos_material?: {
-    item_material_id: string;
-    cantidad: number;
-    lote?: string;
-    proveedor?: string;
-    observacion?: string;
-  };
-};
-
-export type CreateMaterialDispatchPayload = {
-  operacion_id: string;
-  destino_material_id: string;
-  observacion?: string;
-  items: Array<{ item_material_id: string; cantidad: number }>;
-};
-
-export type WithdrawMaterialPayload = {
-  operacion_id: string;
-  retiros: Array<{ folio_id: string; cantidad: number; sesion_estiba_id: string }>;
-};
-
-export type MovePayload = {
-  operacion_id: string;
-  folio_id: string;
-  posicion_destino_id: string;
-  sesion_origen_id: string;
-  sesion_destino_id: string;
-  version_origen_conocida: number;
-  version_destino_conocida: number;
-  generado_dispositivo_at: string;
-  advertencias_confirmadas?: string[];
-};
-
-export type ApiList<T> = { data: T[] };
-export type ApiItem<T> = { data: T };
