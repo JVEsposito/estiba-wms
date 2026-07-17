@@ -38,8 +38,10 @@ return new class extends Migration
 
         Schema::create('lecturas_notificaciones_operacionales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('notificacion_operacional_id')
-                ->constrained('notificaciones_operacionales')
+            $table->uuid('notificacion_operacional_id');
+            $table->foreign('notificacion_operacional_id', 'lecturas_notificacion_fk')
+                ->references('id')
+                ->on('notificaciones_operacionales')
                 ->restrictOnDelete();
             $table->foreignId('user_id')
                 ->constrained('users')
