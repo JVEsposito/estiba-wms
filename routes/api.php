@@ -15,7 +15,9 @@ use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
+use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\SesionEstibaController;
+use App\Http\Controllers\Api\TunelPrefrioController;
 use App\Http\Controllers\Api\ValidacionPalletController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +31,33 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
+
+    Route::middleware('can:consultar-prefrio')->group(function () {
+        Route::get('/prefrio/tuneles', [TunelPrefrioController::class, 'index']);
+        Route::get('/prefrio/tuneles/{tunelPrefrio}', [TunelPrefrioController::class, 'show']);
+        Route::get('/prefrio/procesos', [ProcesoPrefrioController::class, 'index']);
+        Route::get('/prefrio/procesos/{procesoPrefrio}', [ProcesoPrefrioController::class, 'show']);
+    });
+    Route::middleware('can:operar-prefrio')->group(function () {
+        Route::post('/prefrio/procesos', [ProcesoPrefrioController::class, 'store']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/folios', [ProcesoPrefrioController::class, 'agregarFolio']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/folios/{asignacionPrefrio}/retirar', [ProcesoPrefrioController::class, 'retirarFolio']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/confirmar-armado', [ProcesoPrefrioController::class, 'confirmarArmado']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/iniciar', [ProcesoPrefrioController::class, 'iniciar']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/eventos/{tipo}', [ProcesoPrefrioController::class, 'registrarEvento']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/verificar', [ProcesoPrefrioController::class, 'enviarAVerificacion']);
+    });
+    Route::middleware('can:supervisar-prefrio')->group(function () {
+        Route::post('/prefrio/procesos/{procesoPrefrio}/aprobar', [ProcesoPrefrioController::class, 'aprobar']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/reprocesar', [ProcesoPrefrioController::class, 'reprocesar']);
+        Route::post('/prefrio/procesos/{procesoPrefrio}/cancelar', [ProcesoPrefrioController::class, 'cancelar']);
+    });
+    Route::middleware('can:administrar-tuneles-prefrio')->group(function () {
+        Route::get('/administracion/prefrio/tuneles/siguiente-codigo', [TunelPrefrioController::class, 'siguienteCodigo']);
+        Route::post('/administracion/prefrio/tuneles', [TunelPrefrioController::class, 'store']);
+        Route::put('/administracion/prefrio/tuneles/{tunelPrefrio}', [TunelPrefrioController::class, 'update']);
+    });
+
     Route::get('/validacion/catalogos', CatalogoValidacionController::class)
         ->middleware('can:validar-pallets');
     Route::post('/validacion/pallets', [ValidacionPalletController::class, 'store'])
