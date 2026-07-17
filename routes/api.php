@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
+use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
@@ -35,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-prefrio')->group(function () {
         Route::get('/prefrio/tuneles', [TunelPrefrioController::class, 'index']);
         Route::get('/prefrio/tuneles/{tunelPrefrio}', [TunelPrefrioController::class, 'show']);
+        Route::get('/prefrio/folios-disponibles', [FolioPrefrioController::class, 'index']);
         Route::get('/prefrio/procesos', [ProcesoPrefrioController::class, 'index']);
         Route::get('/prefrio/procesos/{procesoPrefrio}', [ProcesoPrefrioController::class, 'show']);
     });
