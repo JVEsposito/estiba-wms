@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\NotificacionOperacionalResource;
 use App\Models\NotificacionOperacional;
 use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -26,7 +25,7 @@ class NotificacionOperacionalController extends Controller
             ->with([
                 'carga:id,codigo,prioridad,estado',
                 'folio:id,numero_folio',
-                'lecturas' => fn (Builder $lectura): Builder => $lectura
+                'lecturas' => fn ($lectura) => $lectura
                     ->where('user_id', $usuario->id),
             ])
             ->orderByDesc('created_at')
@@ -73,7 +72,7 @@ class NotificacionOperacionalController extends Controller
         return $notificacion->load([
             'carga:id,codigo,prioridad,estado',
             'folio:id,numero_folio',
-            'lecturas' => fn (Builder $lectura): Builder => $lectura
+            'lecturas' => fn ($lectura) => $lectura
                 ->where('user_id', $request->user()->id),
         ]);
     }
