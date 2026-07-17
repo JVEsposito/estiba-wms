@@ -6,21 +6,26 @@ use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
-use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Exceptions\ConflictoOperacion;
+use App\Exceptions\OperacionNoAutorizada;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\User;
 use App\Models\ValidacionPallet;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class ServicioValidacionPallet
 {
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
+
     /**
-     * @param array<string, mixed> $datos
+     * @param  array<string, mixed>  $datos
      * @return array{ValidacionPallet, bool, bool}
      */
     public function registrar(array $datos, User $usuario, Dispositivo $dispositivo): array
@@ -46,8 +51,10 @@ class ServicioValidacionPallet
 
             $resultado = ResultadoValidacionPallet::from($datos['resultado']);
             if ($resultado === ResultadoValidacionPallet::Rechazado
-                && ! in_array($usuario->rol, [RolUsuario::Administrador, RolUsuario::SupervisorFrio], true)) {
-                throw new DomainException('El rechazo definitivo requiere supervisor de frío o administrador.');
+                && ! $this->alcance->puedeRechazarPallets($usuario)) {
+                throw new OperacionNoAutorizada(
+                    'El rechazo definitivo requiere supervisor de frío o administrador.',
+                );
             }
 
             $temporada = DB::table('temporadas')->where('id', $datos['temporada_id'])->lockForUpdate()->first();
@@ -90,15 +97,17 @@ class ServicioValidacionPallet
                 ->where('numero_folio', $numeroFolio)
                 ->lockForUpdate()
                 ->first();
-            $validacionPrevia = ValidacionPallet::query()
+            $decisionFinalPrevia = ValidacionPallet::query()
                 ->where('numero_folio', $numeroFolio)
-                ->where('resultado', ResultadoValidacionPallet::Aprobado->value)
+                ->whereIn('resultado', [
+                    ResultadoValidacionPallet::Aprobado->value,
+                    ResultadoValidacionPallet::Rechazado->value,
+                ])
                 ->where('estado', EstadoValidacionPallet::Aceptada->value)
                 ->latest('created_at')
                 ->lockForUpdate()
                 ->first();
-            $hayConflicto = $resultado === ResultadoValidacionPallet::Aprobado
-                && ($folioExistente !== null || $validacionPrevia !== null);
+            $hayConflicto = $folioExistente !== null || $decisionFinalPrevia !== null;
 
             $snapshot = [
                 'temporada' => ['codigo' => $temporada->codigo, 'nombre' => $temporada->nombre],
@@ -136,7 +145,7 @@ class ServicioValidacionPallet
                 'snapshot' => $snapshot,
                 'user_id' => $usuario->id,
                 'dispositivo_id' => $dispositivo->id,
-                'validacion_conflicto_id' => $validacionPrevia?->id,
+                'validacion_conflicto_id' => $decisionFinalPrevia?->id,
                 'generado_dispositivo_at' => CarbonImmutable::parse($datos['generado_dispositivo_at']),
                 'recibido_servidor_at' => now(),
             ]);
@@ -171,7 +180,9 @@ class ServicioValidacionPallet
         }, attempts: 3);
     }
 
-    /** @param array<string, mixed> $datos */
+    /**
+     * @param  array<string, mixed>  $datos
+     */
     private function normalizarPayload(array $datos): array
     {
         return [
@@ -191,6 +202,11 @@ class ServicioValidacionPallet
 
     private function cargar(ValidacionPallet $validacion): ValidacionPallet
     {
-        return $validacion->load(['folio:id,numero_folio,estado_operacional', 'usuario:id,name', 'dispositivo:id,codigo,nombre', 'conflictoCon:id,numero_folio,numero_intento']);
+        return $validacion->load([
+            'folio:id,numero_folio,estado_operacional',
+            'usuario:id,name',
+            'dispositivo:id,codigo,nombre',
+            'conflictoCon:id,numero_folio,numero_intento,resultado',
+        ]);
     }
 }

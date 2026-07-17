@@ -101,6 +101,12 @@ Para probar la API de órdenes de carga:
 - Usuario: `despachador@estiba.local`
 - Contraseña: `password`
 
+Para probar la validación inicial de pallets:
+
+- Usuario: `validador@estiba.local`
+- Contraseña: `password`
+- Código de tablet: `TABLET-01`
+
 ## Orden de implementación propuesto
 
 1. [x] Auditar el esquema exploratorio.

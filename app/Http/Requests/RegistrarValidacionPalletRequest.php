@@ -12,10 +12,19 @@ class RegistrarValidacionPalletRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('validar-pallets') === true;
+        $usuario = $this->user();
+
+        if (! $usuario?->can('validar-pallets')) {
+            return false;
+        }
+
+        return $this->input('resultado') !== ResultadoValidacionPallet::Rechazado->value
+            || $usuario->can('rechazar-pallets');
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [

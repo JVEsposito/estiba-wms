@@ -29,6 +29,9 @@ export type UserCapabilities = {
   puede_retirar_materiales: boolean;
   puede_cancelar_despachos_materiales: boolean;
   puede_consultar_kardex_materiales: boolean;
+  puede_validar_pallets: boolean;
+  puede_rechazar_pallets: boolean;
+  puede_consultar_validaciones_pallet: boolean;
 };
 
 export type DeviceIdentity = {
