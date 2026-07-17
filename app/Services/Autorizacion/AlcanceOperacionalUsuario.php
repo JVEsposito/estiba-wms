@@ -98,7 +98,7 @@ class AlcanceOperacionalUsuario
 
     public function puedeAdministrarCamaras(User $usuario): bool
     {
-        return $usuario->activo && $usuario->rol === RolUsuario::Administrador;
+        return $this->rolActivo($usuario, [RolUsuario::Administrador]);
     }
 
     public function puedeAdministrarAccesos(User $usuario): bool
@@ -239,6 +239,11 @@ class AlcanceOperacionalUsuario
         return $this->puedeValidarPallets($usuario);
     }
 
+    public function puedeAdministrarCatalogosValidacion(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -277,6 +282,7 @@ class AlcanceOperacionalUsuario
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
+            'puede_administrar_catalogos_validacion' => $this->puedeAdministrarCatalogosValidacion($usuario),
         ];
     }
 
