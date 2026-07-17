@@ -149,6 +149,40 @@ class AlcanceOperacionalUsuario
         ], true);
     }
 
+    public function puedeReportarIncidenciasCarga(User $usuario): bool
+    {
+        return $this->puedeOperarCamara($usuario, ContenidoCamara::Productos);
+    }
+
+    public function puedeResolverComercialmenteCarga(User $usuario): bool
+    {
+        return $usuario->activo && in_array($usuario->rol, [
+            RolUsuario::Administrador,
+            RolUsuario::Despachador,
+        ], true);
+    }
+
+    public function puedeResolverReparacionCarga(User $usuario): bool
+    {
+        return $this->puedeResolverComercialmenteCarga($usuario)
+            || ($usuario->activo && $usuario->rol === RolUsuario::SupervisorFrio);
+    }
+
+    public function puedeEnviarFoliosAnden(User $usuario): bool
+    {
+        return $this->puedeOperarCamara($usuario, ContenidoCamara::Productos);
+    }
+
+    public function puedeCerrarDespachoFrigorifico(User $usuario): bool
+    {
+        return $this->puedeResolverComercialmenteCarga($usuario);
+    }
+
+    public function puedeGestionarAndenes(User $usuario): bool
+    {
+        return $usuario->activo && $usuario->rol === RolUsuario::Administrador;
+    }
+
     public function puedeGestionarDespachosMateriales(User $usuario): bool
     {
         return $usuario->activo && in_array($usuario->rol, [
@@ -216,6 +250,11 @@ class AlcanceOperacionalUsuario
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),
             'puede_consultar_catalogo_cargas' => $this->puedeConsultarCatalogoCargas($usuario),
             'puede_gestionar_cargas' => $this->puedeGestionarCargas($usuario),
+            'puede_reportar_incidencias_carga' => $this->puedeReportarIncidenciasCarga($usuario),
+            'puede_resolver_comercialmente_carga' => $this->puedeResolverComercialmenteCarga($usuario),
+            'puede_resolver_reparacion_carga' => $this->puedeResolverReparacionCarga($usuario),
+            'puede_enviar_folios_anden' => $this->puedeEnviarFoliosAnden($usuario),
+            'puede_cerrar_despacho_frigorifico' => $this->puedeCerrarDespachoFrigorifico($usuario),
             'puede_consultar_despachos_materiales' => $this->puedeConsultarDespachosMateriales($usuario),
             'puede_gestionar_despachos_materiales' => $this->puedeGestionarDespachosMateriales($usuario),
             'puede_retirar_materiales' => $this->puedeRetirarMateriales($usuario),

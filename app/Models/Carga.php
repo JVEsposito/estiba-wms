@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'estado',
     'prioridad',
     'camara_objetivo_id',
+    'anden_previsto_id',
     'observacion',
     'version',
     'creada_por_user_id',
@@ -25,6 +26,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'publicada_at',
     'cancelada_por_user_id',
     'cancelada_at',
+    'operacion_cierre_id',
+    'cierre_payload_hash',
+    'patente',
+    'conductor',
+    'observacion_cierre',
+    'cerrada_por_user_id',
+    'cerrada_at',
 ])]
 class Carga extends Model
 {
@@ -38,6 +46,11 @@ class Carga extends Model
     public function creadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creada_por_user_id');
+    }
+
+    public function andenPrevisto(): BelongsTo
+    {
+        return $this->belongsTo(Anden::class, 'anden_previsto_id');
     }
 
     public function actualizadaPor(): BelongsTo
@@ -55,10 +68,27 @@ class Carga extends Model
         return $this->belongsTo(User::class, 'cancelada_por_user_id');
     }
 
+    public function cerradaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cerrada_por_user_id');
+    }
+
     public function asignacionesActuales(): HasMany
     {
         return $this->hasMany(CargaFolio::class)
+            ->whereHas('reservaActiva')
             ->orderBy('asignado_at');
+    }
+
+    public function asignacionesHistoricas(): HasMany
+    {
+        return $this->hasMany(CargaFolio::class)
+            ->orderBy('asignado_at');
+    }
+
+    public function tareas(): HasMany
+    {
+        return $this->hasMany(TareaCarga::class);
     }
 
     public function eventos(): HasMany
@@ -75,6 +105,7 @@ class Carga extends Model
             'version' => 'integer',
             'publicada_at' => 'datetime',
             'cancelada_at' => 'datetime',
+            'cerrada_at' => 'datetime',
         ];
     }
 }

@@ -36,6 +36,11 @@ class CrearCargaRequest extends FormRequest
                     EstadoCamara::Activa->value,
                 )->where('contenido', ContenidoCamara::Productos->value),
             ],
+            'anden_previsto_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('andenes', 'id')->where('activo', true),
+            ],
             'observacion' => ['nullable', 'string', 'max:1000'],
         ];
     }

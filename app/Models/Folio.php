@@ -46,7 +46,18 @@ class Folio extends Model
 
     public function asignacionCargaActual(): HasOne
     {
-        return $this->hasOne(CargaFolio::class);
+        return $this->hasOne(CargaFolio::class)
+            ->whereHas('reservaActiva');
+    }
+
+    public function asignacionesCarga(): HasMany
+    {
+        return $this->hasMany(CargaFolio::class);
+    }
+
+    public function reservaCargaActual(): HasOne
+    {
+        return $this->hasOne(ReservaCargaFolio::class);
     }
 
     public function movimientos(): HasMany

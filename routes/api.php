@@ -3,11 +3,13 @@
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\AdministracionAccesoController;
+use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
+use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\SesionEstibaController;
@@ -45,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
+        Route::get('/cargas/{carga}/tareas', [DespachoFrigorificoController::class, 'tareas']);
+        Route::get('/andenes', [AndenController::class, 'index']);
     });
     Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
         ->middleware('can:gestionar-cargas');
@@ -60,6 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cargas/{carga}/publicar', [CargaController::class, 'publicar']);
         Route::post('/cargas/{carga}/cancelar', [CargaController::class, 'cancelar']);
     });
+    Route::post('/cargas/asignaciones/{cargaFolio}/incidencias', [DespachoFrigorificoController::class, 'reportarIncidencia']);
+    Route::post('/cargas/incidencias/{incidencia}/resolver', [DespachoFrigorificoController::class, 'resolverIncidencia']);
+    Route::post('/cargas/asignaciones/{cargaFolio}/enviar-anden', [DespachoFrigorificoController::class, 'enviarAnden']);
+    Route::post('/cargas/{carga}/cerrar-despacho', [DespachoFrigorificoController::class, 'cerrar']);
 
     Route::middleware('can:consultar-configuracion-camaras')->group(function () {
         Route::get('/configuracion/camaras', [ConfiguracionCamaraController::class, 'index']);
@@ -76,6 +84,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
+    });
+    Route::middleware('can:gestionar-andenes')->group(function () {
+        Route::post('/administracion/andenes', [AndenController::class, 'store']);
+        Route::put('/administracion/andenes/{anden}', [AndenController::class, 'update']);
     });
     Route::middleware('can:administrar-catalogos-materiales')->group(function () {
         Route::get('/administracion/materiales/items', [CatalogoMaterialController::class, 'items']);
