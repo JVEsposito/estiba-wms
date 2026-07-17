@@ -80,11 +80,15 @@ class ServicioSesionEstibaTest extends TestCase
     public function test_un_supervisor_puede_realizar_un_cierre_forzado(): void
     {
         [$operador, $dispositivo, $camara] = $this->crearContexto();
-        $supervisor = User::factory()->create(['rol' => RolUsuario::Supervisor]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
         $servicio = $this->servicio();
         $sesion = $servicio->abrir($camara, $operador, $dispositivo);
 
-        $cerrada = $servicio->cerrar($sesion, $supervisor, 'Sesión abandonada');
+        $cerrada = $servicio->cerrarForzosamente(
+            $sesion,
+            $supervisor,
+            'Sesión abandonada',
+        );
 
         $this->assertSame(EstadoSesionEstiba::CierreForzado, $cerrada->estado);
         $this->assertSame($supervisor->id, $cerrada->cierre_forzado_por_user_id);
@@ -94,12 +98,12 @@ class ServicioSesionEstibaTest extends TestCase
     public function test_un_operador_no_puede_cerrar_la_sesion_de_otro_usuario(): void
     {
         [$propietario, $dispositivo, $camara] = $this->crearContexto();
-        $otroOperador = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $otroOperador = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $servicio = $this->servicio();
         $sesion = $servicio->abrir($camara, $propietario, $dispositivo);
 
         $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('no puede cerrar una sesión ajena');
+        $this->expectExceptionMessage('cierre normal solo puede');
 
         $servicio->cerrar($sesion, $otroOperador);
     }
@@ -140,7 +144,7 @@ class ServicioSesionEstibaTest extends TestCase
     private function crearContexto(): array
     {
         return [
-            User::factory()->create(['rol' => RolUsuario::Operador]),
+            User::factory()->create(['rol' => RolUsuario::CamareroFrio]),
             Dispositivo::create(['codigo' => 'TABLET-01', 'nombre' => 'Tablet 01']),
             Camara::create(['codigo' => 'CAM-01', 'nombre' => 'Cámara 01']),
         ];

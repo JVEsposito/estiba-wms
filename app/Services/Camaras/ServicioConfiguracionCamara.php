@@ -2,9 +2,9 @@
 
 namespace App\Services\Camaras;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoPosicion;
-use App\Enums\ContenidoCamara;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\Camara;
 use App\Models\Posicion;

@@ -20,8 +20,7 @@ class AccesoTabletController extends Controller
     public function store(
         AccesoTabletRequest $request,
         AlcanceOperacionalUsuario $alcance,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $datos = $request->validated();
         $usuario = User::query()
             ->where('email', mb_strtolower($datos['email']))

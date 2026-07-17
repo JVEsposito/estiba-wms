@@ -18,8 +18,7 @@ class AccesoOficinaController extends Controller
     public function store(
         AccesoOficinaRequest $request,
         AlcanceOperacionalUsuario $alcance,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $datos = $request->validated();
         $usuario = User::query()
             ->where('email', mb_strtolower($datos['email']))

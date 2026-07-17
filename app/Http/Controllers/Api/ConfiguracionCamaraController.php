@@ -21,8 +21,7 @@ class ConfiguracionCamaraController extends Controller
     public function index(
         Request $request,
         AlcanceOperacionalUsuario $alcance,
-    ): AnonymousResourceCollection
-    {
+    ): AnonymousResourceCollection {
         Gate::authorize('consultar-configuracion-camaras');
         $contenidos = collect($alcance->contenidosVisibles($request->user()))
             ->map->value
@@ -74,8 +73,7 @@ class ConfiguracionCamaraController extends Controller
         Request $request,
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
-    ): CamaraConfiguracionResource
-    {
+    ): CamaraConfiguracionResource {
         Gate::authorize('consultar-configuracion-camaras');
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
 

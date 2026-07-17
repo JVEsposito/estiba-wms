@@ -26,7 +26,10 @@ class AccesoTabletApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('token_type', 'Bearer')
             ->assertJsonPath('usuario.id', $usuario->id)
-            ->assertJsonPath('usuario.rol', 'operador')
+            ->assertJsonPath('usuario.rol', 'camarero_frio')
+            ->assertJsonPath('usuario.ambito_camaras', 'productos')
+            ->assertJsonPath('usuario.capacidades.puede_operar_productos', true)
+            ->assertJsonPath('usuario.capacidades.puede_operar_materiales', false)
             ->assertJsonPath('dispositivo.id', $dispositivo->id)
             ->json('token');
 
@@ -133,7 +136,7 @@ class AccesoTabletApiTest extends TestCase
         $usuario = User::factory()->create([
             'email' => 'operador@example.com',
             'password' => Hash::make('clave-segura'),
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
         ]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',

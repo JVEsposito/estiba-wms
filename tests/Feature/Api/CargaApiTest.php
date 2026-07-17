@@ -215,7 +215,7 @@ class CargaApiTest extends TestCase
     public function test_operador_no_gestiona_cargas_y_el_lote_no_supera_26_folios(): void
     {
         $operador = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
 
@@ -470,7 +470,7 @@ class CargaApiTest extends TestCase
     private function crearFolioUbicado(string $numeroFolio): array
     {
         $operador = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([
@@ -518,7 +518,7 @@ class CargaApiTest extends TestCase
             'activo' => true,
         ]);
         $operador = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroMateriales,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([

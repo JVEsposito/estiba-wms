@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\ContenidoCamara;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
@@ -36,42 +37,42 @@ class AppServiceProvider extends ServiceProvider
             'crear-camaras-productos',
             fn (User $usuario): bool => $alcance->puedeCrearCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Productos,
+                ContenidoCamara::Productos,
             ),
         );
         Gate::define(
             'crear-camaras-materiales',
             fn (User $usuario): bool => $alcance->puedeCrearCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Materiales,
+                ContenidoCamara::Materiales,
             ),
         );
         Gate::define(
             'operar-camaras-productos',
             fn (User $usuario): bool => $alcance->puedeOperarCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Productos,
+                ContenidoCamara::Productos,
             ),
         );
         Gate::define(
             'operar-camaras-materiales',
             fn (User $usuario): bool => $alcance->puedeOperarCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Materiales,
+                ContenidoCamara::Materiales,
             ),
         );
         Gate::define(
             'supervisar-camaras-productos',
             fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Productos,
+                ContenidoCamara::Productos,
             ),
         );
         Gate::define(
             'supervisar-camaras-materiales',
             fn (User $usuario): bool => $alcance->puedeSupervisarCamara(
                 $usuario,
-                \App\Enums\ContenidoCamara::Materiales,
+                ContenidoCamara::Materiales,
             ),
         );
 

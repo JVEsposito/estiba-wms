@@ -19,7 +19,7 @@ class AdvertenciasMovimientoApiTest extends TestCase
     public function test_pregunta_antes_de_dejar_una_posicion_libre_hacia_el_fondo(): void
     {
         $usuario = User::factory()->create([
-            'rol' => RolUsuario::Operador,
+            'rol' => RolUsuario::CamareroFrio,
             'activo' => true,
         ]);
         $dispositivo = Dispositivo::create([

@@ -17,8 +17,7 @@ class CamaraController extends Controller
     public function index(
         Request $request,
         AlcanceOperacionalUsuario $alcance,
-    ): AnonymousResourceCollection
-    {
+    ): AnonymousResourceCollection {
         $contenidos = collect($alcance->contenidosVisibles($request->user()))
             ->map->value
             ->all();
@@ -45,8 +44,7 @@ class CamaraController extends Controller
         Request $request,
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
-    ): CamaraPlanoResource
-    {
+    ): CamaraPlanoResource {
         abort_unless($camara->estado === EstadoCamara::Activa, 404);
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
 

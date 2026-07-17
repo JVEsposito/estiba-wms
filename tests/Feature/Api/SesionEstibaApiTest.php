@@ -72,12 +72,70 @@ class SesionEstibaApiTest extends TestCase
             ->assertJsonPath('codigo', 'operacion_no_autorizada');
     }
 
+    public function test_un_despachador_no_puede_abrir_una_sesion(): void
+    {
+        [, , $token] = $this->crearIdentidad('TABLET-01', RolUsuario::Despachador);
+        $camara = $this->crearCamara();
+
+        $this->withToken($token)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertForbidden()
+            ->assertJsonPath('codigo', 'operacion_no_autorizada');
+    }
+
+    public function test_cierre_forzoso_exige_motivo_y_supervision_de_la_misma_area(): void
+    {
+        [, , $tokenOperador] = $this->crearIdentidad('TABLET-01');
+        $camara = $this->crearCamara();
+        $sesionId = $this->withToken($tokenOperador)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $supervisorMateriales = User::factory()->create([
+            'rol' => RolUsuario::SupervisorMateriales,
+        ]);
+        $tokenMateriales = $supervisorMateriales
+            ->createToken('oficina-materiales', ['oficina'])
+            ->plainTextToken;
+
+        $this->withToken($tokenMateriales)
+            ->postJson("/api/sesiones/{$sesionId}/cerrar-forzosamente", [
+                'motivo' => 'Sesión abandonada.',
+            ])
+            ->assertForbidden();
+
+        $supervisorFrio = User::factory()->create([
+            'rol' => RolUsuario::SupervisorFrio,
+        ]);
+        $tokenFrio = $supervisorFrio
+            ->createToken('oficina-frio', ['oficina'])
+            ->plainTextToken;
+
+        $this->withToken($tokenFrio)
+            ->postJson("/api/sesiones/{$sesionId}/cerrar-forzosamente")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('motivo');
+
+        $this->withToken($tokenFrio)
+            ->postJson("/api/sesiones/{$sesionId}/cerrar-forzosamente", [
+                'motivo' => 'Sesión abandonada.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cierre_forzado');
+
+        $this->assertDatabaseHas('sesiones_estiba', [
+            'id' => $sesionId,
+            'cierre_forzado_por_user_id' => $supervisorFrio->id,
+            'motivo_cierre' => 'Sesión abandonada.',
+        ]);
+    }
+
     /**
      * @return array{User, Dispositivo, string}
      */
     private function crearIdentidad(
         string $codigo,
-        RolUsuario $rol = RolUsuario::Operador,
+        RolUsuario $rol = RolUsuario::CamareroFrio,
     ): array {
         $usuario = User::factory()->create(['rol' => $rol]);
         $dispositivo = Dispositivo::create([

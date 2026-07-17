@@ -133,7 +133,7 @@ class AdministracionCamaraApiTest extends TestCase
 
     public function test_supervisor_no_puede_editar_ni_desactivar_camaras(): void
     {
-        $supervisor = User::factory()->create(['rol' => RolUsuario::Supervisor]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
         $camara = $this->crearCamara(1, 1, 1);
 
         $this->actingAs($supervisor, 'sanctum')
@@ -189,7 +189,7 @@ class AdministracionCamaraApiTest extends TestCase
 
     private function ubicarFolio(Camara $camara, Posicion $posicion, string $folio): void
     {
-        $operador = User::factory()->create(['rol' => RolUsuario::Operador]);
+        $operador = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $dispositivo = Dispositivo::create([
             'codigo' => 'TABLET-01',
             'nombre' => 'Tablet de prueba',

@@ -364,7 +364,7 @@ class ServicioMovimientoEstibaTest extends TestCase
     private function crearActor(): array
     {
         return [
-            User::factory()->create(['rol' => RolUsuario::Operador]),
+            User::factory()->create(['rol' => RolUsuario::CamareroFrio]),
             Dispositivo::create(['codigo' => 'TABLET-01', 'nombre' => 'Tablet 01']),
         ];
     }

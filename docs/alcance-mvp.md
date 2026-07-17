@@ -24,7 +24,8 @@ El primer producto se concentrará en:
 ### Usuarios y dispositivos
 
 - Autenticación.
-- Roles de administrador, supervisor, despachador, operador y consulta.
+- Roles separados de administrador, supervisión de frío, supervisión de
+  materiales, despachador, camarero de frío, camarero de materiales y consulta.
 - Registro y autorización de tablets.
 - Identificación del usuario y dispositivo en cada sesión y movimiento.
 

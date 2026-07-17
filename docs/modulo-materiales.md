@@ -33,9 +33,12 @@ identidad interna del registro.
 
 ## Despacho por cantidades
 
-Un despacho puede crearse desde `/oficina/materiales` o desde una tablet. Cada
-línea solicita una cantidad de un ítem. El sistema reserva folios por fecha de
-ingreso y número de folio, y devuelve esas reservas como sugerencia FIFO.
+Un despacho puede crearse desde `/oficina/materiales` por administrador,
+supervisor de materiales o despachador. Un supervisor de materiales también
+puede crearlo desde una tablet. El camarero de materiales ejecuta retiros sobre
+órdenes existentes, pero no crea ni cancela despachos. Cada línea solicita una
+cantidad de un ítem. El sistema reserva folios por fecha de ingreso y número de
+folio, y devuelve esas reservas como sugerencia FIFO.
 
 FIFO no bloquea la operación: el camarero puede retirar desde otro folio. La
 decisión queda registrada en `retiros_materiales.siguio_fifo`.

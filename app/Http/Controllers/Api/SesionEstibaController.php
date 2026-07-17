@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\CerrarSesionEstibaRequest;
 use App\Http\Requests\CerrarSesionEstibaForzosamenteRequest;
+use App\Http\Requests\CerrarSesionEstibaRequest;
 use App\Http\Resources\SesionEstibaResource;
 use App\Models\Camara;
 use App\Models\SesionEstiba;

@@ -281,13 +281,14 @@ function renderCameras() {
     }
 
     const canAdminister = state.identity?.puede_administrar_camaras === true;
+    const canSupervise = state.identity?.capacidades?.puede_supervisar === true;
     elements.cameraList.innerHTML = state.cameras.map((camera) => `
         <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
             <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
             <h3>${escapeHtml(camera.nombre)}</h3>
             <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
             <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
-            ${canAdminister ? `<div class="camera-item__actions"><button data-edit-camera="${camera.id}" type="button">Editar cámara</button></div>` : ''}
+            ${(canAdminister || (canSupervise && camera.acceso?.bloqueada)) ? `<div class="camera-item__actions">${canAdminister ? `<button data-edit-camera="${camera.id}" type="button">Editar cámara</button>` : ''}${canSupervise && camera.acceso?.bloqueada ? `<button data-force-close-session="${camera.acceso.sesion?.id || ''}" type="button">Cerrar sesión forzosamente</button>` : ''}</div>` : ''}
         </article>
     `).join('');
 }
@@ -365,11 +366,18 @@ async function loadConfiguration() {
         return;
     }
 
-    const [cameras, next] = await Promise.all([
+    const [cameras, next, operationalCameras] = await Promise.all([
         api('/api/configuracion/camaras'),
         api('/api/configuracion/camaras/siguiente-codigo'),
+        api('/api/camaras'),
     ]);
-    state.cameras = cameras.data;
+    const operationalById = new Map(
+        operationalCameras.data.map((camera) => [camera.id, camera]),
+    );
+    state.cameras = cameras.data.map((camera) => ({
+        ...camera,
+        acceso: operationalById.get(camera.id)?.acceso || null,
+    }));
     elements.nextCode.textContent = next.data.codigo;
     renderCameras();
 }
@@ -426,6 +434,34 @@ elements.cancelEdit.addEventListener('click', async () => {
 });
 
 elements.cameraList.addEventListener('click', (event) => {
+    const forceButton = event.target.closest('[data-force-close-session]');
+    if (forceButton) {
+        const sessionId = forceButton.dataset.forceCloseSession;
+        const reason = window.prompt('Indica el motivo del cierre forzoso:');
+        if (reason === null) return;
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 3) {
+            toast('El motivo debe contener al menos 3 caracteres.', true);
+            return;
+        }
+        void (async () => {
+            setBusy(true, 'Cerrando sesión…');
+            try {
+                await api(`/api/sesiones/${sessionId}/cerrar-forzosamente`, {
+                    method: 'POST',
+                    body: JSON.stringify({ motivo: normalizedReason }),
+                });
+                await loadConfiguration();
+                toast('Sesión cerrada y cámara liberada.');
+            } catch (error) {
+                toast(error.message, true);
+            } finally {
+                setBusy(false);
+            }
+        })();
+        return;
+    }
+
     const button = event.target.closest('[data-edit-camera]');
     if (!button) return;
     void loadCameraForEdit(button.dataset.editCamera);
