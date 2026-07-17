@@ -526,7 +526,7 @@ const styles = StyleSheet.create({
   badgeApproved: { backgroundColor: colors.greenDark },
   badgeObserved: { backgroundColor: colors.amberDark },
   badgeRejected: { backgroundColor: colors.blocked },
-  busy: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(8,12,16,.72)' },
+  busy: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(8,12,16,.72)' },
   busyText: { color: colors.text, fontWeight: '900' },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,.72)' },
   selectorModal: { width: '100%', maxWidth: 620, maxHeight: '78%', padding: 18, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panelStrong },
