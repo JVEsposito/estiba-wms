@@ -114,5 +114,7 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 - Ruta de extracción calculada desde la entrada hacia el fondo sobre el plano vertical.
 - Reporte de incidencias físicas desde terreno.
 - Envío individual o secuencial de folios a un andén.
+- Centro de notificaciones persistentes con lectura y confirmación individual.
+- Polling resiliente cada 12 segundos para alertas, cargas y rutas de extracción.
 
-Todavía no incluye lectura real de códigos de barras, persistencia offline, sincronización diferida ni notificaciones persistentes. La cola de cargas se actualiza manualmente hasta incorporar el polling del PR #31.
+Todavía no incluye lectura real de códigos de barras, persistencia offline ni sincronización diferida. Durante una interrupción se conserva el último estado descargado, pero las operaciones nuevas continúan requiriendo conexión con Laravel.

@@ -89,14 +89,16 @@ class ServicioCarga
                 ? $datos['anden_previsto_id']
                 : $cargaBloqueada->anden_previsto_id;
             $this->asegurarAndenValido($andenPrevistoId);
+            $prioridadAnterior = $cargaBloqueada->prioridad;
+            $prioridadNueva = PrioridadCarga::from(
+                $datos['prioridad'] ?? $prioridadAnterior->value,
+            );
 
             $cargaBloqueada->update([
                 'numero_orden_externa' => $this->textoOpcional(
                     $datos['numero_orden_externa'] ?? null,
                 ),
-                'prioridad' => PrioridadCarga::from(
-                    $datos['prioridad'] ?? $cargaBloqueada->prioridad->value,
-                ),
+                'prioridad' => $prioridadNueva,
                 'camara_objetivo_id' => $camaraObjetivoId,
                 'anden_previsto_id' => $andenPrevistoId,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
@@ -108,6 +110,10 @@ class ServicioCarga
                 $cargaBloqueada,
                 TipoEventoCarga::Actualizada,
                 $usuario,
+                datos: [
+                    'prioridad_anterior' => $prioridadAnterior->value,
+                    'prioridad_nueva' => $prioridadNueva->value,
+                ],
             );
 
             return $cargaBloqueada->refresh();

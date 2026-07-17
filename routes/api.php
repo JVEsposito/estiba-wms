@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
+use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\ValidacionPalletController;
 use Illuminate\Http\Request;
@@ -27,7 +28,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
-
     Route::get('/validacion/catalogos', CatalogoValidacionController::class)->middleware('can:validar-pallets');
     Route::post('/validacion/pallets', [ValidacionPalletController::class, 'store'])->middleware('can:validar-pallets');
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
@@ -35,6 +35,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
     });
 
+    Route::get('/notificaciones-operacionales', [NotificacionOperacionalController::class, 'index']);
+    Route::post('/notificaciones-operacionales/{notificacionOperacional}/leer', [NotificacionOperacionalController::class, 'marcarLeida']);
+    Route::post('/notificaciones-operacionales/{notificacionOperacional}/confirmar', [NotificacionOperacionalController::class, 'confirmar']);
     Route::middleware('can:consultar-despachos-materiales')->group(function () {
         Route::get('/materiales/catalogo', [CatalogoMaterialController::class, 'catalogo']);
         Route::get('/materiales/inventario', [DespachoMaterialController::class, 'inventario']);
