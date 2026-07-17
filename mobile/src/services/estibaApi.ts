@@ -6,6 +6,8 @@ import {
   CameraPlan,
   CameraSummary,
   CreateMaterialDispatchPayload,
+  Dock,
+  ExtractionPlan,
   LocatePayload,
   LoginPayload,
   Movement,
@@ -13,7 +15,10 @@ import {
   MaterialDispatch,
   MovePayload,
   OpenedSession,
+  RefrigeratedLoad,
+  ReportLoadIncidentPayload,
   SagCondition,
+  SendLoadFolioToDockPayload,
   WithdrawMaterialPayload,
 } from '../domain/estiba';
 import { ApiError } from './apiError';
@@ -38,6 +43,11 @@ export interface EstibaApi {
   listMaterialDispatches(token: string): Promise<MaterialDispatch[]>;
   createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
   withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
+  listRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[]>;
+  getExtractionPlan(token: string, loadId: string): Promise<ExtractionPlan>;
+  listDocks(token: string): Promise<Dock[]>;
+  reportLoadIncident(token: string, assignmentId: string, payload: ReportLoadIncidentPayload): Promise<void>;
+  sendLoadFolioToDock(token: string, assignmentId: string, payload: SendLoadFolioToDockPayload): Promise<RefrigeratedLoad>;
 }
 
 function validationMessage(data: unknown, fallback: string) {
@@ -173,6 +183,44 @@ class HttpEstibaApi implements EstibaApi {
       { method: 'POST', body: JSON.stringify(payload) },
     )).data;
   }
+
+  async listRefrigeratedLoads(token: string) {
+    return (await this.request<ApiList<RefrigeratedLoad>>('/api/cargas/pendientes', token)).data;
+  }
+
+  async getExtractionPlan(token: string, loadId: string) {
+    return (await this.request<ApiItem<ExtractionPlan>>(
+      `/api/cargas/${loadId}/plan-extraccion`,
+      token,
+    )).data;
+  }
+
+  async listDocks(token: string) {
+    return (await this.request<ApiList<Dock>>('/api/andenes', token)).data;
+  }
+
+  async reportLoadIncident(
+    token: string,
+    assignmentId: string,
+    payload: ReportLoadIncidentPayload,
+  ) {
+    await this.request(`/api/cargas/asignaciones/${assignmentId}/incidencias`, token, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async sendLoadFolioToDock(
+    token: string,
+    assignmentId: string,
+    payload: SendLoadFolioToDockPayload,
+  ) {
+    return (await this.request<ApiItem<RefrigeratedLoad>>(
+      `/api/cargas/asignaciones/${assignmentId}/enviar-anden`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
 }
 
 export function createEstibaApi(
@@ -223,5 +271,10 @@ function createUnavailableApi(message: string): EstibaApi {
     listMaterialDispatches: unavailable,
     createMaterialDispatch: unavailable,
     withdrawMaterial: unavailable,
+    listRefrigeratedLoads: unavailable,
+    getExtractionPlan: unavailable,
+    listDocks: unavailable,
+    reportLoadIncident: unavailable,
+    sendLoadFolioToDock: unavailable,
   };
 }

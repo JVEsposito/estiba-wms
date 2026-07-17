@@ -3,7 +3,9 @@ import {
   CameraPlan,
   CameraSummary,
   CreateMaterialDispatchPayload,
+  Dock,
   EditSession,
+  ExtractionPlan,
   Folio,
   LocatePayload,
   LoginPayload,
@@ -13,6 +15,7 @@ import {
   MovePayload,
   OpenedSession,
   Position,
+  RefrigeratedLoad,
   SagCondition,
   WithdrawMaterialPayload,
 } from '../domain/estiba';
@@ -238,6 +241,31 @@ export class DemoEstibaApi implements EstibaApi {
 
   async listMaterialDispatches(): Promise<MaterialDispatch[]> {
     return [];
+  }
+
+  async listRefrigeratedLoads(_token: string): Promise<RefrigeratedLoad[]> {
+    return [];
+  }
+
+  async getExtractionPlan(_token: string, loadId: string): Promise<ExtractionPlan> {
+    return {
+      carga_id: loadId,
+      carga_codigo: 'CAR-DEMO',
+      generado_at: new Date().toISOString(),
+      resumen: { pendientes: 0, planificables: 0, bloqueados: 0, sin_ubicacion: 0, con_incidencia: 0 },
+      siguiente: null,
+      items: [],
+    };
+  }
+
+  async listDocks(_token: string): Promise<Dock[]> {
+    return [{ id: 'dock-demo', codigo: 'AND-01', nombre: 'Andén 01', activo: true }];
+  }
+
+  async reportLoadIncident(): Promise<void> {}
+
+  async sendLoadFolioToDock(): Promise<RefrigeratedLoad> {
+    throw new ApiError('No existen cargas publicadas en el modo de demostración.', 422);
   }
 
   async createMaterialDispatch(_token: string, _payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch> {

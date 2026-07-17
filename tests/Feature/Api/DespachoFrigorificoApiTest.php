@@ -247,6 +247,49 @@ class DespachoFrigorificoApiTest extends TestCase
             ->assertJsonPath('codigo', 'conflicto_operacional');
     }
 
+    public function test_planifica_la_extraccion_vertical_y_salta_a_otra_banda_ante_una_incidencia(): void
+    {
+        $contexto = $this->crearContextoFrio(4);
+        $posicionOtraBanda = Posicion::create([
+            'camara_id' => $contexto['camara']->id,
+            'banda' => 2,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B02-P01-N1',
+        ]);
+        $contexto['folios'][3]
+            ->ubicacionActual()
+            ->update(['posicion_id' => $posicionOtraBanda->id]);
+        $carga = $this->crearCargaPublicada(
+            $contexto['despachador'],
+            $contexto['anden'],
+            $contexto['folios'],
+        );
+
+        $this->conToken($contexto['token'])
+            ->getJson("/api/cargas/{$carga->id}/plan-extraccion")
+            ->assertOk()
+            ->assertJsonPath('data.siguiente.folio.numero_folio', 'FOLIO-DESP-03')
+            ->assertJsonPath('data.items.0.orden', 1)
+            ->assertJsonPath('data.items.1.folio.numero_folio', 'FOLIO-DESP-02')
+            ->assertJsonPath('data.items.2.folio.numero_folio', 'FOLIO-DESP-01');
+
+        $asignacionConIncidencia = $carga->asignacionesActuales()
+            ->where('folio_id', $contexto['folios'][2]->id)
+            ->firstOrFail();
+        $this->reportarIncidencia($contexto, $asignacionConIncidencia);
+
+        $this->conToken($contexto['token'])
+            ->getJson("/api/cargas/{$carga->id}/plan-extraccion")
+            ->assertOk()
+            ->assertJsonPath('data.siguiente.folio.numero_folio', 'FOLIO-DESP-04')
+            ->assertJsonPath('data.resumen.planificables', 1)
+            ->assertJsonPath('data.resumen.bloqueados', 2)
+            ->assertJsonPath('data.resumen.con_incidencia', 1)
+            ->assertJsonPath('data.items.3.folio.numero_folio', 'FOLIO-DESP-03')
+            ->assertJsonPath('data.items.3.estado_ruta', 'incidencia');
+    }
+
     public function test_la_oficina_calcula_concentracion_y_filtra_reemplazos_equivalentes(): void
     {
         $contexto = $this->crearContextoFrio(7);

@@ -166,6 +166,129 @@ export type MaterialDispatch = {
   created_at: string;
 };
 
+export type Dock = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+};
+
+export type LoadFolioState = 'pendiente' | 'con_incidencia' | 'en_anden';
+
+export type LoadFolio = {
+  asignacion_id: string;
+  id: string;
+  numero_folio: string;
+  tipo_bulto: 'pallet' | 'saldo';
+  estado_operacional: string;
+  estado_carga: LoadFolioState;
+  anden: Pick<Dock, 'id' | 'codigo' | 'nombre'> | null;
+  asignado_at: string;
+  ubicacion: {
+    camara: { id: string; codigo: string; nombre: string };
+    posicion: {
+      id: string;
+      banda: number;
+      posicion: number;
+      nivel: number;
+      etiqueta: string | null;
+    };
+  } | null;
+};
+
+export type LoadProgress = {
+  porcentaje: number;
+  umbral_porcentaje: number;
+  cumple_umbral: boolean;
+  concentrados: number;
+  faltantes: number;
+  total: number;
+  en_anden: number;
+  con_incidencia: number;
+  pendientes: number;
+  grupo_principal: {
+    camara: { id: string; codigo: string; nombre: string };
+    nivel: number;
+    banda_desde: number;
+    banda_hasta: number;
+    posicion_desde: number;
+    posicion_hasta: number;
+  } | null;
+};
+
+export type RefrigeratedLoad = {
+  id: string;
+  codigo: string;
+  numero_orden_externa: string | null;
+  estado: 'pendiente' | 'en_preparacion' | 'despacho_parcial' | 'en_separacion' | 'separada' | 'separacion_completa';
+  prioridad: 'normal' | 'alta' | 'urgente';
+  version: number;
+  observacion: string | null;
+  camara_objetivo: { id: string; codigo: string; nombre: string } | null;
+  anden_previsto: Pick<Dock, 'id' | 'codigo' | 'nombre'> | null;
+  total_folios: number;
+  folios: LoadFolio[];
+  progreso: LoadProgress;
+  incidencias_abiertas: number;
+  publicada_at: string | null;
+};
+
+export type ExtractionRouteItem = {
+  orden: number | null;
+  estado_ruta: 'sugerido' | 'disponible' | 'bloqueado' | 'sin_ubicacion' | 'incidencia';
+  asignacion_id: string;
+  folio: { id: string; numero_folio: string; tipo_bulto: 'pallet' | 'saldo' };
+  ubicacion: {
+    camara: { id: string; codigo: string; nombre: string; version_plano: number };
+    posicion: {
+      id: string;
+      banda: number;
+      posicion: number;
+      nivel: number;
+      etiqueta: string | null;
+    };
+  } | null;
+  bloqueadores: Array<{
+    folio_id: string;
+    numero_folio: string;
+    posicion_id: string;
+    etiqueta: string | null;
+  }>;
+};
+
+export type ExtractionPlan = {
+  carga_id: string;
+  carga_codigo: string;
+  generado_at: string;
+  resumen: {
+    pendientes: number;
+    planificables: number;
+    bloqueados: number;
+    sin_ubicacion: number;
+    con_incidencia: number;
+  };
+  siguiente: ExtractionRouteItem | null;
+  items: ExtractionRouteItem[];
+};
+
+export type ReportLoadIncidentPayload = {
+  operacion_id: string;
+  tipo: 'caja_aplastada' | 'zuncho_roto' | 'pallet_mojado' | 'pallet_inestable'
+    | 'folio_ilegible' | 'diferencia_ubicacion' | 'folio_no_encontrado'
+    | 'retencion_calidad' | 'sector_inaccesible' | 'otro';
+  descripcion?: string;
+  sesion_estiba_id: string;
+};
+
+export type SendLoadFolioToDockPayload = {
+  operacion_id: string;
+  anden_id: string;
+  sesion_estiba_id: string;
+  version_camara_conocida: number;
+  generado_dispositivo_at: string;
+  advertencias_confirmadas?: string[];
+};
+
 export type Position = {
   id: string;
   banda: number;

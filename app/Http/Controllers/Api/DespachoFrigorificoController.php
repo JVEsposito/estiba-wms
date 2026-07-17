@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoCarga;
 use App\Enums\EstadoIncidenciaCarga;
 use App\Enums\TipoIncidenciaCarga;
 use App\Enums\TipoResolucionIncidenciaCarga;
@@ -20,9 +21,11 @@ use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\SesionEstiba;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Cargas\PlanificadorExtraccionCarga;
 use App\Services\Cargas\ServicioDespachoFrigorifico;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -74,6 +77,20 @@ class DespachoFrigorificoController extends Controller
                 ->orderBy('created_at')
                 ->get(),
         );
+    }
+
+    public function planExtraccion(
+        Carga $carga,
+        PlanificadorExtraccionCarga $planificador,
+    ): JsonResponse {
+        Gate::authorize('consultar-cargas-operacion');
+
+        abort_unless(
+            in_array($carga->estado, EstadoCarga::visiblesEnOperacion(), true),
+            404,
+        );
+
+        return response()->json(['data' => $planificador->planificar($carga)]);
     }
 
     public function reportarIncidencia(
