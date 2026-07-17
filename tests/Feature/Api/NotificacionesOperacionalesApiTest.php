@@ -93,6 +93,7 @@ class NotificacionesOperacionalesApiTest extends TestCase
             'numero_folio' => 'FOLIO-NOT-01',
             'tipo_bulto' => TipoBulto::Pallet,
             'estado_operacional' => EstadoOperacionalFolio::Disponible,
+            'fecha_ingreso' => now(),
             'activo' => true,
         ]);
         $listener = app(CrearNotificacionesOperacionales::class);
