@@ -82,7 +82,7 @@
                                     <label><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada cerezas 2026–2027" required></label>
                                     <label><span>Inicio</span><input name="fecha_inicio" type="date"></label>
                                     <label><span>Término</span><input name="fecha_fin" type="date"></label>
-                                    <label class="validation-check"><input name="activa" type="hidden" value="0"><input name="activa" type="checkbox" value="1"><span>Dejar como temporada activa</span></label>
+                                    <label class="validation-check"><input name="activa" type="checkbox" value="1"><span>Dejar como temporada activa</span></label>
                                 </div>
                                 <p class="form-error" id="seasonError" role="alert"></p>
                                 <div class="validation-actions"><button class="secondary-button is-hidden" id="cancelSeasonEdit" type="button">Nueva temporada</button><button class="primary-button" type="submit">Guardar temporada</button></div>
