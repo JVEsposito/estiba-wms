@@ -49,12 +49,16 @@
 .process-detail__metrics { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin: 16px 0; }
 .process-detail__metrics strong { font-size: 1.1rem; }
 .process-detail__layout { display: grid; grid-template-columns: minmax(500px, 1.25fr) minmax(320px, .75fr); gap: 16px; }
-.tunnel-map, .tunnel-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; margin-top: 12px; }
+.tunnel-map, .tunnel-preview { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 8px; width: min(100%, 640px); margin-top: 8px; }
+.tunnel-direction { display: flex; width: min(100%, 640px); align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; color: var(--muted); font-size: .62rem; letter-spacing: .08em; }
+.tunnel-direction strong { color: var(--amber); }
+.tunnel-direction--entrance { margin-top: 8px; }
+.tunnel-direction--entrance strong { color: var(--cyan-light); }
 .tunnel-slot { display: grid; min-height: 68px; place-items: center; gap: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--deep); padding: 7px; text-align: center; }
 .tunnel-slot.is-occupied { border-color: rgba(22, 201, 194, .45); background: rgba(22, 201, 194, .09); }
 .tunnel-slot.is-reprocess { border-color: rgba(255, 112, 112, .45); background: rgba(255, 112, 112, .08); }
 .tunnel-slot strong { font-size: .67rem; }
-.tunnel-slot span { color: var(--muted); font-size: .58rem; }
+.tunnel-slot span, .tunnel-slot small { color: var(--muted); font-size: .58rem; }
 .event-timeline { display: grid; gap: 10px; margin-top: 12px; max-height: 430px; overflow-y: auto; }
 .event-item { position: relative; display: grid; gap: 3px; border-left: 2px solid var(--line); padding: 4px 0 4px 14px; }
 .event-item::before { position: absolute; left: -6px; top: 9px; width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); content: ''; }

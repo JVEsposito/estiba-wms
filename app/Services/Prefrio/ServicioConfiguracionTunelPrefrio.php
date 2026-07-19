@@ -152,7 +152,7 @@ class ServicioConfiguracionTunelPrefrio
         }
 
         foreach (array_chunk($filas, 250) as $lote) {
-            PosicionTunelPrefrio::query()->insert($lote);
+            PosicionTunelPrefrio::query()->insertOrIgnore($lote);
         }
     }
 

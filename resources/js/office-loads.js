@@ -11,6 +11,7 @@ const elements = {
     logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'),
     materialsNav: byId('officeMaterialsNav'),
+    prefrioNav: byId('officePrefrioNav'),
     accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
@@ -310,6 +311,10 @@ function showApp() {
     elements.materialsNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_consultar_despachos_materiales !== true,
+    );
+    elements.prefrioNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_prefrio !== true,
     );
     const canManage = state.identity?.puede_gestionar_cargas === true;
     elements.newLoad.classList.toggle('is-hidden', !canManage);

@@ -205,7 +205,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
     try {
       let items = await loadPrefrioOutbox(userId, deviceId);
       const blockedProcesses = new Set(
-        items.filter((item) => item.status === 'conflicto').map((item) => item.process_id),
+        items.filter((item) => item.status !== 'pendiente').map((item) => item.process_id),
       );
 
       for (const item of items.filter((candidate) => candidate.status === 'pendiente')) {
@@ -237,7 +237,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
             status,
             messageFrom(reason),
           );
-          if (status === 'conflicto') blockedProcesses.add(item.process_id);
+          blockedProcesses.add(item.process_id);
           await refreshProcessAfterFailure(item.process_id);
         }
       }
@@ -698,11 +698,17 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
             <View style={styles.workGrid}>
               <View style={styles.positionPanel}>
                 <Text style={styles.panelTitle}>Plano del túnel</Text>
-                <Text style={styles.muted}>Selecciona una posición libre antes de escanear.</Text>
+                <Text style={styles.muted}>Dos lados por profundidad. Selecciona una posición libre antes de escanear.</Text>
+                <View style={styles.tunnelDirection}>
+                  <Text style={styles.tunnelDirectionBack}>FONDO</Text>
+                  <Text style={styles.tunnelDirectionCopy}>Lado A / Lado B</Text>
+                </View>
                 <View style={styles.positions}>
-                  {selectedTunnel.posiciones.map((position) => {
+                  {[...selectedTunnel.posiciones].sort((left, right) => left.numero - right.numero).map((position) => {
                     const assignment = assignmentsByPosition.get(position.id);
                     const selected = selectedPositionId === position.id;
+                    const side = position.numero % 2 === 1 ? 'A' : 'B';
+                    const depth = Math.ceil(position.numero / 2);
                     return (
                       <Pressable
                         key={position.id}
@@ -717,13 +723,18 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                           !position.activa && styles.positionDisabled,
                         ]}
                       >
-                        <Text style={styles.positionLabel}>{position.numero}</Text>
+                        <Text style={styles.positionLabel}>P{String(position.numero).padStart(2, '0')}</Text>
+                        <Text style={styles.positionMeta}>Lado {side} · Prof. {depth}</Text>
                         <Text numberOfLines={1} style={styles.positionFolio}>
                           {assignment?.folio?.numero_folio ?? 'Libre'}
                         </Text>
                       </Pressable>
                     );
                   })}
+                </View>
+                <View style={styles.tunnelDirection}>
+                  <Text style={styles.tunnelDirectionCopy}>Recorrido operacional</Text>
+                  <Text style={styles.tunnelDirectionEntrance}>ENTRADA</Text>
                 </View>
               </View>
 
@@ -815,8 +826,8 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
             </View>
           ))}
           {!outbox.length ? <Text style={styles.muted}>No existen operaciones pendientes.</Text> : null}
-          {selectedProcessId && processQueue.some((item) => item.status === 'conflicto') ? (
-            <Text style={styles.warning}>Este proceso tiene un conflicto. Las acciones posteriores permanecen detenidas hasta revisar el estado confirmado.</Text>
+          {selectedProcessId && processQueue.some((item) => item.status !== 'pendiente') ? (
+            <Text style={styles.warning}>Este proceso tiene una operación que requiere revisión. Las acciones posteriores permanecen detenidas hasta descartarla, refrescar y repetir la operación sobre el estado confirmado.</Text>
           ) : null}
         </View>
       </ScrollView>
@@ -1012,12 +1023,17 @@ const styles = StyleSheet.create({
   workGrid: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   positionPanel: { flex: 2, padding: 16, borderRadius: 14, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft },
   operationPanel: { flex: 1, padding: 16, borderRadius: 14, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, gap: 10 },
+  tunnelDirection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  tunnelDirectionBack: { color: colors.amber, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  tunnelDirectionEntrance: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  tunnelDirectionCopy: { color: colors.muted, fontSize: 9, fontWeight: '800' },
   positions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  position: { width: 92, minHeight: 68, justifyContent: 'center', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.freeBorder, backgroundColor: colors.free },
+  position: { width: '48%', minHeight: 76, justifyContent: 'center', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.freeBorder, backgroundColor: colors.free },
   positionOccupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
   positionSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
   positionDisabled: { opacity: 0.35 },
   positionLabel: { color: colors.text, fontSize: 15, fontWeight: '900' },
+  positionMeta: { color: colors.muted, fontSize: 9, marginTop: 2 },
   positionFolio: { color: colors.text, fontSize: 9, marginTop: 4 },
   selectedPosition: { color: colors.cyan, fontWeight: '800' },
   scannerInput: { minHeight: 58, paddingHorizontal: 14, borderRadius: 10, borderWidth: 2, borderColor: colors.cyanDark, backgroundColor: colors.backgroundDeep, color: colors.text, fontSize: 20, fontWeight: '900' },
