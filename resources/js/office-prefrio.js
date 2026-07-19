@@ -18,7 +18,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const activeStates = new Set(['borrador', 'cargando', 'listo_para_iniciar', 'en_proceso', 'pendiente_verificacion']);
 const state = {
-    token: localStorage.getItem(keys.token), identity: readJson(keys.identity), tunnels: [], processes: [], selectedTunnelId: null,
+    token: localStorage.getItem(keys.token), identity: readJson(keys.identity), tunnels: [], processes: [], summary: null, selectedTunnelId: null,
     selectedProcess: null, reasonMode: null,
 };
 
@@ -38,6 +38,9 @@ function statusText(value) {
         verificacion_final: 'Verificación final', aprobacion: 'Aprobación', reproceso: 'Reproceso', cancelacion: 'Cancelación',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
+}
+function positionMeta(number) {
+    return { side: number % 2 === 1 ? 'A' : 'B', depth: Math.ceil(number / 2) };
 }
 function setBusy(active, message = 'Procesando…') { elements.loadingText.textContent = message; elements.loading.classList.toggle('is-hidden', !active); elements.loading.setAttribute('aria-hidden', String(!active)); }
 function toast(message, error = false) { const node = document.createElement('div'); node.className = `toast${error ? ' toast--error' : ''}`; node.textContent = message; elements.toasts.append(node); window.setTimeout(() => node.remove(), 4500); }
@@ -82,14 +85,15 @@ async function loadProcesses() {
     const response = await api(`/api/prefrio/procesos?${params}`); state.processes = response.data || [];
     renderProcesses(); renderMetrics();
 }
-async function loadAll() { await Promise.all([loadTunnels(), loadProcesses()]); if (state.selectedProcess?.id) await selectProcess(state.selectedProcess.id, false); }
+async function loadSummary() { state.summary = await api('/api/prefrio/resumen'); renderMetrics(); }
+async function loadAll() { await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]); if (state.selectedProcess?.id) await selectProcess(state.selectedProcess.id, false); }
 
 function renderMetrics() {
     elements.activeTunnels.textContent = String(state.tunnels.filter((item) => item.estado_administrativo === 'activo' && item.estado_tecnico === 'operativo').length);
-    elements.running.textContent = String(state.processes.filter((item) => item.estado === 'en_proceso').length);
-    elements.pending.textContent = String(state.processes.filter((item) => item.estado === 'pendiente_verificacion').length);
-    elements.reprocess.textContent = String(state.processes.filter((item) => item.estado === 'requiere_reproceso').length);
-    elements.activeFolios.textContent = String(state.processes.filter((item) => activeStates.has(item.estado)).reduce((total, item) => total + (item.folios || []).filter((folio) => !['retirado', 'cancelado'].includes(folio.estado)).length, 0));
+    elements.running.textContent = String(state.summary?.en_proceso ?? '—');
+    elements.pending.textContent = String(state.summary?.pendiente_verificacion ?? '—');
+    elements.reprocess.textContent = String(state.summary?.requiere_reproceso ?? '—');
+    elements.activeFolios.textContent = String(state.summary?.folios_activos ?? '—');
 }
 function renderTunnels() {
     elements.tunnelSummary.textContent = `${state.tunnels.length} configurados`;
@@ -144,7 +148,8 @@ function renderTunnelMap(process, occupied) {
     const byPosition = new Map(occupied.map((item) => [item.posicion?.numero, item])); const capacity = Number(process.tunel?.capacidad_posiciones || 0);
     elements.tunnelMap.innerHTML = Array.from({ length: capacity }, (_, index) => {
         const number = index + 1; const item = byPosition.get(number); const reprocess = item?.estado === 'requiere_reproceso';
-        return `<article class="tunnel-slot${item ? ' is-occupied' : ''}${reprocess ? ' is-reprocess' : ''}"><strong>P${String(number).padStart(2, '0')}</strong><span>${item ? escapeHtml(item.folio?.numero_folio || 'Ocupado') : 'Libre'}</span>${item?.temperatura_final !== null && item?.temperatura_final !== undefined ? `<span>${item.temperatura_final} °C</span>` : ''}</article>`;
+        const meta = positionMeta(number);
+        return `<article class="tunnel-slot${item ? ' is-occupied' : ''}${reprocess ? ' is-reprocess' : ''}"><strong>P${String(number).padStart(2, '0')}</strong><small>Lado ${meta.side} · Prof. ${meta.depth}</small><span>${item ? escapeHtml(item.folio?.numero_folio || 'Ocupado') : 'Libre'}</span>${item?.temperatura_final !== null && item?.temperatura_final !== undefined ? `<span>${item.temperatura_final} °C</span>` : ''}</article>`;
     }).join('') || '<p class="empty-prefrio">El túnel no posee posiciones configuradas.</p>';
 }
 function renderTimeline(process) {
@@ -176,9 +181,12 @@ function openTunnelDialog(tunnel = null) {
     renderTunnelPreview(); elements.tunnelDialog.showModal();
 }
 function renderTunnelPreview() {
-    const capacity = Math.max(1, Math.min(100, Number(elements.tunnelForm.elements.capacidad_posiciones.value || 1)));
+    const capacity = Math.max(2, Math.min(100, Number(elements.tunnelForm.elements.capacidad_posiciones.value || 2)));
     elements.tunnelPreviewSummary.textContent = `${capacity} posiciones`;
-    elements.tunnelPreview.innerHTML = Array.from({ length: capacity }, (_, index) => `<article class="tunnel-slot"><strong>P${String(index + 1).padStart(2, '0')}</strong><span>Activa</span></article>`).join('');
+    elements.tunnelPreview.innerHTML = Array.from({ length: capacity }, (_, index) => {
+        const number = index + 1; const meta = positionMeta(number);
+        return `<article class="tunnel-slot"><strong>P${String(number).padStart(2, '0')}</strong><small>Lado ${meta.side} · Prof. ${meta.depth}</small><span>Activa</span></article>`;
+    }).join('');
 }
 function openProcessDialog() {
     elements.processForm.reset(); elements.processError.textContent = ''; renderProcessFormOptions();

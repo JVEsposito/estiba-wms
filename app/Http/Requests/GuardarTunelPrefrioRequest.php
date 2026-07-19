@@ -21,7 +21,7 @@ class GuardarTunelPrefrioRequest extends FormRequest
     {
         return [
             'nombre' => ['required', 'string', 'min:3', 'max:150'],
-            'capacidad_posiciones' => ['required', 'integer', 'min:1', 'max:100'],
+            'capacidad_posiciones' => ['required', 'integer', 'min:2', 'max:100', 'multiple_of:2'],
             'setpoint_habitual' => ['nullable', 'numeric', 'between:-20,20'],
             'estado_administrativo' => [
                 Rule::requiredIf($this->isMethod('PUT')),

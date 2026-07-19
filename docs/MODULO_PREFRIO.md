@@ -27,7 +27,8 @@ Por esta razón Prefrío utiliza tablas independientes:
 - `posiciones_tunel_prefrio`;
 - `procesos_prefrio`;
 - `procesos_prefrio_folios`;
-- `eventos_prefrio`.
+- `eventos_prefrio`;
+- `historial_habilitaciones_almacenamiento`.
 
 Los túneles no se incorporan como un tipo adicional de cámara.
 
@@ -45,7 +46,7 @@ Cada túnel registra:
 - observaciones;
 - versión de configuración.
 
-La capacidad puede representar túneles de 20, 22, 40 u otra cantidad de posiciones dentro de los límites configurados.
+La capacidad puede representar túneles de 20, 22, 40 u otra cantidad par de posiciones dentro de los límites configurados. Cada profundidad contiene dos lados y el plano siempre se recorre desde el fondo hacia la entrada.
 
 ### Estado administrativo
 
@@ -99,6 +100,15 @@ TUN-01-P02
 ...
 ```
 
+La numeración se interpreta por pares:
+
+```text
+P01 / P02 = profundidad 1, al fondo
+P03 / P04 = profundidad 2
+...
+último par = junto a la entrada
+```
+
 El proceso impide:
 
 - repetir un folio;
@@ -140,6 +150,10 @@ Prefrío es una fuente normal de habilitación, pero no la única. También pued
 - regularización manual auditada.
 
 Esto permite que un pallet completo generado posteriormente desde saldos ingrese a cámara conservando una condición térmica heredada, sin fingir un nuevo proceso térmico.
+
+La columna actual del folio permite decidir rápidamente si puede ingresar a cámara. Cada cambio se conserva además como un registro inmutable en `historial_habilitaciones_almacenamiento`, con estado resultante, condición térmica, fuente, proceso de origen, referencia, usuario, dispositivo, fecha, motivo y observación.
+
+Al instalar esta fundación sobre inventario existente, solo los folios activos y disponibles se regularizan como habilitados. Los bloqueados quedan retenidos y los anulados, retirados, despachados o inactivos no reciben una habilitación automática.
 
 ## Resultado aprobado
 

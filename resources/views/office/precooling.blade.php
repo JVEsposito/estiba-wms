@@ -89,7 +89,9 @@
                     <div class="process-detail__layout">
                         <div>
                             <div class="prefrio-panel__heading"><div><p class="eyebrow">DISTRIBUCIÓN</p><h3>Posiciones del túnel</h3></div></div>
+                            <div class="tunnel-direction"><strong>FONDO</strong><span>Dos lados por profundidad</span></div>
                             <div class="tunnel-map" id="processTunnelMap"></div>
+                            <div class="tunnel-direction tunnel-direction--entrance"><span>Recorrido operacional</span><strong>ENTRADA</strong></div>
                         </div>
                         <div>
                             <div class="prefrio-panel__heading"><div><p class="eyebrow">EVENTOS</p><h3>Línea de tiempo</h3></div></div>
@@ -116,7 +118,7 @@
                 <input name="id" type="hidden">
                 <div class="prefrio-form-grid">
                     <label><span>Nombre *</span><input name="nombre" maxlength="150" required></label>
-                    <label><span>Capacidad *</span><input name="capacidad_posiciones" type="number" min="1" max="100" value="22" required></label>
+                    <label><span>Capacidad *</span><input name="capacidad_posiciones" type="number" min="2" max="100" step="2" value="22" required><small>Dos lados por profundidad, desde el fondo hacia la entrada.</small></label>
                     <label><span>Setpoint habitual</span><input name="setpoint_habitual" type="number" min="-20" max="20" step="0.1" value="-1.5"></label>
                     <label><span>Estado administrativo</span><select name="estado_administrativo"><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>
                     <label><span>Estado técnico</span><select name="estado_tecnico"><option value="operativo">Operativo</option><option value="mantenimiento">Mantenimiento</option><option value="fuera_de_servicio">Fuera de servicio</option></select></label>
@@ -124,7 +126,9 @@
                     <label class="prefrio-field-wide"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
                 </div>
                 <div class="tunnel-preview-heading"><span>VISTA PREVIA</span><strong id="tunnelPreviewSummary">22 posiciones</strong></div>
+                <div class="tunnel-direction"><strong>FONDO</strong><span>Lados A / B</span></div>
                 <div class="tunnel-preview" id="tunnelPreview"></div>
+                <div class="tunnel-direction tunnel-direction--entrance"><span>Última profundidad</span><strong>ENTRADA</strong></div>
                 <p class="form-error" id="tunnelFormError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" id="saveTunnelButton" value="default" type="submit">Guardar túnel</button></div>
             </form>

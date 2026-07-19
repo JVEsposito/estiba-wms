@@ -84,6 +84,11 @@ class Folio extends Model
         return $this->hasMany(ProcesoPrefrioFolio::class);
     }
 
+    public function historialHabilitacionesAlmacenamiento(): HasMany
+    {
+        return $this->hasMany(RegistroHabilitacionAlmacenamiento::class);
+    }
+
     public function habilitadoAlmacenamientoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'habilitado_almacenamiento_por_user_id');
