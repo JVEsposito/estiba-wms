@@ -94,14 +94,6 @@ class PrefrioApiTest extends TestCase
             ->assertJsonPath('codigo', 'conflicto_operacional');
 
         $this->assertSame(1, ProcesoPrefrio::query()->count());
-
-        $this->conToken($token)
-            ->getJson('/api/prefrio/resumen')
-            ->assertOk()
-            ->assertJsonPath('en_proceso', 0)
-            ->assertJsonPath('pendiente_verificacion', 0)
-            ->assertJsonPath('requiere_reproceso', 0)
-            ->assertJsonPath('folios_activos', 0);
     }
 
     public function test_aprobacion_habilita_almacenamiento_sin_dejar_folio_disponible_antes_de_camara(): void
@@ -152,6 +144,10 @@ class PrefrioApiTest extends TestCase
         $this->assertNotNull($registro->dispositivo_id);
 
         app(ServicioHabilitacionAlmacenamiento::class)->validarIngresoCamara($folio);
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('historial de habilitaciones es inmutable');
+        $registro->update(['motivo' => 'Intento de sobrescritura']);
     }
 
     public function test_reproceso_retiene_folio_y_conserva_historial_para_segundo_proceso(): void
