@@ -144,6 +144,10 @@ class PrefrioApiTest extends TestCase
         $this->assertNotNull($registro->dispositivo_id);
 
         app(ServicioHabilitacionAlmacenamiento::class)->validarIngresoCamara($folio);
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('historial de habilitaciones es inmutable');
+        $registro->update(['motivo' => 'Intento de sobrescritura']);
     }
 
     public function test_reproceso_retiene_folio_y_conserva_historial_para_segundo_proceso(): void

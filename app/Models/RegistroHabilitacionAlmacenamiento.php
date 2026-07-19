@@ -6,6 +6,7 @@ use App\Enums\CondicionTermicaFolio;
 use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -45,6 +46,15 @@ class RegistroHabilitacionAlmacenamiento extends Model
     public function dispositivo(): BelongsTo
     {
         return $this->belongsTo(Dispositivo::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new DomainException(
+                'El historial de habilitaciones es inmutable y no admite modificaciones.',
+            );
+        });
     }
 
     protected function casts(): array
