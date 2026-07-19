@@ -4,6 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -24,20 +25,36 @@ return new class extends Migration
 
         DB::table('folios')
             ->whereIn('tipo_bulto', ['pallet', 'saldo'])
-            ->where('estado_operacional', 'pendiente_prefrio')
             ->update([
-                'condicion_termica' => 'pendiente_prefrio',
+                'condicion_termica' => 'condicion_heredada',
                 'habilitacion_almacenamiento' => 'no_habilitado',
             ]);
 
         DB::table('folios')
             ->whereIn('tipo_bulto', ['pallet', 'saldo'])
-            ->where('estado_operacional', '!=', 'pendiente_prefrio')
+            ->where('estado_operacional', 'pendiente_prefrio')
+            ->update([
+                'condicion_termica' => 'pendiente_prefrio',
+            ]);
+
+        DB::table('folios')
+            ->whereIn('tipo_bulto', ['pallet', 'saldo'])
+            ->where('activo', true)
+            ->where('estado_operacional', 'disponible')
             ->update([
                 'condicion_termica' => 'condicion_heredada',
                 'habilitacion_almacenamiento' => 'habilitado',
                 'fuente_habilitacion_almacenamiento' => 'regularizacion_existente',
                 'habilitado_almacenamiento_at' => now(),
+            ]);
+
+        DB::table('folios')
+            ->whereIn('tipo_bulto', ['pallet', 'saldo'])
+            ->where('estado_operacional', 'bloqueado')
+            ->update([
+                'condicion_termica' => 'retenido',
+                'habilitacion_almacenamiento' => 'retenido',
+                'retencion_termica_motivo' => 'Regularización inicial de folio bloqueado.',
             ]);
 
         Schema::create('tuneles_prefrio', function (Blueprint $table) {
@@ -129,10 +146,55 @@ return new class extends Migration
             $table->text('observacion')->nullable();
             $table->timestamps();
         });
+
+        Schema::create('historial_habilitaciones_almacenamiento', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('folio_id')->constrained('folios')->restrictOnDelete();
+            $table->string('estado_resultante', 50)->index();
+            $table->string('condicion_termica', 50)->nullable()->index();
+            $table->string('fuente', 80)->nullable()->index();
+            $table->string('proceso_origen', 80)->nullable();
+            $table->string('referencia_origen', 100)->nullable();
+            $table->foreignId('user_id')->nullable()->constrained('users')->restrictOnDelete();
+            $table->foreignUuid('dispositivo_id')->nullable()->constrained('dispositivos')->restrictOnDelete();
+            $table->dateTime('ocurrido_at');
+            $table->string('motivo', 255)->nullable();
+            $table->text('observacion')->nullable();
+            $table->timestamp('created_at')->useCurrent();
+
+            $table->index(['folio_id', 'ocurrido_at'], 'historial_habilitacion_folio_fecha_idx');
+            $table->index(['proceso_origen', 'referencia_origen'], 'historial_habilitacion_origen_idx');
+        });
+
+        DB::table('folios')
+            ->whereIn('tipo_bulto', ['pallet', 'saldo'])
+            ->whereNotNull('habilitacion_almacenamiento')
+            ->orderBy('id')
+            ->chunk(500, function ($folios): void {
+                $ahora = now();
+                $registros = $folios->map(fn ($folio): array => [
+                    'id' => (string) Str::uuid(),
+                    'folio_id' => $folio->id,
+                    'estado_resultante' => $folio->habilitacion_almacenamiento,
+                    'condicion_termica' => $folio->condicion_termica,
+                    'fuente' => $folio->fuente_habilitacion_almacenamiento,
+                    'proceso_origen' => 'migracion_inicial',
+                    'referencia_origen' => null,
+                    'user_id' => null,
+                    'dispositivo_id' => null,
+                    'ocurrido_at' => $folio->habilitado_almacenamiento_at ?? $ahora,
+                    'motivo' => $folio->retencion_termica_motivo,
+                    'observacion' => 'Estado inicial regularizado al instalar el módulo de Prefrío.',
+                    'created_at' => $ahora,
+                ])->all();
+
+                DB::table('historial_habilitaciones_almacenamiento')->insert($registros);
+            });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('historial_habilitaciones_almacenamiento');
         Schema::dropIfExists('eventos_prefrio');
         Schema::dropIfExists('procesos_prefrio_folios');
         Schema::dropIfExists('procesos_prefrio');

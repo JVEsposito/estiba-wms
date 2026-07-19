@@ -312,7 +312,7 @@ class ServicioProcesoPrefrio
             $datos,
             $usuario,
             $dispositivo,
-            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $usuario): ?ProcesoPrefrioFolio {
+            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $usuario, $dispositivo): ?ProcesoPrefrioFolio {
                 $this->validarEstado($procesoBloqueado, [EstadoProcesoPrefrio::ListoParaIniciar]);
                 $tunel = TunelPrefrio::query()->lockForUpdate()->findOrFail($procesoBloqueado->tunel_prefrio_id);
                 $this->validarTunelOperable($tunel);
@@ -330,7 +330,13 @@ class ServicioProcesoPrefrio
 
                 foreach ($asignaciones as $asignacion) {
                     $asignacion->update(['estado' => EstadoFolioProcesoPrefrio::EnProceso]);
-                    $this->habilitacion->marcarEnProceso($asignacion->folio);
+                    $this->habilitacion->marcarEnProceso(
+                        $asignacion->folio,
+                        $usuario,
+                        $dispositivo,
+                        'prefrio',
+                        $procesoBloqueado->id,
+                    );
                 }
 
                 $procesoBloqueado->update([
@@ -426,7 +432,7 @@ class ServicioProcesoPrefrio
             $datos,
             $usuario,
             $dispositivo,
-            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $usuario): ?ProcesoPrefrioFolio {
+            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $usuario, $dispositivo): ?ProcesoPrefrioFolio {
                 $this->validarEstado($procesoBloqueado, [EstadoProcesoPrefrio::PendienteVerificacion]);
                 $resultados = collect($datos['resultados'] ?? [])->keyBy('folio_id');
                 $asignaciones = $procesoBloqueado->folios()
@@ -448,6 +454,10 @@ class ServicioProcesoPrefrio
                         CondicionTermicaFolio::PrefrioAprobado,
                         FuenteHabilitacionAlmacenamiento::PrefrioAprobado,
                         $usuario,
+                        $dispositivo,
+                        'prefrio',
+                        $procesoBloqueado->id,
+                        $this->textoOpcional($resultado['observacion'] ?? null),
                     );
                     $asignacion->folio->update([
                         'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
@@ -483,7 +493,7 @@ class ServicioProcesoPrefrio
             $datos,
             $usuario,
             $dispositivo,
-            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $motivo, $usuario): ?ProcesoPrefrioFolio {
+            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $motivo, $usuario, $dispositivo): ?ProcesoPrefrioFolio {
                 $this->validarEstado($procesoBloqueado, [EstadoProcesoPrefrio::PendienteVerificacion]);
                 $resultados = collect($datos['resultados'] ?? [])->keyBy('folio_id');
                 $asignaciones = $procesoBloqueado->folios()
@@ -504,6 +514,10 @@ class ServicioProcesoPrefrio
                         $asignacion->folio,
                         CondicionTermicaFolio::RequiereReproceso,
                         $motivo,
+                        $usuario,
+                        $dispositivo,
+                        'prefrio',
+                        $procesoBloqueado->id,
                     );
                 }
 
@@ -536,7 +550,7 @@ class ServicioProcesoPrefrio
             $datos,
             $usuario,
             $dispositivo,
-            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $motivo, $usuario): ?ProcesoPrefrioFolio {
+            function (ProcesoPrefrio $procesoBloqueado) use ($datos, $motivo, $usuario, $dispositivo): ?ProcesoPrefrioFolio {
                 if ($procesoBloqueado->estado->esTerminal()) {
                     throw new DomainException('El proceso ya posee un resultado terminal.');
                 }
@@ -565,6 +579,10 @@ class ServicioProcesoPrefrio
                             $asignacion->folio,
                             CondicionTermicaFolio::Retenido,
                             $motivo,
+                            $usuario,
+                            $dispositivo,
+                            'prefrio',
+                            $procesoBloqueado->id,
                         );
                     }
                 }

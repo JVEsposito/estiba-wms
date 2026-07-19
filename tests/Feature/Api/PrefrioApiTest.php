@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
@@ -11,6 +12,7 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
+use App\Models\RegistroHabilitacionAlmacenamiento;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
@@ -130,6 +132,17 @@ class PrefrioApiTest extends TestCase
         );
         $this->assertSame(EstadoOperacionalFolio::PendientePrefrio, $folio->estado_operacional);
 
+        $registro = RegistroHabilitacionAlmacenamiento::query()
+            ->where('folio_id', $folio->id)
+            ->where('estado_resultante', HabilitacionAlmacenamientoFolio::Habilitado)
+            ->firstOrFail();
+        $this->assertSame(HabilitacionAlmacenamientoFolio::Habilitado, $registro->estado_resultante);
+        $this->assertSame(FuenteHabilitacionAlmacenamiento::PrefrioAprobado, $registro->fuente);
+        $this->assertSame('prefrio', $registro->proceso_origen);
+        $this->assertSame($proceso['id'], $registro->referencia_origen);
+        $this->assertNotNull($registro->user_id);
+        $this->assertNotNull($registro->dispositivo_id);
+
         app(ServicioHabilitacionAlmacenamiento::class)->validarIngresoCamara($folio);
     }
 
@@ -165,6 +178,14 @@ class PrefrioApiTest extends TestCase
         $this->assertSame(CondicionTermicaFolio::RequiereReproceso, $folio->condicion_termica);
         $this->assertSame(HabilitacionAlmacenamientoFolio::Retenido, $folio->habilitacion_almacenamiento);
         $this->assertSame(EstadoOperacionalFolio::Bloqueado, $folio->estado_operacional);
+        $this->assertDatabaseHas('historial_habilitaciones_almacenamiento', [
+            'folio_id' => $folio->id,
+            'estado_resultante' => HabilitacionAlmacenamientoFolio::Retenido->value,
+            'condicion_termica' => CondicionTermicaFolio::RequiereReproceso->value,
+            'proceso_origen' => 'prefrio',
+            'referencia_origen' => $proceso['id'],
+            'motivo' => 'temperatura_fuera_rango',
+        ]);
 
         $nuevo = $this->crearProceso($tokenOperador, $tunel);
         $this->accion($tokenOperador, "/api/prefrio/procesos/{$nuevo['id']}/folios", [
@@ -208,6 +229,87 @@ class PrefrioApiTest extends TestCase
             HabilitacionAlmacenamientoFolio::Habilitado,
             $saldo->habilitacion_almacenamiento,
         );
+        $this->assertSame(
+            FuenteHabilitacionAlmacenamiento::CondicionHeredadaRepaletizaje,
+            $saldo->fuente_habilitacion_almacenamiento,
+        );
+        $this->assertDatabaseHas('historial_habilitaciones_almacenamiento', [
+            'folio_id' => $saldo->id,
+            'fuente' => FuenteHabilitacionAlmacenamiento::CondicionHeredadaRepaletizaje->value,
+            'proceso_origen' => 'repaletizaje',
+        ]);
+    }
+
+    public function test_folio_terminal_no_puede_reingresar_a_camara_aunque_figure_habilitado(): void
+    {
+        $folio = Folio::create([
+            'numero_folio' => 'PAL-PF-TERMINAL',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::Despachado,
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('estado operacional');
+
+        app(ServicioHabilitacionAlmacenamiento::class)->validarIngresoCamara($folio);
+    }
+
+    public function test_tunel_puede_reducirse_y_ampliarse_sin_duplicar_posiciones_inactivas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $tunelId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/prefrio/tuneles', [
+                'nombre' => 'Túnel redimensionable',
+                'capacidad_posiciones' => 22,
+                'estado_tecnico' => 'operativo',
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $payload = [
+            'nombre' => 'Túnel redimensionable',
+            'capacidad_posiciones' => 20,
+            'estado_administrativo' => 'activo',
+            'estado_tecnico' => 'operativo',
+        ];
+
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/administracion/prefrio/tuneles/{$tunelId}", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.capacidad_posiciones', 20);
+
+        $payload['capacidad_posiciones'] = 22;
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/administracion/prefrio/tuneles/{$tunelId}", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.capacidad_posiciones', 22)
+            ->assertJsonCount(22, 'data.posiciones');
+
+        $this->assertSame(22, PosicionTunelPrefrio::query()
+            ->where('tunel_prefrio_id', $tunelId)
+            ->count());
+        $this->assertSame(22, PosicionTunelPrefrio::query()
+            ->where('tunel_prefrio_id', $tunelId)
+            ->where('activa', true)
+            ->count());
+    }
+
+    public function test_tunel_rechaza_capacidad_impar_para_conservar_dos_lados_por_profundidad(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/prefrio/tuneles', [
+                'nombre' => 'Túnel ambiguo',
+                'capacidad_posiciones' => 21,
+                'estado_tecnico' => 'operativo',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('capacidad_posiciones');
     }
 
     public function test_eventos_son_idempotentes_y_operador_prefrio_permanece_aislado(): void
