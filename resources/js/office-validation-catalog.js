@@ -142,7 +142,8 @@ function resetForm(form) {
     form.elements.id.value = '';
     if (form.elements.activo) form.elements.activo.checked = true;
     form.querySelectorAll('input[name="variedad_ids"]').forEach((input) => { input.checked = false; });
-    const formId = form.getAttribute('id') || '';\n    const error = byId(formId.replace('Form', 'Error'));
+    const formId = form.getAttribute('id') || '';
+    const error = byId(formId.replace('Form', 'Error'));
     if (error) error.textContent = '';
 }
 
