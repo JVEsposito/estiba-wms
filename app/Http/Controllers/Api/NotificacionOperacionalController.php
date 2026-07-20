@@ -24,6 +24,7 @@ class NotificacionOperacionalController extends Controller
             ->consultaVisibles($usuario)
             ->with([
                 'carga:id,codigo,prioridad,estado',
+                'despachoMaterial:id,codigo,estado,destino_nombre,destino_centro_costo',
                 'folio:id,numero_folio',
                 'lecturas' => fn ($lectura) => $lectura
                     ->where('user_id', $usuario->id),
@@ -71,6 +72,7 @@ class NotificacionOperacionalController extends Controller
     ): NotificacionOperacional {
         return $notificacion->load([
             'carga:id,codigo,prioridad,estado',
+            'despachoMaterial:id,codigo,estado,destino_nombre,destino_centro_costo',
             'folio:id,numero_folio',
             'lecturas' => fn ($lectura) => $lectura
                 ->where('user_id', $request->user()->id),

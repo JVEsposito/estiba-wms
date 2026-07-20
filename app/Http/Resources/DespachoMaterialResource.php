@@ -76,6 +76,44 @@ class DespachoMaterialResource extends JsonResource
                                 ];
                             })->values()
                             : [],
+                        'retiros' => $detalle->relationLoaded('retiros')
+                            ? $detalle->retiros
+                                ->sortByDesc('retirado_at')
+                                ->map(function ($retiro): array {
+                                    $folio = $retiro->folioMaterial->folio;
+
+                                    return [
+                                        'id' => $retiro->id,
+                                        'folio' => [
+                                            'id' => $folio->id,
+                                            'numero_folio' => $folio->numero_folio,
+                                        ],
+                                        'cantidad_anterior' => $retiro->cantidad_anterior,
+                                        'cantidad_retirada' => $retiro->cantidad_retirada,
+                                        'cantidad_resultante' => $retiro->cantidad_resultante,
+                                        'camara' => $retiro->camara ? [
+                                            'id' => $retiro->camara->id,
+                                            'codigo' => $retiro->camara->codigo,
+                                            'nombre' => $retiro->camara->nombre,
+                                        ] : null,
+                                        'posicion' => $retiro->posicion ? [
+                                            'id' => $retiro->posicion->id,
+                                            'etiqueta' => $retiro->posicion->etiqueta,
+                                        ] : null,
+                                        'usuario' => $retiro->usuario ? [
+                                            'id' => $retiro->usuario->id,
+                                            'nombre' => $retiro->usuario->name,
+                                        ] : null,
+                                        'dispositivo' => $retiro->dispositivo ? [
+                                            'id' => $retiro->dispositivo->id,
+                                            'codigo' => $retiro->dispositivo->codigo,
+                                            'nombre' => $retiro->dispositivo->nombre,
+                                        ] : null,
+                                        'siguio_fifo' => $retiro->siguio_fifo,
+                                        'retirado_at' => $retiro->retirado_at?->toAtomString(),
+                                    ];
+                                })->values()
+                            : [],
                     ];
                 },
             )),

@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'titulo',
     'mensaje',
     'carga_id',
+    'despacho_material_id',
     'folio_id',
     'incidencia_carga_folio_id',
     'datos',
@@ -34,6 +35,11 @@ class NotificacionOperacional extends Model
     public function carga(): BelongsTo
     {
         return $this->belongsTo(Carga::class);
+    }
+
+    public function despachoMaterial(): BelongsTo
+    {
+        return $this->belongsTo(DespachoMaterial::class);
     }
 
     public function folio(): BelongsTo

@@ -121,7 +121,8 @@ class MaterialesApiTest extends TestCase
     public function test_reserva_fifo_y_permite_retiros_parciales_hasta_liberar_el_folio(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
-        [, , $tokenTablet] = $this->crearOperador();
+        [$operadorMateriales, $tabletMateriales, $tokenTablet] = $this->crearOperador();
+        [, , $tokenFrio] = $this->crearCamareroFrio();
         $item = $this->crearItem($administrador);
         $destino = $this->crearDestino($administrador);
         [$camara, $posicion1, $posicion2] = $this->crearCamara(
@@ -177,6 +178,21 @@ class MaterialesApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.id', $despachoId);
         $this->assertDatabaseCount('despachos_materiales', 1);
+        $this->assertDatabaseCount('notificaciones_operacionales', 1);
+
+        $this->conToken($tokenTablet)
+            ->getJson('/api/notificaciones-operacionales')
+            ->assertOk()
+            ->assertJsonPath('resumen.no_leidas', 1)
+            ->assertJsonPath('data.0.tipo', 'despacho_material_creado')
+            ->assertJsonPath('data.0.despacho_material.id', $despachoId)
+            ->assertJsonPath('data.0.despacho_material.codigo', 'MAT-DES-000001');
+
+        $this->conToken($tokenFrio)
+            ->getJson('/api/notificaciones-operacionales')
+            ->assertOk()
+            ->assertJsonPath('resumen.no_leidas', 0)
+            ->assertJsonCount(0, 'data');
 
         $this->assertSame('10.000', FolioMaterial::findOrFail($folio1)->cantidad_reservada);
         $this->assertSame('2.000', FolioMaterial::findOrFail($folio2)->cantidad_reservada);
@@ -195,7 +211,12 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.estado', 'parcial')
             ->assertJsonPath('data.items.0.cantidad_despachada', '4.000')
-            ->assertJsonPath('data.items.0.cantidad_pendiente', '8.000');
+            ->assertJsonPath('data.items.0.cantidad_pendiente', '8.000')
+            ->assertJsonPath('data.items.0.retiros.0.folio.id', $folio1)
+            ->assertJsonPath('data.items.0.retiros.0.cantidad_retirada', '4.000')
+            ->assertJsonPath('data.items.0.retiros.0.usuario.id', $operadorMateriales->id)
+            ->assertJsonPath('data.items.0.retiros.0.dispositivo.id', $tabletMateriales->id)
+            ->assertJsonPath('data.items.0.retiros.0.siguio_fifo', true);
 
         $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", $retiroParcial)

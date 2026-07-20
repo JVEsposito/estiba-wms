@@ -26,6 +26,7 @@ use App\Models\SesionEstiba;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -36,6 +37,7 @@ class ServicioDespachoMaterial
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ServicioNotificacionesOperacionales $notificaciones,
     ) {}
 
     /**
@@ -117,6 +119,8 @@ class ServicioDespachoMaterial
                 ]);
                 $this->reservarFifo($detalle);
             }
+
+            $this->notificaciones->notificarDespachoMaterialCreado($despacho);
 
             return $this->cargar($despacho);
         }, attempts: 3);
@@ -445,6 +449,10 @@ class ServicioDespachoMaterial
                 ->orderBy('orden_fifo'),
             'detalles.reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
             'detalles.retiros.folioMaterial.folio',
+            'detalles.retiros.camara:id,codigo,nombre',
+            'detalles.retiros.posicion:id,camara_id,etiqueta',
+            'detalles.retiros.usuario:id,name',
+            'detalles.retiros.dispositivo:id,codigo,nombre',
         ]);
     }
 

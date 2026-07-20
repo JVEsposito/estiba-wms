@@ -171,6 +171,19 @@ export type MaterialDispatchItem = {
     camara: { id: string; codigo: string; nombre: string } | null;
     posicion: { id: string; etiqueta: string } | null;
   }>;
+  retiros: Array<{
+    id: string;
+    folio: { id: string; numero_folio: string };
+    cantidad_anterior: string;
+    cantidad_retirada: string;
+    cantidad_resultante: string;
+    camara: { id: string; codigo: string; nombre: string } | null;
+    posicion: { id: string; etiqueta: string } | null;
+    usuario: { id: string; nombre: string } | null;
+    dispositivo: { id: string; codigo: string; nombre: string } | null;
+    siguio_fifo: boolean;
+    retirado_at: string;
+  }>;
 };
 
 export type MaterialDispatch = {
@@ -180,7 +193,16 @@ export type MaterialDispatch = {
   estado: 'pendiente' | 'parcial' | 'completado' | 'cancelado';
   destino: { id: string; nombre: string; centro_costo: string };
   observacion: string | null;
+  creado_por?: { id: string; nombre: string } | null;
+  dispositivo?: { id: string; codigo: string; nombre: string } | null;
   items: MaterialDispatchItem[];
+  completado_at?: string | null;
+  cancelacion?: {
+    motivo: string;
+    usuario: { id: string; nombre: string } | null;
+    dispositivo: { id: string; codigo: string; nombre: string } | null;
+    cancelado_at: string;
+  } | null;
   created_at: string;
 };
 
@@ -291,7 +313,7 @@ export type ExtractionPlan = {
 
 export type OperationalNotification = {
   id: string;
-  tipo: 'carga_publicada' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta';
+  tipo: 'carga_publicada' | 'despacho_material_creado' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta';
   severidad: 'informativa' | 'advertencia' | 'critica' | 'exito';
   titulo: string;
   mensaje: string;
@@ -300,6 +322,12 @@ export type OperationalNotification = {
     codigo: string;
     prioridad: 'normal' | 'alta' | 'urgente';
     estado: string;
+  } | null;
+  despacho_material: {
+    id: string;
+    codigo: string;
+    estado: MaterialDispatch['estado'];
+    destino: { nombre: string; centro_costo: string };
   } | null;
   folio: { id: string; numero_folio: string } | null;
   incidencia_id: string | null;

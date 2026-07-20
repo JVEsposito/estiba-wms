@@ -245,7 +245,10 @@ export class DemoEstibaApi implements EstibaApi {
     return { items: [], destinos: [] };
   }
 
-  async listMaterialDispatches(): Promise<MaterialDispatch[]> {
+  async listMaterialDispatches(
+    _token: string,
+    _states?: MaterialDispatch['estado'][],
+  ): Promise<MaterialDispatch[]> {
     return [];
   }
 

@@ -43,6 +43,26 @@ class RetiroMaterial extends Model
         return $this->belongsTo(FolioMaterial::class, 'folio_id');
     }
 
+    public function camara(): BelongsTo
+    {
+        return $this->belongsTo(Camara::class);
+    }
+
+    public function posicion(): BelongsTo
+    {
+        return $this->belongsTo(Posicion::class);
+    }
+
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function dispositivo(): BelongsTo
+    {
+        return $this->belongsTo(Dispositivo::class);
+    }
+
     protected function casts(): array
     {
         return [
