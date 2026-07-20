@@ -20,6 +20,21 @@ class Temporada extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
+    public function clientes(): HasMany
+    {
+        return $this->hasMany(ClienteValidacion::class);
+    }
+
+    public function especies(): HasMany
+    {
+        return $this->hasMany(EspecieValidacion::class);
+    }
+
+    public function csg(): HasMany
+    {
+        return $this->hasMany(CsgValidacion::class);
+    }
+
     public function articulos(): HasMany
     {
         return $this->hasMany(ArticuloValidacion::class);
