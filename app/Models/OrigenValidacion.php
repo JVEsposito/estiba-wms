@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'temporada_id',
+    'cliente_validacion_id',
+    'marca_validacion_id',
+    'csg_validacion_id',
     'cliente',
     'marca',
     'csg',
@@ -27,6 +30,21 @@ class OrigenValidacion extends Model
     public function temporada(): BelongsTo
     {
         return $this->belongsTo(Temporada::class);
+    }
+
+    public function clienteCatalogo(): BelongsTo
+    {
+        return $this->belongsTo(ClienteValidacion::class, 'cliente_validacion_id');
+    }
+
+    public function marcaCatalogo(): BelongsTo
+    {
+        return $this->belongsTo(MarcaValidacion::class, 'marca_validacion_id');
+    }
+
+    public function csgCatalogo(): BelongsTo
+    {
+        return $this->belongsTo(CsgValidacion::class, 'csg_validacion_id');
     }
 
     public function combinaciones(): HasMany
