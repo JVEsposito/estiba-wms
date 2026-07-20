@@ -3,7 +3,7 @@ const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
-    reload: byId('reloadValidationButton'), seasonSelector: byId('seasonSelector'), admin: byId('validationAdmin'), filters: byId('validationFilters'), history: byId('validationHistoryBody'),
+    reload: byId('reloadValidationButton'), hierarchyCatalogLink: byId('hierarchyCatalogLink'), seasonSelector: byId('seasonSelector'), admin: byId('validationAdmin'), filters: byId('validationFilters'), history: byId('validationHistoryBody'),
     catalogVersion: byId('catalogVersion'), articleCount: byId('activeArticleCount'), originCount: byId('activeOriginCount'), combinationCount: byId('activeCombinationCount'), observedCount: byId('observedCount'),
     seasonForm: byId('seasonForm'), seasonError: byId('seasonError'), seasonCancel: byId('cancelSeasonEdit'), seasonList: byId('seasonList'), seasonStatus: byId('seasonStatus'),
     articleForm: byId('articleForm'), articleError: byId('articleError'), articleCancel: byId('cancelArticleEdit'), articleList: byId('articleList'), articleSummary: byId('articleSummary'),
@@ -54,6 +54,7 @@ function showApp() {
     elements.materialsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_despachos_materiales !== true);
     elements.prefrioNav.classList.toggle('is-hidden', state.identity?.puede_consultar_prefrio !== true);
     elements.admin.classList.toggle('is-hidden', state.identity?.puede_administrar_catalogos_validacion !== true);
+    elements.hierarchyCatalogLink.classList.toggle('is-hidden', state.identity?.puede_administrar_catalogos_validacion !== true);
 }
 
 async function loadHistory() {
