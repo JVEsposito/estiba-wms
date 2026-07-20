@@ -250,9 +250,9 @@ class ServicioImportacionValidacion
     }
 
     /**
-     * @param array<string, mixed> $atributos
-     * @param array<string, int> $creados
-     * @param array<string, int> $actualizados
+     * @param  array<string, mixed>  $atributos
+     * @param  array<string, int>  $creados
+     * @param  array<string, int>  $actualizados
      */
     private function persistir(
         Model $modelo,
