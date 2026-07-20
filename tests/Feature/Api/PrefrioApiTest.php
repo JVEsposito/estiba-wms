@@ -96,6 +96,95 @@ class PrefrioApiTest extends TestCase
         $this->assertSame(1, ProcesoPrefrio::query()->count());
     }
 
+    public function test_cancelacion_de_proceso_vacio_libera_tunel_y_excluye_historial_operacional(): void
+    {
+        [$tunel, , $tokenOperador] = $this->contexto();
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'PF-SUP-CANCEL-EMPTY');
+        $proceso = $this->crearProceso($tokenOperador, $tunel);
+
+        $cancelado = $this->accion(
+            $tokenSupervisor,
+            "/api/prefrio/procesos/{$proceso['id']}/cancelar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 0,
+                'motivo' => 'Prueba de cancelación sin folios.',
+                'ocurrido_at' => now()->toAtomString(),
+            ],
+        );
+
+        $this->assertSame('cancelado', $cancelado['estado']);
+        $this->conToken($tokenOperador)
+            ->getJson('/api/prefrio/procesos?solo_activos=1&per_page=50')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $nuevo = $this->crearProceso($tokenOperador, $tunel);
+
+        $this->assertNotSame($proceso['id'], $nuevo['id']);
+        $this->assertSame('borrador', $nuevo['estado']);
+        $this->assertSame($tunel->id, $nuevo['tunel']['id']);
+        $this->conToken($tokenOperador)
+            ->getJson('/api/prefrio/procesos?solo_activos=1&per_page=50')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $nuevo['id']);
+    }
+
+    public function test_cancelacion_antes_de_iniciar_libera_tunel_y_folio_cargado(): void
+    {
+        [$tunel, $posicion, $tokenOperador] = $this->contexto();
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'PF-SUP-CANCEL-LOAD');
+        $folio = $this->folioPendiente('PAL-PF-CANCEL-001');
+        $proceso = $this->crearProceso($tokenOperador, $tunel);
+
+        $proceso = $this->accion(
+            $tokenOperador,
+            "/api/prefrio/procesos/{$proceso['id']}/folios",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 0,
+                'folio_id' => $folio->id,
+                'posicion_tunel_prefrio_id' => $posicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ],
+        );
+
+        $cancelado = $this->accion(
+            $tokenSupervisor,
+            "/api/prefrio/procesos/{$proceso['id']}/cancelar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+                'motivo' => 'Prueba de cancelación durante carga.',
+                'ocurrido_at' => now()->toAtomString(),
+            ],
+        );
+
+        $this->assertSame('cancelado', $cancelado['estado']);
+        $this->assertDatabaseHas('proceso_prefrio_folios', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'folio_id' => $folio->id,
+            'estado' => 'cancelado',
+        ]);
+
+        $nuevo = $this->crearProceso($tokenOperador, $tunel);
+        $recargado = $this->accion(
+            $tokenOperador,
+            "/api/prefrio/procesos/{$nuevo['id']}/folios",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 0,
+                'folio_id' => $folio->id,
+                'posicion_tunel_prefrio_id' => $posicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ],
+        );
+
+        $this->assertSame('cargando', $recargado['estado']);
+        $this->assertSame($folio->id, $recargado['folios'][0]['folio']['id']);
+    }
+
     public function test_aprobacion_habilita_almacenamiento_sin_dejar_folio_disponible_antes_de_camara(): void
     {
         [$tunel, $posicion, $tokenOperador] = $this->contexto();
