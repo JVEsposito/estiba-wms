@@ -265,7 +265,9 @@ Puede revisar túneles, procesos e historial sin ejecutar acciones.
 ```http
 GET /api/prefrio/tuneles
 GET /api/prefrio/tuneles/{id}
+GET /api/prefrio/folios-disponibles
 GET /api/prefrio/procesos
+GET /api/prefrio/resumen
 GET /api/prefrio/procesos/{id}
 ```
 
@@ -297,17 +299,26 @@ POST /api/administracion/prefrio/tuneles
 PUT  /api/administracion/prefrio/tuneles/{id}
 ```
 
-## Alcance de esta entrega
+## Interfaces implementadas
 
-Esta fundación incorpora reglas de dominio, esquema, permisos, API, contratos públicos y pruebas.
+La oficina `/oficina/prefrio` permite configurar túneles, crear y filtrar procesos, consultar el plano en dos lados desde el fondo hacia la entrada, revisar el historial y tomar decisiones de aprobación, reproceso o cancelación según las capacidades del usuario.
+
+La aplicación móvil entrega al operador:
+
+- catálogo de túneles y procesos activos;
+- búsqueda o escaneo de folios habilitados para Prefrío;
+- carga y retiro por posición;
+- confirmación de armado e inicio;
+- lecturas, inversión, pausa, reanudación y deshielo;
+- envío a verificación;
+- caché local y bandeja de salida por usuario y dispositivo.
+
+Cada comando móvil se guarda antes de enviarse y mantiene su UUID. Si una operación de un proceso entra en conflicto o error, las acciones posteriores del mismo proceso quedan detenidas para impedir que se transmitan sobre una versión inválida.
+
+La entrega incorpora reglas de dominio, esquema, permisos, API, oficina, operación móvil, contratos públicos y pruebas.
 
 Quedan para entregas posteriores:
 
-- interfaz `/oficina/prefrio`;
-- configuración gráfica de túneles;
-- tablero de supervisión;
-- pantalla móvil del operador;
-- bandeja offline específica de Prefrío;
 - fotografías;
 - telemetría automática;
 - integración con el ERP.
