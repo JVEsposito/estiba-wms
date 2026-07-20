@@ -8,34 +8,36 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
-    'cliente_material_id',
     'codigo',
     'nombre',
-    'categoria',
-    'unidad_medida',
-    'codigo_externo',
-    'origen_sistema',
-    'sincronizado_at',
-    'activo',
+    'fecha_inicio',
+    'fecha_fin',
+    'activa',
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
-class ItemMaterial extends Model
+class TemporadaMaterial extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
-    protected $table = 'items_materiales';
+    protected $table = 'temporadas_materiales';
 
-    public function cliente(): BelongsTo
+    public function clientes(): HasMany
     {
-        return $this->belongsTo(ClienteMaterial::class, 'cliente_material_id');
+        return $this->hasMany(ClienteMaterial::class, 'temporada_material_id');
     }
 
-    public function foliosMateriales(): HasMany
+    public function items(): HasManyThrough
     {
-        return $this->hasMany(FolioMaterial::class, 'item_material_id');
+        return $this->hasManyThrough(
+            ItemMaterial::class,
+            ClienteMaterial::class,
+            'temporada_material_id',
+            'cliente_material_id',
+        );
     }
 
     public function creadoPor(): BelongsTo
@@ -51,8 +53,9 @@ class ItemMaterial extends Model
     protected function casts(): array
     {
         return [
-            'activo' => 'boolean',
-            'sincronizado_at' => 'datetime',
+            'fecha_inicio' => 'date',
+            'fecha_fin' => 'date',
+            'activa' => 'boolean',
         ];
     }
 }

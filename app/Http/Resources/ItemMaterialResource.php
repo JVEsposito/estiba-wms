@@ -14,6 +14,18 @@ class ItemMaterialResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'cliente' => $this->whenLoaded('cliente', fn () => [
+                'id' => $this->cliente->id,
+                'temporada' => [
+                    'id' => $this->cliente->temporada->id,
+                    'codigo' => $this->cliente->temporada->codigo,
+                    'nombre' => $this->cliente->temporada->nombre,
+                    'activa' => $this->cliente->temporada->activa,
+                ],
+                'codigo' => $this->cliente->codigo,
+                'nombre' => $this->cliente->nombre,
+                'activo' => $this->cliente->activo,
+            ]),
             'codigo' => $this->codigo,
             'nombre' => $this->nombre,
             'categoria' => $this->categoria,

@@ -19,16 +19,19 @@ class GuardarItemMaterialRequest extends FormRequest
     public function rules(): array
     {
         $item = $this->route('itemMaterial');
+        $itemId = $item instanceof ItemMaterial ? $item->id : null;
+        $clienteId = (string) $this->input('cliente_material_id');
 
         return [
+            'cliente_material_id' => ['required', 'uuid', 'exists:clientes_materiales,id'],
             'codigo' => [
                 'required',
                 'string',
                 'max:80',
                 'regex:/^[A-Z0-9][A-Z0-9._-]*$/',
-                Rule::unique('items_materiales', 'codigo')->ignore(
-                    $item instanceof ItemMaterial ? $item->id : null,
-                ),
+                Rule::unique('items_materiales', 'codigo')
+                    ->where(fn ($consulta) => $consulta->where('cliente_material_id', $clienteId))
+                    ->ignore($itemId),
             ],
             'nombre' => ['required', 'string', 'min:3', 'max:180'],
             'categoria' => ['nullable', 'string', 'max:100'],
@@ -37,9 +40,9 @@ class GuardarItemMaterialRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:150',
-                Rule::unique('items_materiales', 'codigo_externo')->ignore(
-                    $item instanceof ItemMaterial ? $item->id : null,
-                ),
+                Rule::unique('items_materiales', 'codigo_externo')
+                    ->where(fn ($consulta) => $consulta->where('cliente_material_id', $clienteId))
+                    ->ignore($itemId),
             ],
             'activo' => ['sometimes', 'boolean'],
         ];

@@ -53,7 +53,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const wideLayout = width >= 1180 && height >= 700;
   const [cameras, setCameras] = useState<CameraSummary[]>([]);
   const [conditions, setConditions] = useState<SagCondition[]>([]);
-  const [materialCatalog, setMaterialCatalog] = useState<MaterialCatalog>({ items: [], destinos: [] });
+  const [materialCatalog, setMaterialCatalog] = useState<MaterialCatalog>({ temporada: null, clientes: [], items: [], destinos: [] });
   const [materialDispatches, setMaterialDispatches] = useState<MaterialDispatch[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [plan, setPlan] = useState<CameraPlan | null>(null);
@@ -134,9 +134,9 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         canUseMaterials
           ? optionalModule(
             () => api.getMaterialCatalog(auth.token),
-            { items: [], destinos: [] },
+            { temporada: null, clientes: [], items: [], destinos: [] },
           )
-          : Promise.resolve({ items: [], destinos: [] }),
+          : Promise.resolve({ temporada: null, clientes: [], items: [], destinos: [] }),
         canUseMaterials
           ? optionalModule(() => api.listMaterialDispatches(auth.token), [])
           : Promise.resolve([]),
@@ -433,7 +433,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       const [catalog, dispatches] = await Promise.all([
         optionalModule(
           () => api.getMaterialCatalog(auth.token),
-          { items: [], destinos: [] },
+          { temporada: null, clientes: [], items: [], destinos: [] },
         ),
         optionalModule(() => api.listMaterialDispatches(auth.token), []),
       ]);

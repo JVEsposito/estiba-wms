@@ -72,13 +72,17 @@ export function LocateModal({
   const [brand, setBrand] = useState('');
   const [exporter, setExporter] = useState('');
   const [materialSearch, setMaterialSearch] = useState('');
+  const [materialClientId, setMaterialClientId] = useState<string>();
   const [materialItemId, setMaterialItemId] = useState<string>();
   const [materialQuantity, setMaterialQuantity] = useState('');
   const [materialLot, setMaterialLot] = useState('');
   const [materialSupplier, setMaterialSupplier] = useState('');
   const [materialObservation, setMaterialObservation] = useState('');
+  const materialClients = [...new Map(materialItems.map((item) => [item.cliente.id, item.cliente])).values()];
+  const materialSeason = materialItems[0]?.cliente.temporada;
   const filteredMaterialItems = materialItems.filter((item) => (
-    `${item.codigo} ${item.nombre} ${item.categoria ?? ''}`
+    item.cliente.id === materialClientId
+    && `${item.cliente.codigo} ${item.cliente.nombre} ${item.codigo} ${item.nombre} ${item.categoria ?? ''}`
       .toLowerCase()
       .includes(materialSearch.trim().toLowerCase())
   ));
@@ -93,6 +97,7 @@ export function LocateModal({
     setBrand('');
     setExporter('');
     setMaterialSearch('');
+    setMaterialClientId(undefined);
     setMaterialItemId(undefined);
     setMaterialQuantity('');
     setMaterialLot('');
@@ -147,6 +152,28 @@ export function LocateModal({
 
             {isMaterial ? (
               <>
+                <View style={[styles.field, styles.wide]}>
+                  <Text style={styles.label}>Temporada activa</Text>
+                  <Text style={styles.emptyInline}>{materialSeason ? `${materialSeason.codigo} · ${materialSeason.nombre}` : 'No existe una temporada activa de materiales.'}</Text>
+                </View>
+                <View style={[styles.field, styles.wide]}>
+                  <Text style={styles.label}>Cliente *</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator>
+                    <View style={styles.choiceRow}>
+                      {materialClients.map((client) => (
+                        <Choice
+                          active={materialClientId === client.id}
+                          key={client.id}
+                          label={`${client.codigo} · ${client.nombre}`}
+                          onPress={() => {
+                            setMaterialClientId(client.id);
+                            setMaterialItemId(undefined);
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
                 <FormField label="Buscar ítem *" onChangeText={setMaterialSearch} placeholder="Código o descripción" value={materialSearch} wide />
                 <View style={[styles.field, styles.wide]}>
                   <Text style={styles.label}>Ítem contenido *</Text>
@@ -157,7 +184,7 @@ export function LocateModal({
                       ))}
                     </View>
                   </ScrollView>
-                  {filteredMaterialItems.length === 0 && <Text style={styles.emptyInline}>No hay ítems coincidentes. Solicita su creación en la oficina.</Text>}
+                  {filteredMaterialItems.length === 0 && <Text style={styles.emptyInline}>{materialClientId ? 'No hay ítems coincidentes. Solicita su creación en la oficina.' : 'Selecciona primero un cliente.'}</Text>}
                 </View>
                 <FormField label={`Cantidad inicial *${materialItems.find((item) => item.id === materialItemId)?.unidad_medida ? ` · ${materialItems.find((item) => item.id === materialItemId)?.unidad_medida}` : ''}`} onChangeText={setMaterialQuantity} placeholder="Ej. 450" value={materialQuantity} />
                 <FormField label="Lote" onChangeText={setMaterialLot} placeholder="Opcional" value={materialLot} />
@@ -395,7 +422,7 @@ export function MaterialDispatchModal({
               eyebrow="DESPACHO DE MATERIALES"
               onClose={onCancel}
               subtitle={`${position?.folio?.numero_folio ?? ''} · ${position?.etiqueta ?? ''}`}
-              title={material?.item.nombre ?? 'Retirar material'}
+              title={material ? `${material.item.cliente.temporada.codigo} · ${material.item.cliente.codigo} · ${material.item.nombre}` : 'Retirar material'}
             />
 
             <View style={styles.materialBalance}>

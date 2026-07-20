@@ -9,6 +9,7 @@ use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
+use App\Models\ClienteMaterial;
 use App\Models\Dispositivo;
 use App\Models\EventoCarga;
 use App\Models\Folio;
@@ -535,6 +536,7 @@ class CargaApiTest extends TestCase
             'nombre' => 'Tablet de materiales',
         ]);
         $item = ItemMaterial::create([
+            'cliente_material_id' => ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->id,
             'codigo' => 'ITEM-'.Str::upper(Str::random(6)),
             'nombre' => 'Material de prueba',
             'unidad_medida' => 'unidades',

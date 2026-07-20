@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class ClienteMaterialResource extends JsonResource
+{
+    /** @return array<string, mixed> */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'temporada' => $this->whenLoaded('temporada', fn () => [
+                'id' => $this->temporada->id,
+                'codigo' => $this->temporada->codigo,
+                'nombre' => $this->temporada->nombre,
+                'activa' => $this->temporada->activa,
+            ]),
+            'codigo' => $this->codigo,
+            'nombre' => $this->nombre,
+            'codigo_externo' => $this->codigo_externo,
+            'activo' => $this->activo,
+            'items_activos' => (int) ($this->items_activos_count ?? 0),
+            'created_at' => $this->created_at?->toAtomString(),
+            'updated_at' => $this->updated_at?->toAtomString(),
+        ];
+    }
+}

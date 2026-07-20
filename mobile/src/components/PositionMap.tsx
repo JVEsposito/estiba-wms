@@ -180,7 +180,7 @@ function Band({
             <View style={styles.cellMetaRow}>
               <Text numberOfLines={1} style={styles.cellMeta}>
                 {position.folio?.material
-                  ? `${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
+                  ? `${position.folio.material.item.cliente.temporada.codigo}/${position.folio.material.item.cliente.codigo}/${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
                   : position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
               </Text>
               <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : '○'}</Text>

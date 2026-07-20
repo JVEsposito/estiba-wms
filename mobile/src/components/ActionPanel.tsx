@@ -67,7 +67,7 @@ export function ActionPanel({
           <Text style={styles.folioNumber}>{selectedPosition.folio.numero_folio}</Text>
           {selectedMaterial ? (
             <>
-              <Detail label="Ítem" value={selectedPosition.folio.material?.item.nombre} />
+              <Detail label="Ítem" value={selectedPosition.folio.material ? `${selectedPosition.folio.material.item.cliente.temporada.codigo} · ${selectedPosition.folio.material.item.cliente.codigo} · ${selectedPosition.folio.material.item.nombre}` : undefined} />
               <Detail label="Cantidad" value={`${selectedPosition.folio.material?.cantidad_actual ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
               <Detail label="Disponible" value={`${selectedPosition.folio.material?.cantidad_disponible ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
             </>

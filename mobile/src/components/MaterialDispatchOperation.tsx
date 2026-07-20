@@ -191,7 +191,7 @@ export function MaterialDispatchOperation({
                   <View key={item.detalle_id} style={styles.itemCard}>
                     <View style={styles.itemHeader}>
                       <View style={styles.itemCopy}>
-                        <Text style={styles.itemName}>{item.item.codigo} · {item.item.nombre}</Text>
+                        <Text style={styles.itemName}>{item.item.cliente.temporada.codigo} · {item.item.cliente.codigo} · {item.item.codigo} · {item.item.nombre}</Text>
                         <Text style={styles.itemAmounts}>
                           Solicitado {formatQuantity(item.cantidad_solicitada)} · Retirado {formatQuantity(item.cantidad_despachada)} · Pendiente {formatQuantity(item.cantidad_pendiente)} {item.unidad_medida}
                         </Text>
@@ -242,7 +242,7 @@ export function MaterialDispatchOperation({
                     <View style={styles.traceMain}>
                       <Text style={styles.traceFolio}>{withdrawal.folio.numero_folio}</Text>
                       <Text style={styles.traceMeta}>
-                        {withdrawal.item.codigo} · {withdrawal.camara?.codigo ?? 'Sin cámara'} · {withdrawal.posicion?.etiqueta ?? 'Sin posición'}
+                        {withdrawal.item.cliente.temporada.codigo} · {withdrawal.item.cliente.codigo} · {withdrawal.item.codigo} · {withdrawal.camara?.codigo ?? 'Sin cámara'} · {withdrawal.posicion?.etiqueta ?? 'Sin posición'}
                       </Text>
                       <Text style={styles.traceMeta}>
                         {withdrawal.usuario?.nombre ?? 'Usuario no disponible'} · {withdrawal.dispositivo?.codigo ?? 'Sin dispositivo'} · {formatDateTime(withdrawal.retirado_at)}

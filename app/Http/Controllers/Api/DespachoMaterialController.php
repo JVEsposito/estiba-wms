@@ -106,7 +106,7 @@ class DespachoMaterialController extends Controller
     {
         Gate::authorize('consultar-despachos-materiales');
         $folios = FolioMaterial::query()
-            ->with(['item', 'folio.ubicacionActual.posicion.camara'])
+            ->with(['item.cliente.temporada', 'folio.ubicacionActual.posicion.camara'])
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
             ->orderBy('item_material_id')
             ->get()
@@ -119,6 +119,18 @@ class DespachoMaterialController extends Controller
                     'numero_folio' => $folio->numero_folio,
                     'item' => [
                         'id' => $material->item->id,
+                        'cliente' => [
+                            'id' => $material->item->cliente->id,
+                            'temporada' => [
+                                'id' => $material->item->cliente->temporada->id,
+                                'codigo' => $material->item->cliente->temporada->codigo,
+                                'nombre' => $material->item->cliente->temporada->nombre,
+                                'activa' => $material->item->cliente->temporada->activa,
+                            ],
+                            'codigo' => $material->item->cliente->codigo,
+                            'nombre' => $material->item->cliente->nombre,
+                            'activo' => $material->item->cliente->activo,
+                        ],
                         'codigo' => $material->item->codigo,
                         'nombre' => $material->item->nombre,
                     ],
@@ -150,7 +162,7 @@ class DespachoMaterialController extends Controller
     {
         Gate::authorize('consultar-kardex-materiales');
         $movimientos = MovimientoInventarioMaterial::query()
-            ->with(['folioMaterial.folio:id,numero_folio', 'item:id,codigo,nombre'])
+            ->with(['folioMaterial.folio:id,numero_folio', 'item.cliente.temporada'])
             ->when($request->query('folio_id'), fn ($consulta, $folio) => $consulta
                 ->where('folio_id', $folio))
             ->when($request->query('item_material_id'), fn ($consulta, $item) => $consulta
@@ -166,6 +178,18 @@ class DespachoMaterialController extends Controller
                 ],
                 'item' => [
                     'id' => $movimiento->item->id,
+                    'cliente' => [
+                        'id' => $movimiento->item->cliente->id,
+                        'temporada' => [
+                            'id' => $movimiento->item->cliente->temporada->id,
+                            'codigo' => $movimiento->item->cliente->temporada->codigo,
+                            'nombre' => $movimiento->item->cliente->temporada->nombre,
+                            'activa' => $movimiento->item->cliente->temporada->activa,
+                        ],
+                        'codigo' => $movimiento->item->cliente->codigo,
+                        'nombre' => $movimiento->item->cliente->nombre,
+                        'activo' => $movimiento->item->cliente->activo,
+                    ],
                     'codigo' => $movimiento->item->codigo,
                     'nombre' => $movimiento->item->nombre,
                 ],

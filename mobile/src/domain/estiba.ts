@@ -122,8 +122,24 @@ export type Folio = {
   ubicado_at: string | null;
 };
 
+export type MaterialSeason = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  activa: boolean;
+};
+
+export type MaterialClient = {
+  id: string;
+  temporada: MaterialSeason;
+  codigo: string;
+  nombre: string;
+  activo: boolean;
+};
+
 export type MaterialItem = {
   id: string;
+  cliente: MaterialClient;
   codigo: string;
   nombre: string;
   categoria: string | null;
@@ -152,6 +168,8 @@ export type FolioMaterial = {
 };
 
 export type MaterialCatalog = {
+  temporada: MaterialSeason | null;
+  clientes: MaterialClient[];
   items: MaterialItem[];
   destinos: MaterialDestination[];
 };
