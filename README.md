@@ -76,6 +76,25 @@ Prefrío dispone de:
 - `/oficina/prefrio`: configuración de túneles, tablero, procesos, historial y decisiones de supervisión.
 - Aplicación móvil: operación por túnel, plano de dos lados desde el fondo hacia la entrada, escaneo, eventos térmicos y bandeja offline para `operador_prefrio`.
 
+## Requisito para importar XLSX
+
+La carga masiva de Validación acepta CSV y XLSX. Los archivos XLSX son contenedores
+ZIP, por lo que el PHP que ejecuta Laravel debe tener habilitada la extensión
+`zip`. El proyecto la declara como requisito para impedir despliegues que fallen
+recién al cargar una planilla.
+
+En Laragon para Windows:
+
+1. Abrir **Menú > PHP > Extensions** y habilitar `zip`.
+2. Si la extensión no aparece en el menú, abrir el `php.ini` indicado por
+   `php --ini` y habilitar la línea `extension=zip`.
+3. Reiniciar todos los servicios de Laragon.
+4. Verificar en la terminal de Laragon con `php -m | findstr /I zip`.
+
+Si todavía no es posible habilitar ZIP, la misma importación puede ejecutarse
+temporalmente mediante CSV. Es importante comprobar el PHP del servidor web y no
+solamente otro PHP instalado en el equipo.
+
 ## Puesta en marcha local
 
 ```bash
