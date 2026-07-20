@@ -33,6 +33,11 @@ export type UserCapabilities = {
   puede_validar_pallets: boolean;
   puede_rechazar_pallets: boolean;
   puede_consultar_validaciones_pallet: boolean;
+  puede_administrar_catalogos_validacion?: boolean;
+  puede_consultar_prefrio?: boolean;
+  puede_operar_prefrio?: boolean;
+  puede_supervisar_prefrio?: boolean;
+  puede_administrar_tuneles_prefrio?: boolean;
 };
 
 export type DeviceIdentity = {
@@ -98,6 +103,15 @@ export type Folio = {
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo' | 'material';
   estado_operacional: string;
+  condicion_termica?:
+    | 'pendiente_prefrio'
+    | 'en_proceso'
+    | 'prefrio_aprobado'
+    | 'requiere_reproceso'
+    | 'condicion_heredada'
+    | 'retenido'
+    | null;
+  habilitacion_almacenamiento?: 'no_habilitado' | 'habilitado' | 'retenido' | null;
   condicion_sag: SagCondition | null;
   fecha_ingreso: string | null;
   variedad: string | null;
