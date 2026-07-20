@@ -56,6 +56,7 @@
                     <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
                     <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
                     <a href="/oficina/validacion">Validación</a>
+                    <a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a>
                     <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">

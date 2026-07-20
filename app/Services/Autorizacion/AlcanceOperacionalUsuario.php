@@ -26,6 +26,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Administrador,
             RolUsuario::Despachador,
             RolUsuario::Consulta => ContenidoCamara::cases(),
+            RolUsuario::OperadorPrefrio,
             RolUsuario::Validador => [],
         };
     }
@@ -244,6 +245,38 @@ class AlcanceOperacionalUsuario
         return $this->rolActivo($usuario, [RolUsuario::Administrador]);
     }
 
+    public function puedeConsultarPrefrio(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorPrefrio,
+            RolUsuario::Consulta,
+        ]);
+    }
+
+    public function puedeOperarPrefrio(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorPrefrio,
+        ]);
+    }
+
+    public function puedeSupervisarPrefrio(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ]);
+    }
+
+    public function puedeAdministrarTunelesPrefrio(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -284,6 +317,10 @@ class AlcanceOperacionalUsuario
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
             'puede_administrar_catalogos_validacion' => $this->puedeAdministrarCatalogosValidacion($usuario),
+            'puede_consultar_prefrio' => $this->puedeConsultarPrefrio($usuario),
+            'puede_operar_prefrio' => $this->puedeOperarPrefrio($usuario),
+            'puede_supervisar_prefrio' => $this->puedeSupervisarPrefrio($usuario),
+            'puede_administrar_tuneles_prefrio' => $this->puedeAdministrarTunelesPrefrio($usuario),
         ];
     }
 

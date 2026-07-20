@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 
 class ServicioImportacionCatalogoMaterial
 {
+    private const MAX_FILAS = 5000;
+
     public function __construct(
         private readonly LectorPlanillaMaterial $lector,
     ) {}
@@ -19,6 +21,11 @@ class ServicioImportacionCatalogoMaterial
     public function previsualizar(UploadedFile $archivo, User $usuario): ImportacionCatalogoMaterial
     {
         $filasLeidas = $this->lector->leer($archivo);
+
+        if (count($filasLeidas) > self::MAX_FILAS) {
+            throw new DomainException('La planilla supera el máximo de 5.000 filas permitidas.');
+        }
+
         $codigos = collect($filasLeidas)
             ->map(fn (array $fila): string => mb_strtoupper($this->texto($fila['codigo'] ?? '')))
             ->filter()
@@ -89,6 +96,7 @@ class ServicioImportacionCatalogoMaterial
             }
 
             $fila['accion'] = $this->accionEstimada($fila, $existente);
+            $fila['huella_catalogo'] = $existente ? $this->huellaItem($existente) : null;
             $filas[] = $fila;
         }
 
@@ -140,6 +148,8 @@ class ServicioImportacionCatalogoMaterial
                     ->where('codigo', $fila['codigo'])
                     ->lockForUpdate()
                     ->first();
+
+                $this->validarHuellaCatalogo($fila, $item);
 
                 if ($item
                     && $item->unidad_medida !== $fila['unidad_medida']
@@ -285,6 +295,46 @@ class ServicioImportacionCatalogoMaterial
             || (($fila['activo'] ?? null) !== null && $existente->activo !== $fila['activo']);
 
         return $cambio ? 'actualizar' : 'sin_cambios';
+    }
+
+    /**
+     * @param  array<string, string|int|bool|null>  $fila
+     */
+    private function validarHuellaCatalogo(array $fila, ?ItemMaterial $item): void
+    {
+        if (! array_key_exists('huella_catalogo', $fila)) {
+            throw new DomainException(
+                'La previsualización del ítem '.$fila['codigo'].' ya no es vigente. Vuelve a previsualizar la planilla.',
+            );
+        }
+
+        $huellaEsperada = $fila['huella_catalogo'] ?? null;
+        $catalogoCambio = ($huellaEsperada === null && $item !== null)
+            || ($huellaEsperada !== null && (
+                ! is_string($huellaEsperada)
+                || $item === null
+                || ! hash_equals($huellaEsperada, $this->huellaItem($item))
+            ));
+
+        if ($catalogoCambio) {
+            throw new DomainException(
+                'El catálogo cambió después de la previsualización para el ítem '.$fila['codigo']
+                .'. Vuelve a previsualizar la planilla.',
+            );
+        }
+    }
+
+    private function huellaItem(ItemMaterial $item): string
+    {
+        return hash('sha256', json_encode([
+            'id' => (string) $item->id,
+            'codigo' => $item->codigo,
+            'nombre' => $item->nombre,
+            'categoria' => $item->categoria,
+            'unidad_medida' => $item->unidad_medida,
+            'codigo_externo' => $item->codigo_externo,
+            'activo' => (bool) $item->activo,
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     private function texto(mixed $valor): string

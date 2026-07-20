@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Arr;
 
 class ImportacionCatalogoMaterialResource extends JsonResource
 {
@@ -18,7 +19,9 @@ class ImportacionCatalogoMaterialResource extends JsonResource
             'tipo_archivo' => $this->tipo_archivo,
             'estado' => $this->estado,
             'resumen' => $this->resumen,
-            'filas' => $this->filas,
+            'filas' => collect($this->filas ?? [])
+                ->map(fn (array $fila): array => Arr::except($fila, ['huella_catalogo']))
+                ->all(),
             'errores' => $this->errores ?? [],
             'creado_por' => $this->whenLoaded('creadoPor', fn (): array => [
                 'id' => $this->creadoPor->id,

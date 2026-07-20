@@ -18,6 +18,8 @@ export default defineConfig({
                 'resources/js/office-materials.js',
                 'resources/css/office-validation.css',
                 'resources/js/office-validation.js',
+                'resources/css/office-prefrio.css',
+                'resources/js/office-prefrio.js',
             ],
             refresh: true,
         }),

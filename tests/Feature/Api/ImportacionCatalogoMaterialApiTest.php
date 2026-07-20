@@ -47,6 +47,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
             ->assertJsonPath('data.resumen.filas_validas', 2)
             ->assertJsonPath('data.resumen.nuevos_estimados', 1)
             ->assertJsonPath('data.resumen.actualizaciones_estimadas', 1)
+            ->assertJsonMissingPath('data.filas.0.huella_catalogo')
             ->json('data.id');
 
         $this->assertDatabaseCount('items_materiales', 2);
@@ -170,6 +171,67 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
             ->assertJsonFragment([
                 'mensaje' => 'La unidad de medida no puede cambiar porque el ítem ya posee folios asociados.',
             ]);
+    }
+
+    public function test_confirmacion_rechaza_catalogo_modificado_despues_de_previsualizar(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $item = $this->crearItem($administrador);
+        $archivo = UploadedFile::fake()->createWithContent(
+            'catalogo.csv',
+            "codigo;nombre;unidad_medida\nFILM-01;Film importado;rollos\n",
+        );
+
+        $importacionId = $this->actingAs($administrador, 'sanctum')
+            ->post('/api/administracion/materiales/importaciones/previsualizar', [
+                'archivo' => $archivo,
+            ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->json('data.id');
+
+        $item->update(['nombre' => 'Film modificado en otra sesión']);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/administracion/materiales/importaciones/{$importacionId}/confirmar")
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath(
+                'message',
+                'El catálogo cambió después de la previsualización para el ítem FILM-01. Vuelve a previsualizar la planilla.',
+            );
+
+        $this->assertDatabaseHas('items_materiales', [
+            'id' => $item->id,
+            'nombre' => 'Film modificado en otra sesión',
+            'origen_sistema' => 'manual',
+        ]);
+        $this->assertDatabaseHas('importaciones_catalogo_materiales', [
+            'id' => $importacionId,
+            'estado' => 'borrador',
+            'confirmado_por_user_id' => null,
+        ]);
+    }
+
+    public function test_previsualizacion_rechaza_planilla_con_mas_de_cinco_mil_filas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $filas = ["codigo;nombre;unidad_medida"];
+
+        for ($indice = 1; $indice <= 5001; $indice++) {
+            $filas[] = "ITEM-{$indice};Material {$indice};unidad";
+        }
+
+        $this->actingAs($administrador, 'sanctum')
+            ->post('/api/administracion/materiales/importaciones/previsualizar', [
+                'archivo' => UploadedFile::fake()->createWithContent('catalogo-grande.csv', implode("\n", $filas)),
+            ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath('message', 'La planilla supera el máximo de 5.000 filas permitidas.');
+
+        $this->assertDatabaseCount('importaciones_catalogo_materiales', 0);
+        $this->assertDatabaseCount('items_materiales', 0);
     }
 
     public function test_lector_admite_planilla_xlsx_del_catalogo(): void

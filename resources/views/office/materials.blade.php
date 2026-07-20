@@ -32,7 +32,7 @@
             <header class="office-topbar">
                 <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">▦</span><span><strong>ESTIBA WMS</strong><small>MATERIALES</small></span></div>
                 <nav aria-label="Módulos de oficina">
-                    <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a><a id="officeLoadsNav" href="/oficina/cargas">Cargas</a><a class="is-active" href="/oficina/materiales">Materiales</a><a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
+                    <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a><a id="officeLoadsNav" href="/oficina/cargas">Cargas</a><a class="is-active" href="/oficina/materiales">Materiales</a><a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a><a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity"><span class="identity__avatar" id="officeInitials">MT</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
             </header>
@@ -116,7 +116,7 @@
             <form class="materials-import__form" id="materialImportForm">
                 <label><span>Planilla CSV o XLSX *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
                 <div class="materials-import__actions"><button class="secondary-button" id="downloadMaterialTemplate" type="button">Descargar plantilla CSV</button><button class="primary-button" type="submit">Previsualizar</button></div>
-                <p class="materials-import__help">Columnas: código, nombre, categoría, unidad_medida, código_externo y activo. Los campos opcionales vacíos no borran datos existentes.</p>
+                <p class="materials-import__help">Columnas: código, nombre, categoría, unidad_medida, código_externo y activo. Máximo 5.000 filas. Los campos opcionales vacíos no borran datos existentes.</p>
                 <p class="form-error" id="materialImportError" role="alert"></p>
             </form>
             <section class="materials-import__preview is-hidden" id="materialImportPreview">

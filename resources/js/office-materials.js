@@ -3,7 +3,7 @@ const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
     loginError: byId('officeLoginError'), userName: byId('officeUserName'), userRole: byId('officeUserRole'),
     initials: byId('officeInitials'), logout: byId('officeLogoutButton'), camerasNav: byId('officeCamerasNav'),
-    loadsNav: byId('officeLoadsNav'), accessesNav: byId('officeAccessesNav'),
+    loadsNav: byId('officeLoadsNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadMaterialsButton'), admin: byId('materialsAdminCatalogs'), itemForm: byId('itemMaterialForm'),
     itemError: byId('itemMaterialError'), itemCancel: byId('cancelItemEdit'), itemList: byId('itemsMaterialList'),
     destinationForm: byId('destinationMaterialForm'), destinationError: byId('destinationMaterialError'),
@@ -66,6 +66,7 @@ function showApp() {
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
     elements.loadsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cargas !== true);
+    elements.prefrioNav.classList.toggle('is-hidden', state.identity?.puede_consultar_prefrio !== true);
     elements.admin.classList.toggle('is-hidden', state.identity?.puede_administrar_catalogos_materiales !== true);
     elements.dispatchForm.classList.toggle(
         'is-hidden',

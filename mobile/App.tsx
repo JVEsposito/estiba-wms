@@ -6,13 +6,14 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthSession, LoginPayload } from './src/domain/estiba';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
+import { PrefrioScreen } from './src/screens/PrefrioScreen';
 import { ValidationScreen } from './src/screens/ValidationScreen';
 import { loadApiBaseUrl, saveApiBaseUrl } from './src/services/apiConfiguration';
 import { applyAvailableUpdate } from './src/services/appUpdates';
 import { createEstibaApi } from './src/services/estibaApi';
 import { colors } from './src/theme/colors';
 
-type MobileModule = 'operacion' | 'validacion';
+type MobileModule = 'operacion' | 'validacion' | 'prefrio';
 
 export default function App() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -47,12 +48,12 @@ export default function App() {
     setActiveModule(null);
   }
 
-  async function logoutValidation() {
+  async function logoutPersistentModule() {
     if (auth) {
       try {
         await api.logout(auth.token);
       } catch {
-        // La bandeja local permanece guardada aunque el servidor no responda.
+        // Las bandejas locales permanecen guardadas aunque el servidor no responda.
       }
     }
     clearSession();
@@ -73,7 +74,7 @@ export default function App() {
           <View style={styles.workspace}>
             {modules.length > 1 && activeModule ? (
               <View style={styles.moduleStrip}>
-                <Text style={styles.moduleStripText}>Módulo activo: {activeModule === 'validacion' ? 'Validación' : 'Operación frigorífico'}</Text>
+                <Text style={styles.moduleStripText}>Módulo activo: {moduleLabel(activeModule)}</Text>
                 <Pressable onPress={() => setActiveModule(null)} style={styles.changeModule}>
                   <Text style={styles.changeModuleText}>Cambiar módulo</Text>
                 </Pressable>
@@ -89,7 +90,13 @@ export default function App() {
               <ValidationScreen
                 auth={auth}
                 baseUrl={api.baseUrl}
-                onLogout={() => void logoutValidation()}
+                onLogout={() => void logoutPersistentModule()}
+              />
+            ) : activeModule === 'prefrio' ? (
+              <PrefrioScreen
+                auth={auth}
+                baseUrl={api.baseUrl}
+                onLogout={() => void logoutPersistentModule()}
               />
             ) : (
               <OperationalScreen api={api} auth={auth} onLogout={clearSession} />
@@ -119,6 +126,7 @@ function availableModules(auth: AuthSession): MobileModule[] {
 
   if (canOperate) modules.push('operacion');
   if (capabilities.puede_validar_pallets) modules.push('validacion');
+  if (capabilities.puede_consultar_prefrio) modules.push('prefrio');
 
   return modules;
 }
@@ -126,6 +134,14 @@ function availableModules(auth: AuthSession): MobileModule[] {
 function defaultModule(auth: AuthSession): MobileModule | null {
   const modules = availableModules(auth);
   return modules.length === 1 ? modules[0] : null;
+}
+
+function moduleLabel(module: MobileModule) {
+  return module === 'validacion'
+    ? 'Validación'
+    : module === 'prefrio'
+      ? 'Prefrío'
+      : 'Operación frigorífico';
 }
 
 function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModule[]; onSelect: (module: MobileModule) => void; userName: string }) {
@@ -140,6 +156,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorIcon}>✓</Text>
             <Text style={styles.selectorCardTitle}>Validación</Text>
             <Text style={styles.selectorCardCopy}>Escanear pallets, aprobar, observar y sincronizar capturas.</Text>
+          </Pressable>
+        ) : null}
+        {modules.includes('prefrio') ? (
+          <Pressable onPress={() => onSelect('prefrio')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>◫</Text>
+            <Text style={styles.selectorCardTitle}>Prefrío</Text>
+            <Text style={styles.selectorCardCopy}>Cargar túneles, iniciar procesos, registrar eventos y enviar a verificación.</Text>
           </Pressable>
         ) : null}
         {modules.includes('operacion') ? (
@@ -168,7 +191,7 @@ const styles = StyleSheet.create({
   selectorEyebrow: { color: colors.cyan, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
   selectorTitle: { color: colors.text, fontSize: 28, fontWeight: '900', marginTop: 7, textAlign: 'center' },
   selectorCopy: { color: colors.muted, marginTop: 8, textAlign: 'center' },
-  selectorCards: { width: '100%', maxWidth: 920, flexDirection: 'row', gap: 16, marginTop: 28 },
+  selectorCards: { width: '100%', maxWidth: 1120, flexDirection: 'row', gap: 16, marginTop: 28 },
   selectorCard: { flex: 1, minHeight: 220, justifyContent: 'center', padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.panel },
   selectorIcon: { color: colors.cyan, fontSize: 34, fontWeight: '900' },
   selectorCardTitle: { color: colors.text, fontSize: 21, fontWeight: '900', marginTop: 14 },

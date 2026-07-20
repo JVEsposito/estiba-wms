@@ -35,7 +35,8 @@ identidad interna del registro.
 
 El administrador puede cargar ítems desde `/oficina/materiales` usando una
 planilla CSV o XLSX. La plantilla admite las columnas `codigo`, `nombre`,
-`categoria`, `unidad_medida`, `codigo_externo` y `activo`.
+`categoria`, `unidad_medida`, `codigo_externo` y `activo`, con un máximo de
+5.000 filas de datos por archivo.
 
 La carga se ejecuta en dos etapas:
 
@@ -46,7 +47,10 @@ La importación solo modifica `items_materiales`: no crea folios, cantidades,
 reservas ni movimientos. Un ítem ausente de la planilla conserva su estado y
 los campos opcionales vacíos no borran datos existentes. Tampoco se permite
 cambiar la unidad de medida cuando el ítem ya tiene folios asociados. Cada
-intento guarda archivo, resumen, usuario y fecha de confirmación para auditoría.
+intento guarda el nombre y checksum del archivo, las filas procesadas, el
+resumen, el usuario y la fecha de confirmación para auditoría. El archivo
+original no se conserva. Si el catálogo cambia entre la previsualización y la
+confirmación, la operación se rechaza y exige una nueva previsualización.
 
 ## Despacho por cantidades
 
