@@ -183,7 +183,7 @@ class ServicioImportacionValidacion
                         'codigo' => $fila['csg'],
                     ]),
                     [
-                        'predio' => $fila['predio'] ?: null,
+                        'predio' => $fila['predio'] ?: $csg->predio,
                         'activo' => true,
                     ],
                     'csg',
