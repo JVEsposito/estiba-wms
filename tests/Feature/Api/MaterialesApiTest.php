@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\Camara;
+use App\Models\ClienteMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
 use App\Models\FolioMaterial;
@@ -25,14 +26,39 @@ class MaterialesApiTest extends TestCase
         [$administrador, $tokenOficina] = $this->crearAdministrador();
         [, , $tokenTablet] = $this->crearOperador();
 
+        $temporadaId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/temporadas', [
+                'codigo' => ' 2026-2027 ',
+                'nombre' => ' Temporada materiales 2026-2027 ',
+                'fecha_inicio' => '2026-07-01',
+                'fecha_fin' => '2027-06-30',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', '2026-2027')
+            ->assertJsonPath('data.activa', true)
+            ->json('data.id');
+
+        $clienteId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/clientes', [
+                'temporada_material_id' => $temporadaId,
+                'codigo' => ' cli-001 ',
+                'nombre' => ' Exportadora del Sur ',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', 'CLI-001')
+            ->json('data.id');
+
         $itemId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/items', [
+                'cliente_material_id' => $clienteId,
                 'codigo' => '  film-01 ',
                 'nombre' => ' Film stretch ',
                 'categoria' => 'Embalaje',
                 'unidad_medida' => 'ROLLOS',
             ])
             ->assertCreated()
+            ->assertJsonPath('data.cliente.codigo', 'CLI-001')
             ->assertJsonPath('data.codigo', 'FILM-01')
             ->assertJsonPath('data.unidad_medida', 'rollos')
             ->json('data.id');
@@ -50,11 +76,14 @@ class MaterialesApiTest extends TestCase
         $this->conToken($tokenTablet)
             ->getJson('/api/materiales/catalogo')
             ->assertOk()
+            ->assertJsonPath('temporada.id', $temporadaId)
+            ->assertJsonPath('clientes.0.id', $clienteId)
             ->assertJsonPath('items.0.id', $itemId)
             ->assertJsonPath('destinos.0.id', $destinoId);
 
         $this->conToken($tokenTablet)
             ->postJson('/api/administracion/materiales/items', [
+                'cliente_material_id' => $clienteId,
                 'codigo' => 'NO-AUTORIZADO',
                 'nombre' => 'No autorizado',
                 'unidad_medida' => 'unidad',
@@ -62,6 +91,114 @@ class MaterialesApiTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame($administrador->id, ItemMaterial::findOrFail($itemId)->creado_por_user_id);
+    }
+
+    public function test_el_codigo_de_item_es_unico_por_cliente_y_no_global(): void
+    {
+        [, $tokenOficina] = $this->crearAdministrador();
+        $temporadaId = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->temporada_material_id;
+        $clientes = collect(['CLI-NORTE', 'CLI-SUR'])->map(fn (string $codigo): string => $this
+            ->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/clientes', [
+                'temporada_material_id' => $temporadaId,
+                'codigo' => $codigo,
+                'nombre' => 'Cliente '.$codigo,
+            ])
+            ->assertCreated()
+            ->json('data.id'));
+
+        foreach ($clientes as $clienteId) {
+            $this->conToken($tokenOficina)
+                ->postJson('/api/administracion/materiales/items', [
+                    'cliente_material_id' => $clienteId,
+                    'codigo' => 'CAJA-5KG',
+                    'nombre' => 'Caja cartón 5 kg',
+                    'unidad_medida' => 'unidades',
+                ])
+                ->assertCreated();
+        }
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/items', [
+                'cliente_material_id' => $clientes->first(),
+                'codigo' => 'CAJA-5KG',
+                'nombre' => 'Caja duplicada',
+                'unidad_medida' => 'unidades',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertSame(2, ItemMaterial::query()->where('codigo', 'CAJA-5KG')->count());
+    }
+
+    public function test_activar_temporada_material_desactiva_la_anterior_y_filtra_el_catalogo_operacional(): void
+    {
+        [, $tokenOficina] = $this->crearAdministrador();
+        $temporadaAnteriorId = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->temporada_material_id;
+        $temporadaNuevaId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/temporadas', [
+                'codigo' => '2027-2028',
+                'nombre' => 'Temporada materiales 2027-2028',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $clienteId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/clientes', [
+                'temporada_material_id' => $temporadaNuevaId,
+                'codigo' => 'CLI-001',
+                'nombre' => 'Cliente temporada nueva',
+            ])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/items', [
+                'cliente_material_id' => $clienteId,
+                'codigo' => 'CAJA-5KG',
+                'nombre' => 'Caja temporada nueva',
+                'unidad_medida' => 'unidades',
+            ])
+            ->assertCreated();
+
+        $this->assertDatabaseHas('temporadas_materiales', ['id' => $temporadaAnteriorId, 'activa' => false]);
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/catalogo')
+            ->assertOk()
+            ->assertJsonPath('temporada.id', $temporadaNuevaId)
+            ->assertJsonPath('clientes.0.id', $clienteId)
+            ->assertJsonPath('items.0.codigo', 'CAJA-5KG')
+            ->assertJsonMissing(['codigo' => 'GENERAL']);
+    }
+
+    public function test_no_permite_ingresar_nuevo_material_con_item_de_temporada_inactiva(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $itemAnterior = $this->crearItem($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/materiales/temporadas', [
+                'codigo' => '2028-2029',
+                'nombre' => 'Temporada materiales 2028-2029',
+                'activa' => true,
+            ])
+            ->assertCreated();
+
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $posicion,
+                $sesion,
+                $itemAnterior,
+                'MAT-TEMPORADA-ANTERIOR',
+                0,
+                10,
+            ))
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-TEMPORADA-ANTERIOR']);
     }
 
     public function test_ubica_material_solo_en_su_tipo_de_camara_y_crea_kardex_de_ingreso(): void
@@ -501,6 +638,7 @@ class MaterialesApiTest extends TestCase
     private function crearItem(User $usuario): ItemMaterial
     {
         return ItemMaterial::create([
+            'cliente_material_id' => ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->id,
             'codigo' => 'FILM-01',
             'nombre' => 'Film stretch',
             'categoria' => 'Embalaje',

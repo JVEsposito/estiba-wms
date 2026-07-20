@@ -885,6 +885,9 @@ class ServicioMovimientoEstiba
         $item = ItemMaterial::query()
             ->whereKey($datos['item_material_id'] ?? null)
             ->where('activo', true)
+            ->whereHas('cliente', fn ($consulta) => $consulta
+                ->where('activo', true)
+                ->whereHas('temporada', fn ($temporadas) => $temporadas->where('activa', true)))
             ->lockForUpdate()
             ->first();
         $cantidad = round((float) ($datos['cantidad'] ?? 0), 3);

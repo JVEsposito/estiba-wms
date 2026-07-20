@@ -54,6 +54,18 @@ class PosicionPlanoResource extends JsonResource
                 'material' => $folio->relationLoaded('material') && $folio->material ? [
                     'item' => [
                         'id' => $folio->material->item->id,
+                        'cliente' => [
+                            'id' => $folio->material->item->cliente->id,
+                            'temporada' => [
+                                'id' => $folio->material->item->cliente->temporada->id,
+                                'codigo' => $folio->material->item->cliente->temporada->codigo,
+                                'nombre' => $folio->material->item->cliente->temporada->nombre,
+                                'activa' => $folio->material->item->cliente->temporada->activa,
+                            ],
+                            'codigo' => $folio->material->item->cliente->codigo,
+                            'nombre' => $folio->material->item->cliente->nombre,
+                            'activo' => $folio->material->item->cliente->activo,
+                        ],
                         'codigo' => $folio->material->item->codigo,
                         'nombre' => $folio->material->item->nombre,
                         'categoria' => $folio->material->item->categoria,

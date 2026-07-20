@@ -169,6 +169,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/andenes/{anden}', [AndenController::class, 'update']);
     });
     Route::middleware('can:administrar-catalogos-materiales')->group(function () {
+        Route::get('/administracion/materiales/temporadas', [CatalogoMaterialController::class, 'temporadas']);
+        Route::post('/administracion/materiales/temporadas', [CatalogoMaterialController::class, 'storeTemporada']);
+        Route::put('/administracion/materiales/temporadas/{temporadaMaterial}', [CatalogoMaterialController::class, 'updateTemporada']);
+        Route::post('/administracion/materiales/temporadas/{temporadaMaterial}/activar', [CatalogoMaterialController::class, 'activarTemporada']);
+        Route::get('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'clientes']);
+        Route::post('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'storeCliente']);
+        Route::put('/administracion/materiales/clientes/{clienteMaterial}', [CatalogoMaterialController::class, 'updateCliente']);
         Route::get('/administracion/materiales/importaciones', [ImportacionCatalogoMaterialController::class, 'index']);
         Route::post('/administracion/materiales/importaciones/previsualizar', [ImportacionCatalogoMaterialController::class, 'previsualizar']);
         Route::post('/administracion/materiales/importaciones/{importacionCatalogoMaterial}/confirmar', [ImportacionCatalogoMaterialController::class, 'confirmar']);

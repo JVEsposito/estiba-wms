@@ -103,6 +103,7 @@ class ServicioDespachoMaterial
                 $item = ItemMaterial::query()
                     ->whereKey($linea['item_material_id'])
                     ->where('activo', true)
+                    ->whereHas('cliente', fn ($consulta) => $consulta->where('activo', true))
                     ->lockForUpdate()
                     ->first();
 
@@ -443,7 +444,7 @@ class ServicioDespachoMaterial
             'dispositivo:id,codigo,nombre',
             'canceladoPor:id,name',
             'dispositivoCancelacion:id,codigo,nombre',
-            'detalles.item',
+            'detalles.item.cliente.temporada',
             'detalles.reservas' => fn ($consulta) => $consulta
                 ->where('estado', EstadoReservaMaterial::Activa->value)
                 ->orderBy('orden_fifo'),

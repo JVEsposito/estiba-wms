@@ -17,6 +17,8 @@ class LectorPlanillaMaterial extends LectorPlanillaValidacion
             ->toString();
 
         return match ($normalizada) {
+            'temporada', 'temporada_codigo', 'codigo_temporada' => 'temporada_codigo',
+            'cliente', 'cliente_codigo', 'codigo_cliente' => 'cliente_codigo',
             'codigo', 'codigo_item', 'item', 'sku' => 'codigo',
             'nombre', 'descripcion', 'descripcion_item', 'formato' => 'nombre',
             'categoria', 'familia', 'grupo' => 'categoria',

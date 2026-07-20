@@ -44,6 +44,8 @@
                 </header>
 
                 <div class="materials-metrics">
+                    <article><span>TEMPORADA ACTIVA</span><strong id="materialsSeasonActive">—</strong></article>
+                    <article><span>CLIENTES ACTIVOS</span><strong id="materialsClientCount">0</strong></article>
                     <article><span>ÍTEMS ACTIVOS</span><strong id="materialsItemCount">0</strong></article>
                     <article><span>FOLIOS CON SALDO</span><strong id="materialsFolioCount">0</strong></article>
                     <article><span>DESPACHOS ABIERTOS</span><strong id="materialsDispatchCount">0</strong></article>
@@ -52,10 +54,46 @@
 
                 <div class="materials-admin-grid" id="materialsAdminCatalogs">
                     <section class="panel materials-panel">
+                        <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADAS</p><h2>Ciclo de materiales</h2></div><span id="seasonsSummary">0 registradas</span></div>
+                        <label class="materials-season-selector"><span>Temporada seleccionada</span><select id="materialSeasonSelector"></select></label>
+                        <form class="materials-form" id="seasonMaterialForm" novalidate>
+                            <input name="id" type="hidden">
+                            <div class="materials-form__grid">
+                                <label><span>Código *</span><input name="codigo" maxlength="30" placeholder="2026-2027" required></label>
+                                <label><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada materiales 2026–2027" required></label>
+                                <label><span>Fecha inicial</span><input name="fecha_inicio" type="date"></label>
+                                <label><span>Fecha final</span><input name="fecha_fin" type="date"></label>
+                                <label class="materials-check"><input name="activa" type="checkbox"><span>Dejar como temporada activa</span></label>
+                            </div>
+                            <p class="form-error" id="seasonMaterialError" role="alert"></p>
+                            <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelSeasonEdit" type="button">Nueva temporada</button><button class="primary-button" type="submit">Guardar temporada</button></div>
+                        </form>
+                        <div class="materials-list" id="seasonsMaterialList"></div>
+                    </section>
+
+                    <section class="panel materials-panel">
+                        <div class="materials-panel__heading"><div><p class="eyebrow">JERARQUÍA</p><h2>Clientes de bodega</h2></div><span id="clientsSummary">0 registrados</span></div>
+                        <form class="materials-form" id="clientMaterialForm" novalidate>
+                            <input name="id" type="hidden">
+                            <input name="temporada_material_id" type="hidden">
+                            <div class="materials-form__grid">
+                                <label><span>Código *</span><input name="codigo" maxlength="80" placeholder="CLI-001" required></label>
+                                <label><span>Nombre *</span><input name="nombre" maxlength="180" placeholder="Exportadora del Sur" required></label>
+                                <label><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
+                                <label class="materials-check"><input name="activo" type="checkbox" checked><span>Cliente activo</span></label>
+                            </div>
+                            <p class="form-error" id="clientMaterialError" role="alert"></p>
+                            <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelClientEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar cliente</button></div>
+                        </form>
+                        <div class="materials-list" id="clientsMaterialList"></div>
+                    </section>
+
+                    <section class="panel materials-panel">
                         <div class="materials-panel__heading"><div><p class="eyebrow">CATÁLOGO</p><h2>Ítems seleccionables</h2></div><div class="materials-panel__tools"><span id="itemsSummary">0 registrados</span><button class="secondary-button" id="openMaterialImport" type="button">Importar catálogo</button></div></div>
                         <form class="materials-form" id="itemMaterialForm" novalidate>
                             <input name="id" type="hidden">
                             <div class="materials-form__grid">
+                                <label><span>Cliente *</span><select name="cliente_material_id" required></select></label>
                                 <label><span>Código *</span><input name="codigo" maxlength="80" placeholder="MAT-CAJ-010" required></label>
                                 <label><span>Descripción *</span><input name="nombre" maxlength="180" placeholder="Caja cartón 10 kg" required></label>
                                 <label><span>Categoría</span><input name="categoria" maxlength="100" placeholder="Cajas"></label>
@@ -116,13 +154,13 @@
             <form class="materials-import__form" id="materialImportForm">
                 <label><span>Planilla CSV o XLSX *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
                 <div class="materials-import__actions"><button class="secondary-button" id="downloadMaterialTemplate" type="button">Descargar plantilla CSV</button><button class="primary-button" type="submit">Previsualizar</button></div>
-                <p class="materials-import__help">Columnas: código, nombre, categoría, unidad_medida, código_externo y activo. Máximo 5.000 filas. Los campos opcionales vacíos no borran datos existentes.</p>
+                <p class="materials-import__help">Columnas: temporada_codigo, cliente_codigo, código, nombre, categoría, unidad_medida, código_externo y activo. La temporada y el cliente deben existir previamente. Máximo 5.000 filas.</p>
                 <p class="form-error" id="materialImportError" role="alert"></p>
             </form>
             <section class="materials-import__preview is-hidden" id="materialImportPreview">
                 <div class="materials-import__metrics" id="materialImportMetrics"></div>
                 <div class="materials-import__errors is-hidden" id="materialImportErrors"></div>
-                <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Unidad</th><th>Acción</th></tr></thead><tbody id="materialImportRows"></tbody></table></div>
+                <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Fila</th><th>Temporada</th><th>Cliente</th><th>Código</th><th>Nombre</th><th>Unidad</th><th>Acción</th></tr></thead><tbody id="materialImportRows"></tbody></table></div>
                 <div class="materials-import__confirm"><p id="materialImportConfirmationHelp"></p><button class="primary-button" id="confirmMaterialImport" type="button">Confirmar importación</button></div>
             </section>
             <section class="materials-import__history"><div class="materials-panel__heading"><div><p class="eyebrow">AUDITORÍA</p><h3>Importaciones recientes</h3></div></div><div id="materialImportHistory"></div></section>

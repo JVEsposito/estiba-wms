@@ -2,8 +2,10 @@
 
 namespace App\Services\Materiales;
 
+use App\Models\ClienteMaterial;
 use App\Models\ImportacionCatalogoMaterial;
 use App\Models\ItemMaterial;
+use App\Models\TemporadaMaterial;
 use App\Models\User;
 use DomainException;
 use Illuminate\Http\UploadedFile;
@@ -26,6 +28,16 @@ class ServicioImportacionCatalogoMaterial
             throw new DomainException('La planilla supera el máximo de 5.000 filas permitidas.');
         }
 
+        $codigosTemporadas = collect($filasLeidas)
+            ->map(fn (array $fila): string => mb_strtoupper($this->texto($fila['temporada_codigo'] ?? '')))
+            ->filter()
+            ->unique()
+            ->values();
+        $codigosClientes = collect($filasLeidas)
+            ->map(fn (array $fila): string => mb_strtoupper($this->texto($fila['cliente_codigo'] ?? '')))
+            ->filter()
+            ->unique()
+            ->values();
         $codigos = collect($filasLeidas)
             ->map(fn (array $fila): string => mb_strtoupper($this->texto($fila['codigo'] ?? '')))
             ->filter()
@@ -37,15 +49,36 @@ class ServicioImportacionCatalogoMaterial
             ->unique()
             ->values();
 
+        $temporadasPorCodigo = TemporadaMaterial::query()
+            ->whereIn('codigo', $codigosTemporadas)
+            ->get()
+            ->keyBy(fn (TemporadaMaterial $temporada): string => mb_strtolower($temporada->codigo));
+        $clientesPorCodigo = ClienteMaterial::query()
+            ->whereIn('temporada_material_id', $temporadasPorCodigo->pluck('id'))
+            ->whereIn('codigo', $codigosClientes)
+            ->get()
+            ->keyBy(fn (ClienteMaterial $cliente): string => $this->claveItem(
+                $cliente->temporada_material_id,
+                $cliente->codigo,
+            ));
+        $clienteIds = $clientesPorCodigo->pluck('id');
         $existentesPorCodigo = ItemMaterial::query()
             ->withCount('foliosMateriales')
+            ->whereIn('cliente_material_id', $clienteIds)
             ->whereIn('codigo', $codigos)
             ->get()
-            ->keyBy(fn (ItemMaterial $item): string => mb_strtolower($item->codigo));
+            ->keyBy(fn (ItemMaterial $item): string => $this->claveItem(
+                $item->cliente_material_id,
+                $item->codigo,
+            ));
         $existentesPorExterno = ItemMaterial::query()
+            ->whereIn('cliente_material_id', $clienteIds)
             ->whereIn('codigo_externo', $codigosExternos)
             ->get()
-            ->keyBy(fn (ItemMaterial $item): string => mb_strtolower((string) $item->codigo_externo));
+            ->keyBy(fn (ItemMaterial $item): string => $this->claveItem(
+                $item->cliente_material_id,
+                (string) $item->codigo_externo,
+            ));
 
         $filas = [];
         $errores = [];
@@ -55,8 +88,32 @@ class ServicioImportacionCatalogoMaterial
         foreach ($filasLeidas as $filaLeida) {
             $fila = $this->normalizarFila($filaLeida);
             $mensajes = $this->validarFila($fila);
-            $claveCodigo = mb_strtolower((string) $fila['codigo']);
-            $claveExterno = mb_strtolower((string) ($fila['codigo_externo'] ?? ''));
+            /** @var TemporadaMaterial|null $temporada */
+            $temporada = $temporadasPorCodigo->get(mb_strtolower((string) $fila['temporada_codigo']));
+            /** @var ClienteMaterial|null $cliente */
+            $cliente = $temporada
+                ? $clientesPorCodigo->get($this->claveItem($temporada->id, (string) $fila['cliente_codigo']))
+                : null;
+
+            if ($fila['temporada_codigo'] !== '' && ! $temporada) {
+                $mensajes[] = 'La temporada no existe en el catálogo de materiales.';
+            }
+            if ($temporada && $fila['cliente_codigo'] !== '' && ! $cliente) {
+                $mensajes[] = 'El cliente no existe dentro de la temporada indicada.';
+            } elseif ($cliente && ! $cliente->activo) {
+                $mensajes[] = 'El cliente se encuentra inactivo.';
+            }
+
+            $fila['temporada_material_id'] = $temporada?->id;
+            $fila['temporada_nombre'] = $temporada?->nombre;
+            $fila['cliente_material_id'] = $cliente?->id;
+            $fila['cliente_nombre'] = $cliente?->nombre;
+            $claveCodigo = $cliente
+                ? $this->claveItem($cliente->id, (string) $fila['codigo'])
+                : '';
+            $claveExterno = $cliente && ($fila['codigo_externo'] ?? null)
+                ? $this->claveItem($cliente->id, (string) $fila['codigo_externo'])
+                : '';
 
             if ($claveCodigo !== '' && isset($codigosVistos[$claveCodigo])) {
                 $mensajes[] = sprintf('El código ya fue declarado en la fila %d.', $codigosVistos[$claveCodigo]);
@@ -71,7 +128,7 @@ class ServicioImportacionCatalogoMaterial
             }
 
             /** @var ItemMaterial|null $existente */
-            $existente = $existentesPorCodigo->get($claveCodigo);
+            $existente = $claveCodigo === '' ? null : $existentesPorCodigo->get($claveCodigo);
             /** @var ItemMaterial|null $duenoCodigoExterno */
             $duenoCodigoExterno = $claveExterno === '' ? null : $existentesPorExterno->get($claveExterno);
 
@@ -144,7 +201,34 @@ class ServicioImportacionCatalogoMaterial
             $sinCambios = 0;
 
             foreach ($importacion->filas as $fila) {
+                $temporada = TemporadaMaterial::query()
+                    ->whereKey($fila['temporada_material_id'])
+                    ->where('codigo', $fila['temporada_codigo'])
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $temporada) {
+                    throw new DomainException(
+                        'La temporada '.$fila['temporada_codigo'].' cambió después de la previsualización.',
+                    );
+                }
+
+                $cliente = ClienteMaterial::query()
+                    ->whereKey($fila['cliente_material_id'])
+                    ->where('temporada_material_id', $temporada->id)
+                    ->where('codigo', $fila['cliente_codigo'])
+                    ->where('activo', true)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $cliente) {
+                    throw new DomainException(
+                        'El cliente '.$fila['cliente_codigo'].' cambió o fue desactivado después de la previsualización.',
+                    );
+                }
+
                 $item = ItemMaterial::query()
+                    ->where('cliente_material_id', $cliente->id)
                     ->where('codigo', $fila['codigo'])
                     ->lockForUpdate()
                     ->first();
@@ -161,6 +245,7 @@ class ServicioImportacionCatalogoMaterial
 
                 if (($fila['codigo_externo'] ?? null) !== null) {
                     $codigoExternoOcupado = ItemMaterial::query()
+                        ->where('cliente_material_id', $cliente->id)
                         ->where('codigo_externo', $fila['codigo_externo'])
                         ->when($item, fn ($consulta) => $consulta->where('id', '!=', $item->id))
                         ->lockForUpdate()
@@ -174,7 +259,10 @@ class ServicioImportacionCatalogoMaterial
                 }
 
                 $nuevo = $item === null;
-                $item ??= new ItemMaterial(['codigo' => $fila['codigo']]);
+                $item ??= new ItemMaterial([
+                    'cliente_material_id' => $cliente->id,
+                    'codigo' => $fila['codigo'],
+                ]);
                 $datos = [
                     'nombre' => $fila['nombre'],
                     'unidad_medida' => $fila['unidad_medida'],
@@ -236,6 +324,8 @@ class ServicioImportacionCatalogoMaterial
     {
         return [
             'fila' => (int) $fila['fila'],
+            'temporada_codigo' => mb_strtoupper($this->texto($fila['temporada_codigo'] ?? '')),
+            'cliente_codigo' => mb_strtoupper($this->texto($fila['cliente_codigo'] ?? '')),
             'codigo' => mb_strtoupper($this->texto($fila['codigo'] ?? '')),
             'nombre' => $this->texto($fila['nombre'] ?? ''),
             'categoria' => $this->opcional($fila['categoria'] ?? ''),
@@ -254,6 +344,18 @@ class ServicioImportacionCatalogoMaterial
     {
         $errores = [];
 
+        if ($fila['temporada_codigo'] === '') {
+            $errores[] = 'Falta el código de la temporada.';
+        } elseif (mb_strlen((string) $fila['temporada_codigo']) > 30
+            || preg_match('/^[A-Z0-9][A-Z0-9._-]*$/', (string) $fila['temporada_codigo']) !== 1) {
+            $errores[] = 'El código de la temporada debe usar hasta 30 caracteres: letras, números, punto, guion o guion bajo.';
+        }
+        if ($fila['cliente_codigo'] === '') {
+            $errores[] = 'Falta el código del cliente.';
+        } elseif (mb_strlen((string) $fila['cliente_codigo']) > 80
+            || preg_match('/^[A-Z0-9][A-Z0-9._-]*$/', (string) $fila['cliente_codigo']) !== 1) {
+            $errores[] = 'El código del cliente debe usar hasta 80 caracteres: letras, números, punto, guion o guion bajo.';
+        }
         if ($fila['codigo'] === '') {
             $errores[] = 'Falta el código.';
         } elseif (mb_strlen((string) $fila['codigo']) > 80
@@ -328,6 +430,7 @@ class ServicioImportacionCatalogoMaterial
     {
         return hash('sha256', json_encode([
             'id' => (string) $item->id,
+            'cliente_material_id' => $item->cliente_material_id,
             'codigo' => $item->codigo,
             'nombre' => $item->nombre,
             'categoria' => $item->categoria,
@@ -340,6 +443,11 @@ class ServicioImportacionCatalogoMaterial
     private function texto(mixed $valor): string
     {
         return Str::of((string) $valor)->squish()->toString();
+    }
+
+    private function claveItem(string $clienteId, string $codigo): string
+    {
+        return mb_strtolower($clienteId.'|'.$codigo);
     }
 
     private function opcional(mixed $valor): ?string

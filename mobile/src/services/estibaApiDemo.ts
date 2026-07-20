@@ -242,7 +242,7 @@ export class DemoEstibaApi implements EstibaApi {
   }
 
   async getMaterialCatalog(): Promise<MaterialCatalog> {
-    return { items: [], destinos: [] };
+    return { temporada: null, clientes: [], items: [], destinos: [] };
   }
 
   async listMaterialDispatches(

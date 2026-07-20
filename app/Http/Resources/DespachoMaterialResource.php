@@ -42,6 +42,18 @@ class DespachoMaterialResource extends JsonResource
                         'detalle_id' => $detalle->id,
                         'item' => [
                             'id' => $detalle->item->id,
+                            'cliente' => [
+                                'id' => $detalle->item->cliente->id,
+                                'temporada' => [
+                                    'id' => $detalle->item->cliente->temporada->id,
+                                    'codigo' => $detalle->item->cliente->temporada->codigo,
+                                    'nombre' => $detalle->item->cliente->temporada->nombre,
+                                    'activa' => $detalle->item->cliente->temporada->activa,
+                                ],
+                                'codigo' => $detalle->item->cliente->codigo,
+                                'nombre' => $detalle->item->cliente->nombre,
+                                'activo' => $detalle->item->cliente->activo,
+                            ],
                             'codigo' => $detalle->item->codigo,
                             'nombre' => $detalle->item->nombre,
                             'categoria' => $detalle->item->categoria,
