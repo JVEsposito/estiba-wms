@@ -27,7 +27,7 @@ class CatalogoJerarquicoValidacionController extends Controller
 
     public function storeCliente(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarCliente($this->datosRaiz($request)));
+        return $this->creado($servicio->guardarCliente($this->datosRaiz($request, 150)));
     }
 
     public function updateCliente(
@@ -36,14 +36,14 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarCliente(
-            $this->datosRaiz($request),
+            $this->datosRaiz($request, 150),
             $clienteValidacion,
         )]);
     }
 
     public function storeMarca(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarMarca($this->datosHijo($request, 'cliente_validacion_id', 'clientes_validacion')));
+        return $this->creado($servicio->guardarMarca($this->datosHijo($request, 'cliente_validacion_id', 'clientes_validacion', 150)));
     }
 
     public function updateMarca(
@@ -52,14 +52,14 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarMarca(
-            $this->datosHijo($request, 'cliente_validacion_id', 'clientes_validacion'),
+            $this->datosHijo($request, 'cliente_validacion_id', 'clientes_validacion', 150),
             $marcaValidacion,
         )]);
     }
 
     public function storeEspecie(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarEspecie($this->datosRaiz($request)));
+        return $this->creado($servicio->guardarEspecie($this->datosRaiz($request, 100)));
     }
 
     public function updateEspecie(
@@ -68,14 +68,14 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarEspecie(
-            $this->datosRaiz($request),
+            $this->datosRaiz($request, 100),
             $especieValidacion,
         )]);
     }
 
     public function storeVariedad(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarVariedad($this->datosHijoEspecie($request)));
+        return $this->creado($servicio->guardarVariedad($this->datosHijoEspecie($request, 100)));
     }
 
     public function updateVariedad(
@@ -84,14 +84,14 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarVariedad(
-            $this->datosHijoEspecie($request),
+            $this->datosHijoEspecie($request, 100),
             $variedadValidacion,
         )]);
     }
 
     public function storeCalibre(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarCalibre($this->datosHijoEspecie($request)));
+        return $this->creado($servicio->guardarCalibre($this->datosHijoEspecie($request, 50)));
     }
 
     public function updateCalibre(
@@ -100,14 +100,14 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarCalibre(
-            $this->datosHijoEspecie($request),
+            $this->datosHijoEspecie($request, 50),
             $calibreValidacion,
         )]);
     }
 
     public function storeEnvase(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarEnvase($this->datosHijoEspecie($request)));
+        return $this->creado($servicio->guardarEnvase($this->datosHijoEspecie($request, 100)));
     }
 
     public function updateEnvase(
@@ -116,7 +116,7 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarEnvase(
-            $this->datosHijoEspecie($request),
+            $this->datosHijoEspecie($request, 100),
             $envaseValidacion,
         )]);
     }
@@ -143,28 +143,37 @@ class CatalogoJerarquicoValidacionController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function datosRaiz(Request $request): array
+    private function datosRaiz(Request $request, int $maximoNombre): array
     {
         return $request->validate([
             'temporada_id' => ['required', 'uuid', 'exists:temporadas,id'],
-            'nombre' => ['required', 'string', 'max:150'],
+            'nombre' => ['required', 'string', "max:{$maximoNombre}"],
             'codigo_externo' => ['nullable', 'string', 'max:100'],
             'activo' => ['required', 'boolean'],
         ]);
     }
 
     /** @return array<string, mixed> */
-    private function datosHijoEspecie(Request $request): array
+    private function datosHijoEspecie(Request $request, int $maximoNombre): array
     {
-        return $this->datosHijo($request, 'especie_validacion_id', 'especies_validacion');
+        return $this->datosHijo(
+            $request,
+            'especie_validacion_id',
+            'especies_validacion',
+            $maximoNombre,
+        );
     }
 
     /** @return array<string, mixed> */
-    private function datosHijo(Request $request, string $campo, string $tabla): array
-    {
+    private function datosHijo(
+        Request $request,
+        string $campo,
+        string $tabla,
+        int $maximoNombre,
+    ): array {
         return $request->validate([
             $campo => ['required', 'uuid', "exists:{$tabla},id"],
-            'nombre' => ['required', 'string', 'max:150'],
+            'nombre' => ['required', 'string', "max:{$maximoNombre}"],
             'codigo_externo' => ['nullable', 'string', 'max:100'],
             'activo' => ['required', 'boolean'],
         ]);
