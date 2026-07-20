@@ -108,9 +108,21 @@ class ServicioImportacionValidacion
             }
 
             $temporada = Temporada::query()->lockForUpdate()->findOrFail($importacion->temporada_id);
+            $idsProyeccionAnteriores = [
+                'articulos' => ArticuloValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+                'origenes' => OrigenValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+                'combinaciones' => CombinacionValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+            ];
             $claves = [
                 'clientes', 'marcas', 'especies', 'variedades',
                 'calibres', 'envases', 'csg', 'autorizaciones_csg',
+                'articulos', 'origenes', 'combinaciones',
             ];
             $creados = array_fill_keys($claves, 0);
             $actualizados = array_fill_keys($claves, 0);
@@ -199,6 +211,19 @@ class ServicioImportacionValidacion
             }
 
             $this->proyector->reconstruir($temporada);
+
+            $creados['articulos'] = ArticuloValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['articulos'])
+                ->count();
+            $creados['origenes'] = OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['origenes'])
+                ->count();
+            $creados['combinaciones'] = CombinacionValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['combinaciones'])
+                ->count();
 
             foreach ($importacion->filas as $fila) {
                 $articulo = ArticuloValidacion::query()->where([
