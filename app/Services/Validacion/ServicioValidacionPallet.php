@@ -77,9 +77,14 @@ class ServicioValidacionPallet
                 ->where('temporada_id', $temporada->id)
                 ->where('activo', true)
                 ->first();
+            $categoria = DB::table('categorias_validacion')
+                ->where('id', $datos['categoria_validacion_id'])
+                ->where('temporada_id', $temporada->id)
+                ->where('activo', true)
+                ->first();
 
-            if (! $articulo || ! $origen) {
-                throw new DomainException('El artículo o el origen no pertenecen al catálogo activo de la temporada.');
+            if (! $articulo || ! $origen || ! $categoria) {
+                throw new DomainException('El artículo, el origen o la categoría no pertenecen al catálogo activo de la temporada.');
             }
 
             $combinacion = DB::table('combinaciones_validacion')
@@ -139,6 +144,11 @@ class ServicioValidacionPallet
                     'csg' => $origen->csg,
                     'predio' => $origen->predio,
                 ],
+                'categoria' => [
+                    'id' => $categoria->id,
+                    'nombre' => $categoria->nombre,
+                    'codigo_externo' => $categoria->codigo_externo,
+                ],
                 'combinacion' => [
                     'id' => $combinacion->id,
                     'codigo_externo' => $combinacion->codigo_externo,
@@ -156,6 +166,7 @@ class ServicioValidacionPallet
                 'temporada_id' => $temporada->id,
                 'articulo_validacion_id' => $articulo->id,
                 'origen_validacion_id' => $origen->id,
+                'categoria_validacion_id' => $categoria->id,
                 'resultado' => $resultado,
                 'estado' => $hayConflicto ? EstadoValidacionPallet::Conflicto : EstadoValidacionPallet::Aceptada,
                 'motivo' => $datos['motivo'] ?? null,
@@ -188,6 +199,7 @@ class ServicioValidacionPallet
                     'estado_integracion' => EstadoIntegracionFolio::NoVinculado,
                     'datos_externos' => [
                         'especie' => $articulo->especie,
+                        'categoria' => $categoria->nombre,
                         'envase' => $articulo->envase,
                         'csg' => $origen->csg,
                         'predio' => $origen->predio,
@@ -216,6 +228,7 @@ class ServicioValidacionPallet
             'catalogo_version' => (int) $datos['catalogo_version'],
             'articulo_validacion_id' => $datos['articulo_validacion_id'],
             'origen_validacion_id' => $datos['origen_validacion_id'],
+            'categoria_validacion_id' => $datos['categoria_validacion_id'],
             'resultado' => $datos['resultado'],
             'motivo' => $datos['motivo'] ?? null,
             'observacion' => $datos['observacion'] ?? null,

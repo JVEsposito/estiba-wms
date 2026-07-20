@@ -27,6 +27,11 @@ class CatalogoValidacionController extends Controller
             ->orderBy('calibre')
             ->orderBy('envase')
             ->get();
+        $categorias = DB::table('categorias_validacion')
+            ->where('temporada_id', $temporada->id)
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get();
         $origenes = DB::table('origenes_validacion')
             ->where('temporada_id', $temporada->id)
             ->where('activo', true)
@@ -52,6 +57,7 @@ class CatalogoValidacionController extends Controller
 
         return response()->json([
             'temporada' => $temporada,
+            'categorias' => $categorias,
             'articulos' => $articulos,
             'origenes' => $origenes,
             'combinaciones' => $combinaciones,

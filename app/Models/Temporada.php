@@ -30,6 +30,11 @@ class Temporada extends Model
         return $this->hasMany(EspecieValidacion::class);
     }
 
+    public function categorias(): HasMany
+    {
+        return $this->hasMany(CategoriaValidacion::class);
+    }
+
     public function csg(): HasMany
     {
         return $this->hasMany(CsgValidacion::class);

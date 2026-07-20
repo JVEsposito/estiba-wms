@@ -4,6 +4,7 @@ namespace App\Services\Validacion;
 
 use App\Models\ArticuloValidacion;
 use App\Models\CalibreValidacion;
+use App\Models\CategoriaValidacion;
 use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\CsgValidacion;
@@ -129,7 +130,7 @@ class ServicioImportacionValidacion
                     ->pluck('id'),
             ];
             $claves = [
-                'clientes', 'marcas', 'especies', 'variedades',
+                'clientes', 'marcas', 'categorias', 'especies', 'variedades',
                 'calibres', 'envases', 'csg', 'autorizaciones_csg',
                 'articulos', 'origenes', 'combinaciones',
             ];
@@ -137,6 +138,19 @@ class ServicioImportacionValidacion
             $actualizados = array_fill_keys($claves, 0);
 
             foreach ($importacion->filas as $fila) {
+                if (($fila['categoria'] ?? '') !== '') {
+                    $this->persistir(
+                        CategoriaValidacion::query()->firstOrNew([
+                            'temporada_id' => $temporada->id,
+                            'nombre' => $fila['categoria'],
+                        ]),
+                        ['activo' => true],
+                        'categorias',
+                        $creados,
+                        $actualizados,
+                    );
+                }
+
                 $especie = $this->persistir(
                     EspecieValidacion::query()->firstOrNew([
                         'temporada_id' => $temporada->id,
@@ -315,6 +329,7 @@ class ServicioImportacionValidacion
     {
         return [
             'fila' => (int) $fila['fila'],
+            'categoria' => $this->texto($fila['categoria'] ?? ''),
             'especie' => $this->texto($fila['especie'] ?? ''),
             'variedad' => $this->texto($fila['variedad'] ?? ''),
             'calibre' => mb_strtoupper($this->texto($fila['calibre'] ?? '')),
@@ -340,6 +355,7 @@ class ServicioImportacionValidacion
     private function claveFila(array $fila): string
     {
         return mb_strtolower(implode('|', [
+            $fila['categoria'],
             $fila['especie'],
             $fila['variedad'],
             $fila['calibre'],

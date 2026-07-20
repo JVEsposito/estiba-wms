@@ -26,6 +26,7 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.numero_folio', 'PAL-0001')
             ->assertJsonPath('data.resultado', 'aprobado')
             ->assertJsonPath('data.estado', 'aceptada')
+            ->assertJsonPath('data.catalogo.categoria.nombre', 'Exportación')
             ->assertJsonPath('data.folio.estado_operacional', 'pendiente_prefrio')
             ->json('data.id');
 
@@ -240,6 +241,7 @@ class ValidacionPalletApiTest extends TestCase
         $temporada = (string) Str::uuid();
         $articulo = (string) Str::uuid();
         $origen = (string) Str::uuid();
+        $categoria = (string) Str::uuid();
 
         DB::table('temporadas')->insert([
             'id' => $temporada,
@@ -257,6 +259,14 @@ class ValidacionPalletApiTest extends TestCase
             'variedad' => 'Santina',
             'calibre' => '2J',
             'envase' => '5 kg',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('categorias_validacion')->insert([
+            'id' => $categoria,
+            'temporada_id' => $temporada,
+            'nombre' => 'Exportación',
             'activo' => true,
             'created_at' => now(),
             'updated_at' => now(),
@@ -287,6 +297,7 @@ class ValidacionPalletApiTest extends TestCase
             'temporada_id' => $temporada,
             'articulo_validacion_id' => $articulo,
             'origen_validacion_id' => $origen,
+            'categoria_validacion_id' => $categoria,
             'catalogo_version' => 1,
         ], $token];
     }

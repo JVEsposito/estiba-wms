@@ -28,6 +28,12 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
         ]);
         $servicio = app(ServicioCatalogoJerarquicoValidacion::class);
 
+        $categoria = $servicio->guardarCategoria([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Exportación',
+            'activo' => true,
+        ]);
+
         $cliente = $servicio->guardarCliente([
             'temporada_id' => $temporada->id,
             'nombre' => 'Los Olmos',
@@ -71,6 +77,7 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
         $combinacion = CombinacionValidacion::query()->sole();
 
         $this->assertSame($especie->id, $articulo->especie_validacion_id);
+        $this->assertSame($temporada->id, $categoria->temporada_id);
         $this->assertSame('XL', $articulo->calibre);
         $this->assertSame($cliente->id, $origen->cliente_validacion_id);
         $this->assertSame($csg->id, $origen->csg_validacion_id);
@@ -82,6 +89,7 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
             'origenes' => 1,
             'combinaciones' => 1,
         ], $servicio->datos($temporada)['proyeccion']);
+        $this->assertSame('Exportación', $servicio->datos($temporada)['categorias']->sole()->nombre);
     }
 
     public function test_un_csg_solo_habilita_las_variedades_declaradas(): void

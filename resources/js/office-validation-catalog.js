@@ -6,6 +6,7 @@ const state = {
     seasons: [],
     season: null,
     clients: [],
+    categories: [],
     species: [],
     csg: [],
     projection: { articulos: 0, origenes: 0, combinaciones: 0 },
@@ -20,6 +21,7 @@ const elements = {
 const entityConfig = {
     client: { form: 'clientForm', error: 'clientError', path: 'clientes', list: 'clientList' },
     brand: { form: 'brandForm', error: 'brandError', path: 'marcas', list: 'brandList' },
+    category: { form: 'categoryForm', error: 'categoryError', path: 'categorias', list: 'categoryList' },
     species: { form: 'speciesForm', error: 'speciesError', path: 'especies', list: 'speciesList' },
     variety: { form: 'varietyForm', error: 'varietyError', path: 'variedades', list: 'varietyList' },
     caliber: { form: 'caliberForm', error: 'caliberError', path: 'calibres', list: 'caliberList' },
@@ -78,11 +80,12 @@ async function load(seasonId = null) {
         if (state.season) {
             const hierarchy = await api(`/api/administracion/validacion/temporadas/${state.season.id}/catalogo`);
             state.clients = hierarchy.clientes || [];
+            state.categories = hierarchy.categorias || [];
             state.species = hierarchy.especies || [];
             state.csg = hierarchy.csg || [];
             state.projection = hierarchy.proyeccion || { articulos: 0, origenes: 0, combinaciones: 0 };
         } else {
-            state.clients = []; state.species = []; state.csg = [];
+            state.clients = []; state.categories = []; state.species = []; state.csg = [];
             state.projection = { articulos: 0, origenes: 0, combinaciones: 0 };
         }
         render();
@@ -127,6 +130,9 @@ function render() {
     byId('brandCount').textContent = String(brands.length);
     byId('brandList').innerHTML = brands.map((item) => row(item.nombre, `Cliente: ${item.client}`, 'brand', item)).join('') || '<p class="empty-validation">Sin marcas.</p>';
 
+    byId('categoryCount').textContent = String(state.categories.length);
+    byId('categoryList').innerHTML = state.categories.map((item) => row(item.nombre, item.codigo_externo || 'Disponible para todas las especies y marcas', 'category', item)).join('') || '<p class="empty-validation">Sin categorías.</p>';
+
     byId('speciesCount').textContent = String(state.species.length);
     byId('speciesList').innerHTML = state.species.map((item) => row(item.nombre, `${item.variedades?.length || 0} variedades · ${item.calibres?.length || 0} calibres · ${item.envases?.length || 0} envases`, 'species', item)).join('') || '<p class="empty-validation">Sin especies.</p>';
 
@@ -157,6 +163,7 @@ function resetForm(form) {
 function itemFor(type, id) {
     if (type === 'client') return state.clients.find((item) => item.id === id);
     if (type === 'brand') return state.clients.flatMap((parent) => (parent.marcas || []).map((item) => ({ ...item, cliente_validacion_id: parent.id }))).find((item) => item.id === id);
+    if (type === 'category') return state.categories.find((item) => item.id === id);
     if (type === 'species') return state.species.find((item) => item.id === id);
     if (type === 'csg') return state.csg.find((item) => item.id === id);
     const relation = type === 'variety' ? 'variedades' : type === 'caliber' ? 'calibres' : 'envases';
@@ -189,7 +196,7 @@ async function save(type) {
 
     const data = Object.fromEntries(new FormData(form));
     const id = data.id; delete data.id;
-    if (['client', 'species', 'csg'].includes(type)) data.temporada_id = state.season.id;
+    if (['client', 'category', 'species', 'csg'].includes(type)) data.temporada_id = state.season.id;
     data.activo = form.elements.activo.checked;
     if (type === 'csg') data.variedad_ids = [...form.querySelectorAll('input[name="variedad_ids"]:checked')].map((input) => input.value);
 
