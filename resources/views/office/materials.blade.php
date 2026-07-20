@@ -52,7 +52,7 @@
 
                 <div class="materials-admin-grid" id="materialsAdminCatalogs">
                     <section class="panel materials-panel">
-                        <div class="materials-panel__heading"><div><p class="eyebrow">CATÁLOGO</p><h2>Ítems seleccionables</h2></div><span id="itemsSummary">0 registrados</span></div>
+                        <div class="materials-panel__heading"><div><p class="eyebrow">CATÁLOGO</p><h2>Ítems seleccionables</h2></div><div class="materials-panel__tools"><span id="itemsSummary">0 registrados</span><button class="secondary-button" id="openMaterialImport" type="button">Importar catálogo</button></div></div>
                         <form class="materials-form" id="itemMaterialForm" novalidate>
                             <input name="id" type="hidden">
                             <div class="materials-form__grid">
@@ -108,6 +108,25 @@
                 </div>
             </section>
         </main>
+        <dialog class="materials-import" id="materialImportDialog">
+            <div class="materials-import__header">
+                <div><p class="eyebrow">CARGA MASIVA</p><h2>Importar catálogo de materiales</h2><p>Previsualiza los cambios antes de incorporarlos. Esta operación no crea folios ni existencias.</p></div>
+                <button id="closeMaterialImport" type="button" aria-label="Cerrar">×</button>
+            </div>
+            <form class="materials-import__form" id="materialImportForm">
+                <label><span>Planilla CSV o XLSX *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
+                <div class="materials-import__actions"><button class="secondary-button" id="downloadMaterialTemplate" type="button">Descargar plantilla CSV</button><button class="primary-button" type="submit">Previsualizar</button></div>
+                <p class="materials-import__help">Columnas: código, nombre, categoría, unidad_medida, código_externo y activo. Máximo 5.000 filas. Los campos opcionales vacíos no borran datos existentes.</p>
+                <p class="form-error" id="materialImportError" role="alert"></p>
+            </form>
+            <section class="materials-import__preview is-hidden" id="materialImportPreview">
+                <div class="materials-import__metrics" id="materialImportMetrics"></div>
+                <div class="materials-import__errors is-hidden" id="materialImportErrors"></div>
+                <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Fila</th><th>Código</th><th>Nombre</th><th>Unidad</th><th>Acción</th></tr></thead><tbody id="materialImportRows"></tbody></table></div>
+                <div class="materials-import__confirm"><p id="materialImportConfirmationHelp"></p><button class="primary-button" id="confirmMaterialImport" type="button">Confirmar importación</button></div>
+            </section>
+            <section class="materials-import__history"><div class="materials-panel__heading"><div><p class="eyebrow">AUDITORÍA</p><h3>Importaciones recientes</h3></div></div><div id="materialImportHistory"></div></section>
+        </dialog>
         <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>
     </body>

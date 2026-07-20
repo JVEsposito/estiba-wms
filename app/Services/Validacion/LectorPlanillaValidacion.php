@@ -251,7 +251,7 @@ class LectorPlanillaValidacion
         return $resultado;
     }
 
-    private function normalizarCabecera(string $cabecera): string
+    protected function normalizarCabecera(string $cabecera): string
     {
         $normalizada = Str::of($cabecera)
             ->ascii()

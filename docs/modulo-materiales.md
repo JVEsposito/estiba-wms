@@ -31,6 +31,27 @@ Los registros se activan o desactivan; no se eliminan físicamente. Los campos
 de integración permiten que una futura sincronización con ERP mantenga la
 identidad interna del registro.
 
+### Importación masiva del catálogo
+
+El administrador puede cargar ítems desde `/oficina/materiales` usando una
+planilla CSV o XLSX. La plantilla admite las columnas `codigo`, `nombre`,
+`categoria`, `unidad_medida`, `codigo_externo` y `activo`, con un máximo de
+5.000 filas de datos por archivo.
+
+La carga se ejecuta en dos etapas:
+
+1. previsualización de filas válidas, errores, creaciones y actualizaciones;
+2. confirmación transaccional de una planilla sin errores.
+
+La importación solo modifica `items_materiales`: no crea folios, cantidades,
+reservas ni movimientos. Un ítem ausente de la planilla conserva su estado y
+los campos opcionales vacíos no borran datos existentes. Tampoco se permite
+cambiar la unidad de medida cuando el ítem ya tiene folios asociados. Cada
+intento guarda el nombre y checksum del archivo, las filas procesadas, el
+resumen, el usuario y la fecha de confirmación para auditoría. El archivo
+original no se conserva. Si el catálogo cambia entre la previsualización y la
+confirmación, la operación se rechaza y exige una nueva previsualización.
+
 ## Despacho por cantidades
 
 Un despacho puede crearse desde `/oficina/materiales` por administrador,
