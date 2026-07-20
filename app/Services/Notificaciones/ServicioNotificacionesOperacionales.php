@@ -61,8 +61,7 @@ class ServicioNotificacionesOperacionales
 
     public function notificarDespachoMaterialCreado(
         DespachoMaterial $despacho,
-    ): NotificacionOperacional
-    {
+    ): NotificacionOperacional {
         $cantidadItems = $despacho->detalles()->count();
 
         return NotificacionOperacional::query()->firstOrCreate(
