@@ -3,12 +3,20 @@
 namespace App\Services\Validacion;
 
 use App\Models\ArticuloValidacion;
+use App\Models\CalibreValidacion;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
+use App\Models\CsgValidacion;
+use App\Models\EnvaseValidacion;
+use App\Models\EspecieValidacion;
 use App\Models\ImportacionValidacion;
+use App\Models\MarcaValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Models\VariedadValidacion;
 use DomainException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,6 +25,7 @@ class ServicioImportacionValidacion
 {
     public function __construct(
         private readonly LectorPlanillaValidacion $lector,
+        private readonly ServicioProyeccionCatalogoValidacion $proyector,
     ) {}
 
     public function previsualizar(
@@ -99,71 +108,155 @@ class ServicioImportacionValidacion
             }
 
             $temporada = Temporada::query()->lockForUpdate()->findOrFail($importacion->temporada_id);
-            $creados = ['articulos' => 0, 'origenes' => 0, 'combinaciones' => 0];
-            $actualizados = ['articulos' => 0, 'origenes' => 0, 'combinaciones' => 0];
+            $idsProyeccionAnteriores = [
+                'articulos' => ArticuloValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+                'origenes' => OrigenValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+                'combinaciones' => CombinacionValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->pluck('id'),
+            ];
+            $claves = [
+                'clientes', 'marcas', 'especies', 'variedades',
+                'calibres', 'envases', 'csg', 'autorizaciones_csg',
+                'articulos', 'origenes', 'combinaciones',
+            ];
+            $creados = array_fill_keys($claves, 0);
+            $actualizados = array_fill_keys($claves, 0);
 
             foreach ($importacion->filas as $fila) {
-                $articulo = ArticuloValidacion::query()->firstOrNew([
+                $especie = $this->persistir(
+                    EspecieValidacion::query()->firstOrNew([
+                        'temporada_id' => $temporada->id,
+                        'nombre' => $fila['especie'],
+                    ]),
+                    ['activo' => true],
+                    'especies',
+                    $creados,
+                    $actualizados,
+                );
+                $variedad = $this->persistir(
+                    VariedadValidacion::query()->firstOrNew([
+                        'especie_validacion_id' => $especie->id,
+                        'nombre' => $fila['variedad'],
+                    ]),
+                    ['activo' => true],
+                    'variedades',
+                    $creados,
+                    $actualizados,
+                );
+                $calibre = $this->persistir(
+                    CalibreValidacion::query()->firstOrNew([
+                        'especie_validacion_id' => $especie->id,
+                        'nombre' => $fila['calibre'],
+                    ]),
+                    ['activo' => true],
+                    'calibres',
+                    $creados,
+                    $actualizados,
+                );
+                $envase = $this->persistir(
+                    EnvaseValidacion::query()->firstOrNew([
+                        'especie_validacion_id' => $especie->id,
+                        'nombre' => $fila['envase'],
+                    ]),
+                    ['activo' => true],
+                    'envases',
+                    $creados,
+                    $actualizados,
+                );
+
+                $cliente = $this->persistir(
+                    ClienteValidacion::query()->firstOrNew([
+                        'temporada_id' => $temporada->id,
+                        'nombre' => $fila['cliente'],
+                    ]),
+                    ['activo' => true],
+                    'clientes',
+                    $creados,
+                    $actualizados,
+                );
+                $marca = $this->persistir(
+                    MarcaValidacion::query()->firstOrNew([
+                        'cliente_validacion_id' => $cliente->id,
+                        'nombre' => $fila['marca'],
+                    ]),
+                    ['activo' => true],
+                    'marcas',
+                    $creados,
+                    $actualizados,
+                );
+                $csgModelo = CsgValidacion::query()->firstOrNew([
+                    'temporada_id' => $temporada->id,
+                    'codigo' => $fila['csg'],
+                ]);
+                $csg = $this->persistir(
+                    $csgModelo,
+                    [
+                        'predio' => $fila['predio'] ?: $csgModelo->predio,
+                        'activo' => true,
+                    ],
+                    'csg',
+                    $creados,
+                    $actualizados,
+                );
+
+                $cambioPivot = $csg->variedades()->syncWithoutDetaching([$variedad->id]);
+                if ($cambioPivot['attached'] !== []) {
+                    $creados['autorizaciones_csg'] += count($cambioPivot['attached']);
+                }
+            }
+
+            $this->proyector->reconstruir($temporada);
+
+            $creados['articulos'] = ArticuloValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['articulos'])
+                ->count();
+            $creados['origenes'] = OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['origenes'])
+                ->count();
+            $creados['combinaciones'] = CombinacionValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNotIn('id', $idsProyeccionAnteriores['combinaciones'])
+                ->count();
+
+            foreach ($importacion->filas as $fila) {
+                $articulo = ArticuloValidacion::query()->where([
                     'temporada_id' => $temporada->id,
                     'especie' => $fila['especie'],
                     'variedad' => $fila['variedad'],
                     'calibre' => $fila['calibre'],
                     'envase' => $fila['envase'],
-                ]);
-                $articuloNuevo = ! $articulo->exists;
-                $articulo->fill([
-                    'codigo_externo' => $fila['codigo_articulo'] ?: $articulo->codigo_externo,
-                    'activo' => true,
-                ]);
-                $articuloCambio = $articuloNuevo || $articulo->isDirty();
-                $articulo->save();
-
-                if ($articuloCambio) {
-                    $articuloNuevo ? $creados['articulos']++ : $actualizados['articulos']++;
-                }
-
-                $origen = OrigenValidacion::query()->firstOrNew([
+                ])->firstOrFail();
+                $origen = OrigenValidacion::query()->where([
                     'temporada_id' => $temporada->id,
                     'cliente' => $fila['cliente'],
                     'marca' => $fila['marca'],
                     'csg' => $fila['csg'],
-                ]);
-                $origenNuevo = ! $origen->exists;
-                $origen->fill([
-                    'predio' => $fila['predio'] ?: $origen->predio,
-                    'codigo_externo' => $fila['codigo_origen'] ?: $origen->codigo_externo,
-                    'activo' => true,
-                ]);
-                $origenCambio = $origenNuevo || $origen->isDirty();
-                $origen->save();
+                ])->firstOrFail();
 
-                if ($origenCambio) {
-                    $origenNuevo ? $creados['origenes']++ : $actualizados['origenes']++;
+                if ($fila['codigo_articulo']) {
+                    $articulo->update(['codigo_externo' => $fila['codigo_articulo']]);
                 }
-
-                $combinacion = CombinacionValidacion::query()->firstOrNew([
-                    'temporada_id' => $temporada->id,
-                    'articulo_validacion_id' => $articulo->id,
-                    'origen_validacion_id' => $origen->id,
-                ]);
-                $combinacionNueva = ! $combinacion->exists;
-                $combinacion->fill([
-                    'codigo_externo' => $fila['codigo_combinacion'] ?: $combinacion->codigo_externo,
-                    'activo' => true,
-                ]);
-                $combinacionCambio = $combinacionNueva || $combinacion->isDirty();
-                $combinacion->save();
-
-                if ($combinacionCambio) {
-                    $combinacionNueva ? $creados['combinaciones']++ : $actualizados['combinaciones']++;
+                if ($fila['codigo_origen']) {
+                    $origen->update(['codigo_externo' => $fila['codigo_origen']]);
+                }
+                if ($fila['codigo_combinacion']) {
+                    CombinacionValidacion::query()->where([
+                        'temporada_id' => $temporada->id,
+                        'articulo_validacion_id' => $articulo->id,
+                        'origen_validacion_id' => $origen->id,
+                    ])->update(['codigo_externo' => $fila['codigo_combinacion']]);
                 }
             }
 
-            $huboCambios = array_sum($creados) + array_sum($actualizados) > 0;
-            if ($huboCambios) {
-                $temporada->increment('version_catalogo');
-                $temporada->refresh();
-            }
+            $temporada->increment('version_catalogo');
+            $temporada->refresh();
 
             $importacion->update([
                 'estado' => 'confirmada',
@@ -179,6 +272,30 @@ class ServicioImportacionValidacion
 
             return $importacion->refresh()->load('temporada:id,codigo,nombre,version_catalogo');
         }, attempts: 3);
+    }
+
+    /**
+     * @param  array<string, mixed>  $atributos
+     * @param  array<string, int>  $creados
+     * @param  array<string, int>  $actualizados
+     */
+    private function persistir(
+        Model $modelo,
+        array $atributos,
+        string $clave,
+        array &$creados,
+        array &$actualizados,
+    ): Model {
+        $nuevo = ! $modelo->exists;
+        $modelo->fill($atributos);
+        $cambio = $nuevo || $modelo->isDirty();
+        $modelo->save();
+
+        if ($cambio) {
+            $nuevo ? $creados[$clave]++ : $actualizados[$clave]++;
+        }
+
+        return $modelo;
     }
 
     /**

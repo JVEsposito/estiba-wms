@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
+use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
 use App\Http\Controllers\Api\CondicionSagController;
@@ -74,6 +75,21 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:administrar-catalogos-validacion')
         ->group(function () {
             Route::get('/', [AdministracionValidacionController::class, 'index']);
+            Route::get('/temporadas/{temporada}/catalogo', [CatalogoJerarquicoValidacionController::class, 'index']);
+            Route::post('/clientes', [CatalogoJerarquicoValidacionController::class, 'storeCliente']);
+            Route::put('/clientes/{clienteValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCliente']);
+            Route::post('/marcas', [CatalogoJerarquicoValidacionController::class, 'storeMarca']);
+            Route::put('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateMarca']);
+            Route::post('/especies', [CatalogoJerarquicoValidacionController::class, 'storeEspecie']);
+            Route::put('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEspecie']);
+            Route::post('/variedades', [CatalogoJerarquicoValidacionController::class, 'storeVariedad']);
+            Route::put('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateVariedad']);
+            Route::post('/calibres', [CatalogoJerarquicoValidacionController::class, 'storeCalibre']);
+            Route::put('/calibres/{calibreValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCalibre']);
+            Route::post('/envases', [CatalogoJerarquicoValidacionController::class, 'storeEnvase']);
+            Route::put('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEnvase']);
+            Route::post('/csg', [CatalogoJerarquicoValidacionController::class, 'storeCsg']);
+            Route::put('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCsg']);
             Route::post('/temporadas', [AdministracionValidacionController::class, 'storeTemporada']);
             Route::put('/temporadas/{temporada}', [AdministracionValidacionController::class, 'updateTemporada']);
             Route::post('/temporadas/{temporada}/activar', [AdministracionValidacionController::class, 'activarTemporada']);

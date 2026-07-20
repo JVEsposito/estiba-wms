@@ -151,8 +151,8 @@ class AdministracionValidacionApiTest extends TestCase
             ->postJson("/api/administracion/validacion/importaciones/{$importacionId}/confirmar")
             ->assertOk()
             ->assertJsonPath('data.estado', 'confirmada')
-            ->assertJsonPath('data.resumen.creados.articulos', 2)
-            ->assertJsonPath('data.resumen.creados.combinaciones', 2)
+            ->assertJsonPath('data.resumen.creados.articulos', 8)
+            ->assertJsonPath('data.resumen.creados.combinaciones', 16)
             ->assertJsonPath('data.resumen.version_catalogo_resultante', 2);
 
         $this->assertDatabaseHas('articulos_validacion', [
@@ -164,7 +164,7 @@ class AdministracionValidacionApiTest extends TestCase
             'marca' => 'Atlas',
             'csg' => '105410',
         ]);
-        $this->assertDatabaseCount('combinaciones_validacion', 2);
+        $this->assertDatabaseCount('combinaciones_validacion', 16);
     }
 
     public function test_importacion_con_error_no_puede_confirmarse(): void

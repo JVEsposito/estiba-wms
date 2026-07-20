@@ -46,6 +46,7 @@
                 <header class="validation-heading panel">
                     <div><p class="eyebrow">CONTROL DE INGRESO</p><h1>Validación de pallets</h1><p>La aprobación crea el folio pendiente de prefrío; observar conserva la posibilidad de corregir y volver a validar.</p></div>
                     <div class="validation-heading__actions">
+                        <a class="secondary-button is-hidden" id="hierarchyCatalogLink" href="/oficina/validacion/catalogo">Configurar catálogo</a>
                         <label><span>Temporada visible</span><select id="seasonSelector"></select></label>
                         <button class="secondary-button" id="reloadValidationButton" type="button">↻ Actualizar</button>
                     </div>
@@ -104,7 +105,12 @@
                         </section>
                     </div>
 
-                    <div class="validation-catalog-grid">
+                    <section class="panel validation-panel">
+                        <div class="validation-panel__heading"><div><p class="eyebrow">CATÁLOGO NORMALIZADO</p><h2>Configuración individual y jerárquica</h2></div><a class="secondary-button" href="/oficina/validacion/catalogo">Abrir configuración</a></div>
+                        <p class="validation-help">Crea clientes y marcas; especies con sus variedades, calibres y envases; y autoriza variedades por CSG. Los artículos y orígenes de la PDA se generan automáticamente.</p>
+                    </section>
+
+                    <div class="validation-catalog-grid is-hidden">
                         <section class="panel validation-panel">
                             <div class="validation-panel__heading"><div><p class="eyebrow">FRUTA</p><h2>Artículos</h2></div><span id="articleSummary">0 registrados</span></div>
                             <form class="validation-form" id="articleForm" novalidate>
@@ -142,7 +148,7 @@
                         </section>
                     </div>
 
-                    <section class="panel validation-panel">
+                    <section class="panel validation-panel is-hidden">
                         <div class="validation-panel__heading"><div><p class="eyebrow">REGLA DE SELECCIÓN</p><h2>Combinaciones artículo–origen habilitadas</h2></div><span id="combinationSummary">0 registradas</span></div>
                         <form class="validation-form validation-combination-form" id="combinationForm" novalidate>
                             <input name="id" type="hidden">
