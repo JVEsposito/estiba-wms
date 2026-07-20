@@ -73,6 +73,9 @@ class ServicioCatalogoJerarquicoValidacion
     public function guardarMarca(array $datos, ?MarcaValidacion $modelo = null): MarcaValidacion
     {
         $cliente = ClienteValidacion::query()->findOrFail($datos['cliente_validacion_id']);
+        if ($modelo?->exists && $modelo->cliente()->value('temporada_id') !== $cliente->temporada_id) {
+            throw new DomainException('No se puede mover una marca a otra temporada.');
+        }
         $nombre = $this->texto($datos['nombre']);
         $this->asegurarUnico(
             MarcaValidacion::query()->where('cliente_validacion_id', $cliente->id)->where('nombre', $nombre),
