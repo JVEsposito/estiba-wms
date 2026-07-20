@@ -34,6 +34,11 @@ class ServicioImportacionValidacion
         User $usuario,
     ): ImportacionValidacion {
         $filasLeidas = $this->lector->leer($archivo);
+
+        if ($filasLeidas === []) {
+            throw new DomainException('La planilla no contiene filas de datos para importar.');
+        }
+
         $errores = [];
         $filas = [];
         $vistas = [];
@@ -105,6 +110,10 @@ class ServicioImportacionValidacion
 
             if (($importacion->errores ?? []) !== []) {
                 throw new DomainException('La importación posee errores y no puede confirmarse.');
+            }
+
+            if (($importacion->filas ?? []) === []) {
+                throw new DomainException('La importación no contiene filas de datos y no puede confirmarse.');
             }
 
             $temporada = Temporada::query()->lockForUpdate()->findOrFail($importacion->temporada_id);

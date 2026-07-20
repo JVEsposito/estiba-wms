@@ -10,6 +10,27 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioProyeccionCatalogoValidacion
 {
+    /**
+     * @return array{articulos: int, origenes: int, combinaciones: int}
+     */
+    public function conteos(Temporada $temporada): array
+    {
+        return [
+            'articulos' => ArticuloValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('activo', true)
+                ->count(),
+            'origenes' => OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('activo', true)
+                ->count(),
+            'combinaciones' => CombinacionValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('activo', true)
+                ->count(),
+        ];
+    }
+
     public function reconstruir(Temporada $temporada): void
     {
         DB::transaction(function () use ($temporada): void {

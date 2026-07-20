@@ -6,6 +6,7 @@ use App\Enums\RolUsuario;
 use App\Models\ArticuloValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\Dispositivo;
+use App\Models\ImportacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use App\Models\User;
@@ -194,6 +195,62 @@ class AdministracionValidacionApiTest extends TestCase
             ->postJson("/api/administracion/validacion/importaciones/{$importacionId}/confirmar")
             ->assertUnprocessable()
             ->assertJsonPath('codigo', 'regla_de_negocio');
+    }
+
+    public function test_importacion_vacia_se_rechaza_sin_crear_borrador(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = Temporada::create([
+            'codigo' => '2028-2029',
+            'nombre' => 'Temporada 2028-2029',
+            'activa' => true,
+        ]);
+        $archivo = UploadedFile::fake()->createWithContent(
+            'sin-datos.csv',
+            "especie;variedad;calibre;envase;cliente;marca;csg\n",
+        );
+
+        $this->actingAs($administrador, 'sanctum')
+            ->post('/api/administracion/validacion/importaciones/previsualizar', [
+                'temporada_id' => $temporada->id,
+                'archivo' => $archivo,
+            ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath('message', 'La planilla no contiene filas de datos para importar.');
+
+        $this->assertDatabaseCount('importaciones_validacion', 0);
+    }
+
+    public function test_confirmacion_rechaza_defensivamente_un_borrador_sin_filas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = Temporada::create([
+            'codigo' => '2029-2030',
+            'nombre' => 'Temporada 2029-2030',
+            'activa' => true,
+            'version_catalogo' => 3,
+        ]);
+        $importacion = ImportacionValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre_archivo' => 'vacia.csv',
+            'tipo_archivo' => 'csv',
+            'checksum' => hash('sha256', 'vacia'),
+            'estado' => 'borrador',
+            'resumen' => ['filas_validas' => 0, 'filas_con_error' => 0],
+            'filas' => [],
+            'errores' => null,
+            'creado_por_user_id' => $administrador->id,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/administracion/validacion/importaciones/{$importacion->id}/confirmar")
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath('message', 'La importación no contiene filas de datos y no puede confirmarse.');
+
+        $this->assertSame('borrador', $importacion->refresh()->estado);
+        $this->assertSame(3, $temporada->refresh()->version_catalogo);
     }
 
     public function test_validador_no_administra_catalogos_y_combinacion_no_habilitada_se_rechaza(): void

@@ -8,6 +8,7 @@ const state = {
     clients: [],
     species: [],
     csg: [],
+    projection: { articulos: 0, origenes: 0, combinaciones: 0 },
 };
 const elements = {
     user: byId('catalogUserName'), initials: byId('catalogInitials'), logout: byId('catalogLogout'),
@@ -79,8 +80,10 @@ async function load(seasonId = null) {
             state.clients = hierarchy.clientes || [];
             state.species = hierarchy.especies || [];
             state.csg = hierarchy.csg || [];
+            state.projection = hierarchy.proyeccion || { articulos: 0, origenes: 0, combinaciones: 0 };
         } else {
             state.clients = []; state.species = []; state.csg = [];
+            state.projection = { articulos: 0, origenes: 0, combinaciones: 0 };
         }
         render();
     } catch (error) {
@@ -98,6 +101,10 @@ function row(title, detail, type, item) {
 }
 
 function render() {
+    byId('projectionArticleCount').textContent = state.projection.articulos || 0;
+    byId('projectionOriginCount').textContent = state.projection.origenes || 0;
+    byId('projectionCombinationCount').textContent = state.projection.combinaciones || 0;
+
     elements.selector.innerHTML = state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}${season.activa ? ' (activa)' : ''}`)).join('') || '<option value="">Sin temporadas</option>';
     elements.selector.value = state.season?.id || '';
 

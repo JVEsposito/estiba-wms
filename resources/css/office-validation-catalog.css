@@ -7,6 +7,12 @@
 .catalog-card {
     padding: 18px;
 }
+.catalog-projection-heading {
+    margin-bottom: 10px;
+}
+.catalog-projection-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .catalog-inline-form {
     display: grid;
     grid-template-columns: minmax(150px, .7fr) minmax(220px, 1.2fr) minmax(220px, 1fr) auto auto;
@@ -105,7 +111,8 @@
         padding: 10px;
     }
     .catalog-columns,
-    .catalog-inline-form {
+    .catalog-inline-form,
+    .catalog-projection-metrics {
         grid-template-columns: 1fr;
     }
     .catalog-actions {

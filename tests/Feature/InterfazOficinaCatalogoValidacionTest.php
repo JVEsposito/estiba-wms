@@ -17,7 +17,14 @@ class InterfazOficinaCatalogoValidacionTest extends TestCase
             ->assertSee('Variedades')
             ->assertSee('Calibres')
             ->assertSee('Envases')
-            ->assertSee('CSG');
+            ->assertSee('CSG')
+            ->assertSee('Registros activos generados')
+            ->assertSeeInOrder([
+                'id="speciesForm"',
+                'maxlength="100"',
+                'id="varietyForm"',
+                'maxlength="100"',
+            ], false);
     }
 
     public function test_validacion_enlaza_el_catalogo_para_administradores(): void
