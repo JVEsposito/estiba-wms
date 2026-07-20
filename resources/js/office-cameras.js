@@ -10,6 +10,7 @@ const elements = {
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
     accessesNav: byId('officeAccessesNav'),
+    managementNav: byId('officeManagementNav'),
     loadsNav: byId('officeLoadsNav'),
     materialsNav: byId('officeMaterialsNav'),
     prefrioNav: byId('officePrefrioNav'),
@@ -166,6 +167,10 @@ function showApp() {
     elements.accessesNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_administrar_accesos !== true,
+    );
+    elements.managementNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_panel_gerencial !== true,
     );
     elements.loadsNav.classList.toggle(
         'is-hidden',

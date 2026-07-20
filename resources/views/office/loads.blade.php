@@ -52,6 +52,7 @@
                     <span><strong>ESTIBA WMS</strong><small>OPERACIÓN DE OFICINA</small></span>
                 </div>
                 <nav aria-label="Módulos de oficina">
+                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
                     <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-active" href="/oficina/cargas">Cargas</a>
                     <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>

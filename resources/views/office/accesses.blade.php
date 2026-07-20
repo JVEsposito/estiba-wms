@@ -52,6 +52,7 @@
                     <span><strong>ESTIBA WMS</strong><small>ADMINISTRACIÓN</small></span>
                 </div>
                 <nav aria-label="Módulos de oficina">
+                    <a href="/oficina/gerencia">Gerencia</a>
                     <a href="/oficina/camaras">Cámaras</a>
                     <a href="/oficina/cargas">Cargas</a>
                     <a href="/oficina/materiales">Materiales</a>

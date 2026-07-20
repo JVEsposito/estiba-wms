@@ -13,3 +13,4 @@ Route::view('/oficina/materiales', 'office.materials');
 Route::view('/oficina/validacion', 'office.validation');
 Route::view('/oficina/validacion/catalogo', 'office.validation-catalog');
 Route::view('/oficina/prefrio', 'office.precooling');
+Route::view('/oficina/gerencia', 'office.management');

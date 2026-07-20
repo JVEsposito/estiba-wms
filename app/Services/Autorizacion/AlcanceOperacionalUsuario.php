@@ -277,6 +277,16 @@ class AlcanceOperacionalUsuario
         return $this->rolActivo($usuario, [RolUsuario::Administrador]);
     }
 
+    public function puedeConsultarPanelGerencial(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::SupervisorMateriales,
+            RolUsuario::Consulta,
+        ]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -321,6 +331,7 @@ class AlcanceOperacionalUsuario
             'puede_operar_prefrio' => $this->puedeOperarPrefrio($usuario),
             'puede_supervisar_prefrio' => $this->puedeSupervisarPrefrio($usuario),
             'puede_administrar_tuneles_prefrio' => $this->puedeAdministrarTunelesPrefrio($usuario),
+            'puede_consultar_panel_gerencial' => $this->puedeConsultarPanelGerencial($usuario),
         ];
     }
 

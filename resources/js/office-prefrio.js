@@ -2,7 +2,7 @@ const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
-    camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), accessesNav: byId('officeAccessesNav'),
+    camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), accessesNav: byId('officeAccessesNav'), managementNav: byId('officeManagementNav'),
     reload: byId('reloadPrefrioButton'), newTunnel: byId('newTunnelButton'), newProcess: byId('newProcessButton'),
     activeTunnels: byId('activeTunnelCount'), running: byId('runningProcessCount'), pending: byId('pendingVerificationCount'), reprocess: byId('reprocessCount'), activeFolios: byId('activeFolioCount'),
     tunnelSummary: byId('tunnelSummary'), tunnelList: byId('tunnelList'), filters: byId('processFilters'), processBody: byId('processTableBody'),
@@ -64,6 +64,7 @@ function showApp() {
     const name = state.identity?.nombre || 'Usuario'; elements.userName.textContent = name; elements.userRole.textContent = statusText(state.identity?.rol);
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
+    elements.managementNav.classList.toggle('is-hidden', state.identity?.puede_consultar_panel_gerencial !== true);
     elements.camerasNav.classList.toggle('is-hidden', state.identity?.ambito_camaras === 'ninguno');
     elements.loadsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cargas !== true);
     elements.materialsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_despachos_materiales !== true);
