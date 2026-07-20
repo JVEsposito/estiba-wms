@@ -11,6 +11,7 @@ use App\Models\Temporada;
 use App\Services\Validacion\ServicioCatalogoValidacion;
 use App\Services\Validacion\ServicioCopiaCatalogoValidacion;
 use App\Services\Validacion\ServicioImportacionValidacion;
+use App\Services\Validacion\ServicioProyeccionCatalogoValidacion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,15 +38,17 @@ class AdministracionValidacionController extends Controller
         Request $request,
         ServicioCatalogoValidacion $servicio,
         ServicioCopiaCatalogoValidacion $copiador,
+        ServicioProyeccionCatalogoValidacion $proyector,
     ): JsonResponse {
         $datos = $this->datosTemporada($request);
         $origenId = $datos['copiar_desde_temporada_id'] ?? null;
         unset($datos['copiar_desde_temporada_id']);
 
-        $temporada = DB::transaction(function () use ($servicio, $copiador, $datos, $origenId): Temporada {
+        $temporada = DB::transaction(function () use ($servicio, $copiador, $proyector, $datos, $origenId): Temporada {
             $temporada = $servicio->guardarTemporada($datos);
             if ($origenId) {
                 $copiador->copiar(Temporada::query()->findOrFail($origenId), $temporada);
+                $proyector->reconstruir($temporada);
             }
 
             return $temporada->refresh();
