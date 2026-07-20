@@ -261,6 +261,7 @@ class LectorPlanillaValidacion
             ->toString();
 
         return match ($normalizada) {
+            'categoria', 'categoria_calidad', 'quality_category' => 'categoria',
             'especie', 'fruta' => 'especie',
             'variedad' => 'variedad',
             'calibre' => 'calibre',

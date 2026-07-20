@@ -36,6 +36,7 @@ class RegistrarValidacionPalletRequest extends FormRequest
             'catalogo_version' => ['required', 'integer', 'min:1'],
             'articulo_validacion_id' => ['required', 'uuid', 'exists:articulos_validacion,id'],
             'origen_validacion_id' => ['required', 'uuid', 'exists:origenes_validacion,id'],
+            'categoria_validacion_id' => ['required', 'uuid', 'exists:categorias_validacion,id'],
             'resultado' => ['required', Rule::enum(ResultadoValidacionPallet::class)],
             'motivo' => ['nullable', Rule::enum(MotivoValidacionPallet::class), 'required_unless:resultado,aprobado'],
             'observacion' => ['nullable', 'string', 'max:2000', 'required_if:motivo,otro'],

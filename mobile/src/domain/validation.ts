@@ -22,6 +22,14 @@ export type ValidationArticle = {
   activo: boolean;
 };
 
+export type ValidationCategory = {
+  id: string;
+  temporada_id: string;
+  nombre: string;
+  codigo_externo: string | null;
+  activo: boolean;
+};
+
 export type ValidationOrigin = {
   id: string;
   temporada_id: string;
@@ -42,6 +50,7 @@ export type ValidationCombination = {
 
 export type ValidationCatalog = {
   temporada: ValidationSeason;
+  categorias: ValidationCategory[];
   articulos: ValidationArticle[];
   origenes: ValidationOrigin[];
   combinaciones: ValidationCombination[];
@@ -60,6 +69,7 @@ export type RegisterValidationPayload = {
   catalogo_version: number;
   articulo_validacion_id: string;
   origen_validacion_id: string;
+  categoria_validacion_id: string;
   resultado: ValidationResult;
   motivo?: string;
   observacion?: string;
@@ -84,6 +94,7 @@ export type ValidationAttempt = {
     temporada: { codigo: string; nombre: string } | null;
     articulo: { especie: string; variedad: string; calibre: string; envase: string } | null;
     origen: { cliente: string; marca: string; csg: string; predio: string | null } | null;
+    categoria: { id: string; nombre: string; codigo_externo: string | null } | null;
   };
   folio: { id: string; numero_folio: string; estado_operacional: string } | null;
   usuario: { id: string; nombre: string };

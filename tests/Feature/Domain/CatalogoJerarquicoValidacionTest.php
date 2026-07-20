@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domain;
 
 use App\Models\CalibreValidacion;
+use App\Models\CategoriaValidacion;
 use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EnvaseValidacion;
@@ -28,6 +29,12 @@ class CatalogoJerarquicoValidacionTest extends TestCase
             'temporada_id' => $origen->id,
             'nombre' => 'Exportadora Los Olmos',
             'codigo_externo' => 'CLI-01',
+            'activo' => true,
+        ]);
+        CategoriaValidacion::create([
+            'temporada_id' => $origen->id,
+            'nombre' => 'Exportación',
+            'codigo_externo' => 'CAT-01',
             'activo' => true,
         ]);
         MarcaValidacion::create([
@@ -84,10 +91,16 @@ class CatalogoJerarquicoValidacionTest extends TestCase
         $resultado = app(ServicioCopiaCatalogoValidacion::class)->copiar($origen, $destino);
 
         $this->assertSame(1, $resultado->clientes_count);
+        $this->assertSame(1, $resultado->categorias_count);
         $this->assertSame(2, $resultado->especies_count);
         $this->assertSame(1, $resultado->csg_count);
         $this->assertSame(2, $resultado->version_catalogo);
         $this->assertDatabaseHas('marcas_validacion', ['nombre' => 'Olmos Roja']);
+        $this->assertDatabaseHas('categorias_validacion', [
+            'temporada_id' => $destino->id,
+            'nombre' => 'Exportación',
+            'codigo_externo' => 'CAT-01',
+        ]);
         $especiesCopiadas = EspecieValidacion::query()
             ->where('temporada_id', $destino->id)
             ->pluck('id');

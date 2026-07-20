@@ -73,6 +73,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const [variety, setVariety] = useState('');
   const [caliber, setCaliber] = useState('');
   const [packageName, setPackageName] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [client, setClient] = useState('');
   const [brand, setBrand] = useState('');
   const [csg, setCsg] = useState('');
@@ -85,6 +86,16 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const activeArticles = useMemo(
     () => catalog?.articulos.filter((item) => item.activo) ?? [],
     [catalog],
+  );
+  const categoryOptions = useMemo(
+    () => (catalog?.categorias ?? [])
+      .filter((item) => item.activo)
+      .map((item) => ({ value: item.id, label: item.nombre, search: item.codigo_externo ?? '' })),
+    [catalog],
+  );
+  const selectedCategory = useMemo(
+    () => catalog?.categorias.find((item) => item.id === categoryId && item.activo) ?? null,
+    [catalog, categoryId],
   );
   const speciesOptions = useMemo(
     () => uniqueOptions(activeArticles.map((item) => item.especie)),
@@ -237,6 +248,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     if (!catalog) return 'No existe un catálogo sincronizado en esta PDA.';
     if (!folio.trim()) return 'Escanea o ingresa el folio.';
     if (!Number.isInteger(Number(boxes)) || Number(boxes) < 1) return 'Ingresa una cantidad válida de cajas.';
+    if (!selectedCategory) return 'Selecciona una categoría.';
     if (!selectedArticle) return 'Completa especie, variedad, calibre y envase.';
     if (!selectedOrigin) return 'Completa cliente, marca y CSG.';
     if (!selectedCombination) return 'La combinación artículo–origen no está habilitada.';
@@ -249,7 +261,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       setError(problem);
       return;
     }
-    if (!catalog || !selectedArticle || !selectedOrigin) return;
+    if (!catalog || !selectedArticle || !selectedOrigin || !selectedCategory) return;
 
     const payload: RegisterValidationPayload = {
       operacion_id: Crypto.randomUUID(),
@@ -260,6 +272,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       catalogo_version: catalog.temporada.version_catalogo,
       articulo_validacion_id: selectedArticle.id,
       origen_validacion_id: selectedOrigin.id,
+      categoria_validacion_id: selectedCategory.id,
       resultado: result,
       ...(reason ? { motivo: reason } : {}),
       ...(note?.trim() ? { observacion: note.trim() } : {}),
@@ -380,6 +393,11 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
               <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={boxes} /></View>
             </View>
 
+            <Text style={styles.groupTitle}>Categoría</Text>
+            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
+              <View style={styles.wideField}><SelectField compact={compact} label="Categoría" options={categoryOptions} searchable value={categoryId} onChange={setCategoryId} /></View>
+            </View>
+
             <Text style={styles.groupTitle}>Artículo</Text>
             <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
               <SelectField compact={compact} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
@@ -396,7 +414,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
 
             <View style={styles.selectionSummary}>
-              <Text style={styles.selectionSummaryTitle}>{selectedCombination ? 'Combinación habilitada' : 'Completa los datos obligatorios'}</Text>
+              <Text style={styles.selectionSummaryTitle}>{selectedCombination && selectedCategory ? 'Combinación habilitada' : 'Completa los datos obligatorios'}</Text>
+              <Text style={styles.selectionSummaryText}>{selectedCategory ? `Categoría: ${selectedCategory.nombre}` : 'Categoría pendiente'}</Text>
               <Text style={styles.selectionSummaryText}>{selectedArticle ? `${selectedArticle.especie} · ${selectedArticle.variedad} · ${selectedArticle.calibre} · ${selectedArticle.envase}` : 'Artículo pendiente'}</Text>
               <Text style={styles.selectionSummaryText}>{selectedOrigin ? `${selectedOrigin.cliente} · ${selectedOrigin.marca} · CSG ${selectedOrigin.csg}` : 'Origen pendiente'}</Text>
             </View>
