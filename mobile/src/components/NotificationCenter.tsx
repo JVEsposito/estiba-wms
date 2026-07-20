@@ -18,11 +18,19 @@ type Props = {
   api: EstibaApi;
   auth: AuthSession;
   onFailure: (reason: unknown) => void;
-  onOpenLoads: () => void;
+  onOpenLoads?: () => void;
+  onOpenMaterialDispatches?: () => void;
   onSuccess: () => void;
 };
 
-export function NotificationCenter({ api, auth, onFailure, onOpenLoads, onSuccess }: Props) {
+export function NotificationCenter({
+  api,
+  auth,
+  onFailure,
+  onOpenLoads,
+  onOpenMaterialDispatches,
+  onSuccess,
+}: Props) {
   const [items, setItems] = useState<OperationalNotification[]>([]);
   const [unread, setUnread] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -146,7 +154,7 @@ export function NotificationCenter({ api, auth, onFailure, onOpenLoads, onSucces
                     </View>
                     <Text style={styles.message}>{notification.mensaje}</Text>
                     <View style={styles.metaRow}>
-                      {notification.carga && (
+                      {notification.carga && onOpenLoads && (
                         <Pressable
                           onPress={() => {
                             setVisible(false);
@@ -155,6 +163,20 @@ export function NotificationCenter({ api, auth, onFailure, onOpenLoads, onSucces
                           style={styles.loadLink}
                         >
                           <Text style={styles.loadLinkText}>Abrir {notification.carga.codigo}</Text>
+                        </Pressable>
+                      )}
+                      {notification.despacho_material && onOpenMaterialDispatches && (
+                        <Pressable
+                          onPress={() => {
+                            void read(notification);
+                            setVisible(false);
+                            onOpenMaterialDispatches();
+                          }}
+                          style={styles.loadLink}
+                        >
+                          <Text style={styles.loadLinkText}>
+                            Abrir {notification.despacho_material.codigo}
+                          </Text>
                         </Pressable>
                       )}
                       {notification.confirmada_at ? (
@@ -171,7 +193,7 @@ export function NotificationCenter({ api, auth, onFailure, onOpenLoads, onSucces
               {!items.length && !busy && (
                 <View style={styles.empty}>
                   <Text style={styles.emptyTitle}>Sin notificaciones</Text>
-                  <Text style={styles.emptyText}>Las novedades de cargas aparecerán aquí.</Text>
+                  <Text style={styles.emptyText}>Las novedades de cargas y materiales aparecerán aquí.</Text>
                 </View>
               )}
             </ScrollView>

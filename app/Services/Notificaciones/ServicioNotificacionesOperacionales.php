@@ -3,6 +3,10 @@
 namespace App\Services\Notificaciones;
 
 use App\Enums\AudienciaNotificacionOperacional;
+use App\Enums\ContenidoCamara;
+use App\Enums\SeveridadNotificacionOperacional;
+use App\Enums\TipoNotificacionOperacional;
+use App\Models\DespachoMaterial;
 use App\Models\LecturaNotificacionOperacional;
 use App\Models\NotificacionOperacional;
 use App\Models\User;
@@ -53,6 +57,36 @@ class ServicioNotificacionesOperacionales
                     ->whereNotNull('leida_at'),
             )
             ->count();
+    }
+
+    public function notificarDespachoMaterialCreado(
+        DespachoMaterial $despacho,
+    ): NotificacionOperacional
+    {
+        $cantidadItems = $despacho->detalles()->count();
+
+        return NotificacionOperacional::query()->firstOrCreate(
+            ['clave' => "despacho-material:{$despacho->id}:area:materiales"],
+            [
+                'tipo' => TipoNotificacionOperacional::DespachoMaterialCreado,
+                'audiencia_tipo' => AudienciaNotificacionOperacional::Area,
+                'audiencia_valor' => ContenidoCamara::Materiales->value,
+                'severidad' => SeveridadNotificacionOperacional::Informativa,
+                'titulo' => "Nuevo despacho {$despacho->codigo}",
+                'mensaje' => sprintf(
+                    '%d %s para %s. Revisa las reservas FIFO y prepara el retiro.',
+                    $cantidadItems,
+                    $cantidadItems === 1 ? 'ítem solicitado' : 'ítems solicitados',
+                    $despacho->destino_nombre,
+                ),
+                'despacho_material_id' => $despacho->id,
+                'datos' => [
+                    'destino' => $despacho->destino_nombre,
+                    'centro_costo' => $despacho->destino_centro_costo,
+                    'cantidad_items' => $cantidadItems,
+                ],
+            ],
+        );
     }
 
     public function marcarLeida(

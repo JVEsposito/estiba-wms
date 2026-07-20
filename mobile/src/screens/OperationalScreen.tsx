@@ -14,6 +14,7 @@ import {
 
 import { ActionPanel } from '../components/ActionPanel';
 import { CameraCard } from '../components/CameraCard';
+import { MaterialDispatchOperation } from '../components/MaterialDispatchOperation';
 import {
   LocateFormValue,
   LocateModal,
@@ -63,7 +64,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [locateVisible, setLocateVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
   const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
-  const [activeModule, setActiveModule] = useState<'camaras' | 'cargas'>('camaras');
+  const [activeModule, setActiveModule] = useState<'camaras' | 'cargas' | 'materiales'>('camaras');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -188,6 +189,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setActiveModule('camaras');
     setSelectedCameraId(cameraId);
     setNotice('Folio abierto desde la ruta de despacho.');
+    await loadCamera(cameraId);
+    setSelectedPositionId(positionId);
+  }
+
+  async function openPositionFromMaterialDispatch(cameraId: string, positionId: string) {
+    setActiveModule('camaras');
+    setSelectedCameraId(cameraId);
+    setNotice('Folio abierto desde el despacho de materiales. Abre la estiba para registrar el retiro.');
     await loadCamera(cameraId);
     setSelectedPositionId(positionId);
   }
@@ -565,16 +574,27 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                 <Text style={[styles.moduleButtonText, activeModule === 'cargas' && styles.moduleButtonTextActive]}>Cargas</Text>
               </Pressable>
             )}
+            {canUseMaterials && (
+              <Pressable
+                onPress={() => setActiveModule('materiales')}
+                style={[styles.moduleButton, activeModule === 'materiales' && styles.moduleButtonActive]}
+              >
+                <Text style={[styles.moduleButtonText, activeModule === 'materiales' && styles.moduleButtonTextActive]}>Despachos</Text>
+              </Pressable>
+            )}
           </View>
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
             <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
-            {canUseLoads && (
+            {(canUseLoads || canUseMaterials) && (
               <NotificationCenter
                 api={api}
                 auth={auth}
                 onFailure={(reason) => reportFailure(reason, setError)}
-                onOpenLoads={() => setActiveModule('cargas')}
+                onOpenLoads={canUseLoads ? () => setActiveModule('cargas') : undefined}
+                onOpenMaterialDispatches={canUseMaterials
+                  ? () => setActiveModule('materiales')
+                  : undefined}
                 onSuccess={() => setConnectionState('connected')}
               />
             )}
@@ -612,6 +632,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             onConnectionFailure={(reason) => reportFailure(reason, setError)}
             onOpenPosition={(cameraId, positionId) => void openPositionFromLoad(cameraId, positionId)}
             onSessionsChanged={() => void refreshCurrent({ quiet: true })}
+          />
+        ) : activeModule === 'materiales' && canUseMaterials ? (
+          <MaterialDispatchOperation
+            api={api}
+            auth={auth}
+            onConnectionFailure={(reason) => reportFailure(reason, setError)}
+            onOpenPosition={(cameraId, positionId) => (
+              void openPositionFromMaterialDispatch(cameraId, positionId)
+            )}
           />
         ) : (
           <>

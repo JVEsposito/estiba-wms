@@ -24,6 +24,18 @@ class NotificacionOperacionalResource extends JsonResource
                 'prioridad' => $this->carga->prioridad->value,
                 'estado' => $this->carga->estado->value,
             ] : null),
+            'despacho_material' => $this->whenLoaded(
+                'despachoMaterial',
+                fn () => $this->despachoMaterial ? [
+                    'id' => $this->despachoMaterial->id,
+                    'codigo' => $this->despachoMaterial->codigo,
+                    'estado' => $this->despachoMaterial->estado->value,
+                    'destino' => [
+                        'nombre' => $this->despachoMaterial->destino_nombre,
+                        'centro_costo' => $this->despachoMaterial->destino_centro_costo,
+                    ],
+                ] : null,
+            ),
             'folio' => $this->whenLoaded('folio', fn () => $this->folio ? [
                 'id' => $this->folio->id,
                 'numero_folio' => $this->folio->numero_folio,

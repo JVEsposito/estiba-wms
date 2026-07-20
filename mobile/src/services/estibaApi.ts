@@ -42,7 +42,10 @@ export interface EstibaApi {
   locate(token: string, payload: LocatePayload): Promise<void>;
   move(token: string, payload: MovePayload): Promise<void>;
   getMaterialCatalog(token: string): Promise<MaterialCatalog>;
-  listMaterialDispatches(token: string): Promise<MaterialDispatch[]>;
+  listMaterialDispatches(
+    token: string,
+    states?: MaterialDispatch['estado'][],
+  ): Promise<MaterialDispatch[]>;
   createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
   withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
   listRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[]>;
@@ -166,9 +169,13 @@ class HttpEstibaApi implements EstibaApi {
     return this.request<MaterialCatalog>('/api/materiales/catalogo', token);
   }
 
-  async listMaterialDispatches(token: string) {
+  async listMaterialDispatches(
+    token: string,
+    states: MaterialDispatch['estado'][] = ['pendiente', 'parcial'],
+  ) {
+    const stateFilter = encodeURIComponent(states.join(','));
     const response = await this.request<ApiList<MaterialDispatch>>(
-      '/api/materiales/despachos?estados=pendiente,parcial',
+      `/api/materiales/despachos?estados=${stateFilter}`,
       token,
     );
     return response.data;
