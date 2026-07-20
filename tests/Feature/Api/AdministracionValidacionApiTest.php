@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\ArticuloValidacion;
+use App\Models\CategoriaValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\Dispositivo;
 use App\Models\ImportacionValidacion;
@@ -318,6 +319,11 @@ class AdministracionValidacionApiTest extends TestCase
             'envase' => 'Caja 5 kg',
             'activo' => true,
         ]);
+        $categoria = CategoriaValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Exportación',
+            'activo' => true,
+        ]);
         $origenHabilitado = OrigenValidacion::create([
             'temporada_id' => $temporada->id,
             'cliente' => 'DIS',
@@ -353,6 +359,7 @@ class AdministracionValidacionApiTest extends TestCase
                 'catalogo_version' => 1,
                 'articulo_validacion_id' => $articulo->id,
                 'origen_validacion_id' => $origenNoHabilitado->id,
+                'categoria_validacion_id' => $categoria->id,
                 'resultado' => 'aprobado',
                 'generado_dispositivo_at' => now()->toAtomString(),
             ])
