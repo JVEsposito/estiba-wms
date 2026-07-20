@@ -77,6 +77,11 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
         $this->assertTrue($articulo->activo);
         $this->assertTrue($origen->activo);
         $this->assertTrue($combinacion->activo);
+        $this->assertSame([
+            'articulos' => 1,
+            'origenes' => 1,
+            'combinaciones' => 1,
+        ], $servicio->datos($temporada)['proyeccion']);
     }
 
     public function test_un_csg_solo_habilita_las_variedades_declaradas(): void

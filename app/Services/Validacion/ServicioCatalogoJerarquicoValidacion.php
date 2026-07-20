@@ -47,6 +47,7 @@ class ServicioCatalogoJerarquicoValidacion
                 ->with(['variedades:id,especie_validacion_id,nombre,activo'])
                 ->orderBy('codigo')
                 ->get(),
+            'proyeccion' => $this->proyector->conteos($temporada),
         ];
     }
 

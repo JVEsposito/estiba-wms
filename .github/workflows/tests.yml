@@ -60,6 +60,9 @@ jobs:
       - name: Instalar dependencias
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Validar archivos de Composer
+        run: composer validate --strict --no-check-publish
+
       - name: Instalar dependencias frontend
         run: npm ci
 

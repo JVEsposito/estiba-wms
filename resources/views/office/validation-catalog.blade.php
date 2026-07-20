@@ -41,6 +41,18 @@
                     <p class="form-error" id="catalogSeasonError"></p>
                 </section>
 
+                <section aria-labelledby="catalogProjectionTitle">
+                    <div class="validation-panel__heading catalog-projection-heading">
+                        <div><p class="eyebrow">PROYECCIÓN PDA</p><h2 id="catalogProjectionTitle">Registros activos generados</h2></div>
+                        <span>Se actualizan automáticamente con la jerarquía</span>
+                    </div>
+                    <div class="validation-metrics catalog-projection-metrics">
+                        <article><span>ARTÍCULOS</span><strong id="projectionArticleCount">0</strong></article>
+                        <article><span>ORÍGENES</span><strong id="projectionOriginCount">0</strong></article>
+                        <article><span>COMBINACIONES</span><strong id="projectionCombinationCount">0</strong></article>
+                    </div>
+                </section>
+
                 <div class="catalog-columns">
                     <section class="panel catalog-card">
                         <div class="validation-panel__heading"><div><p class="eyebrow">BASE COMERCIAL</p><h2>Clientes</h2></div><span id="clientCount">0</span></div>
@@ -73,7 +85,7 @@
                         <div class="validation-panel__heading"><div><p class="eyebrow">BASE PRODUCTIVA</p><h2>Especies</h2></div><span id="speciesCount">0</span></div>
                         <form class="catalog-form" id="speciesForm">
                             <input name="id" type="hidden">
-                            <label><span>Nombre *</span><input name="nombre" maxlength="150" required></label>
+                            <label><span>Nombre *</span><input name="nombre" maxlength="100" required></label>
                             <label><span>Código externo</span><input name="codigo_externo" maxlength="100"></label>
                             <label class="validation-check"><input name="activo" type="checkbox" checked><span>Activa</span></label>
                             <div class="catalog-actions"><button class="secondary-button" data-reset-form="speciesForm" type="button">Limpiar</button><button class="primary-button" type="submit">Guardar especie</button></div>
@@ -86,7 +98,7 @@
                         <form class="catalog-form" id="varietyForm">
                             <input name="id" type="hidden">
                             <label><span>Especie *</span><select name="especie_validacion_id" required></select></label>
-                            <label><span>Nombre *</span><input name="nombre" maxlength="150" required></label>
+                            <label><span>Nombre *</span><input name="nombre" maxlength="100" required></label>
                             <label><span>Código externo</span><input name="codigo_externo" maxlength="100"></label>
                             <label class="validation-check"><input name="activo" type="checkbox" checked><span>Activa</span></label>
                             <div class="catalog-actions"><button class="secondary-button" data-reset-form="varietyForm" type="button">Limpiar</button><button class="primary-button" type="submit">Guardar variedad</button></div>
