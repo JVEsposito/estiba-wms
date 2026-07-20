@@ -27,12 +27,16 @@ class ServicioProyeccionCatalogoValidacion
 
             ArticuloValidacion::query()
                 ->where('temporada_id', $temporada->id)
+                ->whereNotNull('especie_validacion_id')
                 ->update(['activo' => false]);
             OrigenValidacion::query()
                 ->where('temporada_id', $temporada->id)
+                ->whereNotNull('csg_validacion_id')
                 ->update(['activo' => false]);
             CombinacionValidacion::query()
                 ->where('temporada_id', $temporada->id)
+                ->whereHas('articulo', fn ($query) => $query->whereNotNull('especie_validacion_id'))
+                ->whereHas('origen', fn ($query) => $query->whereNotNull('csg_validacion_id'))
                 ->update(['activo' => false]);
 
             $articulos = [];
