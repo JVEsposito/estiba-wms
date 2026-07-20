@@ -162,7 +162,7 @@ class PrefrioApiTest extends TestCase
         );
 
         $this->assertSame('cancelado', $cancelado['estado']);
-        $this->assertDatabaseHas('proceso_prefrio_folios', [
+        $this->assertDatabaseHas('procesos_prefrio_folios', [
             'proceso_prefrio_id' => $proceso['id'],
             'folio_id' => $folio->id,
             'estado' => 'cancelado',
