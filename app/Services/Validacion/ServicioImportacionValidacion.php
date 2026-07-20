@@ -177,13 +177,14 @@ class ServicioImportacionValidacion
                     $creados,
                     $actualizados,
                 );
+                $csgModelo = CsgValidacion::query()->firstOrNew([
+                    'temporada_id' => $temporada->id,
+                    'codigo' => $fila['csg'],
+                ]);
                 $csg = $this->persistir(
-                    CsgValidacion::query()->firstOrNew([
-                        'temporada_id' => $temporada->id,
-                        'codigo' => $fila['csg'],
-                    ]),
+                    $csgModelo,
                     [
-                        'predio' => $fila['predio'] ?: $csg->predio,
+                        'predio' => $fila['predio'] ?: $csgModelo->predio,
                         'activo' => true,
                     ],
                     'csg',
