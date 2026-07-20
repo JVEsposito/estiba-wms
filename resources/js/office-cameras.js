@@ -12,6 +12,7 @@ const elements = {
     accessesNav: byId('officeAccessesNav'),
     loadsNav: byId('officeLoadsNav'),
     materialsNav: byId('officeMaterialsNav'),
+    prefrioNav: byId('officePrefrioNav'),
     moduleTabs: byId('configurationModuleTabs'),
     cameraModule: byId('cameraModuleButton'),
     dockModule: byId('dockModuleButton'),
@@ -173,6 +174,10 @@ function showApp() {
     elements.materialsNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_consultar_despachos_materiales !== true,
+    );
+    elements.prefrioNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_prefrio !== true,
     );
     const canManageDocks = userCanManageDocks();
     elements.moduleTabs.classList.toggle('is-hidden', !canManageDocks);

@@ -36,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/prefrio/tuneles', [TunelPrefrioController::class, 'index']);
         Route::get('/prefrio/tuneles/{tunelPrefrio}', [TunelPrefrioController::class, 'show']);
         Route::get('/prefrio/procesos', [ProcesoPrefrioController::class, 'index']);
+        Route::get('/prefrio/resumen', [ProcesoPrefrioController::class, 'resumen']);
         Route::get('/prefrio/procesos/{procesoPrefrio}', [ProcesoPrefrioController::class, 'show']);
     });
     Route::middleware('can:operar-prefrio')->group(function () {

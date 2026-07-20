@@ -56,6 +56,7 @@
                     <a href="/oficina/cargas">Cargas</a>
                     <a href="/oficina/materiales">Materiales</a>
                     <a href="/oficina/validacion">Validación</a>
+                    <a href="/oficina/prefrio">Prefrío</a>
                     <a class="is-active" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity">
