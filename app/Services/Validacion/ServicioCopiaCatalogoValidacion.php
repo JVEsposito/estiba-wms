@@ -3,6 +3,7 @@
 namespace App\Services\Validacion;
 
 use App\Models\CalibreValidacion;
+use App\Models\CategoriaValidacion;
 use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EnvaseValidacion;
@@ -27,6 +28,7 @@ class ServicioCopiaCatalogoValidacion
 
             $destinoOcupado = $destino->clientes()->exists()
                 || $destino->especies()->exists()
+                || $destino->categorias()->exists()
                 || $destino->csg()->exists();
 
             if ($destinoOcupado) {
@@ -35,6 +37,7 @@ class ServicioCopiaCatalogoValidacion
 
             $origen->load([
                 'clientes.marcas',
+                'categorias',
                 'especies.variedades',
                 'especies.calibres',
                 'especies.envases',
@@ -57,6 +60,15 @@ class ServicioCopiaCatalogoValidacion
                         'activo' => $marca->activo,
                     ]);
                 }
+            }
+
+            foreach ($origen->categorias as $categoria) {
+                CategoriaValidacion::create([
+                    'temporada_id' => $destino->id,
+                    'nombre' => $categoria->nombre,
+                    'codigo_externo' => $categoria->codigo_externo,
+                    'activo' => $categoria->activo,
+                ]);
             }
 
             $variedades = [];
@@ -116,7 +128,7 @@ class ServicioCopiaCatalogoValidacion
 
             $destino->increment('version_catalogo');
 
-            return $destino->refresh()->loadCount(['clientes', 'especies', 'csg']);
+            return $destino->refresh()->loadCount(['clientes', 'categorias', 'especies', 'csg']);
         }, attempts: 3);
     }
 }

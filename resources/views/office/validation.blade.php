@@ -94,7 +94,7 @@
 
                         <section class="panel validation-panel validation-import-panel">
                             <div class="validation-panel__heading"><div><p class="eyebrow">CARGA MASIVA</p><h2>Importar planilla</h2></div><span>CSV o XLSX · 10 MB</span></div>
-                            <p class="validation-help">Columnas obligatorias: especie, variedad, calibre, envase, cliente, marca y CSG. Predio y códigos externos son opcionales.</p>
+                            <p class="validation-help">Columnas obligatorias: especie, variedad, calibre, envase, cliente, marca y CSG. Categoría, predio y códigos externos son opcionales; cada categoría importada queda disponible para todas las especies y marcas.</p>
                             <form class="validation-form" id="importForm" enctype="multipart/form-data">
                                 <label class="validation-file"><span>Archivo de temporada *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
                                 <p class="form-error" id="importError" role="alert"></p>
@@ -107,7 +107,7 @@
 
                     <section class="panel validation-panel">
                         <div class="validation-panel__heading"><div><p class="eyebrow">CATÁLOGO NORMALIZADO</p><h2>Configuración individual y jerárquica</h2></div><a class="secondary-button" href="/oficina/validacion/catalogo">Abrir configuración</a></div>
-                        <p class="validation-help">Crea clientes y marcas; especies con sus variedades, calibres y envases; y autoriza variedades por CSG. Los artículos y orígenes de la PDA se generan automáticamente.</p>
+                        <p class="validation-help">Crea clientes y marcas; categorías independientes; especies con sus variedades, calibres y envases; y autoriza variedades por CSG. Los artículos y orígenes de la PDA se generan automáticamente.</p>
                     </section>
 
                     <div class="validation-catalog-grid is-hidden">

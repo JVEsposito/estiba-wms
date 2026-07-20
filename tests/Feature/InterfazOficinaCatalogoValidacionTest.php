@@ -13,6 +13,7 @@ class InterfazOficinaCatalogoValidacionTest extends TestCase
             ->assertSee('Catálogo jerárquico')
             ->assertSee('Clientes')
             ->assertSee('Marcas')
+            ->assertSee('Categorías')
             ->assertSee('Especies')
             ->assertSee('Variedades')
             ->assertSee('Calibres')
@@ -25,6 +26,9 @@ class InterfazOficinaCatalogoValidacionTest extends TestCase
                 'id="varietyForm"',
                 'maxlength="100"',
             ], false);
+        $this->get('/oficina/validacion/catalogo')
+            ->assertSee('id="categoryForm"', false)
+            ->assertSee('Guardar categoría');
     }
 
     public function test_validacion_enlaza_el_catalogo_para_administradores(): void

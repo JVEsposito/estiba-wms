@@ -3,6 +3,7 @@
 namespace App\Services\Validacion;
 
 use App\Models\CalibreValidacion;
+use App\Models\CategoriaValidacion;
 use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EnvaseValidacion;
@@ -31,6 +32,10 @@ class ServicioCatalogoJerarquicoValidacion
             'clientes' => ClienteValidacion::query()
                 ->where('temporada_id', $temporada->id)
                 ->with('marcas')
+                ->orderBy('nombre')
+                ->get(),
+            'categorias' => CategoriaValidacion::query()
+                ->where('temporada_id', $temporada->id)
                 ->orderBy('nombre')
                 ->get(),
             'especies' => EspecieValidacion::query()
@@ -104,6 +109,27 @@ class ServicioCatalogoJerarquicoValidacion
         );
 
         return $this->guardar($modelo ?? new EspecieValidacion, [
+            'temporada_id' => $datos['temporada_id'],
+            'nombre' => $nombre,
+            'codigo_externo' => $this->codigo($datos['codigo_externo'] ?? null),
+            'activo' => (bool) ($datos['activo'] ?? true),
+        ], $datos['temporada_id']);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function guardarCategoria(array $datos, ?CategoriaValidacion $modelo = null): CategoriaValidacion
+    {
+        $this->asegurarMismaTemporada($modelo, $datos['temporada_id']);
+        $nombre = $this->texto($datos['nombre']);
+        $this->asegurarUnico(
+            CategoriaValidacion::query()
+                ->where('temporada_id', $datos['temporada_id'])
+                ->where('nombre', $nombre),
+            $modelo,
+            'Esa categoría ya existe en la temporada.',
+        );
+
+        return $this->guardar($modelo ?? new CategoriaValidacion, [
             'temporada_id' => $datos['temporada_id'],
             'nombre' => $nombre,
             'codigo_externo' => $this->codigo($datos['codigo_externo'] ?? null),

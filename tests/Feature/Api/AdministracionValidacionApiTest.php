@@ -110,6 +110,49 @@ class AdministracionValidacionApiTest extends TestCase
         $this->assertSame(1, Temporada::query()->where('activa', true)->count());
     }
 
+    public function test_administra_una_categoria_independiente_para_todas_las_especies_y_marcas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = Temporada::create([
+            'codigo' => 'CAT-2026',
+            'nombre' => 'Temporada categorías',
+            'activa' => true,
+        ]);
+
+        $categoriaId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/validacion/categorias', [
+                'temporada_id' => $temporada->id,
+                'nombre' => ' Exportación ',
+                'codigo_externo' => 'cat-exp',
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.nombre', 'Exportación')
+            ->assertJsonPath('data.codigo_externo', 'CAT-EXP')
+            ->json('data.id');
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson("/api/administracion/validacion/temporadas/{$temporada->id}/catalogo")
+            ->assertOk()
+            ->assertJsonPath('categorias.0.id', $categoriaId)
+            ->assertJsonPath('categorias.0.nombre', 'Exportación');
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/validacion/catalogos')
+            ->assertOk()
+            ->assertJsonPath('categorias.0.id', $categoriaId);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/administracion/validacion/categorias/{$categoriaId}", [
+                'temporada_id' => $temporada->id,
+                'nombre' => 'Mercado nacional',
+                'codigo_externo' => null,
+                'activo' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.nombre', 'Mercado nacional');
+    }
+
     public function test_importador_previsualiza_y_confirma_csv_sin_desactivar_ausencias(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);

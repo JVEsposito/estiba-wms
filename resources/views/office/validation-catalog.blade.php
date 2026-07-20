@@ -53,7 +53,7 @@
                     </div>
                 </section>
 
-                <div class="catalog-columns">
+                <div class="catalog-columns catalog-columns--three">
                     <section class="panel catalog-card">
                         <div class="validation-panel__heading"><div><p class="eyebrow">BASE COMERCIAL</p><h2>Clientes</h2></div><span id="clientCount">0</span></div>
                         <form class="catalog-form" id="clientForm">
@@ -77,6 +77,18 @@
                             <div class="catalog-actions"><button class="secondary-button" data-reset-form="brandForm" type="button">Limpiar</button><button class="primary-button" type="submit">Guardar marca</button></div>
                         </form>
                         <p class="form-error" id="brandError"></p><div class="validation-list" id="brandList"></div>
+                    </section>
+
+                    <section class="panel catalog-card">
+                        <div class="validation-panel__heading"><div><p class="eyebrow">INDEPENDIENTE</p><h2>Categorías</h2></div><span id="categoryCount">0</span></div>
+                        <form class="catalog-form" id="categoryForm">
+                            <input name="id" type="hidden">
+                            <label><span>Nombre *</span><input name="nombre" maxlength="100" required></label>
+                            <label><span>Código externo</span><input name="codigo_externo" maxlength="100"></label>
+                            <label class="validation-check"><input name="activo" type="checkbox" checked><span>Activa</span></label>
+                            <div class="catalog-actions"><button class="secondary-button" data-reset-form="categoryForm" type="button">Limpiar</button><button class="primary-button" type="submit">Guardar categoría</button></div>
+                        </form>
+                        <p class="form-error" id="categoryError"></p><div class="validation-list" id="categoryList"></div>
                     </section>
                 </div>
 

@@ -34,6 +34,7 @@ class ImportacionCatalogoJerarquicoValidacionTest extends TestCase
             ],
             'filas' => [[
                 'fila' => 2,
+                'categoria' => 'Exportación',
                 'especie' => 'Cereza',
                 'variedad' => 'Santina',
                 'calibre' => 'XL',
@@ -53,6 +54,7 @@ class ImportacionCatalogoJerarquicoValidacionTest extends TestCase
         $resultado = app(ServicioImportacionValidacion::class)->confirmar($importacion, $usuario);
 
         $this->assertSame('confirmada', $resultado->estado);
+        $this->assertDatabaseHas('categorias_validacion', ['nombre' => 'Exportación']);
         $this->assertDatabaseHas('especies_validacion', ['nombre' => 'Cereza']);
         $this->assertDatabaseHas('variedades_validacion', ['nombre' => 'Santina']);
         $this->assertDatabaseHas('calibres_validacion', ['nombre' => 'XL']);

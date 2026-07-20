@@ -82,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateMarca']);
             Route::post('/especies', [CatalogoJerarquicoValidacionController::class, 'storeEspecie']);
             Route::put('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEspecie']);
+            Route::post('/categorias', [CatalogoJerarquicoValidacionController::class, 'storeCategoria']);
+            Route::put('/categorias/{categoriaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCategoria']);
             Route::post('/variedades', [CatalogoJerarquicoValidacionController::class, 'storeVariedad']);
             Route::put('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateVariedad']);
             Route::post('/calibres', [CatalogoJerarquicoValidacionController::class, 'storeCalibre']);
