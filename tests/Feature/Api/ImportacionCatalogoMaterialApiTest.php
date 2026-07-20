@@ -216,7 +216,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
     public function test_previsualizacion_rechaza_planilla_con_mas_de_cinco_mil_filas(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
-        $filas = ["codigo;nombre;unidad_medida"];
+        $filas = ['codigo;nombre;unidad_medida'];
 
         for ($indice = 1; $indice <= 5001; $indice++) {
             $filas[] = "ITEM-{$indice};Material {$indice};unidad";
