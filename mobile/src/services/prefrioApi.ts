@@ -59,7 +59,7 @@ export async function listPrefrioTunnels(baseUrl: string, token: string) {
 export async function listPrefrioProcesses(baseUrl: string, token: string) {
   const response = await request<{ data: PrefrioProcess[] }>(
     baseUrl,
-    '/api/prefrio/procesos?per_page=50',
+    '/api/prefrio/procesos?per_page=50&solo_activos=1',
     token,
   );
   return response.data;
