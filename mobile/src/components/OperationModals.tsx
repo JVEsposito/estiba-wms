@@ -346,26 +346,30 @@ export function MaterialDispatchModal({
   const matchingDispatches = dispatches.filter((dispatch) => dispatch.items.some((detail) => (
     detail.item.id === material?.item.id && Number(detail.cantidad_pendiente) > 0
   )));
-  const firstMatchingDispatchId = matchingDispatches[0]?.id;
+  const prioritizedDispatches = [...matchingDispatches].sort((left, right) => (
+    reservationForFolio(right, material?.item.id, position?.folio?.id)
+      - reservationForFolio(left, material?.item.id, position?.folio?.id)
+  ));
+  const preferredDispatchId = prioritizedDispatches[0]?.id;
   const [dispatchId, setDispatchId] = useState<string>();
   const [destinationId, setDestinationId] = useState<string>();
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
     if (!visible) return;
-    setDispatchId(canCreate ? undefined : firstMatchingDispatchId);
+    setDispatchId(preferredDispatchId ?? (canCreate ? undefined : matchingDispatches[0]?.id));
     setDestinationId(undefined);
     setAmount('');
-  }, [canCreate, firstMatchingDispatchId, visible, position?.folio?.id]);
+  }, [canCreate, preferredDispatchId, visible, position?.folio?.id]);
 
   const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
   const selectedDetail = selectedDispatch?.items.find((detail) => detail.item.id === material?.item.id);
-  const followsFifo = selectedDetail?.sugerencias_fifo.some((suggestion) => (
-    suggestion.folio_id === position?.folio?.id
-  ));
-  const ownReservation = Number(selectedDetail?.sugerencias_fifo.find((suggestion) => (
-    suggestion.folio_id === position?.folio?.id
-  ))?.cantidad ?? 0);
+  const ownReservation = reservationForFolio(
+    selectedDispatch,
+    material?.item.id,
+    position?.folio?.id,
+  );
+  const followsFifo = ownReservation > 0;
   const maximum = Math.min(
     Number(material?.cantidad_disponible ?? 0) + ownReservation,
     selectedDetail ? Number(selectedDetail.cantidad_pendiente) : Number(material?.cantidad_disponible ?? 0),
@@ -402,9 +406,14 @@ export function MaterialDispatchModal({
             <Text style={styles.label}>{canCreate ? 'Orden existente o despacho directo' : 'Orden de despacho asignada'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator>
               <View style={styles.choiceRow}>
-                {canCreate && <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => setDispatchId(undefined)} />}
-                {matchingDispatches.map((dispatch) => (
-                  <Choice active={dispatchId === dispatch.id} key={dispatch.id} label={`${dispatch.codigo} · ${dispatch.destino.nombre}`} onPress={() => setDispatchId(dispatch.id)} />
+                {canCreate && <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => { setDispatchId(undefined); setAmount(''); }} />}
+                {prioritizedDispatches.map((dispatch) => (
+                  <Choice
+                    active={dispatchId === dispatch.id}
+                    key={dispatch.id}
+                    label={materialDispatchLabel(dispatch, material?.item.id, position?.folio?.id, material?.unidad_medida)}
+                    onPress={() => { setDispatchId(dispatch.id); setAmount(''); }}
+                  />
                 ))}
               </View>
             </ScrollView>
@@ -426,6 +435,7 @@ export function MaterialDispatchModal({
               <View style={[styles.fifoNotice, followsFifo === false && styles.fifoNoticeOverride]}>
                 <Text style={styles.fifoNoticeTitle}>{followsFifo ? 'Folio sugerido por FIFO' : 'Selección distinta de FIFO'}</Text>
                 <Text style={styles.fifoNoticeText}>{selectedDispatch?.destino.nombre} · {selectedDispatch?.destino.centro_costo} · pendiente {selectedDetail?.cantidad_pendiente} {selectedDetail?.unidad_medida}</Text>
+                <Text style={styles.fifoReservationText}>Asignado a este folio: {ownReservation} {selectedDetail?.unidad_medida}</Text>
               </View>
             )}
 
@@ -441,6 +451,30 @@ export function MaterialDispatchModal({
       </SafeAreaView>
     </Modal>
   );
+}
+
+function reservationForFolio(
+  dispatch: MaterialDispatch | undefined,
+  itemId: string | undefined,
+  folioId: string | undefined,
+): number {
+  if (!dispatch || !itemId || !folioId) return 0;
+  const detail = dispatch.items.find((item) => item.item.id === itemId);
+  const reservation = detail?.sugerencias_fifo.find((suggestion) => suggestion.folio_id === folioId);
+
+  return Number(reservation?.cantidad ?? 0);
+}
+
+function materialDispatchLabel(
+  dispatch: MaterialDispatch,
+  itemId: string | undefined,
+  folioId: string | undefined,
+  unit: string | undefined,
+): string {
+  const reservation = reservationForFolio(dispatch, itemId, folioId);
+  const fifo = reservation > 0 ? ` · FIFO ${reservation} ${unit ?? ''}` : '';
+
+  return `${dispatch.codigo} · ${dispatch.destino.nombre}${fifo}`;
 }
 
 function DestinationPlanMap({
@@ -849,6 +883,7 @@ const styles = StyleSheet.create({
   fifoNoticeOverride: { borderColor: colors.amber, backgroundColor: colors.amberDark },
   fifoNoticeTitle: { color: colors.text, fontSize: 9, fontWeight: '900' },
   fifoNoticeText: { marginTop: 3, color: colors.muted, fontSize: 8 },
+  fifoReservationText: { marginTop: 5, color: colors.text, fontSize: 9, fontWeight: '900' },
   modalError: {
     marginTop: 10,
     padding: 10,
