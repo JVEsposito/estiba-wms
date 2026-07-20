@@ -53,6 +53,7 @@ class ServicioCatalogoJerarquicoValidacion
     /** @param array<string, mixed> $datos */
     public function guardarCliente(array $datos, ?ClienteValidacion $modelo = null): ClienteValidacion
     {
+        $this->asegurarMismaTemporada($modelo, $datos['temporada_id']);
         $nombre = $this->texto($datos['nombre']);
         $this->asegurarUnico(
             ClienteValidacion::query()->where('temporada_id', $datos['temporada_id'])->where('nombre', $nombre),
@@ -90,6 +91,7 @@ class ServicioCatalogoJerarquicoValidacion
     /** @param array<string, mixed> $datos */
     public function guardarEspecie(array $datos, ?EspecieValidacion $modelo = null): EspecieValidacion
     {
+        $this->asegurarMismaTemporada($modelo, $datos['temporada_id']);
         $nombre = $this->texto($datos['nombre']);
         $this->asegurarUnico(
             EspecieValidacion::query()->where('temporada_id', $datos['temporada_id'])->where('nombre', $nombre),
@@ -143,6 +145,7 @@ class ServicioCatalogoJerarquicoValidacion
     /** @param array<string, mixed> $datos */
     public function guardarCsg(array $datos, ?CsgValidacion $modelo = null): CsgValidacion
     {
+        $this->asegurarMismaTemporada($modelo, $datos['temporada_id']);
         $codigo = mb_strtoupper($this->texto($datos['codigo']));
         $this->asegurarUnico(
             CsgValidacion::query()->where('temporada_id', $datos['temporada_id'])->where('codigo', $codigo),
@@ -198,6 +201,12 @@ class ServicioCatalogoJerarquicoValidacion
         string $mensaje,
     ): Model {
         $especie = EspecieValidacion::query()->findOrFail($datos['especie_validacion_id']);
+        if ($modelo->exists) {
+            $temporadaActual = $modelo->especie()->value('temporada_id');
+            if ($temporadaActual !== $especie->temporada_id) {
+                throw new DomainException('No se puede mover un elemento a otra temporada.');
+            }
+        }
         $nombre = $this->texto($datos['nombre']);
         $this->asegurarUnico(
             $clase::query()->where('especie_validacion_id', $especie->id)->where('nombre', $nombre),
@@ -233,6 +242,13 @@ class ServicioCatalogoJerarquicoValidacion
 
             return $modelo->refresh();
         }, attempts: 3);
+    }
+
+    private function asegurarMismaTemporada(?Model $modelo, string $temporadaId): void
+    {
+        if ($modelo?->exists && $modelo->getAttribute('temporada_id') !== $temporadaId) {
+            throw new DomainException('No se puede mover un elemento a otra temporada.');
+        }
     }
 
     private function asegurarUnico($consulta, ?Model $modelo, string $mensaje): void
