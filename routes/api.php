@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
+use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\SesionEstibaController;
@@ -120,6 +121,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/andenes/{anden}', [AndenController::class, 'update']);
     });
     Route::middleware('can:administrar-catalogos-materiales')->group(function () {
+        Route::get('/administracion/materiales/importaciones', [ImportacionCatalogoMaterialController::class, 'index']);
+        Route::post('/administracion/materiales/importaciones/previsualizar', [ImportacionCatalogoMaterialController::class, 'previsualizar']);
+        Route::post('/administracion/materiales/importaciones/{importacionCatalogoMaterial}/confirmar', [ImportacionCatalogoMaterialController::class, 'confirmar']);
         Route::get('/administracion/materiales/items', [CatalogoMaterialController::class, 'items']);
         Route::post('/administracion/materiales/items', [CatalogoMaterialController::class, 'storeItem']);
         Route::put('/administracion/materiales/items/{itemMaterial}', [CatalogoMaterialController::class, 'updateItem']);
