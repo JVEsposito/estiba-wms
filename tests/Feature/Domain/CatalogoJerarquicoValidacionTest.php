@@ -88,14 +88,24 @@ class CatalogoJerarquicoValidacionTest extends TestCase
         $this->assertSame(1, $resultado->csg_count);
         $this->assertSame(2, $resultado->version_catalogo);
         $this->assertDatabaseHas('marcas_validacion', ['nombre' => 'Olmos Roja']);
+        $especiesCopiadas = EspecieValidacion::query()
+            ->where('temporada_id', $destino->id)
+            ->pluck('id');
+
         $this->assertSame(
             2,
-            CalibreValidacion::query()->where('nombre', 'XL')->count(),
+            CalibreValidacion::query()
+                ->whereIn('especie_validacion_id', $especiesCopiadas)
+                ->where('nombre', 'XL')
+                ->count(),
             'El mismo calibre debe poder existir como hijo de especies diferentes.',
         );
         $this->assertSame(
             2,
-            EnvaseValidacion::query()->where('nombre', '5 KG')->count(),
+            EnvaseValidacion::query()
+                ->whereIn('especie_validacion_id', $especiesCopiadas)
+                ->where('nombre', '5 KG')
+                ->count(),
             'El mismo envase debe poder existir como hijo de especies diferentes.',
         );
 
