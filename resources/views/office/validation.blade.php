@@ -46,6 +46,7 @@
                 <header class="validation-heading panel">
                     <div><p class="eyebrow">CONTROL DE INGRESO</p><h1>Validación de pallets</h1><p>La aprobación crea el folio pendiente de prefrío; observar conserva la posibilidad de corregir y volver a validar.</p></div>
                     <div class="validation-heading__actions">
+                        <a class="secondary-button is-hidden" id="hierarchyCatalogLink" href="/oficina/validacion/catalogo">Configurar catálogo</a>
                         <label><span>Temporada visible</span><select id="seasonSelector"></select></label>
                         <button class="secondary-button" id="reloadValidationButton" type="button">↻ Actualizar</button>
                     </div>
