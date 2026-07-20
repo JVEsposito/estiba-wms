@@ -135,11 +135,28 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
   }, [baseUrl, auth.token]);
 
   useEffect(() => {
-    if (!selectedProcess && cache.processes.length) {
-      const active = cache.processes.find((item) => ACTIVE_STATES.has(item.estado));
-      setSelectedProcessId(active?.id ?? cache.processes[0].id);
+    if (selectedProcess && !ACTIVE_STATES.has(selectedProcess.estado)) {
+      setSelectedTunnelId(selectedProcess.tunel.id);
+      setSelectedProcessId(null);
+      setSelectedPositionId(null);
+      setCreating(false);
+      return;
     }
-  }, [cache.processes, selectedProcess]);
+
+    if (selectedProcessId && !selectedProcess) {
+      setSelectedProcessId(null);
+      setSelectedPositionId(null);
+      return;
+    }
+
+    if (!selectedProcessId && !selectedTunnelId) {
+      const active = cache.processes.find((item) => ACTIVE_STATES.has(item.estado));
+      if (active) {
+        setSelectedProcessId(active.id);
+        setSelectedTunnelId(active.tunel.id);
+      }
+    }
+  }, [cache.processes, selectedProcess, selectedProcessId, selectedTunnelId]);
 
   useEffect(() => {
     if (selectedProcess && !selectedPositionId) {
@@ -269,12 +286,19 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
 
   async function upsertServerProcess(process: PrefrioProcess) {
     const current = cacheRef.current;
-    const nextProcesses = [
-      process,
-      ...current.processes.filter((item) => item.id !== process.id),
-    ];
+    const processIsActive = ACTIVE_STATES.has(process.estado);
+    const nextProcesses = processIsActive
+      ? [process, ...current.processes.filter((item) => item.id !== process.id)]
+      : current.processes.filter((item) => item.id !== process.id);
+
     await replaceCache({ ...current, processes: nextProcesses });
-    setSelectedProcessId(process.id);
+    setSelectedTunnelId(process.tunel.id);
+    setSelectedProcessId(processIsActive ? process.id : null);
+
+    if (!processIsActive) {
+      setSelectedPositionId(null);
+      setCreating(false);
+    }
   }
 
   async function findCandidate(number: string): Promise<PrefrioFolioCandidate | null> {
@@ -788,6 +812,11 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                     { text: 'Enviar', onPress: () => void queueStateAction('verificar', 'Proceso enviado a verificación', `/api/prefrio/procesos/${selectedProcess.id}/verificar`, 'pendiente_verificacion') },
                   ])}
                   onEvent={setEventDraft}
+                  onLeave={() => {
+                    setSelectedTunnelId(selectedTunnel.id);
+                    setSelectedProcessId(null);
+                    setSelectedPositionId(null);
+                  }}
                 />
               </View>
             </View>
@@ -892,6 +921,7 @@ function ProcessActions({
   onStart,
   onVerify,
   onEvent,
+  onLeave,
 }: {
   process: PrefrioProcess;
   canOperate: boolean;
@@ -899,7 +929,19 @@ function ProcessActions({
   onStart: () => void;
   onVerify: () => void;
   onEvent: (draft: EventDraft) => void;
+  onLeave: () => void;
 }) {
+  if (!ACTIVE_STATES.has(process.estado)) {
+    return (
+      <View>
+        <Text style={styles.muted}>El proceso está {stateLabel(process.estado).toLowerCase()} y ya no admite operaciones.</Text>
+        <Pressable onPress={onLeave} style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>Volver al túnel</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   if (!canOperate) return <Text style={styles.muted}>Perfil de consulta: no puedes ejecutar acciones.</Text>;
 
   if (['borrador', 'cargando'].includes(process.estado)) {
@@ -923,7 +965,11 @@ function ProcessActions({
     );
   }
 
-  return <Text style={styles.muted}>El proceso espera una decisión de supervisión.</Text>;
+  if (process.estado === 'pendiente_verificacion') {
+    return <Text style={styles.muted}>El proceso espera una decisión de supervisión.</Text>;
+  }
+
+  return <Text style={styles.muted}>El proceso no posee acciones operacionales disponibles.</Text>;
 }
 
 function EventButton({ label, onPress }: { label: string; onPress: () => void }) {

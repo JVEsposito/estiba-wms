@@ -21,6 +21,7 @@ class ConsultarProcesosPrefrioRequest extends FormRequest
         return [
             'tunel_prefrio_id' => ['nullable', 'uuid', 'exists:tuneles_prefrio,id'],
             'estado' => ['nullable', Rule::enum(EstadoProcesoPrefrio::class)],
+            'solo_activos' => ['nullable', 'boolean'],
             'folio' => ['nullable', 'string', 'max:50'],
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],

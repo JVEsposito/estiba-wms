@@ -59,7 +59,13 @@ class ProcesoPrefrioController extends Controller
     public function index(ConsultarProcesosPrefrioRequest $request): AnonymousResourceCollection
     {
         $datos = $request->validated();
+        $estadosActivos = collect(EstadoProcesoPrefrio::cases())
+            ->filter->esActivo()
+            ->map->value
+            ->all();
         $procesos = ProcesoPrefrio::query()
+            ->when($datos['solo_activos'] ?? false, fn ($consulta) => $consulta
+                ->whereIn('estado', $estadosActivos))
             ->when($datos['tunel_prefrio_id'] ?? null, fn ($consulta, string $id) => $consulta
                 ->where('tunel_prefrio_id', $id))
             ->when($datos['estado'] ?? null, fn ($consulta, string $estado) => $consulta
