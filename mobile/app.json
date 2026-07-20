@@ -2,7 +2,7 @@
   "expo": {
     "name": "Estiba WMS Cámaras",
     "slug": "estiba-wms-camaras",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "icon": "./assets/icon.png",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -13,14 +13,14 @@
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/4c609028-6c9f-4bbe-9c4e-2aff780c4244"
     },
-    "orientation": "landscape",
+    "orientation": "default",
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "cl.estiba.wms.camaras",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D1217"
@@ -36,6 +36,7 @@
           }
         }
       ],
+      "expo-screen-orientation",
       "expo-status-bar"
     ],
     "extra": {

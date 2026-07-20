@@ -1,4 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +30,19 @@ export default function App() {
       .finally(() => setConfigurationLoaded(true));
     void applyAvailableUpdate();
   }, []);
+
+  useEffect(() => {
+    const orientation = activeModule === 'validacion'
+      ? ScreenOrientation.OrientationLock.PORTRAIT_UP
+      : activeModule
+        ? ScreenOrientation.OrientationLock.LANDSCAPE
+        : ScreenOrientation.OrientationLock.DEFAULT;
+
+    void ScreenOrientation.lockAsync(orientation).catch(() => {
+      // Algunos equipos administrados pueden impedir que la aplicación cambie
+      // la orientación. La interfaz responsiva sigue siendo utilizable.
+    });
+  }, [activeModule]);
 
   async function login(payload: LoginPayload) {
     const session = await api.login(payload);
