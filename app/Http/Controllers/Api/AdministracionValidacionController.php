@@ -9,9 +9,11 @@ use App\Models\ImportacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use App\Services\Validacion\ServicioCatalogoValidacion;
+use App\Services\Validacion\ServicioCopiaCatalogoValidacion;
 use App\Services\Validacion\ServicioImportacionValidacion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -34,8 +36,20 @@ class AdministracionValidacionController extends Controller
     public function storeTemporada(
         Request $request,
         ServicioCatalogoValidacion $servicio,
+        ServicioCopiaCatalogoValidacion $copiador,
     ): JsonResponse {
-        $temporada = $servicio->guardarTemporada($this->datosTemporada($request));
+        $datos = $this->datosTemporada($request);
+        $origenId = $datos['copiar_desde_temporada_id'] ?? null;
+        unset($datos['copiar_desde_temporada_id']);
+
+        $temporada = DB::transaction(function () use ($servicio, $copiador, $datos, $origenId): Temporada {
+            $temporada = $servicio->guardarTemporada($datos);
+            if ($origenId) {
+                $copiador->copiar(Temporada::query()->findOrFail($origenId), $temporada);
+            }
+
+            return $temporada->refresh();
+        });
 
         return response()->json(['data' => $temporada], Response::HTTP_CREATED);
     }
@@ -161,6 +175,7 @@ class AdministracionValidacionController extends Controller
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
             'activa' => ['sometimes', 'boolean'],
+            'copiar_desde_temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
         ]);
     }
 
