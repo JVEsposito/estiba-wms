@@ -194,8 +194,8 @@ class ServicioCatalogoJerarquicoValidacion
     }
 
     /**
-     * @param array<string, mixed> $datos
-     * @param class-string<Model> $clase
+     * @param  array<string, mixed>  $datos
+     * @param  class-string<Model>  $clase
      */
     private function guardarHijoEspecie(
         array $datos,
@@ -226,9 +226,11 @@ class ServicioCatalogoJerarquicoValidacion
     }
 
     /**
-     * @param array<string, mixed> $atributos
+     * @param  array<string, mixed>  $atributos
+     *
      * @template T of Model
-     * @param T $modelo
+     *
+     * @param  T  $modelo
      * @return T
      */
     private function guardar(Model $modelo, array $atributos, string $temporadaId): Model
