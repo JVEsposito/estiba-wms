@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -53,6 +54,8 @@ type ObservationDraft = {
 };
 
 export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenProps) {
+  const { height, width } = useWindowDimensions();
+  const compact = width < 700 || width < height;
   const folioInput = useRef<TextInput>(null);
   const flushing = useRef(false);
   const [catalog, setCatalog] = useState<ValidationCatalog | null>(null);
@@ -332,16 +335,16 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <View style={styles.topbar}>
-          <View><Text style={styles.eyebrow}>ESTIBA WMS · TERRENO</Text><Text style={styles.title}>Validación de pallets</Text></View>
-          <View style={styles.topbarRight}>
+      <ScrollView contentContainerStyle={[styles.page, compact && styles.pageCompact]} keyboardShouldPersistTaps="handled">
+        <View style={[styles.topbar, compact && styles.topbarCompact]}>
+          <View><Text style={styles.eyebrow}>ESTIBA WMS · TERRENO</Text><Text style={[styles.title, compact && styles.titleCompact]}>Validación de pallets</Text></View>
+          <View style={[styles.topbarRight, compact && styles.topbarRightCompact]}>
             <View style={[styles.connection, online ? styles.connectionOnline : styles.connectionOffline]}><Text style={styles.connectionText}>{online ? 'API conectada' : 'Modo desconectado'}</Text></View>
             <Pressable onPress={logout} style={styles.logout}><Text style={styles.logoutText}>Salir</Text></Pressable>
           </View>
         </View>
 
-        <View style={styles.statusStrip}>
+        <View style={[styles.statusStrip, compact && styles.statusStripCompact]}>
           <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
           <Text style={styles.statusText}>{outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
         </View>
@@ -349,8 +352,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         {error ? <Pressable onPress={() => setError('')} style={styles.errorBanner}><Text style={styles.errorBannerText}>{error}</Text><Text style={styles.close}>×</Text></Pressable> : null}
         {notice ? <Pressable onPress={() => setNotice('')} style={styles.noticeBanner}><Text style={styles.noticeBannerText}>{notice}</Text><Text style={styles.close}>×</Text></Pressable> : null}
 
-        <View style={styles.mainGrid}>
-          <View style={styles.formPanel}>
+        <View style={[styles.mainGrid, compact && styles.mainGridCompact]}>
+          <View style={[styles.formPanel, compact && styles.panelCompact]}>
             <Text style={styles.sectionEyebrow}>CAPTURA RÁPIDA</Text>
             <Text style={styles.sectionTitle}>Escanea y valida</Text>
 
@@ -368,28 +371,28 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
               value={folio}
             />
 
-            <View style={styles.typeRow}>
+            <View style={[styles.typeRow, compact && styles.typeRowCompact]}>
               {(['pallet', 'saldo'] as const).map((type) => (
-                <Pressable key={type} onPress={() => setPackageType(type)} style={[styles.typeButton, packageType === type && styles.typeButtonActive]}>
+                <Pressable key={type} onPress={() => setPackageType(type)} style={[styles.typeButton, compact && styles.typeButtonCompact, packageType === type && styles.typeButtonActive]}>
                   <Text style={[styles.typeButtonText, packageType === type && styles.typeButtonTextActive]}>{type === 'pallet' ? 'PALLET COMPLETO' : 'SALDO'}</Text>
                 </Pressable>
               ))}
-              <View style={styles.boxField}><Text style={styles.label}>Cajas *</Text><TextInput keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={boxes} /></View>
+              <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={boxes} /></View>
             </View>
 
             <Text style={styles.groupTitle}>Artículo</Text>
-            <View style={styles.fieldGrid}>
-              <SelectField label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField disabled={!species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField disabled={!variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
-              <SelectField disabled={!caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
+            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
+              <SelectField compact={compact} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={!species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={!variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={!caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
             </View>
 
             <Text style={styles.groupTitle}>Origen comercial</Text>
-            <View style={styles.fieldGrid}>
-              <SelectField disabled={!selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setCsg(''); }} />
-              <SelectField disabled={!client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setCsg(''); }} />
-              <View style={styles.wideField}><SelectField disabled={!brand} label="CSG / Predio" options={csgOptions} searchable value={csg} onChange={setCsg} /></View>
+            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
+              <SelectField compact={compact} disabled={!selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setCsg(''); }} />
+              <SelectField compact={compact} disabled={!client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setCsg(''); }} />
+              <View style={styles.wideField}><SelectField compact={compact} disabled={!brand} label="CSG / Predio" options={csgOptions} searchable value={csg} onChange={setCsg} /></View>
             </View>
 
             <View style={styles.selectionSummary}>
@@ -398,19 +401,19 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
               <Text style={styles.selectionSummaryText}>{selectedOrigin ? `${selectedOrigin.cliente} · ${selectedOrigin.marca} · CSG ${selectedOrigin.csg}` : 'Origen pendiente'}</Text>
             </View>
 
-            <View style={styles.resultActions}>
-              <Pressable disabled={busy} onPress={() => void submit('aprobado')} style={[styles.resultButton, styles.approveButton]}><Text style={styles.resultIcon}>✓</Text><Text style={styles.resultButtonText}>APROBAR</Text></Pressable>
-              <Pressable disabled={busy} onPress={() => setObservation({ result: 'observado', reason: '', note: '' })} style={[styles.resultButton, styles.observeButton]}><Text style={styles.resultIcon}>!</Text><Text style={styles.resultButtonText}>OBSERVAR</Text></Pressable>
-              {canReject ? <Pressable disabled={busy} onPress={() => setObservation({ result: 'rechazado', reason: '', note: '' })} style={[styles.resultButton, styles.rejectButton]}><Text style={styles.resultIcon}>×</Text><Text style={styles.resultButtonText}>RECHAZAR</Text></Pressable> : null}
+            <View style={[styles.resultActions, compact && styles.resultActionsCompact]}>
+              <Pressable disabled={busy} onPress={() => void submit('aprobado')} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.approveButton]}><Text style={styles.resultIcon}>✓</Text><Text style={styles.resultButtonText}>APROBAR</Text></Pressable>
+              <Pressable disabled={busy} onPress={() => setObservation({ result: 'observado', reason: '', note: '' })} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.observeButton]}><Text style={styles.resultIcon}>!</Text><Text style={styles.resultButtonText}>OBSERVAR</Text></Pressable>
+              {canReject ? <Pressable disabled={busy} onPress={() => setObservation({ result: 'rechazado', reason: '', note: '' })} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.rejectButton]}><Text style={styles.resultIcon}>×</Text><Text style={styles.resultButtonText}>RECHAZAR</Text></Pressable> : null}
             </View>
           </View>
 
-          <View style={styles.sidePanel}>
+          <View style={[styles.sidePanel, compact && styles.panelCompact]}>
             <View style={styles.sideHeader}><View><Text style={styles.sectionEyebrow}>BANDEJA LOCAL</Text><Text style={styles.sideTitle}>{outbox.length} operaciones</Text></View><Pressable onPress={() => void synchronize()} style={styles.syncButton}><Text style={styles.syncButtonText}>↻ Sincronizar</Text></Pressable></View>
-            {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>{statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
+            {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>{statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
 
             <Text style={[styles.sectionEyebrow, styles.recentEyebrow]}>ÚLTIMAS CONFIRMADAS</Text>
-            {recent.slice(0, 6).map((item) => <View key={item.id} style={styles.recentItem}><View><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></View>)}
+            {recent.slice(0, 6).map((item) => <View key={item.id} style={styles.recentItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></View>)}
           </View>
         </View>
       </ScrollView>
@@ -421,14 +424,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   );
 }
 
-function SelectField({ label, options, value, onChange, disabled = false, searchable = false }: { label: string; options: Option[]; value: string; onChange: (value: string) => void; disabled?: boolean; searchable?: boolean }) {
+function SelectField({ label, options, value, onChange, compact = false, disabled = false, searchable = false }: { label: string; options: Option[]; value: string; onChange: (value: string) => void; compact?: boolean; disabled?: boolean; searchable?: boolean }) {
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
   const selected = options.find((option) => option.value === value);
   const filtered = options.filter((option) => `${option.label} ${option.search ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   return <>
-    <View style={styles.selectField}><Text style={styles.label}>{label} *</Text><Pressable disabled={disabled} onPress={() => setVisible(true)} style={[styles.selectButton, disabled && styles.disabled]}><Text numberOfLines={1} style={[styles.selectText, !selected && styles.placeholder]}>{selected?.label ?? 'Seleccionar'}</Text><Text style={styles.chevron}>⌄</Text></Pressable></View>
+    <View style={[styles.selectField, compact && styles.selectFieldCompact]}><Text style={styles.label}>{label} *</Text><Pressable disabled={disabled} onPress={() => setVisible(true)} style={[styles.selectButton, disabled && styles.disabled]}><Text numberOfLines={1} style={[styles.selectText, !selected && styles.placeholder]}>{selected?.label ?? 'Seleccionar'}</Text><Text style={styles.chevron}>⌄</Text></Pressable></View>
     <Modal animationType="fade" transparent visible={visible} onRequestClose={() => setVisible(false)}>
       <View style={styles.modalBackdrop}><View style={styles.selectorModal}><View style={styles.modalHeader}><Text style={styles.modalTitle}>{label}</Text><Pressable onPress={() => setVisible(false)}><Text style={styles.modalClose}>×</Text></Pressable></View>{searchable || options.length > 8 ? <TextInput autoFocus onChangeText={setQuery} placeholder={`Buscar ${label.toLowerCase()}`} placeholderTextColor={colors.muted} style={styles.searchInput} value={query} /> : null}<ScrollView keyboardShouldPersistTaps="handled" style={styles.optionList}>{filtered.map((option) => <Pressable key={option.value} onPress={() => { onChange(option.value); setQuery(''); setVisible(false); }} style={[styles.option, option.value === value && styles.optionSelected]}><Text style={styles.optionText}>{option.label}</Text></Pressable>)}{!filtered.length ? <Text style={styles.empty}>Sin opciones coincidentes.</Text> : null}</ScrollView></View></View>
     </Modal>
@@ -436,6 +439,8 @@ function SelectField({ label, options, value, onChange, disabled = false, search
 }
 
 function ObservationModal({ catalog, draft, onCancel, onConfirm }: { catalog: ValidationCatalog | null; draft: ObservationDraft | null; onCancel: () => void; onConfirm: (draft: ObservationDraft) => void }) {
+  const { height, width } = useWindowDimensions();
+  const compact = width < 700 || width < height;
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   useEffect(() => { setReason(draft?.reason ?? ''); setNote(draft?.note ?? ''); }, [draft]);
@@ -443,7 +448,7 @@ function ObservationModal({ catalog, draft, onCancel, onConfirm }: { catalog: Va
   const reasonOptions = (catalog?.motivos ?? []).map((item) => ({ value: item, label: reasonLabel(item) }));
   const invalid = !reason || (reason === 'otro' && !note.trim());
 
-  return <Modal animationType="slide" transparent visible onRequestClose={onCancel}><View style={styles.modalBackdrop}><View style={styles.observationModal}><View style={styles.modalHeader}><View><Text style={styles.sectionEyebrow}>{draft.result === 'rechazado' ? 'RECHAZO DEFINITIVO' : 'PALLET OBSERVADO'}</Text><Text style={styles.modalTitle}>Registra el motivo</Text></View><Pressable onPress={onCancel}><Text style={styles.modalClose}>×</Text></Pressable></View><SelectField label="Motivo" options={reasonOptions} searchable value={reason} onChange={setReason} /><Text style={styles.label}>Observación {reason === 'otro' ? '*' : ''}</Text><TextInput multiline onChangeText={setNote} placeholder="Describe el problema detectado o la corrección requerida" placeholderTextColor={colors.muted} style={styles.noteInput} value={note} /><View style={styles.modalActions}><Pressable onPress={onCancel} style={styles.cancelButton}><Text style={styles.cancelText}>Cancelar</Text></Pressable><Pressable disabled={invalid} onPress={() => onConfirm({ ...draft, reason, note })} style={[styles.confirmObservation, draft.result === 'rechazado' && styles.rejectButton, invalid && styles.disabled]}><Text style={styles.resultButtonText}>Confirmar {draft.result}</Text></Pressable></View></View></View></Modal>;
+  return <Modal animationType="slide" transparent visible onRequestClose={onCancel}><View style={[styles.modalBackdrop, compact && styles.modalBackdropCompact]}><View style={[styles.observationModal, compact && styles.observationModalCompact]}><ScrollView contentContainerStyle={styles.observationContent} keyboardShouldPersistTaps="handled"><View style={styles.modalHeader}><View><Text style={styles.sectionEyebrow}>{draft.result === 'rechazado' ? 'RECHAZO DEFINITIVO' : 'PALLET OBSERVADO'}</Text><Text style={styles.modalTitle}>Registra el motivo</Text></View><Pressable onPress={onCancel}><Text style={styles.modalClose}>×</Text></Pressable></View><SelectField compact={compact} label="Motivo" options={reasonOptions} searchable value={reason} onChange={setReason} /><Text style={styles.label}>Observación {reason === 'otro' ? '*' : ''}</Text><TextInput multiline onChangeText={setNote} placeholder="Describe el problema detectado o la corrección requerida" placeholderTextColor={colors.muted} style={styles.noteInput} value={note} /><View style={[styles.modalActions, compact && styles.modalActionsCompact]}><Pressable onPress={onCancel} style={[styles.cancelButton, compact && styles.modalButtonCompact]}><Text style={styles.cancelText}>Cancelar</Text></Pressable><Pressable disabled={invalid} onPress={() => onConfirm({ ...draft, reason, note })} style={[styles.confirmObservation, compact && styles.modalButtonCompact, draft.result === 'rechazado' && styles.rejectButton, invalid && styles.disabled]}><Text style={styles.resultButtonText}>Confirmar {draft.result}</Text></Pressable></View></ScrollView></View></View></Modal>;
 }
 
 function uniqueOptions(values: string[]): Option[] {
@@ -457,12 +462,16 @@ function reasonLabel(value: string) { return value.replaceAll('_', ' ').replace(
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   page: { padding: 18, gap: 14, paddingBottom: 46 },
+  pageCompact: { padding: 10, gap: 10, paddingBottom: 32 },
   boot: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: colors.background },
   muted: { color: colors.muted, fontWeight: '700' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.panel },
+  topbarCompact: { flexDirection: 'column', alignItems: 'stretch', padding: 13 },
   topbarRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topbarRightCompact: { justifyContent: 'space-between' },
   eyebrow: { color: colors.cyan, fontSize: 11, fontWeight: '900', letterSpacing: 1.3 },
   title: { color: colors.text, fontSize: 23, fontWeight: '900', marginTop: 3 },
+  titleCompact: { fontSize: 20 },
   connection: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   connectionOnline: { borderColor: colors.green, backgroundColor: colors.greenDark },
   connectionOffline: { borderColor: colors.red, backgroundColor: colors.blocked },
@@ -470,6 +479,7 @@ const styles = StyleSheet.create({
   logout: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   logoutText: { color: colors.muted, fontWeight: '800' },
   statusStrip: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', paddingHorizontal: 8 },
+  statusStripCompact: { flexDirection: 'column', gap: 4, paddingHorizontal: 4 },
   statusText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
   errorBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.red, backgroundColor: colors.blocked },
   errorBannerText: { flex: 1, color: colors.text, fontWeight: '800' },
@@ -477,22 +487,29 @@ const styles = StyleSheet.create({
   noticeBannerText: { flex: 1, color: colors.text, fontWeight: '800' },
   close: { color: colors.text, fontSize: 20, fontWeight: '900' },
   mainGrid: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  mainGridCompact: { flexDirection: 'column', gap: 10 },
   formPanel: { flex: 1.65, padding: 20, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
   sidePanel: { flex: 1, padding: 18, borderRadius: 17, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
+  panelCompact: { width: '100%', flexGrow: 0, flexBasis: 'auto', padding: 14 },
   sectionEyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: 4, marginBottom: 17 },
   label: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: .7, textTransform: 'uppercase', marginBottom: 6 },
   folioInput: { minHeight: 60, paddingHorizontal: 16, borderRadius: 13, borderWidth: 2, borderColor: colors.cyan, color: colors.text, backgroundColor: colors.backgroundDeep, fontSize: 23, fontWeight: '900', letterSpacing: 1.2 },
   typeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, marginTop: 12 },
+  typeRowCompact: { flexWrap: 'wrap' },
   typeButton: { minHeight: 49, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  typeButtonCompact: { flexGrow: 1, flexBasis: '46%', alignItems: 'center', paddingHorizontal: 8 },
   typeButtonActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
   typeButtonText: { color: colors.muted, fontSize: 11, fontWeight: '900' },
   typeButtonTextActive: { color: colors.cyan },
   boxField: { flex: 1, minWidth: 110 },
+  boxFieldCompact: { flexBasis: '100%' },
   boxInput: { minHeight: 49, paddingHorizontal: 13, borderRadius: 11, borderWidth: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.backgroundDeep, fontSize: 18, fontWeight: '900' },
   groupTitle: { color: colors.text, fontSize: 15, fontWeight: '900', marginTop: 20, marginBottom: 9 },
   fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  fieldGridCompact: { flexDirection: 'column', flexWrap: 'nowrap' },
   selectField: { flex: 1, minWidth: 145 },
+  selectFieldCompact: { width: '100%', flexGrow: 0, flexBasis: 'auto' },
   wideField: { flexBasis: '100%' },
   selectButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
   selectText: { flex: 1, color: colors.text, fontWeight: '800' },
@@ -503,7 +520,9 @@ const styles = StyleSheet.create({
   selectionSummaryTitle: { color: colors.cyan, fontWeight: '900' },
   selectionSummaryText: { color: colors.text, fontSize: 12, marginTop: 4 },
   resultActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  resultActionsCompact: { flexDirection: 'column' },
   resultButton: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1 },
+  resultButtonCompact: { width: '100%', flexGrow: 0, flexBasis: 'auto', minHeight: 58, flexDirection: 'row', gap: 9 },
   approveButton: { borderColor: colors.green, backgroundColor: colors.greenDark },
   observeButton: { borderColor: colors.amber, backgroundColor: colors.amberDark },
   rejectButton: { borderColor: colors.red, backgroundColor: colors.blocked },
@@ -514,6 +533,7 @@ const styles = StyleSheet.create({
   syncButton: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
   syncButtonText: { color: colors.cyan, fontSize: 11, fontWeight: '900' },
   queueItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  queueContent: { flex: 1 },
   queueFolio: { color: colors.text, fontSize: 14, fontWeight: '900' },
   queueDetail: { color: colors.muted, fontSize: 10, marginTop: 3 },
   queueError: { maxWidth: 260, color: colors.red, fontSize: 10, marginTop: 4 },
@@ -529,8 +549,11 @@ const styles = StyleSheet.create({
   busy: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(8,12,16,.72)' },
   busyText: { color: colors.text, fontWeight: '900' },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,.72)' },
+  modalBackdropCompact: { padding: 10 },
   selectorModal: { width: '100%', maxWidth: 620, maxHeight: '78%', padding: 18, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panelStrong },
   observationModal: { width: '100%', maxWidth: 680, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panelStrong },
+  observationModalCompact: { maxHeight: '94%', padding: 14 },
+  observationContent: { flexGrow: 1 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 13 },
   modalTitle: { color: colors.text, fontSize: 20, fontWeight: '900' },
   modalClose: { color: colors.text, fontSize: 28, fontWeight: '900', paddingHorizontal: 7 },
@@ -541,6 +564,8 @@ const styles = StyleSheet.create({
   optionText: { color: colors.text, fontWeight: '800' },
   noteInput: { minHeight: 110, padding: 13, borderRadius: 11, borderWidth: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.backgroundDeep, textAlignVertical: 'top' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
+  modalActionsCompact: { flexDirection: 'column-reverse' },
+  modalButtonCompact: { width: '100%', alignItems: 'center' },
   cancelButton: { paddingHorizontal: 17, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   cancelText: { color: colors.muted, fontWeight: '900' },
   confirmObservation: { paddingHorizontal: 18, paddingVertical: 13, borderRadius: 10, borderWidth: 1, borderColor: colors.amber, backgroundColor: colors.amberDark },
