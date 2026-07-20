@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\TipoEventoPrefrio;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccionProcesoPrefrioRequest;
@@ -18,12 +20,42 @@ use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Services\Prefrio\ServicioProcesoPrefrio;
 use DomainException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class ProcesoPrefrioController extends Controller
 {
+    public function resumen(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('consultar-prefrio'), 403);
+
+        $estadosActivos = collect(EstadoProcesoPrefrio::cases())
+            ->filter->esActivo()
+            ->map->value
+            ->all();
+
+        return response()->json([
+            'en_proceso' => ProcesoPrefrio::query()
+                ->where('estado', EstadoProcesoPrefrio::EnProceso)
+                ->count(),
+            'pendiente_verificacion' => ProcesoPrefrio::query()
+                ->where('estado', EstadoProcesoPrefrio::PendienteVerificacion)
+                ->count(),
+            'requiere_reproceso' => ProcesoPrefrio::query()
+                ->where('estado', EstadoProcesoPrefrio::RequiereReproceso)
+                ->count(),
+            'folios_activos' => ProcesoPrefrioFolio::query()
+                ->whereHas('proceso', fn ($consulta) => $consulta->whereIn('estado', $estadosActivos))
+                ->whereNotIn('estado', [
+                    EstadoFolioProcesoPrefrio::Retirado->value,
+                    EstadoFolioProcesoPrefrio::Cancelado->value,
+                ])
+                ->count(),
+        ]);
+    }
+
     public function index(ConsultarProcesosPrefrioRequest $request): AnonymousResourceCollection
     {
         $datos = $request->validated();

@@ -35,11 +35,11 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 | Base de datos central | MySQL |
 | Interfaz web operacional y de oficina | Blade + JavaScript + CSS responsive |
 | Cliente nativo para tablets | Expo + React Native + TypeScript en `mobile/` |
-| Persistencia local futura | IndexedDB / cola offline |
+| Persistencia local | AsyncStorage y bandejas offline por usuario/dispositivo en los módulos compatibles |
 | Integración futura | Adaptadores de entrada/salida desacoplados |
 | Repositorio | Monorepo: Laravel y web en la raíz; cliente nativo en `mobile/` |
 
-La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. El módulo móvil de Validación conserva además el último catálogo y una bandeja local de capturas para tolerar interrupciones de red.
+La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. Los módulos móviles de Validación y Prefrío conservan además su último catálogo o estado conocido y una bandeja local para tolerar interrupciones de red.
 
 ## Documentación de producto
 
@@ -51,6 +51,7 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Configuración de cámaras y preparación de cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
 - [Módulo de Validación de pallets](docs/MODULO_VALIDACION_PALLETS.md)
+- [Módulo de Prefrío](docs/MODULO_PREFRIO.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
@@ -69,6 +70,11 @@ Validación dispone de dos entradas diferentes:
 
 - `/oficina/validacion`: temporadas, artículos, orígenes, combinaciones, importación y trazabilidad.
 - Aplicación móvil: captura rápida para el perfil `validador`, con catálogo persistente y bandeja de salida.
+
+Prefrío dispone de:
+
+- `/oficina/prefrio`: configuración de túneles, tablero, procesos, historial y decisiones de supervisión.
+- Aplicación móvil: operación por túnel, plano de dos lados desde el fondo hacia la entrada, escaneo, eventos térmicos y bandeja offline para `operador_prefrio`.
 
 ## Puesta en marcha local
 
