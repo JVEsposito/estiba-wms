@@ -4,6 +4,8 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\Dispositivo;
+use App\Models\Temporada;
+use App\Models\TemporadaMaterial;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -61,6 +63,53 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonCount(1, 'dispositivos');
     }
 
+    public function test_accesos_es_el_unico_dueno_de_la_temporada_transversal(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $temporada = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/temporadas', [
+                'codigo' => ' 2026-2027 ',
+                'nombre' => ' Temporada cerezas 2026-2027 ',
+                'fecha_inicio' => '2026-10-01',
+                'fecha_fin' => '2027-02-28',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', '2026-2027')
+            ->assertJsonPath('data.activa', true)
+            ->json('data');
+
+        $this->assertNotNull($temporada['configuracion_material_id']);
+        $this->assertDatabaseHas('temporadas_materiales', [
+            'id' => $temporada['configuracion_material_id'],
+            'temporada_id' => $temporada['id'],
+            'activa' => true,
+        ]);
+
+        $nuevaId = $this->postJson('/api/administracion/temporadas', [
+            'codigo' => '2027-2028',
+            'nombre' => 'Temporada cerezas 2027-2028',
+            'activa' => false,
+        ])->assertCreated()->json('data.id');
+
+        $this->postJson("/api/administracion/temporadas/{$nuevaId}/activar")
+            ->assertOk()
+            ->assertJsonPath('data.activa', true);
+
+        $this->assertFalse(Temporada::query()->findOrFail($temporada['id'])->activa);
+        $this->assertTrue(TemporadaMaterial::query()->where('temporada_id', $nuevaId)->firstOrFail()->activa);
+        $this->getJson('/api/administracion/temporadas')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $nuevaId);
+
+        $this->postJson('/api/administracion/validacion/temporadas', [])->assertNotFound();
+        $this->postJson('/api/administracion/materiales/temporadas', [])->assertStatus(405);
+    }
+
     public function test_un_usuario_no_administrador_no_puede_gestionar_accesos(): void
     {
         $supervisor = User::factory()->create([
@@ -86,6 +135,13 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/dispositivos', [
                 'codigo' => 'TABLET-99',
                 'nombre' => 'Tablet no autorizada',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson('/api/administracion/temporadas', [
+                'codigo' => '2026-2027',
+                'nombre' => 'Temporada no autorizada',
             ])
             ->assertForbidden();
     }

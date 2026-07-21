@@ -13,8 +13,8 @@ use App\Models\Dispositivo;
 use App\Models\OrigenValidacion;
 use App\Models\Posicion;
 use App\Models\Temporada;
-use App\Models\TemporadaMaterial;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -137,20 +137,16 @@ class DatabaseSeeder extends Seeder
 
     private function crearCatalogoValidacion(): void
     {
-        Temporada::query()->where('codigo', '!=', '2026-2027')->update(['activa' => false]);
-        $temporada = Temporada::query()->updateOrCreate(
-            ['codigo' => '2026-2027'],
+        $temporada = app(ServicioTemporadaGlobal::class)->guardar(
             [
+                'codigo' => '2026-2027',
                 'nombre' => 'Temporada cerezas 2026–2027',
                 'fecha_inicio' => '2026-10-01',
                 'fecha_fin' => '2027-02-28',
                 'activa' => true,
             ],
+            Temporada::query()->where('codigo', '2026-2027')->first(),
         );
-        TemporadaMaterial::query()->update(['activa' => false]);
-        TemporadaMaterial::query()
-            ->where('temporada_id', $temporada->id)
-            ->update(['activa' => true]);
 
         $cliente = Cliente::query()->updateOrCreate(
             ['codigo' => 'EXPORTADORA-DEMO'],

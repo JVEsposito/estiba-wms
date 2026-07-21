@@ -19,11 +19,15 @@ Una aprobación crea el folio, pero no lo deja disponible para cargas. El estado
 
 La fundación incorpora:
 
-- temporadas con versión de catálogo;
+- una temporada transversal, administrada en la oficina Accesos, con versión de catálogo de Validación;
 - combinaciones activas de especie, variedad, calibre y envase;
 - combinaciones comerciales de cliente, marca, CSG y predio.
 
 La versión permite que una PDA informe con qué catálogo trabajó. Una diferencia queda visible como catálogo desactualizado, sin destruir una operación capturada offline.
+
+Validación selecciona temporadas existentes para mantener su catálogo, pero no
+puede crearlas, editarlas ni activarlas. Esa responsabilidad global pertenece a
+`/oficina/accesos` y se comparte con Romana, Materiales y Frigorífico.
 
 ## Intentos e idempotencia
 

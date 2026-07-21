@@ -69,8 +69,13 @@ operacionales.
 
 Validación dispone de dos entradas diferentes:
 
-- `/oficina/validacion`: temporadas, artículos, orígenes, combinaciones, importación y trazabilidad.
+- `/oficina/validacion`: selección de temporada, artículos, orígenes, combinaciones, importación y trazabilidad.
 - Aplicación móvil: captura rápida para el perfil `validador`, con catálogo persistente y bandeja de salida.
+
+La creación, edición y activación de la temporada transversal se realiza
+exclusivamente en `/oficina/accesos`. Romana, Validación, Materiales y
+Frigorífico consumen esa configuración global sin adquirir permisos para
+modificarla desde sus propias oficinas.
 
 Prefrío dispone de:
 

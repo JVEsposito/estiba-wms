@@ -27,7 +27,7 @@ class MaterialesApiTest extends TestCase
         [, , $tokenTablet] = $this->crearOperador();
 
         $temporadaId = $this->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => ' 2026-2027 ',
                 'nombre' => ' Temporada materiales 2026-2027 ',
                 'fecha_inicio' => '2026-07-01',
@@ -37,7 +37,7 @@ class MaterialesApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.codigo', '2026-2027')
             ->assertJsonPath('data.activa', true)
-            ->json('data.id');
+            ->json('data.configuracion_material_id');
 
         $clienteId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/clientes', [
@@ -135,13 +135,13 @@ class MaterialesApiTest extends TestCase
         [, $tokenOficina] = $this->crearAdministrador();
         $temporadaAnteriorId = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->temporada_material_id;
         $temporadaNuevaId = $this->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2027-2028',
                 'nombre' => 'Temporada materiales 2027-2028',
                 'activa' => true,
             ])
             ->assertCreated()
-            ->json('data.id');
+            ->json('data.configuracion_material_id');
         $clienteId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/clientes', [
                 'temporada_material_id' => $temporadaNuevaId,
@@ -179,7 +179,7 @@ class MaterialesApiTest extends TestCase
         $sesion = $this->abrirSesion($tokenTablet, $camara);
 
         $this->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2028-2029',
                 'nombre' => 'Temporada materiales 2028-2029',
                 'activa' => true,

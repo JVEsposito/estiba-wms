@@ -12,7 +12,10 @@ const elements = {
     reload: byId('reloadAccessesButton'),
     activeUsers: byId('activeUsersCount'),
     activeDevices: byId('activeDevicesCount'),
+    activeSeason: byId('activeSeasonCode'),
     lastDeviceAccess: byId('lastDeviceAccess'),
+    seasonsSummary: byId('seasonsSummary'),
+    seasonsTableBody: byId('seasonsTableBody'),
     usersSummary: byId('usersSummary'),
     devicesSummary: byId('devicesSummary'),
     usersTableBody: byId('usersTableBody'),
@@ -21,6 +24,9 @@ const elements = {
     userError: byId('createUserError'),
     deviceForm: byId('createDeviceForm'),
     deviceError: byId('createDeviceError'),
+    seasonForm: byId('seasonForm'),
+    seasonError: byId('seasonError'),
+    seasonCancel: byId('cancelSeasonEdit'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -36,6 +42,7 @@ const state = {
     identity: readJson(keys.identity),
     users: [],
     devices: [],
+    seasons: [],
 };
 
 class ApiError extends Error {
@@ -131,6 +138,7 @@ function clearSession() {
     state.identity = null;
     state.users = [];
     state.devices = [];
+    state.seasons = [];
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden');
@@ -216,12 +224,50 @@ function renderDevices() {
     `).join('');
 }
 
+function dateOnly(value, fallback = 'Sin fecha') {
+    if (!value) return fallback;
+    const [year, month, day] = String(value).slice(0, 10).split('-');
+    return year && month && day ? `${day}-${month}-${year}` : fallback;
+}
+
+function resetSeasonForm() {
+    elements.seasonForm.reset();
+    elements.seasonForm.elements.id.value = '';
+    elements.seasonError.textContent = '';
+    elements.seasonCancel.classList.add('is-hidden');
+}
+
+function renderSeasons() {
+    const active = state.seasons.find((season) => season.activa);
+    elements.activeSeason.textContent = active?.codigo || '—';
+    elements.seasonsSummary.textContent = `${state.seasons.length} ${state.seasons.length === 1 ? 'registrada' : 'registradas'}`;
+
+    if (!state.seasons.length) {
+        elements.seasonsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="4">No existen temporadas. Crea la primera configuración transversal.</td></tr>';
+        return;
+    }
+
+    elements.seasonsTableBody.innerHTML = state.seasons.map((season) => `
+        <tr>
+            <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>Versión de catálogo ${Number(season.version_catalogo || 1)}</small></td>
+            <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
+            <td>${statusBadge(season.activa)}</td>
+            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? '' : `<button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
+        </tr>
+    `).join('');
+}
+
 async function loadAccesses() {
-    const response = await api('/api/administracion/accesos');
+    const [response, seasons] = await Promise.all([
+        api('/api/administracion/accesos'),
+        api('/api/administracion/temporadas'),
+    ]);
     state.users = response.usuarios;
     state.devices = response.dispositivos;
+    state.seasons = seasons.data || [];
     renderUsers();
     renderDevices();
+    renderSeasons();
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
@@ -300,6 +346,59 @@ elements.deviceForm.addEventListener('submit', async (event) => {
         setBusy(false);
     }
 });
+
+elements.seasonForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.seasonError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.seasonForm));
+    const id = data.id;
+    delete data.id;
+    data.activa = elements.seasonForm.elements.activa.checked;
+    setBusy(true, 'Guardando temporada transversal…');
+    try {
+        await api(id ? `/api/administracion/temporadas/${id}` : '/api/administracion/temporadas', {
+            method: id ? 'PUT' : 'POST',
+            body: JSON.stringify(data),
+        });
+        resetSeasonForm();
+        await loadAccesses();
+        toast('La temporada quedó disponible para todas las oficinas.');
+    } catch (error) {
+        elements.seasonError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.seasonsTableBody.addEventListener('click', async (event) => {
+    const edit = event.target.closest('[data-edit-season]');
+    const activate = event.target.closest('[data-activate-season]');
+    if (edit) {
+        const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
+        if (!season) return;
+        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin']) {
+            elements.seasonForm.elements[field].value = season[field] || '';
+        }
+        elements.seasonForm.elements.activa.checked = season.activa;
+        elements.seasonCancel.classList.remove('is-hidden');
+        elements.seasonForm.elements.codigo.focus();
+    }
+    if (activate) {
+        setBusy(true, 'Activando temporada para todas las oficinas…');
+        try {
+            await api(`/api/administracion/temporadas/${activate.dataset.activateSeason}/activar`, { method: 'POST' });
+            resetSeasonForm();
+            await loadAccesses();
+            toast('Temporada global activada.');
+        } catch (error) {
+            toast(error.message, true);
+        } finally {
+            setBusy(false);
+        }
+    }
+});
+
+elements.seasonCancel.addEventListener('click', resetSeasonForm);
 
 elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando accesos…');
