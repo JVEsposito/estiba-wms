@@ -28,10 +28,12 @@ class RecepcionRomanaApiTest extends TestCase
             ->postJson('/api/romana/recepciones', $datos)
             ->assertCreated()
             ->assertJsonPath('data.estado', EstadoRecepcionRomana::EnBasculaIngreso->value)
-            ->assertJsonPath('data.numero_recepcion', null)
+            ->assertJsonPath('data.numero_recepcion', 'REC-2607-0001')
             ->assertJsonPath('data.temporada.id', $datos['temporada_id'])
             ->assertJsonPath('data.cliente.nombre', 'Exportadora Los Andes')
             ->assertJsonPath('data.peso_bruto', 28540)
+            ->assertJsonPath('data.envases.0.tipo_envase', 'bins')
+            ->assertJsonPath('data.envases.0.cantidad_declarada', 48)
             ->json('data');
 
         $this->actingAs($operador, 'sanctum')
@@ -244,6 +246,50 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('clientes.0.presente_en_materiales', true);
     }
 
+    public function test_numera_y_notifica_una_recepcion_solo_de_envases_con_detalle_separado(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-21 16:32:15'));
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['tipo_recepcion'] = 'solo_envases';
+        $datos['concepto_envases'] = 'arriendo';
+        $datos['tipo_servicio'] = null;
+        $datos['envases'] = [
+            ['tipo_envase' => 'bins', 'cantidad' => 120],
+            ['tipo_envase' => 'esponjas', 'cantidad' => 800],
+        ];
+
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->assertJsonPath('data.numero_recepcion', 'REC-2607-0001')
+            ->assertJsonPath('data.tipo_recepcion', 'solo_envases')
+            ->assertJsonPath('data.concepto_envases', 'arriendo')
+            ->assertJsonPath('data.estado_validacion_mp', 'pendiente')
+            ->assertJsonCount(2, 'data.envases')
+            ->json('data');
+
+        $this->assertDatabaseHas('detalles_envases_recepcion_romana', [
+            'recepcion_romana_id' => $recepcion['id'],
+            'tipo_envase' => 'esponjas',
+            'cantidad_declarada' => 800,
+            'cantidad_validada' => null,
+        ]);
+        $this->actingAs($validador, 'sanctum')
+            ->getJson('/api/notificaciones-operacionales')
+            ->assertOk()
+            ->assertJsonPath('data.0.tipo', 'recepcion_romana_creada')
+            ->assertJsonPath('data.0.recepcion_romana.numero_recepcion', 'REC-2607-0001')
+            ->assertJsonPath('data.0.datos.ingreso_at', '2026-07-21T16:32:15+00:00');
+
+        $this->actingAs($operador, 'sanctum')
+            ->getJson('/api/envases/cuenta-corriente/movimientos')
+            ->assertOk()
+            ->assertJsonPath('resumen.lineas_pendientes_validacion', 2)
+            ->assertJsonPath('pendientes.0.numero_recepcion', 'REC-2607-0001');
+    }
+
     private function cliente(bool $activo = true): Cliente
     {
         return Cliente::create([
@@ -261,9 +307,12 @@ class RecepcionRomanaApiTest extends TestCase
             'operacion_id' => (string) Str::uuid(),
             'temporada_id' => Temporada::query()->where('activa', true)->firstOrFail()->id,
             'cliente_id' => $cliente->id,
+            'tipo_recepcion' => 'fruta_con_envases',
+            'concepto_envases' => null,
             'tipo_servicio' => 'prefrio',
-            'cantidad_envases_declarados' => 48,
-            'tipo_envase_declarado' => 'bins',
+            'envases' => [
+                ['tipo_envase' => 'bins', 'cantidad' => 48],
+            ],
             'numero_guia_despacho' => 'GD-77881',
             'patente_camion' => 'ABCD12',
             'patente_carro' => 'WXYZ34',

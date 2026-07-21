@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoValidacionMp;
+use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\TipoEnvaseRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -22,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'cliente_id',
     'cliente_codigo_snapshot',
     'cliente_nombre_snapshot',
+    'tipo_recepcion',
+    'concepto_envases',
     'tipo_servicio',
     'cantidad_envases_declarados',
     'tipo_envase_declarado',
@@ -34,13 +39,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'peso_tara',
     'peso_neto',
     'estado',
+    'estado_validacion_mp',
     'ingreso_at',
     'ingreso_confirmado_at',
     'salida_at',
+    'validacion_tomada_at',
+    'validado_at',
     'version',
     'creado_por_user_id',
     'ingreso_confirmado_por_user_id',
     'cerrado_por_user_id',
+    'validacion_tomada_por_user_id',
     'observacion',
     'observacion_cierre',
 ])]
@@ -65,6 +74,21 @@ class RecepcionRomana extends Model
         return $this->hasMany(EventoRecepcionRomana::class, 'recepcion_romana_id');
     }
 
+    public function detallesEnvases(): HasMany
+    {
+        return $this->hasMany(DetalleEnvaseRecepcionRomana::class, 'recepcion_romana_id');
+    }
+
+    public function movimientosEnvases(): HasMany
+    {
+        return $this->hasMany(MovimientoEnvase::class, 'recepcion_romana_id');
+    }
+
+    public function validacionTomadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validacion_tomada_por_user_id');
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
@@ -84,8 +108,11 @@ class RecepcionRomana extends Model
     {
         return [
             'tipo_servicio' => TipoServicioRomana::class,
+            'tipo_recepcion' => TipoRecepcionRomana::class,
+            'concepto_envases' => ConceptoEnvasesRomana::class,
             'tipo_envase_declarado' => TipoEnvaseRomana::class,
             'estado' => EstadoRecepcionRomana::class,
+            'estado_validacion_mp' => EstadoValidacionMp::class,
             'cantidad_envases_declarados' => 'integer',
             'peso_bruto' => 'decimal:2',
             'peso_tara' => 'decimal:2',
@@ -93,6 +120,8 @@ class RecepcionRomana extends Model
             'ingreso_at' => 'datetime',
             'ingreso_confirmado_at' => 'datetime',
             'salida_at' => 'datetime',
+            'validacion_tomada_at' => 'datetime',
+            'validado_at' => 'datetime',
             'version' => 'integer',
         ];
     }

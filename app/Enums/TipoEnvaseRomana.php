@@ -6,5 +6,5 @@ enum TipoEnvaseRomana: string
 {
     case Bins = 'bins';
     case Totes = 'totes';
-    case Cajas = 'cajas';
+    case Esponjas = 'esponjas';
 }

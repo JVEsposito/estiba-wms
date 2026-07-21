@@ -3,6 +3,7 @@
 namespace App\Services\Romana;
 
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoValidacionMp;
 use App\Enums\TipoEventoRomana;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\Cliente;
@@ -10,12 +11,17 @@ use App\Models\EventoRecepcionRomana;
 use App\Models\RecepcionRomana;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use JsonException;
 
 class ServicioRecepcionRomana
 {
+    public function __construct(
+        private readonly ServicioNotificacionesOperacionales $notificaciones,
+    ) {}
+
     /** @param array<string, mixed> $datos */
     public function crear(array $datos, User $usuario): RecepcionRomana
     {
@@ -34,18 +40,23 @@ class ServicioRecepcionRomana
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
             $this->asegurarGuiaUnica($temporada->id, $cliente->id, (string) $payload['numero_guia_despacho']);
             $ahora = CarbonImmutable::now();
+            $numero = $this->siguienteNumero($ahora);
+            $envasePrincipal = $payload['envases'][0];
             $recepcion = RecepcionRomana::create([
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
+                'numero_recepcion' => $numero,
                 'temporada_id' => $temporada->id,
                 'temporada_codigo_snapshot' => $temporada->codigo,
                 'temporada_nombre_snapshot' => $temporada->nombre,
                 'cliente_id' => $cliente->id,
                 'cliente_codigo_snapshot' => $cliente->codigo,
                 'cliente_nombre_snapshot' => $cliente->nombre,
+                'tipo_recepcion' => $payload['tipo_recepcion'],
+                'concepto_envases' => $payload['concepto_envases'],
                 'tipo_servicio' => $payload['tipo_servicio'],
-                'cantidad_envases_declarados' => $payload['cantidad_envases_declarados'],
-                'tipo_envase_declarado' => $payload['tipo_envase_declarado'],
+                'cantidad_envases_declarados' => collect($payload['envases'])->sum('cantidad'),
+                'tipo_envase_declarado' => $envasePrincipal['tipo_envase'],
                 'numero_guia_despacho' => $payload['numero_guia_despacho'],
                 'patente_camion' => $payload['patente_camion'],
                 'patente_carro' => $payload['patente_carro'],
@@ -53,10 +64,12 @@ class ServicioRecepcionRomana
                 'nombre_conductor' => $payload['nombre_conductor'],
                 'peso_bruto' => $payload['peso_bruto'],
                 'estado' => EstadoRecepcionRomana::EnBasculaIngreso,
+                'estado_validacion_mp' => EstadoValidacionMp::Pendiente,
                 'ingreso_at' => $ahora,
                 'creado_por_user_id' => $usuario->id,
                 'observacion' => $payload['observacion'],
             ]);
+            $this->sincronizarEnvases($recepcion, $payload['envases']);
 
             $this->registrarEvento(
                 $recepcion,
@@ -69,10 +82,13 @@ class ServicioRecepcionRomana
                 $ahora,
                 [
                     'peso_bruto' => (float) $recepcion->peso_bruto,
+                    'numero_recepcion' => $numero,
                     'numero_guia_despacho' => $recepcion->numero_guia_despacho,
                     'temporada_id' => $recepcion->temporada_id,
+                    'envases' => $payload['envases'],
                 ],
             );
+            $this->notificaciones->notificarRecepcionRomanaCreada($recepcion);
 
             return $this->cargar($recepcion);
         });
@@ -105,6 +121,7 @@ class ServicioRecepcionRomana
                 (string) $payload['numero_guia_despacho'],
                 $recepcion->id,
             );
+            $envasePrincipal = $payload['envases'][0];
             $recepcion->update([
                 'temporada_id' => $temporada->id,
                 'temporada_codigo_snapshot' => $temporada->codigo,
@@ -112,9 +129,11 @@ class ServicioRecepcionRomana
                 'cliente_id' => $cliente->id,
                 'cliente_codigo_snapshot' => $cliente->codigo,
                 'cliente_nombre_snapshot' => $cliente->nombre,
+                'tipo_recepcion' => $payload['tipo_recepcion'],
+                'concepto_envases' => $payload['concepto_envases'],
                 'tipo_servicio' => $payload['tipo_servicio'],
-                'cantidad_envases_declarados' => $payload['cantidad_envases_declarados'],
-                'tipo_envase_declarado' => $payload['tipo_envase_declarado'],
+                'cantidad_envases_declarados' => collect($payload['envases'])->sum('cantidad'),
+                'tipo_envase_declarado' => $envasePrincipal['tipo_envase'],
                 'numero_guia_despacho' => $payload['numero_guia_despacho'],
                 'patente_camion' => $payload['patente_camion'],
                 'patente_carro' => $payload['patente_carro'],
@@ -124,6 +143,7 @@ class ServicioRecepcionRomana
                 'observacion' => $payload['observacion'],
                 'version' => $recepcion->version + 1,
             ]);
+            $this->sincronizarEnvases($recepcion, $payload['envases']);
             $this->registrarEvento(
                 $recepcion,
                 (string) $datos['operacion_id'],
@@ -211,9 +231,7 @@ class ServicioRecepcionRomana
             }
 
             $ahora = CarbonImmutable::now();
-            $numero = $this->siguienteNumero($ahora);
             $recepcion->update([
-                'numero_recepcion' => $numero,
                 'peso_tara' => $tara,
                 'peso_neto' => round($bruto - $tara, 2),
                 'estado' => EstadoRecepcionRomana::Cerrado,
@@ -232,7 +250,7 @@ class ServicioRecepcionRomana
                 $usuario,
                 $ahora,
                 [
-                    'numero_recepcion' => $numero,
+                    'numero_recepcion' => $recepcion->numero_recepcion,
                     'peso_bruto' => $bruto,
                     'peso_tara' => $tara,
                     'peso_neto' => (float) $recepcion->peso_neto,
@@ -250,12 +268,22 @@ class ServicioRecepcionRomana
      */
     private function datosRecepcion(array $datos): array
     {
+        $envases = collect($datos['envases'])
+            ->map(fn (array $envase): array => [
+                'tipo_envase' => $envase['tipo_envase'],
+                'cantidad' => (int) $envase['cantidad'],
+            ])
+            ->sortBy('tipo_envase')
+            ->values()
+            ->all();
+
         return [
             'temporada_id' => $datos['temporada_id'],
             'cliente_id' => $datos['cliente_id'],
-            'tipo_servicio' => $datos['tipo_servicio'],
-            'cantidad_envases_declarados' => (int) $datos['cantidad_envases_declarados'],
-            'tipo_envase_declarado' => $datos['tipo_envase_declarado'],
+            'tipo_recepcion' => $datos['tipo_recepcion'],
+            'concepto_envases' => $datos['concepto_envases'] ?? null,
+            'tipo_servicio' => $datos['tipo_servicio'] ?? 'almacenaje',
+            'envases' => $envases,
             'numero_guia_despacho' => $datos['numero_guia_despacho'],
             'patente_camion' => $datos['patente_camion'],
             'patente_carro' => $datos['patente_carro'] ?? null,
@@ -264,6 +292,20 @@ class ServicioRecepcionRomana
             'peso_bruto' => round((float) $datos['peso_bruto'], 2),
             'observacion' => $datos['observacion'] ?? null,
         ];
+    }
+
+    /** @param array<int, array{tipo_envase: string, cantidad: int}> $envases */
+    private function sincronizarEnvases(RecepcionRomana $recepcion, array $envases): void
+    {
+        $tipos = collect($envases)->pluck('tipo_envase')->all();
+        $recepcion->detallesEnvases()->whereNotIn('tipo_envase', $tipos)->delete();
+
+        foreach ($envases as $envase) {
+            $recepcion->detallesEnvases()->updateOrCreate(
+                ['tipo_envase' => $envase['tipo_envase']],
+                ['cantidad_declarada' => $envase['cantidad']],
+            );
+        }
     }
 
     private function temporadaActiva(string $temporadaId): Temporada
@@ -399,6 +441,8 @@ class ServicioRecepcionRomana
             'creadoPor',
             'ingresoConfirmadoPor',
             'cerradoPor',
+            'validacionTomadaPor',
+            'detallesEnvases',
             'eventos' => fn ($consulta) => $consulta->with('usuario')->orderBy('ocurrido_at'),
         ]);
     }
