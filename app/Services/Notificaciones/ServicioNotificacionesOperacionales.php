@@ -4,8 +4,8 @@ namespace App\Services\Notificaciones;
 
 use App\Enums\AudienciaNotificacionOperacional;
 use App\Enums\ContenidoCamara;
-use App\Enums\SeveridadNotificacionOperacional;
 use App\Enums\RolUsuario;
+use App\Enums\SeveridadNotificacionOperacional;
 use App\Enums\TipoNotificacionOperacional;
 use App\Models\DespachoMaterial;
 use App\Models\LecturaNotificacionOperacional;
