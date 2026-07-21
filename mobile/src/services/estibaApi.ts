@@ -8,6 +8,7 @@ import {
   CreateMaterialDispatchPayload,
   Dock,
   ExtractionPlan,
+  FolioLookup,
   LocatePayload,
   LoginPayload,
   Movement,
@@ -39,6 +40,7 @@ export interface EstibaApi {
   listRecent(token: string, cameraId: string): Promise<Movement[]>;
   openSession(token: string, cameraId: string): Promise<OpenedSession>;
   closeSession(token: string, sessionId: string): Promise<void>;
+  lookupFolio(token: string, folioNumber: string): Promise<FolioLookup>;
   locate(token: string, payload: LocatePayload): Promise<void>;
   move(token: string, payload: MovePayload): Promise<void>;
   getMaterialCatalog(token: string): Promise<MaterialCatalog>;
@@ -149,6 +151,11 @@ class HttpEstibaApi implements EstibaApi {
       method: 'POST',
       body: JSON.stringify({ motivo: 'Cierre desde aplicación Expo' }),
     });
+  }
+
+  async lookupFolio(token: string, folioNumber: string) {
+    const path = `/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(folioNumber)}`;
+    return (await this.request<ApiItem<FolioLookup>>(path, token)).data;
   }
 
   async locate(token: string, payload: LocatePayload) {
@@ -305,6 +312,7 @@ function createUnavailableApi(message: string): EstibaApi {
     listRecent: unavailable,
     openSession: unavailable,
     closeSession: unavailable,
+    lookupFolio: unavailable,
     locate: unavailable,
     move: unavailable,
     getMaterialCatalog: unavailable,

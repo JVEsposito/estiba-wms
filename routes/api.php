@@ -196,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sesiones/{sesion}/cerrar', [SesionEstibaController::class, 'cerrar']);
     Route::post('/sesiones/{sesion}/cerrar-forzosamente', [SesionEstibaController::class, 'cerrarForzosamente']);
     Route::get('/movimientos/recientes', [MovimientoController::class, 'recientes']);
+    Route::get('/movimientos/consultar-folio', [MovimientoController::class, 'consultarFolio']);
     Route::post('/movimientos/ubicar', [MovimientoController::class, 'ubicar']);
     Route::post('/movimientos/mover', [MovimientoController::class, 'mover']);
 

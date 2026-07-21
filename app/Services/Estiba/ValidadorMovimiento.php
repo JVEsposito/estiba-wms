@@ -20,12 +20,14 @@ use App\Models\Posicion;
 use App\Models\SesionEstiba;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use DomainException;
 
 class ValidadorMovimiento
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
     ) {}
 
     public function validar(Movimiento $movimiento): void
@@ -37,7 +39,7 @@ class ValidadorMovimiento
         }
 
         $this->validarActorYOperacion($movimiento, $tipo);
-        $this->validarFolio($movimiento);
+        $this->validarFolio($movimiento, $tipo);
         $this->validarEstructura($movimiento, $tipo);
 
         if ($movimiento->camara_origen_id !== null) {
@@ -101,11 +103,21 @@ class ValidadorMovimiento
         }
     }
 
-    private function validarFolio(Movimiento $movimiento): void
+    private function validarFolio(Movimiento $movimiento, TipoMovimiento $tipo): void
     {
         $folio = Folio::query()->find($movimiento->folio_id);
 
-        if (! $folio?->activo
+        if (! $folio) {
+            throw new DomainException('El folio no se encuentra disponible para movimientos.');
+        }
+
+        if ($tipo === TipoMovimiento::UbicacionInicial) {
+            $this->habilitacion->validarUbicacionInicial($folio);
+
+            return;
+        }
+
+        if (! $folio->activo
             || $folio->estado_operacional !== EstadoOperacionalFolio::Disponible) {
             throw new DomainException('El folio no se encuentra disponible para movimientos.');
         }

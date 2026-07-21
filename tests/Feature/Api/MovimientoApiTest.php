@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\CondicionTermicaFolio;
+use App\Enums\EstadoOperacionalFolio;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
+use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -16,6 +20,130 @@ use Tests\TestCase;
 class MovimientoApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_consulta_folio_existente_y_recupera_sus_datos_de_validacion(): void
+    {
+        [, , $token] = $this->crearIdentidad();
+        $folio = Folio::create([
+            'numero_folio' => 'FOLIO-CICLO-01',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'variedad' => 'HAYWARD',
+            'calibre' => '42',
+            'marca' => 'Olmos',
+            'exportadora' => 'Olmos',
+            'origen_sistema' => 'validacion',
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/movimientos/consultar-folio?numero_folio=folio-ciclo-01')
+            ->assertOk()
+            ->assertJsonPath('data.existe', true)
+            ->assertJsonPath('data.id', $folio->id)
+            ->assertJsonPath('data.tipo_bulto', 'pallet')
+            ->assertJsonPath('data.variedad', 'HAYWARD')
+            ->assertJsonPath('data.calibre', '42')
+            ->assertJsonPath('data.marca', 'Olmos')
+            ->assertJsonPath('data.exportadora', 'Olmos')
+            ->assertJsonPath('data.origen_sistema', 'validacion')
+            ->assertJsonPath('data.disponible_ubicacion', true);
+
+        $this->withToken($token)
+            ->getJson('/api/movimientos/consultar-folio?numero_folio=NO-EXISTE')
+            ->assertOk()
+            ->assertJsonPath('data.existe', false)
+            ->assertJsonPath('data.numero_folio', 'NO-EXISTE');
+    }
+
+    public function test_folio_aprobado_en_prefrio_puede_ingresar_a_camara_sin_reescribir_sus_datos(): void
+    {
+        [, , $token] = $this->crearIdentidad();
+        [$camara, $posicion] = $this->crearCamara('CAM-01');
+        $sesionId = $this->abrirSesion($token, $camara);
+        $folio = Folio::create([
+            'numero_folio' => 'FOLIO-CICLO-02',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'variedad' => 'HAYWARD',
+            'calibre' => '42',
+            'marca' => 'Olmos',
+            'exportadora' => 'Olmos',
+            'origen_sistema' => 'validacion',
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/movimientos/ubicar', [
+                'operacion_id' => (string) Str::uuid(),
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => 'pallet',
+                'posicion_destino_id' => $posicion->id,
+                'sesion_destino_id' => $sesionId,
+                'version_destino_conocida' => 0,
+                'generado_dispositivo_at' => now()->toAtomString(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.folio.id', $folio->id)
+            ->assertJsonPath('data.folio.numero_folio', 'FOLIO-CICLO-02');
+
+        $folio->refresh();
+        $this->assertSame(EstadoOperacionalFolio::Disponible, $folio->estado_operacional);
+        $this->assertSame('HAYWARD', $folio->variedad);
+        $this->assertSame('42', $folio->calibre);
+        $this->assertSame('Olmos', $folio->marca);
+        $this->assertSame('Olmos', $folio->exportadora);
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folio->id,
+            'posicion_id' => $posicion->id,
+        ]);
+    }
+
+    public function test_folio_sin_aprobacion_de_prefrio_sigue_bloqueado_para_camara(): void
+    {
+        [, , $token] = $this->crearIdentidad();
+        [$camara, $posicion] = $this->crearCamara('CAM-01');
+        $sesionId = $this->abrirSesion($token, $camara);
+        $folio = Folio::create([
+            'numero_folio' => 'FOLIO-PENDIENTE-PF',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'origen_sistema' => 'validacion',
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/movimientos/consultar-folio?numero_folio=FOLIO-PENDIENTE-PF')
+            ->assertOk()
+            ->assertJsonPath('data.existe', true)
+            ->assertJsonPath('data.disponible_ubicacion', false);
+
+        $this->withToken($token)
+            ->postJson('/api/movimientos/ubicar', [
+                'operacion_id' => (string) Str::uuid(),
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => 'pallet',
+                'posicion_destino_id' => $posicion->id,
+                'sesion_destino_id' => $sesionId,
+                'version_destino_conocida' => 0,
+                'generado_dispositivo_at' => now()->toAtomString(),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseMissing('ubicaciones_actuales', [
+            'folio_id' => $folio->id,
+        ]);
+    }
 
     public function test_ubicar_crea_el_folio_y_repetir_la_operacion_es_idempotente(): void
     {

@@ -50,6 +50,9 @@ const elements = {
     locateForm: $('locateForm'),
     locateDestinationText: $('locateDestinationText'),
     locateError: $('locateError'),
+    locateFolioNumber: $('locateFolioNumber'),
+    locateFolioLookupStatus: $('locateFolioLookupStatus'),
+    locateSubmitButton: $('locateSubmitButton'),
     sagSelect: $('sagSelect'),
     locateTypeSelect: $('locateTypeSelect'),
     materialItemSelect: $('materialItemSelect'),
@@ -98,6 +101,9 @@ const state = {
     moveDestination: null,
     materialCreateOperationId: null,
     materialWithdrawOperationId: null,
+    locateLookup: null,
+    locateLookupTimer: null,
+    locateLookupSequence: 0,
     polling: false,
 };
 
@@ -755,15 +761,194 @@ function openLocateDialog() {
     });
     elements.materialItemSelect.required = isMaterial;
     elements.locateForm.cantidad_material.required = isMaterial;
+    resetLocateLookup();
     elements.locateDialog.showModal();
     window.setTimeout(() => elements.locateForm.numero_folio.focus(), 50);
+}
+
+function normalizedFolioNumber(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function locateDetailControls() {
+    const form = elements.locateForm;
+
+    return [
+        elements.locateTypeSelect,
+        elements.sagSelect,
+        form.variedad,
+        form.calibre,
+        form.marca,
+        form.exportadora,
+        elements.materialItemSelect,
+        form.cantidad_material,
+        form.lote_material,
+        form.proveedor_material,
+        form.observacion_material,
+    ].filter(Boolean);
+}
+
+function setLocateDetailsLocked(locked) {
+    locateDetailControls().forEach((control) => {
+        control.disabled = locked;
+    });
+}
+
+function setLocateLookupStatus(message = '', type = '') {
+    elements.locateFolioLookupStatus.textContent = message;
+    elements.locateFolioLookupStatus.className = `folio-lookup-status form-field--wide${type ? ` is-${type}` : ''}`;
+}
+
+function clearLocateDetailValues() {
+    const form = elements.locateForm;
+
+    elements.sagSelect.value = '';
+    elements.materialItemSelect.value = '';
+    [
+        form.variedad,
+        form.calibre,
+        form.marca,
+        form.exportadora,
+        form.cantidad_material,
+        form.lote_material,
+        form.proveedor_material,
+        form.observacion_material,
+    ].filter(Boolean).forEach((control) => {
+        control.value = '';
+    });
+}
+
+function resetLocateLookup({ clearValues = false } = {}) {
+    window.clearTimeout(state.locateLookupTimer);
+    state.locateLookupTimer = null;
+    state.locateLookup = null;
+    state.locateLookupSequence += 1;
+    setLocateDetailsLocked(false);
+    setLocateLookupStatus();
+    elements.locateSubmitButton.disabled = false;
+
+    if (clearValues) clearLocateDetailValues();
+}
+
+function ensureSelectValue(select, value, label) {
+    if (! value || [...select.options].some((option) => option.value === value)) return;
+
+    select.add(new Option(label || value, value));
+}
+
+function applyLocateLookup(data) {
+    state.locateLookup = data;
+
+    if (! data.existe) {
+        setLocateDetailsLocked(false);
+        elements.locateSubmitButton.disabled = false;
+        setLocateLookupStatus('Folio nuevo. Completa sus datos antes de confirmar la ubicación.');
+
+        return;
+    }
+
+    const form = elements.locateForm;
+    const compatible = state.plan.contenido === 'materiales'
+        ? data.tipo_bulto === 'material'
+        : data.tipo_bulto !== 'material';
+
+    if ([...elements.locateTypeSelect.options].some((option) => option.value === data.tipo_bulto)) {
+        elements.locateTypeSelect.value = data.tipo_bulto;
+    }
+
+    ensureSelectValue(
+        elements.sagSelect,
+        data.condicion_sag?.id,
+        data.condicion_sag ? `${data.condicion_sag.codigo} · ${data.condicion_sag.nombre}` : '',
+    );
+    elements.sagSelect.value = data.condicion_sag?.id || '';
+    form.variedad.value = data.variedad || '';
+    form.calibre.value = data.calibre || '';
+    form.marca.value = data.marca || '';
+    form.exportadora.value = data.exportadora || '';
+
+    if (data.material) {
+        ensureSelectValue(
+            elements.materialItemSelect,
+            data.material.item_material_id,
+            `${data.material.item.codigo} · ${data.material.item.nombre}`,
+        );
+        elements.materialItemSelect.value = data.material.item_material_id;
+        form.cantidad_material.value = data.material.cantidad || '';
+        form.lote_material.value = data.material.lote || '';
+        form.proveedor_material.value = data.material.proveedor || '';
+        form.observacion_material.value = data.material.observacion || '';
+    }
+
+    setLocateDetailsLocked(true);
+    const available = data.disponible_ubicacion && compatible;
+    elements.locateSubmitButton.disabled = ! available;
+    const source = data.origen_sistema === 'validacion'
+        ? 'Datos recuperados desde Validación.'
+        : 'Datos recuperados del folio existente.';
+    const compatibilityMessage = compatible
+        ? data.mensaje_disponibilidad
+        : 'El tipo de folio no corresponde a esta cámara.';
+    setLocateLookupStatus(
+        `${source} ${compatibilityMessage}`,
+        available ? 'success' : 'warning',
+    );
+}
+
+async function lookupLocateFolio(numeroFolio) {
+    const normalized = normalizedFolioNumber(numeroFolio);
+
+    window.clearTimeout(state.locateLookupTimer);
+    state.locateLookupTimer = null;
+
+    if (! normalized) {
+        resetLocateLookup({ clearValues: true });
+
+        return null;
+    }
+
+    const sequence = ++state.locateLookupSequence;
+    setLocateLookupStatus('Consultando información del folio…', 'loading');
+    elements.locateSubmitButton.disabled = true;
+
+    try {
+        const response = await api(`/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(normalized)}`);
+
+        if (sequence !== state.locateLookupSequence
+            || normalizedFolioNumber(elements.locateFolioNumber.value) !== normalized) {
+            return null;
+        }
+
+        applyLocateLookup(response.data);
+
+        return response.data;
+    } catch (error) {
+        if (sequence === state.locateLookupSequence) {
+            state.locateLookup = null;
+            elements.locateSubmitButton.disabled = true;
+            setLocateLookupStatus('No fue posible consultar el folio. Revisa la conexión e inténtalo nuevamente.', 'warning');
+            elements.locateError.textContent = error.message;
+        }
+
+        return null;
+    }
 }
 
 async function locateFolio(form) {
     const position = state.selectedPosition;
     if (! position || ! ownSession()) return;
 
+    const numeroFolio = normalizedFolioNumber(elements.locateFolioNumber.value);
+    elements.locateFolioNumber.value = numeroFolio;
+    const lookup = await lookupLocateFolio(numeroFolio);
+
+    if (! lookup
+        || (lookup.existe && (! lookup.disponible_ubicacion || elements.locateSubmitButton.disabled))) {
+        return;
+    }
+
     const values = Object.fromEntries(new FormData(form));
+    const tipoBulto = lookup.existe ? lookup.tipo_bulto : values.tipo_bulto;
     const descriptiveData = compactObject({
         condicion_sag_id: values.condicion_sag_id,
         variedad: values.variedad?.trim(),
@@ -773,20 +958,20 @@ async function locateFolio(form) {
     });
     const payload = {
         operacion_id: operationUuid(),
-        numero_folio: values.numero_folio.trim().toUpperCase(),
-        tipo_bulto: values.tipo_bulto,
+        numero_folio: numeroFolio,
+        tipo_bulto: tipoBulto,
         posicion_destino_id: position.id,
         sesion_destino_id: ownSession().id,
         version_destino_conocida: state.plan.version_plano,
         generado_dispositivo_at: new Date().toISOString(),
-        ...(Object.keys(descriptiveData).length > 0 ? { datos_folio: descriptiveData } : {}),
-        ...(values.tipo_bulto === 'material' ? {
+        ...(! lookup.existe && Object.keys(descriptiveData).length > 0 ? { datos_folio: descriptiveData } : {}),
+        ...(tipoBulto === 'material' ? {
             datos_material: compactObject({
-                item_material_id: values.item_material_id,
-                cantidad: Number(values.cantidad_material),
-                lote: values.lote_material?.trim(),
-                proveedor: values.proveedor_material?.trim(),
-                observacion: values.observacion_material?.trim(),
+                item_material_id: lookup.existe ? lookup.material?.item_material_id : values.item_material_id,
+                cantidad: lookup.existe ? Number(lookup.material?.cantidad) : Number(values.cantidad_material),
+                lote: lookup.existe ? lookup.material?.lote : values.lote_material?.trim(),
+                proveedor: lookup.existe ? lookup.material?.proveedor : values.proveedor_material?.trim(),
+                observacion: lookup.existe ? lookup.material?.observacion : values.observacion_material?.trim(),
             }),
         } : {}),
     };
@@ -1247,6 +1432,32 @@ elements.materialDispatchButton?.addEventListener('click', openMaterialDispatchD
 elements.locateForm?.addEventListener('submit', (event) => {
     event.preventDefault();
     locateFolio(event.currentTarget);
+});
+elements.locateFolioNumber?.addEventListener('input', (event) => {
+    elements.locateError.textContent = '';
+    const hadLookup = state.locateLookup !== null;
+    resetLocateLookup({ clearValues: hadLookup });
+    const numeroFolio = normalizedFolioNumber(event.currentTarget.value);
+
+    if (! numeroFolio) return;
+
+    state.locateLookupTimer = window.setTimeout(() => {
+        lookupLocateFolio(numeroFolio);
+    }, 300);
+});
+elements.locateFolioNumber?.addEventListener('keydown', async (event) => {
+    if (event.key !== 'Enter') return;
+
+    event.preventDefault();
+    elements.locateError.textContent = '';
+    const lookup = await lookupLocateFolio(event.currentTarget.value);
+
+    if (lookup?.existe && lookup.disponible_ubicacion && ! elements.locateSubmitButton.disabled) {
+        elements.locateSubmitButton.focus();
+    }
+});
+elements.locateDialog?.addEventListener('close', () => {
+    resetLocateLookup();
 });
 elements.moveForm?.addEventListener('submit', (event) => {
     event.preventDefault();

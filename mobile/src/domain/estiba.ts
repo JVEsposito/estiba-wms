@@ -122,6 +122,39 @@ export type Folio = {
   ubicado_at: string | null;
 };
 
+export type FolioLookup = {
+  existe: false;
+  numero_folio: string;
+} | {
+  existe: true;
+  id: string;
+  numero_folio: string;
+  tipo_bulto: 'pallet' | 'saldo' | 'material';
+  estado_operacional: string;
+  condicion_termica: Folio['condicion_termica'];
+  habilitacion_almacenamiento: Folio['habilitacion_almacenamiento'];
+  disponible_ubicacion: boolean;
+  mensaje_disponibilidad: string;
+  origen_sistema: string | null;
+  condicion_sag: SagCondition | null;
+  variedad: string | null;
+  calibre: string | null;
+  marca: string | null;
+  exportadora: string | null;
+  ubicacion_actual: {
+    camara: { id: string; codigo: string; nombre: string };
+    posicion: { id: string; etiqueta: string | null };
+  } | null;
+  material: {
+    item_material_id: string;
+    item: { codigo: string; nombre: string };
+    cantidad: string;
+    lote: string | null;
+    proveedor: string | null;
+    observacion: string | null;
+  } | null;
+};
+
 export type MaterialSeason = {
   id: string;
   codigo: string;
