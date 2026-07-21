@@ -109,6 +109,9 @@ class ServicioRecepcionRomana
                 return $this->cargar($recepcion);
             }
 
+            if ($recepcion->estado_validacion_mp !== EstadoValidacionMp::Pendiente) {
+                throw new ConflictoOperacion('La recepción ya fue tomada por Validación MP y sus antecedentes no pueden editarse.');
+            }
             if (! $recepcion->estado->esEditable()) {
                 throw new ConflictoOperacion('La recepción ya confirmó su ingreso y sus antecedentes no pueden editarse.');
             }

@@ -22,12 +22,35 @@ class GuiaDespachoEnvase extends Model
 
     protected $table = 'guias_despacho_envases';
 
-    public function temporada(): BelongsTo { return $this->belongsTo(Temporada::class); }
-    public function cliente(): BelongsTo { return $this->belongsTo(Cliente::class); }
-    public function detalles(): HasMany { return $this->hasMany(DetalleGuiaDespachoEnvase::class); }
-    public function creadoPor(): BelongsTo { return $this->belongsTo(User::class, 'creado_por_user_id'); }
-    public function confirmadoPor(): BelongsTo { return $this->belongsTo(User::class, 'confirmado_por_user_id'); }
-    public function anuladoPor(): BelongsTo { return $this->belongsTo(User::class, 'anulado_por_user_id'); }
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
+
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class);
+    }
+
+    public function detalles(): HasMany
+    {
+        return $this->hasMany(DetalleGuiaDespachoEnvase::class);
+    }
+
+    public function creadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creado_por_user_id');
+    }
+
+    public function confirmadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmado_por_user_id');
+    }
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por_user_id');
+    }
 
     protected function casts(): array
     {

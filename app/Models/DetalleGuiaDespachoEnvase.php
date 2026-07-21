@@ -17,8 +17,15 @@ class DetalleGuiaDespachoEnvase extends Model
 
     protected $table = 'detalles_guias_despacho_envases';
 
-    public function guia(): BelongsTo { return $this->belongsTo(GuiaDespachoEnvase::class, 'guia_despacho_envase_id'); }
-    public function movimientoOrigen(): BelongsTo { return $this->belongsTo(MovimientoEnvase::class, 'movimiento_origen_id'); }
+    public function guia(): BelongsTo
+    {
+        return $this->belongsTo(GuiaDespachoEnvase::class, 'guia_despacho_envase_id');
+    }
+
+    public function movimientoOrigen(): BelongsTo
+    {
+        return $this->belongsTo(MovimientoEnvase::class, 'movimiento_origen_id');
+    }
 
     protected function casts(): array
     {

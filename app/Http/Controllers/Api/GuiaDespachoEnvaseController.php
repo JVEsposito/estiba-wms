@@ -87,6 +87,7 @@ class GuiaDespachoEnvaseController extends Controller
     public function confirmar(GuiaDespachoEnvase $guiaDespachoEnvase, Request $request, ServicioGuiaDespachoEnvases $servicio): JsonResponse
     {
         Gate::authorize('gestionar-despacho-envases');
+
         return response()->json(['data' => $this->guia($servicio->confirmar($guiaDespachoEnvase, $request->user()))]);
     }
 
@@ -94,6 +95,7 @@ class GuiaDespachoEnvaseController extends Controller
     {
         Gate::authorize('gestionar-despacho-envases');
         $datos = $request->validate(['motivo' => ['required', 'string', 'max:1000']]);
+
         return response()->json(['data' => $this->guia($servicio->anular($guiaDespachoEnvase, $datos['motivo'], $request->user()))]);
     }
 

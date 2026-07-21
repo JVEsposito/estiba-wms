@@ -3,9 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoValidacionMp;
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
+use App\Models\RecepcionRomana;
 use App\Models\Temporada;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -154,6 +156,32 @@ class RecepcionRomanaApiTest extends TestCase
             'estado' => EstadoRecepcionRomana::EnBasculaSalida->value,
             'peso_tara' => null,
         ]);
+    }
+
+    public function test_bloquea_edicion_en_romana_cuando_validacion_mp_ya_tomo_la_recepcion(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $recepcionId = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $recepcionId,
+            'estado_validacion_mp' => EstadoValidacionMp::Pendiente->value,
+        ]);
+
+        RecepcionRomana::query()->findOrFail($recepcionId)->update([
+            'estado_validacion_mp' => EstadoValidacionMp::EnProceso,
+        ]);
+        $edicion = $datos;
+        $edicion['operacion_id'] = (string) Str::uuid();
+        $edicion['peso_bruto'] = 30000;
+
+        $this->putJson('/api/romana/recepciones/'.$recepcionId, $edicion)
+            ->assertConflict()
+            ->assertJsonPath('message', 'La recepción ya fue tomada por Validación MP y sus antecedentes no pueden editarse.');
     }
 
     public function test_separa_consulta_de_operacion_y_expone_capacidades_en_el_acceso(): void

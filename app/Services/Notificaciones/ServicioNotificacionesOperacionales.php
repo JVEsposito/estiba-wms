@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioNotificacionesOperacionales
 {
-    public function __construct(private readonly AlcanceOperacionalUsuario $alcance) {}
+    public function __construct(private readonly AlcanceOperacionalUsuario $alcance)
+    {
+    }
 
     public function consultaVisibles(User $usuario): Builder
     {
