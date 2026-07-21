@@ -67,8 +67,7 @@ class ServicioTemporadaGlobal
     public function asegurarConfiguracionMaterial(
         Temporada $temporada,
         ?int $usuarioId = null,
-    ): TemporadaMaterial
-    {
+    ): TemporadaMaterial {
         $configuracion = TemporadaMaterial::query()->firstOrNew([
             'temporada_id' => $temporada->id,
         ]);
