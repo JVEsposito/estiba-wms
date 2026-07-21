@@ -127,7 +127,7 @@
 
                 <div class="materials-operation-grid">
                     <section class="panel materials-panel">
-                        <div class="materials-panel__heading"><div><p class="eyebrow">SOLICITUD</p><h2>Nuevo despacho de materiales</h2></div><span>Reserva FIFO automática</span></div>
+                        <div class="materials-panel__heading"><div><p class="eyebrow">SOLICITUD</p><h2>Nuevo despacho de materiales</h2></div><span id="materialsStockSync" aria-live="polite">Consultando stock disponible…</span></div>
                         <form class="materials-form" id="dispatchMaterialForm" novalidate>
                             <label><span>Destino *</span><select name="destino_material_id" id="dispatchDestination" required></select></label>
                             <label class="materials-wide"><span>Observación</span><textarea name="observacion" maxlength="1000" rows="2"></textarea></label>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
@@ -108,6 +109,8 @@ class DespachoMaterialController extends Controller
         $folios = FolioMaterial::query()
             ->with(['item.cliente.temporada', 'folio.ubicacionActual.posicion.camara'])
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
+            ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
+                ->where('contenido', ContenidoCamara::Materiales->value))
             ->orderBy('item_material_id')
             ->get()
             ->map(function (FolioMaterial $material): array {

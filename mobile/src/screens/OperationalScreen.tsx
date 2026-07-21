@@ -72,6 +72,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [connectionState, setConnectionState] = useState<'connected' | 'offline'>('connected');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
+  const materialDispatchRefreshInFlight = useRef(false);
   const materialCreateOperationId = useRef(Crypto.randomUUID());
   const materialWithdrawOperationId = useRef(Crypto.randomUUID());
   const capabilities = auth.usuario.capacidades;
@@ -121,6 +122,21 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
     return () => subscription.remove();
   }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
+
+  useEffect(() => {
+    if (!canUseMaterials || activeModule !== 'camaras') return;
+
+    void refreshMaterialDispatches();
+    const timer = setInterval(() => void refreshMaterialDispatches(), 12000);
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refreshMaterialDispatches();
+    });
+
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [activeModule, canUseMaterials, auth.token]);
 
   async function initialize() {
     setBusy(true);
@@ -199,6 +215,20 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setNotice('Folio abierto desde el despacho de materiales. Abre la estiba para registrar el retiro.');
     await loadCamera(cameraId);
     setSelectedPositionId(positionId);
+  }
+
+  async function refreshMaterialDispatches() {
+    if (!canUseMaterials || materialDispatchRefreshInFlight.current) return;
+    materialDispatchRefreshInFlight.current = true;
+    try {
+      const loaded = await api.listMaterialDispatches(auth.token);
+      setMaterialDispatches(loaded);
+      setConnectionState('connected');
+    } catch (reason) {
+      reportFailure(reason, setError);
+    } finally {
+      materialDispatchRefreshInFlight.current = false;
+    }
   }
 
   async function refreshCurrent({ quiet = false }: { quiet?: boolean } = {}) {

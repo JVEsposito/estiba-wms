@@ -15,6 +15,7 @@ const elements = {
     destinationCancel: byId('cancelDestinationEdit'), destinationList: byId('destinationsMaterialList'),
     dispatchForm: byId('dispatchMaterialForm'), dispatchError: byId('dispatchMaterialError'),
     dispatchDestination: byId('dispatchDestination'), dispatchLines: byId('dispatchMaterialLines'),
+    stockSync: byId('materialsStockSync'),
     addDispatchLine: byId('addDispatchLine'), dispatchList: byId('dispatchMaterialList'),
     inventorySearch: byId('materialsInventorySearch'), inventoryBody: byId('materialsInventoryBody'),
     clientCount: byId('materialsClientCount'), itemCount: byId('materialsItemCount'), folioCount: byId('materialsFolioCount'),
@@ -33,7 +34,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     seasons: [], selectedSeasonId: null, clients: [], items: [], destinations: [], dispatches: [], inventory: [], imports: [], importPreview: null, dispatchOperationId: null,
-    cancellationOperations: new Map(),
+    cancellationOperations: new Map(), operationalRefreshInFlight: false, inventorySyncedAt: null,
 };
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
@@ -84,8 +85,78 @@ function showApp() {
 function selectedSeason() { return state.seasons.find((season) => season.id === state.selectedSeasonId) || null; }
 function seasonClients() { return state.clients.filter((client) => client.temporada?.id === state.selectedSeasonId); }
 function seasonItems() { return state.items.filter((item) => item.cliente?.temporada?.id === state.selectedSeasonId); }
-function activeItems() { return state.items.filter((item) => item.activo && item.cliente?.activo !== false); }
+function activeItems() { return state.items.filter((item) => item.activo && item.cliente?.activo !== false && item.cliente?.temporada?.activa !== false); }
 function activeDestinations() { return state.destinations.filter((destination) => destination.activo); }
+function normalizedSearch(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function itemLabel(item) { return `${item.cliente?.temporada?.codigo || ''} · ${item.cliente?.codigo || ''} · ${item.codigo} · ${item.nombre}`; }
+function itemSearchText(item) { return normalizedSearch(`${itemLabel(item)} ${item.cliente?.nombre || ''} ${item.categoria || ''}`); }
+function availableStock(itemId) {
+    return Math.round(state.inventory
+        .filter((folio) => folio.item.id === itemId)
+        .reduce((total, folio) => total + Number(folio.cantidad_disponible || 0), 0) * 1000) / 1000;
+}
+function closeItemResults(except = null) {
+    elements.dispatchLines.querySelectorAll('.material-item-results').forEach((results) => {
+        if (results === except) return;
+        results.classList.add('is-hidden');
+        results.closest('.material-item-picker')?.querySelector('.material-item-search')?.setAttribute('aria-expanded', 'false');
+    });
+}
+function matchingItems(query) {
+    const normalized = normalizedSearch(query);
+    return activeItems()
+        .filter((item) => !normalized || itemSearchText(item).includes(normalized))
+        .sort((left, right) => {
+            const stockDifference = Number(availableStock(right.id) > 0) - Number(availableStock(left.id) > 0);
+            return stockDifference || itemLabel(left).localeCompare(itemLabel(right), 'es');
+        })
+        .slice(0, 12);
+}
+function renderItemResults(row) {
+    const input = row.querySelector('.material-item-search');
+    const results = row.querySelector('.material-item-results');
+    const matches = matchingItems(input.value);
+    results.innerHTML = matches.map((item) => {
+        const stock = availableStock(item.id);
+        return `<button class="material-item-option" data-select-item="${item.id}" type="button" role="option"${stock <= 0 ? ' disabled' : ''}><span>${escapeHtml(itemLabel(item))}</span><strong>${stock > 0 ? `${quantity(stock)} ${escapeHtml(item.unidad_medida)} disponibles` : 'Sin stock disponible'}</strong></button>`;
+    }).join('') || '<p class="material-item-empty">No hay ítems que coincidan con la búsqueda.</p>';
+    results.classList.remove('is-hidden');
+    input.setAttribute('aria-expanded', 'true');
+}
+function updateDispatchLine(row) {
+    const itemId = row.querySelector('[name="item_material_id"]').value;
+    const input = row.querySelector('.material-item-search');
+    const amount = row.querySelector('[name="cantidad"]');
+    const stockHint = row.querySelector('.material-stock');
+    const item = activeItems().find((candidate) => candidate.id === itemId);
+    if (!item) {
+        stockHint.textContent = 'Escribe para buscar un ítem con existencia.';
+        stockHint.classList.remove('material-stock--empty');
+        amount.disabled = true;
+        amount.removeAttribute('max');
+        row.classList.remove('dispatch-line--unavailable');
+        return;
+    }
+    const stock = availableStock(item.id);
+    if (document.activeElement !== input) input.value = itemLabel(item);
+    amount.disabled = stock <= 0;
+    amount.max = String(stock);
+    amount.setAttribute('aria-describedby', stockHint.id);
+    stockHint.textContent = stock > 0
+        ? `Stock disponible: ${quantity(stock)} ${item.unidad_medida}`
+        : `Sin stock disponible en cámaras de materiales`;
+    stockHint.classList.toggle('material-stock--empty', stock <= 0);
+    row.classList.toggle('dispatch-line--unavailable', stock <= 0 || Number(amount.value || 0) > stock);
+}
+function refreshDispatchLines() {
+    elements.dispatchLines.querySelectorAll('.dispatch-line').forEach((row) => {
+        updateDispatchLine(row);
+        if (!row.querySelector('.material-item-results').classList.contains('is-hidden')) renderItemResults(row);
+    });
+    elements.stockSync.textContent = state.inventorySyncedAt
+        ? `Stock actualizado ${state.inventorySyncedAt}`
+        : 'Consultando stock disponible…';
+}
 function renderMetrics() {
     elements.seasonActive.textContent = state.seasons.find((season) => season.activa)?.codigo || '—'; elements.clientCount.textContent = String(seasonClients().filter((client) => client.activo).length); elements.itemCount.textContent = String(seasonItems().filter((item) => item.activo && item.cliente?.activo !== false).length); elements.folioCount.textContent = String(state.inventory.length);
     elements.dispatchCount.textContent = String(state.dispatches.filter((dispatch) => ['pendiente', 'parcial'].includes(dispatch.estado)).length);
@@ -113,8 +184,7 @@ function renderItems() {
     const items = seasonItems();
     elements.itemsSummary.textContent = `${items.length} registrados`;
     elements.itemList.innerHTML = items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.cliente?.codigo || 'SIN CLIENTE')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems en esta temporada.</p>';
-    const options = activeItems().map((item) => `<option value="${item.id}">${escapeHtml(item.cliente?.temporada?.codigo || '')} · ${escapeHtml(item.cliente?.codigo || '')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)} (${escapeHtml(item.unidad_medida)})</option>`).join('');
-    elements.dispatchLines.querySelectorAll('select[name="item_material_id"]').forEach((select) => { const current = select.value; select.innerHTML = options; if ([...select.options].some((option) => option.value === current)) select.value = current; });
+    refreshDispatchLines();
 }
 function renderDestinations() {
     const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
@@ -173,13 +243,53 @@ async function loadAll() {
     ]);
     if (catalogAdmin) { state.seasons = catalog[0].data; state.clients = catalog[1].data; state.items = catalog[2].data; state.destinations = catalog[3].data; state.imports = catalog[4].data; } else { state.seasons = catalog.temporada ? [catalog.temporada] : []; state.clients = catalog.clientes; state.items = catalog.items; state.destinations = catalog.destinos; state.imports = []; }
     if (!state.seasons.some((season) => season.id === state.selectedSeasonId)) state.selectedSeasonId = state.seasons.find((season) => season.activa)?.id || state.seasons[0]?.id || null;
-    state.dispatches = dispatches.data; state.inventory = inventory.data; renderAll();
+    state.dispatches = dispatches.data; state.inventory = inventory.data;
+    state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    renderAll();
+}
+
+async function refreshOperationalData() {
+    if (state.operationalRefreshInFlight || !state.token || state.identity?.puede_consultar_despachos_materiales !== true) return;
+    state.operationalRefreshInFlight = true;
+    try {
+        const [dispatches, inventory] = await Promise.all([
+            api('/api/materiales/despachos'),
+            api('/api/materiales/inventario'),
+        ]);
+        state.dispatches = dispatches.data;
+        state.inventory = inventory.data;
+        state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        renderDispatches(); renderInventory(); renderMetrics(); refreshDispatchLines();
+    } catch (error) {
+        if (error.status !== 401) console.warn('No fue posible actualizar el stock de materiales.', error);
+    } finally {
+        state.operationalRefreshInFlight = false;
+    }
 }
 
 function addDispatchLine(itemId = '', amount = '') {
     const row = document.createElement('div'); row.className = 'dispatch-line';
-    row.innerHTML = `<select name="item_material_id" required>${activeItems().map((item) => `<option value="${item.id}"${item.id === itemId ? ' selected' : ''}>${escapeHtml(item.cliente?.temporada?.codigo || '')} · ${escapeHtml(item.cliente?.codigo || '')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</option>`).join('')}</select><input name="cantidad" type="number" min="0.001" step="0.001" value="${escapeHtml(amount)}" placeholder="Cantidad" required><button data-remove-line type="button" aria-label="Quitar">×</button>`;
+    const hintId = `material-stock-${operationUuid()}`;
+    const item = activeItems().find((candidate) => candidate.id === itemId);
+    row.innerHTML = `<div class="material-item-picker"><input class="material-item-search" type="search" value="${escapeHtml(item ? itemLabel(item) : '')}" placeholder="Buscar ítem, código o cliente" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"><input name="item_material_id" type="hidden" value="${escapeHtml(itemId)}"><div class="material-item-results is-hidden" role="listbox"></div><small class="material-stock" id="${hintId}" aria-live="polite"></small></div><input name="cantidad" type="number" min="0.001" step="0.001" value="${escapeHtml(amount)}" placeholder="Cantidad" required><button data-remove-line type="button" aria-label="Quitar">×</button>`;
     elements.dispatchLines.append(row);
+    updateDispatchLine(row);
+}
+function dispatchItemsPayload() {
+    const seen = new Set();
+    return [...elements.dispatchLines.querySelectorAll('.dispatch-line')].map((row, index) => {
+        const itemId = row.querySelector('[name="item_material_id"]').value;
+        const amount = Number(row.querySelector('[name="cantidad"]').value || 0);
+        const item = activeItems().find((candidate) => candidate.id === itemId);
+        if (!item) throw new ApiError(`Selecciona un ítem válido en la línea ${index + 1}.`, 422);
+        if (seen.has(itemId)) throw new ApiError(`${item.nombre} está repetido en la solicitud.`, 422);
+        seen.add(itemId);
+        const stock = availableStock(itemId);
+        if (stock <= 0) throw new ApiError(`${item.nombre} no tiene stock disponible.`, 422);
+        if (amount <= 0) throw new ApiError(`Indica una cantidad válida para ${item.nombre}.`, 422);
+        if (amount > stock) throw new ApiError(`${item.nombre}: solicitaste ${quantity(amount)} ${item.unidad_medida}, pero solo hay ${quantity(stock)} disponibles.`, 422);
+        return { item_material_id: itemId, cantidad: amount };
+    });
 }
 function resetItemForm() { elements.itemForm.reset(); elements.itemForm.elements.id.value = ''; elements.itemForm.elements.activo.checked = true; elements.itemCancel.classList.add('is-hidden'); elements.itemError.textContent = ''; }
 function resetSeasonForm() { elements.seasonForm.reset(); elements.seasonForm.elements.id.value = ''; elements.seasonCancel.classList.add('is-hidden'); elements.seasonError.textContent = ''; }
@@ -222,8 +332,63 @@ elements.importConfirm.addEventListener('click', async () => {
         state.importPreview = response.data; await loadAll(); renderImportPreview(); toast('Catálogo de materiales importado correctamente.');
     } catch (error) { elements.importError.textContent = error.message; } finally { setBusy(false); }
 });
-elements.addDispatchLine.addEventListener('click', () => { state.dispatchOperationId = null; addDispatchLine(); }); elements.dispatchLines.addEventListener('click', (event) => { if (event.target.closest('[data-remove-line]') && elements.dispatchLines.children.length > 1) { state.dispatchOperationId = null; event.target.closest('.dispatch-line').remove(); } });
-elements.dispatchForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.dispatchError.textContent = ''; const form = new FormData(elements.dispatchForm); const items = [...elements.dispatchLines.querySelectorAll('.dispatch-line')].map((row) => ({ item_material_id: row.querySelector('[name="item_material_id"]').value, cantidad: row.querySelector('[name="cantidad"]').value })); state.dispatchOperationId ||= operationUuid(); const payload = { operacion_id: state.dispatchOperationId, destino_material_id: form.get('destino_material_id'), observacion: form.get('observacion'), items }; setBusy(true, 'Creando despacho y reservando existencia…'); try { const response = await api('/api/materiales/despachos', { method: 'POST', body: JSON.stringify(payload) }); state.dispatchOperationId = null; elements.dispatchForm.reset(); elements.dispatchLines.innerHTML = ''; addDispatchLine(); await loadAll(); toast(`${response.data.codigo} fue creado correctamente.`); } catch (error) { elements.dispatchError.textContent = error.message; } finally { setBusy(false); } });
+elements.addDispatchLine.addEventListener('click', () => { state.dispatchOperationId = null; addDispatchLine(); });
+elements.dispatchLines.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-line]');
+    if (remove && elements.dispatchLines.children.length > 1) {
+        state.dispatchOperationId = null; remove.closest('.dispatch-line').remove(); return;
+    }
+    const option = event.target.closest('[data-select-item]');
+    if (!option) return;
+    const row = option.closest('.dispatch-line');
+    const item = activeItems().find((candidate) => candidate.id === option.dataset.selectItem);
+    if (!item) return;
+    row.querySelector('[name="item_material_id"]').value = item.id;
+    row.querySelector('.material-item-search').value = itemLabel(item);
+    closeItemResults(); updateDispatchLine(row); state.dispatchOperationId = null;
+    row.querySelector('[name="cantidad"]').focus();
+});
+elements.dispatchLines.addEventListener('focusin', (event) => {
+    const input = event.target.closest('.material-item-search');
+    if (!input) return;
+    const results = input.closest('.material-item-picker').querySelector('.material-item-results');
+    closeItemResults(results); renderItemResults(input.closest('.dispatch-line'));
+});
+elements.dispatchLines.addEventListener('input', (event) => {
+    const row = event.target.closest('.dispatch-line');
+    if (!row) return;
+    if (event.target.matches('.material-item-search')) {
+        row.querySelector('[name="item_material_id"]').value = '';
+        row.querySelector('[name="cantidad"]').value = '';
+        updateDispatchLine(row); renderItemResults(row);
+    } else if (event.target.matches('[name="cantidad"]')) {
+        updateDispatchLine(row);
+    }
+});
+elements.dispatchLines.addEventListener('keydown', (event) => {
+    if (!event.target.matches('.material-item-search')) return;
+    if (event.key === 'Escape') { closeItemResults(); event.target.blur(); }
+    if (event.key === 'Enter') {
+        const first = event.target.closest('.material-item-picker').querySelector('[data-select-item]:not(:disabled)');
+        if (first) { event.preventDefault(); first.click(); }
+    }
+});
+document.addEventListener('click', (event) => { if (!event.target.closest('.material-item-picker')) closeItemResults(); });
+elements.dispatchForm.addEventListener('submit', async (event) => {
+    event.preventDefault(); elements.dispatchError.textContent = '';
+    try { await refreshOperationalData(); } catch { /* La validación local usará el último estado disponible. */ }
+    let items;
+    try { items = dispatchItemsPayload(); } catch (error) { elements.dispatchError.textContent = error.message; return; }
+    const form = new FormData(elements.dispatchForm);
+    state.dispatchOperationId ||= operationUuid();
+    const payload = { operacion_id: state.dispatchOperationId, destino_material_id: form.get('destino_material_id'), observacion: form.get('observacion'), items };
+    setBusy(true, 'Creando despacho y reservando existencia…');
+    try {
+        const response = await api('/api/materiales/despachos', { method: 'POST', body: JSON.stringify(payload) });
+        state.dispatchOperationId = null; elements.dispatchForm.reset(); elements.dispatchLines.innerHTML = ''; addDispatchLine();
+        await loadAll(); toast(`${response.data.codigo} fue creado correctamente.`);
+    } catch (error) { elements.dispatchError.textContent = error.message; } finally { setBusy(false); }
+});
 elements.dispatchForm.addEventListener('input', () => { state.dispatchOperationId = null; });
 elements.dispatchList.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-cancel-dispatch]');
@@ -260,4 +425,6 @@ elements.inventorySearch.addEventListener('input', renderInventory); elements.re
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 
 async function boot() { addDispatchLine(); if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) return; showApp(); setBusy(true, 'Cargando materiales…'); try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); } }
+window.setInterval(() => { if (document.visibilityState === 'visible') void refreshOperationalData(); }, 12000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refreshOperationalData(); });
 void boot();

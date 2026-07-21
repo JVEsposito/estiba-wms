@@ -403,6 +403,52 @@ class MaterialesApiTest extends TestCase
         $this->assertSame(3, $camara->refresh()->version_plano);
     }
 
+    public function test_inventario_refleja_el_stock_disponible_despues_de_reservar(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('CAM-STOCK', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-STOCK',
+            0,
+            10,
+            now()->toAtomString(),
+        );
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario')
+            ->assertOk()
+            ->assertJsonPath('data.0.folio_id', $folioId)
+            ->assertJsonPath('data.0.cantidad_actual', '10.000')
+            ->assertJsonPath('data.0.cantidad_reservada', '0.000')
+            ->assertJsonPath('data.0.cantidad_disponible', '10.000');
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'items' => [[
+                    'item_material_id' => $item->id,
+                    'cantidad' => 4,
+                ]],
+            ])
+            ->assertCreated();
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario')
+            ->assertOk()
+            ->assertJsonPath('data.0.cantidad_actual', '10.000')
+            ->assertJsonPath('data.0.cantidad_reservada', '4.000')
+            ->assertJsonPath('data.0.cantidad_disponible', '6.000');
+    }
+
     public function test_fifo_es_solo_sugerencia_y_registra_la_excepcion(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
