@@ -346,9 +346,13 @@ class CatalogoMaterialController extends Controller
                 abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'La temporada global ya posee configuración de materiales.');
             }
 
+            $activa = $datos['activa'] ?? null;
+            if ($activa === null && $temporadaGlobal) {
+                $activa = $temporadaGlobal->activa;
+            }
             $temporadaGlobal = $temporadas->guardar([
                 ...$datos,
-                'activa' => (bool) ($datos['activa'] ?? $temporadaGlobal?->activa ?? false),
+                'activa' => (bool) ($activa ?? false),
             ], $temporadaGlobal);
             $temporada ??= new TemporadaMaterial;
             $temporada->fill([

@@ -299,8 +299,7 @@ class ServicioRecepcionRomana
         string $clienteId,
         string $guia,
         ?string $ignorarId = null,
-    ): void
-    {
+    ): void {
         $consulta = RecepcionRomana::query()
             ->where('temporada_id', $temporadaId)
             ->where('cliente_id', $clienteId)
