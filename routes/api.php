@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\FolioPrefrioController;
+use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
@@ -56,6 +57,15 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/envases/cuenta-corriente/movimientos/{movimientoEnvase}/revisar', [CuentaCorrienteEnvaseController::class, 'revisar'])
         ->middleware('can:revisar-cuenta-envases');
+    Route::middleware('can:consultar-cuenta-envases')->prefix('envases/guias-despacho')->group(function () {
+        Route::get('/catalogos', [GuiaDespachoEnvaseController::class, 'catalogos']);
+        Route::get('/', [GuiaDespachoEnvaseController::class, 'index']);
+    });
+    Route::middleware('can:gestionar-despacho-envases')->prefix('envases/guias-despacho')->group(function () {
+        Route::post('/', [GuiaDespachoEnvaseController::class, 'store']);
+        Route::post('/{guiaDespachoEnvase}/confirmar', [GuiaDespachoEnvaseController::class, 'confirmar']);
+        Route::post('/{guiaDespachoEnvase}/anular', [GuiaDespachoEnvaseController::class, 'anular']);
+    });
 
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);

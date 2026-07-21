@@ -16,3 +16,4 @@ Route::view('/oficina/prefrio', 'office.precooling');
 Route::view('/oficina/gerencia', 'office.management');
 Route::view('/oficina/romana', 'office.weighbridge');
 Route::view('/oficina/envases/cuenta-corriente', 'office.container-accounts');
+Route::view('/oficina/envases/despachos', 'office.container-dispatches');
