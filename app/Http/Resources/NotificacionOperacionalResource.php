@@ -36,6 +36,14 @@ class NotificacionOperacionalResource extends JsonResource
                     ],
                 ] : null,
             ),
+            'recepcion_romana' => $this->whenLoaded(
+                'recepcionRomana',
+                fn () => $this->recepcionRomana ? [
+                    'id' => $this->recepcionRomana->id,
+                    'numero_recepcion' => $this->recepcionRomana->numero_recepcion,
+                    'estado_validacion_mp' => $this->recepcionRomana->estado_validacion_mp->value,
+                ] : null,
+            ),
             'folio' => $this->whenLoaded('folio', fn () => $this->folio ? [
                 'id' => $this->folio->id,
                 'numero_folio' => $this->folio->numero_folio,

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\EstadoRecepcionRomana;
 use App\Enums\TipoEnvaseRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarRecepcionRomanaRequest;
@@ -54,6 +56,14 @@ class RecepcionRomanaController extends Controller
                 }],
                 TipoServicioRomana::cases(),
             ),
+            'tipos_recepcion' => [
+                ['codigo' => TipoRecepcionRomana::FrutaConEnvases->value, 'nombre' => 'Fruta con envases'],
+                ['codigo' => TipoRecepcionRomana::SoloEnvases->value, 'nombre' => 'Solo envases'],
+            ],
+            'conceptos_envases' => [
+                ['codigo' => ConceptoEnvasesRomana::Compra->value, 'nombre' => 'Compra de envases propios'],
+                ['codigo' => ConceptoEnvasesRomana::Arriendo->value, 'nombre' => 'Arriendo de envases'],
+            ],
             'tipos_envase' => array_map(
                 fn (TipoEnvaseRomana $tipo): array => ['codigo' => $tipo->value, 'nombre' => ucfirst($tipo->value)],
                 TipoEnvaseRomana::cases(),
@@ -97,7 +107,7 @@ class RecepcionRomanaController extends Controller
             $base->where('estado', $filtros['estado']);
         }
         $paginacion = $base
-            ->with(['creadoPor', 'ingresoConfirmadoPor', 'cerradoPor'])
+            ->with(['creadoPor', 'ingresoConfirmadoPor', 'cerradoPor', 'validacionTomadaPor', 'detallesEnvases'])
             ->orderByDesc('ingreso_at')
             ->paginate((int) ($filtros['por_pagina'] ?? 30));
 
@@ -130,6 +140,8 @@ class RecepcionRomanaController extends Controller
             'creadoPor',
             'ingresoConfirmadoPor',
             'cerradoPor',
+            'detallesEnvases',
+            'validacionTomadaPor',
             'eventos' => fn ($consulta) => $consulta->with('usuario')->orderBy('ocurrido_at'),
         ]);
 
@@ -193,6 +205,7 @@ class RecepcionRomanaController extends Controller
             'id' => $recepcion->id,
             'numero_recepcion' => $recepcion->numero_recepcion,
             'estado' => $recepcion->estado->value,
+            'estado_validacion_mp' => $recepcion->estado_validacion_mp->value,
             'temporada' => [
                 'id' => $recepcion->temporada_id,
                 'codigo' => $recepcion->temporada_codigo_snapshot,
@@ -204,8 +217,19 @@ class RecepcionRomanaController extends Controller
                 'nombre' => $recepcion->cliente_nombre_snapshot,
             ],
             'tipo_servicio' => $recepcion->tipo_servicio->value,
+            'tipo_recepcion' => $recepcion->tipo_recepcion->value,
+            'concepto_envases' => $recepcion->concepto_envases?->value,
             'cantidad_envases_declarados' => $recepcion->cantidad_envases_declarados,
             'tipo_envase_declarado' => $recepcion->tipo_envase_declarado->value,
+            'envases' => $recepcion->detallesEnvases->map(fn ($detalle): array => [
+                'id' => $detalle->id,
+                'tipo_envase' => $detalle->tipo_envase->value,
+                'cantidad_declarada' => $detalle->cantidad_declarada,
+                'cantidad_validada' => $detalle->cantidad_validada,
+                'diferencia' => $detalle->cantidad_validada === null
+                    ? null
+                    : $detalle->cantidad_validada - $detalle->cantidad_declarada,
+            ])->values(),
             'numero_guia_despacho' => $recepcion->numero_guia_despacho,
             'patente_camion' => $recepcion->patente_camion,
             'patente_carro' => $recepcion->patente_carro,
@@ -217,6 +241,8 @@ class RecepcionRomanaController extends Controller
             'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
             'ingreso_confirmado_at' => $recepcion->ingreso_confirmado_at?->toAtomString(),
             'salida_at' => $recepcion->salida_at?->toAtomString(),
+            'validacion_tomada_at' => $recepcion->validacion_tomada_at?->toAtomString(),
+            'validado_at' => $recepcion->validado_at?->toAtomString(),
             'observacion' => $recepcion->observacion,
             'observacion_cierre' => $recepcion->observacion_cierre,
             'version' => $recepcion->version,
@@ -227,6 +253,7 @@ class RecepcionRomanaController extends Controller
             'creado_por' => $this->usuario($recepcion->creadoPor),
             'ingreso_confirmado_por' => $this->usuario($recepcion->ingresoConfirmadoPor),
             'cerrado_por' => $this->usuario($recepcion->cerradoPor),
+            'validacion_tomada_por' => $this->usuario($recepcion->validacionTomadaPor),
         ];
 
         if ($conEventos) {

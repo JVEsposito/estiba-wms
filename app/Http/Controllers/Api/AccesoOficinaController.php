@@ -83,6 +83,9 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_panel_gerencial' => $capacidades['puede_consultar_panel_gerencial'],
                 'puede_consultar_romana' => $capacidades['puede_consultar_romana'],
                 'puede_operar_romana' => $capacidades['puede_operar_romana'],
+                'puede_consultar_cuenta_envases' => $capacidades['puede_consultar_cuenta_envases'],
+                'puede_revisar_cuenta_envases' => $capacidades['puede_revisar_cuenta_envases'],
+                'puede_gestionar_despacho_envases' => $capacidades['puede_gestionar_despacho_envases'],
             ],
         ]);
     }

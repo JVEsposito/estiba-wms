@@ -13,6 +13,10 @@ class GeneradorAvisoReciboPdf
         if ($recepcion->estado !== EstadoRecepcionRomana::Cerrado) {
             throw new DomainException('El Aviso de Recibo solo está disponible para recepciones cerradas.');
         }
+        $recepcion->loadMissing('detallesEnvases');
+        $envases = $recepcion->detallesEnvases
+            ->map(fn ($detalle): string => $detalle->cantidad_declarada.' '.ucfirst($detalle->tipo_envase->value))
+            ->implode(' · ');
 
         $lineas = [
             ['N° recepción', $recepcion->numero_recepcion],
@@ -21,9 +25,10 @@ class GeneradorAvisoReciboPdf
             ['Temporada', $recepcion->temporada_nombre_snapshot.' · '.$recepcion->temporada_codigo_snapshot],
             ['Cliente', $recepcion->cliente_nombre_snapshot],
             ['Código cliente', $recepcion->cliente_codigo_snapshot ?: 'Sin código externo'],
-            ['Servicio', ucfirst($recepcion->tipo_servicio->value)],
+            ['Tipo recepción', str_replace('_', ' ', ucfirst($recepcion->tipo_recepcion->value))],
+            ['Servicio / concepto', ucfirst($recepcion->concepto_envases?->value ?? $recepcion->tipo_servicio->value)],
             ['Guía de despacho', $recepcion->numero_guia_despacho],
-            ['Envases declarados', $recepcion->cantidad_envases_declarados.' '.ucfirst($recepcion->tipo_envase_declarado->value)],
+            ['Envases declarados', $envases],
             ['Patente camión', $recepcion->patente_camion],
             ['Patente carro', $recepcion->patente_carro ?: 'No informada'],
             ['Conductor', $recepcion->nombre_conductor],
@@ -42,16 +47,16 @@ class GeneradorAvisoReciboPdf
 
         $y = 695;
         foreach ($lineas as $indice => [$etiqueta, $valor]) {
-            if ($indice === 13) {
+            if ($indice === 14) {
                 $contenido .= '0.92 0.96 0.97 rg 38 '.($y - 9)." 519 31 re f\n";
             }
-            if ($indice === 15) {
+            if ($indice === 16) {
                 $contenido .= '0.08 0.50 0.48 rg 38 '.($y - 12)." 519 36 re f\n";
             }
-            $color = $indice === 15 ? '1 1 1' : '0.15 0.20 0.23';
-            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === 15, $color);
-            $contenido .= $this->texto(235, $y, $indice === 15 ? 13 : 10, (string) $valor, true, $color);
-            $y -= $indice >= 13 ? 35 : 29;
+            $color = $indice === 16 ? '1 1 1' : '0.15 0.20 0.23';
+            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === 16, $color);
+            $contenido .= $this->texto(235, $y, $indice === 16 ? 13 : 10, (string) $valor, true, $color);
+            $y -= $indice >= 14 ? 35 : 27;
         }
 
         $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);

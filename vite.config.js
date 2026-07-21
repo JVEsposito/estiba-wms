@@ -26,6 +26,8 @@ export default defineConfig({
                 'resources/js/office-management.js',
                 'resources/css/office-weighbridge.css',
                 'resources/js/office-weighbridge.js',
+                'resources/css/office-container-accounts.css',
+                'resources/js/office-container-accounts.js',
             ],
             refresh: true,
         }),

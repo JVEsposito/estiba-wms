@@ -28,7 +28,8 @@ class AlcanceOperacionalUsuario
             RolUsuario::Consulta => ContenidoCamara::cases(),
             RolUsuario::OperadorPrefrio,
             RolUsuario::OperadorRomana,
-            RolUsuario::Validador => [],
+            RolUsuario::Validador,
+            RolUsuario::ValidadorMp => [],
         };
     }
 
@@ -308,6 +309,40 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeValidarMp(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::ValidadorMp]);
+    }
+
+    public function puedeConsultarCuentaEnvases(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorMateriales,
+            RolUsuario::OperadorRomana,
+            RolUsuario::Despachador,
+            RolUsuario::Consulta,
+        ]);
+    }
+
+    public function puedeRevisarCuentaEnvases(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorMateriales,
+            RolUsuario::OperadorRomana,
+        ]);
+    }
+
+    public function puedeGestionarDespachoEnvases(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::OperadorRomana,
+            RolUsuario::Despachador,
+        ]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -356,6 +391,10 @@ class AlcanceOperacionalUsuario
             'puede_consultar_panel_gerencial' => $this->puedeConsultarPanelGerencial($usuario),
             'puede_consultar_romana' => $this->puedeConsultarRomana($usuario),
             'puede_operar_romana' => $this->puedeOperarRomana($usuario),
+            'puede_validar_mp' => $this->puedeValidarMp($usuario),
+            'puede_consultar_cuenta_envases' => $this->puedeConsultarCuentaEnvases($usuario),
+            'puede_revisar_cuenta_envases' => $this->puedeRevisarCuentaEnvases($usuario),
+            'puede_gestionar_despacho_envases' => $this->puedeGestionarDespachoEnvases($usuario),
         ];
     }
 

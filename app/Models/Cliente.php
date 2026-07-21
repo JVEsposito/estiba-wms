@@ -36,6 +36,11 @@ class Cliente extends Model
         return $this->hasMany(RecepcionRomana::class);
     }
 
+    public function movimientosEnvases(): HasMany
+    {
+        return $this->hasMany(MovimientoEnvase::class);
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
