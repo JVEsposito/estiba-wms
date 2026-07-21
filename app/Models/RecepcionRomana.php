@@ -84,6 +84,11 @@ class RecepcionRomana extends Model
         return $this->hasMany(MovimientoEnvase::class, 'recepcion_romana_id');
     }
 
+    public function validacionesMp(): HasMany
+    {
+        return $this->hasMany(ValidacionMp::class, 'recepcion_romana_id');
+    }
+
     public function validacionTomadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'validacion_tomada_por_user_id');

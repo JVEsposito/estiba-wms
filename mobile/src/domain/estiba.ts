@@ -31,6 +31,7 @@ export type UserCapabilities = {
   puede_cancelar_despachos_materiales: boolean;
   puede_consultar_kardex_materiales: boolean;
   puede_validar_pallets: boolean;
+  puede_validar_mp?: boolean;
   puede_rechazar_pallets: boolean;
   puede_consultar_validaciones_pallet: boolean;
   puede_administrar_catalogos_validacion?: boolean;

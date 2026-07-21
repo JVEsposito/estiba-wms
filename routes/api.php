@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
 use App\Http\Controllers\Api\ValidacionPalletController;
+use App\Http\Controllers\Api\ValidacionMpController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -95,6 +96,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
+    });
+    Route::middleware('can:validar-mp')->prefix('validacion-mp')->group(function () {
+        Route::get('/pendientes', [ValidacionMpController::class, 'pendientes']);
+        Route::get('/recepciones/buscar/{numeroRecepcion}', [ValidacionMpController::class, 'buscar']);
+        Route::get('/recepciones/{recepcion}/catalogos', [ValidacionMpController::class, 'catalogos']);
+        Route::post('/recepciones/{recepcion}/tomar', [ValidacionMpController::class, 'tomar']);
+        Route::post('/validaciones/{validacionMp}/confirmar', [ValidacionMpController::class, 'confirmar']);
     });
     Route::prefix('administracion/validacion')
         ->middleware('can:administrar-catalogos-validacion')
