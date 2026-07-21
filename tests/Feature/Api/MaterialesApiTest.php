@@ -6,10 +6,12 @@ use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\ClienteMaterial;
+use App\Models\CorreccionItemFolioMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
+use App\Models\MovimientoInventarioMaterial;
 use App\Models\Posicion;
 use App\Models\RetiroMaterial;
 use App\Models\User;
@@ -773,8 +775,8 @@ class MaterialesApiTest extends TestCase
             'tipo' => 'correccion_item_entrada',
             'cantidad' => 12,
         ]);
-        $this->assertSame(1, \App\Models\CorreccionItemFolioMaterial::query()->count());
-        $this->assertSame(3, \App\Models\MovimientoInventarioMaterial::query()->where('folio_id', $folioId)->count());
+        $this->assertSame(1, CorreccionItemFolioMaterial::query()->count());
+        $this->assertSame(3, MovimientoInventarioMaterial::query()->where('folio_id', $folioId)->count());
 
         $this->conToken($tokenTablet)
             ->postJson("/api/materiales/inventario/{$folioId}/corregir-item", [
