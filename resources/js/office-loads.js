@@ -13,6 +13,7 @@ const elements = {
     materialsNav: byId('officeMaterialsNav'),
     prefrioNav: byId('officePrefrioNav'),
     accessesNav: byId('officeAccessesNav'),
+    managementNav: byId('officeManagementNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
     emptyNewLoad: byId('emptyNewLoadButton'),
@@ -307,6 +308,10 @@ function showApp() {
     elements.accessesNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_administrar_accesos !== true,
+    );
+    elements.managementNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_panel_gerencial !== true,
     );
     elements.materialsNav.classList.toggle(
         'is-hidden',

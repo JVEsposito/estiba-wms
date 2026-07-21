@@ -80,6 +80,7 @@ class AccesoOficinaController extends Controller
                 'puede_operar_prefrio' => $capacidades['puede_operar_prefrio'],
                 'puede_supervisar_prefrio' => $capacidades['puede_supervisar_prefrio'],
                 'puede_administrar_tuneles_prefrio' => $capacidades['puede_administrar_tuneles_prefrio'],
+                'puede_consultar_panel_gerencial' => $capacidades['puede_consultar_panel_gerencial'],
             ],
         ]);
     }

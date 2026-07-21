@@ -165,6 +165,10 @@ class AppServiceProvider extends ServiceProvider
             'administrar-tuneles-prefrio',
             fn (User $usuario): bool => $alcance->puedeAdministrarTunelesPrefrio($usuario),
         );
+        Gate::define(
+            'consultar-panel-gerencial',
+            fn (User $usuario): bool => $alcance->puedeConsultarPanelGerencial($usuario),
+        );
 
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
+use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -30,6 +31,8 @@ Route::post('/acceso-oficina', [AccesoOficinaController::class, 'store'])->middl
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
+    Route::get('/gerencia/resumen', PanelGerencialController::class)
+        ->middleware('can:consultar-panel-gerencial');
 
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);

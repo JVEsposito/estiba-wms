@@ -22,6 +22,8 @@ export default defineConfig({
                 'resources/js/office-validation-catalog.js',
                 'resources/css/office-prefrio.css',
                 'resources/js/office-prefrio.js',
+                'resources/css/office-management.css',
+                'resources/js/office-management.js',
             ],
             refresh: true,
         }),
