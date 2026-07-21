@@ -60,8 +60,7 @@ class GuiaDespachoEnvaseController extends Controller
     public function index(
         Request $request,
         ServicioTemporadaActiva $temporadaActiva,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         Gate::authorize('consultar-cuenta-envases');
         $filtros = $request->validate([
             'temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
