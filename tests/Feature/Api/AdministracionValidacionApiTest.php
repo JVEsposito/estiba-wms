@@ -114,6 +114,7 @@ class AdministracionValidacionApiTest extends TestCase
     public function test_administra_una_categoria_independiente_para_todas_las_especies_y_marcas(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Temporada::query()->where('activa', true)->update(['activa' => false]);
         $temporada = Temporada::create([
             'codigo' => 'CAT-2026',
             'nombre' => 'Temporada categorías',
