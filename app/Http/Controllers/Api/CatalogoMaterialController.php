@@ -31,7 +31,7 @@ class CatalogoMaterialController extends Controller
         Gate::authorize('consultar-despachos-materiales');
         $temporada = TemporadaMaterial::query()->where('activa', true)->first();
 
-        if (! $temporada) {
+        if (!$temporada) {
             return response()->json([
                 'temporada' => null,
                 'clientes' => [],
