@@ -52,6 +52,7 @@ La base central será la autoridad del estado confirmado. Tanto la interfaz web 
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
 - [Módulo de Validación de pallets](docs/MODULO_VALIDACION_PALLETS.md)
 - [Módulo de Prefrío](docs/MODULO_PREFRIO.md)
+- [Módulo de Romana](docs/MODULO_ROMANA.md)
 
 Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
 
@@ -75,6 +76,14 @@ Prefrío dispone de:
 
 - `/oficina/prefrio`: configuración de túneles, tablero, procesos, historial y decisiones de supervisión.
 - Aplicación móvil: operación por túnel, plano de dos lados desde el fondo hacia la entrada, escaneo, eventos térmicos y bandeja offline para `operador_prefrio`.
+
+Romana dispone de `/oficina/romana` para registrar el peso bruto de entrada,
+confirmar la salida del camión cargado, capturar la tara a su retorno y cerrar la
+recepción con peso neto, correlativo mensual y Aviso de Recibo en PDF. El rol
+`operador_romana` puede operar; supervisión y administración también operan, y
+los perfiles de consulta autorizados solo observan. Usa un maestro operacional
+de clientes compartido por los catálogos estacionales de Validación y Materiales,
+y publica sus métricas diarias y tendencia de siete días en `/oficina/gerencia`.
 
 ## Requisito para importar XLSX
 
@@ -169,6 +178,12 @@ Para validar pallets desde la aplicación móvil:
 - Usuario: `validador@estiba.local`
 - Contraseña: `password`
 - Código de tablet: `TABLET-01`
+
+Para probar Romana desde PC:
+
+- Ruta: `/oficina/romana`
+- Usuario: `romana@estiba.local`
+- Contraseña: `password`
 
 ## Orden de implementación propuesto
 

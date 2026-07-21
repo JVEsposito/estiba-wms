@@ -27,6 +27,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Despachador,
             RolUsuario::Consulta => ContenidoCamara::cases(),
             RolUsuario::OperadorPrefrio,
+            RolUsuario::OperadorRomana,
             RolUsuario::Validador => [],
         };
     }
@@ -287,6 +288,26 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeConsultarRomana(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorRomana,
+            RolUsuario::Despachador,
+            RolUsuario::Consulta,
+        ]);
+    }
+
+    public function puedeOperarRomana(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorRomana,
+        ]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -294,6 +315,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::SupervisorFrio,
             RolUsuario::SupervisorMateriales,
             RolUsuario::Despachador,
+            RolUsuario::OperadorRomana,
             RolUsuario::Consulta,
         ]);
     }
@@ -332,6 +354,8 @@ class AlcanceOperacionalUsuario
             'puede_supervisar_prefrio' => $this->puedeSupervisarPrefrio($usuario),
             'puede_administrar_tuneles_prefrio' => $this->puedeAdministrarTunelesPrefrio($usuario),
             'puede_consultar_panel_gerencial' => $this->puedeConsultarPanelGerencial($usuario),
+            'puede_consultar_romana' => $this->puedeConsultarRomana($usuario),
+            'puede_operar_romana' => $this->puedeOperarRomana($usuario),
         ];
     }
 

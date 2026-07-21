@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Domain;
 
+use App\Models\Cliente;
+use App\Models\ClienteValidacion;
 use App\Models\ImportacionValidacion;
 use App\Models\Temporada;
 use App\Models\User;
@@ -60,6 +62,9 @@ class ImportacionCatalogoJerarquicoValidacionTest extends TestCase
         $this->assertDatabaseHas('calibres_validacion', ['nombre' => 'XL']);
         $this->assertDatabaseHas('envases_validacion', ['nombre' => '5 KG']);
         $this->assertDatabaseHas('clientes_validacion', ['nombre' => 'Los Olmos']);
+        $this->assertDatabaseHas('clientes', ['nombre' => 'Los Olmos', 'activo' => true]);
+        $this->assertNotNull(ClienteValidacion::query()->where('nombre', 'Los Olmos')->value('cliente_id'));
+        $this->assertSame(1, Cliente::query()->where('nombre', 'Los Olmos')->count());
         $this->assertDatabaseHas('marcas_validacion', ['nombre' => 'Olmos Roja']);
         $this->assertDatabaseHas('csg_validacion', [
             'codigo' => 'CSG-001',

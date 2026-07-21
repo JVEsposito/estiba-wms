@@ -8,12 +8,15 @@ use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\EstadoRecepcionRomana;
 use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Folio;
 use App\Models\ProcesoPrefrio;
+use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +32,7 @@ class ServicioPanelGerencial
         $productos = $this->productos();
         $materiales = $this->materiales();
         $prefrio = $this->prefrio();
+        $romana = $this->romana();
 
         return [
             'generado_at' => now()->toAtomString(),
@@ -37,7 +41,8 @@ class ServicioPanelGerencial
             'productos' => $productos,
             'materiales' => $materiales,
             'prefrio' => $prefrio,
-            'alertas' => $this->alertas($camaras, $materiales, $prefrio),
+            'romana' => $romana,
+            'alertas' => $this->alertas($camaras, $materiales, $prefrio, $romana),
         ];
     }
 
@@ -313,6 +318,45 @@ class ServicioPanelGerencial
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function romana(): array
+    {
+        $hoy = CarbonImmutable::today();
+        $cerradasHoy = RecepcionRomana::query()
+            ->where('estado', EstadoRecepcionRomana::Cerrado->value)
+            ->whereDate('salida_at', $hoy->toDateString());
+        $tendencia = collect(range(6, 0))
+            ->map(function (int $dias) use ($hoy): array {
+                $fecha = $hoy->subDays($dias);
+                $cerradas = RecepcionRomana::query()
+                    ->where('estado', EstadoRecepcionRomana::Cerrado->value)
+                    ->whereDate('salida_at', $fecha->toDateString());
+
+                return [
+                    'fecha' => $fecha->toDateString(),
+                    'etiqueta' => $fecha->locale('es')->isoFormat('ddd D'),
+                    'recepciones' => (clone $cerradas)->count(),
+                    'peso_neto' => round((float) (clone $cerradas)->sum('peso_neto'), 2),
+                ];
+            });
+
+        return [
+            'en_bascula_ingreso' => RecepcionRomana::query()
+                ->where('estado', EstadoRecepcionRomana::EnBasculaIngreso->value)
+                ->count(),
+            'pendientes_destare' => RecepcionRomana::query()
+                ->where('estado', EstadoRecepcionRomana::EnBasculaSalida->value)
+                ->count(),
+            'cerradas_hoy' => (clone $cerradasHoy)->count(),
+            'peso_neto_hoy' => round((float) (clone $cerradasHoy)->sum('peso_neto'), 2),
+            'envases_hoy' => (int) (clone $cerradasHoy)->sum('cantidad_envases_declarados'),
+            'clientes_hoy' => (clone $cerradasHoy)->distinct()->count('cliente_id'),
+            'tendencia_diaria' => $tendencia->all(),
+        ];
+    }
+
+    /**
      * @param  Collection<int, array<string, mixed>>  $camaras
      * @return array<string, int|float>
      */
@@ -335,9 +379,10 @@ class ServicioPanelGerencial
      * @param  array<string, mixed>  $camaras
      * @param  array<string, mixed>  $materiales
      * @param  array<string, mixed>  $prefrio
+     * @param  array<string, mixed>  $romana
      * @return array<int, array<string, string>>
      */
-    private function alertas(array $camaras, array $materiales, array $prefrio): array
+    private function alertas(array $camaras, array $materiales, array $prefrio, array $romana): array
     {
         $alertas = collect($camaras['detalle'])
             ->filter(fn (array $camara): bool => $camara['ocupacion_porcentaje'] >= 90)
@@ -367,6 +412,14 @@ class ServicioPanelGerencial
                     'detalle' => 'No queda cantidad libre para nuevos despachos en esta unidad de medida.',
                 ]);
             });
+
+        if ($romana['pendientes_destare'] > 0) {
+            $alertas->push([
+                'nivel' => 'advertencia',
+                'titulo' => 'Camiones pendientes de destare',
+                'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan el pesaje de salida en romana.",
+            ]);
+        }
 
         return $alertas->values()->all();
     }

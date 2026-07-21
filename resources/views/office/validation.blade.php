@@ -33,6 +33,7 @@
                 <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">✓</span><span><strong>ESTIBA WMS</strong><small>VALIDACIÓN</small></span></div>
                 <nav aria-label="Módulos de oficina">
                     <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
+                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
                     <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
                     <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>

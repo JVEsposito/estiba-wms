@@ -15,6 +15,7 @@
             <header class="office-topbar">
                 <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">✓</span><span><strong>ESTIBA WMS</strong><small>CATÁLOGO DE VALIDACIÓN</small></span></div>
                 <nav aria-label="Módulos de oficina">
+                    <a href="/oficina/romana">Romana</a>
                     <a href="/oficina/validacion">← Volver a Validación</a>
                 </nav>
                 <div class="identity"><span class="identity__avatar" id="catalogInitials">AD</span><span><strong id="catalogUserName">Administrador</strong><small>Catálogo jerárquico</small></span><button id="catalogLogout" type="button">Cerrar sesión</button></div>

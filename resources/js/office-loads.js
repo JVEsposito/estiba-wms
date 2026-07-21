@@ -14,6 +14,7 @@ const elements = {
     prefrioNav: byId('officePrefrioNav'),
     accessesNav: byId('officeAccessesNav'),
     managementNav: byId('officeManagementNav'),
+    romanaNav: byId('officeRomanaNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
     emptyNewLoad: byId('emptyNewLoadButton'),
@@ -312,6 +313,10 @@ function showApp() {
     elements.managementNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_consultar_panel_gerencial !== true,
+    );
+    elements.romanaNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_romana !== true,
     );
     elements.materialsNav.classList.toggle(
         'is-hidden',

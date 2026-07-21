@@ -32,7 +32,7 @@
             <header class="office-topbar">
                 <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">▦</span><span><strong>ESTIBA WMS</strong><small>MATERIALES</small></span></div>
                 <nav aria-label="Módulos de oficina">
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a><a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a><a id="officeLoadsNav" href="/oficina/cargas">Cargas</a><a class="is-active" href="/oficina/materiales">Materiales</a><a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a><a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
+                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a><a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a><a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a><a id="officeLoadsNav" href="/oficina/cargas">Cargas</a><a class="is-active" href="/oficina/materiales">Materiales</a><a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a><a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
                 </nav>
                 <div class="identity"><span class="identity__avatar" id="officeInitials">MT</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
             </header>
