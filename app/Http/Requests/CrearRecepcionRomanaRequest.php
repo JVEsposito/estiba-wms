@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\TipoEnvaseRomana;
 use App\Enums\ConceptoEnvasesRomana;
+use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Rules\RutChileno;

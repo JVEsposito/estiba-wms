@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\EstadoRecepcionRomana;
 use App\Enums\EstadoValidacionMp;
-use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
@@ -82,11 +82,6 @@ class RecepcionRomana extends Model
     public function movimientosEnvases(): HasMany
     {
         return $this->hasMany(MovimientoEnvase::class, 'recepcion_romana_id');
-    }
-
-    public function validacionesMp(): HasMany
-    {
-        return $this->hasMany(ValidacionMp::class, 'recepcion_romana_id');
     }
 
     public function validacionTomadaPor(): BelongsTo
