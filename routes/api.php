@@ -25,8 +25,8 @@ use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
-use App\Http\Controllers\Api\ValidacionPalletController;
 use App\Http\Controllers\Api\ValidacionMpController;
+use App\Http\Controllers\Api\ValidacionPalletController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
