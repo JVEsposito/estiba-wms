@@ -14,6 +14,8 @@ class RevisionMovimientoEnvase extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
+    protected $table = 'revisiones_movimientos_envases';
+
     public function movimiento(): BelongsTo
     {
         return $this->belongsTo(MovimientoEnvase::class, 'movimiento_envase_id');
