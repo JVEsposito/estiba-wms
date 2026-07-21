@@ -8,6 +8,7 @@ use App\Enums\TipoEnvaseRomana;
 use App\Http\Controllers\Controller;
 use App\Models\CsgValidacion;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Models\ValidacionMp;
 use App\Models\VariedadValidacion;
 use App\Services\ValidacionMp\ServicioValidacionMp;
@@ -26,6 +27,8 @@ class ValidacionMpController extends Controller
                 'validacionesMp.recepcion', 'validacionesMp.temporada', 'validacionesMp.validador',
                 'validacionesMp.dispositivo', 'validacionesMp.segmentos.envases',
             ])
+            ->whereHas('temporada', fn (Builder $temporada): Builder => $temporada
+                ->where('activa', true))
             ->where(function (Builder $consulta) use ($request): void {
                 $consulta->where('estado_validacion_mp', EstadoValidacionMp::Pendiente->value)
                     ->orWhere(function (Builder $propias) use ($request): void {
@@ -47,6 +50,8 @@ class ValidacionMpController extends Controller
     {
         $recepcion = RecepcionRomana::query()
             ->where('numero_recepcion', mb_strtoupper(trim($numeroRecepcion)))
+            ->whereHas('temporada', fn (Builder $temporada): Builder => $temporada
+                ->where('activa', true))
             ->with([
                 'detallesEnvases', 'validacionTomadaPor',
                 'validacionesMp.recepcion', 'validacionesMp.temporada', 'validacionesMp.validador',
@@ -59,6 +64,8 @@ class ValidacionMpController extends Controller
 
     public function catalogos(RecepcionRomana $recepcion): JsonResponse
     {
+        $this->asegurarTemporadaActiva($recepcion->temporada_id);
+
         return response()->json([
             'temporada' => ['id' => $recepcion->temporada_id, 'codigo' => $recepcion->temporada_codigo_snapshot, 'nombre' => $recepcion->temporada_nombre_snapshot],
             'csg' => CsgValidacion::query()->where('temporada_id', $recepcion->temporada_id)->where('activo', true)->orderBy('codigo')->get(['id', 'codigo', 'predio']),
@@ -73,6 +80,7 @@ class ValidacionMpController extends Controller
 
     public function tomar(Request $request, RecepcionRomana $recepcion, ServicioValidacionMp $servicio): JsonResponse
     {
+        $this->asegurarTemporadaActiva($recepcion->temporada_id);
         $datos = $request->validate(['operacion_id' => ['required', 'uuid']]);
         $token = $request->user()->currentAccessToken();
         $validacion = $servicio->tomar($recepcion, $datos['operacion_id'], $request->user(), $token?->dispositivo_id);
@@ -82,6 +90,7 @@ class ValidacionMpController extends Controller
 
     public function confirmar(Request $request, ValidacionMp $validacionMp, ServicioValidacionMp $servicio): JsonResponse
     {
+        $this->asegurarTemporadaActiva($validacionMp->temporada_id);
         $datos = $request->validate([
             'operacion_id' => ['required', 'uuid'],
             'envases' => ['required', 'array', 'min:1', 'max:3'],
@@ -104,6 +113,14 @@ class ValidacionMpController extends Controller
         $validacion = $servicio->confirmar($validacionMp, $datos, $request->user());
 
         return response()->json(['data' => $this->validacion($validacion)]);
+    }
+
+    private function asegurarTemporadaActiva(string $temporadaId): void
+    {
+        abort_unless(
+            Temporada::query()->whereKey($temporadaId)->where('activa', true)->exists(),
+            404,
+        );
     }
 
     /** @return array<string, mixed> */

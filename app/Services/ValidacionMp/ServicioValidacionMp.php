@@ -156,6 +156,7 @@ class ServicioValidacionMp
             throw ValidationException::withMessages(['segmentos' => 'Una segregación debe crear al menos dos segmentos futuros.']);
         }
         $sumas = [];
+        $tiposDeclarados = $cantidades->keys();
         foreach ($segmentos as $indice => $segmento) {
             $motivos = collect($segmento['motivos'] ?? [])->unique()->values();
             if ($motivos->isEmpty()) {
@@ -175,7 +176,17 @@ class ServicioValidacionMp
             if ($motivos->contains(MotivoSegregacionMp::Variedad->value) && empty($segmento['variedad_validacion_id'])) {
                 throw ValidationException::withMessages(["segmentos.{$indice}.variedad_validacion_id" => 'Selecciona la variedad que identifica el segmento.']);
             }
-            foreach ($segmento['envases'] ?? [] as $envase) {
+            $envases = collect($segmento['envases'] ?? []);
+            $tiposSegmento = $envases->pluck('tipo_envase');
+            if ($tiposSegmento->unique()->count() !== $tiposSegmento->count()) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.envases" => 'No repitas un tipo de envase dentro del mismo segmento.']);
+            }
+            if ($tiposSegmento->diff($tiposDeclarados)->isNotEmpty()) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.envases" => 'Los segmentos sólo pueden distribuir envases declarados en Romana.']);
+            }
+            $segmentos[$indice]['motivos'] = $motivos->all();
+            $segmentos[$indice]['envases'] = $envases->values()->all();
+            foreach ($envases as $envase) {
                 $sumas[$envase['tipo_envase']] = ($sumas[$envase['tipo_envase']] ?? 0) + (int) $envase['cantidad'];
             }
         }

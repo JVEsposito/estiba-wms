@@ -7,6 +7,7 @@ use App\Models\Cliente;
 use App\Models\MovimientoEnvase;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -100,6 +101,122 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         $this->assertSame(100, $this->saldoCuenta($arrendador));
         $this->assertSame(0, $this->saldoCuenta($cliente));
         $this->assertSame(100, $this->existencia('arrendada'));
+    }
+
+    public function test_valida_idempotencia_y_el_stock_conjunto_de_las_lineas_propias(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create(['codigo' => 'CLI-STOCK', 'nombre' => 'Cliente stock', 'activo' => true]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $origen = $this->movimientoIngreso($temporada, $cliente, $operador, 'propia', 10);
+
+        $this->actingAs($operador, 'sanctum');
+        $duplicada = $this->payloadGuia($cliente, (string) Str::uuid(), [
+            ['tipo_envase' => 'bins', 'cantidad' => 3, 'propiedad' => 'propia', 'movimiento_origen_id' => null],
+            ['tipo_envase' => 'bins', 'cantidad' => 2, 'propiedad' => 'propia', 'movimiento_origen_id' => null],
+        ]);
+        $this->postJson('/api/envases/guias-despacho', $duplicada)
+            ->assertConflict()
+            ->assertJsonPath('message', 'No repitas el mismo tipo, propiedad y origen dentro de una guía.');
+
+        $operacionId = (string) Str::uuid();
+        $payload = $this->payloadGuia($cliente, $operacionId, [
+            ['tipo_envase' => 'bins', 'cantidad' => 6, 'propiedad' => 'propia', 'movimiento_origen_id' => $origen->id],
+            ['tipo_envase' => 'bins', 'cantidad' => 5, 'propiedad' => 'propia', 'movimiento_origen_id' => null],
+        ]);
+        $guia = $this->postJson('/api/envases/guias-despacho', $payload)
+            ->assertCreated()
+            ->json('data');
+        $this->postJson('/api/envases/guias-despacho', $payload)->assertCreated();
+
+        $cambiado = $payload;
+        $cambiado['detalles'][1]['cantidad'] = 4;
+        $this->postJson('/api/envases/guias-despacho', $cambiado)
+            ->assertConflict()
+            ->assertJsonPath('message', 'El identificador de operación ya fue utilizado con datos diferentes.');
+
+        $this->postJson("/api/envases/guias-despacho/{$guia['id']}/confirmar")
+            ->assertConflict()
+            ->assertJsonPath('message', 'Las líneas de envases propios superan en conjunto la existencia disponible.');
+        $this->assertSame(10, $this->existencia('propia'));
+    }
+
+    public function test_guias_y_origenes_quedan_aislados_por_temporada(): void
+    {
+        $temporadaAnterior = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create(['codigo' => 'CLI-TEMP', 'nombre' => 'Cliente temporada', 'activo' => true]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $origenAnterior = $this->movimientoIngreso($temporadaAnterior, $cliente, $operador, 'arrendada', 20);
+
+        $this->actingAs($operador, 'sanctum');
+        $guiaAnterior = $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
+            $cliente,
+            (string) Str::uuid(),
+            [['tipo_envase' => 'bins', 'cantidad' => 5, 'propiedad' => 'arrendada', 'movimiento_origen_id' => $origenAnterior->id]],
+        ))->assertCreated()->json('data');
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'ENV-NUEVA',
+            'nombre' => 'Temporada nueva de envases',
+            'activa' => true,
+        ], usuarioId: $operador->id);
+
+        $this->getJson('/api/envases/guias-despacho/catalogos')
+            ->assertOk()
+            ->assertJsonCount(0, 'origenes');
+        $this->getJson('/api/envases/guias-despacho')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->postJson("/api/envases/guias-despacho/{$guiaAnterior['id']}/confirmar")->assertNotFound();
+        $this->getJson("/api/envases/guias-despacho?temporada_id={$temporadaAnterior->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $guiaAnterior['id']);
+
+        $guiaNueva = $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
+            $cliente,
+            (string) Str::uuid(),
+            [['tipo_envase' => 'bins', 'cantidad' => 1, 'propiedad' => 'arrendada', 'movimiento_origen_id' => $origenAnterior->id]],
+        ))->assertCreated()->json('data');
+        $this->postJson("/api/envases/guias-despacho/{$guiaNueva['id']}/confirmar")
+            ->assertConflict()
+            ->assertJsonPath('message', 'El movimiento de origen pertenece a otra temporada.');
+    }
+
+    /** @param array<int, array<string, mixed>> $detalles */
+    private function payloadGuia(Cliente $cliente, string $operacionId, array $detalles): array
+    {
+        return [
+            'operacion_id' => $operacionId,
+            'cliente_id' => $cliente->id,
+            'salida_at' => '2026-07-21T12:15:00-04:00',
+            'detalles' => $detalles,
+        ];
+    }
+
+    private function movimientoIngreso(
+        Temporada $temporada,
+        Cliente $cliente,
+        User $usuario,
+        string $propiedad,
+        int $cantidad,
+    ): MovimientoEnvase {
+        return MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $temporada->id,
+            'cliente_id' => $cliente->id,
+            'documento_tipo' => 'recepcion_romana',
+            'numero_documento' => 'REC-TEST',
+            'tipo_movimiento' => $propiedad === 'arrendada' ? 'recepcion_arriendo' : 'recepcion_compra',
+            'tipo_envase' => 'bins',
+            'cantidad' => $cantidad,
+            'signo_cuenta' => $propiedad === 'arrendada' ? 1 : 0,
+            'signo_existencia' => 1,
+            'propiedad' => $propiedad,
+            'ocurrido_at' => now(),
+            'ingreso_at' => now(),
+            'estado_revision' => 'pendiente',
+            'creado_por_user_id' => $usuario->id,
+        ]);
     }
 
     private function saldoCuenta(Cliente $cliente): int

@@ -18,6 +18,7 @@ use App\Models\RegistroHabilitacionAlmacenamiento;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -132,6 +133,32 @@ class PrefrioApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $nuevo['id']);
+    }
+
+    public function test_bandeja_y_resumen_prefrio_no_mezclan_temporadas_anteriores(): void
+    {
+        [$tunel, , $token] = $this->contexto();
+        $proceso = $this->crearProceso($token, $tunel);
+        ProcesoPrefrio::query()->findOrFail($proceso['id'])->update([
+            'estado' => 'en_proceso',
+        ]);
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'PF-NUEVA',
+            'nombre' => 'Temporada nueva de prefrío',
+            'activa' => true,
+        ]);
+
+        $this->conToken($token)
+            ->getJson('/api/prefrio/procesos?per_page=25')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->conToken($token)
+            ->getJson('/api/prefrio/resumen')
+            ->assertOk()
+            ->assertJsonPath('en_proceso', 0)
+            ->assertJsonPath('folios_activos', 0);
     }
 
     public function test_cancelacion_antes_de_iniciar_libera_tunel_y_folio_cargado(): void

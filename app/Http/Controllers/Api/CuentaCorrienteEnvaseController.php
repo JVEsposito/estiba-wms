@@ -11,6 +11,7 @@ use App\Models\DetalleEnvaseRecepcionRomana;
 use App\Models\MovimientoEnvase;
 use App\Models\RevisionMovimientoEnvase;
 use App\Models\Temporada;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,8 +39,10 @@ class CuentaCorrienteEnvaseController extends Controller
         ]);
     }
 
-    public function index(Request $request): JsonResponse
-    {
+    public function index(
+        Request $request,
+        ServicioTemporadaActiva $temporadaActiva,
+    ): JsonResponse {
         Gate::authorize('consultar-cuenta-envases');
         $filtros = $request->validate([
             'cliente_id' => ['nullable', 'uuid', 'exists:clientes,id'],
@@ -50,6 +53,7 @@ class CuentaCorrienteEnvaseController extends Controller
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
             'buscar' => ['nullable', 'string', 'max:100'],
         ]);
+        $filtros['temporada_id'] ??= $temporadaActiva->obtener()->id;
 
         $consulta = MovimientoEnvase::query()
             ->with(['cliente:id,codigo,nombre', 'temporada:id,codigo,nombre', 'creadoPor:id,name', 'revisiones.usuario:id,name']);
@@ -78,6 +82,15 @@ class CuentaCorrienteEnvaseController extends Controller
 
         $balances = MovimientoEnvase::query()
             ->selectRaw('cliente_id, tipo_envase, SUM(cantidad * signo_cuenta) as saldo')
+            ->where('temporada_id', $filtros['temporada_id'])
+            ->when(
+                ! empty($filtros['cliente_id']),
+                fn (Builder $consulta): Builder => $consulta->where('cliente_id', $filtros['cliente_id']),
+            )
+            ->when(
+                ! empty($filtros['tipo_envase']),
+                fn (Builder $consulta): Builder => $consulta->where('tipo_envase', $filtros['tipo_envase']),
+            )
             ->groupBy('cliente_id', 'tipo_envase')
             ->with('cliente:id,codigo,nombre')
             ->get()
@@ -135,7 +148,11 @@ class CuentaCorrienteEnvaseController extends Controller
         ]);
 
         DB::transaction(function () use ($movimientoEnvase, $datos, $request): void {
-            $movimiento = MovimientoEnvase::query()->lockForUpdate()->findOrFail($movimientoEnvase->id);
+            $movimiento = MovimientoEnvase::query()
+                ->whereHas('temporada', fn (Builder $temporada): Builder => $temporada
+                    ->where('activa', true))
+                ->lockForUpdate()
+                ->findOrFail($movimientoEnvase->id);
             $estado = EstadoRevisionMovimientoEnvase::from($datos['estado']);
             RevisionMovimientoEnvase::create([
                 'movimiento_envase_id' => $movimiento->id,

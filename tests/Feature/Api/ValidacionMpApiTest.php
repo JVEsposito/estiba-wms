@@ -6,9 +6,11 @@ use App\Enums\RolUsuario;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
+use App\Models\MovimientoEnvase;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -150,6 +152,138 @@ class ValidacionMpApiTest extends TestCase
             'signo_existencia' => 1,
             'propiedad' => 'propia',
         ]);
+    }
+
+    public function test_rechaza_envases_ajenos_o_duplicados_dentro_de_una_segregacion(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = $this->cliente();
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $this->recepcion($temporada, $cliente))
+            ->assertCreated()
+            ->json('data');
+        $this->actingAs($validador, 'sanctum');
+        $validacion = $this->postJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/tomar', [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk()->json('data');
+
+        $base = [
+            'envases' => [
+                ['tipo_envase' => 'bins', 'cantidad_validada' => 48],
+                ['tipo_envase' => 'totes', 'cantidad_validada' => 10],
+            ],
+            'tarjas_verificadas' => true,
+            'requiere_segregacion' => true,
+        ];
+        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [
+            ...$base,
+            'operacion_id' => (string) Str::uuid(),
+            'segmentos' => [
+                ['motivos' => ['cuartel'], 'cuartel' => 'A', 'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 20],
+                    ['tipo_envase' => 'esponjas', 'cantidad' => 1],
+                ]],
+                ['motivos' => ['cuartel'], 'cuartel' => 'B', 'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 28],
+                    ['tipo_envase' => 'totes', 'cantidad' => 10],
+                ]],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['segmentos.0.envases']);
+
+        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [
+            ...$base,
+            'operacion_id' => (string) Str::uuid(),
+            'segmentos' => [
+                ['motivos' => ['cuartel'], 'cuartel' => 'A', 'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 20],
+                    ['tipo_envase' => 'bins', 'cantidad' => 28],
+                    ['tipo_envase' => 'totes', 'cantidad' => 5],
+                ]],
+                ['motivos' => ['cuartel'], 'cuartel' => 'B', 'envases' => [
+                    ['tipo_envase' => 'totes', 'cantidad' => 5],
+                ]],
+            ],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['segmentos.0.envases']);
+        $this->assertDatabaseCount('movimientos_envases', 0);
+        $this->assertDatabaseCount('segmentos_validacion_mp', 0);
+    }
+
+    public function test_cuenta_corriente_muestra_la_temporada_activa_y_permite_historial_explicito(): void
+    {
+        $temporadaAnterior = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = $this->cliente();
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $movimientoAnterior = MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $temporadaAnterior->id,
+            'cliente_id' => $cliente->id,
+            'documento_tipo' => 'recepcion_romana',
+            'numero_documento' => 'REC-HIST-01',
+            'tipo_movimiento' => 'recepcion_fruta',
+            'tipo_envase' => 'bins',
+            'cantidad' => 15,
+            'signo_cuenta' => 1,
+            'signo_existencia' => 1,
+            'propiedad' => 'cliente',
+            'ocurrido_at' => now(),
+            'ingreso_at' => now(),
+            'estado_revision' => 'pendiente',
+            'creado_por_user_id' => $operador->id,
+        ]);
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'CTA-NUEVA',
+            'nombre' => 'Temporada nueva de cuenta corriente',
+            'activa' => true,
+        ], usuarioId: $operador->id);
+
+        $this->actingAs($operador, 'sanctum')
+            ->getJson('/api/envases/cuenta-corriente/movimientos')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonCount(0, 'balances');
+        $this->getJson("/api/envases/cuenta-corriente/movimientos?temporada_id={$temporadaAnterior->id}")
+            ->assertOk()
+            ->assertJsonPath('data.0.numero_documento', 'REC-HIST-01')
+            ->assertJsonPath('balances.0.saldo', 15);
+        $this->postJson('/api/envases/cuenta-corriente/movimientos/'.$movimientoAnterior->id.'/revisar', [
+            'estado' => 'revisado',
+        ])->assertNotFound();
+    }
+
+    public function test_validacion_mp_oculta_y_rechaza_recepciones_de_temporadas_anteriores(): void
+    {
+        $temporadaAnterior = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = $this->cliente();
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $this->recepcion($temporadaAnterior, $cliente))
+            ->assertCreated()
+            ->json('data');
+        $validacion = $this->actingAs($validador, 'sanctum')
+            ->postJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/tomar', [
+                'operacion_id' => (string) Str::uuid(),
+            ])
+            ->assertOk()
+            ->json('data');
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'VAL-MP-NUEVA',
+            'nombre' => 'Temporada nueva de Validación MP',
+            'activa' => true,
+        ], usuarioId: $operador->id);
+
+        $this->getJson('/api/validacion-mp/pendientes')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->getJson('/api/validacion-mp/recepciones/buscar/'.$recepcion['numero_recepcion'])->assertNotFound();
+        $this->getJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/catalogos')->assertNotFound();
+        $this->postJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/tomar', [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertNotFound();
+        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [])->assertNotFound();
     }
 
     private function cliente(): Cliente

@@ -5,7 +5,9 @@ namespace Tests\Feature\Api;
 use App\Enums\RolUsuario;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -217,6 +219,34 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('meta.per_page', 10)
             ->assertJsonPath('data.0.numero_folio', 'PAL-0009')
             ->assertJsonMissingPath('data.0.payload_hash');
+    }
+
+    public function test_historial_separa_temporadas_y_por_defecto_muestra_solo_la_activa(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-TEMP-01');
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-TEMP-ANTERIOR'))
+            ->assertCreated();
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'TEMP-NUEVA',
+            'nombre' => 'Temporada nueva',
+            'activa' => true,
+        ]);
+
+        $this->assertFalse(Temporada::query()->findOrFail($catalogo['temporada_id'])->activa);
+
+        $this->conToken($token)
+            ->getJson('/api/validacion/pallets?per_page=10')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->conToken($token)
+            ->getJson("/api/validacion/pallets?temporada_id={$catalogo['temporada_id']}&per_page=10")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.numero_folio', 'PAL-TEMP-ANTERIOR');
     }
 
     public function test_validador_no_puede_consultar_cargas_materiales_ni_camaras(): void

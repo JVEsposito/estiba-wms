@@ -175,6 +175,7 @@ class MovimientoController extends Controller
         }
 
         $movimientos = Movimiento::query()
+            ->whereHas('folio.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->where(function ($consulta) use ($contenidos) {
                 $consulta
                     ->whereHas('camaraOrigen', fn ($camara) => $camara

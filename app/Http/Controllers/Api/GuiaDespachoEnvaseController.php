@@ -10,6 +10,7 @@ use App\Models\Cliente;
 use App\Models\GuiaDespachoEnvase;
 use App\Models\MovimientoEnvase;
 use App\Services\Envases\ServicioGuiaDespachoEnvases;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,18 +20,21 @@ use Symfony\Component\HttpFoundation\Response;
 
 class GuiaDespachoEnvaseController extends Controller
 {
-    public function catalogos(): JsonResponse
+    public function catalogos(ServicioTemporadaActiva $temporadaActiva): JsonResponse
     {
         Gate::authorize('consultar-cuenta-envases');
+        $temporada = $temporadaActiva->obtener();
         $origenes = MovimientoEnvase::query()
+            ->where('temporada_id', $temporada->id)
             ->where('signo_existencia', 1)
             ->where('documento_tipo', 'recepcion_romana')
             ->with('cliente:id,codigo,nombre')
             ->orderByDesc('ocurrido_at')
             ->limit(500)
             ->get()
-            ->map(function (MovimientoEnvase $origen): array {
+            ->map(function (MovimientoEnvase $origen) use ($temporada): array {
                 $ajustes = (int) MovimientoEnvase::query()->where('movimiento_origen_id', $origen->id)
+                    ->where('temporada_id', $temporada->id)
                     ->selectRaw('COALESCE(SUM(cantidad * signo_existencia), 0) as saldo')->value('saldo');
 
                 return [
@@ -45,6 +49,7 @@ class GuiaDespachoEnvaseController extends Controller
             })->filter(fn (array $origen): bool => $origen['disponible'] > 0)->values();
 
         return response()->json([
+            'temporada' => ['id' => $temporada->id, 'codigo' => $temporada->codigo, 'nombre' => $temporada->nombre],
             'clientes' => Cliente::query()->where('activo', true)->orderBy('nombre')->get(['id', 'codigo', 'nombre']),
             'tipos_envase' => array_column(TipoEnvaseRomana::cases(), 'value'),
             'propiedades' => array_column(PropiedadEnvase::cases(), 'value'),
@@ -52,11 +57,19 @@ class GuiaDespachoEnvaseController extends Controller
         ]);
     }
 
-    public function index(Request $request): JsonResponse
-    {
+    public function index(
+        Request $request,
+        ServicioTemporadaActiva $temporadaActiva,
+    ): JsonResponse {
         Gate::authorize('consultar-cuenta-envases');
+        $filtros = $request->validate([
+            'temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
+            'estado' => ['nullable', Rule::enum(EstadoGuiaDespachoEnvase::class)],
+        ]);
+        $temporadaId = $filtros['temporada_id'] ?? $temporadaActiva->obtener()->id;
         $guias = GuiaDespachoEnvase::query()->with(['cliente', 'temporada', 'detalles', 'creadoPor', 'confirmadoPor', 'anuladoPor'])
-            ->when($request->filled('estado'), fn (Builder $q) => $q->where('estado', $request->string('estado')))
+            ->where('temporada_id', $temporadaId)
+            ->when(! empty($filtros['estado']), fn (Builder $q) => $q->where('estado', $filtros['estado']))
             ->orderByDesc('salida_at')->limit(200)->get();
 
         return response()->json(['data' => $guias->map(fn (GuiaDespachoEnvase $guia): array => $this->guia($guia))]);

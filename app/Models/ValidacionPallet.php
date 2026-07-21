@@ -30,6 +30,11 @@ class ValidacionPallet extends Model
         return $this->belongsTo(Folio::class);
     }
 
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
+
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');

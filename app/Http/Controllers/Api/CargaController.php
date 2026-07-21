@@ -43,6 +43,8 @@ class CargaController extends Controller
         $busqueda = trim((string) ($filtros['q'] ?? ''));
 
         $cargas = Carga::query()
+            ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta
+                ->where('activa', true))
             ->with($this->relacionesDetalle())
             ->withCount([
                 'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
@@ -88,6 +90,8 @@ class CargaController extends Controller
         Gate::authorize('consultar-cargas-operacion');
 
         $cargas = Carga::query()
+            ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta
+                ->where('activa', true))
             ->whereIn(
                 'estado',
                 collect(EstadoCarga::visiblesEnOperacion())

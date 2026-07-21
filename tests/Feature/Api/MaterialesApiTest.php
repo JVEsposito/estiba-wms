@@ -13,6 +13,7 @@ use App\Models\ItemMaterial;
 use App\Models\Posicion;
 use App\Models\RetiroMaterial;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -199,6 +200,51 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('codigo', 'regla_de_negocio');
 
         $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-TEMPORADA-ANTERIOR']);
+    }
+
+    public function test_despachos_y_kardex_no_mezclan_temporadas_anteriores(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-TEMP-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-HISTORICO-01',
+            0,
+            20,
+            now()->toAtomString(),
+        );
+        $despachoId = $this->crearDespacho($tokenOficina, $item, $destino, 5);
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'MAT-NUEVA',
+            'nombre' => 'Temporada nueva de materiales',
+            'activa' => true,
+        ], usuarioId: $administrador->id);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/despachos')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonMissing(['id' => $despachoId]);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/kardex')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/notificaciones-operacionales')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0);
     }
 
     public function test_ubica_material_solo_en_su_tipo_de_camara_y_crea_kardex_de_ingreso(): void

@@ -81,9 +81,15 @@ class RecepcionRomanaController extends Controller
         if (! empty($filtros['hasta'])) {
             $base->whereDate('ingreso_at', '<=', $filtros['hasta']);
         }
-        if (! empty($filtros['temporada_id'])) {
-            $base->where('temporada_id', $filtros['temporada_id']);
-        }
+        $base->when(
+            $filtros['temporada_id'] ?? null,
+            fn (Builder $consulta, string $temporadaId): Builder => $consulta
+                ->where('temporada_id', $temporadaId),
+            fn (Builder $consulta): Builder => $consulta->whereHas(
+                'temporada',
+                fn (Builder $temporada): Builder => $temporada->where('activa', true),
+            ),
+        );
         if (! empty($filtros['buscar'])) {
             $buscar = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($filtros['buscar'])).'%';
             $base->where(function (Builder $consulta) use ($buscar): void {

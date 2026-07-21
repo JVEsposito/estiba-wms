@@ -28,6 +28,7 @@ class DespachoMaterialController extends Controller
         Gate::authorize('consultar-despachos-materiales');
         $estados = array_filter(explode(',', (string) $request->query('estados', '')));
         $despachos = DespachoMaterial::query()
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
             ->latest()
             ->limit(100)
@@ -167,6 +168,8 @@ class DespachoMaterialController extends Controller
         Gate::authorize('consultar-kardex-materiales');
         $movimientos = MovimientoInventarioMaterial::query()
             ->with(['folioMaterial.folio:id,numero_folio', 'item.cliente.temporada'])
+            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta
+                ->where('activa', true))
             ->when($request->query('folio_id'), fn ($consulta, $folio) => $consulta
                 ->where('folio_id', $folio))
             ->when($request->query('item_material_id'), fn ($consulta, $item) => $consulta

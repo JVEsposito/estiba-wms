@@ -14,6 +14,7 @@ use App\Models\Carga;
 use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\NotificacionOperacional;
+use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -174,6 +175,7 @@ class NotificacionesOperacionalesApiTest extends TestCase
     private function carga(User $usuario): Carga
     {
         return Carga::create([
+            'temporada_id' => Temporada::query()->where('activa', true)->firstOrFail()->id,
             'codigo' => 'CAR-000001',
             'estado' => EstadoCarga::Pendiente,
             'prioridad' => PrioridadCarga::Normal,
