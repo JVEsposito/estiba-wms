@@ -133,8 +133,7 @@ class CatalogoMaterialController extends Controller
     public function storeTemporada(
         GuardarTemporadaMaterialRequest $request,
         ServicioTemporadaGlobal $temporadas,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         $temporada = $this->guardarTemporada($request, $temporadas);
 
         return (new TemporadaMaterialResource($temporada))
