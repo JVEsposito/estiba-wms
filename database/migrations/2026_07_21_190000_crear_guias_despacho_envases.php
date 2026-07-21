@@ -33,11 +33,19 @@ return new class extends Migration
 
         Schema::create('detalles_guias_despacho_envases', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('guia_despacho_envase_id')->constrained('guias_despacho_envases')->restrictOnDelete();
+            $table->foreignUuid('guia_despacho_envase_id');
+            $table->foreign('guia_despacho_envase_id', 'detalle_guia_envases_guia_fk')
+                ->references('id')
+                ->on('guias_despacho_envases')
+                ->restrictOnDelete();
             $table->string('tipo_envase', 20);
             $table->unsignedInteger('cantidad');
             $table->string('propiedad', 20);
-            $table->foreignUuid('movimiento_origen_id')->nullable()->constrained('movimientos_envases')->restrictOnDelete();
+            $table->foreignUuid('movimiento_origen_id')->nullable();
+            $table->foreign('movimiento_origen_id', 'detalle_guia_envases_origen_fk')
+                ->references('id')
+                ->on('movimientos_envases')
+                ->restrictOnDelete();
             $table->string('origen_snapshot', 180)->nullable();
             $table->timestamps();
             $table->unique(
