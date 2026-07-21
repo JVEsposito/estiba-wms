@@ -423,6 +423,7 @@ export type Position = {
   estado: string;
   ocupada: boolean;
   folio: Folio | null;
+  folios?: Folio[];
 };
 
 export type CameraPlan = CameraSummary & {

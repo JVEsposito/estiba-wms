@@ -505,12 +505,7 @@ class ServicioMovimientoEstiba
             throw new ConflictoMovimiento('El folio ya posee una ubicación actual.');
         }
 
-        if (UbicacionActual::query()
-            ->where('posicion_id', $posicion->id)
-            ->lockForUpdate()
-            ->exists()) {
-            throw new ConflictoMovimiento('La posición de destino ya se encuentra ocupada.');
-        }
+        $this->validarCompatibilidadPosicionDestino($folio, $posicion);
 
         $advertencias = $this->detectorAdvertencias->paraUbicacion(
             $posicion,
@@ -606,14 +601,7 @@ class ServicioMovimientoEstiba
             throw new ConflictoMovimiento('El folio ya se encuentra en la posición de destino.');
         }
 
-        $ocupanteDestino = UbicacionActual::query()
-            ->where('posicion_id', $destino->id)
-            ->lockForUpdate()
-            ->first();
-
-        if ($ocupanteDestino) {
-            throw new ConflictoMovimiento('La posición de destino ya se encuentra ocupada.');
-        }
+        $this->validarCompatibilidadPosicionDestino($folioBloqueado, $destino);
 
         $camaraOrigen = $camaras->get($posicionOrigen->camara_id);
         $camaraDestino = $camaras->get($destino->camara_id);
@@ -684,6 +672,44 @@ class ServicioMovimientoEstiba
         );
 
         return $movimiento;
+    }
+
+    private function validarCompatibilidadPosicionDestino(Folio $folio, Posicion $posicion): void
+    {
+        $ocupantes = UbicacionActual::query()
+            ->where('posicion_id', $posicion->id)
+            ->with('folio.material.item')
+            ->lockForUpdate()
+            ->get();
+
+        if ($ocupantes->isEmpty()) {
+            return;
+        }
+
+        if ($folio->tipo_bulto !== TipoBulto::Material) {
+            throw new ConflictoMovimiento('La posición de destino ya se encuentra ocupada.');
+        }
+
+        $folio->loadMissing('material.item');
+        $clienteId = $folio->material?->item?->cliente_material_id;
+
+        if (! $clienteId) {
+            throw new DomainException('El folio de material no posee un cliente válido.');
+        }
+
+        $incompatibles = $ocupantes->contains(function (UbicacionActual $ubicacion) use ($clienteId): bool {
+            $ocupante = $ubicacion->folio;
+
+            return ! $ocupante
+                || $ocupante->tipo_bulto !== TipoBulto::Material
+                || $ocupante->material?->item?->cliente_material_id !== $clienteId;
+        });
+
+        if ($incompatibles) {
+            throw new ConflictoMovimiento(
+                'La posición solo puede compartir ítems de materiales pertenecientes al mismo cliente.',
+            );
+        }
     }
 
     /**

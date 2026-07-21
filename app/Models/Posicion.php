@@ -28,6 +28,11 @@ class Posicion extends Model
         return $this->hasOne(UbicacionActual::class);
     }
 
+    public function ubicacionesActuales(): HasMany
+    {
+        return $this->hasMany(UbicacionActual::class);
+    }
+
     public function movimientosOrigen(): HasMany
     {
         return $this->hasMany(Movimiento::class, 'posicion_origen_id');

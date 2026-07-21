@@ -103,11 +103,13 @@ class DespachoMaterialController extends Controller
         return new DespachoMaterialResource($despacho);
     }
 
-    public function inventario(): JsonResponse
+    public function inventario(Request $request): JsonResponse
     {
         Gate::authorize('consultar-despachos-materiales');
         $folios = FolioMaterial::query()
             ->with(['item.cliente.temporada', 'folio.ubicacionActual.posicion.camara'])
+            ->when($request->query('cliente_id'), fn ($consulta, $clienteId) => $consulta
+                ->whereHas('item', fn ($items) => $items->where('cliente_material_id', $clienteId)))
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
             ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
                 ->where('contenido', ContenidoCamara::Materiales->value))
@@ -159,7 +161,35 @@ class DespachoMaterialController extends Controller
                 ];
             });
 
-        return response()->json(['data' => $folios]);
+        $resumenClientes = $folios
+            ->groupBy('item.cliente.id')
+            ->map(function ($existencias): array {
+                $primera = $existencias->first();
+                $cliente = $primera['item']['cliente'];
+                $saldos = $existencias
+                    ->groupBy('unidad_medida')
+                    ->map(fn ($grupo, $unidad): array => [
+                        'unidad_medida' => $unidad,
+                        'cantidad_actual' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
+                        'cantidad_reservada' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_reservada']), 3, '.', ''),
+                        'cantidad_disponible' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_disponible']), 3, '.', ''),
+                    ])
+                    ->values();
+
+                return [
+                    'cliente' => $cliente,
+                    'folios' => $existencias->count(),
+                    'items' => $existencias->pluck('item.id')->unique()->count(),
+                    'posiciones' => $existencias->pluck('posicion.id')->filter()->unique()->count(),
+                    'saldos' => $saldos,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $folios,
+            'resumen_clientes' => $resumenClientes,
+        ]);
     }
 
     public function kardex(Request $request): JsonResponse

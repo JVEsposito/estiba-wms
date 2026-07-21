@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
+use App\Http\Controllers\Api\CorreccionItemMaterialController;
 use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
@@ -157,6 +158,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex'])
         ->middleware('can:consultar-kardex-materiales');
+    Route::post('/materiales/inventario/{folioMaterial}/corregir-item', [CorreccionItemMaterialController::class, 'store'])
+        ->middleware('can:corregir-items-estibados-materiales');
     Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])
         ->middleware('can:gestionar-despachos-materiales');
     Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])

@@ -13,6 +13,7 @@ type ActionPanelProps = {
   selectedPosition: Position | null;
   onLocate: () => void;
   onMove: () => void;
+  onSelectFolio: (folioId: string) => void;
   onDispatchMaterial: () => void;
   onRefresh: () => void;
   onToggleSession: () => void;
@@ -26,6 +27,7 @@ export function ActionPanel({
   compact = false,
   onLocate,
   onMove,
+  onSelectFolio,
   onDispatchMaterial,
   onRefresh,
   onToggleSession,
@@ -36,7 +38,7 @@ export function ActionPanel({
   const readOnly = plan.acceso.modo === 'solo_lectura';
   const selectedSaldo = selectedPosition?.folio?.tipo_bulto === 'saldo';
   const selectedMaterial = selectedPosition?.folio?.tipo_bulto === 'material';
-  const locateDisabled = busy || !canOperate || !selectedPosition || selectedPosition.ocupada || selectedPosition.estado !== 'activa';
+  const locateDisabled = busy || !canOperate || !selectedPosition || (selectedPosition.ocupada && plan.contenido !== 'materiales') || selectedPosition.estado !== 'activa';
   const moveDisabled = busy || !canOperate || !selectedPosition?.ocupada || selectedPosition.estado !== 'activa';
 
   return (
@@ -54,9 +56,27 @@ export function ActionPanel({
             ? 'Toca una posición del plano'
             : selectedPosition.estado !== 'activa'
               ? 'Posición no disponible'
-              : selectedPosition.ocupada ? 'Ocupada por un folio' : 'Libre para ubicación'}
+              : selectedPosition.ocupada
+                ? `${selectedPosition.folios?.length || 1} ítem${(selectedPosition.folios?.length || 1) === 1 ? '' : 's'} en el bulto`
+                : 'Libre para ubicación'}
         </Text>
       </View>
+
+      {(selectedPosition?.folios?.length ?? 0) > 1 && (
+        <View style={styles.folioSelector}>
+          <Text style={styles.selectionLabel}>LÍNEAS DEL BULTO · MISMO CLIENTE</Text>
+          {(selectedPosition?.folios ?? []).map((folio) => (
+            <Pressable
+              key={folio.id}
+              onPress={() => onSelectFolio(folio.id)}
+              style={[styles.folioChoice, selectedPosition?.folio?.id === folio.id && styles.folioChoiceActive]}
+            >
+              <Text style={styles.folioChoiceCode}>{folio.material?.item.codigo ?? folio.numero_folio}</Text>
+              <Text style={styles.folioChoiceClient}>{folio.material?.item.cliente.nombre ?? ''}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {selectedPosition?.folio && (
         <View style={[styles.folioCard, selectedSaldo && styles.folioCardSaldo]}>
@@ -67,7 +87,8 @@ export function ActionPanel({
           <Text style={styles.folioNumber}>{selectedPosition.folio.numero_folio}</Text>
           {selectedMaterial ? (
             <>
-              <Detail label="Ítem" value={selectedPosition.folio.material ? `${selectedPosition.folio.material.item.cliente.temporada.codigo} · ${selectedPosition.folio.material.item.cliente.codigo} · ${selectedPosition.folio.material.item.nombre}` : undefined} />
+              <Detail label="Cliente" value={selectedPosition.folio.material?.item.cliente ? `${selectedPosition.folio.material.item.cliente.codigo} · ${selectedPosition.folio.material.item.cliente.nombre}` : undefined} />
+              <Detail label="Ítem" value={selectedPosition.folio.material ? `${selectedPosition.folio.material.item.codigo} · ${selectedPosition.folio.material.item.nombre}` : undefined} />
               <Detail label="Cantidad" value={`${selectedPosition.folio.material?.cantidad_actual ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
               <Detail label="Disponible" value={`${selectedPosition.folio.material?.cantidad_disponible ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
             </>
@@ -86,10 +107,10 @@ export function ActionPanel({
           compact={compact}
           disabled={locateDisabled}
           icon="＋"
-          label="Ubicar folio"
+          label={plan.contenido === 'materiales' && selectedPosition?.ocupada ? 'Agregar ítem al bulto' : 'Ubicar folio'}
           onPress={onLocate}
           primary
-          subtitle="Registrar un bulto nuevo"
+          subtitle={plan.contenido === 'materiales' && selectedPosition?.ocupada ? 'Mismo cliente, nueva línea trazable' : 'Registrar un bulto nuevo'}
         />
         {plan.contenido === 'materiales' && canDispatchMaterial && (
           <ActionButton
@@ -203,6 +224,17 @@ const styles = StyleSheet.create({
   selectionLabel: { color: colors.muted, fontSize: 8, fontWeight: '900' },
   selectionValue: { marginTop: 5, color: colors.text, fontSize: 18, fontWeight: '900' },
   selectionDetail: { marginTop: 2, color: colors.muted, fontSize: 9 },
+  folioSelector: { gap: 6 },
+  folioChoice: {
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  folioChoiceActive: { borderColor: colors.cyan },
+  folioChoiceCode: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  folioChoiceClient: { marginTop: 2, color: colors.muted, fontSize: 8 },
   folioCard: {
     padding: 12,
     borderRadius: 11,

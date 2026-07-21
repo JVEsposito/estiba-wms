@@ -73,6 +73,7 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_despachos_materiales' => $capacidades['puede_consultar_despachos_materiales'],
                 'puede_cancelar_despachos_materiales' => $capacidades['puede_cancelar_despachos_materiales'],
                 'puede_consultar_kardex_materiales' => $capacidades['puede_consultar_kardex_materiales'],
+                'puede_corregir_items_estibados_materiales' => $capacidades['puede_corregir_items_estibados_materiales'],
                 'puede_consultar_validaciones_pallet' => $capacidades['puede_consultar_validaciones_pallet'],
                 'puede_rechazar_pallets' => $capacidades['puede_rechazar_pallets'],
                 'puede_administrar_catalogos_validacion' => $capacidades['puede_administrar_catalogos_validacion'],

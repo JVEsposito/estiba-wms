@@ -31,7 +31,7 @@ class CamaraController extends Controller
             ->withCount([
                 'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
                     ->where('estado', EstadoPosicion::Activa->value)
-                    ->whereHas('ubicacionActual'),
+                    ->whereHas('ubicacionesActuales'),
             ])
             ->with($this->relacionesBloqueo())
             ->orderBy('codigo')
@@ -55,15 +55,15 @@ class CamaraController extends Controller
         $camara->loadCount([
             'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
                 ->where('estado', EstadoPosicion::Activa->value)
-                ->whereHas('ubicacionActual'),
+                ->whereHas('ubicacionesActuales'),
         ]);
         $camara->load([
             ...$this->relacionesBloqueo(),
             'posiciones' => fn ($consulta) => $consulta
                 ->with([
-                    'ubicacionActual.folio.condicionSag',
-                    'ubicacionActual.folio.material.item.cliente.temporada',
-                    'ubicacionActual.folio.asignacionCargaActual.carga',
+                    'ubicacionesActuales.folio.condicionSag',
+                    'ubicacionesActuales.folio.material.item.cliente.temporada',
+                    'ubicacionesActuales.folio.asignacionCargaActual.carga',
                 ])
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
