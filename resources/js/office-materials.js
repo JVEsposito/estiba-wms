@@ -34,7 +34,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     seasons: [], selectedSeasonId: null, clients: [], items: [], destinations: [], dispatches: [], inventory: [], imports: [], importPreview: null, dispatchOperationId: null,
-    cancellationOperations: new Map(), operationalRefreshInFlight: false, inventorySyncedAt: null,
+    cancellationOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
@@ -248,22 +248,37 @@ async function loadAll() {
     renderAll();
 }
 
-async function refreshOperationalData() {
-    if (state.operationalRefreshInFlight || !state.token || state.identity?.puede_consultar_despachos_materiales !== true) return;
-    state.operationalRefreshInFlight = true;
+async function refreshOperationalData({ required = false } = {}) {
+    if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) {
+        if (required) throw new ApiError('No fue posible verificar el stock disponible con la sesión actual.', 403);
+        return false;
+    }
+
+    const operation = state.operationalRefreshPromise || Promise.all([
+        api('/api/materiales/despachos'),
+        api('/api/materiales/inventario'),
+    ]);
+    const ownsOperation = state.operationalRefreshPromise === null;
+    if (ownsOperation) state.operationalRefreshPromise = operation;
+
     try {
-        const [dispatches, inventory] = await Promise.all([
-            api('/api/materiales/despachos'),
-            api('/api/materiales/inventario'),
-        ]);
+        const [dispatches, inventory] = await operation;
         state.dispatches = dispatches.data;
         state.inventory = inventory.data;
         state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         renderDispatches(); renderInventory(); renderMetrics(); refreshDispatchLines();
+        return true;
     } catch (error) {
         if (error.status !== 401) console.warn('No fue posible actualizar el stock de materiales.', error);
+        if (required) {
+            throw new ApiError(
+                'No fue posible verificar el stock actual. Revisa la conexión e inténtalo nuevamente.',
+                error.status || 0,
+            );
+        }
+        return false;
     } finally {
-        state.operationalRefreshInFlight = false;
+        if (ownsOperation && state.operationalRefreshPromise === operation) state.operationalRefreshPromise = null;
     }
 }
 
@@ -376,7 +391,12 @@ elements.dispatchLines.addEventListener('keydown', (event) => {
 document.addEventListener('click', (event) => { if (!event.target.closest('.material-item-picker')) closeItemResults(); });
 elements.dispatchForm.addEventListener('submit', async (event) => {
     event.preventDefault(); elements.dispatchError.textContent = '';
-    try { await refreshOperationalData(); } catch { /* La validación local usará el último estado disponible. */ }
+    try {
+        await refreshOperationalData({ required: true });
+    } catch (error) {
+        elements.dispatchError.textContent = error.message;
+        return;
+    }
     let items;
     try { items = dispatchItemsPayload(); } catch (error) { elements.dispatchError.textContent = error.message; return; }
     const form = new FormData(elements.dispatchForm);
