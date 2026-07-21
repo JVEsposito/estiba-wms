@@ -15,8 +15,7 @@ class ServicioTemporadaGlobal
         array $datos,
         ?Temporada $temporada = null,
         ?int $usuarioId = null,
-    ): Temporada
-    {
+    ): Temporada {
         $codigo = mb_strtoupper(Str::of($datos['codigo'])->squish()->toString());
         $duplicada = Temporada::query()
             ->where('codigo', $codigo)
