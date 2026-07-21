@@ -16,6 +16,7 @@ const elements = {
     materialsNav: byId('officeMaterialsNav'),
     prefrioNav: byId('officePrefrioNav'),
     accessesNav: byId('officeAccessesNav'),
+    romanaNav: byId('officeRomanaNav'),
     refresh: byId('refreshDashboardButton'),
     lastUpdated: byId('lastUpdatedAt'),
     refreshStatus: byId('refreshStatus'),
@@ -31,6 +32,11 @@ const elements = {
     precoolingAvailable: byId('precoolingAvailableKpi'),
     precoolingOccupancyProgress: byId('precoolingOccupancyProgress'),
     precoolingDetail: byId('precoolingDetail'),
+    weighbridgeNetWeight: byId('weighbridgeNetWeightKpi'),
+    weighbridgeClosed: byId('weighbridgeClosedKpi'),
+    weighbridgePending: byId('weighbridgePendingKpi'),
+    weighbridgeDetail: byId('weighbridgeDetail'),
+    weighbridgeSummary: byId('weighbridgeChartSummary'),
     materialUnitSelect: byId('materialUnitSelect'),
     materialSummary: byId('materialChartSummary'),
     productSummary: byId('productChartSummary'),
@@ -185,6 +191,7 @@ function showApp() {
     elements.materialsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_despachos_materiales !== true);
     elements.prefrioNav.classList.toggle('is-hidden', state.identity?.puede_consultar_prefrio !== true);
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
+    elements.romanaNav.classList.toggle('is-hidden', state.identity?.puede_consultar_romana !== true);
 
     return true;
 }
@@ -218,6 +225,10 @@ function formatQuantity(value) {
     return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 3 }).format(Number(value || 0));
 }
 
+function formatWeight(value) {
+    return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 }).format(Number(value || 0));
+}
+
 function formatDate(value) {
     if (!value) return 'Sin actualizar';
 
@@ -237,6 +248,7 @@ function renderDashboard(data) {
     const products = data.productos;
     const materials = data.materiales;
     const precooling = data.prefrio;
+    const weighbridge = data.romana;
 
     elements.lastUpdated.textContent = formatDate(data.generado_at);
     elements.refreshStatus.textContent = `Actualiza automáticamente cada ${data.actualizacion_segundos} segundos`;
@@ -257,11 +269,17 @@ function renderDashboard(data) {
     elements.precoolingOccupancyProgress.style.width = `${clampPercentage(precooling.ocupacion_porcentaje)}%`;
     elements.precoolingDetail.textContent = `${formatInteger(precooling.ocupadas)} ocupadas · ${formatInteger(precooling.folios_pendientes)} folios en espera · ${precooling.tuneles_operativos}/${precooling.tuneles_totales} túneles operativos`;
 
+    elements.weighbridgeNetWeight.textContent = formatWeight(weighbridge.peso_neto_hoy);
+    elements.weighbridgeClosed.textContent = formatInteger(weighbridge.cerradas_hoy);
+    elements.weighbridgePending.textContent = formatInteger(weighbridge.pendientes_destare);
+    elements.weighbridgeDetail.textContent = `${formatInteger(weighbridge.en_bascula_ingreso)} en ingreso · ${formatInteger(weighbridge.envases_hoy)} envases · ${formatInteger(weighbridge.clientes_hoy)} clientes hoy`;
+
     renderCameraChart(data.camaras.detalle);
     renderProductChart(products);
     renderMaterialUnitOptions(materials.unidades_medida);
     renderMaterialChart();
     renderPrecoolingChart(precooling);
+    renderWeighbridgeChart(weighbridge);
     renderCameraTable(data.camaras.detalle);
     renderAlerts(data.alertas);
 }
@@ -408,6 +426,45 @@ function renderPrecoolingChart(precooling) {
     elements.precoolingSummary.innerHTML = `
         <span><b>${formatInteger(precooling.procesos_activos)}</b>procesos activos</span>
         <span><b>${formatInteger(precooling.folios_pendientes)}</b>folios pendientes</span>
+    `;
+}
+
+function renderWeighbridgeChart(weighbridge) {
+    const days = weighbridge.tendencia_diaria || [];
+    replaceChart('weighbridge', 'weighbridgeReceptionChart', {
+        type: 'bar',
+        data: {
+            labels: days.map((day) => day.etiqueta),
+            datasets: [{
+                label: 'Peso neto',
+                data: days.map((day) => day.peso_neto),
+                backgroundColor: palette.amber,
+                borderRadius: 5,
+                borderSkipped: false,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${formatWeight(context.raw)} kg netos`,
+                        afterLabel: (context) => `${formatInteger(days[context.dataIndex]?.recepciones)} recepciones`,
+                    },
+                },
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: palette.grid }, ticks: { callback: (value) => `${formatWeight(value)} kg` } },
+            },
+        },
+    });
+
+    elements.weighbridgeSummary.innerHTML = `
+        <span><b>${formatInteger(weighbridge.cerradas_hoy)}</b>recepciones cerradas hoy</span>
+        <span><b>${formatWeight(weighbridge.peso_neto_hoy)} kg</b>peso neto hoy</span>
     `;
 }
 

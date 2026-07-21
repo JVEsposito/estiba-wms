@@ -10,8 +10,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'temporada_material_id',
-    'cliente_id',
     'codigo',
     'nombre',
     'codigo_externo',
@@ -19,25 +17,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
-class ClienteMaterial extends Model
+class Cliente extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
-    protected $table = 'clientes_materiales';
-
-    public function cliente(): BelongsTo
+    public function catalogosValidacion(): HasMany
     {
-        return $this->belongsTo(Cliente::class);
+        return $this->hasMany(ClienteValidacion::class);
     }
 
-    public function temporada(): BelongsTo
+    public function catalogosMateriales(): HasMany
     {
-        return $this->belongsTo(TemporadaMaterial::class, 'temporada_material_id');
+        return $this->hasMany(ClienteMaterial::class);
     }
 
-    public function items(): HasMany
+    public function recepcionesRomana(): HasMany
     {
-        return $this->hasMany(ItemMaterial::class, 'cliente_material_id');
+        return $this->hasMany(RecepcionRomana::class);
     }
 
     public function creadoPor(): BelongsTo

@@ -173,6 +173,14 @@ class AppServiceProvider extends ServiceProvider
             'consultar-panel-gerencial',
             fn (User $usuario): bool => $alcance->puedeConsultarPanelGerencial($usuario),
         );
+        Gate::define(
+            'consultar-romana',
+            fn (User $usuario): bool => $alcance->puedeConsultarRomana($usuario),
+        );
+        Gate::define(
+            'operar-romana',
+            fn (User $usuario): bool => $alcance->puedeOperarRomana($usuario),
+        );
 
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {

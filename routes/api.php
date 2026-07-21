@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
+use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
 use App\Http\Controllers\Api\ValidacionPalletController;
@@ -33,6 +34,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/gerencia/resumen', PanelGerencialController::class)
         ->middleware('can:consultar-panel-gerencial');
+
+    Route::middleware('can:consultar-romana')->prefix('romana')->group(function () {
+        Route::get('/catalogos', [RecepcionRomanaController::class, 'catalogos']);
+        Route::get('/recepciones', [RecepcionRomanaController::class, 'index']);
+        Route::get('/recepciones/{recepcion}', [RecepcionRomanaController::class, 'show']);
+        Route::get('/recepciones/{recepcion}/aviso-recibo', [RecepcionRomanaController::class, 'avisoRecibo']);
+    });
+    Route::middleware('can:operar-romana')->prefix('romana')->group(function () {
+        Route::post('/recepciones', [RecepcionRomanaController::class, 'store']);
+        Route::put('/recepciones/{recepcion}', [RecepcionRomanaController::class, 'update']);
+        Route::post('/recepciones/{recepcion}/confirmar-ingreso', [RecepcionRomanaController::class, 'confirmarIngreso']);
+        Route::post('/recepciones/{recepcion}/cerrar', [RecepcionRomanaController::class, 'cerrar']);
+    });
 
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);

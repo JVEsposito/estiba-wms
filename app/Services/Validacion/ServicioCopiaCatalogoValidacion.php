@@ -46,6 +46,7 @@ class ServicioCopiaCatalogoValidacion
 
             foreach ($origen->clientes as $cliente) {
                 $clienteNuevo = ClienteValidacion::create([
+                    'cliente_id' => $cliente->cliente_id,
                     'temporada_id' => $destino->id,
                     'nombre' => $cliente->nombre,
                     'codigo_externo' => $cliente->codigo_externo,

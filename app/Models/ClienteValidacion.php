@@ -9,12 +9,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['temporada_id', 'nombre', 'codigo_externo', 'activo'])]
+#[Fillable(['cliente_id', 'temporada_id', 'nombre', 'codigo_externo', 'activo'])]
 class ClienteValidacion extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'clientes_validacion';
+
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class);
+    }
 
     public function temporada(): BelongsTo
     {

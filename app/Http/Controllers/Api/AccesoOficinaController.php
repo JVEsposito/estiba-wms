@@ -81,6 +81,8 @@ class AccesoOficinaController extends Controller
                 'puede_supervisar_prefrio' => $capacidades['puede_supervisar_prefrio'],
                 'puede_administrar_tuneles_prefrio' => $capacidades['puede_administrar_tuneles_prefrio'],
                 'puede_consultar_panel_gerencial' => $capacidades['puede_consultar_panel_gerencial'],
+                'puede_consultar_romana' => $capacidades['puede_consultar_romana'],
+                'puede_operar_romana' => $capacidades['puede_operar_romana'],
             ],
         ]);
     }

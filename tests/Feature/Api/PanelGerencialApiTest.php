@@ -63,7 +63,12 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.temporada.activa', true)
             ->assertJsonPath('data.prefrio.tuneles_operativos', 1)
             ->assertJsonPath('data.prefrio.capacidad', 2)
-            ->assertJsonPath('data.prefrio.disponibles', 2);
+            ->assertJsonPath('data.prefrio.disponibles', 2)
+            ->assertJsonPath('data.romana.en_bascula_ingreso', 0)
+            ->assertJsonPath('data.romana.pendientes_destare', 0)
+            ->assertJsonPath('data.romana.cerradas_hoy', 0)
+            ->assertJsonPath('data.romana.peso_neto_hoy', 0)
+            ->assertJsonCount(7, 'data.romana.tendencia_diaria');
 
         $this->assertNotNull($respuesta->json('data.generado_at'));
     }

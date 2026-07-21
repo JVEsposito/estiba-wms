@@ -53,6 +53,7 @@
                 </div>
                 <nav aria-label="Módulos de oficina">
                     <a class="is-active" href="/oficina/gerencia">Gerencia</a>
+                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
                     <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
                     <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
@@ -71,7 +72,7 @@
                 <div>
                     <p class="eyebrow">RESUMEN DE LA OPERACIÓN</p>
                     <h1>Panel gerencial</h1>
-                    <p>Capacidad física, inventario utilizable y operación de prefrío al momento.</p>
+                    <p>Recepciones de romana, capacidad física, inventario utilizable y operación de prefrío al momento.</p>
                 </div>
                 <div class="management-refresh">
                     <div>
@@ -112,6 +113,13 @@
                     <div class="kpi-progress"><i id="precoolingOccupancyProgress"></i></div>
                     <small id="precoolingDetail">—</small>
                 </article>
+                <article class="management-kpi management-kpi--romana">
+                    <div class="management-kpi__top"><span>RECEPCIÓN ROMANA</span><i aria-hidden="true">⚖</i></div>
+                    <strong id="weighbridgeNetWeightKpi">—</strong>
+                    <p>kg netos recibidos hoy</p>
+                    <div class="kpi-split"><span><b id="weighbridgeClosedKpi">—</b> cerradas hoy</span><span><b id="weighbridgePendingKpi">—</b> pendientes destare</span></div>
+                    <small id="weighbridgeDetail">—</small>
+                </article>
             </section>
 
             <section class="management-grid">
@@ -121,6 +129,12 @@
                         <div class="chart-legend" aria-label="Leyenda"><span><i class="legend-dot legend-dot--occupied"></i>Ocupada</span><span><i class="legend-dot legend-dot--free"></i>Disponible</span></div>
                     </header>
                     <div class="chart-container chart-container--bar"><canvas id="cameraOccupancyChart" aria-label="Gráfico de ocupación por cámara" role="img"></canvas></div>
+                </article>
+
+                <article class="management-panel">
+                    <header><div><p class="eyebrow">RECEPCIÓN DE CLIENTES</p><h2>Peso neto últimos 7 días</h2></div></header>
+                    <div class="chart-container chart-container--bar"><canvas id="weighbridgeReceptionChart" aria-label="Gráfico de peso neto recibido en romana" role="img"></canvas></div>
+                    <div class="chart-summary" id="weighbridgeChartSummary"></div>
                 </article>
 
                 <article class="management-panel">

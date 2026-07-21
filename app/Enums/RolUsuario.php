@@ -9,6 +9,7 @@ enum RolUsuario: string
     case SupervisorMateriales = 'supervisor_materiales';
     case Despachador = 'despachador';
     case OperadorPrefrio = 'operador_prefrio';
+    case OperadorRomana = 'operador_romana';
     case CamareroFrio = 'camarero_frio';
     case CamareroMateriales = 'camarero_materiales';
     case Validador = 'validador';

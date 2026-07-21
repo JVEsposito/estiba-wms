@@ -16,6 +16,7 @@ use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Clientes\ServicioCliente;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\UploadedFile;
@@ -27,6 +28,7 @@ class ServicioImportacionValidacion
     public function __construct(
         private readonly LectorPlanillaValidacion $lector,
         private readonly ServicioProyeccionCatalogoValidacion $proyector,
+        private readonly ServicioCliente $clientes,
     ) {}
 
     public function previsualizar(
@@ -202,6 +204,7 @@ class ServicioImportacionValidacion
                     $creados,
                     $actualizados,
                 );
+                $this->clientes->sincronizarValidacion($cliente, $usuario->id);
                 $marca = $this->persistir(
                     MarcaValidacion::query()->firstOrNew([
                         'cliente_validacion_id' => $cliente->id,

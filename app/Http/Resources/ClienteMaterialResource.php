@@ -12,6 +12,7 @@ class ClienteMaterialResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'cliente_id' => $this->cliente_id,
             'temporada' => $this->whenLoaded('temporada', fn () => [
                 'id' => $this->temporada->id,
                 'codigo' => $this->temporada->codigo,

@@ -14,11 +14,14 @@ class InterfazOficinaGerenciaTest extends TestCase
             ->assertSee('Solo observación')
             ->assertSee('CAPACIDAD DE CÁMARAS')
             ->assertSee('INVENTARIO DE MATERIALES')
+            ->assertSee('RECEPCIÓN ROMANA')
             ->assertSee('Ocupación por cámara')
             ->assertSee('Disponibilidad de producto')
             ->assertSee('Materiales por ítem')
+            ->assertSee('Peso neto últimos 7 días')
             ->assertSee('cameraOccupancyChart', false)
             ->assertSee('materialStockChart', false)
+            ->assertSee('weighbridgeReceptionChart', false)
             ->assertSee('refreshDashboardButton', false)
             ->assertDontSee('<form id="create', false);
     }

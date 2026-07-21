@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Enums\RolUsuario;
 use App\Models\ArticuloValidacion;
 use App\Models\Camara;
+use App\Models\Cliente;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\CondicionSag;
 use App\Models\Dispositivo;
@@ -96,6 +98,16 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        User::query()->updateOrCreate(
+            ['email' => 'romana@estiba.local'],
+            [
+                'name' => 'Operador de romana',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::OperadorRomana,
+                'activo' => true,
+            ],
+        );
+
         Dispositivo::query()->firstOrCreate(
             ['codigo' => 'TABLET-01'],
             [
@@ -132,6 +144,26 @@ class DatabaseSeeder extends Seeder
                 'fecha_inicio' => '2026-10-01',
                 'fecha_fin' => '2027-02-28',
                 'activa' => true,
+            ],
+        );
+
+        $cliente = Cliente::query()->updateOrCreate(
+            ['codigo' => 'EXPORTADORA-DEMO'],
+            [
+                'nombre' => 'Exportadora demo',
+                'codigo_externo' => 'EXP-DEMO',
+                'activo' => true,
+            ],
+        );
+        ClienteValidacion::query()->updateOrCreate(
+            [
+                'temporada_id' => $temporada->id,
+                'nombre' => 'Exportadora demo',
+            ],
+            [
+                'cliente_id' => $cliente->id,
+                'codigo_externo' => 'EXP-DEMO',
+                'activo' => true,
             ],
         );
 
