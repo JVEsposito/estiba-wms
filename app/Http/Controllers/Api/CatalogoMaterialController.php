@@ -14,8 +14,10 @@ use App\Http\Resources\TemporadaMaterialResource;
 use App\Models\ClienteMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\ItemMaterial;
+use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Services\Clientes\ServicioCliente;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -128,9 +130,12 @@ class CatalogoMaterialController extends Controller
         return response()->json(['data' => TemporadaMaterialResource::collection($temporadas)]);
     }
 
-    public function storeTemporada(GuardarTemporadaMaterialRequest $request): JsonResponse
+    public function storeTemporada(
+        GuardarTemporadaMaterialRequest $request,
+        ServicioTemporadaGlobal $temporadas,
+    ): JsonResponse
     {
-        $temporada = $this->guardarTemporada($request);
+        $temporada = $this->guardarTemporada($request, $temporadas);
 
         return (new TemporadaMaterialResource($temporada))
             ->response()
@@ -140,22 +145,21 @@ class CatalogoMaterialController extends Controller
     public function updateTemporada(
         GuardarTemporadaMaterialRequest $request,
         TemporadaMaterial $temporadaMaterial,
+        ServicioTemporadaGlobal $temporadas,
     ): TemporadaMaterialResource {
-        return new TemporadaMaterialResource($this->guardarTemporada($request, $temporadaMaterial));
+        return new TemporadaMaterialResource($this->guardarTemporada($request, $temporadas, $temporadaMaterial));
     }
 
     public function activarTemporada(
         Request $request,
         TemporadaMaterial $temporadaMaterial,
+        ServicioTemporadaGlobal $temporadas,
     ): TemporadaMaterialResource {
         Gate::authorize('administrar-catalogos-materiales');
 
-        $temporada = DB::transaction(function () use ($request, $temporadaMaterial): TemporadaMaterial {
-            TemporadaMaterial::query()->whereKeyNot($temporadaMaterial->id)->update(['activa' => false]);
-            $temporadaMaterial->update([
-                'activa' => true,
-                'actualizado_por_user_id' => $request->user()->id,
-            ]);
+        $temporada = DB::transaction(function () use ($request, $temporadaMaterial, $temporadas): TemporadaMaterial {
+            $temporadas->activar($temporadaMaterial->temporadaGlobal()->firstOrFail());
+            $temporadaMaterial->update(['actualizado_por_user_id' => $request->user()->id]);
 
             return $temporadaMaterial->refresh();
         });
@@ -322,6 +326,7 @@ class CatalogoMaterialController extends Controller
 
     private function guardarTemporada(
         GuardarTemporadaMaterialRequest $request,
+        ServicioTemporadaGlobal $temporadas,
         ?TemporadaMaterial $temporada = null,
     ): TemporadaMaterial {
         $datos = $request->validated();
@@ -331,10 +336,28 @@ class CatalogoMaterialController extends Controller
             'Activa otra temporada para reemplazar la vigente.',
         );
 
-        return DB::transaction(function () use ($datos, $request, $temporada): TemporadaMaterial {
+        return DB::transaction(function () use ($datos, $request, $temporada, $temporadas): TemporadaMaterial {
+            $temporadaGlobal = $temporada?->temporadaGlobal
+                ?? Temporada::query()->where('codigo', $datos['codigo'])->first();
+            if ($temporadaGlobal && TemporadaMaterial::query()
+                ->where('temporada_id', $temporadaGlobal->id)
+                ->when($temporada, fn ($consulta) => $consulta->whereKeyNot($temporada->id))
+                ->exists()) {
+                abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'La temporada global ya posee configuración de materiales.');
+            }
+
+            $temporadaGlobal = $temporadas->guardar([
+                ...$datos,
+                'activa' => (bool) ($datos['activa'] ?? $temporadaGlobal?->activa ?? false),
+            ], $temporadaGlobal);
             $temporada ??= new TemporadaMaterial;
             $temporada->fill([
-                ...$datos,
+                'temporada_id' => $temporadaGlobal->id,
+                'codigo' => $temporadaGlobal->codigo,
+                'nombre' => $temporadaGlobal->nombre,
+                'fecha_inicio' => $temporadaGlobal->fecha_inicio,
+                'fecha_fin' => $temporadaGlobal->fecha_fin,
+                'activa' => $temporadaGlobal->activa,
                 'creado_por_user_id' => $temporada->creado_por_user_id ?? $request->user()->id,
                 'actualizado_por_user_id' => $request->user()->id,
             ]);

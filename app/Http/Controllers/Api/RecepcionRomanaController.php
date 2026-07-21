@@ -14,6 +14,7 @@ use App\Http\Requests\CrearRecepcionRomanaRequest;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Services\Romana\GeneradorAvisoReciboPdf;
 use App\Services\Romana\ServicioRecepcionRomana;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +29,10 @@ class RecepcionRomanaController extends Controller
         Gate::authorize('consultar-romana');
 
         return response()->json([
+            'temporadas' => Temporada::query()
+                ->orderByDesc('activa')
+                ->orderByDesc('fecha_inicio')
+                ->get(['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin', 'activa']),
             'clientes' => Cliente::query()
                 ->where('activo', true)
                 ->withCount(['catalogosValidacion', 'catalogosMateriales'])
@@ -65,6 +70,9 @@ class RecepcionRomanaController extends Controller
         }
         if (! empty($filtros['hasta'])) {
             $base->whereDate('ingreso_at', '<=', $filtros['hasta']);
+        }
+        if (! empty($filtros['temporada_id'])) {
+            $base->where('temporada_id', $filtros['temporada_id']);
         }
         if (! empty($filtros['buscar'])) {
             $buscar = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($filtros['buscar'])).'%';
@@ -185,6 +193,11 @@ class RecepcionRomanaController extends Controller
             'id' => $recepcion->id,
             'numero_recepcion' => $recepcion->numero_recepcion,
             'estado' => $recepcion->estado->value,
+            'temporada' => [
+                'id' => $recepcion->temporada_id,
+                'codigo' => $recepcion->temporada_codigo_snapshot,
+                'nombre' => $recepcion->temporada_nombre_snapshot,
+            ],
             'cliente' => [
                 'id' => $recepcion->cliente_id,
                 'codigo' => $recepcion->cliente_codigo_snapshot,

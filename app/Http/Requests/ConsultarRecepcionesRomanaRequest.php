@@ -17,6 +17,7 @@ class ConsultarRecepcionesRomanaRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
             'estado' => ['nullable', Rule::enum(EstadoRecepcionRomana::class)],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],

@@ -6,6 +6,7 @@ use App\Models\ArticuloValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,8 @@ use Illuminate\Support\Str;
 
 class ServicioCatalogoValidacion
 {
+    public function __construct(private readonly ServicioTemporadaGlobal $temporadas) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -80,45 +83,12 @@ class ServicioCatalogoValidacion
      */
     public function guardarTemporada(array $datos, ?Temporada $temporada = null): Temporada
     {
-        $codigo = mb_strtoupper(Str::of($datos['codigo'])->squish()->toString());
-        $duplicada = Temporada::query()
-            ->where('codigo', $codigo)
-            ->when($temporada, fn ($consulta) => $consulta->whereKeyNot($temporada->id))
-            ->exists();
-
-        if ($duplicada) {
-            throw new DomainException('Ya existe una temporada con ese código.');
-        }
-
-        return DB::transaction(function () use ($datos, $codigo, $temporada): Temporada {
-            $temporada ??= new Temporada;
-            $temporada->fill([
-                'codigo' => $codigo,
-                'nombre' => Str::of($datos['nombre'])->squish()->toString(),
-                'fecha_inicio' => $datos['fecha_inicio'] ?? null,
-                'fecha_fin' => $datos['fecha_fin'] ?? null,
-                'activa' => (bool) ($datos['activa'] ?? false),
-            ]);
-            $temporada->save();
-
-            if ($temporada->activa) {
-                Temporada::query()
-                    ->whereKeyNot($temporada->id)
-                    ->update(['activa' => false]);
-            }
-
-            return $temporada->refresh();
-        });
+        return $this->temporadas->guardar($datos, $temporada);
     }
 
     public function activarTemporada(Temporada $temporada): Temporada
     {
-        return DB::transaction(function () use ($temporada): Temporada {
-            Temporada::query()->whereKeyNot($temporada->id)->update(['activa' => false]);
-            $temporada->update(['activa' => true]);
-
-            return $temporada->refresh();
-        });
+        return $this->temporadas->activar($temporada);
     }
 
     /**

@@ -19,6 +19,7 @@ use App\Models\MovimientoInventarioMaterial;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
+use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Cargas\ServicioTareasCarga;
@@ -821,6 +822,7 @@ class ServicioMovimientoEstiba
         array $datosFolio,
     ): array {
         $atributos = $this->filtrarDatosFolio($datosFolio);
+        $atributos['temporada_id'] = Temporada::query()->where('activa', true)->value('id');
         $atributos['numero_folio'] = $numeroFolio;
         $atributos['tipo_bulto'] = $tipoBulto;
         $atributos['fecha_ingreso'] ??= $generadoDispositivoAt;
@@ -883,6 +885,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $fecha,
     ): void {
         $item = ItemMaterial::query()
+            ->with('cliente.temporada')
             ->whereKey($datos['item_material_id'] ?? null)
             ->where('activo', true)
             ->whereHas('cliente', fn ($consulta) => $consulta
@@ -899,6 +902,8 @@ class ServicioMovimientoEstiba
         if ($cantidad <= 0) {
             throw new DomainException('La cantidad inicial del material debe ser mayor que cero.');
         }
+
+        $folio->update(['temporada_id' => $item->cliente->temporada->temporada_id]);
 
         FolioMaterial::create([
             'folio_id' => $folio->id,

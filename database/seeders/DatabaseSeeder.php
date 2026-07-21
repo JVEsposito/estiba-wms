@@ -13,6 +13,7 @@ use App\Models\Dispositivo;
 use App\Models\OrigenValidacion;
 use App\Models\Posicion;
 use App\Models\Temporada;
+use App\Models\TemporadaMaterial;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -146,6 +147,10 @@ class DatabaseSeeder extends Seeder
                 'activa' => true,
             ],
         );
+        TemporadaMaterial::query()->update(['activa' => false]);
+        TemporadaMaterial::query()
+            ->where('temporada_id', $temporada->id)
+            ->update(['activa' => true]);
 
         $cliente = Cliente::query()->updateOrCreate(
             ['codigo' => 'EXPORTADORA-DEMO'],

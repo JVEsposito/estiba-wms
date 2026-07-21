@@ -183,6 +183,7 @@ class ServicioValidacionPallet
 
             if ($resultado === ResultadoValidacionPallet::Aprobado && ! $hayConflicto) {
                 $folio = Folio::create([
+                    'temporada_id' => $temporada->id,
                     'numero_folio' => $numeroFolio,
                     'tipo_bulto' => TipoBulto::from($datos['tipo_bulto']),
                     'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,

@@ -65,6 +65,7 @@
                         <div><p class="eyebrow">TRÁNSITO Y CIERRES</p><h2>Recepciones</h2></div>
                         <form class="weighbridge-filters" id="receptionFilters">
                             <input name="buscar" maxlength="100" placeholder="Recepción, guía, patente, cliente">
+                            <select name="temporada_id"><option value="">Todas las temporadas</option></select>
                             <select name="estado"><option value="">Todos los estados</option><option value="en_bascula_ingreso">En báscula ingreso</option><option value="en_bascula_salida">Pendiente de destare</option><option value="cerrado">Cerrado</option></select>
                             <input name="desde" type="date" aria-label="Desde">
                             <input name="hasta" type="date" aria-label="Hasta">
@@ -102,6 +103,7 @@
                 <div class="weighbridge-dialog__heading"><div><p class="eyebrow">PESAJE DE ENTRADA</p><h2 id="receptionDialogTitle">Registrar ingreso</h2><p>Captura los antecedentes documentales y el peso del camión cargado.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <input name="recepcion_id" type="hidden">
                 <div class="weighbridge-form-grid">
+                    <label class="field field--span-2"><span>Temporada global *</span><select name="temporada_id" required><option value="">Seleccionar temporada activa</option></select></label>
                     <label class="field field--span-2"><span>Cliente *</span><select name="cliente_id" required><option value="">Seleccionar cliente activo</option></select></label>
                     <label class="field"><span>Servicio *</span><select name="tipo_servicio" required></select></label>
                     <label class="field"><span>Guía de despacho *</span><input name="numero_guia_despacho" maxlength="80" required></label>

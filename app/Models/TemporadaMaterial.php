@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
+    'temporada_id',
     'codigo',
     'nombre',
     'fecha_inicio',
@@ -24,6 +25,11 @@ class TemporadaMaterial extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'temporadas_materiales';
+
+    public function temporadaGlobal(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class, 'temporada_id');
+    }
 
     public function clientes(): HasMany
     {

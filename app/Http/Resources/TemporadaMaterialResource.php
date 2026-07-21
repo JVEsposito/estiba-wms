@@ -12,6 +12,7 @@ class TemporadaMaterialResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'temporada_id' => $this->temporada_id,
             'codigo' => $this->codigo,
             'nombre' => $this->nombre,
             'fecha_inicio' => $this->fecha_inicio?->toDateString(),

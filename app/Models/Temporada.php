@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'codigo',
@@ -19,6 +20,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Temporada extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    public function configuracionMaterial(): HasOne
+    {
+        return $this->hasOne(TemporadaMaterial::class);
+    }
+
+    public function recepcionesRomana(): HasMany
+    {
+        return $this->hasMany(RecepcionRomana::class);
+    }
+
+    public function folios(): HasMany
+    {
+        return $this->hasMany(Folio::class);
+    }
 
     public function clientes(): HasMany
     {

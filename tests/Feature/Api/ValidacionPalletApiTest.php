@@ -36,6 +36,10 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.id', $validacion);
 
         $this->assertSame(1, Folio::query()->where('numero_folio', 'PAL-0001')->count());
+        $this->assertDatabaseHas('folios', [
+            'numero_folio' => 'PAL-0001',
+            'temporada_id' => $catalogo['temporada_id'],
+        ]);
         $this->assertDatabaseCount('validaciones_pallet', 1);
     }
 

@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
+    'temporada_id',
     'numero_folio',
     'tipo_bulto',
     'condicion_sag_id',
@@ -42,6 +43,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Folio extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function condicionSag(): BelongsTo
     {

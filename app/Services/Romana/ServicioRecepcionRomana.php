@@ -8,6 +8,7 @@ use App\Exceptions\ConflictoOperacion;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -29,12 +30,16 @@ class ServicioRecepcionRomana
                 return $this->cargar($existente);
             }
 
+            $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
-            $this->asegurarGuiaUnica($cliente->id, (string) $payload['numero_guia_despacho']);
+            $this->asegurarGuiaUnica($temporada->id, $cliente->id, (string) $payload['numero_guia_despacho']);
             $ahora = CarbonImmutable::now();
             $recepcion = RecepcionRomana::create([
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
+                'temporada_id' => $temporada->id,
+                'temporada_codigo_snapshot' => $temporada->codigo,
+                'temporada_nombre_snapshot' => $temporada->nombre,
                 'cliente_id' => $cliente->id,
                 'cliente_codigo_snapshot' => $cliente->codigo,
                 'cliente_nombre_snapshot' => $cliente->nombre,
@@ -65,6 +70,7 @@ class ServicioRecepcionRomana
                 [
                     'peso_bruto' => (float) $recepcion->peso_bruto,
                     'numero_guia_despacho' => $recepcion->numero_guia_despacho,
+                    'temporada_id' => $recepcion->temporada_id,
                 ],
             );
 
@@ -91,13 +97,18 @@ class ServicioRecepcionRomana
                 throw new ConflictoOperacion('La recepción ya confirmó su ingreso y sus antecedentes no pueden editarse.');
             }
 
+            $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
             $this->asegurarGuiaUnica(
+                $temporada->id,
                 $cliente->id,
                 (string) $payload['numero_guia_despacho'],
                 $recepcion->id,
             );
             $recepcion->update([
+                'temporada_id' => $temporada->id,
+                'temporada_codigo_snapshot' => $temporada->codigo,
+                'temporada_nombre_snapshot' => $temporada->nombre,
                 'cliente_id' => $cliente->id,
                 'cliente_codigo_snapshot' => $cliente->codigo,
                 'cliente_nombre_snapshot' => $cliente->nombre,
@@ -240,6 +251,7 @@ class ServicioRecepcionRomana
     private function datosRecepcion(array $datos): array
     {
         return [
+            'temporada_id' => $datos['temporada_id'],
             'cliente_id' => $datos['cliente_id'],
             'tipo_servicio' => $datos['tipo_servicio'],
             'cantidad_envases_declarados' => (int) $datos['cantidad_envases_declarados'],
@@ -252,6 +264,20 @@ class ServicioRecepcionRomana
             'peso_bruto' => round((float) $datos['peso_bruto'], 2),
             'observacion' => $datos['observacion'] ?? null,
         ];
+    }
+
+    private function temporadaActiva(string $temporadaId): Temporada
+    {
+        $temporada = Temporada::query()
+            ->whereKey($temporadaId)
+            ->where('activa', true)
+            ->first();
+
+        if (! $temporada) {
+            throw new ConflictoOperacion('La temporada global no está activa para nuevas recepciones.');
+        }
+
+        return $temporada;
     }
 
     private function clienteActivo(string $clienteId): Cliente
@@ -268,9 +294,15 @@ class ServicioRecepcionRomana
         return $cliente;
     }
 
-    private function asegurarGuiaUnica(string $clienteId, string $guia, ?string $ignorarId = null): void
+    private function asegurarGuiaUnica(
+        string $temporadaId,
+        string $clienteId,
+        string $guia,
+        ?string $ignorarId = null,
+    ): void
     {
         $consulta = RecepcionRomana::query()
+            ->where('temporada_id', $temporadaId)
             ->where('cliente_id', $clienteId)
             ->where('numero_guia_despacho', $guia);
         if ($ignorarId) {
@@ -363,6 +395,7 @@ class ServicioRecepcionRomana
     private function cargar(RecepcionRomana $recepcion): RecepcionRomana
     {
         return $recepcion->refresh()->load([
+            'temporada',
             'cliente',
             'creadoPor',
             'ingresoConfirmadoPor',

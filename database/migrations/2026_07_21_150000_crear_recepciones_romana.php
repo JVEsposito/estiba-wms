@@ -13,6 +13,9 @@ return new class extends Migration
             $table->uuid('operacion_id')->unique();
             $table->char('payload_hash', 64);
             $table->string('numero_recepcion', 24)->nullable()->unique();
+            $table->foreignUuid('temporada_id')->constrained('temporadas')->restrictOnDelete();
+            $table->string('temporada_codigo_snapshot', 30);
+            $table->string('temporada_nombre_snapshot', 100);
             $table->foreignUuid('cliente_id')->constrained('clientes')->restrictOnDelete();
             $table->string('cliente_codigo_snapshot', 100)->nullable();
             $table->string('cliente_nombre_snapshot', 150);
@@ -39,8 +42,8 @@ return new class extends Migration
             $table->text('observacion_cierre')->nullable();
             $table->timestamps();
             $table->unique(
-                ['cliente_id', 'numero_guia_despacho'],
-                'recepciones_romana_cliente_guia_unique',
+                ['temporada_id', 'cliente_id', 'numero_guia_despacho'],
+                'recepciones_romana_temporada_cliente_guia_unique',
             );
             $table->index(['ingreso_at', 'estado'], 'recepciones_romana_ingreso_estado_index');
             $table->index('patente_camion');

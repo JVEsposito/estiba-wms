@@ -17,7 +17,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
-    catalogs: { clientes: [], tipos_servicio: [], tipos_envase: [] },
+    catalogs: { temporadas: [], clientes: [], tipos_servicio: [], tipos_envase: [] },
     receptions: [],
     selected: null,
     page: 1,
@@ -110,6 +110,9 @@ function showApp() {
 
 function fillCatalogs() {
     const form = elements.receptionForm.elements;
+    const activeSeasons = state.catalogs.temporadas.filter((season) => season.activa);
+    form.temporada_id.innerHTML = '<option value="">Seleccionar temporada activa</option>' + activeSeasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.nombre)} · ${escapeHtml(season.codigo)}</option>`).join('');
+    elements.filters.elements.temporada_id.innerHTML = '<option value="">Todas las temporadas</option>' + state.catalogs.temporadas.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.codigo)}</option>`).join('');
     form.cliente_id.innerHTML = '<option value="">Seleccionar cliente activo</option>' + state.catalogs.clientes.map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.nombre)}${client.codigo ? ` · ${escapeHtml(client.codigo)}` : ''}</option>`).join('');
     form.tipo_servicio.innerHTML = state.catalogs.tipos_servicio.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
     form.tipo_envase_declarado.innerHTML = state.catalogs.tipos_envase.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
@@ -168,7 +171,7 @@ function renderDetail(reception) {
     elements.detailTitle.textContent = reception.numero_recepcion || `Ingreso · ${reception.patente_camion}`;
     elements.detailSubtitle.innerHTML = `${stateBadge(reception.estado)} · Guía ${escapeHtml(reception.numero_guia_despacho)} · ${escapeHtml(reception.cliente.nombre)}`;
     elements.detailFacts.innerHTML = [
-        fact('INGRESO', formatDate(reception.ingreso_at)), fact('SALIDA / DESTARE', formatDate(reception.salida_at)), fact('CLIENTE', reception.cliente.nombre), fact('SERVICIO', label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
+        fact('INGRESO', formatDate(reception.ingreso_at)), fact('SALIDA / DESTARE', formatDate(reception.salida_at)), fact('TEMPORADA GLOBAL', `${reception.temporada.nombre} · ${reception.temporada.codigo}`), fact('CLIENTE', reception.cliente.nombre), fact('SERVICIO', label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
         fact('CAMIÓN', reception.patente_camion), fact('CARRO', reception.patente_carro || 'No informado'), fact('CONDUCTOR', reception.nombre_conductor), fact('RUT', reception.rut_conductor), fact('ENVASES', `${reception.cantidad_envases_declarados} ${label(reception.tipo_envase_declarado)}`),
         fact('PESO BRUTO', formatWeight(reception.peso_bruto), true), fact('TARA', formatWeight(reception.peso_tara), true), fact('PESO NETO', formatWeight(reception.peso_neto), true), fact('VERSIÓN', String(reception.version)), fact('OBS. INGRESO', reception.observacion || 'Sin observaciones'), fact('OBS. CIERRE', reception.observacion_cierre || 'Sin observaciones'),
     ].join('');
@@ -193,16 +196,21 @@ function closeDetail() { state.selected = null; elements.detail.classList.add('i
 function openNewReception() {
     elements.receptionForm.reset(); elements.receptionForm.elements.recepcion_id.value = ''; elements.receptionFormError.textContent = '';
     elements.receptionDialogTitle.textContent = 'Registrar ingreso';
+    const activeSeasons = state.catalogs.temporadas.filter((season) => season.activa);
+    if (!activeSeasons.length) {
+        toast('No existe una temporada global activa para recibir.', true); return;
+    }
     if (!state.catalogs.clientes.length) {
         toast('No existen clientes operacionales activos para recibir.', true); return;
     }
+    if (activeSeasons.length === 1) elements.receptionForm.elements.temporada_id.value = activeSeasons[0].id;
     elements.receptionDialog.showModal();
 }
 function openEditReception() {
     if (!state.selected?.puede_editar) return;
     const reception = state.selected; const form = elements.receptionForm.elements;
     elements.receptionForm.reset(); elements.receptionFormError.textContent = ''; elements.receptionDialogTitle.textContent = 'Editar pesaje de ingreso';
-    form.recepcion_id.value = reception.id; form.cliente_id.value = reception.cliente.id; form.tipo_servicio.value = reception.tipo_servicio;
+    form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_servicio.value = reception.tipo_servicio;
     form.numero_guia_despacho.value = reception.numero_guia_despacho; form.cantidad_envases_declarados.value = reception.cantidad_envases_declarados; form.tipo_envase_declarado.value = reception.tipo_envase_declarado;
     form.patente_camion.value = reception.patente_camion; form.patente_carro.value = reception.patente_carro || ''; form.rut_conductor.value = reception.rut_conductor; form.nombre_conductor.value = reception.nombre_conductor;
     form.peso_bruto.value = reception.peso_bruto; form.observacion.value = reception.observacion || '';
