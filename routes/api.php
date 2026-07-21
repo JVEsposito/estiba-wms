@@ -13,9 +13,11 @@ use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
+use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\FolioPrefrioController;
+use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
+use App\Http\Controllers\Api\ValidacionMpController;
 use App\Http\Controllers\Api\ValidacionPalletController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +50,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/recepciones/{recepcion}', [RecepcionRomanaController::class, 'update']);
         Route::post('/recepciones/{recepcion}/confirmar-ingreso', [RecepcionRomanaController::class, 'confirmarIngreso']);
         Route::post('/recepciones/{recepcion}/cerrar', [RecepcionRomanaController::class, 'cerrar']);
+    });
+    Route::middleware('can:consultar-cuenta-envases')->prefix('envases/cuenta-corriente')->group(function () {
+        Route::get('/catalogos', [CuentaCorrienteEnvaseController::class, 'catalogos']);
+        Route::get('/movimientos', [CuentaCorrienteEnvaseController::class, 'index']);
+    });
+    Route::post('/envases/cuenta-corriente/movimientos/{movimientoEnvase}/revisar', [CuentaCorrienteEnvaseController::class, 'revisar'])
+        ->middleware('can:revisar-cuenta-envases');
+    Route::middleware('can:consultar-cuenta-envases')->prefix('envases/guias-despacho')->group(function () {
+        Route::get('/catalogos', [GuiaDespachoEnvaseController::class, 'catalogos']);
+        Route::get('/', [GuiaDespachoEnvaseController::class, 'index']);
+    });
+    Route::middleware('can:gestionar-despacho-envases')->prefix('envases/guias-despacho')->group(function () {
+        Route::post('/', [GuiaDespachoEnvaseController::class, 'store']);
+        Route::post('/{guiaDespachoEnvase}/confirmar', [GuiaDespachoEnvaseController::class, 'confirmar']);
+        Route::post('/{guiaDespachoEnvase}/anular', [GuiaDespachoEnvaseController::class, 'anular']);
     });
 
     Route::get('/camaras', [CamaraController::class, 'index']);
@@ -88,6 +106,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
+    });
+    Route::middleware('can:validar-mp')->prefix('validacion-mp')->group(function () {
+        Route::get('/pendientes', [ValidacionMpController::class, 'pendientes']);
+        Route::get('/recepciones/buscar/{numeroRecepcion}', [ValidacionMpController::class, 'buscar']);
+        Route::get('/recepciones/{recepcion}/catalogos', [ValidacionMpController::class, 'catalogos']);
+        Route::post('/recepciones/{recepcion}/tomar', [ValidacionMpController::class, 'tomar']);
+        Route::post('/validaciones/{validacionMp}/confirmar', [ValidacionMpController::class, 'confirmar']);
     });
     Route::prefix('administracion/validacion')
         ->middleware('can:administrar-catalogos-validacion')

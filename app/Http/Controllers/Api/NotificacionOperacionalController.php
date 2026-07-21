@@ -25,6 +25,7 @@ class NotificacionOperacionalController extends Controller
             ->with([
                 'carga:id,codigo,prioridad,estado',
                 'despachoMaterial:id,codigo,estado,destino_nombre,destino_centro_costo',
+                'recepcionRomana:id,numero_recepcion,estado_validacion_mp',
                 'folio:id,numero_folio',
                 'lecturas' => fn ($lectura) => $lectura
                     ->where('user_id', $usuario->id),
@@ -73,6 +74,7 @@ class NotificacionOperacionalController extends Controller
         return $notificacion->load([
             'carga:id,codigo,prioridad,estado',
             'despachoMaterial:id,codigo,estado,destino_nombre,destino_centro_costo',
+            'recepcionRomana:id,numero_recepcion,estado_validacion_mp',
             'folio:id,numero_folio',
             'lecturas' => fn ($lectura) => $lectura
                 ->where('user_id', $request->user()->id),

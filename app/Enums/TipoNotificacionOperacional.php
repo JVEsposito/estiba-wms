@@ -9,4 +9,5 @@ enum TipoNotificacionOperacional: string
     case PrioridadCargaCambiada = 'prioridad_carga_cambiada';
     case IncidenciaCargaReportada = 'incidencia_carga_reportada';
     case IncidenciaCargaResuelta = 'incidencia_carga_resuelta';
+    case RecepcionRomanaCreada = 'recepcion_romana_creada';
 }

@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\TipoEnvaseRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Rules\RutChileno;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,9 +24,20 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'operacion_id' => ['required', 'uuid'],
             'temporada_id' => ['required', 'uuid', Rule::exists('temporadas', 'id')->where('activa', true)],
             'cliente_id' => ['required', 'uuid', Rule::exists('clientes', 'id')->where('activo', true)],
-            'tipo_servicio' => ['required', Rule::enum(TipoServicioRomana::class)],
-            'cantidad_envases_declarados' => ['required', 'integer', 'min:1', 'max:100000'],
-            'tipo_envase_declarado' => ['required', Rule::enum(TipoEnvaseRomana::class)],
+            'tipo_recepcion' => ['required', Rule::enum(TipoRecepcionRomana::class)],
+            'concepto_envases' => [
+                'nullable',
+                Rule::requiredIf($this->input('tipo_recepcion') === TipoRecepcionRomana::SoloEnvases->value),
+                Rule::enum(ConceptoEnvasesRomana::class),
+            ],
+            'tipo_servicio' => [
+                'nullable',
+                Rule::requiredIf($this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaConEnvases->value),
+                Rule::enum(TipoServicioRomana::class),
+            ],
+            'envases' => ['required', 'array', 'min:1', 'max:3'],
+            'envases.*.tipo_envase' => ['required', 'distinct', Rule::enum(TipoEnvaseRomana::class)],
+            'envases.*.cantidad' => ['required', 'integer', 'min:1', 'max:100000'],
             'numero_guia_despacho' => ['required', 'string', 'max:80'],
             'patente_camion' => ['required', 'regex:/^[A-Z0-9]{5,8}$/'],
             'patente_carro' => ['nullable', 'regex:/^[A-Z0-9]{5,8}$/'],
@@ -43,9 +56,12 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'temporada_id.exists' => 'La temporada seleccionada no es la temporada global activa.',
             'cliente_id.required' => 'Selecciona el cliente del servicio.',
             'cliente_id.exists' => 'El cliente seleccionado no está activo.',
-            'tipo_servicio.required' => 'Selecciona el servicio contratado.',
-            'cantidad_envases_declarados.min' => 'La guía debe declarar al menos un envase.',
-            'tipo_envase_declarado.required' => 'Selecciona el tipo de envase declarado.',
+            'tipo_recepcion.required' => 'Selecciona si ingresa fruta con envases o solo envases.',
+            'concepto_envases.required' => 'Indica si los envases ingresan por compra o arriendo.',
+            'tipo_servicio.required' => 'Selecciona el servicio contratado para la fruta.',
+            'envases.required' => 'Registra al menos un tipo de envase declarado en la guía.',
+            'envases.*.tipo_envase.distinct' => 'Cada tipo de envase puede declararse solo una vez.',
+            'envases.*.cantidad.min' => 'La guía debe declarar al menos una unidad por tipo de envase.',
             'numero_guia_despacho.required' => 'Ingresa el número de guía de despacho.',
             'patente_camion.required' => 'Ingresa la patente del camión.',
             'patente_camion.regex' => 'Ingresa una patente de camión válida, sin puntos ni guiones.',
@@ -58,7 +74,14 @@ class CrearRecepcionRomanaRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $tipoRecepcion = (string) $this->input('tipo_recepcion');
         $this->merge([
+            'concepto_envases' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
+                ? $this->input('concepto_envases')
+                : null,
+            'tipo_servicio' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
+                ? 'almacenaje'
+                : $this->input('tipo_servicio'),
             'numero_guia_despacho' => mb_strtoupper(trim((string) $this->input('numero_guia_despacho'))),
             'patente_camion' => $this->normalizarPatente($this->input('patente_camion')),
             'patente_carro' => $this->normalizarPatente($this->input('patente_carro')),

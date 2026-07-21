@@ -34,6 +34,7 @@
                 <nav aria-label="Módulos de oficina">
                     <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
                     <a class="is-active" href="/oficina/romana">Romana</a>
+                    <a class="is-hidden" id="officeContainerAccountsNav" href="/oficina/envases/cuenta-corriente">Cuenta envases</a>
                     <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-hidden" id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
                     <a class="is-hidden" id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
@@ -105,10 +106,11 @@
                 <div class="weighbridge-form-grid">
                     <label class="field field--span-2"><span>Temporada global *</span><select name="temporada_id" required><option value="">Seleccionar temporada activa</option></select></label>
                     <label class="field field--span-2"><span>Cliente *</span><select name="cliente_id" required><option value="">Seleccionar cliente activo</option></select></label>
-                    <label class="field"><span>Servicio *</span><select name="tipo_servicio" required></select></label>
+                    <label class="field"><span>Tipo de recepción *</span><select name="tipo_recepcion" required></select></label>
+                    <label class="field is-hidden" id="containerConceptField"><span>Concepto de envases *</span><select name="concepto_envases"></select></label>
+                    <label class="field" id="serviceField"><span>Servicio de fruta *</span><select name="tipo_servicio" required></select></label>
                     <label class="field"><span>Guía de despacho *</span><input name="numero_guia_despacho" maxlength="80" required></label>
-                    <label class="field"><span>Cantidad envases *</span><input name="cantidad_envases_declarados" type="number" min="1" max="100000" required></label>
-                    <label class="field"><span>Tipo de envase *</span><select name="tipo_envase_declarado" required></select></label>
+                    <fieldset class="field field--span-2 container-lines"><legend>Envases declarados en la guía *</legend><label><span>Bins</span><input name="cantidad_bins" type="number" min="0" max="100000" value="0"></label><label><span>Totes</span><input name="cantidad_totes" type="number" min="0" max="100000" value="0"></label><label><span>Esponjas</span><input name="cantidad_esponjas" type="number" min="0" max="100000" value="0"></label><small>Registra uno, dos o los tres tipos. Cada uno mantiene su propia trazabilidad.</small></fieldset>
                     <label class="field"><span>Patente camión *</span><input name="patente_camion" maxlength="10" autocomplete="off" placeholder="ABCD12" required></label>
                     <label class="field"><span>Patente carro</span><input name="patente_carro" maxlength="10" autocomplete="off" placeholder="Opcional"></label>
                     <label class="field"><span>RUT conductor *</span><input name="rut_conductor" maxlength="12" placeholder="12.345.678-5" required></label>

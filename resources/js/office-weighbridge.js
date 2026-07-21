@@ -2,13 +2,14 @@ const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
-    managementNav: byId('officeManagementNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
+    managementNav: byId('officeManagementNav'), containerAccountsNav: byId('officeContainerAccountsNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadButton'), newReception: byId('newReceptionButton'), filters: byId('receptionFilters'), tableBody: byId('receptionTableBody'),
     entryCount: byId('entryCount'), exitCount: byId('exitCount'), closedCount: byId('closedCount'), netWeight: byId('netWeight'),
     paginationSummary: byId('paginationSummary'), previousPage: byId('previousPageButton'), nextPage: byId('nextPageButton'),
     detail: byId('receptionDetail'), detailTitle: byId('detailTitle'), detailSubtitle: byId('detailSubtitle'), detailFacts: byId('detailFacts'), detailTimeline: byId('detailTimeline'), weightBalance: byId('weightBalance'),
     editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
     receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionFormError: byId('receptionFormError'),
+    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'),
     tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), netWeightPreview: byId('netWeightPreview'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
@@ -17,7 +18,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
-    catalogs: { temporadas: [], clientes: [], tipos_servicio: [], tipos_envase: [] },
+    catalogs: { temporadas: [], clientes: [], tipos_servicio: [], tipos_envase: [], tipos_recepcion: [], conceptos_envases: [] },
     receptions: [],
     selected: null,
     page: 1,
@@ -51,7 +52,7 @@ function label(value) {
     const labels = {
         en_bascula_ingreso: 'En báscula ingreso', en_bascula_salida: 'Pendiente de destare', cerrado: 'Cerrado',
         ingreso_registrado: 'Pesaje de ingreso registrado', ingreso_actualizado: 'Antecedentes de ingreso actualizados', ingreso_confirmado: 'Ingreso confirmado', recepcion_cerrada: 'Destare y recepción cerrados',
-        almacenaje: 'Almacenaje', proceso: 'Proceso', prefrio: 'Pre-frío', bins: 'Bins', totes: 'Totes', cajas: 'Cajas',
+        almacenaje: 'Almacenaje', proceso: 'Proceso', prefrio: 'Pre-frío', bins: 'Bins', totes: 'Totes', esponjas: 'Esponjas', fruta_con_envases: 'Fruta con envases', solo_envases: 'Solo envases', compra: 'Compra', arriendo: 'Arriendo', pendiente: 'Pendiente', en_curso: 'En curso', validada: 'Validada',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
 }
@@ -98,6 +99,7 @@ function showApp() {
     elements.userName.textContent = name; elements.userRole.textContent = label(state.identity?.rol || 'consulta');
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.newReception.classList.toggle('is-hidden', state.identity?.puede_operar_romana !== true);
+    elements.containerAccountsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cuenta_envases !== true);
     elements.managementNav.classList.toggle('is-hidden', state.identity?.puede_consultar_panel_gerencial !== true);
     elements.camerasNav.classList.toggle('is-hidden', state.identity?.ambito_camaras === 'ninguno');
     elements.loadsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cargas !== true);
@@ -115,7 +117,8 @@ function fillCatalogs() {
     elements.filters.elements.temporada_id.innerHTML = '<option value="">Temporada activa</option>' + state.catalogs.temporadas.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.codigo)}${season.activa ? ' (activa)' : ''}</option>`).join('');
     form.cliente_id.innerHTML = '<option value="">Seleccionar cliente activo</option>' + state.catalogs.clientes.map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.nombre)}${client.codigo ? ` · ${escapeHtml(client.codigo)}` : ''}</option>`).join('');
     form.tipo_servicio.innerHTML = state.catalogs.tipos_servicio.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
-    form.tipo_envase_declarado.innerHTML = state.catalogs.tipos_envase.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
+    form.tipo_recepcion.innerHTML = state.catalogs.tipos_recepcion.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
+    form.concepto_envases.innerHTML = state.catalogs.conceptos_envases.map((type) => `<option value="${escapeHtml(type.codigo)}">${escapeHtml(type.nombre)}</option>`).join('');
 }
 
 function filterQuery() {
@@ -147,7 +150,7 @@ function renderList(payload) {
             <td><strong>${escapeHtml(reception.numero_recepcion || 'Ingreso abierto')}</strong><small>${escapeHtml(formatDate(reception.ingreso_at))}</small></td>
             <td><strong>${escapeHtml(reception.cliente.nombre)}</strong><small>Guía ${escapeHtml(reception.numero_guia_despacho)}</small></td>
             <td><strong>${escapeHtml(reception.patente_camion)}</strong><small>${escapeHtml(reception.nombre_conductor)}</small></td>
-            <td><strong>${escapeHtml(`${reception.cantidad_envases_declarados} ${label(reception.tipo_envase_declarado)}`)}</strong><small>${escapeHtml(label(reception.tipo_servicio))}</small></td>
+            <td><strong>${escapeHtml(envasesLabel(reception))}</strong><small>${escapeHtml(label(reception.tipo_recepcion))}</small></td>
             <td class="weight-cell"><strong>${escapeHtml(formatWeight(reception.peso_neto, formatWeight(reception.peso_bruto)))}</strong><small>${reception.peso_neto === null ? 'Peso bruto' : 'Peso neto'}</small></td>
             <td>${stateBadge(reception.estado)}</td>
         </tr>`).join('');
@@ -165,14 +168,15 @@ async function loadReceptions({ silent = false } = {}) {
 }
 
 function fact(title, value, weight = false) { return `<article class="detail-fact${weight ? ' detail-fact--weight' : ''}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(value ?? '—')}</strong></article>`; }
+function envasesLabel(reception) { return (reception.envases || []).map((item) => `${item.cantidad_declarada} ${label(item.tipo_envase)}`).join(' · ') || 'Sin envases'; }
 function renderDetail(reception) {
     state.selected = reception;
     elements.detail.classList.remove('is-hidden');
     elements.detailTitle.textContent = reception.numero_recepcion || `Ingreso · ${reception.patente_camion}`;
     elements.detailSubtitle.innerHTML = `${stateBadge(reception.estado)} · Guía ${escapeHtml(reception.numero_guia_despacho)} · ${escapeHtml(reception.cliente.nombre)}`;
     elements.detailFacts.innerHTML = [
-        fact('INGRESO', formatDate(reception.ingreso_at)), fact('SALIDA / DESTARE', formatDate(reception.salida_at)), fact('TEMPORADA GLOBAL', `${reception.temporada.nombre} · ${reception.temporada.codigo}`), fact('CLIENTE', reception.cliente.nombre), fact('SERVICIO', label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
-        fact('CAMIÓN', reception.patente_camion), fact('CARRO', reception.patente_carro || 'No informado'), fact('CONDUCTOR', reception.nombre_conductor), fact('RUT', reception.rut_conductor), fact('ENVASES', `${reception.cantidad_envases_declarados} ${label(reception.tipo_envase_declarado)}`),
+        fact('INGRESO', formatDate(reception.ingreso_at)), fact('SALIDA / DESTARE', formatDate(reception.salida_at)), fact('TEMPORADA GLOBAL', `${reception.temporada.nombre} · ${reception.temporada.codigo}`), fact('CLIENTE', reception.cliente.nombre), fact('TIPO RECEPCIÓN', label(reception.tipo_recepcion)), fact('SERVICIO / CONCEPTO', reception.tipo_recepcion === 'solo_envases' ? label(reception.concepto_envases) : label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
+        fact('CAMIÓN', reception.patente_camion), fact('CARRO', reception.patente_carro || 'No informado'), fact('CONDUCTOR', reception.nombre_conductor), fact('RUT', reception.rut_conductor), fact('ENVASES DECLARADOS', envasesLabel(reception)), fact('VALIDACIÓN MP', label(reception.estado_validacion_mp)),
         fact('PESO BRUTO', formatWeight(reception.peso_bruto), true), fact('TARA', formatWeight(reception.peso_tara), true), fact('PESO NETO', formatWeight(reception.peso_neto), true), fact('VERSIÓN', String(reception.version)), fact('OBS. INGRESO', reception.observacion || 'Sin observaciones'), fact('OBS. CIERRE', reception.observacion_cierre || 'Sin observaciones'),
     ].join('');
     elements.detailTimeline.innerHTML = (reception.eventos || []).map((event) => `<article class="timeline-item"><i></i><div><strong>${escapeHtml(label(event.tipo))}</strong><small>${escapeHtml(event.usuario?.nombre || 'Sistema')} · ${escapeHtml(event.estado_anterior ? `${label(event.estado_anterior)} → ${label(event.estado_nuevo)}` : label(event.estado_nuevo))}</small></div><time>${escapeHtml(formatDate(event.ocurrido_at))}</time></article>`).join('');
@@ -204,16 +208,19 @@ function openNewReception() {
         toast('No existen clientes operacionales activos para recibir.', true); return;
     }
     if (activeSeasons.length === 1) elements.receptionForm.elements.temporada_id.value = activeSeasons[0].id;
+    toggleReceptionType();
     elements.receptionDialog.showModal();
 }
 function openEditReception() {
     if (!state.selected?.puede_editar) return;
     const reception = state.selected; const form = elements.receptionForm.elements;
     elements.receptionForm.reset(); elements.receptionFormError.textContent = ''; elements.receptionDialogTitle.textContent = 'Editar pesaje de ingreso';
-    form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_servicio.value = reception.tipo_servicio;
-    form.numero_guia_despacho.value = reception.numero_guia_despacho; form.cantidad_envases_declarados.value = reception.cantidad_envases_declarados; form.tipo_envase_declarado.value = reception.tipo_envase_declarado;
+    form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_recepcion.value = reception.tipo_recepcion; form.concepto_envases.value = reception.concepto_envases || ''; form.tipo_servicio.value = reception.tipo_servicio;
+    form.numero_guia_despacho.value = reception.numero_guia_despacho;
+    ['bins', 'totes', 'esponjas'].forEach((tipo) => { const item = reception.envases.find((envase) => envase.tipo_envase === tipo); form[`cantidad_${tipo}`].value = item?.cantidad_declarada || 0; });
     form.patente_camion.value = reception.patente_camion; form.patente_carro.value = reception.patente_carro || ''; form.rut_conductor.value = reception.rut_conductor; form.nombre_conductor.value = reception.nombre_conductor;
     form.peso_bruto.value = reception.peso_bruto; form.observacion.value = reception.observacion || '';
+    toggleReceptionType();
     elements.receptionDialog.showModal();
 }
 
@@ -235,6 +242,8 @@ elements.receptionForm.addEventListener('submit', async (event) => {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault(); elements.receptionFormError.textContent = '';
     const data = Object.fromEntries(new FormData(elements.receptionForm)); const id = data.recepcion_id; delete data.recepcion_id; data.operacion_id = operationUuid();
+    data.envases = ['bins', 'totes', 'esponjas'].map((tipo) => ({ tipo_envase: tipo, cantidad: Number(data[`cantidad_${tipo}`] || 0) })).filter((item) => item.cantidad > 0);
+    ['bins', 'totes', 'esponjas'].forEach((tipo) => delete data[`cantidad_${tipo}`]);
     setBusy(true, id ? 'Actualizando ingreso…' : 'Registrando pesaje de ingreso…');
     try {
         const payload = await api(id ? `/api/romana/recepciones/${id}` : '/api/romana/recepciones', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
@@ -291,6 +300,8 @@ elements.previousPage.addEventListener('click', async () => { if (state.page <= 
 elements.nextPage.addEventListener('click', async () => { if (state.meta && state.page >= state.meta.ultima_pagina) return; state.page++; await loadReceptions({ silent: true }); });
 elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando Romana…'); try { await Promise.all([loadCatalogs(), loadReceptions({ silent: true })]); toast('Romana actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
 elements.newReception.addEventListener('click', openNewReception); elements.editReception.addEventListener('click', openEditReception); elements.closeDetail.addEventListener('click', closeDetail);
+function toggleReceptionType() { const soloEnvases = elements.receptionForm.elements.tipo_recepcion.value === 'solo_envases'; elements.serviceField.classList.toggle('is-hidden', soloEnvases); elements.containerConceptField.classList.toggle('is-hidden', !soloEnvases); elements.receptionForm.elements.tipo_servicio.required = !soloEnvases; elements.receptionForm.elements.concepto_envases.required = soloEnvases; }
+elements.receptionForm.elements.tipo_recepcion.addEventListener('change', toggleReceptionType);
 ['patente_camion', 'patente_carro'].forEach((name) => elements.receptionForm.elements[name].addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }));
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 

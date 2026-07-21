@@ -4,11 +4,13 @@ namespace App\Services\Notificaciones;
 
 use App\Enums\AudienciaNotificacionOperacional;
 use App\Enums\ContenidoCamara;
+use App\Enums\RolUsuario;
 use App\Enums\SeveridadNotificacionOperacional;
 use App\Enums\TipoNotificacionOperacional;
 use App\Models\DespachoMaterial;
 use App\Models\LecturaNotificacionOperacional;
 use App\Models\NotificacionOperacional;
+use App\Models\RecepcionRomana;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,7 +18,9 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioNotificacionesOperacionales
 {
-    public function __construct(private readonly AlcanceOperacionalUsuario $alcance) {}
+    public function __construct(
+        private readonly AlcanceOperacionalUsuario $alcance,
+    ) {}
 
     public function consultaVisibles(User $usuario): Builder
     {
@@ -35,10 +39,13 @@ class ServicioNotificacionesOperacionales
                         ->where('activa', true))
                     ->orWhereHas('incidencia.asignacion.carga.temporada', fn (Builder $temporada): Builder => $temporada
                         ->where('activa', true))
+                    ->orWhereHas('recepcionRomana.temporada', fn (Builder $temporada): Builder => $temporada
+                        ->where('activa', true))
                     ->orWhere(function (Builder $sinProceso): void {
                         $sinProceso
                             ->whereNull('carga_id')
                             ->whereNull('despacho_material_id')
+                            ->whereNull('recepcion_romana_id')
                             ->whereNull('folio_id')
                             ->whereNull('incidencia_carga_folio_id');
                     });
@@ -101,6 +108,45 @@ class ServicioNotificacionesOperacionales
                     'destino' => $despacho->destino_nombre,
                     'centro_costo' => $despacho->destino_centro_costo,
                     'cantidad_items' => $cantidadItems,
+                ],
+            ],
+        );
+    }
+
+    public function notificarRecepcionRomanaCreada(
+        RecepcionRomana $recepcion,
+    ): NotificacionOperacional {
+        $recepcion->loadMissing('detallesEnvases');
+        $envases = $recepcion->detallesEnvases
+            ->map(fn ($detalle): string => "{$detalle->cantidad_declarada} {$detalle->tipo_envase->value}")
+            ->implode(', ');
+
+        return NotificacionOperacional::query()->firstOrCreate(
+            ['clave' => "recepcion-romana:{$recepcion->id}:rol:validador-mp"],
+            [
+                'tipo' => TipoNotificacionOperacional::RecepcionRomanaCreada,
+                'audiencia_tipo' => AudienciaNotificacionOperacional::Rol,
+                'audiencia_valor' => RolUsuario::ValidadorMp->value,
+                'severidad' => SeveridadNotificacionOperacional::Informativa,
+                'titulo' => "Nueva recepción {$recepcion->numero_recepcion}",
+                'mensaje' => sprintf(
+                    '%s · guía %s · %s. Disponible para Validación MP.',
+                    $recepcion->cliente_nombre_snapshot,
+                    $recepcion->numero_guia_despacho,
+                    $envases,
+                ),
+                'recepcion_romana_id' => $recepcion->id,
+                'datos' => [
+                    'numero_recepcion' => $recepcion->numero_recepcion,
+                    'tipo_recepcion' => $recepcion->tipo_recepcion->value,
+                    'cliente' => $recepcion->cliente_nombre_snapshot,
+                    'numero_guia_despacho' => $recepcion->numero_guia_despacho,
+                    'patente_camion' => $recepcion->patente_camion,
+                    'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
+                    'envases' => $recepcion->detallesEnvases->map(fn ($detalle): array => [
+                        'tipo_envase' => $detalle->tipo_envase->value,
+                        'cantidad_declarada' => $detalle->cantidad_declarada,
+                    ])->values()->all(),
                 ],
             ],
         );

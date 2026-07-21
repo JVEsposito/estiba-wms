@@ -181,6 +181,22 @@ class AppServiceProvider extends ServiceProvider
             'operar-romana',
             fn (User $usuario): bool => $alcance->puedeOperarRomana($usuario),
         );
+        Gate::define(
+            'validar-mp',
+            fn (User $usuario): bool => $alcance->puedeValidarMp($usuario),
+        );
+        Gate::define(
+            'consultar-cuenta-envases',
+            fn (User $usuario): bool => $alcance->puedeConsultarCuentaEnvases($usuario),
+        );
+        Gate::define(
+            'revisar-cuenta-envases',
+            fn (User $usuario): bool => $alcance->puedeRevisarCuentaEnvases($usuario),
+        );
+        Gate::define(
+            'gestionar-despacho-envases',
+            fn (User $usuario): bool => $alcance->puedeGestionarDespachoEnvases($usuario),
+        );
 
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
