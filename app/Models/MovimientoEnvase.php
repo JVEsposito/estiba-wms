@@ -39,6 +39,8 @@ class MovimientoEnvase extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
+    protected $table = 'movimientos_envases';
+
     public function temporada(): BelongsTo
     {
         return $this->belongsTo(Temporada::class);

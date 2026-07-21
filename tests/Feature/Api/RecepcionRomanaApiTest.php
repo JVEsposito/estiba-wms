@@ -173,7 +173,7 @@ class RecepcionRomanaApiTest extends TestCase
         ]);
 
         RecepcionRomana::query()->findOrFail($recepcionId)->update([
-            'estado_validacion_mp' => EstadoValidacionMp::EnProceso,
+            'estado_validacion_mp' => EstadoValidacionMp::EnCurso,
         ]);
         $edicion = $datos;
         $edicion['operacion_id'] = (string) Str::uuid();

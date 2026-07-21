@@ -43,7 +43,11 @@ return new class extends Migration
 
         Schema::create('segmentos_envases_validacion_mp', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('segmento_validacion_mp_id')->constrained('segmentos_validacion_mp')->restrictOnDelete();
+            $table->foreignUuid('segmento_validacion_mp_id');
+            $table->foreign('segmento_validacion_mp_id', 'seg_env_validacion_segmento_fk')
+                ->references('id')
+                ->on('segmentos_validacion_mp')
+                ->restrictOnDelete();
             $table->string('tipo_envase', 20);
             $table->unsignedInteger('cantidad');
             $table->timestamps();
