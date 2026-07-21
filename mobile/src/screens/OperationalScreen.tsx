@@ -72,7 +72,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [connectionState, setConnectionState] = useState<'connected' | 'offline'>('connected');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
-  const materialDispatchRefreshInFlight = useRef(false);
+  const materialDispatchRefreshInFlight = useRef<Promise<MaterialDispatch[]> | null>(null);
   const materialCreateOperationId = useRef(Crypto.randomUUID());
   const materialWithdrawOperationId = useRef(Crypto.randomUUID());
   const capabilities = auth.usuario.capacidades;
@@ -218,17 +218,46 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   }
 
   async function refreshMaterialDispatches() {
-    if (!canUseMaterials || materialDispatchRefreshInFlight.current) return;
-    materialDispatchRefreshInFlight.current = true;
+    if (!canUseMaterials) return false;
+
+    const request = materialDispatchRefreshInFlight.current
+      ?? api.listMaterialDispatches(auth.token);
+    const ownsRequest = materialDispatchRefreshInFlight.current === null;
+    if (ownsRequest) materialDispatchRefreshInFlight.current = request;
+
     try {
-      const loaded = await api.listMaterialDispatches(auth.token);
+      const loaded = await request;
       setMaterialDispatches(loaded);
       setConnectionState('connected');
+      return true;
     } catch (reason) {
       reportFailure(reason, setError);
+      return false;
     } finally {
-      materialDispatchRefreshInFlight.current = false;
+      if (ownsRequest && materialDispatchRefreshInFlight.current === request) {
+        materialDispatchRefreshInFlight.current = null;
+      }
     }
+  }
+
+  async function openMaterialDispatch() {
+    setModalError('');
+    setNotice('');
+    setBusy(true);
+
+    const refreshed = await refreshMaterialDispatches();
+    setBusy(false);
+    if (!refreshed) {
+      Alert.alert(
+        'No fue posible actualizar los despachos',
+        'Revisa la conexión con la API antes de registrar el retiro.',
+      );
+      return;
+    }
+
+    materialCreateOperationId.current = Crypto.randomUUID();
+    materialWithdrawOperationId.current = Crypto.randomUUID();
+    setMaterialDispatchVisible(true);
   }
 
   async function refreshCurrent({ quiet = false }: { quiet?: boolean } = {}) {
@@ -706,13 +735,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                   setLocateVisible(true);
                 }}
                 onMove={() => void openMove()}
-                onDispatchMaterial={() => {
-                  setModalError('');
-                  setNotice('');
-                  materialCreateOperationId.current = Crypto.randomUUID();
-                  materialWithdrawOperationId.current = Crypto.randomUUID();
-                  setMaterialDispatchVisible(true);
-                }}
+                onDispatchMaterial={() => void openMaterialDispatch()}
                 onRefresh={() => void refreshCurrent()}
                 onToggleSession={toggleSession}
                 plan={plan}
