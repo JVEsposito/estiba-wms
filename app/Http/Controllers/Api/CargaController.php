@@ -125,6 +125,8 @@ class CargaController extends Controller
 
         $folios = Folio::query()
             ->where('activo', true)
+            ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta
+                ->where('activa', true))
             ->where('estado_operacional', EstadoOperacionalFolio::Disponible->value)
             ->whereIn('tipo_bulto', [
                 TipoBulto::Pallet->value,
@@ -316,6 +318,7 @@ class CargaController extends Controller
     private function relacionesDetalle(): array
     {
         return [
+            'temporada:id,codigo,nombre,activa',
             'camaraObjetivo:id,codigo,nombre',
             'andenPrevisto:id,codigo,nombre',
             'creadaPor:id,name',

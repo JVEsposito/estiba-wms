@@ -22,6 +22,7 @@ use App\Models\Folio;
 use App\Models\ReservaCargaFolio;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,7 @@ class ServicioCarga
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioTareasCarga $servicioTareas,
+        private readonly ServicioTemporadaActiva $temporadaActiva,
     ) {}
 
     /**
@@ -42,12 +44,14 @@ class ServicioCarga
         $this->asegurarGestionAutorizada($usuario);
 
         return DB::transaction(function () use ($datos, $usuario): Carga {
+            $temporada = $this->temporadaActiva->obtener(bloquear: true);
             $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
             $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
             $andenPrevistoId = $datos['anden_previsto_id'] ?? null;
             $this->asegurarAndenValido($andenPrevistoId);
 
             $carga = Carga::create([
+                'temporada_id' => $temporada->id,
                 'codigo' => $this->siguienteCodigoBloqueado(),
                 'numero_orden_externa' => $this->textoOpcional($datos['numero_orden_externa'] ?? null),
                 'estado' => EstadoCarga::Borrador,
@@ -204,7 +208,7 @@ class ServicioCarga
                     continue;
                 }
 
-                $error = $this->motivoFolioNoAsignable($folio);
+                $error = $this->motivoFolioNoAsignable($folio, $cargaBloqueada->temporada_id);
 
                 if ($error) {
                     $errores[] = $this->errorFolio(
@@ -375,7 +379,7 @@ class ServicioCarga
             $errores = [];
 
             foreach ($folios as $folio) {
-                $error = $this->motivoFolioNoAsignable($folio);
+                $error = $this->motivoFolioNoAsignable($folio, $cargaBloqueada->temporada_id);
 
                 if ($error) {
                     $errores[] = $this->errorFolio(
@@ -575,8 +579,15 @@ class ServicioCarga
     /**
      * @return array{codigo: string, mensaje: string}|null
      */
-    private function motivoFolioNoAsignable(Folio $folio): ?array
+    private function motivoFolioNoAsignable(Folio $folio, ?string $temporadaId = null): ?array
     {
+        if ($temporadaId !== null && $folio->temporada_id !== $temporadaId) {
+            return [
+                'codigo' => 'temporada_no_coincide',
+                'mensaje' => "El folio {$folio->numero_folio} pertenece a otra temporada operacional.",
+            ];
+        }
+
         if (! in_array($folio->tipo_bulto, [
             TipoBulto::Pallet,
             TipoBulto::Saldo,

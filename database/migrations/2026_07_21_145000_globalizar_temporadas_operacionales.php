@@ -44,6 +44,24 @@ return new class extends Migration
                 ->update(['temporada_id' => $temporadaId]);
         }
 
+        foreach (DB::table('temporadas')->orderBy('created_at')->get() as $temporada) {
+            if (DB::table('temporadas_materiales')->where('temporada_id', $temporada->id)->exists()) {
+                continue;
+            }
+
+            DB::table('temporadas_materiales')->insert([
+                'id' => (string) Str::uuid(),
+                'temporada_id' => $temporada->id,
+                'codigo' => $temporada->codigo,
+                'nombre' => $temporada->nombre,
+                'fecha_inicio' => $temporada->fecha_inicio,
+                'fecha_fin' => $temporada->fecha_fin,
+                'activa' => false,
+                'created_at' => $temporada->created_at,
+                'updated_at' => $temporada->updated_at,
+            ]);
+        }
+
         $temporadaActiva = DB::table('temporadas')->where('activa', true)->orderByDesc('updated_at')->first();
         if (! $temporadaActiva) {
             $temporadaActiva = DB::table('temporadas_materiales as tm')

@@ -111,6 +111,7 @@ class DespachoMaterialController extends Controller
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
             ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
                 ->where('contenido', ContenidoCamara::Materiales->value))
+            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('item_material_id')
             ->get()
             ->map(function (FolioMaterial $material): array {

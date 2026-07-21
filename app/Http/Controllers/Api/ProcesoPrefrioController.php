@@ -254,6 +254,7 @@ class ProcesoPrefrioController extends Controller
     private function relaciones(): array
     {
         return [
+            'temporada:id,codigo,nombre,activa',
             'tunel:id,codigo,nombre,capacidad_posiciones,setpoint_habitual,estado_administrativo,estado_tecnico,version_configuracion',
             'folios' => fn ($consulta) => $consulta
                 ->with([

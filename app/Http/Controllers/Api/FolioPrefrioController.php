@@ -25,6 +25,7 @@ class FolioPrefrioController extends Controller
 
         $folios = Folio::query()
             ->where('activo', true)
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->whereIn('tipo_bulto', [TipoBulto::Pallet->value, TipoBulto::Saldo->value])
             ->whereIn('condicion_termica', [
                 CondicionTermicaFolio::PendientePrefrio->value,

@@ -31,15 +31,8 @@
                 </header>
 
                 <section class="panel catalog-season-panel">
-                    <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADAS</p><h2>Crear temporada</h2></div><span>Vacía o copia completa</span></div>
-                    <form class="catalog-inline-form" id="catalogSeasonForm">
-                        <label><span>Código *</span><input name="codigo" maxlength="30" required></label>
-                        <label><span>Nombre *</span><input name="nombre" maxlength="100" required></label>
-                        <label><span>Copiar catálogo desde</span><select name="copiar_desde_temporada_id"><option value="">Comenzar vacía</option></select></label>
-                        <label class="validation-check"><input name="activa" type="checkbox"><span>Dejar activa</span></label>
-                        <button class="primary-button" type="submit">Crear temporada</button>
-                    </form>
-                    <p class="form-error" id="catalogSeasonError"></p>
+                    <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Catálogo de la temporada seleccionada</h2></div><span>Solo lectura del ciclo global</span></div>
+                    <p class="validation-help">Las temporadas se crean y activan en la oficina Accesos. Validación mantiene únicamente el catálogo asociado a la temporada seleccionada.</p>
                 </section>
 
                 <section aria-labelledby="catalogProjectionTitle">

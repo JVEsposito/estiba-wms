@@ -2,8 +2,16 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\EstadoOperacionalFolio;
 use App\Enums\RolUsuario;
+use App\Enums\TipoBulto;
+use App\Models\CategoriaValidacion;
 use App\Models\Dispositivo;
+use App\Models\Folio;
+use App\Models\FolioMaterial;
+use App\Models\ItemMaterial;
+use App\Models\Temporada;
+use App\Models\TemporadaMaterial;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -61,6 +69,53 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonCount(1, 'dispositivos');
     }
 
+    public function test_accesos_es_el_unico_dueno_de_la_temporada_transversal(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $temporada = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/temporadas', [
+                'codigo' => ' 2026-2027 ',
+                'nombre' => ' Temporada cerezas 2026-2027 ',
+                'fecha_inicio' => '2026-10-01',
+                'fecha_fin' => '2027-02-28',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', '2026-2027')
+            ->assertJsonPath('data.activa', true)
+            ->json('data');
+
+        $this->assertNotNull($temporada['configuracion_material_id']);
+        $this->assertDatabaseHas('temporadas_materiales', [
+            'id' => $temporada['configuracion_material_id'],
+            'temporada_id' => $temporada['id'],
+            'activa' => true,
+        ]);
+
+        $nuevaId = $this->postJson('/api/administracion/temporadas', [
+            'codigo' => '2027-2028',
+            'nombre' => 'Temporada cerezas 2027-2028',
+            'activa' => false,
+        ])->assertCreated()->json('data.id');
+
+        $this->postJson("/api/administracion/temporadas/{$nuevaId}/activar")
+            ->assertOk()
+            ->assertJsonPath('data.activa', true);
+
+        $this->assertFalse(Temporada::query()->findOrFail($temporada['id'])->activa);
+        $this->assertTrue(TemporadaMaterial::query()->where('temporada_id', $nuevaId)->firstOrFail()->activa);
+        $this->getJson('/api/administracion/temporadas')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $nuevaId);
+
+        $this->postJson('/api/administracion/validacion/temporadas', [])->assertNotFound();
+        $this->postJson('/api/administracion/materiales/temporadas', [])->assertStatus(405);
+    }
+
     public function test_un_usuario_no_administrador_no_puede_gestionar_accesos(): void
     {
         $supervisor = User::factory()->create([
@@ -88,6 +143,107 @@ class AdministracionAccesoApiTest extends TestCase
                 'nombre' => 'Tablet no autorizada',
             ])
             ->assertForbidden();
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson('/api/administracion/temporadas', [
+                'codigo' => '2026-2027',
+                'nombre' => 'Temporada no autorizada',
+            ])
+            ->assertForbidden();
+
+        $temporada = Temporada::query()->firstOrFail();
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/administracion/temporadas/{$temporada->id}/migrar", [])
+            ->assertForbidden();
+    }
+
+    public function test_administrador_migra_catalogos_e_inventario_y_activa_el_destino_global(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $origen = Temporada::query()->where('activa', true)->firstOrFail();
+        $configuracionOrigen = $origen->configuracionMaterial()->firstOrFail();
+        $clienteOrigen = $configuracionOrigen->clientes()->firstOrFail();
+        $itemOrigen = ItemMaterial::create([
+            'cliente_material_id' => $clienteOrigen->id,
+            'codigo' => 'FILM-MIGRABLE',
+            'nombre' => 'Film migrable',
+            'categoria' => 'Embalaje',
+            'unidad_medida' => 'rollos',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        CategoriaValidacion::create([
+            'temporada_id' => $origen->id,
+            'nombre' => 'Exportación',
+            'activo' => true,
+        ]);
+        $folio = Folio::create([
+            'temporada_id' => $origen->id,
+            'numero_folio' => 'MAT-MIG-0001',
+            'tipo_bulto' => TipoBulto::Material,
+            'estado_operacional' => EstadoOperacionalFolio::Disponible,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $itemOrigen->id,
+            'cantidad_inicial' => 12.5,
+            'cantidad_actual' => 10.5,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => 'rollos',
+        ]);
+
+        $destino = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/temporadas', [
+                'codigo' => '2027-2028',
+                'nombre' => 'Temporada 2027-2028',
+                'activa' => false,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->postJson("/api/administracion/temporadas/{$destino['id']}/migrar", [
+            'temporada_origen_id' => $origen->id,
+            'copiar_catalogo_validacion' => true,
+            'copiar_catalogo_materiales' => true,
+            'migrar_inventario_materiales' => true,
+            'activar_destino' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.destino.activa', true)
+            ->assertJsonPath('data.resumen.validacion.categorias', 1)
+            ->assertJsonPath('data.resumen.materiales.items', 1)
+            ->assertJsonPath('data.resumen.inventario.folios', 1)
+            ->assertJsonPath('data.resumen.inventario.cantidad_total', 10.5);
+
+        $configuracionDestino = TemporadaMaterial::query()
+            ->where('temporada_id', $destino['id'])
+            ->firstOrFail();
+        $itemDestino = ItemMaterial::query()
+            ->where('codigo', 'FILM-MIGRABLE')
+            ->whereHas('cliente', fn ($consulta) => $consulta
+                ->where('temporada_material_id', $configuracionDestino->id))
+            ->firstOrFail();
+
+        $this->assertSame($itemDestino->id, $folio->material()->firstOrFail()->item_material_id);
+        $this->assertSame($destino['id'], $folio->refresh()->temporada_id);
+        $this->assertDatabaseHas('categorias_validacion', [
+            'temporada_id' => $destino['id'],
+            'nombre' => 'Exportación',
+        ]);
+        $this->assertDatabaseHas('migraciones_temporadas_folios', [
+            'folio_id' => $folio->id,
+            'item_material_origen_id' => $itemOrigen->id,
+            'item_material_destino_id' => $itemDestino->id,
+        ]);
+        $this->assertFalse($origen->refresh()->activa);
+        $this->assertTrue(Temporada::query()->findOrFail($destino['id'])->activa);
     }
 
     public function test_valida_duplicados_formato_y_contrasena(): void

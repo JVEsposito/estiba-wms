@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AccesoOficinaController;
 use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\AdministracionAccesoController;
+use App\Http\Controllers\Api\AdministracionTemporadaController;
 use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\CamaraController;
@@ -109,9 +110,6 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEnvase']);
             Route::post('/csg', [CatalogoJerarquicoValidacionController::class, 'storeCsg']);
             Route::put('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCsg']);
-            Route::post('/temporadas', [AdministracionValidacionController::class, 'storeTemporada']);
-            Route::put('/temporadas/{temporada}', [AdministracionValidacionController::class, 'updateTemporada']);
-            Route::post('/temporadas/{temporada}/activar', [AdministracionValidacionController::class, 'activarTemporada']);
             Route::post('/articulos', [AdministracionValidacionController::class, 'storeArticulo']);
             Route::put('/articulos/{articuloValidacion}', [AdministracionValidacionController::class, 'updateArticulo']);
             Route::post('/origenes', [AdministracionValidacionController::class, 'storeOrigen']);
@@ -182,6 +180,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
+        Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
+        Route::post('/administracion/temporadas', [AdministracionTemporadaController::class, 'store']);
+        Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
+        Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
+        Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
     });
     Route::middleware('can:gestionar-andenes')->group(function () {
         Route::post('/administracion/andenes', [AndenController::class, 'store']);
@@ -189,9 +192,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('can:administrar-catalogos-materiales')->group(function () {
         Route::get('/administracion/materiales/temporadas', [CatalogoMaterialController::class, 'temporadas']);
-        Route::post('/administracion/materiales/temporadas', [CatalogoMaterialController::class, 'storeTemporada']);
-        Route::put('/administracion/materiales/temporadas/{temporadaMaterial}', [CatalogoMaterialController::class, 'updateTemporada']);
-        Route::post('/administracion/materiales/temporadas/{temporadaMaterial}/activar', [CatalogoMaterialController::class, 'activarTemporada']);
         Route::get('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'clientes']);
         Route::post('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'storeCliente']);
         Route::put('/administracion/materiales/clientes/{clienteMaterial}', [CatalogoMaterialController::class, 'updateCliente']);

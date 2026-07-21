@@ -54,20 +54,9 @@
 
                 <div class="materials-admin-grid" id="materialsAdminCatalogs">
                     <section class="panel materials-panel">
-                        <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADAS</p><h2>Ciclo de materiales</h2></div><span id="seasonsSummary">0 registradas</span></div>
+                        <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Ciclo operacional</h2></div><span id="seasonsSummary">0 registradas</span></div>
                         <label class="materials-season-selector"><span>Temporada seleccionada</span><select id="materialSeasonSelector"></select></label>
-                        <form class="materials-form" id="seasonMaterialForm" novalidate>
-                            <input name="id" type="hidden">
-                            <div class="materials-form__grid">
-                                <label><span>Código *</span><input name="codigo" maxlength="30" placeholder="2026-2027" required></label>
-                                <label><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada materiales 2026–2027" required></label>
-                                <label><span>Fecha inicial</span><input name="fecha_inicio" type="date"></label>
-                                <label><span>Fecha final</span><input name="fecha_fin" type="date"></label>
-                                <label class="materials-check"><input name="activa" type="checkbox"><span>Dejar como temporada activa</span></label>
-                            </div>
-                            <p class="form-error" id="seasonMaterialError" role="alert"></p>
-                            <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelSeasonEdit" type="button">Nueva temporada</button><button class="primary-button" type="submit">Guardar temporada</button></div>
-                        </form>
+                        <p class="materials-help">La temporada se crea, edita y activa en la oficina Accesos. Materiales solo administra clientes e ítems dentro del ciclo seleccionado.</p>
                         <div class="materials-list" id="seasonsMaterialList"></div>
                     </section>
 

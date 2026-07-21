@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 #[Fillable([
+    'temporada_id',
     'codigo',
     'numero_orden_externa',
     'estado',
@@ -38,6 +39,11 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 class Carga extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function camaraObjetivo(): BelongsTo
     {

@@ -26,8 +26,17 @@ convertir el cierre de Romana en una transición de Frigorífico.
 `temporadas` es la dimensión operacional compartida. Validación usa la temporada
 directamente; la configuración estacional de Materiales se vincula mediante
 `temporadas_materiales.temporada_id`; los folios de Frigorífico guardan su
-`temporada_id` cuando el origen permite determinarla; y cada recepción de Romana
-exige la temporada global activa.
+`temporada_id`; Prefrío, Cargas y Despachos de Materiales registran la temporada
+al iniciar; y cada recepción de Romana exige la temporada global activa.
+
+La oficina `/oficina/accesos` es la única propietaria de la creación, edición y
+activación de temporadas. Las rutas administrativas de Validación y Materiales
+son de consulta para este dato; cada módulo conserva la administración de su
+catálogo y su proceso operacional.
+
+Accesos permite copiar catálogos estacionales y, solo para Bodega, migrar
+inventario vivo. Ese procedimiento no copia ni transforma recepciones de
+Romana, que conservan su temporada y snapshot contractual originales.
 
 Compartir temporada permite agrupar y comparar información sin unir los ciclos
 de vida de Romana, Materiales y Frigorífico. La recepción conserva además código

@@ -14,6 +14,12 @@ class ProcesoPrefrioResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'temporada' => $this->whenLoaded('temporada', fn () => $this->temporada ? [
+                'id' => $this->temporada->id,
+                'codigo' => $this->temporada->codigo,
+                'nombre' => $this->temporada->nombre,
+                'activa' => $this->temporada->activa,
+            ] : null),
             'codigo' => $this->codigo,
             'tunel' => $this->whenLoaded('tunel', fn () => [
                 'id' => $this->tunel->id,

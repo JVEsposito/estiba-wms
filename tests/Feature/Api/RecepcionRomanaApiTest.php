@@ -201,21 +201,18 @@ class RecepcionRomanaApiTest extends TestCase
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $temporadaId = $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/validacion/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada 2026-2027',
                 'activa' => true,
             ])
             ->assertCreated()
             ->json('data.id');
-        $temporadaMaterialId = $this->postJson('/api/administracion/materiales/temporadas', [
-            'codigo' => '2026-2027',
-            'nombre' => 'Temporada 2026-2027',
-            'activa' => true,
-        ])
-            ->assertCreated()
-            ->assertJsonPath('data.temporada_id', $temporadaId)
-            ->json('data.id');
+        $temporadaMaterialId = Temporada::query()
+            ->findOrFail($temporadaId)
+            ->configuracionMaterial()
+            ->firstOrFail()
+            ->id;
 
         $clienteId = $this->postJson('/api/administracion/validacion/clientes', [
             'temporada_id' => $temporadaId,

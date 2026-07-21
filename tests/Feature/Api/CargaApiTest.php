@@ -43,6 +43,7 @@ class CargaApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'CAR-000001')
+            ->assertJsonPath('data.temporada.activa', true)
             ->assertJsonPath('data.estado', 'borrador');
 
         $cargaId = $creada->json('data.id');
