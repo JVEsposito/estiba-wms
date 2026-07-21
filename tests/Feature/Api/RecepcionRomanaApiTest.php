@@ -8,6 +8,7 @@ use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -242,6 +243,33 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('clientes.0.id', $clienteId)
             ->assertJsonPath('clientes.0.presente_en_validacion', true)
             ->assertJsonPath('clientes.0.presente_en_materiales', true);
+    }
+
+    public function test_romana_muestra_la_temporada_activa_por_defecto_y_conserva_consulta_historica_explicita(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $cliente = $this->cliente();
+        $temporadaAnterior = Temporada::query()->where('activa', true)->firstOrFail();
+
+        $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $this->datosIngreso($cliente))
+            ->assertCreated();
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'ROM-NUEVA',
+            'nombre' => 'Temporada nueva de romana',
+            'activa' => true,
+        ], usuarioId: $operador->id);
+
+        $this->getJson('/api/romana/recepciones')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0);
+
+        $this->getJson("/api/romana/recepciones?temporada_id={$temporadaAnterior->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.temporada.id', $temporadaAnterior->id);
     }
 
     private function cliente(bool $activo = true): Cliente

@@ -83,14 +83,24 @@ class ServicioMigracionTemporada
                 ];
             }
 
-            $configuracionOrigen = TemporadaMaterial::query()
-                ->where('temporada_id', $origen->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-            $configuracionDestino = TemporadaMaterial::query()
-                ->where('temporada_id', $destino->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            $configuracionOrigen = null;
+            $configuracionDestino = null;
+
+            if ($copiarMateriales || $migrarInventario) {
+                $configuracionOrigen = $this->temporadas
+                    ->asegurarConfiguracionMaterial($origen, $usuario->id);
+                $configuracionDestino = $this->temporadas
+                    ->asegurarConfiguracionMaterial($destino, $usuario->id);
+
+                $configuracionesIds = [$configuracionOrigen->id, $configuracionDestino->id];
+                sort($configuracionesIds, SORT_STRING);
+
+                TemporadaMaterial::query()
+                    ->whereKey($configuracionesIds)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+            }
 
             if ($copiarMateriales) {
                 $resumen['materiales'] = $this->copiarCatalogoMateriales(

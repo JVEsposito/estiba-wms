@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Services\Cargas\ServicioCarga;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -119,6 +120,29 @@ class CargaApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('codigo', 'folios_no_asignables')
             ->assertJsonPath('errores.0.codigo', 'asignado_otra_carga');
+    }
+
+    public function test_bandejas_de_carga_no_mezclan_ordenes_de_temporadas_anteriores(): void
+    {
+        $despachador = $this->despachador();
+        $cargaAnterior = $this->crearCarga($despachador);
+        $cargaAnterior->update(['estado' => 'pendiente']);
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'CARGA-NUEVA',
+            'nombre' => 'Temporada nueva de cargas',
+            'activa' => true,
+        ], usuarioId: $despachador->id);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/cargas')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonMissing(['id' => $cargaAnterior->id]);
+
+        $this->getJson('/api/cargas/pendientes')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_cancelar_libera_los_folios_y_conserva_eventos(): void

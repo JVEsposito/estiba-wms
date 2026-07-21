@@ -60,10 +60,11 @@ function showApp() {
     elements.seasonAccessLink.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
 }
 
-async function loadHistory() {
+async function loadHistory(seasonId = state.season?.id || null) {
     const params = new URLSearchParams();
     const values = Object.fromEntries(new FormData(elements.filters));
     for (const [key, value] of Object.entries(values)) if (String(value).trim()) params.set(key, String(value).trim());
+    if (seasonId) params.set('temporada_id', seasonId);
     params.set('per_page', '25');
     const response = await api(`/api/validacion/pallets?${params}`);
     state.history = response.data || [];
@@ -80,7 +81,8 @@ async function loadAdministration(seasonId = null) {
 }
 
 async function loadAll(seasonId = null) {
-    await Promise.all([loadHistory(), loadAdministration(seasonId)]);
+    await loadAdministration(seasonId);
+    await loadHistory(state.season?.id || seasonId);
 }
 
 function renderMetrics() {
@@ -154,8 +156,8 @@ async function confirmImport(id) {
 elements.login.addEventListener('submit', async (event) => { event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…'); try { const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.login))) }); if (payload.usuario.puede_consultar_validaciones_pallet !== true) throw new ApiError('Tu perfil no puede consultar validaciones.', 403); persist(payload); showApp(); await loadAll(); } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); } });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
 elements.reload.addEventListener('click', () => { setBusy(true, 'Actualizando validación…'); void loadAll(state.season?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
-elements.filters.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Consultando historial…'); void loadHistory().catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
-elements.seasonSelector.addEventListener('change', () => { setBusy(true, 'Cambiando temporada…'); void loadAdministration(elements.seasonSelector.value || null).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.filters.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Consultando historial…'); void loadHistory(state.season?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.seasonSelector.addEventListener('change', () => { setBusy(true, 'Cambiando temporada…'); void loadAll(elements.seasonSelector.value || null).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 
 elements.articleForm.addEventListener('submit', (event) => { event.preventDefault(); void saveJson(elements.articleForm, elements.articleError, '/api/administracion/validacion/articulos', 'artículo'); });
 elements.originForm.addEventListener('submit', (event) => { event.preventDefault(); void saveJson(elements.originForm, elements.originError, '/api/administracion/validacion/origenes', 'origen'); });

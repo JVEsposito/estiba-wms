@@ -25,6 +25,24 @@ class ServicioNotificacionesOperacionales
             ->all();
 
         return NotificacionOperacional::query()
+            ->where(function (Builder $consulta): void {
+                $consulta
+                    ->whereHas('carga.temporada', fn (Builder $temporada): Builder => $temporada
+                        ->where('activa', true))
+                    ->orWhereHas('despachoMaterial.temporada', fn (Builder $temporada): Builder => $temporada
+                        ->where('activa', true))
+                    ->orWhereHas('folio.temporada', fn (Builder $temporada): Builder => $temporada
+                        ->where('activa', true))
+                    ->orWhereHas('incidencia.asignacion.carga.temporada', fn (Builder $temporada): Builder => $temporada
+                        ->where('activa', true))
+                    ->orWhere(function (Builder $sinProceso): void {
+                        $sinProceso
+                            ->whereNull('carga_id')
+                            ->whereNull('despacho_material_id')
+                            ->whereNull('folio_id')
+                            ->whereNull('incidencia_carga_folio_id');
+                    });
+            })
             ->where(function (Builder $consulta) use ($usuario, $areas): void {
                 $consulta
                     ->where(function (Builder $porUsuario) use ($usuario): void {

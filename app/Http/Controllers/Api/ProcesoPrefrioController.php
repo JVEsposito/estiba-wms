@@ -38,16 +38,21 @@ class ProcesoPrefrioController extends Controller
 
         return response()->json([
             'en_proceso' => ProcesoPrefrio::query()
+                ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
                 ->where('estado', EstadoProcesoPrefrio::EnProceso)
                 ->count(),
             'pendiente_verificacion' => ProcesoPrefrio::query()
+                ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
                 ->where('estado', EstadoProcesoPrefrio::PendienteVerificacion)
                 ->count(),
             'requiere_reproceso' => ProcesoPrefrio::query()
+                ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
                 ->where('estado', EstadoProcesoPrefrio::RequiereReproceso)
                 ->count(),
             'folios_activos' => ProcesoPrefrioFolio::query()
-                ->whereHas('proceso', fn ($consulta) => $consulta->whereIn('estado', $estadosActivos))
+                ->whereHas('proceso', fn ($consulta) => $consulta
+                    ->whereHas('temporada', fn ($temporada) => $temporada->where('activa', true))
+                    ->whereIn('estado', $estadosActivos))
                 ->whereNotIn('estado', [
                     EstadoFolioProcesoPrefrio::Retirado->value,
                     EstadoFolioProcesoPrefrio::Cancelado->value,
@@ -64,6 +69,7 @@ class ProcesoPrefrioController extends Controller
             ->map->value
             ->all();
         $procesos = ProcesoPrefrio::query()
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->when($datos['solo_activos'] ?? false, fn ($consulta) => $consulta
                 ->whereIn('estado', $estadosActivos))
             ->when($datos['tunel_prefrio_id'] ?? null, fn ($consulta, string $id) => $consulta

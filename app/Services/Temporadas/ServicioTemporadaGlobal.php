@@ -40,7 +40,7 @@ class ServicioTemporadaGlobal
             if ($temporada->activa) {
                 $this->activarDentroDeTransaccion($temporada, $usuarioId);
             } else {
-                $this->reflejarEnMateriales($temporada, $usuarioId);
+                $this->asegurarConfiguracionMaterial($temporada, $usuarioId);
             }
 
             return $temporada->refresh();
@@ -61,10 +61,13 @@ class ServicioTemporadaGlobal
         Temporada::query()->whereKeyNot($temporada->id)->update(['activa' => false]);
         $temporada->update(['activa' => true]);
         DB::table('temporadas_materiales')->update(['activa' => false]);
-        $this->reflejarEnMateriales($temporada, $usuarioId);
+        $this->asegurarConfiguracionMaterial($temporada, $usuarioId);
     }
 
-    private function reflejarEnMateriales(Temporada $temporada, ?int $usuarioId): void
+    public function asegurarConfiguracionMaterial(
+        Temporada $temporada,
+        ?int $usuarioId = null,
+    ): TemporadaMaterial
     {
         $configuracion = TemporadaMaterial::query()->firstOrNew([
             'temporada_id' => $temporada->id,
@@ -79,5 +82,7 @@ class ServicioTemporadaGlobal
             'actualizado_por_user_id' => $usuarioId,
         ]);
         $configuracion->save();
+
+        return $configuracion;
     }
 }

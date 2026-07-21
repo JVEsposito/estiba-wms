@@ -45,6 +45,8 @@ class DespachoFrigorificoController extends Controller
         ]);
 
         $incidencias = IncidenciaCargaFolio::query()
+            ->whereHas('asignacion.carga.temporada', fn (Builder $consulta): Builder => $consulta
+                ->where('activa', true))
             ->when(
                 isset($filtros['estado']),
                 fn (Builder $consulta): Builder => $consulta

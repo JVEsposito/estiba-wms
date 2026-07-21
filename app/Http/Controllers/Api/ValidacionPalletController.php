@@ -21,6 +21,15 @@ class ValidacionPalletController extends Controller
         $consulta = ValidacionPallet::query()
             ->with($this->relaciones())
             ->when(
+                $filtros['temporada_id'] ?? null,
+                fn ($consulta, string $temporadaId) => $consulta
+                    ->where('temporada_id', $temporadaId),
+                fn ($consulta) => $consulta->whereHas(
+                    'temporada',
+                    fn ($temporada) => $temporada->where('activa', true),
+                ),
+            )
+            ->when(
                 $filtros['folio'] ?? null,
                 fn ($consulta, string $folio) => $consulta->where('numero_folio', $folio),
             )
@@ -75,6 +84,7 @@ class ValidacionPalletController extends Controller
     private function relaciones(): array
     {
         return [
+            'temporada:id,codigo,nombre,activa',
             'folio:id,numero_folio,estado_operacional',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',

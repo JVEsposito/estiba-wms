@@ -13,6 +13,7 @@ use App\Models\Folio;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -302,6 +303,17 @@ class MovimientoApiTest extends TestCase
 
         $this->withToken($token)
             ->getJson("/api/movimientos/recientes?camara_id={$otraCamara->id}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'MOV-NUEVA',
+            'nombre' => 'Temporada de movimientos nueva',
+            'activa' => true,
+        ]);
+
+        $this->withToken($token)
+            ->getJson("/api/movimientos/recientes?camara_id={$camaraDestino->id}&limite=10")
             ->assertOk()
             ->assertJsonCount(0, 'data');
     }

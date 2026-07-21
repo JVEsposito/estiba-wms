@@ -246,6 +246,65 @@ class AdministracionAccesoApiTest extends TestCase
         $this->assertTrue(Temporada::query()->findOrFail($destino['id'])->activa);
     }
 
+    public function test_migracion_repara_configuraciones_de_materiales_ausentes_sin_bloquear_validacion(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $origen = Temporada::create([
+            'codigo' => 'LEGACY-ORIGEN',
+            'nombre' => 'Temporada heredada de origen',
+            'activa' => false,
+        ]);
+        $destino = Temporada::create([
+            'codigo' => 'LEGACY-DESTINO',
+            'nombre' => 'Temporada heredada de destino',
+            'activa' => false,
+        ]);
+        CategoriaValidacion::create([
+            'temporada_id' => $origen->id,
+            'nombre' => 'Catálogo heredado',
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/administracion/temporadas/{$destino->id}/migrar", [
+                'temporada_origen_id' => $origen->id,
+                'copiar_catalogo_validacion' => true,
+                'copiar_catalogo_materiales' => false,
+                'migrar_inventario_materiales' => false,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.resumen.validacion.categorias', 1);
+
+        $this->assertDatabaseMissing('temporadas_materiales', [
+            'temporada_id' => $origen->id,
+        ]);
+        $this->assertDatabaseMissing('temporadas_materiales', [
+            'temporada_id' => $destino->id,
+        ]);
+
+        $this->postJson("/api/administracion/temporadas/{$destino->id}/migrar", [
+            'temporada_origen_id' => $origen->id,
+            'copiar_catalogo_validacion' => false,
+            'copiar_catalogo_materiales' => true,
+            'migrar_inventario_materiales' => false,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.resumen.materiales.clientes', 0)
+            ->assertJsonPath('data.resumen.materiales.items', 0);
+
+        $this->assertDatabaseHas('temporadas_materiales', [
+            'temporada_id' => $origen->id,
+            'codigo' => 'LEGACY-ORIGEN',
+        ]);
+        $this->assertDatabaseHas('temporadas_materiales', [
+            'temporada_id' => $destino->id,
+            'codigo' => 'LEGACY-DESTINO',
+        ]);
+    }
+
     public function test_valida_duplicados_formato_y_contrasena(): void
     {
         $administrador = User::factory()->create([
