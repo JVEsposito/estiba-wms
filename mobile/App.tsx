@@ -9,12 +9,13 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
 import { PrefrioScreen } from './src/screens/PrefrioScreen';
 import { ValidationScreen } from './src/screens/ValidationScreen';
+import { ValidationMpScreen } from './src/screens/ValidationMpScreen';
 import { loadApiBaseUrl, saveApiBaseUrl } from './src/services/apiConfiguration';
 import { applyAvailableUpdate } from './src/services/appUpdates';
 import { createEstibaApi } from './src/services/estibaApi';
 import { colors } from './src/theme/colors';
 
-type MobileModule = 'operacion' | 'validacion' | 'prefrio';
+type MobileModule = 'operacion' | 'validacion' | 'validacion_mp' | 'prefrio';
 
 export default function App() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const orientation = activeModule === 'validacion'
+    const orientation = activeModule === 'validacion' || activeModule === 'validacion_mp'
       ? ScreenOrientation.OrientationLock.PORTRAIT_UP
       : activeModule
         ? ScreenOrientation.OrientationLock.LANDSCAPE
@@ -112,6 +113,8 @@ export default function App() {
                 baseUrl={api.baseUrl}
                 onLogout={() => void logoutPersistentModule()}
               />
+            ) : activeModule === 'validacion_mp' ? (
+              <ValidationMpScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
             ) : (
               <OperationalScreen api={api} auth={auth} onLogout={clearSession} />
             )}
@@ -140,6 +143,7 @@ function availableModules(auth: AuthSession): MobileModule[] {
 
   if (canOperate) modules.push('operacion');
   if (capabilities.puede_validar_pallets) modules.push('validacion');
+  if (capabilities.puede_validar_mp) modules.push('validacion_mp');
   if (capabilities.puede_consultar_prefrio) modules.push('prefrio');
 
   return modules;
@@ -153,6 +157,8 @@ function defaultModule(auth: AuthSession): MobileModule | null {
 function moduleLabel(module: MobileModule) {
   return module === 'validacion'
     ? 'Validación'
+    : module === 'validacion_mp'
+      ? 'Validación MP'
     : module === 'prefrio'
       ? 'Prefrío'
       : 'Operación frigorífico';
@@ -170,6 +176,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorIcon}>✓</Text>
             <Text style={styles.selectorCardTitle}>Validación</Text>
             <Text style={styles.selectorCardCopy}>Escanear pallets, aprobar, observar y sincronizar capturas.</Text>
+          </Pressable>
+        ) : null}
+        {modules.includes('validacion_mp') ? (
+          <Pressable onPress={() => onSelect('validacion_mp')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>⌁</Text>
+            <Text style={styles.selectorCardTitle}>Validación MP</Text>
+            <Text style={styles.selectorCardCopy}>Recibir correlativos de Romana, contar envases y preparar segregaciones.</Text>
           </Pressable>
         ) : null}
         {modules.includes('prefrio') ? (

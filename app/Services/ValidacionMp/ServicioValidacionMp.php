@@ -1,0 +1,282 @@
+<?php
+
+namespace App\Services\ValidacionMp;
+
+use App\Enums\ConceptoEnvasesRomana;
+use App\Enums\EstadoRevisionMovimientoEnvase;
+use App\Enums\EstadoValidacionMp;
+use App\Enums\MotivoSegregacionMp;
+use App\Enums\PropiedadEnvase;
+use App\Enums\TipoMovimientoEnvase;
+use App\Enums\TipoRecepcionRomana;
+use App\Exceptions\ConflictoOperacion;
+use App\Models\CsgValidacion;
+use App\Models\MovimientoEnvase;
+use App\Models\RecepcionRomana;
+use App\Models\SegmentoEnvaseValidacionMp;
+use App\Models\SegmentoValidacionMp;
+use App\Models\User;
+use App\Models\ValidacionMp;
+use App\Models\VariedadValidacion;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+class ServicioValidacionMp
+{
+    public function tomar(
+        RecepcionRomana $recepcion,
+        string $operacionId,
+        User $usuario,
+        ?string $dispositivoId,
+    ): ValidacionMp {
+        return DB::transaction(function () use ($recepcion, $operacionId, $usuario, $dispositivoId): ValidacionMp {
+            $recepcion = RecepcionRomana::query()->lockForUpdate()->findOrFail($recepcion->id);
+            $porOperacion = ValidacionMp::query()->where('operacion_toma_id', $operacionId)->first();
+            if ($porOperacion && $porOperacion->recepcion_romana_id !== $recepcion->id) {
+                throw new ConflictoOperacion('El identificador de operación ya fue utilizado en otra recepción.');
+            }
+
+            $existente = ValidacionMp::query()->where('recepcion_romana_id', $recepcion->id)->first();
+            if ($existente) {
+                if ($existente->validador_user_id !== $usuario->id) {
+                    throw new ConflictoOperacion('La recepción ya fue tomada por otro validador MP.');
+                }
+
+                return $this->cargar($existente);
+            }
+            if ($recepcion->estado_validacion_mp !== EstadoValidacionMp::Pendiente) {
+                throw new ConflictoOperacion('La recepción no está disponible para Validación MP.');
+            }
+
+            $ahora = now();
+            $validacion = ValidacionMp::create([
+                'recepcion_romana_id' => $recepcion->id,
+                'temporada_id' => $recepcion->temporada_id,
+                'operacion_toma_id' => $operacionId,
+                'estado' => EstadoValidacionMp::EnCurso,
+                'validador_user_id' => $usuario->id,
+                'dispositivo_id' => $dispositivoId,
+                'tomada_at' => $ahora,
+            ]);
+            $recepcion->update([
+                'estado_validacion_mp' => EstadoValidacionMp::EnCurso,
+                'validacion_tomada_por_user_id' => $usuario->id,
+                'validacion_tomada_at' => $ahora,
+            ]);
+
+            return $this->cargar($validacion);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function confirmar(ValidacionMp $validacion, array $datos, User $usuario): ValidacionMp
+    {
+        return DB::transaction(function () use ($validacion, $datos, $usuario): ValidacionMp {
+            $validacion = ValidacionMp::query()->lockForUpdate()->findOrFail($validacion->id);
+            $recepcion = RecepcionRomana::query()->with('detallesEnvases')->lockForUpdate()->findOrFail($validacion->recepcion_romana_id);
+            if ($validacion->validador_user_id !== $usuario->id) {
+                throw new ConflictoOperacion('Solo el validador que tomó la recepción puede confirmarla.');
+            }
+            if ($validacion->estado === EstadoValidacionMp::Validada) {
+                if ($validacion->operacion_confirmacion_id === $datos['operacion_id']) {
+                    return $this->cargar($validacion);
+                }
+                throw new ConflictoOperacion('La recepción ya fue validada y sus cantidades son inmutables.');
+            }
+
+            $cantidades = collect($datos['envases'])->keyBy('tipo_envase');
+            $tiposDeclarados = $recepcion->detallesEnvases
+                ->map(fn ($detalle): string => $detalle->tipo_envase->value)
+                ->sort()
+                ->values();
+            $tiposRecibidos = $cantidades->keys()->sort()->values();
+            if ($tiposDeclarados->all() !== $tiposRecibidos->all()) {
+                throw ValidationException::withMessages([
+                    'envases' => 'Debes validar exactamente los tipos de envase declarados en Romana.',
+                ]);
+            }
+
+            $esFruta = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaConEnvases;
+            if ($esFruta && ($datos['tarjas_verificadas'] ?? false) !== true) {
+                throw ValidationException::withMessages(['tarjas_verificadas' => 'Confirma el chequeo visual de las tarjas de campo.']);
+            }
+            $requiereSegregacion = $esFruta && (bool) ($datos['requiere_segregacion'] ?? false);
+            $segmentos = $esFruta
+                ? $this->prepararSegmentos($validacion, $recepcion, $datos, $cantidades, $requiereSegregacion)
+                : [];
+
+            $ahora = now();
+            foreach ($recepcion->detallesEnvases as $detalle) {
+                $cantidadValidada = (int) $cantidades->get($detalle->tipo_envase->value)['cantidad_validada'];
+                $detalle->update(['cantidad_validada' => $cantidadValidada]);
+                $this->crearMovimiento($recepcion, $detalle->tipo_envase->value, $detalle->cantidad_declarada, $cantidadValidada, $usuario, $ahora);
+            }
+            foreach ($segmentos as $segmento) {
+                $this->guardarSegmento($validacion, $recepcion, $segmento);
+            }
+
+            $validacion->update([
+                'operacion_confirmacion_id' => $datos['operacion_id'],
+                'estado' => EstadoValidacionMp::Validada,
+                'tarjas_verificadas' => $esFruta ? true : null,
+                'requiere_segregacion' => $requiereSegregacion,
+                'validada_at' => $ahora,
+                'observacion' => $datos['observacion'] ?? null,
+            ]);
+            $recepcion->update([
+                'estado_validacion_mp' => EstadoValidacionMp::Validada,
+                'validado_at' => $ahora,
+            ]);
+
+            return $this->cargar($validacion);
+        }, attempts: 3);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function prepararSegmentos(
+        ValidacionMp $validacion,
+        RecepcionRomana $recepcion,
+        array $datos,
+        $cantidades,
+        bool $requiereSegregacion,
+    ): array {
+        if (! $requiereSegregacion) {
+            return [[
+                'motivos' => [],
+                'envases' => $cantidades->map(fn (array $envase, string $tipo): array => [
+                    'tipo_envase' => $tipo,
+                    'cantidad' => (int) $envase['cantidad_validada'],
+                ])->values()->all(),
+            ]];
+        }
+
+        $segmentos = $datos['segmentos'] ?? [];
+        if (count($segmentos) < 2) {
+            throw ValidationException::withMessages(['segmentos' => 'Una segregación debe crear al menos dos segmentos futuros.']);
+        }
+        $sumas = [];
+        foreach ($segmentos as $indice => $segmento) {
+            $motivos = collect($segmento['motivos'] ?? [])->unique()->values();
+            if ($motivos->isEmpty()) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.motivos" => 'Selecciona al menos un motivo de segregación.']);
+            }
+            foreach ($motivos as $motivo) {
+                if (! in_array($motivo, array_column(MotivoSegregacionMp::cases(), 'value'), true)) {
+                    throw ValidationException::withMessages(["segmentos.{$indice}.motivos" => 'El motivo de segregación no es válido.']);
+                }
+            }
+            if ($motivos->contains(MotivoSegregacionMp::Csg->value) && empty($segmento['csg_validacion_id'])) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.csg_validacion_id" => 'Selecciona el CSG que identifica el segmento.']);
+            }
+            if ($motivos->contains(MotivoSegregacionMp::Cuartel->value) && blank($segmento['cuartel'] ?? null)) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.cuartel" => 'Ingresa el cuartel que identifica el segmento.']);
+            }
+            if ($motivos->contains(MotivoSegregacionMp::Variedad->value) && empty($segmento['variedad_validacion_id'])) {
+                throw ValidationException::withMessages(["segmentos.{$indice}.variedad_validacion_id" => 'Selecciona la variedad que identifica el segmento.']);
+            }
+            foreach ($segmento['envases'] ?? [] as $envase) {
+                $sumas[$envase['tipo_envase']] = ($sumas[$envase['tipo_envase']] ?? 0) + (int) $envase['cantidad'];
+            }
+        }
+        foreach ($cantidades as $tipo => $cantidad) {
+            if (($sumas[$tipo] ?? 0) !== (int) $cantidad['cantidad_validada']) {
+                throw ValidationException::withMessages(['segmentos' => "La distribución de {$tipo} entre segmentos no coincide con lo validado."]);
+            }
+        }
+
+        return $segmentos;
+    }
+
+    /** @param array<string, mixed> $segmento */
+    private function guardarSegmento(ValidacionMp $validacion, RecepcionRomana $recepcion, array $segmento): void
+    {
+        $secuencia = $validacion->segmentos()->count() + 1;
+        $csg = ! empty($segmento['csg_validacion_id'])
+            ? CsgValidacion::query()->whereKey($segmento['csg_validacion_id'])->where('temporada_id', $recepcion->temporada_id)->first()
+            : null;
+        if (! empty($segmento['csg_validacion_id']) && ! $csg) {
+            throw ValidationException::withMessages(['segmentos' => 'El CSG no pertenece a la temporada heredada de Romana.']);
+        }
+        $variedad = ! empty($segmento['variedad_validacion_id'])
+            ? VariedadValidacion::query()->whereKey($segmento['variedad_validacion_id'])
+                ->whereHas('especie', fn ($especie) => $especie->where('temporada_id', $recepcion->temporada_id))->first()
+            : null;
+        if (! empty($segmento['variedad_validacion_id']) && ! $variedad) {
+            throw ValidationException::withMessages(['segmentos' => 'La variedad no pertenece a la temporada heredada de Romana.']);
+        }
+
+        $creado = SegmentoValidacionMp::create([
+            'validacion_mp_id' => $validacion->id,
+            'secuencia' => $secuencia,
+            'motivos' => $segmento['motivos'] ?? [],
+            'csg_validacion_id' => $csg?->id,
+            'csg_snapshot' => $csg?->codigo,
+            'cuartel' => filled($segmento['cuartel'] ?? null) ? trim($segmento['cuartel']) : null,
+            'variedad_validacion_id' => $variedad?->id,
+            'variedad_snapshot' => $variedad?->nombre,
+            'estado' => 'pendiente_lote',
+            'observacion' => $segmento['observacion'] ?? null,
+        ]);
+        foreach ($segmento['envases'] as $envase) {
+            if ((int) $envase['cantidad'] === 0) {
+                continue;
+            }
+            SegmentoEnvaseValidacionMp::create([
+                'segmento_validacion_mp_id' => $creado->id,
+                'tipo_envase' => $envase['tipo_envase'],
+                'cantidad' => $envase['cantidad'],
+            ]);
+        }
+    }
+
+    private function crearMovimiento(
+        RecepcionRomana $recepcion,
+        string $tipoEnvase,
+        int $declarada,
+        int $validada,
+        User $usuario,
+        mixed $validadoAt,
+    ): void {
+        [$tipo, $signoCuenta, $propiedad] = match ($recepcion->tipo_recepcion) {
+            TipoRecepcionRomana::FrutaConEnvases => [TipoMovimientoEnvase::RecepcionFruta, 1, PropiedadEnvase::Cliente],
+            TipoRecepcionRomana::SoloEnvases => $recepcion->concepto_envases === ConceptoEnvasesRomana::Arriendo
+                ? [TipoMovimientoEnvase::RecepcionArriendo, 1, PropiedadEnvase::Arrendada]
+                : [TipoMovimientoEnvase::RecepcionCompra, 0, PropiedadEnvase::Propia],
+        };
+        MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $recepcion->temporada_id,
+            'cliente_id' => $recepcion->cliente_id,
+            'recepcion_romana_id' => $recepcion->id,
+            'documento_tipo' => 'recepcion_romana',
+            'documento_id' => $recepcion->id,
+            'numero_documento' => $recepcion->numero_guia_despacho,
+            'tipo_movimiento' => $tipo,
+            'tipo_envase' => $tipoEnvase,
+            'cantidad' => $validada,
+            'signo_cuenta' => $signoCuenta,
+            'signo_existencia' => 1,
+            'propiedad' => $propiedad,
+            'ocurrido_at' => $recepcion->ingreso_at,
+            'ingreso_at' => $recepcion->ingreso_at,
+            'estado_revision' => EstadoRevisionMovimientoEnvase::Pendiente,
+            'creado_por_user_id' => $usuario->id,
+            'datos' => [
+                'numero_recepcion' => $recepcion->numero_recepcion,
+                'cantidad_declarada' => $declarada,
+                'cantidad_validada' => $validada,
+                'diferencia' => $validada - $declarada,
+                'validado_at' => $validadoAt->toAtomString(),
+            ],
+        ]);
+    }
+
+    private function cargar(ValidacionMp $validacion): ValidacionMp
+    {
+        return $validacion->refresh()->load([
+            'recepcion.detallesEnvases', 'temporada', 'validador', 'dispositivo',
+            'segmentos.envases', 'segmentos.csg', 'segmentos.variedad',
+        ]);
+    }
+}
