@@ -95,6 +95,29 @@ Si todavía no es posible habilitar ZIP, la misma importación puede ejecutarse
 temporalmente mediante CSV. Es importante comprobar el PHP del servidor web y no
 solamente otro PHP instalado en el equipo.
 
+## Diagnóstico local con Telescope
+
+Telescope está instalado como dependencia de desarrollo y solo se registra cuando
+`APP_ENV=local`. Después de ejecutar `composer install` y `php artisan migrate`, el
+panel queda disponible en:
+
+```text
+http://127.0.0.1:8000/telescope
+```
+
+El panel solo acepta conexiones de loopback (`127.0.0.1` o `::1`), por lo que la
+API puede seguir expuesta a tablets mediante `--host=0.0.0.0` sin compartir los
+diagnósticos con otros equipos de la red. Contraseñas, tokens y cabeceras de sesión
+se ocultan antes de almacenar las entradas. Para apagar la captura temporalmente:
+
+```dotenv
+TELESCOPE_ENABLED=false
+```
+
+La limpieza de entradas con más de 48 horas está programada diariamente. Requiere
+que el scheduler de Laravel esté en ejecución; también puede lanzarse manualmente
+con `php artisan telescope:prune --hours=48`.
+
 ## Puesta en marcha local
 
 ```bash
