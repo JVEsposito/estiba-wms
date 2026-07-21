@@ -9,6 +9,7 @@ use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,20 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Folio extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Folio $folio): void {
+            if ($folio->temporada_id !== null) {
+                return;
+            }
+
+            $folio->temporada_id = Temporada::query()->where('activa', true)->value('id')
+                ?? throw new DomainException(
+                    'No existe una temporada global activa. Un administrador debe activarla desde Accesos.',
+                );
+        });
+    }
 
     public function temporada(): BelongsTo
     {

@@ -9,12 +9,9 @@ use App\Models\ImportacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use App\Services\Validacion\ServicioCatalogoValidacion;
-use App\Services\Validacion\ServicioCopiaCatalogoValidacion;
 use App\Services\Validacion\ServicioImportacionValidacion;
-use App\Services\Validacion\ServicioProyeccionCatalogoValidacion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -32,46 +29,6 @@ class AdministracionValidacionController extends Controller
             : null;
 
         return response()->json($servicio->datosAdministracion($temporada));
-    }
-
-    public function storeTemporada(
-        Request $request,
-        ServicioCatalogoValidacion $servicio,
-        ServicioCopiaCatalogoValidacion $copiador,
-        ServicioProyeccionCatalogoValidacion $proyector,
-    ): JsonResponse {
-        $datos = $this->datosTemporada($request);
-        $origenId = $datos['copiar_desde_temporada_id'] ?? null;
-        unset($datos['copiar_desde_temporada_id']);
-
-        $temporada = DB::transaction(function () use ($servicio, $copiador, $proyector, $datos, $origenId): Temporada {
-            $temporada = $servicio->guardarTemporada($datos);
-            if ($origenId) {
-                $copiador->copiar(Temporada::query()->findOrFail($origenId), $temporada);
-                $proyector->reconstruir($temporada);
-            }
-
-            return $temporada->refresh();
-        });
-
-        return response()->json(['data' => $temporada], Response::HTTP_CREATED);
-    }
-
-    public function updateTemporada(
-        Request $request,
-        Temporada $temporada,
-        ServicioCatalogoValidacion $servicio,
-    ): JsonResponse {
-        $temporada = $servicio->guardarTemporada($this->datosTemporada($request), $temporada);
-
-        return response()->json(['data' => $temporada]);
-    }
-
-    public function activarTemporada(
-        Temporada $temporada,
-        ServicioCatalogoValidacion $servicio,
-    ): JsonResponse {
-        return response()->json(['data' => $servicio->activarTemporada($temporada)]);
     }
 
     public function storeArticulo(
@@ -164,21 +121,6 @@ class AdministracionValidacionController extends Controller
     ): JsonResponse {
         return response()->json([
             'data' => $servicio->confirmar($importacionValidacion, $request->user()),
-        ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function datosTemporada(Request $request): array
-    {
-        return $request->validate([
-            'codigo' => ['required', 'string', 'max:30'],
-            'nombre' => ['required', 'string', 'max:100'],
-            'fecha_inicio' => ['nullable', 'date'],
-            'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
-            'activa' => ['sometimes', 'boolean'],
-            'copiar_desde_temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
         ]);
     }
 

@@ -14,7 +14,6 @@ const state = {
 const elements = {
     user: byId('catalogUserName'), initials: byId('catalogInitials'), logout: byId('catalogLogout'),
     selector: byId('catalogSeasonSelector'), reload: byId('catalogReload'),
-    seasonForm: byId('catalogSeasonForm'), seasonError: byId('catalogSeasonError'),
     loading: byId('catalogLoading'), loadingText: byId('catalogLoadingText'), toasts: byId('catalogToasts'),
 };
 
@@ -110,9 +109,6 @@ function render() {
 
     elements.selector.innerHTML = state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}${season.activa ? ' (activa)' : ''}`)).join('') || '<option value="">Sin temporadas</option>';
     elements.selector.value = state.season?.id || '';
-
-    const copySelect = elements.seasonForm.elements.copiar_desde_temporada_id;
-    copySelect.innerHTML = '<option value="">Comenzar vacía</option>' + state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}`)).join('');
 
     const clientOptions = '<option value="">Selecciona un cliente</option>' + state.clients.map((item) => option(item.id, item.nombre)).join('');
     byId('brandForm').elements.cliente_validacion_id.innerHTML = clientOptions;
@@ -224,25 +220,6 @@ document.addEventListener('click', (event) => {
     if (editTarget) edit(editTarget.dataset.editType, editTarget.dataset.editId);
     const resetTarget = event.target.closest('[data-reset-form]');
     if (resetTarget) resetForm(byId(resetTarget.dataset.resetForm));
-});
-
-elements.seasonForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    elements.seasonError.textContent = '';
-    const data = Object.fromEntries(new FormData(elements.seasonForm));
-    data.activa = elements.seasonForm.elements.activa.checked;
-    if (!data.copiar_desde_temporada_id) delete data.copiar_desde_temporada_id;
-    setBusy(true, 'Creando temporada…');
-    try {
-        const response = await api('/api/administracion/validacion/temporadas', { method: 'POST', body: JSON.stringify(data) });
-        elements.seasonForm.reset();
-        await load(response.data.id);
-        toast(data.copiar_desde_temporada_id ? 'Temporada creada con el catálogo copiado.' : 'Temporada vacía creada.');
-    } catch (error) {
-        elements.seasonError.textContent = error.message;
-    } finally {
-        setBusy(false);
-    }
 });
 
 elements.selector.addEventListener('change', () => void load(elements.selector.value));

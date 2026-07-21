@@ -6,7 +6,6 @@ use App\Models\ArticuloValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
-use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -14,8 +13,6 @@ use Illuminate\Support\Str;
 
 class ServicioCatalogoValidacion
 {
-    public function __construct(private readonly ServicioTemporadaGlobal $temporadas) {}
-
     /**
      * @return array<string, mixed>
      */
@@ -76,19 +73,6 @@ class ServicioCatalogoValidacion
                 ->limit(10)
                 ->get(),
         ];
-    }
-
-    /**
-     * @param  array<string, mixed>  $datos
-     */
-    public function guardarTemporada(array $datos, ?Temporada $temporada = null): Temporada
-    {
-        return $this->temporadas->guardar($datos, $temporada);
-    }
-
-    public function activarTemporada(Temporada $temporada): Temporada
-    {
-        return $this->temporadas->activar($temporada);
     }
 
     /**

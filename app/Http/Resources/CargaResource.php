@@ -26,6 +26,12 @@ class CargaResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'temporada' => $this->whenLoaded('temporada', fn () => $this->temporada ? [
+                'id' => $this->temporada->id,
+                'codigo' => $this->temporada->codigo,
+                'nombre' => $this->temporada->nombre,
+                'activa' => $this->temporada->activa,
+            ] : null),
             'codigo' => $this->codigo,
             'numero_orden_externa' => $this->numero_orden_externa,
             'estado' => $this->estado->value,

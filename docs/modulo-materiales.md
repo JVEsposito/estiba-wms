@@ -31,6 +31,20 @@ Los registros se activan o desactivan; no se eliminan físicamente. Los campos
 de integración permiten que una futura sincronización con ERP mantenga la
 identidad interna del registro.
 
+### Cambio de temporada e inventario
+
+Solo el administrador ejecuta la migración desde `/oficina/accesos`. Puede
+copiar clientes e ítems hacia una temporada vacía sin copiar cantidades. Si
+además selecciona inventario, el destino se activa globalmente en la misma
+transacción y cada folio con saldo positivo se vincula al ítem equivalente de
+la nueva temporada. El número de folio, la posición, el saldo y el kardex
+histórico se conservan.
+
+La migración de inventario se rechaza si existen despachos pendientes o
+parciales, reservas abiertas o ítems sin equivalencia en el destino. Cada
+ejecución y cada folio trasladado quedan registrados en la auditoría de
+migraciones de temporada.
+
 ### Importación masiva del catálogo
 
 El administrador puede cargar ítems desde `/oficina/materiales` usando una
@@ -59,7 +73,8 @@ supervisor de materiales o despachador. Un supervisor de materiales también
 puede crearlo desde una tablet. El camarero de materiales ejecuta retiros sobre
 órdenes existentes, pero no crea ni cancela despachos. Cada línea solicita una
 cantidad de un ítem. El sistema reserva folios por fecha de ingreso y número de
-folio, y devuelve esas reservas como sugerencia FIFO.
+folio, y devuelve esas reservas como sugerencia FIFO. El despacho queda ligado
+a la temporada global activa y no admite ítems de otro ciclo.
 
 FIFO no bloquea la operación: el camarero puede retirar desde otro folio. La
 decisión queda registrada en `retiros_materiales.siguio_fifo`.

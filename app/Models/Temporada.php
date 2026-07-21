@@ -36,6 +36,11 @@ class Temporada extends Model
         return $this->hasMany(Folio::class);
     }
 
+    public function migracionesRecibidas(): HasMany
+    {
+        return $this->hasMany(MigracionTemporada::class, 'temporada_destino_id');
+    }
+
     public function clientes(): HasMany
     {
         return $this->hasMany(ClienteValidacion::class);

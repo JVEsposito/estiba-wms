@@ -25,7 +25,7 @@ class AdministracionValidacionApiTest extends TestCase
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
 
         $temporadaId = $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/validacion/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => ' 2026-2027 ',
                 'nombre' => ' Temporada cerezas ',
                 'activa' => true,
@@ -97,7 +97,7 @@ class AdministracionValidacionApiTest extends TestCase
         ]);
 
         $nuevaId = $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/validacion/temporadas', [
+            ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada nueva',
                 'activa' => true,

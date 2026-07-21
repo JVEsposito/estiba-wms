@@ -16,7 +16,7 @@
                 <div class="office-logo" aria-hidden="true">✓</div>
                 <p class="eyebrow">ESTIBA WMS · VALIDACIÓN</p>
                 <h1 id="officeAccessTitle">El punto de nacimiento trazable de cada pallet.</h1>
-                <p>Administra la temporada, carga los catálogos y revisa aprobaciones, observaciones y conflictos enviados desde terreno.</p>
+                <p>Consulta la temporada transversal, carga sus catálogos y revisa aprobaciones, observaciones y conflictos enviados desde terreno.</p>
                 <div class="feature-row"><span>Catálogo por temporada</span><span>Importación auditable</span><span>Intentos inmutables</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
@@ -78,19 +78,9 @@
                 <div class="validation-admin is-hidden" id="validationAdmin">
                     <div class="validation-admin-grid">
                         <section class="panel validation-panel">
-                            <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA</p><h2>Configuración activa</h2></div><span id="seasonStatus">Sin temporada</span></div>
-                            <form class="validation-form" id="seasonForm" novalidate>
-                                <input name="id" type="hidden">
-                                <div class="validation-form__grid">
-                                    <label><span>Código *</span><input name="codigo" maxlength="30" placeholder="2026-2027" required></label>
-                                    <label><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada cerezas 2026–2027" required></label>
-                                    <label><span>Inicio</span><input name="fecha_inicio" type="date"></label>
-                                    <label><span>Término</span><input name="fecha_fin" type="date"></label>
-                                    <label class="validation-check"><input name="activa" type="checkbox" value="1"><span>Dejar como temporada activa</span></label>
-                                </div>
-                                <p class="form-error" id="seasonError" role="alert"></p>
-                                <div class="validation-actions"><button class="secondary-button is-hidden" id="cancelSeasonEdit" type="button">Nueva temporada</button><button class="primary-button" type="submit">Guardar temporada</button></div>
-                            </form>
+                            <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Configuración de solo lectura</h2></div><span id="seasonStatus">Sin temporada</span></div>
+                            <p class="validation-help">La temporada se crea, edita y activa exclusivamente desde la oficina Accesos. Aquí se selecciona para administrar su catálogo de Validación.</p>
+                            <div class="validation-actions"><a class="secondary-button is-hidden" id="seasonAccessLink" href="/oficina/accesos">Administrar en Accesos</a></div>
                             <div class="validation-list" id="seasonList"></div>
                         </section>
 

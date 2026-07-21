@@ -12,7 +12,10 @@ const elements = {
     reload: byId('reloadAccessesButton'),
     activeUsers: byId('activeUsersCount'),
     activeDevices: byId('activeDevicesCount'),
+    activeSeason: byId('activeSeasonCode'),
     lastDeviceAccess: byId('lastDeviceAccess'),
+    seasonsSummary: byId('seasonsSummary'),
+    seasonsTableBody: byId('seasonsTableBody'),
     usersSummary: byId('usersSummary'),
     devicesSummary: byId('devicesSummary'),
     usersTableBody: byId('usersTableBody'),
@@ -21,6 +24,13 @@ const elements = {
     userError: byId('createUserError'),
     deviceForm: byId('createDeviceForm'),
     deviceError: byId('createDeviceError'),
+    seasonForm: byId('seasonForm'),
+    seasonError: byId('seasonError'),
+    seasonCancel: byId('cancelSeasonEdit'),
+    migrationForm: byId('seasonMigrationForm'),
+    migrationTitle: byId('seasonMigrationTitle'),
+    migrationError: byId('seasonMigrationError'),
+    migrationCancel: byId('cancelSeasonMigration'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -36,6 +46,7 @@ const state = {
     identity: readJson(keys.identity),
     users: [],
     devices: [],
+    seasons: [],
 };
 
 class ApiError extends Error {
@@ -131,6 +142,7 @@ function clearSession() {
     state.identity = null;
     state.users = [];
     state.devices = [];
+    state.seasons = [];
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden');
@@ -216,12 +228,76 @@ function renderDevices() {
     `).join('');
 }
 
+function dateOnly(value, fallback = 'Sin fecha') {
+    if (!value) return fallback;
+    const [year, month, day] = String(value).slice(0, 10).split('-');
+    return year && month && day ? `${day}-${month}-${year}` : fallback;
+}
+
+function resetSeasonForm() {
+    elements.seasonForm.reset();
+    elements.seasonForm.elements.id.value = '';
+    elements.seasonError.textContent = '';
+    elements.seasonCancel.classList.add('is-hidden');
+}
+
+function resetMigrationForm() {
+    elements.migrationForm.reset();
+    elements.migrationForm.elements.temporada_destino_id.value = '';
+    elements.migrationError.textContent = '';
+    elements.migrationForm.classList.add('is-hidden');
+}
+
+function openMigrationForm(destinationId) {
+    const destination = state.seasons.find((season) => season.id === destinationId);
+    if (!destination) return;
+    const sources = state.seasons.filter((season) => season.id !== destinationId);
+    elements.migrationForm.reset();
+    elements.migrationForm.elements.temporada_destino_id.value = destinationId;
+    elements.migrationTitle.textContent = `Migrar datos hacia ${destination.codigo}`;
+    elements.migrationForm.elements.temporada_origen_id.innerHTML = sources.map((season) =>
+        `<option value="${season.id}"${season.activa ? ' selected' : ''}>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}${season.activa ? ' (activa)' : ''}</option>`,
+    ).join('');
+    elements.migrationForm.elements.copiar_catalogo_validacion.checked = true;
+    elements.migrationForm.elements.copiar_catalogo_materiales.checked = true;
+    elements.migrationForm.elements.activar_destino.checked = false;
+    elements.migrationForm.elements.migrar_inventario_materiales.checked = false;
+    elements.migrationError.textContent = '';
+    elements.migrationForm.classList.remove('is-hidden');
+    elements.migrationForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderSeasons() {
+    const active = state.seasons.find((season) => season.activa);
+    elements.activeSeason.textContent = active?.codigo || '—';
+    elements.seasonsSummary.textContent = `${state.seasons.length} ${state.seasons.length === 1 ? 'registrada' : 'registradas'}`;
+
+    if (!state.seasons.length) {
+        elements.seasonsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="4">No existen temporadas. Crea la primera configuración transversal.</td></tr>';
+        return;
+    }
+
+    elements.seasonsTableBody.innerHTML = state.seasons.map((season) => `
+        <tr>
+            <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>Versión de catálogo ${Number(season.version_catalogo || 1)} · ${Number(season.migraciones_recibidas || 0)} migraciones recibidas</small></td>
+            <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
+            <td>${statusBadge(season.activa)}</td>
+            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? '' : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
+        </tr>
+    `).join('');
+}
+
 async function loadAccesses() {
-    const response = await api('/api/administracion/accesos');
+    const [response, seasons] = await Promise.all([
+        api('/api/administracion/accesos'),
+        api('/api/administracion/temporadas'),
+    ]);
     state.users = response.usuarios;
     state.devices = response.dispositivos;
+    state.seasons = seasons.data || [];
     renderUsers();
     renderDevices();
+    renderSeasons();
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
@@ -300,6 +376,104 @@ elements.deviceForm.addEventListener('submit', async (event) => {
         setBusy(false);
     }
 });
+
+elements.seasonForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.seasonError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.seasonForm));
+    const id = data.id;
+    delete data.id;
+    data.activa = elements.seasonForm.elements.activa.checked;
+    setBusy(true, 'Guardando temporada transversal…');
+    try {
+        await api(id ? `/api/administracion/temporadas/${id}` : '/api/administracion/temporadas', {
+            method: id ? 'PUT' : 'POST',
+            body: JSON.stringify(data),
+        });
+        resetSeasonForm();
+        await loadAccesses();
+        toast('La temporada quedó disponible para todas las oficinas.');
+    } catch (error) {
+        elements.seasonError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.seasonsTableBody.addEventListener('click', async (event) => {
+    const edit = event.target.closest('[data-edit-season]');
+    const activate = event.target.closest('[data-activate-season]');
+    const migrate = event.target.closest('[data-migrate-season]');
+    if (edit) {
+        const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
+        if (!season) return;
+        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin']) {
+            elements.seasonForm.elements[field].value = season[field] || '';
+        }
+        elements.seasonForm.elements.activa.checked = season.activa;
+        elements.seasonCancel.classList.remove('is-hidden');
+        elements.seasonForm.elements.codigo.focus();
+    }
+    if (migrate) openMigrationForm(migrate.dataset.migrateSeason);
+    if (activate) {
+        setBusy(true, 'Activando temporada para todas las oficinas…');
+        try {
+            await api(`/api/administracion/temporadas/${activate.dataset.activateSeason}/activar`, { method: 'POST' });
+            resetSeasonForm();
+            await loadAccesses();
+            toast('Temporada global activada.');
+        } catch (error) {
+            toast(error.message, true);
+        } finally {
+            setBusy(false);
+        }
+    }
+});
+
+elements.migrationForm.elements.migrar_inventario_materiales.addEventListener('change', (event) => {
+    if (!event.target.checked) return;
+    elements.migrationForm.elements.copiar_catalogo_materiales.checked = true;
+    elements.migrationForm.elements.activar_destino.checked = true;
+});
+
+elements.migrationForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.migrationError.textContent = '';
+    const form = elements.migrationForm.elements;
+    const destinationId = form.temporada_destino_id.value;
+    const data = {
+        temporada_origen_id: form.temporada_origen_id.value,
+        copiar_catalogo_validacion: form.copiar_catalogo_validacion.checked,
+        copiar_catalogo_materiales: form.copiar_catalogo_materiales.checked,
+        migrar_inventario_materiales: form.migrar_inventario_materiales.checked,
+        activar_destino: form.activar_destino.checked,
+    };
+    if (!data.copiar_catalogo_validacion && !data.copiar_catalogo_materiales && !data.migrar_inventario_materiales) {
+        elements.migrationError.textContent = 'Selecciona al menos un catálogo o el inventario de bodega.';
+        return;
+    }
+    if (data.migrar_inventario_materiales && !window.confirm('Se trasladará todo el inventario vivo y se activará la temporada de destino para todas las oficinas. ¿Deseas continuar?')) return;
+
+    setBusy(true, 'Migrando datos entre temporadas…');
+    try {
+        const response = await api(`/api/administracion/temporadas/${destinationId}/migrar`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        const inventory = response.data.resumen.inventario;
+        resetMigrationForm();
+        await loadAccesses();
+        toast(`Migración completada: ${inventory.folios} folios de bodega trasladados.`);
+    } catch (error) {
+        elements.migrationError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.migrationCancel.addEventListener('click', resetMigrationForm);
+
+elements.seasonCancel.addEventListener('click', resetSeasonForm);
 
 elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando accesos…');

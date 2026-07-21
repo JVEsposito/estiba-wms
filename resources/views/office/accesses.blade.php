@@ -17,12 +17,13 @@
             <div class="office-access__brand admin-access-brand">
                 <div class="office-logo" aria-hidden="true">⚿</div>
                 <p class="eyebrow">ESTIBA WMS · ADMINISTRACIÓN</p>
-                <h1 id="officeAccessTitle">Autoriza a las personas y tablets que participan en la operación.</h1>
-                <p>Los nuevos accesos quedan activos inmediatamente. Solo un administrador puede utilizar este módulo.</p>
+                <h1 id="officeAccessTitle">Administra los accesos y la configuración transversal de la operación.</h1>
+                <p>Los nuevos accesos quedan activos inmediatamente y la temporada seleccionada se aplica a todas las oficinas. Solo un administrador puede utilizar este módulo.</p>
                 <div class="feature-row">
                     <span>Contraseñas cifradas</span>
                     <span>Roles operacionales</span>
                     <span>Tablets identificadas</span>
+                    <span>Temporada global</span>
                 </div>
             </div>
 
@@ -71,9 +72,9 @@
             <section class="admin-workspace">
                 <header class="admin-heading">
                     <div>
-                        <p class="eyebrow">CONTROL DE ACCESO</p>
-                        <h1>Usuarios y tablets autorizadas</h1>
-                        <p>Crea credenciales personales y registra los equipos habilitados para entrar a la operación.</p>
+                        <p class="eyebrow">CONFIGURACIÓN TRANSVERSAL</p>
+                        <h1>Accesos y temporada operacional</h1>
+                        <p>Crea credenciales, registra tablets y define la única temporada que consumen Romana, Validación, Materiales y Frigorífico.</p>
                     </div>
                     <button class="secondary-button admin-reload" id="reloadAccessesButton" type="button">↻ Actualizar listados</button>
                 </header>
@@ -81,8 +82,58 @@
                 <div class="admin-metrics">
                     <article><span>USUARIOS ACTIVOS</span><strong id="activeUsersCount">0</strong></article>
                     <article><span>TABLETS ACTIVAS</span><strong id="activeDevicesCount">0</strong></article>
+                    <article><span>TEMPORADA ACTIVA</span><strong id="activeSeasonCode">—</strong></article>
                     <article><span>ÚLTIMO ACCESO TABLET</span><strong id="lastDeviceAccess">Sin accesos</strong></article>
                 </div>
+
+                <section class="admin-panel admin-season-panel panel" aria-labelledby="seasonsTitle">
+                    <div class="admin-panel__heading">
+                        <div><p class="eyebrow">TEMPORADA GLOBAL</p><h2 id="seasonsTitle">Ciclo operacional compartido</h2></div>
+                        <span id="seasonsSummary">0 registradas</span>
+                    </div>
+
+                    <form class="admin-form" id="seasonForm" novalidate>
+                        <input name="id" type="hidden">
+                        <div class="admin-form__grid admin-form__grid--season">
+                            <label class="field"><span>Código *</span><input name="codigo" maxlength="30" placeholder="2026-2027" required></label>
+                            <label class="field"><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada cerezas 2026–2027" required></label>
+                            <label class="field"><span>Inicio</span><input name="fecha_inicio" type="date"></label>
+                            <label class="field"><span>Término</span><input name="fecha_fin" type="date"></label>
+                        </div>
+                        <label class="admin-check"><input name="activa" type="checkbox"><span>Dejar como temporada activa para todas las oficinas</span></label>
+                        <p class="admin-form__hint">La activación es global. Las oficinas operacionales solo consultan esta configuración y mantienen sus flujos separados.</p>
+                        <p class="form-error" id="seasonError" role="alert"></p>
+                        <div class="admin-form__actions">
+                            <button class="secondary-button is-hidden" id="cancelSeasonEdit" type="button">Nueva temporada</button>
+                            <button class="primary-button" type="submit">Guardar temporada <span>→</span></button>
+                        </div>
+                    </form>
+
+                    <div class="admin-table-scroll admin-season-list">
+                        <table class="admin-table">
+                            <thead><tr><th>Temporada</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <tbody id="seasonsTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <form class="admin-form admin-migration-form is-hidden" id="seasonMigrationForm" novalidate>
+                        <input name="temporada_destino_id" type="hidden">
+                        <div class="admin-panel__heading admin-migration-heading">
+                            <div><p class="eyebrow">MIGRACIÓN CONTROLADA</p><h3 id="seasonMigrationTitle">Preparar nueva temporada</h3></div>
+                            <button class="secondary-button" id="cancelSeasonMigration" type="button">Cerrar</button>
+                        </div>
+                        <div class="admin-form__grid admin-form__grid--migration">
+                            <label class="field field--wide"><span>Temporada de origen *</span><select name="temporada_origen_id" required></select></label>
+                            <label class="admin-check"><input name="copiar_catalogo_validacion" type="checkbox" checked><span>Copiar catálogos de Validación</span></label>
+                            <label class="admin-check"><input name="copiar_catalogo_materiales" type="checkbox" checked><span>Copiar clientes e ítems de Bodega</span></label>
+                            <label class="admin-check"><input name="migrar_inventario_materiales" type="checkbox"><span>Migrar inventario vivo de Bodega</span></label>
+                            <label class="admin-check"><input name="activar_destino" type="checkbox"><span>Activar el destino para todos los procesos</span></label>
+                        </div>
+                        <p class="admin-form__hint">No se copian recepciones, validaciones, cargas ni procesos históricos. El inventario conserva folio, ubicación, saldos y kardex; requiere no tener despachos ni reservas abiertas.</p>
+                        <p class="form-error" id="seasonMigrationError" role="alert"></p>
+                        <div class="admin-form__actions"><button class="primary-button" type="submit">Ejecutar migración <span>→</span></button></div>
+                    </form>
+                </section>
 
                 <div class="admin-grid">
                     <section class="admin-panel panel" aria-labelledby="usersTitle">
