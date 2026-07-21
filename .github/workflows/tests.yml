@@ -70,10 +70,7 @@ jobs:
         run: npm run build
 
       - name: Validar estilo
-        run: |
-          vendor/bin/pint app/Services/Notificaciones/ServicioNotificacionesOperacionales.php
-          git diff -- app/Services/Notificaciones/ServicioNotificacionesOperacionales.php
-          exit 1
+        run: vendor/bin/pint --test
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force
