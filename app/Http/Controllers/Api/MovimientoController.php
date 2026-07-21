@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TipoBulto;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ConsultarFolioUbicacionRequest;
 use App\Http\Requests\MoverFolioRequest;
 use App\Http\Requests\MovimientosRecientesRequest;
 use App\Http\Requests\UbicarFolioRequest;
@@ -16,12 +17,92 @@ use App\Models\SesionEstiba;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
+use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use Carbon\CarbonImmutable;
+use DomainException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class MovimientoController extends Controller
 {
+    public function consultarFolio(
+        ConsultarFolioUbicacionRequest $request,
+        ServicioHabilitacionAlmacenamiento $habilitacion,
+    ): JsonResponse {
+        $numeroFolio = mb_strtoupper(trim((string) $request->validated('numero_folio')));
+        $folio = Folio::query()
+            ->where('numero_folio', $numeroFolio)
+            ->with([
+                'condicionSag:id,codigo,nombre',
+                'ubicacionActual.posicion.camara:id,codigo,nombre',
+                'material.item:id,codigo,nombre,unidad_medida',
+            ])
+            ->first();
+
+        if (! $folio) {
+            return response()->json([
+                'data' => [
+                    'existe' => false,
+                    'numero_folio' => $numeroFolio,
+                ],
+            ]);
+        }
+
+        [$disponible, $mensaje] = $this->disponibilidadUbicacionInicial(
+            $folio,
+            $habilitacion,
+        );
+        $ubicacion = $folio->ubicacionActual;
+        $material = $folio->material;
+
+        return response()->json([
+            'data' => [
+                'existe' => true,
+                'id' => $folio->id,
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => $folio->tipo_bulto->value,
+                'estado_operacional' => $folio->estado_operacional->value,
+                'condicion_termica' => $folio->condicion_termica?->value,
+                'habilitacion_almacenamiento' => $folio->habilitacion_almacenamiento?->value,
+                'disponible_ubicacion' => $disponible,
+                'mensaje_disponibilidad' => $mensaje,
+                'origen_sistema' => $folio->origen_sistema,
+                'condicion_sag' => $folio->condicionSag ? [
+                    'id' => $folio->condicionSag->id,
+                    'codigo' => $folio->condicionSag->codigo,
+                    'nombre' => $folio->condicionSag->nombre,
+                ] : null,
+                'variedad' => $folio->variedad,
+                'calibre' => $folio->calibre,
+                'marca' => $folio->marca,
+                'exportadora' => $folio->exportadora,
+                'ubicacion_actual' => $ubicacion ? [
+                    'camara' => [
+                        'id' => $ubicacion->posicion->camara->id,
+                        'codigo' => $ubicacion->posicion->camara->codigo,
+                        'nombre' => $ubicacion->posicion->camara->nombre,
+                    ],
+                    'posicion' => [
+                        'id' => $ubicacion->posicion->id,
+                        'etiqueta' => $ubicacion->posicion->etiqueta,
+                    ],
+                ] : null,
+                'material' => $material ? [
+                    'item_material_id' => $material->item_material_id,
+                    'item' => [
+                        'codigo' => $material->item->codigo,
+                        'nombre' => $material->item->nombre,
+                    ],
+                    'cantidad' => $material->cantidad_inicial,
+                    'lote' => $material->lote,
+                    'proveedor' => $material->proveedor,
+                    'observacion' => $material->observacion,
+                ] : null,
+            ],
+        ]);
+    }
+
     public function ubicar(
         UbicarFolioRequest $request,
         ContextoOperacional $contexto,
@@ -120,6 +201,31 @@ class MovimientoController extends Controller
     private function cargarRelaciones(Movimiento $movimiento): Movimiento
     {
         return $movimiento->load($this->relacionesMovimiento());
+    }
+
+    /**
+     * @return array{bool, string}
+     */
+    private function disponibilidadUbicacionInicial(
+        Folio $folio,
+        ServicioHabilitacionAlmacenamiento $habilitacion,
+    ): array {
+        if ($folio->ubicacionActual) {
+            $posicion = $folio->ubicacionActual->posicion;
+
+            return [
+                false,
+                "El folio ya está ubicado en {$posicion->camara->codigo} · {$posicion->etiqueta}.",
+            ];
+        }
+
+        try {
+            $habilitacion->validarUbicacionInicial($folio);
+        } catch (DomainException $exception) {
+            return [false, $exception->getMessage()];
+        }
+
+        return [true, 'Folio habilitado para ingresar a cámara.'];
     }
 
     /**

@@ -303,7 +303,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       sesion_destino_id: ownSession.id,
       version_destino_conocida: plan.version_plano,
       generado_dispositivo_at: new Date().toISOString(),
-      ...(Object.keys(compactData).length ? { datos_folio: compactData } : {}),
+      ...(!form.existente && Object.keys(compactData).length ? { datos_folio: compactData } : {}),
       ...(form.tipo_bulto === 'material' && form.item_material_id && form.cantidad ? {
         datos_material: {
           item_material_id: form.item_material_id,
@@ -719,6 +719,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           setLocateVisible(false);
         }}
         onConfirm={confirmLocate}
+        onLookup={(folioNumber) => api.lookupFolio(auth.token, folioNumber)}
         plan={plan}
         position={selectedPosition}
         visible={locateVisible}

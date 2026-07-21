@@ -6,6 +6,7 @@ import {
   Dock,
   EditSession,
   ExtractionPlan,
+  FolioLookup,
   Folio,
   LocatePayload,
   LoginPayload,
@@ -335,6 +336,49 @@ export class DemoEstibaApi implements EstibaApi {
     const plan = this.plans.find((candidate) => candidate.acceso.sesion?.id === sessionId);
     if (!plan) throw new ApiError('La sesión ya no está activa.', 409);
     plan.acceso = { modo: 'disponible', bloqueada: false, sesion: null };
+  }
+
+  async lookupFolio(_token: string, folioNumber: string): Promise<FolioLookup> {
+    const normalized = folioNumber.trim().toUpperCase();
+    const located = this.plans
+      .flatMap((plan) => plan.posiciones.map((position) => ({ plan, position })))
+      .find(({ position }) => position.folio?.numero_folio === normalized);
+
+    if (!located?.position.folio) {
+      return { existe: false, numero_folio: normalized };
+    }
+
+    const folio = located.position.folio;
+
+    return {
+      existe: true,
+      id: folio.id,
+      numero_folio: folio.numero_folio,
+      tipo_bulto: folio.tipo_bulto,
+      estado_operacional: folio.estado_operacional,
+      condicion_termica: folio.condicion_termica ?? null,
+      habilitacion_almacenamiento: folio.habilitacion_almacenamiento ?? null,
+      disponible_ubicacion: false,
+      mensaje_disponibilidad: `El folio ya está ubicado en ${located.plan.codigo} · ${located.position.etiqueta ?? ''}.`,
+      origen_sistema: 'demo',
+      condicion_sag: folio.condicion_sag,
+      variedad: folio.variedad,
+      calibre: folio.calibre,
+      marca: folio.marca,
+      exportadora: folio.exportadora,
+      ubicacion_actual: {
+        camara: {
+          id: located.plan.id,
+          codigo: located.plan.codigo,
+          nombre: located.plan.nombre,
+        },
+        posicion: {
+          id: located.position.id,
+          etiqueta: located.position.etiqueta,
+        },
+      },
+      material: null,
+    };
   }
 
   async locate(_token: string, payload: LocatePayload) {

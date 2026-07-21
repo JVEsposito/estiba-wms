@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   CameraPlan,
   CameraSummary,
+  FolioLookup,
   MaterialDestination,
   MaterialDispatch,
   MaterialItem,
@@ -26,6 +27,7 @@ import { colors } from '../theme/colors';
 export type LocateFormValue = {
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo' | 'material';
+  existente: boolean;
   condicion_sag_id?: string;
   variedad?: string;
   calibre?: string;
@@ -45,6 +47,7 @@ type LocateModalProps = {
   error: string;
   onCancel: () => void;
   onConfirm: (value: LocateFormValue) => Promise<void>;
+  onLookup: (folioNumber: string) => Promise<FolioLookup>;
   plan: CameraPlan | null;
   position: Position | null;
   visible: boolean;
@@ -57,6 +60,7 @@ export function LocateModal({
   error,
   onCancel,
   onConfirm,
+  onLookup,
   plan,
   position,
   visible,
@@ -78,6 +82,12 @@ export function LocateModal({
   const [materialLot, setMaterialLot] = useState('');
   const [materialSupplier, setMaterialSupplier] = useState('');
   const [materialObservation, setMaterialObservation] = useState('');
+  const [lookup, setLookup] = useState<FolioLookup | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState('');
+  const [lookupTone, setLookupTone] = useState<'success' | 'warning' | 'neutral'>('neutral');
+  const lookupSequence = useRef(0);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const materialClients = [...new Map(materialItems.map((item) => [item.cliente.id, item.cliente])).values()];
   const materialSeason = materialItems[0]?.cliente.temporada;
   const filteredMaterialItems = materialItems.filter((item) => (
@@ -88,7 +98,12 @@ export function LocateModal({
   ));
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      lookupSequence.current += 1;
+      if (lookupTimer.current) clearTimeout(lookupTimer.current);
+      return;
+    }
+
     setFolio('');
     setType(isMaterial ? 'material' : 'pallet');
     setConditionId(undefined);
@@ -103,13 +118,154 @@ export function LocateModal({
     setMaterialLot('');
     setMaterialSupplier('');
     setMaterialObservation('');
+    setLookup(null);
+    setLookupBusy(false);
+    setLookupMessage('');
+    setLookupTone('neutral');
   }, [visible, isMaterial]);
 
+  useEffect(() => {
+    if (!visible) return;
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+
+    const normalized = folio.trim().toUpperCase();
+    if (!normalized) return;
+
+    lookupTimer.current = setTimeout(() => {
+      void lookupFolio(normalized);
+    }, 300);
+
+    return () => {
+      if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    };
+  }, [folio, visible]);
+
+  function clearDetails() {
+    setType(isMaterial ? 'material' : 'pallet');
+    setConditionId(undefined);
+    setVariety('');
+    setCaliber('');
+    setBrand('');
+    setExporter('');
+    setMaterialSearch('');
+    setMaterialClientId(undefined);
+    setMaterialItemId(undefined);
+    setMaterialQuantity('');
+    setMaterialLot('');
+    setMaterialSupplier('');
+    setMaterialObservation('');
+  }
+
+  function changeFolio(value: string) {
+    lookupSequence.current += 1;
+    if (lookup) clearDetails();
+    setLookup(null);
+    setLookupBusy(false);
+    setLookupMessage('');
+    setLookupTone('neutral');
+    setFolio(value);
+  }
+
+  function isCompatible(result: FolioLookup) {
+    if (!result.existe) return true;
+
+    return isMaterial ? result.tipo_bulto === 'material' : result.tipo_bulto !== 'material';
+  }
+
+  function applyLookup(result: FolioLookup) {
+    setLookup(result);
+
+    if (!result.existe) {
+      setLookupMessage('Folio nuevo. Completa sus datos antes de confirmar la ubicación.');
+      setLookupTone('neutral');
+      return;
+    }
+
+    setType(result.tipo_bulto);
+    setConditionId(result.condicion_sag?.id);
+    setVariety(result.variedad ?? '');
+    setCaliber(result.calibre ?? '');
+    setBrand(result.marca ?? '');
+    setExporter(result.exportadora ?? '');
+
+    if (result.material) {
+      const catalogItem = materialItems.find((item) => item.id === result.material?.item_material_id);
+      setMaterialClientId(catalogItem?.cliente.id);
+      setMaterialItemId(result.material.item_material_id);
+      setMaterialQuantity(result.material.cantidad);
+      setMaterialLot(result.material.lote ?? '');
+      setMaterialSupplier(result.material.proveedor ?? '');
+      setMaterialObservation(result.material.observacion ?? '');
+    }
+
+    const compatible = isCompatible(result);
+    const source = result.origen_sistema === 'validacion'
+      ? 'Datos recuperados desde Validación.'
+      : 'Datos recuperados del folio existente.';
+    const availability = compatible
+      ? result.mensaje_disponibilidad
+      : 'El tipo de folio no corresponde a esta cámara.';
+    setLookupMessage(`${source} ${availability}`);
+    setLookupTone(result.disponible_ubicacion && compatible ? 'success' : 'warning');
+  }
+
+  async function lookupFolio(value: string): Promise<FolioLookup | null> {
+    const normalized = value.trim().toUpperCase();
+    if (!normalized) return null;
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+
+    const sequence = ++lookupSequence.current;
+    setLookupBusy(true);
+    setLookupMessage('Consultando información del folio…');
+    setLookupTone('neutral');
+
+    try {
+      const result = await onLookup(normalized);
+      if (sequence !== lookupSequence.current) return null;
+      applyLookup(result);
+      return result;
+    } catch (reason) {
+      if (sequence !== lookupSequence.current) return null;
+      setLookup(null);
+      setLookupMessage(reason instanceof Error
+        ? reason.message
+        : 'No fue posible consultar el folio. Revisa la conexión.');
+      setLookupTone('warning');
+      return null;
+    } finally {
+      if (sequence === lookupSequence.current) setLookupBusy(false);
+    }
+  }
+
   async function submit() {
-    if (!folio.trim() || (isMaterial && (!materialItemId || Number(materialQuantity) <= 0))) return;
+    if (!folio.trim()) return;
+    const result = await lookupFolio(folio);
+    if (!result || (result.existe && (!result.disponible_ubicacion || !isCompatible(result)))) return;
+
+    if (result.existe) {
+      await onConfirm({
+        numero_folio: result.numero_folio,
+        tipo_bulto: result.tipo_bulto,
+        existente: true,
+        condicion_sag_id: result.condicion_sag?.id,
+        variedad: result.variedad ?? undefined,
+        calibre: result.calibre ?? undefined,
+        marca: result.marca ?? undefined,
+        exportadora: result.exportadora ?? undefined,
+        item_material_id: result.material?.item_material_id,
+        cantidad: result.material ? Number(result.material.cantidad) : undefined,
+        lote: result.material?.lote ?? undefined,
+        proveedor: result.material?.proveedor ?? undefined,
+        observacion_material: result.material?.observacion ?? undefined,
+      });
+      return;
+    }
+
+    if (isMaterial && (!materialItemId || Number(materialQuantity) <= 0)) return;
     await onConfirm({
       numero_folio: folio.trim().toUpperCase(),
       tipo_bulto: type,
+      existente: false,
       condicion_sag_id: conditionId,
       variedad: variety.trim() || undefined,
       calibre: caliber.trim() || undefined,
@@ -122,6 +278,10 @@ export function LocateModal({
       observacion_material: materialObservation.trim() || undefined,
     });
   }
+
+  const existingFolio = lookup?.existe === true;
+  const lookupBlocked = existingFolio
+    && (!lookup.disponible_ubicacion || !isCompatible(lookup));
 
   return (
     <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
@@ -144,11 +304,33 @@ export function LocateModal({
             <FormField
               autoCapitalize="characters"
               label="Número de folio *"
-              onChangeText={setFolio}
-              placeholder="Ej. 00498127"
+              onChangeText={changeFolio}
+              onSubmitEditing={() => void lookupFolio(folio)}
+              placeholder="Escribe o pistolea el folio"
+              returnKeyType="done"
               value={folio}
               wide
             />
+
+            {(lookupBusy || lookupMessage) ? (
+              <View
+                accessibilityLiveRegion="polite"
+                style={[
+                  styles.lookupStatus,
+                  lookupTone === 'success' && styles.lookupStatusSuccess,
+                  lookupTone === 'warning' && styles.lookupStatusWarning,
+                ]}
+              >
+                {lookupBusy ? <ActivityIndicator color={colors.cyan} size="small" /> : null}
+                <Text style={[
+                  styles.lookupStatusText,
+                  lookupTone === 'success' && styles.lookupStatusTextSuccess,
+                  lookupTone === 'warning' && styles.lookupStatusTextWarning,
+                ]}>
+                  {lookupMessage}
+                </Text>
+              </View>
+            ) : null}
 
             {isMaterial ? (
               <>
@@ -163,6 +345,7 @@ export function LocateModal({
                       {materialClients.map((client) => (
                         <Choice
                           active={materialClientId === client.id}
+                          disabled={existingFolio}
                           key={client.id}
                           label={`${client.codigo} · ${client.nombre}`}
                           onPress={() => {
@@ -174,30 +357,30 @@ export function LocateModal({
                     </View>
                   </ScrollView>
                 </View>
-                <FormField label="Buscar ítem *" onChangeText={setMaterialSearch} placeholder="Código o descripción" value={materialSearch} wide />
+                <FormField editable={!existingFolio} label="Buscar ítem *" onChangeText={setMaterialSearch} placeholder="Código o descripción" value={materialSearch} wide />
                 <View style={[styles.field, styles.wide]}>
                   <Text style={styles.label}>Ítem contenido *</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator>
                     <View style={styles.choiceRow}>
                       {filteredMaterialItems.map((item) => (
-                        <Choice active={materialItemId === item.id} key={item.id} label={`${item.codigo} · ${item.nombre}`} onPress={() => setMaterialItemId(item.id)} />
+                        <Choice active={materialItemId === item.id} disabled={existingFolio} key={item.id} label={`${item.codigo} · ${item.nombre}`} onPress={() => setMaterialItemId(item.id)} />
                       ))}
                     </View>
                   </ScrollView>
                   {filteredMaterialItems.length === 0 && <Text style={styles.emptyInline}>{materialClientId ? 'No hay ítems coincidentes. Solicita su creación en la oficina.' : 'Selecciona primero un cliente.'}</Text>}
                 </View>
-                <FormField label={`Cantidad inicial *${materialItems.find((item) => item.id === materialItemId)?.unidad_medida ? ` · ${materialItems.find((item) => item.id === materialItemId)?.unidad_medida}` : ''}`} onChangeText={setMaterialQuantity} placeholder="Ej. 450" value={materialQuantity} />
-                <FormField label="Lote" onChangeText={setMaterialLot} placeholder="Opcional" value={materialLot} />
-                <FormField label="Proveedor" onChangeText={setMaterialSupplier} placeholder="Opcional" value={materialSupplier} />
-                <FormField label="Observación" onChangeText={setMaterialObservation} placeholder="Opcional" value={materialObservation} />
+                <FormField editable={!existingFolio} label={`Cantidad inicial *${materialItems.find((item) => item.id === materialItemId)?.unidad_medida ? ` · ${materialItems.find((item) => item.id === materialItemId)?.unidad_medida}` : ''}`} onChangeText={setMaterialQuantity} placeholder="Ej. 450" value={materialQuantity} />
+                <FormField editable={!existingFolio} label="Lote" onChangeText={setMaterialLot} placeholder="Opcional" value={materialLot} />
+                <FormField editable={!existingFolio} label="Proveedor" onChangeText={setMaterialSupplier} placeholder="Opcional" value={materialSupplier} />
+                <FormField editable={!existingFolio} label="Observación" onChangeText={setMaterialObservation} placeholder="Opcional" value={materialObservation} />
               </>
             ) : (
               <>
                 <View style={styles.field}>
                   <Text style={styles.label}>Tipo de bulto *</Text>
                   <View style={styles.choiceRow}>
-                    <Choice active={type === 'pallet'} label="Pallet completo" onPress={() => setType('pallet')} />
-                    <Choice active={type === 'saldo'} label="Saldo incompleto" onPress={() => setType('saldo')} />
+                    <Choice active={type === 'pallet'} disabled={existingFolio} label="Pallet completo" onPress={() => setType('pallet')} />
+                    <Choice active={type === 'saldo'} disabled={existingFolio} label="Saldo incompleto" onPress={() => setType('saldo')} />
                   </View>
                 </View>
 
@@ -205,18 +388,18 @@ export function LocateModal({
                   <Text style={styles.label}>Condición SAG</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View style={styles.choiceRow}>
-                      <Choice active={!conditionId} label="Sin especificar" onPress={() => setConditionId(undefined)} />
+                      <Choice active={!conditionId} disabled={existingFolio} label="Sin especificar" onPress={() => setConditionId(undefined)} />
                       {conditions.map((condition) => (
-                        <Choice active={conditionId === condition.id} key={condition.id} label={condition.codigo} onPress={() => setConditionId(condition.id)} />
+                        <Choice active={conditionId === condition.id} disabled={existingFolio} key={condition.id} label={condition.codigo} onPress={() => setConditionId(condition.id)} />
                       ))}
                     </View>
                   </ScrollView>
                 </View>
 
-                <FormField label="Variedad" onChangeText={setVariety} placeholder="Ej. Santina" value={variety} />
-                <FormField label="Calibre" onChangeText={setCaliber} placeholder="Ej. 2J" value={caliber} />
-                <FormField label="Marca" onChangeText={setBrand} placeholder="Opcional" value={brand} />
-                <FormField label="Exportadora" onChangeText={setExporter} placeholder="Opcional" value={exporter} />
+                <FormField editable={!existingFolio} label="Variedad" onChangeText={setVariety} placeholder="Ej. Santina" value={variety} />
+                <FormField editable={!existingFolio} label="Calibre" onChangeText={setCaliber} placeholder="Ej. 2J" value={caliber} />
+                <FormField editable={!existingFolio} label="Marca" onChangeText={setBrand} placeholder="Opcional" value={brand} />
+                <FormField editable={!existingFolio} label="Exportadora" onChangeText={setExporter} placeholder="Opcional" value={exporter} />
               </>
             )}
           </ScrollView>
@@ -226,7 +409,12 @@ export function LocateModal({
           <DialogActions
             busy={busy}
             compact={compact}
-            confirmDisabled={!folio.trim() || (isMaterial && (!materialItemId || Number(materialQuantity) <= 0))}
+            confirmDisabled={
+              !folio.trim()
+              || lookupBusy
+              || lookupBlocked
+              || (isMaterial && !existingFolio && (!materialItemId || Number(materialQuantity) <= 0))
+            }
             confirmLabel="Confirmar ubicación"
             onCancel={onCancel}
             onConfirm={submit}
@@ -681,9 +869,12 @@ function FormField({
   ...props
 }: {
   autoCapitalize?: 'characters';
+  editable?: boolean;
   label: string;
   onChangeText: (value: string) => void;
+  onSubmitEditing?: () => void;
   placeholder: string;
+  returnKeyType?: 'done';
   value: string;
   wide?: boolean;
 }) {
@@ -694,17 +885,33 @@ function FormField({
         {...props}
         placeholderTextColor="#627C88"
         selectionColor={colors.cyan}
-        style={styles.input}
+        style={[styles.input, props.editable === false && styles.inputLocked]}
       />
     </View>
   );
 }
 
-function Choice({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function Choice({
+  active,
+  disabled = false,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  label: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.choice, active && styles.choiceActive, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.choice,
+        active && styles.choiceActive,
+        disabled && styles.choiceLocked,
+        pressed && styles.pressed,
+      ]}
     >
       <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text>
     </Pressable>
@@ -810,6 +1017,25 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 12,
   },
+  inputLocked: { backgroundColor: colors.panelStrong, color: colors.muted },
+  lookupStatus: {
+    width: '100%',
+    minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  lookupStatusSuccess: { borderColor: colors.green, backgroundColor: '#12372F' },
+  lookupStatusWarning: { borderColor: colors.red, backgroundColor: '#421B21' },
+  lookupStatusText: { flex: 1, color: colors.muted, fontSize: 9, lineHeight: 13 },
+  lookupStatusTextSuccess: { color: '#B8F0CC' },
+  lookupStatusTextWarning: { color: '#FFB7B7' },
   choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
     minHeight: 38,
@@ -822,6 +1048,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   choiceActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  choiceLocked: { opacity: 0.72 },
   choiceText: { color: colors.muted, fontSize: 9, fontWeight: '800' },
   choiceTextActive: { color: colors.cyan },
   destinationHeading: {

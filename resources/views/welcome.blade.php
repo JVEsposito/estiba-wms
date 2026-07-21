@@ -241,8 +241,9 @@
                 <div class="form-grid">
                     <label class="form-field form-field--wide">
                         <span>Número de folio *</span>
-                        <input type="text" name="numero_folio" autocomplete="off" autocapitalize="characters" placeholder="Ej. 00498127" required>
+                        <input type="text" name="numero_folio" id="locateFolioNumber" autocomplete="off" autocapitalize="characters" placeholder="Escribe o pistolea el folio" required>
                     </label>
+                    <p class="folio-lookup-status form-field--wide" id="locateFolioLookupStatus" role="status" aria-live="polite"></p>
                     <label class="form-field" id="locateTypeField">
                         <span>Tipo de bulto *</span>
                         <select name="tipo_bulto" id="locateTypeSelect" required>
@@ -296,7 +297,7 @@
                 <p class="form-error" id="locateError" role="alert"></p>
                 <div class="dialog-actions">
                     <button class="button button--secondary" type="button" data-close-dialog="locateDialog">Cancelar</button>
-                    <button class="button button--primary" type="submit">Confirmar ubicación</button>
+                    <button class="button button--primary" type="submit" id="locateSubmitButton">Confirmar ubicación</button>
                 </div>
             </form>
         </dialog>

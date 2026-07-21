@@ -313,6 +313,45 @@ select:focus {
     line-height: 1.4;
 }
 
+.folio-lookup-status {
+    min-height: 0;
+    margin: -7px 0 0;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.folio-lookup-status:not(:empty) {
+    padding: 9px 11px;
+}
+
+.folio-lookup-status.is-loading {
+    border-color: var(--line);
+    background: rgba(5, 17, 24, 0.58);
+}
+
+.folio-lookup-status.is-success {
+    border-color: rgba(91, 209, 138, 0.42);
+    background: rgba(91, 209, 138, 0.08);
+    color: #9ce3b7;
+}
+
+.folio-lookup-status.is-warning {
+    border-color: rgba(255, 157, 157, 0.45);
+    background: rgba(179, 55, 55, 0.12);
+    color: #ffb0b0;
+}
+
+.form-field input:disabled,
+.form-field select:disabled {
+    border-color: var(--line);
+    background: rgba(5, 17, 24, 0.76);
+    color: var(--muted-strong);
+    opacity: 1;
+}
+
 .access-help {
     margin: -4px 0 0;
     color: var(--muted);

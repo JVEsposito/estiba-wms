@@ -196,6 +196,36 @@ class ServicioHabilitacionAlmacenamiento
         }
     }
 
+    public function validarUbicacionInicial(Folio $folio): void
+    {
+        if (! $folio->activo) {
+            throw new DomainException('El folio se encuentra inactivo y no puede ingresar a cámara.');
+        }
+
+        if ($folio->estado_operacional === EstadoOperacionalFolio::Disponible) {
+            $this->validarIngresoCamara($folio);
+
+            return;
+        }
+
+        $esProductoAprobadoEnPrefrio = $folio->tipo_bulto !== TipoBulto::Material
+            && $folio->estado_operacional === EstadoOperacionalFolio::PendientePrefrio
+            && $folio->condicion_termica === CondicionTermicaFolio::PrefrioAprobado
+            && $folio->habilitacion_almacenamiento === HabilitacionAlmacenamientoFolio::Habilitado;
+
+        if ($esProductoAprobadoEnPrefrio) {
+            $this->validarIngresoCamara($folio);
+
+            return;
+        }
+
+        if ($folio->estado_operacional === EstadoOperacionalFolio::PendientePrefrio) {
+            throw new DomainException('El folio aún no ha sido aprobado en Prefrío.');
+        }
+
+        throw new DomainException('El folio no se encuentra disponible para ingresar a cámara.');
+    }
+
     private function validarProducto(Folio $folio): void
     {
         if ($folio->tipo_bulto === TipoBulto::Material) {

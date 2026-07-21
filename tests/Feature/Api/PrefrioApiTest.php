@@ -8,8 +8,10 @@ use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\RegistroHabilitacionAlmacenamiento;
@@ -185,7 +187,7 @@ class PrefrioApiTest extends TestCase
         $this->assertSame($folio->id, $recargado['folios'][0]['folio']['id']);
     }
 
-    public function test_aprobacion_habilita_almacenamiento_sin_dejar_folio_disponible_antes_de_camara(): void
+    public function test_aprobacion_habilita_almacenamiento_y_permite_ingreso_inicial_a_camara(): void
     {
         [$tunel, $posicion, $tokenOperador] = $this->contexto();
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'PF-SUP-01');
@@ -233,6 +235,44 @@ class PrefrioApiTest extends TestCase
         $this->assertNotNull($registro->dispositivo_id);
 
         app(ServicioHabilitacionAlmacenamiento::class)->validarIngresoCamara($folio);
+
+        $camara = Camara::create([
+            'codigo' => 'CAM-PF-01',
+            'nombre' => 'Cámara posterior a prefrío',
+        ]);
+        $posicionCamara = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P01-N1',
+        ]);
+        $sesionId = $this->conToken($tokenSupervisor)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->conToken($tokenSupervisor)
+            ->postJson('/api/movimientos/ubicar', [
+                'operacion_id' => (string) Str::uuid(),
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => 'pallet',
+                'posicion_destino_id' => $posicionCamara->id,
+                'sesion_destino_id' => $sesionId,
+                'version_destino_conocida' => 0,
+                'generado_dispositivo_at' => now()->toAtomString(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.folio.id', $folio->id);
+
+        $this->assertSame(
+            EstadoOperacionalFolio::Disponible,
+            $folio->refresh()->estado_operacional,
+        );
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folio->id,
+            'posicion_id' => $posicionCamara->id,
+        ]);
 
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('historial de habilitaciones es inmutable');
