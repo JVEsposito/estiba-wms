@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'temporada_id',
     'codigo',
     'operacion_id',
     'payload_hash',
@@ -34,6 +35,11 @@ class ProcesoPrefrio extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'procesos_prefrio';
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function tunel(): BelongsTo
     {

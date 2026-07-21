@@ -29,6 +29,11 @@ Validación selecciona temporadas existentes para mantener su catálogo, pero no
 puede crearlas, editarlas ni activarlas. Esa responsabilidad global pertenece a
 `/oficina/accesos` y se comparte con Romana, Materiales y Frigorífico.
 
+El administrador puede copiar desde Accesos el catálogo jerárquico de una
+temporada hacia otra temporada vacía. Se copian clientes, marcas, categorías,
+especies, variedades, calibres, envases y CSG, y se reconstruyen las
+proyecciones para PDA. No se copian validaciones, intentos ni folios históricos.
+
 ## Intentos e idempotencia
 
 Cada envío usa `operacion_id` UUID y hash del payload.

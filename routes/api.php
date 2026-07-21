@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/administracion/temporadas', [AdministracionTemporadaController::class, 'store']);
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
         Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
+        Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
     });
     Route::middleware('can:gestionar-andenes')->group(function () {
         Route::post('/administracion/andenes', [AndenController::class, 'store']);

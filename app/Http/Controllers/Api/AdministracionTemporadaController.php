@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuardarTemporadaGlobalRequest;
+use App\Http\Requests\MigrarTemporadaRequest;
+use App\Models\MigracionTemporada;
 use App\Models\Temporada;
+use App\Services\Temporadas\ServicioMigracionTemporada;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +23,7 @@ class AdministracionTemporadaController extends Controller
         return response()->json([
             'data' => Temporada::query()
                 ->with('configuracionMaterial:id,temporada_id')
+                ->withCount('migracionesRecibidas')
                 ->orderByDesc('activa')
                 ->orderByDesc('fecha_inicio')
                 ->orderByDesc('created_at')
@@ -81,6 +85,23 @@ class AdministracionTemporadaController extends Controller
         ]);
     }
 
+    public function migrar(
+        MigrarTemporadaRequest $request,
+        Temporada $temporada,
+        ServicioMigracionTemporada $servicio,
+    ): JsonResponse {
+        $migracion = $servicio->migrar(
+            Temporada::query()->findOrFail($request->validated('temporada_origen_id')),
+            $temporada,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $this->migracion($migracion),
+        ], Response::HTTP_CREATED);
+    }
+
     /** @return array<string, mixed> */
     private function temporada(Temporada $temporada): array
     {
@@ -93,8 +114,34 @@ class AdministracionTemporadaController extends Controller
             'fecha_fin' => $temporada->fecha_fin?->toDateString(),
             'activa' => $temporada->activa,
             'version_catalogo' => $temporada->version_catalogo,
+            'migraciones_recibidas' => (int) ($temporada->migraciones_recibidas_count ?? 0),
             'created_at' => $temporada->created_at?->toAtomString(),
             'updated_at' => $temporada->updated_at?->toAtomString(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function migracion(MigracionTemporada $migracion): array
+    {
+        return [
+            'id' => $migracion->id,
+            'origen' => [
+                'id' => $migracion->origen->id,
+                'codigo' => $migracion->origen->codigo,
+                'nombre' => $migracion->origen->nombre,
+            ],
+            'destino' => [
+                'id' => $migracion->destino->id,
+                'codigo' => $migracion->destino->codigo,
+                'nombre' => $migracion->destino->nombre,
+                'activa' => $migracion->destino->activa,
+            ],
+            'resumen' => $migracion->resumen,
+            'creado_por' => [
+                'id' => $migracion->creadoPor->id,
+                'nombre' => $migracion->creadoPor->name,
+            ],
+            'created_at' => $migracion->created_at?->toAtomString(),
         ];
     }
 }

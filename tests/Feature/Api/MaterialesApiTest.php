@@ -302,6 +302,7 @@ class MaterialesApiTest extends TestCase
             ->postJson('/api/materiales/despachos', $payloadDespacho)
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'MAT-DES-000001')
+            ->assertJsonPath('data.temporada.activa', true)
             ->assertJsonPath('data.origen', 'oficina')
             ->assertJsonPath('data.destino.centro_costo', 'CC-100')
             ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folio1)

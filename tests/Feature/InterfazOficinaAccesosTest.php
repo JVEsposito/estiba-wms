@@ -15,6 +15,8 @@ class InterfazOficinaAccesosTest extends TestCase
             ->assertSee('Ciclo operacional compartido')
             ->assertSee('Mínimo 10 caracteres; debe contener al menos una letra y un número.')
             ->assertSee('seasonForm', false)
+            ->assertSee('seasonMigrationForm', false)
+            ->assertSee('Migrar inventario vivo de Bodega')
             ->assertSee('seasonsTableBody', false)
             ->assertSee('createUserForm', false)
             ->assertSee('createDeviceForm', false)

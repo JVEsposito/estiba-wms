@@ -75,7 +75,16 @@ Validación dispone de dos entradas diferentes:
 La creación, edición y activación de la temporada transversal se realiza
 exclusivamente en `/oficina/accesos`. Romana, Validación, Materiales y
 Frigorífico consumen esa configuración global sin adquirir permisos para
-modificarla desde sus propias oficinas.
+modificarla desde sus propias oficinas. Prefrío, Cargas y Despachos de
+Materiales registran explícitamente la temporada activa al iniciar cada proceso,
+y solo aceptan folios o ítems de esa misma temporada.
+
+Desde Accesos el administrador también puede preparar el cambio de ciclo. La
+migración copia únicamente catálogos estacionales de Validación y clientes e
+ítems de Bodega. Opcionalmente traslada el inventario vivo de Bodega al ítem
+equivalente y activa el destino en una sola transacción; conserva folio,
+ubicación, saldos y kardex, y se bloquea mientras existan despachos o reservas
+abiertas. No copia recepciones, validaciones, cargas ni procesos históricos.
 
 Prefrío dispone de:
 

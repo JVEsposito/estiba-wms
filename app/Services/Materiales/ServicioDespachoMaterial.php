@@ -27,6 +27,7 @@ use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
@@ -38,6 +39,7 @@ class ServicioDespachoMaterial
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioNotificacionesOperacionales $notificaciones,
+        private readonly ServicioTemporadaActiva $temporadaActiva,
     ) {}
 
     /**
@@ -72,6 +74,8 @@ class ServicioDespachoMaterial
                 return $this->cargar($existente);
             }
 
+            $temporada = $this->temporadaActiva->obtener(bloquear: true);
+
             $destino = DestinoMaterial::query()
                 ->whereKey($datos['destino_material_id'])
                 ->where('activo', true)
@@ -84,6 +88,7 @@ class ServicioDespachoMaterial
 
             DespachoMaterial::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
             $despacho = DespachoMaterial::create([
+                'temporada_id' => $temporada->id,
                 'codigo' => $this->siguienteCodigo(),
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $payloadHash,
@@ -103,7 +108,11 @@ class ServicioDespachoMaterial
                 $item = ItemMaterial::query()
                     ->whereKey($linea['item_material_id'])
                     ->where('activo', true)
-                    ->whereHas('cliente', fn ($consulta) => $consulta->where('activo', true))
+                    ->whereHas('cliente', fn ($consulta) => $consulta
+                        ->where('activo', true)
+                        ->whereHas('temporada', fn ($temporadaMaterial) => $temporadaMaterial
+                            ->where('temporada_id', $temporada->id)
+                            ->where('activa', true)))
                     ->lockForUpdate()
                     ->first();
 
@@ -440,6 +449,7 @@ class ServicioDespachoMaterial
     public function cargar(DespachoMaterial $despacho): DespachoMaterial
     {
         return $despacho->load([
+            'temporada:id,codigo,nombre,activa',
             'creadoPor:id,name',
             'dispositivo:id,codigo,nombre',
             'canceladoPor:id,name',

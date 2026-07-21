@@ -71,6 +71,7 @@ class PrefrioApiTest extends TestCase
             ->postJson('/api/prefrio/procesos', $payload)
             ->assertCreated()
             ->assertJsonPath('data.estado', 'borrador')
+            ->assertJsonPath('data.temporada.activa', true)
             ->assertJsonPath('data.version', 0)
             ->json('data.id');
 

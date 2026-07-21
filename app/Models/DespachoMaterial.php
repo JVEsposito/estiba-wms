@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'temporada_id',
     'codigo',
     'operacion_id',
     'payload_hash',
@@ -36,6 +37,11 @@ class DespachoMaterial extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'despachos_materiales';
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function destino(): BelongsTo
     {

@@ -24,6 +24,7 @@ use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use DomainException;
@@ -36,6 +37,7 @@ class ServicioProcesoPrefrio
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
+        private readonly ServicioTemporadaActiva $temporadaActiva,
     ) {}
 
     /**
@@ -81,6 +83,8 @@ class ServicioProcesoPrefrio
                 return $this->cargar($existente);
             }
 
+            $temporada = $this->temporadaActiva->obtener(bloquear: true);
+
             $tunel = TunelPrefrio::query()
                 ->lockForUpdate()
                 ->findOrFail($datos['tunel_prefrio_id']);
@@ -89,6 +93,7 @@ class ServicioProcesoPrefrio
             $codigo = $this->siguienteCodigo();
 
             $proceso = ProcesoPrefrio::create([
+                'temporada_id' => $temporada->id,
                 'codigo' => $codigo,
                 'operacion_id' => $operacionId,
                 'payload_hash' => $payloadHash,
@@ -145,6 +150,10 @@ class ServicioProcesoPrefrio
                 $posicion = PosicionTunelPrefrio::query()
                     ->lockForUpdate()
                     ->findOrFail($datos['posicion_tunel_prefrio_id']);
+
+                if ($folio->temporada_id !== $procesoBloqueado->temporada_id) {
+                    throw new DomainException('El folio pertenece a otra temporada operacional.');
+                }
 
                 $this->validarFolioParaCarga($folio);
 
@@ -789,6 +798,7 @@ class ServicioProcesoPrefrio
     private function cargar(ProcesoPrefrio $proceso): ProcesoPrefrio
     {
         return $proceso->load([
+            'temporada:id,codigo,nombre,activa',
             'tunel:id,codigo,nombre,capacidad_posiciones,setpoint_habitual,estado_administrativo,estado_tecnico,version_configuracion',
             'folios' => fn ($consulta) => $consulta
                 ->with([

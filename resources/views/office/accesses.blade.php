@@ -115,6 +115,24 @@
                             <tbody id="seasonsTableBody"></tbody>
                         </table>
                     </div>
+
+                    <form class="admin-form admin-migration-form is-hidden" id="seasonMigrationForm" novalidate>
+                        <input name="temporada_destino_id" type="hidden">
+                        <div class="admin-panel__heading admin-migration-heading">
+                            <div><p class="eyebrow">MIGRACIÓN CONTROLADA</p><h3 id="seasonMigrationTitle">Preparar nueva temporada</h3></div>
+                            <button class="secondary-button" id="cancelSeasonMigration" type="button">Cerrar</button>
+                        </div>
+                        <div class="admin-form__grid admin-form__grid--migration">
+                            <label class="field field--wide"><span>Temporada de origen *</span><select name="temporada_origen_id" required></select></label>
+                            <label class="admin-check"><input name="copiar_catalogo_validacion" type="checkbox" checked><span>Copiar catálogos de Validación</span></label>
+                            <label class="admin-check"><input name="copiar_catalogo_materiales" type="checkbox" checked><span>Copiar clientes e ítems de Bodega</span></label>
+                            <label class="admin-check"><input name="migrar_inventario_materiales" type="checkbox"><span>Migrar inventario vivo de Bodega</span></label>
+                            <label class="admin-check"><input name="activar_destino" type="checkbox"><span>Activar el destino para todos los procesos</span></label>
+                        </div>
+                        <p class="admin-form__hint">No se copian recepciones, validaciones, cargas ni procesos históricos. El inventario conserva folio, ubicación, saldos y kardex; requiere no tener despachos ni reservas abiertas.</p>
+                        <p class="form-error" id="seasonMigrationError" role="alert"></p>
+                        <div class="admin-form__actions"><button class="primary-button" type="submit">Ejecutar migración <span>→</span></button></div>
+                    </form>
                 </section>
 
                 <div class="admin-grid">

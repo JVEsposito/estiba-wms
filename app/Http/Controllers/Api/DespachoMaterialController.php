@@ -108,6 +108,7 @@ class DespachoMaterialController extends Controller
         $folios = FolioMaterial::query()
             ->with(['item.cliente.temporada', 'folio.ubicacionActual.posicion.camara'])
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
+            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('item_material_id')
             ->get()
             ->map(function (FolioMaterial $material): array {
