@@ -9,6 +9,30 @@ cliente, la guía, el transporte, los envases declarados y los pesos observados.
 La oficina se encuentra en `/oficina/romana` y utiliza el mismo acceso Sanctum
 de los demás módulos de oficina.
 
+## Límite operacional con Frigorífico
+
+Romana y Frigorífico son flujos independientes. Una recepción de Romana no crea,
+habilita ni mueve registros de `folios`, `validaciones_pallet`, Prefrío o Cámaras.
+El correlativo `REC-*` identifica exclusivamente el expediente contractual de
+Romana; no es un folio de Frigorífico.
+
+Cuando se incorporen lotes y folios propios de Romana vivirán en tablas y
+máquinas de estado del dominio Romana. La trazabilidad futura entre ambos flujos
+se implementará como una asociación explícita, sin reutilizar identificadores ni
+convertir el cierre de Romana en una transición de Frigorífico.
+
+## Temporada global
+
+`temporadas` es la dimensión operacional compartida. Validación usa la temporada
+directamente; la configuración estacional de Materiales se vincula mediante
+`temporadas_materiales.temporada_id`; los folios de Frigorífico guardan su
+`temporada_id` cuando el origen permite determinarla; y cada recepción de Romana
+exige la temporada global activa.
+
+Compartir temporada permite agrupar y comparar información sin unir los ciclos
+de vida de Romana, Materiales y Frigorífico. La recepción conserva además código
+y nombre de temporada como snapshot contractual.
+
 ## Cliente operacional transversal
 
 La recepción se relaciona con el maestro global `clientes`, no con un catálogo
@@ -40,6 +64,7 @@ La tabla `recepciones_romana` contiene:
 - patente de camión y patente opcional de carro;
 - RUT y nombre del conductor;
 - cliente y snapshot contractual del catálogo;
+- temporada global y snapshot contractual de código y nombre;
 - tipo de servicio (`almacenaje`, `proceso`, `prefrio`);
 - cantidad y tipo de envase declarado (`bins`, `totes`, `cajas`);
 - número de guía de despacho;
@@ -47,8 +72,9 @@ La tabla `recepciones_romana` contiene:
 - estado, versión, usuarios responsables y observaciones separadas de ingreso y cierre;
 - `operacion_id` y hash para idempotencia.
 
-La guía no puede repetirse para el mismo cliente. La tara debe ser positiva y
-menor al bruto. El RUT se normaliza y valida con módulo 11.
+La guía no puede repetirse para el mismo cliente dentro de la misma temporada.
+La tara debe ser positiva y menor al bruto. El RUT se normaliza y valida con
+módulo 11.
 
 ## Correlativo
 

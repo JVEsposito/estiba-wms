@@ -7,7 +7,6 @@ use App\Enums\RolUsuario;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
 use App\Models\Temporada;
-use App\Models\TemporadaMaterial;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,6 +29,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.estado', EstadoRecepcionRomana::EnBasculaIngreso->value)
             ->assertJsonPath('data.numero_recepcion', null)
+            ->assertJsonPath('data.temporada.id', $datos['temporada_id'])
             ->assertJsonPath('data.cliente.nombre', 'Exportadora Los Andes')
             ->assertJsonPath('data.peso_bruto', 28540)
             ->json('data');
@@ -72,6 +72,9 @@ class RecepcionRomanaApiTest extends TestCase
             'estado' => EstadoRecepcionRomana::Cerrado->value,
         ]);
         $this->assertSame(3, EventoRecepcionRomana::query()->count());
+        $this->assertDatabaseCount('folios', 0);
+        $this->assertDatabaseCount('validaciones_pallet', 0);
+        $this->assertDatabaseCount('procesos_prefrio', 0);
 
         $cliente->update(['nombre' => 'Nombre modificado posteriormente']);
         $this->getJson('/api/romana/recepciones/'.$creada['id'])
@@ -194,32 +197,37 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonValidationErrors('rut_conductor');
     }
 
-    public function test_unifica_clientes_de_validacion_y_materiales_para_los_nuevos_flujos(): void
+    public function test_comparte_temporada_y_cliente_sin_unir_los_flujos_operacionales(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
-        $temporadaValidacion = Temporada::create([
+        $temporadaId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/validacion/temporadas', [
+                'codigo' => '2026-2027',
+                'nombre' => 'Temporada 2026-2027',
+                'activa' => true,
+            ])
+            ->assertCreated()
+            ->json('data.id');
+        $temporadaMaterialId = $this->postJson('/api/administracion/materiales/temporadas', [
             'codigo' => '2026-2027',
             'nombre' => 'Temporada 2026-2027',
             'activa' => true,
-        ]);
-        $temporadaMaterial = TemporadaMaterial::create([
-            'codigo' => 'MAT-2026',
-            'nombre' => 'Materiales 2026',
-            'activa' => true,
-        ]);
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.temporada_id', $temporadaId)
+            ->json('data.id');
 
-        $clienteId = $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/validacion/clientes', [
-                'temporada_id' => $temporadaValidacion->id,
-                'nombre' => 'Exportadora Transversal',
-                'codigo_externo' => 'CLI-TRANS-01',
-                'activo' => true,
-            ])
+        $clienteId = $this->postJson('/api/administracion/validacion/clientes', [
+            'temporada_id' => $temporadaId,
+            'nombre' => 'Exportadora Transversal',
+            'codigo_externo' => 'CLI-TRANS-01',
+            'activo' => true,
+        ])
             ->assertCreated()
             ->json('data.cliente_id');
 
         $this->postJson('/api/administracion/materiales/clientes', [
-            'temporada_material_id' => $temporadaMaterial->id,
+            'temporada_material_id' => $temporadaMaterialId,
             'codigo' => 'TRANSVERSAL',
             'nombre' => 'Exportadora Transversal',
             'codigo_externo' => 'CLI-TRANS-01',
@@ -229,8 +237,11 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('data.cliente_id', $clienteId);
 
         $this->assertSame(1, Cliente::query()->where('codigo_externo', 'CLI-TRANS-01')->count());
+        $this->assertSame(1, Temporada::query()->where('codigo', '2026-2027')->count());
+        $this->assertSame(1, Temporada::query()->where('activa', true)->count());
         $this->getJson('/api/romana/catalogos')
             ->assertOk()
+            ->assertJsonPath('temporadas.0.id', $temporadaId)
             ->assertJsonPath('clientes.0.id', $clienteId)
             ->assertJsonPath('clientes.0.presente_en_validacion', true)
             ->assertJsonPath('clientes.0.presente_en_materiales', true);
@@ -251,6 +262,7 @@ class RecepcionRomanaApiTest extends TestCase
     {
         return [
             'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => Temporada::query()->where('activa', true)->firstOrFail()->id,
             'cliente_id' => $cliente->id,
             'tipo_servicio' => 'prefrio',
             'cantidad_envases_declarados' => 48,

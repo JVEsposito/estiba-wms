@@ -20,6 +20,7 @@ class CrearRecepcionRomanaRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
+            'temporada_id' => ['required', 'uuid', Rule::exists('temporadas', 'id')->where('activa', true)],
             'cliente_id' => ['required', 'uuid', Rule::exists('clientes', 'id')->where('activo', true)],
             'tipo_servicio' => ['required', Rule::enum(TipoServicioRomana::class)],
             'cantidad_envases_declarados' => ['required', 'integer', 'min:1', 'max:100000'],
@@ -38,6 +39,8 @@ class CrearRecepcionRomanaRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'temporada_id.required' => 'Selecciona la temporada operacional.',
+            'temporada_id.exists' => 'La temporada seleccionada no es la temporada global activa.',
             'cliente_id.required' => 'Selecciona el cliente del servicio.',
             'cliente_id.exists' => 'El cliente seleccionado no está activo.',
             'tipo_servicio.required' => 'Selecciona el servicio contratado.',

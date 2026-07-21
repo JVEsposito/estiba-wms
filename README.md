@@ -17,10 +17,10 @@ En este dominio, una **estiba** es la asignación espacial de bultos a posicione
 
 ## Decisiones principales
 
-- El folio se crea automáticamente durante su primera ubicación si todavía no existe.
+- En el dominio de Frigorífico, el folio se crea durante Validación o en su primera ubicación si todavía no existe.
 - El ingreso a cámara y la ubicación inicial representan la misma operación.
 - Un traslado entre cámaras libera el origen y ocupa el destino dentro de una única operación transaccional.
-- No habrá un módulo independiente para crear folios.
+- Frigorífico no tendrá un módulo independiente para crear folios; esta decisión no aplica a los futuros lotes o folios propios de Romana.
 - Cada cambio del plano pertenece a una sesión de estiba y queda auditado.
 - Una cámara puede ser consultada por varias personas, pero solo una puede editarla a la vez.
 - El repaletizaje y el control de temperatura quedan fuera del MVP.
@@ -83,7 +83,9 @@ recepción con peso neto, correlativo mensual y Aviso de Recibo en PDF. El rol
 `operador_romana` puede operar; supervisión y administración también operan, y
 los perfiles de consulta autorizados solo observan. Usa un maestro operacional
 de clientes compartido por los catálogos estacionales de Validación y Materiales,
-y publica sus métricas diarias y tendencia de siete días en `/oficina/gerencia`.
+registra la misma temporada global que los demás módulos y publica sus métricas
+diarias y tendencia de siete días en `/oficina/gerencia`. Su cierre no crea ni
+mueve folios del flujo de Frigorífico.
 
 ## Requisito para importar XLSX
 

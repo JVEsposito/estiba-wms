@@ -18,6 +18,7 @@ class GeneradorAvisoReciboPdf
             ['N° recepción', $recepcion->numero_recepcion],
             ['Ingreso', $recepcion->ingreso_at?->format('d-m-Y H:i')],
             ['Salida / destare', $recepcion->salida_at?->format('d-m-Y H:i')],
+            ['Temporada', $recepcion->temporada_nombre_snapshot.' · '.$recepcion->temporada_codigo_snapshot],
             ['Cliente', $recepcion->cliente_nombre_snapshot],
             ['Código cliente', $recepcion->cliente_codigo_snapshot ?: 'Sin código externo'],
             ['Servicio', ucfirst($recepcion->tipo_servicio->value)],
@@ -41,16 +42,16 @@ class GeneradorAvisoReciboPdf
 
         $y = 695;
         foreach ($lineas as $indice => [$etiqueta, $valor]) {
-            if ($indice === 12) {
+            if ($indice === 13) {
                 $contenido .= '0.92 0.96 0.97 rg 38 '.($y - 9)." 519 31 re f\n";
             }
-            if ($indice === 14) {
+            if ($indice === 15) {
                 $contenido .= '0.08 0.50 0.48 rg 38 '.($y - 12)." 519 36 re f\n";
             }
-            $color = $indice === 14 ? '1 1 1' : '0.15 0.20 0.23';
-            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === 14, $color);
-            $contenido .= $this->texto(235, $y, $indice === 14 ? 13 : 10, (string) $valor, true, $color);
-            $y -= $indice >= 12 ? 35 : 29;
+            $color = $indice === 15 ? '1 1 1' : '0.15 0.20 0.23';
+            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === 15, $color);
+            $contenido .= $this->texto(235, $y, $indice === 15 ? 13 : 10, (string) $valor, true, $color);
+            $y -= $indice >= 13 ? 35 : 29;
         }
 
         $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);

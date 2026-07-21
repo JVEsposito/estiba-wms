@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'operacion_id',
     'payload_hash',
     'numero_recepcion',
+    'temporada_id',
+    'temporada_codigo_snapshot',
+    'temporada_nombre_snapshot',
     'cliente_id',
     'cliente_codigo_snapshot',
     'cliente_nombre_snapshot',
@@ -46,6 +49,11 @@ class RecepcionRomana extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'recepciones_romana';
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function cliente(): BelongsTo
     {
