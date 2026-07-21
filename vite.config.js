@@ -28,6 +28,8 @@ export default defineConfig({
                 'resources/js/office-weighbridge.js',
                 'resources/css/office-container-accounts.css',
                 'resources/js/office-container-accounts.js',
+                'resources/css/office-container-dispatches.css',
+                'resources/js/office-container-dispatches.js',
             ],
             refresh: true,
         }),
