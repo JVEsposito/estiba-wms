@@ -345,7 +345,7 @@ class GuiaDespachoEnvasesApiTest extends TestCase
             'tipo_movimiento' => 'despacho_cliente',
             'tipo_envase' => 'bins',
             'cantidad' => 60,
-            'signo_cuenta' => 0,
+            'signo_cuenta' => -1,
             'signo_existencia' => -1,
             'propiedad' => 'propia',
             'movimiento_origen_id' => null,
@@ -370,10 +370,33 @@ class GuiaDespachoEnvasesApiTest extends TestCase
                 'message',
                 'No existe disponibilidad suficiente de bins propia; faltan 1 unidades.',
             );
+        MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $temporada->id,
+            'cliente_id' => $cliente->id,
+            'documento_tipo' => 'guia_despacho_envases',
+            'numero_documento' => 'GDE-LEGACY-01',
+            'tipo_movimiento' => 'reversion_despacho',
+            'tipo_envase' => 'bins',
+            'cantidad' => 60,
+            'signo_cuenta' => 1,
+            'signo_existencia' => 1,
+            'propiedad' => 'propia',
+            'movimiento_origen_id' => null,
+            'ocurrido_at' => now(),
+            'ingreso_at' => now(),
+            'estado_revision' => 'pendiente',
+            'creado_por_user_id' => $operador->id,
+        ]);
+
+        $this->getJson('/api/envases/guias-despacho/catalogos')
+            ->assertOk()
+            ->assertJsonPath('inventario.0.fisico', 100)
+            ->assertJsonPath('inventario.0.disponible', 100);
         $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
             $cliente,
             (string) Str::uuid(),
-            [['tipo_envase' => 'bins', 'cantidad' => 40, 'propiedad' => 'propia', 'movimiento_origen_id' => null]],
+            [['tipo_envase' => 'bins', 'cantidad' => 100, 'propiedad' => 'propia', 'movimiento_origen_id' => null]],
         ))->assertCreated();
     }
 
