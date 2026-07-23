@@ -149,7 +149,8 @@ class MaterialesApiTest extends TestCase
     public function test_activar_temporada_material_desactiva_la_anterior_y_filtra_el_catalogo_operacional(): void
     {
         [, $tokenOficina] = $this->crearAdministrador();
-        $temporadaAnteriorId = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->temporada_material_id;
+        $clienteGeneralAnterior = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail();
+        $temporadaAnteriorId = $clienteGeneralAnterior->temporada_material_id;
         $temporadaNuevaId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2027-2028',
@@ -187,8 +188,10 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('temporada.id', $temporadaNuevaId)
             ->assertJsonPath('clientes.0.id', $clienteId)
+            ->assertJsonPath('clientes.1.codigo', 'GENERAL')
+            ->assertJsonPath('clientes.1.temporada.id', $temporadaNuevaId)
             ->assertJsonPath('items.0.codigo', 'CAJA-5KG')
-            ->assertJsonMissing(['codigo' => 'GENERAL']);
+            ->assertJsonMissing(['id' => $clienteGeneralAnterior->id]);
     }
 
     public function test_no_permite_ingresar_nuevo_material_con_item_de_temporada_inactiva(): void
