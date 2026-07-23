@@ -3,7 +3,9 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
@@ -14,6 +16,8 @@ use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
+use App\Models\ProcesoPrefrio;
+use App\Models\ProcesoPrefrioFolio;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Estiba\ServicioMovimientoEstiba;
@@ -39,7 +43,14 @@ class PanelGerencialApiTest extends TestCase
             'activo' => true,
         ]);
         $this->crearStockMaterial($administrador);
-        $this->crearTunel($administrador);
+        $folioPrefrio = Folio::create([
+            'numero_folio' => 'PROD-PREFRIO',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $this->crearTunel($administrador, $folioPrefrio);
 
         $respuesta = $this->actingAs($gerencia, 'sanctum')
             ->getJson('/api/gerencia/resumen')
@@ -50,8 +61,9 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.camaras.resumen.ocupadas', 1)
             ->assertJsonPath('data.camaras.resumen.disponibles', 1)
             ->assertJsonPath('data.camaras.resumen.ocupacion_porcentaje', 50)
-            ->assertJsonPath('data.productos.total_activos', 2)
+            ->assertJsonPath('data.productos.total_activos', 3)
             ->assertJsonPath('data.productos.disponibles_despacho', 1)
+            ->assertJsonPath('data.productos.pendientes_prefrio', 1)
             ->assertJsonPath('data.productos.bloqueados', 1)
             ->assertJsonPath('data.materiales.items_con_stock', 1)
             ->assertJsonPath('data.materiales.folios_con_stock', 1)
@@ -63,7 +75,9 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.temporada.activa', true)
             ->assertJsonPath('data.prefrio.tuneles_operativos', 1)
             ->assertJsonPath('data.prefrio.capacidad', 2)
-            ->assertJsonPath('data.prefrio.disponibles', 2)
+            ->assertJsonPath('data.prefrio.ocupadas', 1)
+            ->assertJsonPath('data.prefrio.disponibles', 1)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.estado', EstadoProcesoPrefrio::Cargando->value)
             ->assertJsonPath('data.romana.en_bascula_ingreso', 0)
             ->assertJsonPath('data.romana.pendientes_destare', 0)
             ->assertJsonPath('data.romana.cerradas_hoy', 0)
@@ -175,7 +189,7 @@ class PanelGerencialApiTest extends TestCase
         ]);
     }
 
-    private function crearTunel(User $administrador): void
+    private function crearTunel(User $administrador, Folio $folio): void
     {
         $tunel = TunelPrefrio::create([
             'codigo' => 'TUN-GE-01',
@@ -192,5 +206,24 @@ class PanelGerencialApiTest extends TestCase
                 'activa' => true,
             ]);
         }
+
+        $proceso = ProcesoPrefrio::create([
+            'codigo' => 'PF-GE-01',
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', 'panel-gerencial'),
+            'tunel_prefrio_id' => $tunel->id,
+            'estado' => EstadoProcesoPrefrio::Cargando,
+            'setpoint' => -1.5,
+            'creado_por_user_id' => $administrador->id,
+        ]);
+
+        ProcesoPrefrioFolio::create([
+            'proceso_prefrio_id' => $proceso->id,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $tunel->posiciones()->orderBy('numero')->value('id'),
+            'estado' => EstadoFolioProcesoPrefrio::Cargado,
+            'cargado_at' => now(),
+            'cargado_por_user_id' => $administrador->id,
+        ]);
     }
 }

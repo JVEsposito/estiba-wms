@@ -18,6 +18,7 @@ use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -267,7 +268,7 @@ class ServicioPanelGerencial
                     ->where('activa', true),
             ])
             ->with([
-                'procesoActivo.folios' => fn (Builder $consulta): Builder => $consulta
+                'procesoActivo.folios' => fn (HasMany $consulta): HasMany => $consulta
                     ->whereNull('retirado_at'),
             ])
             ->orderBy('codigo')
