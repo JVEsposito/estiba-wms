@@ -95,7 +95,6 @@ class RecepcionMaterialController extends Controller
             ])
             ->whereHas('folio', fn ($consulta) => $consulta
                 ->where('activo', true)
-                ->whereNull('id', false)
                 ->whereIn('estado_operacional', [
                     EstadoOperacionalFolio::PendienteUbicacion->value,
                     EstadoOperacionalFolio::Bloqueado->value,
