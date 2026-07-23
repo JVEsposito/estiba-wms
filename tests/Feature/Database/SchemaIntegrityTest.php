@@ -76,7 +76,7 @@ class SchemaIntegrityTest extends TestCase
         ]);
     }
 
-    public function test_una_posicion_no_puede_contener_dos_folios(): void
+    public function test_una_posicion_puede_contener_varios_folios_trazables(): void
     {
         [$user, $dispositivo, $camara, $sesion] = $this->crearContexto();
         $posicion = $this->crearPosicion($camara, 1, 1, 1);
@@ -104,14 +104,16 @@ class SchemaIntegrityTest extends TestCase
             'ubicado_at' => now(),
         ]);
 
-        $this->expectException(QueryException::class);
-
         UbicacionActual::create([
             'folio_id' => $folioDos->id,
             'posicion_id' => $posicion->id,
             'movimiento_id' => $movimientoDos->id,
             'ubicado_at' => now(),
         ]);
+
+        $this->assertSame(2, UbicacionActual::query()
+            ->where('posicion_id', $posicion->id)
+            ->count());
     }
 
     public function test_solo_puede_existir_un_bloqueo_activo_por_camara(): void

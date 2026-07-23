@@ -223,6 +223,11 @@ class AlcanceOperacionalUsuario
         return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::SupervisorMateriales]);
     }
 
+    public function puedeCorregirItemsEstibadosMateriales(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::SupervisorMateriales]);
+    }
+
     public function puedeValidarPallets(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -380,6 +385,7 @@ class AlcanceOperacionalUsuario
             'puede_retirar_materiales' => $this->puedeRetirarMateriales($usuario),
             'puede_cancelar_despachos_materiales' => $this->puedeCancelarDespachosMateriales($usuario),
             'puede_consultar_kardex_materiales' => $this->puedeConsultarKardexMateriales($usuario),
+            'puede_corregir_items_estibados_materiales' => $this->puedeCorregirItemsEstibadosMateriales($usuario),
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),

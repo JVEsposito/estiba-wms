@@ -129,8 +129,8 @@
                     </section>
 
                     <section class="panel materials-panel materials-inventory-panel">
-                        <div class="materials-panel__heading"><div><p class="eyebrow">EXISTENCIA</p><h2>Folios en cámaras</h2></div><input id="materialsInventorySearch" type="search" placeholder="Buscar folio o ítem"></div>
-                        <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Ubicación</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
+                        <div class="materials-panel__heading"><div><p class="eyebrow">EXISTENCIA POR CLIENTE</p><h2>Folios en cámaras</h2><span id="materialsInventorySummary">Sin existencias</span></div><div class="materials-panel__tools"><select id="materialsInventoryClient" aria-label="Filtrar inventario por cliente"><option value="">Todos los clientes</option></select><input id="materialsInventorySearch" type="search" placeholder="Buscar folio o ítem"></div></div>
+                        <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
                     </section>
                 </div>
             </section>
@@ -153,6 +153,20 @@
                 <div class="materials-import__confirm"><p id="materialImportConfirmationHelp"></p><button class="primary-button" id="confirmMaterialImport" type="button">Confirmar importación</button></div>
             </section>
             <section class="materials-import__history"><div class="materials-panel__heading"><div><p class="eyebrow">AUDITORÍA</p><h3>Importaciones recientes</h3></div></div><div id="materialImportHistory"></div></section>
+        </dialog>
+        <dialog class="materials-import" id="materialCorrectionDialog">
+            <div class="materials-import__header">
+                <div><p class="eyebrow">CORRECCIÓN SUPERVISADA</p><h2>Corregir código del ítem</h2><p id="materialCorrectionContext"></p></div>
+                <button id="closeMaterialCorrection" type="button" aria-label="Cerrar">×</button>
+            </div>
+            <form class="materials-import__form" id="materialCorrectionForm">
+                <input name="folio_id" type="hidden">
+                <label><span>Ítem correcto *</span><select name="item_material_id" required></select></label>
+                <label><span>Motivo de la corrección *</span><textarea name="motivo" minlength="5" maxlength="1000" rows="3" required></textarea></label>
+                <p class="materials-import__help">Solo se muestran ítems activos del mismo cliente y con la misma unidad. La corrección quedará registrada en el kardex.</p>
+                <p class="form-error" id="materialCorrectionError" role="alert"></p>
+                <div class="materials-import__actions"><button class="secondary-button" id="cancelMaterialCorrection" type="button">Cancelar</button><button class="primary-button" type="submit">Confirmar corrección</button></div>
+            </form>
         </dialog>
         <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>

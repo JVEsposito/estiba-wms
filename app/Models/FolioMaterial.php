@@ -56,6 +56,11 @@ class FolioMaterial extends Model
         return $this->hasMany(MovimientoInventarioMaterial::class, 'folio_id');
     }
 
+    public function correccionesItem(): HasMany
+    {
+        return $this->hasMany(CorreccionItemFolioMaterial::class, 'folio_id');
+    }
+
     protected function casts(): array
     {
         return [

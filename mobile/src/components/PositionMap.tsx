@@ -175,7 +175,9 @@ function Band({
               <Text style={styles.cellLocation}>{position.etiqueta}</Text>
             </View>
             <Text numberOfLines={1} style={styles.cellFolio}>
-              {position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
+              {(position.folios?.length ?? 0) > 1
+                ? `${position.folios?.length} ítems · ${position.folio?.material?.item.cliente.nombre ?? ''}`
+                : position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
             </Text>
             <View style={styles.cellMetaRow}>
               <Text numberOfLines={1} style={styles.cellMeta}>

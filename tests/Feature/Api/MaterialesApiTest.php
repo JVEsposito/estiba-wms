@@ -6,10 +6,12 @@ use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\ClienteMaterial;
+use App\Models\CorreccionItemFolioMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
+use App\Models\MovimientoInventarioMaterial;
 use App\Models\Posicion;
 use App\Models\RetiroMaterial;
 use App\Models\User;
@@ -679,6 +681,156 @@ class MaterialesApiTest extends TestCase
             'cancelado_por_user_id' => $supervisor->id,
             'cancelado_desde_dispositivo_id' => $dispositivo->id,
         ]);
+    }
+
+    public function test_una_posicion_material_admite_varios_items_solo_del_mismo_cliente(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $itemUno = $this->crearItem($administrador);
+        $itemDos = ItemMaterial::create([
+            'cliente_material_id' => $itemUno->cliente_material_id,
+            'codigo' => 'FILM-02',
+            'nombre' => 'Film stretch angosto',
+            'categoria' => 'Embalaje',
+            'unidad_medida' => 'rollos',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        [$camara, $posicion] = $this->crearCamara('MAT-MULTI', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $folioUno = $this->ubicarMaterial($tokenTablet, $posicion, $sesion, $itemUno, 'BULTO-L1', 0, 10, now()->toAtomString());
+        $folioDos = $this->ubicarMaterial($tokenTablet, $posicion, $sesion, $itemDos, 'BULTO-L2', 1, 4, now()->toAtomString());
+
+        $this->assertDatabaseHas('ubicaciones_actuales', ['folio_id' => $folioUno, 'posicion_id' => $posicion->id]);
+        $this->assertDatabaseHas('ubicaciones_actuales', ['folio_id' => $folioDos, 'posicion_id' => $posicion->id]);
+        $this->conToken($tokenTablet)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.posiciones.0.folios')
+            ->assertJsonPath('data.posiciones.0.folios.0.material.item.cliente.nombre', 'Sin clasificar');
+
+        $otroCliente = ClienteMaterial::create([
+            'temporada_material_id' => $itemUno->cliente->temporada_material_id,
+            'codigo' => 'OTRO',
+            'nombre' => 'Otro cliente',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        $itemOtroCliente = ItemMaterial::create([
+            'cliente_material_id' => $otroCliente->id,
+            'codigo' => 'FILM-01',
+            'nombre' => 'Film de otro cliente',
+            'unidad_medida' => 'rollos',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $posicion,
+                $sesion,
+                $itemOtroCliente,
+                'BULTO-OTRO-CLIENTE',
+                2,
+                2,
+            ))
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/inventario?cliente_id={$itemUno->cliente_material_id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('resumen_clientes.0.folios', 2)
+            ->assertJsonPath('resumen_clientes.0.items', 2)
+            ->assertJsonPath('resumen_clientes.0.posiciones', 1);
+    }
+
+    public function test_supervisor_corrige_codigo_estibado_con_auditoria_y_kardex_doble(): void
+    {
+        [$administrador] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $supervisor = User::factory()->create([
+            'rol' => RolUsuario::SupervisorMateriales,
+            'activo' => true,
+        ]);
+        $tokenSupervisor = $supervisor->createToken('oficina-supervisor', ['oficina'])->plainTextToken;
+        $itemAnterior = $this->crearItem($administrador);
+        $itemNuevo = ItemMaterial::create([
+            'cliente_material_id' => $itemAnterior->cliente_material_id,
+            'codigo' => 'FILM-CORRECTO',
+            'nombre' => 'Film stretch correcto',
+            'categoria' => 'Embalaje',
+            'unidad_medida' => 'rollos',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        [$camara, $posicion] = $this->crearCamara('MAT-CORR', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial($tokenTablet, $posicion, $sesion, $itemAnterior, 'MAT-CORREGIR', 0, 12, now()->toAtomString());
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'item_material_id' => $itemNuevo->id,
+            'motivo' => 'Código seleccionado incorrectamente al estibar.',
+        ];
+
+        $correccionId = $this->conToken($tokenSupervisor)
+            ->postJson("/api/materiales/inventario/{$folioId}/corregir-item", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.item_anterior.codigo', 'FILM-01')
+            ->assertJsonPath('data.item_nuevo.codigo', 'FILM-CORRECTO')
+            ->assertJsonPath('data.usuario.id', $supervisor->id)
+            ->json('data.id');
+
+        $this->conToken($tokenSupervisor)
+            ->postJson("/api/materiales/inventario/{$folioId}/corregir-item", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.id', $correccionId);
+
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioId,
+            'item_material_id' => $itemNuevo->id,
+            'cantidad_actual' => 12,
+        ]);
+        $this->assertDatabaseHas('correcciones_items_folios_materiales', [
+            'id' => $correccionId,
+            'operacion_id' => $operacionId,
+            'item_anterior_id' => $itemAnterior->id,
+            'item_nuevo_id' => $itemNuevo->id,
+            'user_id' => $supervisor->id,
+        ]);
+        $this->assertDatabaseHas('movimientos_inventario_materiales', [
+            'folio_id' => $folioId,
+            'item_material_id' => $itemAnterior->id,
+            'tipo' => 'correccion_item_salida',
+            'cantidad' => -12,
+        ]);
+        $this->assertDatabaseHas('movimientos_inventario_materiales', [
+            'folio_id' => $folioId,
+            'item_material_id' => $itemNuevo->id,
+            'tipo' => 'correccion_item_entrada',
+            'cantidad' => 12,
+        ]);
+        $this->assertSame(1, CorreccionItemFolioMaterial::query()->count());
+        $this->assertSame(3, MovimientoInventarioMaterial::query()->where('folio_id', $folioId)->count());
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/inventario/{$folioId}/corregir-item", [
+                'operacion_id' => (string) Str::uuid(),
+                'item_material_id' => $itemAnterior->id,
+                'motivo' => 'Intento no autorizado.',
+            ])
+            ->assertForbidden();
     }
 
     private function crearAdministrador(): array

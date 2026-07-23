@@ -90,6 +90,7 @@ export function LocateModal({
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const materialClients = [...new Map(materialItems.map((item) => [item.cliente.id, item.cliente])).values()];
   const materialSeason = materialItems[0]?.cliente.temporada;
+  const sharedMaterialClient = position?.folios?.find((folioItem) => folioItem.material)?.material?.item.cliente;
   const filteredMaterialItems = materialItems.filter((item) => (
     item.cliente.id === materialClientId
     && `${item.cliente.codigo} ${item.cliente.nombre} ${item.codigo} ${item.nombre} ${item.categoria ?? ''}`
@@ -112,7 +113,7 @@ export function LocateModal({
     setBrand('');
     setExporter('');
     setMaterialSearch('');
-    setMaterialClientId(undefined);
+    setMaterialClientId(sharedMaterialClient?.id);
     setMaterialItemId(undefined);
     setMaterialQuantity('');
     setMaterialLot('');
@@ -122,7 +123,7 @@ export function LocateModal({
     setLookupBusy(false);
     setLookupMessage('');
     setLookupTone('neutral');
-  }, [visible, isMaterial]);
+  }, [visible, isMaterial, sharedMaterialClient?.id]);
 
   useEffect(() => {
     if (!visible) return;
@@ -148,7 +149,7 @@ export function LocateModal({
     setBrand('');
     setExporter('');
     setMaterialSearch('');
-    setMaterialClientId(undefined);
+    setMaterialClientId(sharedMaterialClient?.id);
     setMaterialItemId(undefined);
     setMaterialQuantity('');
     setMaterialLot('');
@@ -340,12 +341,13 @@ export function LocateModal({
                 </View>
                 <View style={[styles.field, styles.wide]}>
                   <Text style={styles.label}>Cliente *</Text>
+                  {sharedMaterialClient ? <Text style={styles.emptyInline}>Este bulto pertenece a {sharedMaterialClient.codigo} · {sharedMaterialClient.nombre}. Solo admite ítems del mismo cliente.</Text> : null}
                   <ScrollView horizontal showsHorizontalScrollIndicator>
                     <View style={styles.choiceRow}>
                       {materialClients.map((client) => (
                         <Choice
                           active={materialClientId === client.id}
-                          disabled={existingFolio}
+                          disabled={existingFolio || Boolean(sharedMaterialClient)}
                           key={client.id}
                           label={`${client.codigo} · ${client.nombre}`}
                           onPress={() => {
@@ -363,7 +365,7 @@ export function LocateModal({
                   <ScrollView horizontal showsHorizontalScrollIndicator>
                     <View style={styles.choiceRow}>
                       {filteredMaterialItems.map((item) => (
-                        <Choice active={materialItemId === item.id} disabled={existingFolio} key={item.id} label={`${item.codigo} · ${item.nombre}`} onPress={() => setMaterialItemId(item.id)} />
+                        <Choice active={materialItemId === item.id} disabled={existingFolio} key={item.id} label={`${item.cliente.nombre} · ${item.codigo} · ${item.nombre}`} onPress={() => setMaterialItemId(item.id)} />
                       ))}
                     </View>
                   </ScrollView>
@@ -457,10 +459,11 @@ export function MoveModal({
 }: MoveModalProps) {
   const { height, width } = useWindowDimensions();
   const compact = height < 700 || width < 1000;
+  const originClientId = originPosition?.folio?.material?.item.cliente.id ?? null;
   const freePositions = destinationPlan?.posiciones.filter((position) => (
     position.estado === 'activa'
-    && !position.ocupada
     && position.id !== originPosition?.id
+    && positionAcceptsMaterialClient(position, originClientId)
   )) ?? [];
 
   return (
@@ -491,7 +494,7 @@ export function MoveModal({
           </ScrollView>
 
           <View style={styles.destinationHeading}>
-            <Text style={styles.label}>PLANO DE DESTINO · POSICIONES LIBRES</Text>
+            <Text style={styles.label}>PLANO DE DESTINO · POSICIONES COMPATIBLES</Text>
             <Text style={styles.destinationCount}>
               {destinationPlan ? freePositions.length + ' disponibles' : 'Cargando plano…'}
             </Text>
@@ -505,6 +508,7 @@ export function MoveModal({
             <DestinationPlanMap
               compact={compact}
               onSelectPosition={onSelectPosition}
+              originClientId={originClientId}
               originPositionId={originPosition?.id ?? null}
               plan={destinationPlan}
               selectedPositionId={selectedDestination?.id ?? null}
@@ -695,12 +699,14 @@ function materialDispatchLabel(
 function DestinationPlanMap({
   compact,
   onSelectPosition,
+  originClientId,
   originPositionId,
   plan,
   selectedPositionId,
 }: {
   compact: boolean;
   onSelectPosition: (position: Position) => void;
+  originClientId: string | null;
   originPositionId: string | null;
   plan: CameraPlan;
   selectedPositionId: string | null;
@@ -760,6 +766,7 @@ function DestinationPlanMap({
               level={selectedLevel}
               maxPosition={maxPosition}
               onSelectPosition={onSelectPosition}
+              originClientId={originClientId}
               originPositionId={originPositionId}
               plan={plan}
               selectedPositionId={selectedPositionId}
@@ -778,6 +785,7 @@ function DestinationBand({
   level,
   maxPosition,
   onSelectPosition,
+  originClientId,
   originPositionId,
   plan,
   selectedPositionId,
@@ -786,6 +794,7 @@ function DestinationBand({
   level: number;
   maxPosition: number;
   onSelectPosition: (position: Position) => void;
+  originClientId: string | null;
   originPositionId: string | null;
   plan: CameraPlan;
   selectedPositionId: string | null;
@@ -805,11 +814,15 @@ function DestinationBand({
         if (!position) return <View key={number} style={styles.destinationGap} />;
 
         const isOrigin = position.id === originPositionId;
-        const available = position.estado === 'activa' && !position.ocupada && !isOrigin;
+        const available = position.estado === 'activa'
+          && !isOrigin
+          && positionAcceptsMaterialClient(position, originClientId);
         const status = isOrigin
           ? 'ORIGEN'
           : position.ocupada
-            ? `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
+            ? available
+              ? `BULTO COMPATIBLE · ${position.folios?.length ?? 1} ítems`
+              : `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
             : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
 
         return (
@@ -834,6 +847,14 @@ function DestinationBand({
       })}
     </View>
   );
+}
+
+function positionAcceptsMaterialClient(position: Position, clientId: string | null): boolean {
+  if (!position.ocupada) return true;
+  if (!clientId) return false;
+  const folios = position.folios?.length ? position.folios : (position.folio ? [position.folio] : []);
+
+  return folios.length > 0 && folios.every((folio) => folio.material?.item.cliente.id === clientId);
 }
 
 function DialogHeading({
