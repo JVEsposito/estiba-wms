@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
+use App\Http\Controllers\Api\ClienteGlobalController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\CorreccionItemMaterialController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
+use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -120,8 +122,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ->group(function () {
             Route::get('/', [AdministracionValidacionController::class, 'index']);
             Route::get('/temporadas/{temporada}/catalogo', [CatalogoJerarquicoValidacionController::class, 'index']);
-            Route::post('/clientes', [CatalogoJerarquicoValidacionController::class, 'storeCliente']);
-            Route::put('/clientes/{clienteValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCliente']);
             Route::post('/marcas', [CatalogoJerarquicoValidacionController::class, 'storeMarca']);
             Route::put('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateMarca']);
             Route::post('/especies', [CatalogoJerarquicoValidacionController::class, 'storeEspecie']);
@@ -208,6 +208,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
+        Route::get('/administracion/clientes', [ClienteGlobalController::class, 'index']);
+        Route::post('/administracion/clientes', [ClienteGlobalController::class, 'store']);
+        Route::put('/administracion/clientes/{cliente}', [ClienteGlobalController::class, 'update']);
         Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
         Route::post('/administracion/temporadas', [AdministracionTemporadaController::class, 'store']);
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
@@ -221,8 +224,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:administrar-catalogos-materiales')->group(function () {
         Route::get('/administracion/materiales/temporadas', [CatalogoMaterialController::class, 'temporadas']);
         Route::get('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'clientes']);
-        Route::post('/administracion/materiales/clientes', [CatalogoMaterialController::class, 'storeCliente']);
-        Route::put('/administracion/materiales/clientes/{clienteMaterial}', [CatalogoMaterialController::class, 'updateCliente']);
+        Route::get('/administracion/materiales/proveedores', [ProveedorMaterialController::class, 'index']);
+        Route::post('/administracion/materiales/proveedores', [ProveedorMaterialController::class, 'store']);
+        Route::put('/administracion/materiales/proveedores/{proveedorMaterial}', [ProveedorMaterialController::class, 'update']);
         Route::get('/administracion/materiales/importaciones', [ImportacionCatalogoMaterialController::class, 'index']);
         Route::post('/administracion/materiales/importaciones/previsualizar', [ImportacionCatalogoMaterialController::class, 'previsualizar']);
         Route::post('/administracion/materiales/importaciones/{importacionCatalogoMaterial}/confirmar', [ImportacionCatalogoMaterialController::class, 'confirmar']);

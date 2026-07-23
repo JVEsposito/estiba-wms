@@ -20,11 +20,17 @@ retiros parciales por cantidad.
 
 ## Catálogos de oficina
 
-El administrador mantiene:
+Los clientes son transversales y se crean, modifican o desactivan únicamente
+en `/oficina/accesos`. Cada temporada conserva una proyección técnica del
+cliente global para asociar ítems e inventario sin duplicar el maestro.
+
+En Materiales el administrador mantiene:
 
 1. Ítems: código, nombre, categoría, unidad de medida y referencia externa
    opcional.
-2. Destinos: nombre, centro de costo, descripción y referencia externa
+2. Proveedores: código, nombre, referencia externa y uno o más clientes
+   globales asociados.
+3. Destinos: nombre, centro de costo, descripción y referencia externa
    opcional.
 
 Los registros se activan o desactivan; no se eliminan físicamente. Los campos
@@ -34,7 +40,9 @@ identidad interna del registro.
 ### Cambio de temporada e inventario
 
 Solo el administrador ejecuta la migración desde `/oficina/accesos`. Puede
-copiar clientes e ítems hacia una temporada vacía sin copiar cantidades. Si
+copiar ítems y sus asociaciones de cliente hacia una temporada vacía sin
+copiar cantidades. Los clientes globales ya están disponibles en todo ciclo.
+Si
 además selecciona inventario, el destino se activa globalmente en la misma
 transacción y cada folio con saldo positivo se vincula al ítem equivalente de
 la nueva temporada. El número de folio, la posición, el saldo y el kardex
@@ -48,9 +56,11 @@ migraciones de temporada.
 ### Importación masiva del catálogo
 
 El administrador puede cargar ítems desde `/oficina/materiales` usando una
-planilla CSV o XLSX. La plantilla admite las columnas `codigo`, `nombre`,
-`categoria`, `unidad_medida`, `codigo_externo` y `activo`, con un máximo de
-5.000 filas de datos por archivo.
+planilla CSV o XLSX. La plantilla admite las columnas `temporada_codigo`,
+`cliente_codigo`, `codigo`, `nombre`, `categoria`, `unidad_medida`,
+`codigo_externo` y `activo`, con un máximo de 5.000 filas de datos por archivo.
+La temporada debe existir y `cliente_codigo` debe corresponder a un cliente
+activo creado previamente en Accesos.
 
 La carga se ejecuta en dos etapas:
 

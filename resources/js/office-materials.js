@@ -8,8 +8,10 @@ const elements = {
     itemError: byId('itemMaterialError'), itemCancel: byId('cancelItemEdit'), itemList: byId('itemsMaterialList'),
     seasonList: byId('seasonsMaterialList'),
     seasonSelector: byId('materialSeasonSelector'), seasonActive: byId('materialsSeasonActive'),
-    clientForm: byId('clientMaterialForm'), clientError: byId('clientMaterialError'),
-    clientCancel: byId('cancelClientEdit'), clientList: byId('clientsMaterialList'),
+    clientList: byId('clientsMaterialList'),
+    providerForm: byId('providerMaterialForm'), providerError: byId('providerMaterialError'),
+    providerCancel: byId('cancelProviderEdit'), providerList: byId('providersMaterialList'),
+    providerClientOptions: byId('providerClientOptions'), providersSummary: byId('providersSummary'),
     destinationForm: byId('destinationMaterialForm'), destinationError: byId('destinationMaterialError'),
     destinationCancel: byId('cancelDestinationEdit'), destinationList: byId('destinationsMaterialList'),
     dispatchForm: byId('dispatchMaterialForm'), dispatchError: byId('dispatchMaterialError'),
@@ -35,7 +37,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
-    seasons: [], selectedSeasonId: null, clients: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
+    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
     cancellationOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
 
@@ -86,6 +88,11 @@ function showApp() {
 
 function selectedSeason() { return state.seasons.find((season) => season.id === state.selectedSeasonId) || null; }
 function seasonClients() { return state.clients.filter((client) => client.temporada?.id === state.selectedSeasonId); }
+function globalClients() {
+    const prioritized = [...state.clients].sort((left, right) =>
+        Number(right.temporada?.id === state.selectedSeasonId) - Number(left.temporada?.id === state.selectedSeasonId));
+    return [...new Map(prioritized.filter((client) => client.cliente_id).map((client) => [client.cliente_id, client])).values()];
+}
 function seasonItems() { return state.items.filter((item) => item.cliente?.temporada?.id === state.selectedSeasonId); }
 function activeItems() { return state.items.filter((item) => item.activo && item.cliente?.activo !== false && item.cliente?.temporada?.activa !== false); }
 function activeDestinations() { return state.destinations.filter((destination) => destination.activo); }
@@ -171,14 +178,25 @@ function renderSeasons() {
     elements.seasonList.innerHTML = state.seasons.map((season) => `<article class="material-row${season.activa ? '' : ' is-inactive'}"><div><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>${escapeHtml(season.fecha_inicio || 'Sin inicio')} → ${escapeHtml(season.fecha_fin || 'Sin término')} · ${season.clientes_activos} clientes · ${season.items_activos} ítems${season.activa ? ' · activa global' : ''}</small></div></article>`).join('') || '<p class="empty-state">No existen temporadas. Debes crearla en Accesos.</p>';
 }
 function renderClients() {
-    const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     const clients = seasonClients();
     elements.clientsSummary.textContent = `${clients.length} registrados`;
-    elements.clientList.innerHTML = clients.map((client) => `<article class="material-row${client.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</strong><small>${client.items_activos} ítems activos${client.codigo_externo ? ` · ${escapeHtml(client.codigo_externo)}` : ''}</small></div>${canAdminister ? `<button data-edit-client="${client.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen clientes en esta temporada.</p>';
-    elements.clientForm.elements.temporada_material_id.value = state.selectedSeasonId || '';
+    elements.clientList.innerHTML = clients.map((client) => `<article class="material-row${client.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</strong><small>${client.items_activos} ítems activos${client.codigo_externo ? ` · ERP ${escapeHtml(client.codigo_externo)}` : ''} · administrado en Accesos</small></div></article>`).join('') || '<p class="empty-state">No existen clientes en esta temporada. Créalo o actívalo en Accesos.</p>';
     const current = elements.itemForm.elements.cliente_material_id.value;
     elements.itemForm.elements.cliente_material_id.innerHTML = '<option value="">Selecciona un cliente</option>' + clients.filter((client) => client.activo).map((client) => `<option value="${client.id}">${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</option>`).join('');
     if ([...elements.itemForm.elements.cliente_material_id.options].some((option) => option.value === current)) elements.itemForm.elements.cliente_material_id.value = current;
+}
+function renderProviders() {
+    if (!elements.providerForm) return;
+    elements.providersSummary.textContent = `${state.providers.length} registrados`;
+    const checked = new Set([...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value));
+    elements.providerClientOptions.innerHTML = globalClients()
+        .filter((client) => client.activo)
+        .map((client) => `<label><input name="cliente_ids" type="checkbox" value="${client.cliente_id}"${checked.has(client.cliente_id) ? ' checked' : ''}><span>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</span></label>`)
+        .join('') || '<p class="empty-state">No existen clientes activos en Accesos.</p>';
+    elements.providerList.innerHTML = state.providers.map((provider) => {
+        const clients = (provider.clientes || []).map((client) => `${client.codigo} · ${client.nombre}`).join(', ');
+        return `<article class="material-row${provider.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(provider.codigo)} · ${escapeHtml(provider.nombre)}</strong><small>${escapeHtml(clients || 'Sin clientes asociados')}${provider.codigo_externo ? ` · ERP ${escapeHtml(provider.codigo_externo)}` : ''}</small></div><button data-edit-provider="${provider.id}" type="button">Editar</button></article>`;
+    }).join('') || '<p class="empty-state">No existen proveedores registrados.</p>';
 }
 function renderItems() {
     const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
@@ -244,15 +262,15 @@ function renderImportPreview() {
             ? 'Corrige la planilla y vuelve a previsualizarla. No se aplicó ningún cambio.'
             : 'La confirmación actualizará solo el catálogo. Los ítems ausentes permanecerán sin cambios.';
 }
-function renderAll() { renderSeasons(); renderClients(); renderItems(); renderDestinations(); renderDispatches(); renderInventory(); renderMetrics(); renderImportHistory(); }
+function renderAll() { renderSeasons(); renderClients(); renderProviders(); renderItems(); renderDestinations(); renderDispatches(); renderInventory(); renderMetrics(); renderImportHistory(); }
 
 async function loadAll() {
     const catalogAdmin = state.identity?.puede_administrar_catalogos_materiales === true;
     const [catalog, dispatches, inventory] = await Promise.all([
-        catalogAdmin ? Promise.all([api('/api/administracion/materiales/temporadas'), api('/api/administracion/materiales/clientes'), api('/api/administracion/materiales/items'), api('/api/administracion/materiales/destinos'), api('/api/administracion/materiales/importaciones')]) : api('/api/materiales/catalogo'),
+        catalogAdmin ? Promise.all([api('/api/administracion/materiales/temporadas'), api('/api/administracion/materiales/clientes'), api('/api/administracion/materiales/items'), api('/api/administracion/materiales/destinos'), api('/api/administracion/materiales/importaciones'), api('/api/administracion/materiales/proveedores')]) : api('/api/materiales/catalogo'),
         api('/api/materiales/despachos'), api('/api/materiales/inventario'),
     ]);
-    if (catalogAdmin) { state.seasons = catalog[0].data; state.clients = catalog[1].data; state.items = catalog[2].data; state.destinations = catalog[3].data; state.imports = catalog[4].data; } else { state.seasons = catalog.temporada ? [catalog.temporada] : []; state.clients = catalog.clientes; state.items = catalog.items; state.destinations = catalog.destinos; state.imports = []; }
+    if (catalogAdmin) { state.seasons = catalog[0].data; state.clients = catalog[1].data; state.items = catalog[2].data; state.destinations = catalog[3].data; state.imports = catalog[4].data; state.providers = catalog[5].data; } else { state.seasons = catalog.temporada ? [catalog.temporada] : []; state.clients = catalog.clientes; state.items = catalog.items; state.destinations = catalog.destinos; state.imports = []; state.providers = []; }
     if (!state.seasons.some((season) => season.id === state.selectedSeasonId)) state.selectedSeasonId = state.seasons.find((season) => season.activa)?.id || state.seasons[0]?.id || null;
     state.dispatches = dispatches.data; state.inventory = inventory.data; state.inventorySummary = inventory.resumen_clientes || [];
     state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -319,23 +337,43 @@ function dispatchItemsPayload() {
     });
 }
 function resetItemForm() { elements.itemForm.reset(); elements.itemForm.elements.id.value = ''; elements.itemForm.elements.activo.checked = true; elements.itemCancel.classList.add('is-hidden'); elements.itemError.textContent = ''; }
-function resetClientForm() { elements.clientForm.reset(); elements.clientForm.elements.id.value = ''; elements.clientForm.elements.activo.checked = true; elements.clientCancel.classList.add('is-hidden'); elements.clientError.textContent = ''; }
+function resetProviderForm() { elements.providerForm.reset(); elements.providerForm.elements.id.value = ''; elements.providerForm.elements.activo.checked = true; elements.providerCancel.classList.add('is-hidden'); elements.providerError.textContent = ''; renderProviders(); }
 function resetDestinationForm() { elements.destinationForm.reset(); elements.destinationForm.elements.id.value = ''; elements.destinationForm.elements.activo.checked = true; elements.destinationCancel.classList.add('is-hidden'); elements.destinationError.textContent = ''; }
 function resetImportPreview() { state.importPreview = null; elements.importError.textContent = ''; renderImportPreview(); }
 
 elements.login.addEventListener('submit', async (event) => { event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…'); try { const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.login))) }); if (payload.usuario.puede_consultar_despachos_materiales !== true) throw new ApiError('Tu perfil no puede consultar materiales.', 403); persist(payload); showApp(); await loadAll(); } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); } });
-elements.clientForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.clientError.textContent = ''; const data = Object.fromEntries(new FormData(elements.clientForm)); const id = data.id; delete data.id; data.activo = elements.clientForm.elements.activo.checked; setBusy(true, 'Guardando cliente…'); try { await api(id ? `/api/administracion/materiales/clientes/${id}` : '/api/administracion/materiales/clientes', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetClientForm(); await loadAll(); toast('Cliente guardado correctamente.'); } catch (error) { elements.clientError.textContent = error.message; } finally { setBusy(false); } });
+elements.providerForm.elements.codigo.addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9._-]/g, ''); });
+elements.providerForm.addEventListener('submit', async (event) => {
+    event.preventDefault(); elements.providerError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.providerForm));
+    const id = data.id; delete data.id;
+    data.activo = elements.providerForm.elements.activo.checked;
+    data.cliente_ids = [...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value);
+    setBusy(true, 'Guardando proveedor…');
+    try {
+        await api(id ? `/api/administracion/materiales/proveedores/${id}` : '/api/administracion/materiales/proveedores', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+        resetProviderForm(); await loadAll(); toast('Proveedor y clientes asociados actualizados.');
+    } catch (error) { elements.providerError.textContent = error.message; } finally { setBusy(false); }
+});
 elements.itemForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.itemError.textContent = ''; const data = Object.fromEntries(new FormData(elements.itemForm)); const id = data.id; delete data.id; data.activo = elements.itemForm.elements.activo.checked; setBusy(true, 'Guardando ítem…'); try { await api(id ? `/api/administracion/materiales/items/${id}` : '/api/administracion/materiales/items', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetItemForm(); await loadAll(); toast('Ítem guardado correctamente.'); } catch (error) { elements.itemError.textContent = error.message; } finally { setBusy(false); } });
 elements.destinationForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.destinationError.textContent = ''; const data = Object.fromEntries(new FormData(elements.destinationForm)); const id = data.id; delete data.id; data.activo = elements.destinationForm.elements.activo.checked; setBusy(true, 'Guardando destino…'); try { await api(id ? `/api/administracion/materiales/destinos/${id}` : '/api/administracion/materiales/destinos', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetDestinationForm(); await loadAll(); toast('Destino guardado correctamente.'); } catch (error) { elements.destinationError.textContent = error.message; } finally { setBusy(false); } });
-elements.seasonSelector.addEventListener('change', () => { state.selectedSeasonId = elements.seasonSelector.value || null; resetClientForm(); resetItemForm(); renderAll(); });
-elements.clientList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-client]'); if (!button) return; const client = state.clients.find((candidate) => candidate.id === button.dataset.editClient); if (!client) return; for (const field of ['id', 'codigo', 'nombre', 'codigo_externo']) elements.clientForm.elements[field].value = client[field] || ''; elements.clientForm.elements.activo.checked = client.activo; elements.clientCancel.classList.remove('is-hidden'); });
+elements.seasonSelector.addEventListener('change', () => { state.selectedSeasonId = elements.seasonSelector.value || null; resetItemForm(); renderAll(); });
+elements.providerList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-edit-provider]'); if (!button) return;
+    const provider = state.providers.find((candidate) => candidate.id === button.dataset.editProvider); if (!provider) return;
+    for (const field of ['id', 'codigo', 'nombre', 'codigo_externo']) elements.providerForm.elements[field].value = provider[field] || '';
+    elements.providerForm.elements.activo.checked = provider.activo;
+    const clientIds = new Set((provider.clientes || []).map((client) => client.id));
+    elements.providerClientOptions.querySelectorAll('input').forEach((input) => { input.checked = clientIds.has(input.value); });
+    elements.providerCancel.classList.remove('is-hidden');
+});
 elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.cliente_material_id.value = item.cliente?.id || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
 elements.destinationList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-destination]'); if (!button) return; const destination = state.destinations.find((candidate) => candidate.id === button.dataset.editDestination); if (!destination) return; for (const field of ['id', 'nombre', 'centro_costo', 'descripcion', 'codigo_externo']) elements.destinationForm.elements[field].value = destination[field] || ''; elements.destinationForm.elements.activo.checked = destination.activo; elements.destinationCancel.classList.remove('is-hidden'); });
-elements.clientCancel.addEventListener('click', resetClientForm); elements.itemCancel.addEventListener('click', resetItemForm); elements.destinationCancel.addEventListener('click', resetDestinationForm);
+elements.providerCancel.addEventListener('click', resetProviderForm); elements.itemCancel.addEventListener('click', resetItemForm); elements.destinationCancel.addEventListener('click', resetDestinationForm);
 elements.importOpen.addEventListener('click', () => elements.importDialog.showModal());
 elements.importClose.addEventListener('click', () => elements.importDialog.close());
 elements.importTemplate.addEventListener('click', () => {
-    const content = '\uFEFFtemporada_codigo;cliente_codigo;codigo;nombre;categoria;unidad_medida;codigo_externo;activo\n2026-2027;CLI-001;CAJ-5KG;Caja cartón 5 kg;Cajas;unidad;ERP-1054;si\n';
+    const content = '\uFEFFtemporada_codigo;cliente_codigo;codigo;nombre;categoria;unidad_medida;codigo_externo;activo\n2026-2027;AG-001;CAJ-5KG;Caja cartón 5 kg;Cajas;unidad;ERP-1054;si\n';
     const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = 'plantilla_catalogo_materiales.csv'; link.click();
     URL.revokeObjectURL(url);

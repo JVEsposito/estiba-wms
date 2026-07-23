@@ -56,25 +56,34 @@
                     <section class="panel materials-panel">
                         <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Ciclo operacional</h2></div><span id="seasonsSummary">0 registradas</span></div>
                         <label class="materials-season-selector"><span>Temporada seleccionada</span><select id="materialSeasonSelector"></select></label>
-                        <p class="materials-help">La temporada se crea, edita y activa en la oficina Accesos. Materiales solo administra clientes e ítems dentro del ciclo seleccionado.</p>
+                        <p class="materials-help">La temporada se crea, edita y activa en la oficina Accesos. Materiales administra ítems, proveedores y destinos dentro del ciclo seleccionado.</p>
                         <div class="materials-list" id="seasonsMaterialList"></div>
                     </section>
 
                     <section class="panel materials-panel">
-                        <div class="materials-panel__heading"><div><p class="eyebrow">JERARQUÍA</p><h2>Clientes de bodega</h2></div><span id="clientsSummary">0 registrados</span></div>
-                        <form class="materials-form" id="clientMaterialForm" novalidate>
-                            <input name="id" type="hidden">
-                            <input name="temporada_material_id" type="hidden">
-                            <div class="materials-form__grid">
-                                <label><span>Código *</span><input name="codigo" maxlength="80" placeholder="CLI-001" required></label>
-                                <label><span>Nombre *</span><input name="nombre" maxlength="180" placeholder="Exportadora del Sur" required></label>
-                                <label><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
-                                <label class="materials-check"><input name="activo" type="checkbox" checked><span>Cliente activo</span></label>
-                            </div>
-                            <p class="form-error" id="clientMaterialError" role="alert"></p>
-                            <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelClientEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar cliente</button></div>
-                        </form>
+                        <div class="materials-panel__heading"><div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2>Clientes de servicio</h2></div><span id="clientsSummary">0 registrados</span></div>
+                        <p class="materials-help">Estos clientes provienen de Accesos y se comparten con Romana, Validación, Envases y los demás procesos. Aquí se usan para asociar ítems, inventario y proveedores.</p>
                         <div class="materials-list" id="clientsMaterialList"></div>
+                    </section>
+
+                    <section class="panel materials-panel">
+                        <div class="materials-panel__heading"><div><p class="eyebrow">ABASTECIMIENTO</p><h2>Proveedores</h2></div><span id="providersSummary">0 registrados</span></div>
+                        <form class="materials-form" id="providerMaterialForm" novalidate>
+                            <input name="id" type="hidden">
+                            <div class="materials-form__grid">
+                                <label><span>Código *</span><input name="codigo" maxlength="80" placeholder="PRV-001" required></label>
+                                <label><span>Nombre *</span><input name="nombre" maxlength="180" placeholder="Proveedor de embalajes" required></label>
+                                <label><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
+                                <label class="materials-check"><input name="activo" type="checkbox" checked><span>Proveedor activo</span></label>
+                                <fieldset class="materials-provider-clients materials-wide">
+                                    <legend>Clientes asociados *</legend>
+                                    <div id="providerClientOptions"></div>
+                                </fieldset>
+                            </div>
+                            <p class="form-error" id="providerMaterialError" role="alert"></p>
+                            <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelProviderEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar proveedor</button></div>
+                        </form>
+                        <div class="materials-list" id="providersMaterialList"></div>
                     </section>
 
                     <section class="panel materials-panel">
@@ -143,7 +152,7 @@
             <form class="materials-import__form" id="materialImportForm">
                 <label><span>Planilla CSV o XLSX *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
                 <div class="materials-import__actions"><button class="secondary-button" id="downloadMaterialTemplate" type="button">Descargar plantilla CSV</button><button class="primary-button" type="submit">Previsualizar</button></div>
-                <p class="materials-import__help">Columnas: temporada_codigo, cliente_codigo, código, nombre, categoría, unidad_medida, código_externo y activo. La temporada y el cliente deben existir previamente. Máximo 5.000 filas.</p>
+                <p class="materials-import__help">Columnas: temporada_codigo, cliente_codigo, código, nombre, categoría, unidad_medida, código_externo y activo. La temporada debe existir y el cliente debe estar creado previamente en Accesos. Máximo 5.000 filas.</p>
                 <p class="form-error" id="materialImportError" role="alert"></p>
             </form>
             <section class="materials-import__preview is-hidden" id="materialImportPreview">

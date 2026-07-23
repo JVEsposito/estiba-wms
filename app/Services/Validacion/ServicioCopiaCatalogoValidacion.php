@@ -26,16 +26,20 @@ class ServicioCopiaCatalogoValidacion
             $origen = Temporada::query()->lockForUpdate()->findOrFail($origen->id);
             $destino = Temporada::query()->lockForUpdate()->findOrFail($destino->id);
 
-            $destinoOcupado = $destino->clientes()->exists()
-                || $destino->especies()->exists()
+            $destinoOcupado = $destino->especies()->exists()
                 || $destino->categorias()->exists()
-                || $destino->csg()->exists();
+                || $destino->csg()->exists()
+                || MarcaValidacion::query()
+                    ->whereHas('cliente', fn ($consulta) => $consulta
+                        ->where('temporada_id', $destino->id))
+                    ->exists();
 
             if ($destinoOcupado) {
                 throw new DomainException('La temporada de destino ya posee un catálogo jerárquico.');
             }
 
             $origen->load([
+                'clientes.cliente',
                 'clientes.marcas',
                 'categorias',
                 'especies.variedades',
@@ -45,13 +49,17 @@ class ServicioCopiaCatalogoValidacion
             ]);
 
             foreach ($origen->clientes as $cliente) {
-                $clienteNuevo = ClienteValidacion::create([
-                    'cliente_id' => $cliente->cliente_id,
-                    'temporada_id' => $destino->id,
-                    'nombre' => $cliente->nombre,
-                    'codigo_externo' => $cliente->codigo_externo,
-                    'activo' => $cliente->activo,
-                ]);
+                $clienteNuevo = ClienteValidacion::query()->updateOrCreate(
+                    [
+                        'cliente_id' => $cliente->cliente_id,
+                        'temporada_id' => $destino->id,
+                    ],
+                    [
+                        'nombre' => $cliente->cliente?->nombre ?? $cliente->nombre,
+                        'codigo_externo' => $cliente->cliente?->codigo ?? $cliente->codigo_externo,
+                        'activo' => $cliente->cliente?->activo ?? $cliente->activo,
+                    ],
+                );
 
                 foreach ($cliente->marcas as $marca) {
                     MarcaValidacion::create([

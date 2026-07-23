@@ -35,6 +35,12 @@ class AdministracionValidacionApiTest extends TestCase
             ->assertJsonPath('data.activa', true)
             ->json('data.id');
 
+        $this->postJson('/api/administracion/clientes', [
+            'codigo' => 'DIS',
+            'nombre' => 'DIS',
+            'activo' => true,
+        ])->assertCreated();
+
         $articuloId = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/validacion/articulos', [
                 'temporada_id' => $temporadaId,
@@ -164,6 +170,13 @@ class AdministracionValidacionApiTest extends TestCase
             'activa' => true,
             'version_catalogo' => 1,
         ]);
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/clientes', [
+                'codigo' => 'DIS',
+                'nombre' => 'DIS',
+                'activo' => true,
+            ])
+            ->assertCreated();
         $articuloAnterior = ArticuloValidacion::create([
             'temporada_id' => $temporada->id,
             'especie' => 'Cereza',

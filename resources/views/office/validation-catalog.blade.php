@@ -49,15 +49,9 @@
 
                 <div class="catalog-columns catalog-columns--three">
                     <section class="panel catalog-card">
-                        <div class="validation-panel__heading"><div><p class="eyebrow">BASE COMERCIAL</p><h2>Clientes</h2></div><span id="clientCount">0</span></div>
-                        <form class="catalog-form" id="clientForm">
-                            <input name="id" type="hidden">
-                            <label><span>Nombre *</span><input name="nombre" maxlength="150" required></label>
-                            <label><span>Código externo</span><input name="codigo_externo" maxlength="100"></label>
-                            <label class="validation-check"><input name="activo" type="checkbox" checked><span>Activo</span></label>
-                            <div class="catalog-actions"><button class="secondary-button" data-reset-form="clientForm" type="button">Limpiar</button><button class="primary-button" type="submit">Guardar cliente</button></div>
-                        </form>
-                        <p class="form-error" id="clientError"></p><div class="validation-list" id="clientList"></div>
+                        <div class="validation-panel__heading"><div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2>Clientes</h2></div><span id="clientCount">0</span></div>
+                        <p class="validation-help">Los clientes se crean y modifican exclusivamente en Accesos. Validación los consume para asociar sus marcas dentro de la temporada.</p>
+                        <div class="validation-list" id="clientList"></div>
                     </section>
 
                     <section class="panel catalog-card">

@@ -12,10 +12,13 @@ const elements = {
     reload: byId('reloadAccessesButton'),
     activeUsers: byId('activeUsersCount'),
     activeDevices: byId('activeDevicesCount'),
+    activeClients: byId('activeClientsCount'),
     activeSeason: byId('activeSeasonCode'),
     lastDeviceAccess: byId('lastDeviceAccess'),
     seasonsSummary: byId('seasonsSummary'),
     seasonsTableBody: byId('seasonsTableBody'),
+    clientsSummary: byId('globalClientsSummary'),
+    clientsTableBody: byId('globalClientsTableBody'),
     usersSummary: byId('usersSummary'),
     devicesSummary: byId('devicesSummary'),
     usersTableBody: byId('usersTableBody'),
@@ -27,6 +30,9 @@ const elements = {
     seasonForm: byId('seasonForm'),
     seasonError: byId('seasonError'),
     seasonCancel: byId('cancelSeasonEdit'),
+    clientForm: byId('globalClientForm'),
+    clientError: byId('globalClientError'),
+    clientCancel: byId('cancelGlobalClientEdit'),
     migrationForm: byId('seasonMigrationForm'),
     migrationTitle: byId('seasonMigrationTitle'),
     migrationError: byId('seasonMigrationError'),
@@ -47,6 +53,7 @@ const state = {
     users: [],
     devices: [],
     seasons: [],
+    clients: [],
 };
 
 class ApiError extends Error {
@@ -143,6 +150,7 @@ function clearSession() {
     state.users = [];
     state.devices = [];
     state.seasons = [];
+    state.clients = [];
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden');
@@ -287,17 +295,58 @@ function renderSeasons() {
     `).join('');
 }
 
+function resetClientForm() {
+    elements.clientForm.reset();
+    elements.clientForm.elements.id.value = '';
+    elements.clientForm.elements.activo.checked = true;
+    elements.clientError.textContent = '';
+    elements.clientCancel.classList.add('is-hidden');
+}
+
+function renderClients() {
+    elements.activeClients.textContent = String(state.clients.filter((client) => client.activo).length);
+    elements.clientsSummary.textContent = `${state.clients.length} ${state.clients.length === 1 ? 'registrado' : 'registrados'}`;
+
+    if (!state.clients.length) {
+        elements.clientsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="5">No existen clientes globales registrados.</td></tr>';
+        return;
+    }
+
+    elements.clientsTableBody.innerHTML = state.clients.map((client) => {
+        const aliases = (client.aliases || [])
+            .filter((alias) => alias.codigo && alias.codigo !== client.codigo)
+            .map((alias) => alias.codigo);
+        const aliasDetail = [...new Set(aliases)].length
+            ? ` · alias: ${escapeHtml([...new Set(aliases)].join(', '))}`
+            : '';
+        const presence = `${Number(client.presencias?.materiales || 0)} temporadas de Materiales · ${Number(client.presencias?.validacion || 0)} temporadas de Validación`;
+
+        return `
+            <tr>
+                <td><strong>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</strong><small>Maestro transversal${aliasDetail}</small></td>
+                <td>${escapeHtml(client.codigo_externo || '—')}</td>
+                <td>${escapeHtml(presence)}</td>
+                <td>${statusBadge(client.activo)}</td>
+                <td><div class="admin-season-actions"><button data-edit-client="${client.id}" type="button">Editar</button></div></td>
+            </tr>
+        `;
+    }).join('');
+}
+
 async function loadAccesses() {
-    const [response, seasons] = await Promise.all([
+    const [response, seasons, clients] = await Promise.all([
         api('/api/administracion/accesos'),
         api('/api/administracion/temporadas'),
+        api('/api/administracion/clientes'),
     ]);
     state.users = response.usuarios;
     state.devices = response.dispositivos;
     state.seasons = seasons.data || [];
+    state.clients = clients.data || [];
     renderUsers();
     renderDevices();
     renderSeasons();
+    renderClients();
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
@@ -400,6 +449,46 @@ elements.seasonForm.addEventListener('submit', async (event) => {
     }
 });
 
+elements.clientForm.elements.codigo.addEventListener('input', (event) => {
+    event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9._-]/g, '');
+});
+
+elements.clientForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.clientError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.clientForm));
+    const id = data.id;
+    delete data.id;
+    data.activo = elements.clientForm.elements.activo.checked;
+    setBusy(true, 'Guardando cliente transversal…');
+    try {
+        await api(id ? `/api/administracion/clientes/${id}` : '/api/administracion/clientes', {
+            method: id ? 'PUT' : 'POST',
+            body: JSON.stringify(data),
+        });
+        resetClientForm();
+        await loadAccesses();
+        toast('Cliente actualizado para todas las oficinas.');
+    } catch (error) {
+        elements.clientError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.clientsTableBody.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-edit-client]');
+    if (!button) return;
+    const client = state.clients.find((candidate) => candidate.id === button.dataset.editClient);
+    if (!client) return;
+    for (const field of ['id', 'codigo', 'nombre', 'codigo_externo']) {
+        elements.clientForm.elements[field].value = client[field] || '';
+    }
+    elements.clientForm.elements.activo.checked = client.activo;
+    elements.clientCancel.classList.remove('is-hidden');
+    elements.clientForm.elements.codigo.focus();
+});
+
 elements.seasonsTableBody.addEventListener('click', async (event) => {
     const edit = event.target.closest('[data-edit-season]');
     const activate = event.target.closest('[data-activate-season]');
@@ -474,6 +563,7 @@ elements.migrationForm.addEventListener('submit', async (event) => {
 elements.migrationCancel.addEventListener('click', resetMigrationForm);
 
 elements.seasonCancel.addEventListener('click', resetSeasonForm);
+elements.clientCancel.addEventListener('click', resetClientForm);
 
 elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando accesos…');
@@ -504,7 +594,7 @@ async function boot() {
         return;
     }
     showApp();
-    setBusy(true, 'Cargando usuarios y tablets…');
+    setBusy(true, 'Cargando configuración transversal…');
     try {
         await loadAccesses();
     } catch (error) {

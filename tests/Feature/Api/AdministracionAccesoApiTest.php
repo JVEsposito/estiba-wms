@@ -6,6 +6,10 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\CategoriaValidacion;
+use App\Models\Cliente;
+use App\Models\ClienteMaterial;
+use App\Models\ClienteProveedorMaterial;
+use App\Models\ClienteValidacion;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
@@ -20,6 +24,108 @@ use Tests\TestCase;
 class AdministracionAccesoApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_accesos_es_el_unico_dueno_del_cliente_y_propaga_sus_cambios(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $clienteId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/clientes', [
+                'codigo' => 'AG-001',
+                'nombre' => 'LA AGUADA',
+                'codigo_externo' => 'ERP-AGUADA',
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', 'AG-001')
+            ->json('data.id');
+
+        $this->assertDatabaseHas('clientes_materiales', [
+            'cliente_id' => $clienteId,
+            'codigo' => 'AG-001',
+            'nombre' => 'LA AGUADA',
+        ]);
+        $this->assertDatabaseHas('clientes_validacion', [
+            'cliente_id' => $clienteId,
+            'codigo_externo' => 'AG-001',
+            'nombre' => 'LA AGUADA',
+        ]);
+
+        $this->putJson("/api/administracion/clientes/{$clienteId}", [
+            'codigo' => 'AG-002',
+            'nombre' => 'LA AGUADA ACTUALIZADA',
+            'codigo_externo' => 'ERP-AGUADA',
+            'activo' => true,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.codigo', 'AG-002');
+
+        $this->assertDatabaseHas('aliases_clientes', [
+            'cliente_id' => $clienteId,
+            'codigo' => 'AG-001',
+            'nombre' => 'LA AGUADA',
+        ]);
+        $this->assertSame(
+            'AG-002',
+            ClienteMaterial::query()->where('cliente_id', $clienteId)->firstOrFail()->codigo,
+        );
+        $this->assertSame(
+            'LA AGUADA ACTUALIZADA',
+            ClienteValidacion::query()->where('cliente_id', $clienteId)->firstOrFail()->nombre,
+        );
+        $this->getJson('/api/administracion/clientes')
+            ->assertOk()
+            ->assertJsonFragment(['codigo' => 'AG-001', 'origen' => 'edicion_accesos']);
+
+        $this->postJson('/api/administracion/materiales/clientes', [])->assertStatus(405);
+        $this->postJson('/api/administracion/validacion/clientes', [])->assertNotFound();
+    }
+
+    public function test_bodega_asocia_proveedores_a_clientes_globales_sin_duplicarlos(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $clienteIds = collect([
+            ['AG-001', 'LA AGUADA'],
+            ['DS-001', 'DISFRUTA'],
+        ])->map(fn (array $cliente): string => $this
+            ->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/clientes', [
+                'codigo' => $cliente[0],
+                'nombre' => $cliente[1],
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->json('data.id'));
+
+        $proveedorId = $this->postJson('/api/administracion/materiales/proveedores', [
+            'codigo' => 'PRV-001',
+            'nombre' => 'Envases del Sur',
+            'codigo_externo' => null,
+            'activo' => true,
+            'cliente_ids' => $clienteIds->all(),
+        ])
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.clientes')
+            ->json('data.id');
+
+        $this->assertSame(
+            2,
+            ClienteProveedorMaterial::query()
+                ->where('proveedor_material_id', $proveedorId)
+                ->where('activo', true)
+                ->count(),
+        );
+        $this->assertSame(2, Cliente::query()->whereIn('id', $clienteIds)->count());
+        $this->getJson('/api/administracion/materiales/proveedores')
+            ->assertOk()
+            ->assertJsonPath('data.0.codigo', 'PRV-001');
+    }
 
     public function test_el_administrador_crea_usuarios_y_tablets_autorizadas(): void
     {
@@ -148,6 +254,14 @@ class AdministracionAccesoApiTest extends TestCase
             ->postJson('/api/administracion/temporadas', [
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada no autorizada',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson('/api/administracion/clientes', [
+                'codigo' => 'NO-AUTORIZADO',
+                'nombre' => 'Cliente no autorizado',
+                'activo' => true,
             ])
             ->assertForbidden();
 
@@ -285,6 +399,7 @@ class AdministracionAccesoApiTest extends TestCase
             'temporada_id' => $destino->id,
         ]);
 
+        $clientesGlobalesActivos = Cliente::query()->where('activo', true)->count();
         $this->postJson("/api/administracion/temporadas/{$destino->id}/migrar", [
             'temporada_origen_id' => $origen->id,
             'copiar_catalogo_validacion' => false,
@@ -292,7 +407,7 @@ class AdministracionAccesoApiTest extends TestCase
             'migrar_inventario_materiales' => false,
         ])
             ->assertCreated()
-            ->assertJsonPath('data.resumen.materiales.clientes', 0)
+            ->assertJsonPath('data.resumen.materiales.clientes', $clientesGlobalesActivos)
             ->assertJsonPath('data.resumen.materiales.items', 0);
 
         $this->assertDatabaseHas('temporadas_materiales', [

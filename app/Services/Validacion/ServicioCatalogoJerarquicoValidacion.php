@@ -11,7 +11,6 @@ use App\Models\EspecieValidacion;
 use App\Models\MarcaValidacion;
 use App\Models\Temporada;
 use App\Models\VariedadValidacion;
-use App\Services\Clientes\ServicioCliente;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +20,6 @@ class ServicioCatalogoJerarquicoValidacion
 {
     public function __construct(
         private readonly ServicioProyeccionCatalogoValidacion $proyector,
-        private readonly ServicioCliente $clientes,
     ) {}
 
     /**
@@ -56,31 +54,6 @@ class ServicioCatalogoJerarquicoValidacion
                 ->get(),
             'proyeccion' => $this->proyector->conteos($temporada),
         ];
-    }
-
-    /** @param array<string, mixed> $datos */
-    public function guardarCliente(array $datos, ?ClienteValidacion $modelo = null): ClienteValidacion
-    {
-        $this->asegurarMismaTemporada($modelo, $datos['temporada_id']);
-        $nombre = $this->texto($datos['nombre']);
-        $this->asegurarUnico(
-            ClienteValidacion::query()->where('temporada_id', $datos['temporada_id'])->where('nombre', $nombre),
-            $modelo,
-            'Ese cliente ya existe en la temporada.',
-        );
-
-        return DB::transaction(function () use ($datos, $modelo, $nombre): ClienteValidacion {
-            /** @var ClienteValidacion $cliente */
-            $cliente = $this->guardar($modelo ?? new ClienteValidacion, [
-                'temporada_id' => $datos['temporada_id'],
-                'nombre' => $nombre,
-                'codigo_externo' => $this->codigo($datos['codigo_externo'] ?? null),
-                'activo' => (bool) ($datos['activo'] ?? true),
-            ], $datos['temporada_id']);
-            $this->clientes->sincronizarValidacion($cliente);
-
-            return $cliente->refresh()->load('cliente');
-        }, attempts: 3);
     }
 
     /** @param array<string, mixed> $datos */

@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Models\ClienteMaterial;
+use App\Models\ProveedorMaterial;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class GuardarClienteMaterialRequest extends FormRequest
+class GuardarProveedorMaterialRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,31 +16,32 @@ class GuardarClienteMaterialRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        $cliente = $this->route('clienteMaterial');
-        $clienteId = $cliente instanceof ClienteMaterial ? $cliente->id : null;
-        $temporadaId = (string) $this->input('temporada_material_id');
+        $proveedor = $this->route('proveedorMaterial');
+        $proveedorId = $proveedor instanceof ProveedorMaterial ? $proveedor->id : null;
 
         return [
-            'temporada_material_id' => ['required', 'uuid', 'exists:temporadas_materiales,id'],
             'codigo' => [
                 'required',
                 'string',
                 'max:80',
                 'regex:/^[A-Z0-9][A-Z0-9._-]*$/',
-                Rule::unique('clientes_materiales', 'codigo')
-                    ->where(fn ($consulta) => $consulta->where('temporada_material_id', $temporadaId))
-                    ->ignore($clienteId),
+                Rule::unique('proveedores_materiales', 'codigo')->ignore($proveedorId),
             ],
             'nombre' => ['required', 'string', 'min:2', 'max:180'],
             'codigo_externo' => [
                 'nullable',
                 'string',
                 'max:150',
-                Rule::unique('clientes_materiales', 'codigo_externo')
-                    ->where(fn ($consulta) => $consulta->where('temporada_material_id', $temporadaId))
-                    ->ignore($clienteId),
+                Rule::unique('proveedores_materiales', 'codigo_externo')->ignore($proveedorId),
             ],
-            'activo' => ['sometimes', 'boolean'],
+            'activo' => ['required', 'boolean'],
+            'cliente_ids' => ['required', 'array', 'min:1'],
+            'cliente_ids.*' => [
+                'required',
+                'uuid',
+                'distinct',
+                Rule::exists('clientes', 'id')->where('activo', true),
+            ],
         ];
     }
 
@@ -52,6 +53,7 @@ class GuardarClienteMaterialRequest extends FormRequest
             'codigo_externo' => $this->filled('codigo_externo')
                 ? trim((string) $this->input('codigo_externo'))
                 : null,
+            'activo' => $this->boolean('activo'),
         ]);
     }
 }

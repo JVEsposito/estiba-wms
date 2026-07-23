@@ -133,9 +133,9 @@ class CatalogoJerarquicoValidacionTest extends TestCase
     {
         $origen = $this->temporada('2026', true);
         $destino = $this->temporada('2027');
-        ClienteValidacion::create([
+        EspecieValidacion::create([
             'temporada_id' => $destino->id,
-            'nombre' => 'Cliente existente',
+            'nombre' => 'Especie existente',
             'activo' => true,
         ]);
 

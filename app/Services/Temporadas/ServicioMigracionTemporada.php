@@ -147,25 +147,29 @@ class ServicioMigracionTemporada
         TemporadaMaterial $destino,
         User $usuario,
     ): array {
-        if ($destino->clientes()->exists()) {
-            throw new DomainException('La temporada de destino ya posee clientes o ítems de bodega.');
+        if ($destino->items()->exists()) {
+            throw new DomainException('La temporada de destino ya posee ítems de bodega.');
         }
 
-        $origen->load('clientes.items');
+        $origen->load(['clientes.cliente', 'clientes.items']);
         $clientes = 0;
         $items = 0;
 
         foreach ($origen->clientes as $cliente) {
-            $clienteNuevo = ClienteMaterial::create([
-                'temporada_material_id' => $destino->id,
-                'cliente_id' => $cliente->cliente_id,
-                'codigo' => $cliente->codigo,
-                'nombre' => $cliente->nombre,
-                'codigo_externo' => $cliente->codigo_externo,
-                'activo' => $cliente->activo,
-                'creado_por_user_id' => $usuario->id,
-                'actualizado_por_user_id' => $usuario->id,
-            ]);
+            $clienteNuevo = ClienteMaterial::query()->updateOrCreate(
+                [
+                    'temporada_material_id' => $destino->id,
+                    'cliente_id' => $cliente->cliente_id,
+                ],
+                [
+                    'codigo' => $cliente->cliente?->codigo ?? $cliente->codigo,
+                    'nombre' => $cliente->cliente?->nombre ?? $cliente->nombre,
+                    'codigo_externo' => $cliente->cliente?->codigo_externo,
+                    'activo' => $cliente->cliente?->activo ?? $cliente->activo,
+                    'creado_por_user_id' => $usuario->id,
+                    'actualizado_por_user_id' => $usuario->id,
+                ],
+            );
             $clientes++;
 
             foreach ($cliente->items as $item) {

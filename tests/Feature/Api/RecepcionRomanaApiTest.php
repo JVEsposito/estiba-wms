@@ -239,30 +239,14 @@ class RecepcionRomanaApiTest extends TestCase
             ])
             ->assertCreated()
             ->json('data.id');
-        $temporadaMaterialId = Temporada::query()
-            ->findOrFail($temporadaId)
-            ->configuracionMaterial()
-            ->firstOrFail()
-            ->id;
-
-        $clienteId = $this->postJson('/api/administracion/validacion/clientes', [
-            'temporada_id' => $temporadaId,
-            'nombre' => 'Exportadora Transversal',
-            'codigo_externo' => 'CLI-TRANS-01',
-            'activo' => true,
-        ])
-            ->assertCreated()
-            ->json('data.cliente_id');
-
-        $this->postJson('/api/administracion/materiales/clientes', [
-            'temporada_material_id' => $temporadaMaterialId,
+        $clienteId = $this->postJson('/api/administracion/clientes', [
             'codigo' => 'TRANSVERSAL',
             'nombre' => 'Exportadora Transversal',
             'codigo_externo' => 'CLI-TRANS-01',
             'activo' => true,
         ])
             ->assertCreated()
-            ->assertJsonPath('data.cliente_id', $clienteId);
+            ->json('data.id');
 
         $this->assertSame(1, Cliente::query()->where('codigo_externo', 'CLI-TRANS-01')->count());
         $this->assertSame(1, Temporada::query()->where('codigo', '2026-2027')->count());

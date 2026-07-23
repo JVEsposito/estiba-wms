@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CalibreValidacion;
 use App\Models\CategoriaValidacion;
-use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EnvaseValidacion;
 use App\Models\EspecieValidacion;
@@ -24,22 +23,6 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json($servicio->datos($temporada));
-    }
-
-    public function storeCliente(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
-    {
-        return $this->creado($servicio->guardarCliente($this->datosRaiz($request, 150)));
-    }
-
-    public function updateCliente(
-        Request $request,
-        ClienteValidacion $clienteValidacion,
-        ServicioCatalogoJerarquicoValidacion $servicio,
-    ): JsonResponse {
-        return response()->json(['data' => $servicio->guardarCliente(
-            $this->datosRaiz($request, 150),
-            $clienteValidacion,
-        )]);
     }
 
     public function storeMarca(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
