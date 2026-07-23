@@ -1,147 +1,192 @@
 # Estiba WMS
 
-Aplicación orientada a tablets para gestionar la ubicación y el movimiento de bultos en cámaras frigoríficas. El objetivo del MVP es reemplazar el plano de estiba en papel por un mapa operativo, auditable y preparado para trabajar con conectividad intermitente.
+Estiba WMS es una plataforma operacional para recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho en una planta agroindustrial. Combina oficinas web para administración y supervisión con una aplicación Android orientada a tablets y PDA.
 
-> Esta documentación define el dominio y el alcance antes de modificar migraciones o implementar reglas de negocio.
+La base MySQL es la autoridad del estado confirmado. Las reglas de negocio viven en Laravel y las interfaces web y móvil consumen la misma API autenticada mediante Sanctum.
 
-## Prioridad del MVP
+## Dominios actuales
 
-1. Crear cámaras y configurar sus posiciones.
-2. Abrir una sesión de edición sobre el plano de una cámara.
-3. Ubicar, reubicar dentro de una cámara, trasladar entre cámaras y retirar bultos identificados por un folio único.
-4. Mantener la ocupación actual y el historial completo de movimientos.
-5. Permitir consulta concurrente, pero una sola sesión de edición por cámara.
-6. Sincronizar operaciones de tablet de forma segura e idempotente.
+```text
+Administración transversal
+├─ usuarios y dispositivos
+├─ temporadas globales
+├─ clientes globales
+└─ migración controlada entre temporadas
 
-En este dominio, una **estiba** es la asignación espacial de bultos a posiciones de una cámara. La posición física la ocupa un bulto —pallet completo o saldo— identificado por su folio.
+Recepción de materia prima
+├─ Romana
+├─ Validación MP
+├─ cuenta corriente de envases
+└─ guías internas de despacho de envases
 
-## Decisiones principales
+Frigorífico
+├─ Validación de pallets/PT
+├─ Prefrío
+├─ Cámaras y estiba
+├─ Cargas
+├─ Andenes
+└─ Despacho
 
-- En el dominio de Frigorífico, el folio se crea durante Validación o en su primera ubicación si todavía no existe.
-- El ingreso a cámara y la ubicación inicial representan la misma operación.
-- Un traslado entre cámaras libera el origen y ocupa el destino dentro de una única operación transaccional.
-- Frigorífico no tendrá un módulo independiente para crear folios; esta decisión no aplica a los futuros lotes o folios propios de Romana.
-- Cada cambio del plano pertenece a una sesión de estiba y queda auditado.
-- Una cámara puede ser consultada por varias personas, pero solo una puede editarla a la vez.
-- El repaletizaje y el control de temperatura quedan fuera del MVP.
-- Las órdenes de carga se incorporan sobre el núcleo estable de estibas; el despacho físico hacia andenes permanece como una etapa posterior.
-- La arquitectura dejará una interfaz preparada para una futura integración con el ERP utilizado por la empresa, sin acoplar el MVP a Suit Export.
+Bodega de materiales
+├─ catálogo estacional por cliente
+├─ proveedores
+├─ inventario y ubicaciones
+├─ reservas y FIFO sugerido
+├─ retiros y kardex
+└─ despachos
 
-## Arquitectura prevista
+Gestión
+└─ panel gerencial de solo lectura
+```
+
+## Principios de diseño
+
+- La temporada es una dimensión global administrada exclusivamente desde Accesos.
+- Los clientes son maestros globales; Validación y Materiales mantienen configuraciones estacionales sobre el mismo cliente.
+- Romana, Validación MP y Frigorífico comparten contexto, pero conservan ciclos de vida independientes.
+- Un correlativo `REC-*` identifica una recepción contractual de Romana; no es un folio frigorífico.
+- El folio identifica un bulto de producto o material dentro del dominio de inventario.
+- Las operaciones críticas son transaccionales e idempotentes mediante UUID y hash del payload.
+- Las ubicaciones actuales se separan del historial de movimientos.
+- Los estados terminales y registros históricos no se eliminan físicamente.
+- Las tablets nunca dependen directamente del ERP para operar.
+
+## Flujos principales
+
+### Producto terminado
+
+```text
+Validación PT
+→ folio pendiente de Prefrío
+→ carga y proceso térmico
+→ verificación y aprobación
+→ habilitación para almacenamiento
+→ ubicación en cámara
+→ disponibilidad para carga
+→ andén y despacho
+```
+
+### Materia prima
+
+```text
+Romana
+→ recepción REC-*
+→ Validación MP
+→ conteo real de envases y segregación
+→ segmentos pendiente_lote
+```
+
+Validación MP todavía no genera el número de lote definitivo ni crea folios de Frigorífico.
+
+### Materiales
+
+```text
+catálogo estacional por cliente
+→ ingreso y ubicación
+→ reserva FIFO sugerida
+→ retiro parcial o total
+→ kardex y trazabilidad
+```
+
+En cámaras de materiales una posición puede contener varias líneas o folios del mismo cliente. En cámaras de producto la posición continúa siendo exclusiva para un solo folio.
+
+### Envases
+
+```text
+recepción o compra/arriendo
+→ movimiento de existencia y cuenta corriente
+→ revisión
+→ guía interna GDE-*
+→ confirmación o anulación compensatoria
+```
+
+Las guías de envases son documentos operacionales internos y no se presentan como DTE legales.
+
+## Arquitectura
 
 | Componente | Tecnología |
 |---|---|
 | API y reglas de negocio | PHP 8.3 + Laravel 13 |
-| Base de datos central | MySQL |
-| Interfaz web operacional y de oficina | Blade + JavaScript + CSS responsive |
-| Cliente nativo para tablets | Expo + React Native + TypeScript en `mobile/` |
-| Persistencia local | AsyncStorage y bandejas offline por usuario/dispositivo en los módulos compatibles |
-| Integración futura | Adaptadores de entrada/salida desacoplados |
-| Repositorio | Monorepo: Laravel y web en la raíz; cliente nativo en `mobile/` |
+| Base de datos | MySQL 8 |
+| Oficinas web | Blade + JavaScript + CSS responsive |
+| Aplicación móvil | Expo + React Native + TypeScript en `mobile/` |
+| Persistencia local | AsyncStorage y bandejas por usuario/dispositivo en módulos compatibles |
+| Autenticación | Laravel Sanctum |
+| Diagnóstico local | Laravel Telescope restringido a loopback |
+| Integración futura | Adaptadores API, Webservice, ODBC o archivos |
+| Validación automática | GitHub Actions |
 
-La base central será la autoridad del estado confirmado. Tanto la interfaz web como el cliente nativo para tablets utilizan la API Laravel y conservan un identificador idempotente por operación. Los módulos móviles de Validación y Prefrío conservan además su último catálogo o estado conocido y una bandeja local para tolerar interrupciones de red.
+El repositorio es un monorepo: Laravel y las oficinas web viven en la raíz; la aplicación Android vive en `mobile/`.
+
+## Oficinas web
+
+| Ruta | Función |
+|---|---|
+| `/oficina/accesos` | Usuarios, dispositivos, clientes globales, temporadas y migración de ciclo |
+| `/oficina/romana` | Pesaje, recepción, tara, cierre y Aviso de Recibo |
+| `/oficina/envases/cuenta-corriente` | Existencia y cuenta corriente de envases |
+| `/oficina/envases/despachos` | Guías internas de salida de envases |
+| `/oficina/validacion` | Historial, importaciones y trazabilidad de Validación PT |
+| `/oficina/validacion/catalogo` | Catálogo jerárquico estacional de Validación |
+| `/oficina/prefrio` | Túneles, procesos, eventos y decisiones de supervisión |
+| `/oficina/camaras` | Configuración y consulta de cámaras y andenes |
+| `/oficina/cargas` | Preparación y seguimiento de cargas |
+| `/oficina/materiales` | Catálogo, proveedores, inventario, despachos y kardex |
+| `/oficina/gerencia` | Indicadores operacionales de solo lectura |
+
+## Aplicación móvil
+
+La aplicación habilita módulos según las capacidades del usuario:
+
+- **Operación frigorífico:** Cámaras, movimientos, cargas y materiales.
+- **Validación PT:** captura de pallets con catálogo persistente y bandeja offline.
+- **Validación MP:** toma exclusiva de recepciones `REC-*`, conteo de envases y segregación.
+- **Prefrío:** carga por posición, eventos térmicos, verificación y bandeja offline.
+
+Validación PT y Validación MP se presentan en orientación vertical. Prefrío y la operación frigorífica utilizan orientación horizontal.
+
+La versión nativa actual es `1.1.0`, con `versionCode` Android `2` y actualizaciones EAS habilitadas para cambios compatibles con ese runtime.
+
+## Roles
+
+```text
+administrador
+supervisor_frio
+supervisor_materiales
+despachador
+operador_prefrio
+operador_romana
+camarero_frio
+camarero_materiales
+validador
+validador_mp
+consulta
+```
+
+Ocultar una acción en la interfaz nunca reemplaza la autorización del backend. Los controladores y servicios validan las capacidades del usuario y el ámbito operacional correspondiente.
+
+## Temporadas y clientes
+
+- `/oficina/accesos` es el único propietario de la creación, edición y activación de temporadas.
+- Romana, Validación, Materiales, Frigorífico, Prefrío, Cargas y Despachos registran o consumen la temporada global.
+- Los procesos históricos conservan la temporada con la que nacieron.
+- La migración de ciclo copia catálogos estacionales y puede trasladar inventario vivo de Materiales cuando no existen reservas o despachos abiertos.
+- Los clientes se crean y mantienen como maestros globales desde Accesos.
+- Marcas, artículos, ítems y otras relaciones continúan siendo estacionales cuando corresponde.
 
 ## Documentación de producto
 
 - [Glosario operacional](docs/glosario-operacional.md)
-- [Alcance del MVP](docs/alcance-mvp.md)
+- [Alcance funcional actual](docs/alcance-mvp.md)
 - [Reglas de negocio](docs/reglas-negocio.md)
-- [Arquitectura propuesta](docs/arquitectura.md)
-- [Prueba de escritura desde Expo Go hacia MySQL](docs/prueba-escritura-mysql.md)
-- [Configuración de cámaras y preparación de cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
+- [Arquitectura](docs/arquitectura.md)
+- [Configuración de cámaras y cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
-- [Módulo de Validación de pallets](docs/MODULO_VALIDACION_PALLETS.md)
-- [Módulo de Prefrío](docs/MODULO_PREFRIO.md)
-- [Módulo de Romana](docs/MODULO_ROMANA.md)
-
-Estas definiciones son la referencia previa para diseñar migraciones, endpoints, modelos y pantallas.
-
-## Estado del proyecto
-
-El backend cuenta con Laravel y Sanctum para autenticación API. El esquema central protege la ocupación única, las sesiones de edición, la trazabilidad y la idempotencia. La interfaz landscape para tablets permite seleccionar cámaras, abrir y cerrar estibas, ubicar folios y moverlos dentro de una cámara o hacia otra.
-
-La configuración de cámaras se realiza desde PC en `/oficina/camaras`; desde la
-misma pantalla el administrador puede crear, editar, activar y desactivar
-andenes. El acceso de oficina no solicita código de tablet. Los perfiles de frío
-y materiales reciben cámaras, sesiones y acciones de su propia área;
-`despachador` y `consulta` pueden observar ambas sin abrir sesiones
-operacionales.
-
-Validación dispone de dos entradas diferentes:
-
-- `/oficina/validacion`: selección de temporada, artículos, orígenes, combinaciones, importación y trazabilidad.
-- Aplicación móvil: captura rápida para el perfil `validador`, con catálogo persistente y bandeja de salida.
-
-La creación, edición y activación de la temporada transversal se realiza
-exclusivamente en `/oficina/accesos`. Romana, Validación, Materiales y
-Frigorífico consumen esa configuración global sin adquirir permisos para
-modificarla desde sus propias oficinas. Prefrío, Cargas y Despachos de
-Materiales registran explícitamente la temporada activa al iniciar cada proceso,
-y solo aceptan folios o ítems de esa misma temporada.
-
-Desde Accesos el administrador también puede preparar el cambio de ciclo. La
-migración copia únicamente catálogos estacionales de Validación y clientes e
-ítems de Bodega. Opcionalmente traslada el inventario vivo de Bodega al ítem
-equivalente y activa el destino en una sola transacción; conserva folio,
-ubicación, saldos y kardex, y se bloquea mientras existan despachos o reservas
-abiertas. No copia recepciones, validaciones, cargas ni procesos históricos.
-
-Prefrío dispone de:
-
-- `/oficina/prefrio`: configuración de túneles, tablero, procesos, historial y decisiones de supervisión.
-- Aplicación móvil: operación por túnel, plano de dos lados desde el fondo hacia la entrada, escaneo, eventos térmicos y bandeja offline para `operador_prefrio`.
-
-Romana dispone de `/oficina/romana` para registrar el peso bruto de entrada,
-confirmar la salida del camión cargado, capturar la tara a su retorno y cerrar la
-recepción con peso neto, correlativo mensual y Aviso de Recibo en PDF. El rol
-`operador_romana` puede operar; supervisión y administración también operan, y
-los perfiles de consulta autorizados solo observan. Usa un maestro operacional
-de clientes compartido por los catálogos estacionales de Validación y Materiales,
-registra la misma temporada global que los demás módulos y publica sus métricas
-diarias y tendencia de siete días en `/oficina/gerencia`. Su cierre no crea ni
-mueve folios del flujo de Frigorífico.
-
-## Requisito para importar XLSX
-
-La carga masiva de Validación acepta CSV y XLSX. Los archivos XLSX son contenedores
-ZIP, por lo que el PHP que ejecuta Laravel debe tener habilitada la extensión
-`zip`. El proyecto la declara como requisito para impedir despliegues que fallen
-recién al cargar una planilla.
-
-En Laragon para Windows:
-
-1. Abrir **Menú > PHP > Extensions** y habilitar `zip`.
-2. Si la extensión no aparece en el menú, abrir el `php.ini` indicado por
-   `php --ini` y habilitar la línea `extension=zip`.
-3. Reiniciar todos los servicios de Laragon.
-4. Verificar en la terminal de Laragon con `php -m | findstr /I zip`.
-
-Si todavía no es posible habilitar ZIP, la misma importación puede ejecutarse
-temporalmente mediante CSV. Es importante comprobar el PHP del servidor web y no
-solamente otro PHP instalado en el equipo.
-
-## Diagnóstico local con Telescope
-
-Telescope está instalado como dependencia de desarrollo y solo se registra cuando
-`APP_ENV=local`. Después de ejecutar `composer install` y `php artisan migrate`, el
-panel queda disponible en:
-
-```text
-http://127.0.0.1:8000/telescope
-```
-
-El panel solo acepta conexiones de loopback (`127.0.0.1` o `::1`), por lo que la
-API puede seguir expuesta a tablets mediante `--host=0.0.0.0` sin compartir los
-diagnósticos con otros equipos de la red. Contraseñas, tokens y cabeceras de sesión
-se ocultan antes de almacenar las entradas. Para apagar la captura temporalmente:
-
-```dotenv
-TELESCOPE_ENABLED=false
-```
-
-La limpieza de entradas con más de 48 horas está programada diariamente. Requiere
-que el scheduler de Laravel esté en ejecución; también puede lanzarse manualmente
-con `php artisan telescope:prune --hours=48`.
+- [Validación de pallets/PT](docs/MODULO_VALIDACION_PALLETS.md)
+- [Prefrío](docs/MODULO_PREFRIO.md)
+- [Romana](docs/MODULO_ROMANA.md)
+- [Validación MP](docs/MODULO_VALIDACION_MP.md)
+- [Cuenta corriente y despacho de envases](docs/MODULO_ENVASES.md)
 
 ## Puesta en marcha local
 
@@ -155,61 +200,65 @@ npm run build
 php artisan serve
 ```
 
-Los datos de demostración solo se crean en entornos `local` y `testing`:
+Los datos de demostración solo se crean en `local` y `testing`. La contraseña común es `password`.
 
-- Usuario: `operador@estiba.local` (`camarero_frio`)
-- Contraseña: `password`
-- Código de tablet: `TABLET-01`
+| Perfil | Usuario |
+|---|---|
+| Administrador | `administrador@estiba.local` |
+| Supervisor de frío | `supervisor@estiba.local` |
+| Camarero de frío | `operador@estiba.local` |
+| Despachador | `despachador@estiba.local` |
+| Validador PT | `validador@estiba.local` |
+| Camarero de materiales | `camarero.materiales@estiba.local` |
+| Supervisor de materiales | `supervisor.materiales@estiba.local` |
+| Operador de Romana | `romana@estiba.local` |
 
-Para probar la configuración desde oficina:
+Código de dispositivo local: `TABLET-01`.
 
-- Usuario: `supervisor@estiba.local`
-- Contraseña: `password`
+## Importaciones XLSX
 
-Para probar materiales:
+Las importaciones de Validación y Materiales admiten CSV y XLSX. El PHP del servidor debe tener habilitada la extensión `zip`:
 
-- Camarero: `camarero.materiales@estiba.local`
-- Supervisor: `supervisor.materiales@estiba.local`
-- Contraseña: `password`
+```bash
+php -m | findstr /I zip
+```
 
-Para editar, redimensionar, desactivar o reactivar cámaras:
+CSV permanece como alternativa operacional, pero `ext-zip` es un requisito declarado por Composer.
 
-- Usuario: `administrador@estiba.local`
-- Contraseña: `password`
+## Diagnóstico local
 
-Para probar la API de órdenes de carga:
+Telescope solo se registra con `APP_ENV=local` y acepta conexiones desde loopback:
 
-- Usuario: `despachador@estiba.local`
-- Contraseña: `password`
+```text
+http://127.0.0.1:8000/telescope
+```
 
-Para administrar Validación desde PC:
+Puede desactivarse temporalmente con:
 
-- Ruta: `/oficina/validacion`
-- Administrador: `administrador@estiba.local`
-- Supervisor en consulta: `supervisor@estiba.local`
-- Contraseña: `password`
+```dotenv
+TELESCOPE_ENABLED=false
+```
 
-Para validar pallets desde la aplicación móvil:
+## Validación automática
 
-- Usuario: `validador@estiba.local`
-- Contraseña: `password`
-- Código de tablet: `TABLET-01`
+Cada PR y cada push a `main` ejecutan:
 
-Para probar Romana desde PC:
+```text
+composer validate
+composer install
+npm ci y build Vite
+Laravel Pint
+migrate:fresh sobre MySQL
+suite Laravel
+TypeScript móvil
+exportación Android
+```
 
-- Ruta: `/oficina/romana`
-- Usuario: `romana@estiba.local`
-- Contraseña: `password`
+## Pendientes principales
 
-## Orden de implementación propuesto
-
-1. [x] Auditar el esquema exploratorio.
-2. [x] Reconstruir migraciones para cámaras, posiciones, folios, sesiones y movimientos.
-3. [x] Instalar Sanctum y habilitar las rutas API.
-4. [x] Implementar servicios transaccionales y completar las pruebas del dominio.
-5. [x] Publicar el contrato de la API REST.
-6. [x] Construir el flujo conectado principal para tablets.
-7. [ ] Incorporar sincronización offline y resolución de conflictos en todos los módulos operacionales.
-8. [x] Completar la interfaz de cargas y el despacho físico hacia andenes.
-9. [x] Incorporar notificaciones persistentes y polling resiliente en la APK.
-10. [x] Completar Validación con oficina, importación, PDA y bandeja local.
+- Crear lotes definitivos desde los segmentos de Validación MP.
+- Definir asociaciones explícitas entre recepciones, lotes y procesos posteriores sin reutilizar identificadores.
+- Implementar repaletizaje y genealogía de saldos.
+- Extender la operación offline a los módulos que todavía dependen de conectividad.
+- Integrar el ERP mediante adaptadores desacoplados.
+- Incorporar telemetría automática y fotografías donde aporten valor operacional.
