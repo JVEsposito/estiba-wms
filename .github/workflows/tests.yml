@@ -70,7 +70,20 @@ jobs:
         run: npm run build
 
       - name: Validar estilo
-        run: vendor/bin/pint --test
+        id: pint
+        continue-on-error: true
+        run: vendor/bin/pint --test --format=json > pint.json 2>&1
+
+      - name: Guardar diagnóstico Pint
+        if: steps.pint.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-pint-recepcion-materiales
+          path: pint.json
+
+      - name: Detener por estilo
+        if: steps.pint.outcome == 'failure'
+        run: exit 1
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force
