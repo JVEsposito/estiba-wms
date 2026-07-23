@@ -40,6 +40,13 @@ class GuardarClienteGlobalRequest extends FormRequest
                 'max:150',
                 Rule::unique('clientes', 'codigo_externo')->ignore($clienteId),
             ],
+            'codigo_folio_materiales' => [
+                'nullable',
+                'string',
+                'size:2',
+                'regex:/^[A-Z0-9]{2}$/',
+                Rule::unique('clientes', 'codigo_folio_materiales')->ignore($clienteId),
+            ],
             'activo' => ['required', 'boolean'],
         ];
     }
@@ -51,6 +58,9 @@ class GuardarClienteGlobalRequest extends FormRequest
             'nombre' => trim((string) $this->input('nombre')),
             'codigo_externo' => $this->filled('codigo_externo')
                 ? trim((string) $this->input('codigo_externo'))
+                : null,
+            'codigo_folio_materiales' => $this->filled('codigo_folio_materiales')
+                ? mb_strtoupper(trim((string) $this->input('codigo_folio_materiales')))
                 : null,
             'activo' => $this->boolean('activo'),
         ]);
