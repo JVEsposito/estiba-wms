@@ -1,1 +1,307 @@
-.dispatch-workspace{padding:16px;display:grid;gap:16px}.dispatch-heading,.list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.dispatch-heading h1,.list-heading h2,.dispatch-form-panel h2{margin:4px 0}.dispatch-form-panel{display:grid;gap:14px}.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.form-grid label span,.dispatch-line label span{display:block;margin-bottom:6px;color:var(--muted);font-size:11px;font-weight:900}.form-grid input,.form-grid select,.form-grid textarea,.dispatch-line input,.dispatch-line select{width:100%;border:1px solid var(--border);border-radius:9px;background:#06131b;color:var(--text);padding:10px}.form-grid .wide{grid-column:1/-1}.form-grid textarea{min-height:60px}.dispatch-lines{display:grid;gap:8px;margin-top:14px}.dispatch-line{display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:#06131b}.form-actions{display:flex;justify-content:flex-end}.guide-list{display:grid;gap:10px;margin-top:12px}.guide-card{padding:14px;border:1px solid var(--border);border-radius:12px;background:#06131b}.guide-card__head,.guide-card__foot{display:flex;align-items:center;justify-content:space-between;gap:12px}.guide-card__head strong{font-size:17px}.guide-card small{color:var(--muted)}.guide-lines{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}.guide-lines span,.guide-state{padding:5px 8px;border:1px solid var(--border);border-radius:99px;font-size:11px}.guide-state--confirmada{color:#4cd8bd}.guide-state--anulada{color:#ff7777}.guide-actions{display:flex;gap:8px}.guide-actions button{border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);padding:8px 10px}.guide-actions button.primary{background:var(--accent);color:#062026}@media(max-width:900px){.form-grid{grid-template-columns:1fr 1fr}.dispatch-line{grid-template-columns:1fr 1fr}}@media(max-width:600px){.form-grid,.dispatch-line{grid-template-columns:1fr}.dispatch-workspace{padding:10px}}
+.dispatch-workspace {
+    display: grid;
+    gap: 16px;
+    padding: 16px;
+}
+
+.dispatch-heading,
+.list-heading,
+.guide-card__head,
+.guide-card__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.dispatch-heading h1,
+.list-heading h2,
+.dispatch-form-panel h2 {
+    margin: 4px 0;
+}
+
+.dispatch-heading p,
+.form-help {
+    margin: 0;
+    color: var(--muted);
+}
+
+.dispatch-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.dispatch-kpis article {
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+}
+
+.dispatch-kpis span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.dispatch-kpis strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 26px;
+}
+
+.dispatch-form-panel {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.form-grid label span,
+.dispatch-line label > span {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea,
+.dispatch-line input,
+.dispatch-line select,
+.list-tools select {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--deep);
+    color: var(--text);
+    padding: 10px;
+}
+
+.form-grid .wide {
+    grid-column: 1 / -1;
+}
+
+.form-grid textarea {
+    min-height: 70px;
+}
+
+.dispatch-lines {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.dispatch-line {
+    display: grid;
+    grid-template-columns: .7fr .8fr 1fr 2fr;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--deep);
+}
+
+.dispatch-line label small {
+    display: block;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.form-actions,
+.guide-actions,
+.list-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-actions {
+    justify-content: flex-end;
+}
+
+.list-tools select {
+    min-height: 40px;
+    padding: 0 12px;
+}
+
+.guide-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.guide-card {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--deep);
+}
+
+.guide-card__head strong {
+    font-size: 17px;
+}
+
+.guide-card small,
+.guide-trace {
+    color: var(--muted);
+}
+
+.guide-lines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 10px 0;
+}
+
+.guide-lines span,
+.guide-state {
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 99px;
+    font-size: 11px;
+}
+
+.guide-state--borrador {
+    color: var(--amber);
+}
+
+.guide-state--confirmada {
+    color: var(--green);
+}
+
+.guide-state--cancelada,
+.guide-state--anulada {
+    color: var(--red);
+}
+
+.guide-impact {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 10px 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+}
+
+.guide-impact span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.guide-impact--reserved {
+    border: 1px solid rgba(243, 185, 79, .35);
+    background: rgba(243, 185, 79, .08);
+}
+
+.guide-impact--confirmed {
+    border: 1px solid rgba(85, 216, 137, .35);
+    background: rgba(85, 216, 137, .08);
+}
+
+.guide-impact--cancelled {
+    border: 1px solid var(--line);
+    background: var(--raised);
+}
+
+.guide-trace {
+    margin: 10px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.guide-trace summary {
+    cursor: pointer;
+    color: var(--text);
+    font-weight: 800;
+}
+
+.guide-trace ul {
+    margin: 10px 0;
+    padding-left: 18px;
+}
+
+.guide-trace p {
+    margin: 6px 0 0;
+}
+
+.guide-trace code {
+    overflow-wrap: anywhere;
+}
+
+.guide-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.guide-actions button {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--raised);
+    color: var(--text);
+    padding: 0 12px;
+    font-weight: 800;
+}
+
+.guide-actions .primary-button.compact {
+    border: 0;
+    background: linear-gradient(135deg, var(--cyan-light), var(--cyan));
+    color: #032326;
+}
+
+.guide-actions button.danger {
+    border-color: rgba(255, 112, 112, .5);
+    background: rgba(255, 112, 112, .08);
+    color: #ffaaaa;
+}
+
+@media (max-width: 1050px) {
+    .dispatch-kpis {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .dispatch-line {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .guide-card__foot {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 650px) {
+    .dispatch-kpis,
+    .form-grid,
+    .dispatch-line {
+        grid-template-columns: 1fr;
+    }
+
+    .dispatch-heading,
+    .list-heading,
+    .guide-card__head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .dispatch-workspace {
+        padding: 10px;
+    }
+}

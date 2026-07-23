@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoGuiaDespachoEnvase;
 use App\Enums\EstadoRevisionMovimientoEnvase;
 use App\Enums\EstadoValidacionMp;
 use App\Enums\TipoEnvaseRomana;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
 use App\Models\DetalleEnvaseRecepcionRomana;
+use App\Models\DetalleGuiaDespachoEnvase;
 use App\Models\MovimientoEnvase;
 use App\Models\RevisionMovimientoEnvase;
 use App\Models\Temporada;
@@ -100,6 +102,71 @@ class CuentaCorrienteEnvaseController extends Controller
                 'saldo' => (int) $movimiento->getAttribute('saldo'),
             ])->values();
 
+        $reservas = DetalleGuiaDespachoEnvase::query()
+            ->with('guia.cliente:id,codigo,nombre')
+            ->whereHas('guia', function (Builder $guia) use ($filtros): void {
+                $guia->where('temporada_id', $filtros['temporada_id'])
+                    ->where('estado', EstadoGuiaDespachoEnvase::Borrador->value)
+                    ->when(
+                        ! empty($filtros['cliente_id']),
+                        fn (Builder $consulta): Builder => $consulta
+                            ->where('cliente_id', $filtros['cliente_id']),
+                    )
+                    ->when(
+                        ! empty($filtros['buscar']),
+                        function (Builder $consulta) use ($filtros): void {
+                            $buscar = '%'.str_replace(
+                                ['%', '_'],
+                                ['\\%', '\\_'],
+                                trim($filtros['buscar']),
+                            ).'%';
+                            $consulta->where(function (Builder $filtro) use ($buscar): void {
+                                $filtro->where('numero', 'like', $buscar)
+                                    ->orWhereHas(
+                                        'cliente',
+                                        fn (Builder $cliente): Builder => $cliente
+                                            ->where('nombre', 'like', $buscar),
+                                    );
+                            });
+                        },
+                    );
+            })
+            ->when(
+                ! empty($filtros['tipo_envase']),
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('tipo_envase', $filtros['tipo_envase']),
+            )
+            ->get()
+            ->groupBy('guia_despacho_envase_id')
+            ->map(function ($detalles): array {
+                $guia = $detalles->first()->guia;
+
+                return [
+                    'guia_id' => $guia->id,
+                    'numero' => $guia->numero,
+                    'cliente' => [
+                        'id' => $guia->cliente->id,
+                        'codigo' => $guia->cliente->codigo,
+                        'nombre' => $guia->cliente->nombre,
+                    ],
+                    'salida_at' => $guia->salida_at?->toAtomString(),
+                    'cantidad_total' => (int) $detalles->sum('cantidad'),
+                    'lineas' => $detalles
+                        ->groupBy(fn ($detalle): string => $detalle->tipo_envase->value.'|'.$detalle->propiedad->value)
+                        ->map(function ($lineas, string $clave): array {
+                            [$tipo, $propiedad] = explode('|', $clave, 2);
+
+                            return [
+                                'tipo_envase' => $tipo,
+                                'propiedad' => $propiedad,
+                                'cantidad' => (int) $lineas->sum('cantidad'),
+                            ];
+                        })
+                        ->values(),
+                ];
+            })
+            ->values();
+
         return response()->json([
             'data' => $movimientos->map(fn (MovimientoEnvase $movimiento): array => $this->movimiento($movimiento)),
             'pendientes' => $pendientes->map(fn (DetalleEnvaseRecepcionRomana $detalle): array => [
@@ -122,10 +189,13 @@ class CuentaCorrienteEnvaseController extends Controller
                 'ingreso_at' => $detalle->recepcion->ingreso_at?->toAtomString(),
             ])->values(),
             'balances' => $balances,
+            'reservas' => $reservas,
             'resumen' => [
                 'movimientos_confirmados' => $movimientos->count(),
                 'lineas_pendientes_validacion' => $pendientes->count(),
                 'observados' => $movimientos->where('estado_revision', EstadoRevisionMovimientoEnvase::Observado)->count(),
+                'guias_borrador' => $reservas->count(),
+                'envases_reservados' => (int) $reservas->sum('cantidad_total'),
                 'sincronizado_at' => now()->toAtomString(),
             ],
         ])->header('Cache-Control', 'no-store, private');
@@ -203,6 +273,8 @@ class CuentaCorrienteEnvaseController extends Controller
             'impacto_cuenta' => $movimiento->cantidad * $movimiento->signo_cuenta,
             'impacto_existencia' => $movimiento->cantidad * $movimiento->signo_existencia,
             'propiedad' => $movimiento->propiedad->value,
+            'documento_tipo' => $movimiento->documento_tipo,
+            'documento_id' => $movimiento->documento_id,
             'numero_documento' => $movimiento->numero_documento,
             'cliente' => $movimiento->cliente ? ['id' => $movimiento->cliente->id, 'codigo' => $movimiento->cliente->codigo, 'nombre' => $movimiento->cliente->nombre] : null,
             'temporada' => $movimiento->temporada ? ['id' => $movimiento->temporada->id, 'codigo' => $movimiento->temporada->codigo, 'nombre' => $movimiento->temporada->nombre] : null,
