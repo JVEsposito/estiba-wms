@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoOperacionalFolio;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
@@ -26,7 +27,7 @@ class DespachoMaterialController extends Controller
         ServicioDespachoMaterial $servicio,
     ): JsonResponse {
         Gate::authorize('consultar-despachos-materiales');
-        $estados = array_filter(explode(',', (string) $request->query('estados', '')));
+        $estados = array_filter(explode(',', (string) $request->query('estados', ''));
         $despachos = DespachoMaterial::query()
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
@@ -108,26 +109,46 @@ class DespachoMaterialController extends Controller
     {
         Gate::authorize('consultar-despachos-materiales');
         $folios = FolioMaterial::query()
-            ->with(['item.cliente.temporada', 'folio.ubicacionActual.posicion.camara'])
+            ->with([
+                'item.cliente.temporada',
+                'item.cliente.cliente',
+                'folio.ubicacionActual.posicion.camara',
+                'bultoRecepcion.detalle.recepcion.proveedor',
+            ])
             ->when($request->query('cliente_id'), fn ($consulta, $clienteId) => $consulta
                 ->whereHas('item', fn ($items) => $items->where('cliente_material_id', $clienteId)))
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
-            ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
-                ->where('contenido', ContenidoCamara::Materiales->value))
+            ->where(function ($consulta): void {
+                $consulta
+                    ->whereDoesntHave('folio.ubicacionActual')
+                    ->orWhereHas('folio.ubicacionActual.posicion.camara', fn ($camaras) => $camaras
+                        ->where('contenido', ContenidoCamara::Materiales->value));
+            })
             ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('item_material_id')
             ->get()
             ->map(function (FolioMaterial $material): array {
                 $folio = $material->folio;
                 $posicion = $folio->ubicacionActual?->posicion;
+                $ubicado = $posicion?->camara?->contenido === ContenidoCamara::Materiales;
+                $reservable = $ubicado
+                    && $folio->estado_operacional === EstadoOperacionalFolio::Disponible;
+                $disponible = $reservable
+                    ? max(0, (float) $material->cantidad_actual - (float) $material->cantidad_reservada)
+                    : 0;
+                $recepcion = $material->bultoRecepcion?->detalle?->recepcion;
 
                 return [
                     'folio_id' => $folio->id,
                     'numero_folio' => $folio->numero_folio,
+                    'estado_operacional' => $folio->estado_operacional->value,
+                    'estado_ubicacion' => $ubicado ? 'ubicado' : 'pendiente_ubicacion',
+                    'reservable' => $reservable,
                     'item' => [
                         'id' => $material->item->id,
                         'cliente' => [
                             'id' => $material->item->cliente->id,
+                            'cliente_global_id' => $material->item->cliente->cliente_id,
                             'temporada' => [
                                 'id' => $material->item->cliente->temporada->id,
                                 'codigo' => $material->item->cliente->temporada->codigo,
@@ -141,12 +162,11 @@ class DespachoMaterialController extends Controller
                         'codigo' => $material->item->codigo,
                         'nombre' => $material->item->nombre,
                     ],
+                    'categoria_operacional' => $material->categoria_operacional?->value,
+                    'cantidad_inicial' => $material->cantidad_inicial,
                     'cantidad_actual' => $material->cantidad_actual,
                     'cantidad_reservada' => $material->cantidad_reservada,
-                    'cantidad_disponible' => number_format(max(
-                        0,
-                        (float) $material->cantidad_actual - (float) $material->cantidad_reservada,
-                    ), 3, '.', ''),
+                    'cantidad_disponible' => number_format($disponible, 3, '.', ''),
                     'unidad_medida' => $material->unidad_medida,
                     'lote' => $material->lote,
                     'fecha_ingreso' => $folio->fecha_ingreso?->toAtomString(),
@@ -158,6 +178,12 @@ class DespachoMaterialController extends Controller
                     'posicion' => $posicion ? [
                         'id' => $posicion->id,
                         'etiqueta' => $posicion->etiqueta,
+                    ] : null,
+                    'recepcion' => $recepcion ? [
+                        'id' => $recepcion->id,
+                        'numero_guia_despacho' => $recepcion->numero_guia_despacho,
+                        'proveedor' => $recepcion->proveedor?->nombre,
+                        'confirmado_at' => $recepcion->confirmado_at?->toAtomString(),
                     ] : null,
                 ];
             });
@@ -172,6 +198,12 @@ class DespachoMaterialController extends Controller
                     ->map(fn ($grupo, $unidad): array => [
                         'unidad_medida' => $unidad,
                         'cantidad_actual' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
+                        'cantidad_pendiente_ubicacion' => number_format($grupo
+                            ->where('estado_ubicacion', 'pendiente_ubicacion')
+                            ->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
+                        'cantidad_bloqueada' => number_format($grupo
+                            ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
+                            ->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
                         'cantidad_reservada' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_reservada']), 3, '.', ''),
                         'cantidad_disponible' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_disponible']), 3, '.', ''),
                     ])
@@ -180,6 +212,12 @@ class DespachoMaterialController extends Controller
                 return [
                     'cliente' => $cliente,
                     'folios' => $existencias->count(),
+                    'folios_pendientes_ubicacion' => $existencias
+                        ->where('estado_ubicacion', 'pendiente_ubicacion')
+                        ->count(),
+                    'folios_bloqueados' => $existencias
+                        ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
+                        ->count(),
                     'items' => $existencias->pluck('item.id')->unique()->count(),
                     'posiciones' => $existencias->pluck('posicion.id')->filter()->unique()->count(),
                     'saldos' => $saldos,
