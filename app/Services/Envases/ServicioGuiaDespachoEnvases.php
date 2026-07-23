@@ -410,6 +410,11 @@ class ServicioGuiaDespachoEnvases
             if ($origenId) {
                 $item = $estado->get($origenId);
                 if (! $item) {
+                    $origen = MovimientoEnvase::query()->find($origenId);
+                    if ($origen) {
+                        $this->validarOrigen($origen, $temporada, $cliente, $detalle);
+                    }
+
                     throw new ConflictoOperacion(
                         'El origen seleccionado no corresponde a un ingreso disponible de la temporada.',
                     );
@@ -574,7 +579,7 @@ class ServicioGuiaDespachoEnvases
                 ->where('temporada_id', $temporadaId)
                 ->whereIn('movimiento_origen_id', $origenIds)
                 ->selectRaw(
-                    'movimiento_origen_id, COALESCE(SUM(cantidad * signo_existencia), 0) as saldo',
+                    'movimiento_origen_id, COALESCE(SUM(CAST(cantidad AS SIGNED) * signo_existencia), 0) as saldo',
                 )
                 ->groupBy('movimiento_origen_id')
                 ->pluck('saldo', 'movimiento_origen_id')
@@ -625,7 +630,7 @@ class ServicioGuiaDespachoEnvases
                 TipoMovimientoEnvase::ReversionDespacho->value,
             ])
             ->selectRaw(
-                'tipo_envase, COALESCE(SUM(cantidad * signo_existencia), 0) as saldo',
+                'tipo_envase, COALESCE(SUM(CAST(cantidad AS SIGNED) * signo_existencia), 0) as saldo',
             )
             ->groupBy('tipo_envase')
             ->get();
