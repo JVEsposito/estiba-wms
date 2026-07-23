@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'codigo',
     'nombre',
     'categoria',
+    'categoria_operacional',
     'unidad_medida',
     'codigo_externo',
     'origen_sistema',
@@ -38,6 +40,11 @@ class ItemMaterial extends Model
         return $this->hasMany(FolioMaterial::class, 'item_material_id');
     }
 
+    public function detallesRecepciones(): HasMany
+    {
+        return $this->hasMany(DetalleRecepcionMaterial::class, 'item_material_id');
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
@@ -51,6 +58,7 @@ class ItemMaterial extends Model
     protected function casts(): array
     {
         return [
+            'categoria_operacional' => CategoriaOperacionalMaterial::class,
             'activo' => 'boolean',
             'sincronizado_at' => 'datetime',
         ];
