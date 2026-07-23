@@ -67,6 +67,25 @@ class ServicioImportacionValidacion
                 continue;
             }
 
+            $clienteGlobal = $this->clientes->buscarPorReferencia((string) $normalizada['cliente']);
+            $clienteTemporada = $clienteGlobal
+                ? ClienteValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->where('cliente_id', $clienteGlobal->id)
+                    ->where('activo', true)
+                    ->first()
+                : null;
+            if (! $clienteGlobal || ! $clienteGlobal->activo || ! $clienteTemporada) {
+                $errores[] = [
+                    'fila' => $normalizada['fila'],
+                    'mensaje' => "El cliente {$normalizada['cliente']} no está activo en el maestro global de Accesos.",
+                ];
+
+                continue;
+            }
+            $normalizada['cliente'] = $clienteGlobal->nombre;
+            $normalizada['cliente_id'] = $clienteGlobal->id;
+
             $clave = $this->claveFila($normalizada);
             if (isset($vistas[$clave])) {
                 $errores[] = [
@@ -194,17 +213,11 @@ class ServicioImportacionValidacion
                     $actualizados,
                 );
 
-                $cliente = $this->persistir(
-                    ClienteValidacion::query()->firstOrNew([
-                        'temporada_id' => $temporada->id,
-                        'nombre' => $fila['cliente'],
-                    ]),
-                    ['activo' => true],
-                    'clientes',
-                    $creados,
-                    $actualizados,
-                );
-                $this->clientes->sincronizarValidacion($cliente, $usuario->id);
+                $cliente = ClienteValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->where('cliente_id', $fila['cliente_id'])
+                    ->where('activo', true)
+                    ->firstOrFail();
                 $marca = $this->persistir(
                     MarcaValidacion::query()->firstOrNew([
                         'cliente_validacion_id' => $cliente->id,

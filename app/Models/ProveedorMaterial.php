@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'codigo',
@@ -18,42 +17,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
-class Cliente extends Model
+class ProveedorMaterial extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
-    public function catalogosValidacion(): HasMany
-    {
-        return $this->hasMany(ClienteValidacion::class);
-    }
+    protected $table = 'proveedores_materiales';
 
-    public function catalogosMateriales(): HasMany
-    {
-        return $this->hasMany(ClienteMaterial::class);
-    }
-
-    public function recepcionesRomana(): HasMany
-    {
-        return $this->hasMany(RecepcionRomana::class);
-    }
-
-    public function movimientosEnvases(): HasMany
-    {
-        return $this->hasMany(MovimientoEnvase::class);
-    }
-
-    public function aliases(): HasMany
-    {
-        return $this->hasMany(AliasCliente::class);
-    }
-
-    public function proveedoresMateriales(): BelongsToMany
+    public function clientes(): BelongsToMany
     {
         return $this->belongsToMany(
-            ProveedorMaterial::class,
+            Cliente::class,
             'clientes_proveedores_materiales',
-            'cliente_id',
             'proveedor_material_id',
+            'cliente_id',
         )
             ->withPivot(['id', 'activo', 'creado_por_user_id', 'actualizado_por_user_id'])
             ->withTimestamps();

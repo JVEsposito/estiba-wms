@@ -3,9 +3,11 @@
 namespace App\Services\Validacion;
 
 use App\Models\ArticuloValidacion;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
+use App\Services\Clientes\ServicioCliente;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,10 @@ use Illuminate\Support\Str;
 
 class ServicioCatalogoValidacion
 {
+    public function __construct(
+        private readonly ServicioCliente $clientes,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -112,9 +118,24 @@ class ServicioCatalogoValidacion
      */
     public function guardarOrigen(array $datos, ?OrigenValidacion $origen = null): OrigenValidacion
     {
+        $clienteGlobal = $this->clientes->buscarPorReferencia((string) $datos['cliente']);
+        $clienteTemporada = $clienteGlobal
+            ? ClienteValidacion::query()
+                ->where('temporada_id', $datos['temporada_id'])
+                ->where('cliente_id', $clienteGlobal->id)
+                ->where('activo', true)
+                ->first()
+            : null;
+        if (! $clienteGlobal || ! $clienteGlobal->activo || ! $clienteTemporada) {
+            throw new DomainException(
+                'El cliente debe existir y estar activo en el maestro global de Accesos.',
+            );
+        }
+
         $atributos = [
             'temporada_id' => $datos['temporada_id'],
-            'cliente' => Str::of($datos['cliente'])->squish()->toString(),
+            'cliente_validacion_id' => $clienteTemporada->id,
+            'cliente' => $clienteGlobal->nombre,
             'marca' => Str::of($datos['marca'])->squish()->toString(),
             'csg' => mb_strtoupper(Str::of($datos['csg'])->squish()->toString()),
         ];

@@ -2,140 +2,212 @@
 
 namespace App\Services\Clientes;
 
+use App\Models\AliasCliente;
 use App\Models\Cliente;
 use App\Models\ClienteMaterial;
 use App\Models\ClienteValidacion;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Temporada;
+use App\Models\TemporadaMaterial;
+use App\Models\User;
+use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ServicioCliente
 {
-    public function sincronizarValidacion(
-        ClienteValidacion $origen,
-        ?int $usuarioId = null,
+    /** @param array<string, mixed> $datos */
+    public function guardarMaestro(
+        array $datos,
+        User $usuario,
+        ?Cliente $cliente = null,
     ): Cliente {
-        return $this->sincronizar(
-            $origen,
-            $origen->codigo_externo ?: $origen->nombre,
-            $origen->nombre,
-            $origen->codigo_externo,
-            $origen->activo,
-            $usuarioId,
-        );
-    }
+        return DB::transaction(function () use ($datos, $usuario, $cliente): Cliente {
+            $codigo = $this->normalizarCodigo($datos['codigo']);
+            $nombre = Str::of($datos['nombre'])->squish()->toString();
+            $codigoExterno = $this->opcional($datos['codigo_externo'] ?? null);
 
-    public function sincronizarMaterial(
-        ClienteMaterial $origen,
-        ?int $usuarioId = null,
-    ): Cliente {
-        return $this->sincronizar(
-            $origen,
-            $origen->codigo,
-            $origen->nombre,
-            $origen->codigo_externo,
-            $origen->activo,
-            $usuarioId,
-        );
-    }
-
-    private function sincronizar(
-        Model $origen,
-        string $codigoPreferido,
-        string $nombre,
-        ?string $codigoExterno,
-        bool $activo,
-        ?int $usuarioId,
-    ): Cliente {
-        return DB::transaction(function () use (
-            $origen,
-            $codigoPreferido,
-            $nombre,
-            $codigoExterno,
-            $activo,
-            $usuarioId,
-        ): Cliente {
-            $cliente = $origen->cliente_id
-                ? Cliente::query()->lockForUpdate()->find($origen->cliente_id)
-                : null;
-            $cliente ??= $this->buscarCoincidencia($codigoPreferido, $nombre, $codigoExterno);
-
-            if (! $cliente) {
-                $cliente = Cliente::create([
-                    'codigo' => $this->codigoDisponible($codigoPreferido),
-                    'nombre' => trim($nombre),
-                    'codigo_externo' => $this->opcional($codigoExterno),
-                    'activo' => $activo,
-                    'creado_por_user_id' => $usuarioId,
-                    'actualizado_por_user_id' => $usuarioId,
-                ]);
-            } else {
-                $cliente->update([
-                    'nombre' => trim($nombre),
-                    'codigo_externo' => $this->opcional($codigoExterno) ?? $cliente->codigo_externo,
-                    'actualizado_por_user_id' => $usuarioId ?? $cliente->actualizado_por_user_id,
-                ]);
+            $duplicado = Cliente::query()
+                ->where('codigo', $codigo)
+                ->when($cliente, fn ($consulta) => $consulta->whereKeyNot($cliente->id))
+                ->exists();
+            if ($duplicado) {
+                throw new DomainException('Ya existe un cliente global con ese código.');
             }
 
-            if ($origen->cliente_id !== $cliente->id) {
-                $origen->forceFill(['cliente_id' => $cliente->id])->saveQuietly();
+            if ($cliente?->exists
+                && ($cliente->codigo !== $codigo || $cliente->nombre !== $nombre)) {
+                $this->registrarAlias($cliente, 'edicion_accesos', $cliente->codigo, $cliente->nombre);
             }
 
-            $cliente->update([
-                'activo' => ClienteValidacion::query()
-                    ->where('cliente_id', $cliente->id)
-                    ->where('activo', true)
-                    ->exists()
-                    || ClienteMaterial::query()
-                        ->where('cliente_id', $cliente->id)
-                        ->where('activo', true)
-                        ->exists(),
+            $cliente ??= new Cliente;
+            $cliente->fill([
+                'codigo' => $codigo,
+                'nombre' => $nombre,
+                'codigo_externo' => $codigoExterno,
+                'activo' => (bool) ($datos['activo'] ?? true),
+                'creado_por_user_id' => $cliente->creado_por_user_id ?? $usuario->id,
+                'actualizado_por_user_id' => $usuario->id,
             ]);
+            $cliente->save();
 
-            return $cliente->refresh();
+            $this->sincronizarProyecciones($cliente, $usuario->id);
+            $this->asegurarProyeccionesActivas($cliente, $usuario->id);
+
+            return $cliente->refresh()->load([
+                'aliases' => fn ($consulta) => $consulta->orderByDesc('created_at'),
+            ]);
         }, attempts: 3);
     }
 
-    private function buscarCoincidencia(
-        string $codigoPreferido,
-        string $nombre,
-        ?string $codigoExterno,
-    ): ?Cliente {
-        if (filled($codigoExterno)) {
-            $cliente = Cliente::query()
-                ->whereRaw('UPPER(codigo_externo) = ?', [mb_strtoupper(trim((string) $codigoExterno))])
-                ->lockForUpdate()
-                ->first();
-            if ($cliente) {
-                return $cliente;
-            }
+    public function asegurarProyeccionesActivas(
+        Cliente $cliente,
+        ?int $usuarioId = null,
+    ): void {
+        $temporada = Temporada::query()->where('activa', true)->first();
+        if (! $temporada) {
+            return;
         }
 
-        $codigo = $this->normalizarCodigo($codigoPreferido);
-        $cliente = Cliente::query()->where('codigo', $codigo)->lockForUpdate()->first();
+        $material = TemporadaMaterial::query()
+            ->where('temporada_id', $temporada->id)
+            ->first();
+        if ($material) {
+            ClienteMaterial::query()->updateOrCreate(
+                [
+                    'temporada_material_id' => $material->id,
+                    'cliente_id' => $cliente->id,
+                ],
+                [
+                    'codigo' => $cliente->codigo,
+                    'nombre' => $cliente->nombre,
+                    'codigo_externo' => $cliente->codigo_externo,
+                    'activo' => $cliente->activo,
+                    'creado_por_user_id' => $usuarioId,
+                    'actualizado_por_user_id' => $usuarioId,
+                ],
+            );
+        }
+
+        ClienteValidacion::query()->updateOrCreate(
+            [
+                'temporada_id' => $temporada->id,
+                'cliente_id' => $cliente->id,
+            ],
+            [
+                'nombre' => $cliente->nombre,
+                'codigo_externo' => $cliente->codigo,
+                'activo' => $cliente->activo,
+            ],
+        );
+    }
+
+    public function asegurarClientesEnTemporada(
+        Temporada $temporada,
+        TemporadaMaterial $material,
+        ?int $usuarioId = null,
+    ): void {
+        Cliente::query()
+            ->where('activo', true)
+            ->orderBy('codigo')
+            ->each(function (Cliente $cliente) use ($temporada, $material, $usuarioId): void {
+                ClienteMaterial::query()->updateOrCreate(
+                    [
+                        'temporada_material_id' => $material->id,
+                        'cliente_id' => $cliente->id,
+                    ],
+                    [
+                        'codigo' => $cliente->codigo,
+                        'nombre' => $cliente->nombre,
+                        'codigo_externo' => $cliente->codigo_externo,
+                        'activo' => true,
+                        'creado_por_user_id' => $usuarioId,
+                        'actualizado_por_user_id' => $usuarioId,
+                    ],
+                );
+                ClienteValidacion::query()->updateOrCreate(
+                    [
+                        'temporada_id' => $temporada->id,
+                        'cliente_id' => $cliente->id,
+                    ],
+                    [
+                        'nombre' => $cliente->nombre,
+                        'codigo_externo' => $cliente->codigo,
+                        'activo' => true,
+                    ],
+                );
+            });
+    }
+
+    public function buscarPorReferencia(string $referencia): ?Cliente
+    {
+        $referencia = trim($referencia);
+        if ($referencia === '') {
+            return null;
+        }
+
+        $codigo = mb_strtoupper($referencia);
+        $cliente = Cliente::query()
+            ->where(function ($consulta) use ($codigo): void {
+                $consulta->whereRaw('UPPER(codigo) = ?', [$codigo])
+                    ->orWhereRaw('UPPER(codigo_externo) = ?', [$codigo]);
+            })
+            ->first();
         if ($cliente) {
             return $cliente;
         }
 
-        $claveNombre = $this->claveNombre($nombre);
-
-        return Cliente::query()
-            ->lockForUpdate()
-            ->get()
-            ->first(fn (Cliente $candidato): bool => $this->claveNombre($candidato->nombre) === $claveNombre);
-    }
-
-    private function codigoDisponible(string $preferido): string
-    {
-        $base = $this->normalizarCodigo($preferido);
-        $codigo = $base;
-        $secuencia = 2;
-        while (Cliente::query()->where('codigo', $codigo)->exists()) {
-            $sufijo = '-'.$secuencia++;
-            $codigo = mb_substr($base, 0, 80 - mb_strlen($sufijo)).$sufijo;
+        $alias = AliasCliente::query()
+            ->whereRaw('UPPER(codigo) = ?', [$codigo])
+            ->with('cliente')
+            ->first();
+        if ($alias?->cliente) {
+            return $alias->cliente;
         }
 
-        return $codigo;
+        $clave = $this->claveNombre($referencia);
+        $cliente = Cliente::query()->get()
+            ->first(fn (Cliente $candidato): bool => $this->claveNombre($candidato->nombre) === $clave);
+        if ($cliente) {
+            return $cliente;
+        }
+
+        return AliasCliente::query()
+            ->with('cliente')
+            ->get()
+            ->first(fn (AliasCliente $candidato): bool => $this->claveNombre($candidato->nombre) === $clave)
+            ?->cliente;
+    }
+
+    private function sincronizarProyecciones(Cliente $cliente, int $usuarioId): void
+    {
+        ClienteMaterial::query()->where('cliente_id', $cliente->id)->update([
+            'codigo' => $cliente->codigo,
+            'nombre' => $cliente->nombre,
+            'codigo_externo' => $cliente->codigo_externo,
+            'activo' => $cliente->activo,
+            'actualizado_por_user_id' => $usuarioId,
+            'updated_at' => now(),
+        ]);
+        ClienteValidacion::query()->where('cliente_id', $cliente->id)->update([
+            'nombre' => $cliente->nombre,
+            'codigo_externo' => $cliente->codigo,
+            'activo' => $cliente->activo,
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function registrarAlias(
+        Cliente $cliente,
+        string $origen,
+        ?string $codigo,
+        string $nombre,
+    ): void {
+        AliasCliente::query()->firstOrCreate([
+            'cliente_id' => $cliente->id,
+            'origen' => $origen,
+            'codigo' => $this->opcional($codigo),
+            'nombre' => trim($nombre),
+        ]);
     }
 
     private function normalizarCodigo(string $valor): string

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domain;
 
 use App\Models\ArticuloValidacion;
+use App\Models\Cliente;
 use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\CsgValidacion;
@@ -34,9 +35,16 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
             'activo' => true,
         ]);
 
-        $cliente = $servicio->guardarCliente([
+        $clienteGlobal = Cliente::create([
+            'codigo' => 'OL-001',
+            'nombre' => 'Los Olmos',
+            'activo' => true,
+        ]);
+        $cliente = ClienteValidacion::create([
+            'cliente_id' => $clienteGlobal->id,
             'temporada_id' => $temporada->id,
             'nombre' => 'Los Olmos',
+            'codigo_externo' => 'OL-001',
             'activo' => true,
         ]);
         $servicio->guardarMarca([

@@ -4,12 +4,17 @@ namespace App\Services\Temporadas;
 
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
+use App\Services\Clientes\ServicioCliente;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ServicioTemporadaGlobal
 {
+    public function __construct(
+        private readonly ServicioCliente $clientes,
+    ) {}
+
     /** @param array<string, mixed> $datos */
     public function guardar(
         array $datos,
@@ -81,6 +86,11 @@ class ServicioTemporadaGlobal
             'actualizado_por_user_id' => $usuarioId,
         ]);
         $configuracion->save();
+        $this->clientes->asegurarClientesEnTemporada(
+            $temporada,
+            $configuracion,
+            $usuarioId,
+        );
 
         return $configuracion;
     }

@@ -42,15 +42,20 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.activa', true)
             ->json('data.configuracion_material_id');
 
-        $clienteId = $this->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/clientes', [
-                'temporada_material_id' => $temporadaId,
-                'codigo' => ' cli-001 ',
+        $clienteGlobalId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/clientes', [
+                'codigo' => 'CLI-001',
                 'nombre' => ' Exportadora del Sur ',
+                'activo' => true,
             ])
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'CLI-001')
             ->json('data.id');
+        $clienteId = ClienteMaterial::query()
+            ->where('temporada_material_id', $temporadaId)
+            ->where('cliente_id', $clienteGlobalId)
+            ->firstOrFail()
+            ->id;
 
         $itemId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/items', [
@@ -100,15 +105,23 @@ class MaterialesApiTest extends TestCase
     {
         [, $tokenOficina] = $this->crearAdministrador();
         $temporadaId = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail()->temporada_material_id;
-        $clientes = collect(['CLI-NORTE', 'CLI-SUR'])->map(fn (string $codigo): string => $this
-            ->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/clientes', [
-                'temporada_material_id' => $temporadaId,
+        $clientes = collect(['CLI-NORTE', 'CLI-SUR'])->map(function (string $codigo) use ($tokenOficina, $temporadaId): string {
+            $clienteGlobalId = $this
+                ->conToken($tokenOficina)
+                ->postJson('/api/administracion/clientes', [
                 'codigo' => $codigo,
                 'nombre' => 'Cliente '.$codigo,
+                'activo' => true,
             ])
             ->assertCreated()
-            ->json('data.id'));
+            ->json('data.id');
+
+            return ClienteMaterial::query()
+                ->where('temporada_material_id', $temporadaId)
+                ->where('cliente_id', $clienteGlobalId)
+                ->firstOrFail()
+                ->id;
+        });
 
         foreach ($clientes as $clienteId) {
             $this->conToken($tokenOficina)
@@ -145,14 +158,19 @@ class MaterialesApiTest extends TestCase
             ])
             ->assertCreated()
             ->json('data.configuracion_material_id');
-        $clienteId = $this->conToken($tokenOficina)
-            ->postJson('/api/administracion/materiales/clientes', [
-                'temporada_material_id' => $temporadaNuevaId,
+        $clienteGlobalId = $this->conToken($tokenOficina)
+            ->postJson('/api/administracion/clientes', [
                 'codigo' => 'CLI-001',
                 'nombre' => 'Cliente temporada nueva',
+                'activo' => true,
             ])
             ->assertCreated()
             ->json('data.id');
+        $clienteId = ClienteMaterial::query()
+            ->where('temporada_material_id', $temporadaNuevaId)
+            ->where('cliente_id', $clienteGlobalId)
+            ->firstOrFail()
+            ->id;
 
         $this->conToken($tokenOficina)
             ->postJson('/api/administracion/materiales/items', [

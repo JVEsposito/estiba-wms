@@ -18,12 +18,13 @@
                 <div class="office-logo" aria-hidden="true">⚿</div>
                 <p class="eyebrow">ESTIBA WMS · ADMINISTRACIÓN</p>
                 <h1 id="officeAccessTitle">Administra los accesos y la configuración transversal de la operación.</h1>
-                <p>Los nuevos accesos quedan activos inmediatamente y la temporada seleccionada se aplica a todas las oficinas. Solo un administrador puede utilizar este módulo.</p>
+                <p>Los accesos, la temporada y los clientes se administran una sola vez y se aplican transversalmente a todas las oficinas.</p>
                 <div class="feature-row">
                     <span>Contraseñas cifradas</span>
                     <span>Roles operacionales</span>
                     <span>Tablets identificadas</span>
                     <span>Temporada global</span>
+                    <span>Clientes globales</span>
                 </div>
             </div>
 
@@ -73,8 +74,8 @@
                 <header class="admin-heading">
                     <div>
                         <p class="eyebrow">CONFIGURACIÓN TRANSVERSAL</p>
-                        <h1>Accesos y temporada operacional</h1>
-                        <p>Crea credenciales, registra tablets y define la única temporada que consumen Romana, Validación, Materiales y Frigorífico.</p>
+                        <h1>Accesos, temporada y clientes</h1>
+                        <p>Administra los maestros transversales que consumen Romana, Validación, Materiales, Envases y las demás oficinas, sin mezclar sus flujos operacionales.</p>
                     </div>
                     <button class="secondary-button admin-reload" id="reloadAccessesButton" type="button">↻ Actualizar listados</button>
                 </header>
@@ -82,6 +83,7 @@
                 <div class="admin-metrics">
                     <article><span>USUARIOS ACTIVOS</span><strong id="activeUsersCount">0</strong></article>
                     <article><span>TABLETS ACTIVAS</span><strong id="activeDevicesCount">0</strong></article>
+                    <article><span>CLIENTES ACTIVOS</span><strong id="activeClientsCount">0</strong></article>
                     <article><span>TEMPORADA ACTIVA</span><strong id="activeSeasonCode">—</strong></article>
                     <article><span>ÚLTIMO ACCESO TABLET</span><strong id="lastDeviceAccess">Sin accesos</strong></article>
                 </div>
@@ -125,7 +127,7 @@
                         <div class="admin-form__grid admin-form__grid--migration">
                             <label class="field field--wide"><span>Temporada de origen *</span><select name="temporada_origen_id" required></select></label>
                             <label class="admin-check"><input name="copiar_catalogo_validacion" type="checkbox" checked><span>Copiar catálogos de Validación</span></label>
-                            <label class="admin-check"><input name="copiar_catalogo_materiales" type="checkbox" checked><span>Copiar clientes e ítems de Bodega</span></label>
+                            <label class="admin-check"><input name="copiar_catalogo_materiales" type="checkbox" checked><span>Copiar ítems de Bodega y sus clientes globales</span></label>
                             <label class="admin-check"><input name="migrar_inventario_materiales" type="checkbox"><span>Migrar inventario vivo de Bodega</span></label>
                             <label class="admin-check"><input name="activar_destino" type="checkbox"><span>Activar el destino para todos los procesos</span></label>
                         </div>
@@ -133,6 +135,36 @@
                         <p class="form-error" id="seasonMigrationError" role="alert"></p>
                         <div class="admin-form__actions"><button class="primary-button" type="submit">Ejecutar migración <span>→</span></button></div>
                     </form>
+                </section>
+
+                <section class="admin-panel admin-client-panel panel" aria-labelledby="clientsTitle">
+                    <div class="admin-panel__heading">
+                        <div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2 id="clientsTitle">Clientes de servicio</h2></div>
+                        <span id="globalClientsSummary">0 registrados</span>
+                    </div>
+
+                    <form class="admin-form" id="globalClientForm" novalidate>
+                        <input name="id" type="hidden">
+                        <div class="admin-form__grid admin-form__grid--season">
+                            <label class="field"><span>Código *</span><input name="codigo" maxlength="80" placeholder="AG-001" required></label>
+                            <label class="field"><span>Nombre *</span><input name="nombre" maxlength="180" placeholder="LA AGUADA" required></label>
+                            <label class="field"><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
+                            <label class="admin-check"><input name="activo" type="checkbox" checked><span>Cliente activo para todas las oficinas</span></label>
+                        </div>
+                        <p class="admin-form__hint">Este es el único lugar para crear o modificar clientes. Materiales, Validación, Romana y Envases consumen el mismo registro.</p>
+                        <p class="form-error" id="globalClientError" role="alert"></p>
+                        <div class="admin-form__actions">
+                            <button class="secondary-button is-hidden" id="cancelGlobalClientEdit" type="button">Nuevo cliente</button>
+                            <button class="primary-button" type="submit">Guardar cliente <span>→</span></button>
+                        </div>
+                    </form>
+
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead><tr><th>Cliente</th><th>Código ERP</th><th>Presencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <tbody id="globalClientsTableBody"></tbody>
+                        </table>
+                    </div>
                 </section>
 
                 <div class="admin-grid">

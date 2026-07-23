@@ -14,6 +14,7 @@ use App\Models\OrigenValidacion;
 use App\Models\Posicion;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Clientes\ServicioCliente;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -148,25 +149,21 @@ class DatabaseSeeder extends Seeder
             Temporada::query()->where('codigo', '2026-2027')->first(),
         );
 
-        $cliente = Cliente::query()->updateOrCreate(
-            ['codigo' => 'EXPORTADORA-DEMO'],
+        $administrador = User::query()->where('email', 'administrador@estiba.local')->firstOrFail();
+        $cliente = app(ServicioCliente::class)->guardarMaestro(
             [
+                'codigo' => 'EXPORTADORA-DEMO',
                 'nombre' => 'Exportadora demo',
                 'codigo_externo' => 'EXP-DEMO',
                 'activo' => true,
             ],
+            $administrador,
+            Cliente::query()->where('codigo', 'EXPORTADORA-DEMO')->first(),
         );
-        ClienteValidacion::query()->updateOrCreate(
-            [
-                'temporada_id' => $temporada->id,
-                'nombre' => 'Exportadora demo',
-            ],
-            [
-                'cliente_id' => $cliente->id,
-                'codigo_externo' => 'EXP-DEMO',
-                'activo' => true,
-            ],
-        );
+        ClienteValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('cliente_id', $cliente->id)
+            ->firstOrFail();
 
         $articulo = ArticuloValidacion::query()->updateOrCreate(
             [

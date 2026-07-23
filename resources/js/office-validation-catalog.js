@@ -18,7 +18,6 @@ const elements = {
 };
 
 const entityConfig = {
-    client: { form: 'clientForm', error: 'clientError', path: 'clientes', list: 'clientList' },
     brand: { form: 'brandForm', error: 'brandError', path: 'marcas', list: 'brandList' },
     category: { form: 'categoryForm', error: 'categoryError', path: 'categorias', list: 'categoryList' },
     species: { form: 'speciesForm', error: 'speciesError', path: 'especies', list: 'speciesList' },
@@ -110,7 +109,7 @@ function render() {
     elements.selector.innerHTML = state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}${season.activa ? ' (activa)' : ''}`)).join('') || '<option value="">Sin temporadas</option>';
     elements.selector.value = state.season?.id || '';
 
-    const clientOptions = '<option value="">Selecciona un cliente</option>' + state.clients.map((item) => option(item.id, item.nombre)).join('');
+    const clientOptions = '<option value="">Selecciona un cliente</option>' + state.clients.map((item) => option(item.id, `${item.codigo_externo || 'SIN-CÓDIGO'} · ${item.nombre}`)).join('');
     byId('brandForm').elements.cliente_validacion_id.innerHTML = clientOptions;
 
     const speciesOptions = '<option value="">Selecciona una especie</option>' + state.species.map((item) => option(item.id, item.nombre)).join('');
@@ -120,7 +119,7 @@ function render() {
     byId('csgVarietyOptions').innerHTML = varieties.map((item) => `<label><input name="variedad_ids" type="checkbox" value="${item.id}"><span>${escapeHtml(item.species)} · ${escapeHtml(item.nombre)}</span></label>`).join('') || '<p class="empty-validation">Crea variedades antes de registrar un CSG.</p>';
 
     byId('clientCount').textContent = String(state.clients.length);
-    byId('clientList').innerHTML = state.clients.map((item) => row(item.nombre, item.codigo_externo || 'Sin código externo', 'client', item)).join('') || '<p class="empty-validation">Sin clientes.</p>';
+    byId('clientList').innerHTML = state.clients.map((item) => `<article class="validation-row${activeClass(item)}"><div><strong>${escapeHtml(item.codigo_externo || 'SIN-CÓDIGO')} · ${escapeHtml(item.nombre)}</strong><small>Administrado en Accesos</small></div></article>`).join('') || '<p class="empty-validation">Sin clientes. Crea o activa el cliente en Accesos.</p>';
 
     const brands = state.clients.flatMap((client) => (client.marcas || []).map((item) => ({ ...item, clientId: client.id, client: client.nombre })));
     byId('brandCount').textContent = String(brands.length);
@@ -157,7 +156,6 @@ function resetForm(form) {
 }
 
 function itemFor(type, id) {
-    if (type === 'client') return state.clients.find((item) => item.id === id);
     if (type === 'brand') return state.clients.flatMap((parent) => (parent.marcas || []).map((item) => ({ ...item, cliente_validacion_id: parent.id }))).find((item) => item.id === id);
     if (type === 'category') return state.categories.find((item) => item.id === id);
     if (type === 'species') return state.species.find((item) => item.id === id);
@@ -192,7 +190,7 @@ async function save(type) {
 
     const data = Object.fromEntries(new FormData(form));
     const id = data.id; delete data.id;
-    if (['client', 'category', 'species', 'csg'].includes(type)) data.temporada_id = state.season.id;
+    if (['category', 'species', 'csg'].includes(type)) data.temporada_id = state.season.id;
     data.activo = form.elements.activo.checked;
     if (type === 'csg') data.variedad_ids = [...form.querySelectorAll('input[name="variedad_ids"]:checked')].map((input) => input.value);
 

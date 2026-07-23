@@ -23,6 +23,18 @@ class ImportacionCatalogoJerarquicoValidacionTest extends TestCase
             'activa' => true,
         ]);
         $usuario = User::factory()->create();
+        $clienteGlobal = Cliente::create([
+            'codigo' => 'OL-001',
+            'nombre' => 'Los Olmos',
+            'activo' => true,
+        ]);
+        ClienteValidacion::create([
+            'cliente_id' => $clienteGlobal->id,
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Los Olmos',
+            'codigo_externo' => 'OL-001',
+            'activo' => true,
+        ]);
         $importacion = ImportacionValidacion::create([
             'temporada_id' => $temporada->id,
             'nombre_archivo' => 'catalogo.csv',
@@ -42,6 +54,7 @@ class ImportacionCatalogoJerarquicoValidacionTest extends TestCase
                 'calibre' => 'XL',
                 'envase' => '5 KG',
                 'cliente' => 'Los Olmos',
+                'cliente_id' => $clienteGlobal->id,
                 'marca' => 'Olmos Roja',
                 'csg' => 'CSG-001',
                 'predio' => 'Predio Norte',

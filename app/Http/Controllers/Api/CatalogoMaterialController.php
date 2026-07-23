@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\GuardarClienteMaterialRequest;
 use App\Http\Requests\GuardarDestinoMaterialRequest;
 use App\Http\Requests\GuardarItemMaterialRequest;
 use App\Http\Resources\ClienteMaterialResource;
@@ -14,7 +13,6 @@ use App\Models\ClienteMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\ItemMaterial;
 use App\Models\TemporadaMaterial;
-use App\Services\Clientes\ServicioCliente;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -125,62 +123,6 @@ class CatalogoMaterialController extends Controller
             ->get();
 
         return response()->json(['data' => TemporadaMaterialResource::collection($temporadas)]);
-    }
-
-    public function storeCliente(
-        GuardarClienteMaterialRequest $request,
-        ServicioCliente $clientes,
-    ): JsonResponse {
-        $cliente = DB::transaction(function () use ($request, $clientes): ClienteMaterial {
-            $cliente = ClienteMaterial::create([
-                ...$request->validated(),
-                'activo' => true,
-                'creado_por_user_id' => $request->user()->id,
-                'actualizado_por_user_id' => $request->user()->id,
-            ]);
-            $clientes->sincronizarMaterial($cliente, $request->user()->id);
-
-            return $cliente->refresh();
-        }, attempts: 3);
-
-        return (new ClienteMaterialResource($cliente->load('temporada')))
-            ->response()
-            ->setStatusCode(Response::HTTP_CREATED);
-    }
-
-    public function updateCliente(
-        GuardarClienteMaterialRequest $request,
-        ClienteMaterial $clienteMaterial,
-        ServicioCliente $clientes,
-    ): ClienteMaterialResource {
-        $datos = $request->validated();
-
-        if ($clienteMaterial->temporada_material_id !== $datos['temporada_material_id']
-            && $clienteMaterial->items()->exists()) {
-            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'La temporada no puede cambiar porque el cliente ya posee ítems.');
-        }
-
-        if (($datos['activo'] ?? true) === false
-            && $clienteMaterial->items()->where('activo', true)->exists()) {
-            abort(Response::HTTP_UNPROCESSABLE_ENTITY, 'Desactiva primero los ítems activos del cliente.');
-        }
-
-        $clienteMaterial = DB::transaction(function () use (
-            $clienteMaterial,
-            $clientes,
-            $datos,
-            $request,
-        ): ClienteMaterial {
-            $clienteMaterial->update([
-                ...$datos,
-                'actualizado_por_user_id' => $request->user()->id,
-            ]);
-            $clientes->sincronizarMaterial($clienteMaterial, $request->user()->id);
-
-            return $clienteMaterial->refresh();
-        }, attempts: 3);
-
-        return new ClienteMaterialResource($clienteMaterial->refresh()->load(['temporada', 'cliente']));
     }
 
     public function storeItem(GuardarItemMaterialRequest $request): JsonResponse
