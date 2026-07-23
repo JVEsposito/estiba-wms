@@ -25,6 +25,10 @@ class UbicacionActualObserver
         $folio = $ubicacion->folio()->firstOrFail();
 
         if ($folio->tipo_bulto === TipoBulto::Material) {
+            if ($folio->estado_operacional === EstadoOperacionalFolio::PendienteUbicacion) {
+                $folio->update(['estado_operacional' => EstadoOperacionalFolio::Disponible]);
+            }
+
             return;
         }
 
