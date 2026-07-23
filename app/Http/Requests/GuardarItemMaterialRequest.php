@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Models\ItemMaterial;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,10 @@ class GuardarItemMaterialRequest extends FormRequest
             ],
             'nombre' => ['required', 'string', 'min:3', 'max:180'],
             'categoria' => ['nullable', 'string', 'max:100'],
+            'categoria_operacional' => [
+                'nullable',
+                Rule::enum(CategoriaOperacionalMaterial::class),
+            ],
             'unidad_medida' => ['required', 'string', 'max:40'],
             'codigo_externo' => [
                 'nullable',
@@ -54,6 +59,9 @@ class GuardarItemMaterialRequest extends FormRequest
             'codigo' => mb_strtoupper(trim((string) $this->input('codigo'))),
             'nombre' => trim((string) $this->input('nombre')),
             'categoria' => $this->filled('categoria') ? trim((string) $this->input('categoria')) : null,
+            'categoria_operacional' => $this->filled('categoria_operacional')
+                ? mb_strtolower(trim((string) $this->input('categoria_operacional')))
+                : null,
             'unidad_medida' => mb_strtolower(trim((string) $this->input('unidad_medida'))),
             'codigo_externo' => $this->filled('codigo_externo')
                 ? trim((string) $this->input('codigo_externo'))
