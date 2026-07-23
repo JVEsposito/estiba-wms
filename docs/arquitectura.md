@@ -1,198 +1,242 @@
-# Arquitectura propuesta
+# Arquitectura
 
-## Objetivo arquitectónico
+## Objetivo
 
-Estiba WMS debe funcionar de forma confiable en tablets Android, mantener integridad transaccional en MySQL y tolerar pérdidas temporales de conectividad dentro de cámaras de frío.
+Estiba WMS debe mantener integridad transaccional en MySQL, ofrecer interfaces simples para operación y supervisión, y tolerar conectividad intermitente sin permitir que una interfaz sobrescriba silenciosamente el estado confirmado.
 
-La interfaz puede evolucionar sin alterar las reglas del backend ni el modelo central.
+Las reglas de negocio pertenecen al backend. Las oficinas web y la aplicación móvil son clientes de la misma API y no sustituyen las autorizaciones ni las validaciones de Laravel.
 
 ## Componentes
 
 | Componente | Responsabilidad |
 |---|---|
-| Blade, JavaScript y CSS | Interfaz web conectada para tablets |
-| React Native y TypeScript | Cliente nativo para tablets Android |
-| IndexedDB / SQLite futuros | Plano descargado, datos mínimos y cola offline según el cliente |
-| Laravel API REST | Autenticación, reglas, transacciones y sincronización |
-| MySQL | Inventario central, ubicaciones y auditoría |
-| Panel Laravel | Configuración y supervisión administrativa |
-| GitHub Actions | Pruebas y validaciones automáticas |
+| Laravel 13 / PHP 8.3 | API, autenticación, permisos, transacciones, idempotencia y documentos |
+| MySQL 8 | Estado central, restricciones, ubicaciones, inventario y auditoría |
+| Blade + JavaScript + CSS | Oficinas conectadas de administración, operación y supervisión |
+| Expo + React Native + TypeScript | Aplicación Android para tablets y PDA |
+| AsyncStorage | Caché y bandejas offline en los módulos compatibles |
+| Laravel Sanctum | Tokens de oficina y dispositivo |
+| Laravel Telescope | Diagnóstico exclusivo del entorno local |
+| GitHub Actions | Composer, build, estilo, migraciones, pruebas y bundle Android |
 
-## Estructura del repositorio
+El repositorio es un monorepo:
 
-El proyecto se mantendrá como monorepositorio:
+- Laravel, oficinas y documentación viven en la raíz.
+- La aplicación nativa vive en `mobile/`.
+- Los workflows viven en `.github/workflows/`.
 
-- La aplicación Laravel y la interfaz web permanecen en la raíz.
-- El cliente nativo para tablets vive en la carpeta mobile.
-- Las decisiones funcionales y técnicas viven en docs.
-- Los flujos automáticos viven en .github/workflows.
+## Capas
 
-## Entidades centrales
+### Presentación
 
-### Usuarios y dispositivos
+- Oficinas web bajo `/oficina/*`.
+- Aplicación Android con módulos habilitados por capacidades.
+- Formularios y pantallas muestran los conflictos informados por la API.
 
-Los usuarios representan a las personas responsables. Los dispositivos representan tablets autorizadas. Una sesión y un movimiento deben identificar ambos.
+### Aplicación
 
-### Cámaras y posiciones
+- Controllers y Form Requests reciben y validan comandos.
+- Resources publican contratos estables.
+- Gates y servicios de alcance interpretan roles y áreas.
+- Servicios de dominio ejecutan las reglas transaccionales.
 
-Las cámaras son entidades configurables. Las posiciones son espacios permanentes pertenecientes a una cámara.
+### Dominio y persistencia
 
-El módulo administrativo debe permitir generar una cuadrícula, previsualizarla y ajustar posiciones individuales. Las posiciones se desactivan o bloquean; no se eliminan cuando tienen historial.
+- Modelos Eloquent representan el estado y las relaciones.
+- Restricciones únicas y llaves foráneas protegen la integridad incluso si una interfaz falla.
+- Los movimientos, eventos y asientos conservan la evidencia histórica.
+- Los registros terminales se anulan o compensan; no se borran para reescribir la historia.
 
-### Folios
+## Dimensiones transversales
 
-Los folios son creados bajo demanda durante la primera ubicación si todavía no existen.
+### Temporada global
 
-El registro inicial puede ser provisional. Una integración futura podrá enriquecerlo con condición SAG y otros datos sin cambiar su identidad interna.
+`temporadas` es la dimensión operacional compartida. Accesos es el único módulo que puede crear, editar, activar o migrar una temporada.
 
-### Ubicaciones actuales
+Los procesos nuevos registran la temporada activa cuando corresponde. Los documentos y procesos históricos conservan su temporada original.
 
-La ocupación vigente se mantiene separada del historial. Deben existir restricciones únicas para folio y posición.
+La migración de temporada:
 
-### Sesiones de estiba
+- copia catálogos estacionales de Validación y Materiales;
+- reconstruye proyecciones para la PDA;
+- puede trasladar inventario vivo de Materiales;
+- conserva folio, ubicación, cantidades y kardex;
+- se bloquea ante reservas o despachos abiertos;
+- no transforma recepciones, validaciones, cargas ni procesos históricos.
 
-Una sesión entrega el derecho temporal y exclusivo de modificar una cámara. La lectura permanece disponible para otros usuarios.
+### Cliente global
 
-La sesión conserva usuario, dispositivo, inicio, actividad, cierre y versiones de cámara.
+`clientes` representa el maestro transversal. Validación y Materiales mantienen configuraciones estacionales enlazadas al mismo cliente. Romana y Envases utilizan el maestro global y guardan snapshots cuando el documento debe conservar el dato contractual.
 
-### Movimientos
+## Separación de dominios
 
-Los movimientos forman una bitácora inalterable. La ubicación inicial y el ingreso a cámara son la misma operación. Una reubicación ocurre dentro de una cámara y un traslado cambia el bulto entre cámaras, conservando todo su contexto operacional.
+### Recepción de materia prima
 
-### Operaciones de sincronización
+```text
+Romana
+→ Validación MP
+→ segmentos pendiente_lote
+```
 
-Cada comando generado en tablet usa un UUID idempotente. El servidor conserva su resultado para responder de manera consistente ante reintentos.
+Romana conserva el expediente contractual y el pesaje. Validación MP toma la recepción y confirma cantidades reales y segregaciones. Ninguno de estos procesos crea automáticamente folios de Frigorífico.
 
-## Flujo transaccional de ubicación
+### Frigorífico
 
-Una solicitud de ubicación o movimiento debe:
+```text
+Validación PT
+→ Prefrío
+→ Cámara
+→ Carga
+→ Andén / despacho
+```
 
-1. Validar usuario, dispositivo y las sesiones de todas las cámaras afectadas.
-2. Bloquear las cámaras y posiciones necesarias en un orden estable.
-3. Buscar el folio por su número.
-4. Crearlo si no existe durante una ubicación inicial.
-5. Validar el estado del folio, su origen vigente y la disponibilidad del destino.
-6. Crear o actualizar la ubicación actual.
-7. Registrar el movimiento.
-8. Incrementar las versiones de todas las cámaras afectadas.
-9. Registrar el resultado de la operación idempotente.
-10. Confirmar toda la transacción.
+Validación PT crea el folio. Prefrío administra el tratamiento térmico y la habilitación. Cámaras mantiene la ubicación. Cargas reserva y organiza la salida.
 
-Si un paso falla, ninguno de los cambios debe persistir.
+### Materiales
 
-### Traslado entre cámaras
+Materiales mantiene maestros estacionales, proveedores, fichas de inventario, reservas, retiros, despachos y kardex. Puede compartir una posición entre varios folios del mismo cliente, sin alterar la exclusividad de las cámaras de producto.
 
-Un traslado exige sesiones activas del mismo usuario y dispositivo sobre las cámaras de origen y destino. Laravel bloquea ambas cámaras en un orden determinista, verifica la posición de origen, ocupa el destino, libera el origen, registra un único movimiento e incrementa ambas versiones dentro de una sola transacción MySQL.
+### Envases
 
-Si otra persona está editando cualquiera de las cámaras, el traslado queda bloqueado o pasa a conflicto. Nunca se confirma solo una parte del cambio.
+Envases mantiene existencia y cuenta corriente mediante movimientos firmados. Las guías internas descuentan o compensan esos movimientos sin borrar historia.
 
-## Control de edición por cámara
+## Identidades
 
-La apertura de sesión utiliza bloqueo transaccional para impedir dos editores. En un traslado, el operador debe obtener la edición exclusiva de ambas cámaras antes de ejecutar el movimiento.
+- UUID interno: identidad técnica de las entidades.
+- `numero_folio`: identidad operacional de un bulto.
+- `REC-AAMM-####`: expediente de recepción de Romana.
+- `PF-AAAA-NNNNNN`: proceso térmico.
+- `CAR-*`: carga de producto.
+- `MAT-DES-*`: despacho de materiales.
+- `GDE-AAMM-NNNN`: guía interna de envases.
 
-La tablet enviará señales de actividad cuando tenga conexión. Una sesión sin actividad se marca como potencialmente abandonada, pero requiere cierre explícito o intervención de un supervisor antes de autorizar otro editor.
+Los correlativos de un dominio no se reutilizan como identidad de otro.
 
-El plano obtenido por los lectores incluye el usuario editor y la hora de inicio para mostrar una advertencia.
+## Ubicaciones y movimientos
 
-## Sincronización offline
+La ocupación vigente se mantiene en una relación separada del historial.
 
-### En la tablet
+Una operación de ubicación o movimiento debe:
 
-SQLite mantiene:
+1. autenticar usuario y dispositivo;
+2. validar las capacidades y el ámbito;
+3. validar las sesiones de todas las cámaras afectadas;
+4. bloquear cámaras, posiciones, folios y ubicaciones en un orden estable;
+5. comprobar versiones conocidas;
+6. aplicar las reglas de contenido y compatibilidad;
+7. crear el movimiento y modificar la ubicación en la misma transacción;
+8. incrementar las versiones resultantes;
+9. registrar el resultado idempotente;
+10. confirmar o revertir todo el bloque.
 
-- Cámaras descargadas.
-- Posiciones.
-- Folios necesarios.
-- Ubicaciones visibles.
-- Sesiones activas.
-- Operaciones pendientes.
-- Resultados y conflictos.
+En cámaras de producto una posición admite un folio. En cámaras de materiales una posición admite varias líneas siempre que pertenezcan al mismo cliente.
 
-Cada operación incluye el UUID, las sesiones y versiones conocidas de todas las cámaras afectadas, además de una marca temporal del dispositivo.
+## Folios
 
-### En Laravel
+Un folio puede nacer en Validación PT o, para contingencias y Materiales, durante una ubicación inicial autorizada.
 
-La API recibe lotes ordenados:
+El folio conserva, entre otros:
 
-1. Busca el UUID de operación.
-2. Devuelve el resultado previo si ya fue procesado.
-3. Valida sesión y versión.
-4. Aplica la regla dentro de una transacción.
-5. Registra éxito, rechazo o conflicto.
-6. Devuelve la identidad central del folio y las nuevas versiones de las cámaras afectadas.
+- temporada;
+- tipo de bulto;
+- estado operacional;
+- condición térmica;
+- habilitación para almacenamiento;
+- origen de sistema;
+- datos externos e integración;
+- ubicación actual e historial.
 
-### Conflictos
+La consulta previa a una ubicación recupera los datos existentes y evita reescribir desde Cámaras la información nacida en Validación.
 
-Se consideran conflictos, entre otros:
+## Prefrío
 
-- Posición ocupada después de la descarga local.
-- El origen del folio cambió desde la descarga local.
-- La cámara de origen o destino está siendo editada por otra persona.
-- Sesión cerrada o forzada.
-- Versión incompatible en cualquiera de las cámaras afectadas.
-- Folio bloqueado o inactivo.
+Túneles y cámaras son activos distintos. Los procesos térmicos tienen su propia máquina de estados, posiciones, versión, eventos y resultados por folio.
 
-La tablet debe mostrar el conflicto y descargar el estado central. No debe resolverlo sobrescribiendo automáticamente.
+La aprobación térmica habilita el folio, pero no crea una ubicación. La primera ubicación en cámara lo promueve a disponible para cargas.
 
-## Preparación para ERP
+## Idempotencia
 
-La integración se implementará detrás de una interfaz de fuente de folios.
+Las operaciones críticas utilizan `operacion_id` UUID y un hash del payload normalizado.
 
-Adaptadores previstos:
+- Mismo UUID y mismo contenido: se devuelve el resultado previo.
+- Mismo UUID y contenido diferente: conflicto.
+- Conflicto de versión o integridad: no se aplica un estado parcial.
 
-- Fuente manual.
-- Fuente de archivos.
-- Fuente API o Webservice.
-- Fuente ODBC de solo lectura.
+Esto se utiliza en movimientos, Validación, Prefrío, Romana, guías y otros flujos sensibles.
 
-El proceso de integración ejecutará trabajos en segundo plano y actualizará MySQL. Las operaciones de estiba nunca dependerán de la disponibilidad del ERP.
+## Operación offline
 
-El número de folio será la clave de coincidencia empresarial. El UUID de la WMS continuará siendo la identidad técnica central.
+### Validación PT
+
+Conserva catálogo y bandeja local por usuario y dispositivo.
+
+### Prefrío
+
+Conserva túneles, procesos, folios elegibles y comandos pendientes. Un error o conflicto detiene las acciones posteriores del mismo proceso hasta reconciliar el estado.
+
+### Otros módulos
+
+Operación frigorífica, Materiales, Romana y Validación MP todavía dependen principalmente de conectividad. Su evolución offline debe reutilizar el mismo principio: persistir antes de transmitir, UUID estable, orden y conflicto visible.
 
 ## API
 
-La API se versionará bajo api/v1 y se organizará por:
+La API se organiza por dominio bajo `/api/*`:
 
-- Autenticación y dispositivos.
-- Cámaras y posiciones.
-- Sesiones.
-- Folios.
-- Movimientos.
-- Sincronización.
-- Administración.
+- acceso y administración;
+- gerencia;
+- Romana;
+- Envases;
+- Validación PT;
+- Validación MP;
+- Prefrío;
+- Cámaras y movimientos;
+- Cargas y andenes;
+- Materiales;
+- notificaciones.
 
-Las validaciones de entrada utilizarán Form Requests y las respuestas utilizarán Resources o contratos equivalentes.
+Todas las rutas operacionales requieren `auth:sanctum`; los grupos agregan Gates según consulta, operación, supervisión o administración.
 
 ## Seguridad
 
-- HTTPS obligatorio fuera del entorno local.
-- Laravel Sanctum para tokens.
-- Roles y permisos.
-- Tokens asociados a dispositivos.
+- HTTPS obligatorio fuera de redes locales controladas.
+- Tráfico HTTP habilitado únicamente para la operación Android en LAN cuando sea necesario.
+- Tokens asociados a sesiones y dispositivos.
 - Secretos fuera del repositorio.
-- ODBC exclusivamente de lectura.
-- Movimientos sin eliminación física.
-- Copias de seguridad automáticas de MySQL.
-- Registro de accesos, errores y cierres forzados.
+- ODBC futuro de solo lectura.
+- Auditoría de accesos, operaciones y cierres forzados.
+- Telescope solo en `local` y restringido a loopback.
+- Respaldos de MySQL y procedimiento de recuperación obligatorios para producción.
 
-## Pruebas
+## Integración ERP
 
-Las pruebas del backend deben cubrir:
+Las tablets no consultan directamente el ERP. La integración futura debe implementarse mediante adaptadores desacoplados:
 
-- Unicidad de folios y posiciones.
-- Apertura simultánea de sesión.
-- Doble ocupación.
-- Reintentos idempotentes.
-- Reubicaciones concurrentes.
-- Traslado atómico entre cámaras.
-- Traslados cruzados y adquisición ordenada de bloqueos.
-- Creación automática de folios.
-- Cierre forzado.
-- Operaciones offline fuera de orden.
-- Reversiones.
+- API o Webservice;
+- ODBC de solo lectura;
+- archivos;
+- importaciones manuales.
 
-Las pruebas de integración se ejecutarán sobre MySQL, porque SQLite no reproduce todas las restricciones y conductas de concurrencia del servidor central.
+El ERP puede enriquecer maestros o datos descriptivos, pero la WMS conserva la autoridad sobre ubicaciones, movimientos y evidencias operacionales.
 
-## Evolución
+## Pruebas y CI
 
-Después de validar el núcleo se incorporarán cargas y despachos. El repaletizaje permanecerá separado hasta que exista un alcance operacional propio.
+La integración automática utiliza MySQL real y valida:
+
+- Composer y requisitos de plataforma;
+- compilación web;
+- Laravel Pint;
+- esquema limpio mediante migraciones;
+- suite Laravel;
+- TypeScript;
+- exportación Android.
+
+Las pruebas de dominio deben cubrir idempotencia, concurrencia, temporadas, autorizaciones, estados terminales, movimientos compensatorios y aislamiento entre dominios.
+
+## Evolución pendiente
+
+- creación de lotes definitivos desde Validación MP;
+- asociación explícita entre recepción, lote y procesos posteriores;
+- repaletizaje con genealogía de folios;
+- offline ampliado;
+- integración ERP;
+- telemetría y evidencia fotográfica.

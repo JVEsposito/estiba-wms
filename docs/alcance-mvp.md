@@ -1,127 +1,234 @@
-# Alcance del MVP
+# Alcance funcional actual
 
 ## Objetivo
 
-Construir una aplicación robusta y amigable para tablets que permita administrar cámaras, visualizar su plano de estiba, ubicar bultos mediante folios y conservar la trazabilidad completa de cada movimiento, incluso cuando exista conectividad intermitente.
+Estiba WMS administra operaciones de recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho mediante una base central auditada, oficinas web y una aplicación Android para tablets y PDA.
 
-El sistema debe ser simple para el operador y estricto en la protección del inventario.
+El sistema debe ser simple para el operador, estricto con la integridad del inventario y capaz de conservar operaciones críticas ante conectividad intermitente en los módulos que cuentan con bandeja offline.
 
-## Prioridad del MVP
-
-El primer producto se concentrará en:
-
-1. Configuración de cámaras y posiciones.
-2. Consulta del plano de estiba.
-3. Creación automática de folios al ubicarlos.
-4. Ubicación inicial, reubicación, traslado entre cámaras y retiro de bultos.
-5. Sesiones exclusivas de edición por cámara.
-6. Historial de movimientos.
-7. Operación offline y sincronización.
-8. Detección y resolución de conflictos.
-
-## Incluido
+## Alcance transversal
 
 ### Usuarios y dispositivos
 
-- Autenticación.
-- Roles separados de administrador, supervisión de frío, supervisión de
-  materiales, despachador, camarero de frío, camarero de materiales y consulta.
-- Registro y autorización de tablets.
-- Identificación del usuario y dispositivo en cada sesión y movimiento.
+- Autenticación mediante Laravel Sanctum.
+- Usuarios activos con roles y capacidades explícitas.
+- Registro de tablets autorizadas.
+- Identificación de usuario y dispositivo en sesiones, movimientos y eventos.
+- Cierre de sesión anterior al iniciar en otro equipo cuando la política lo exige.
+- Separación de consulta, operación, supervisión y administración.
 
-### Cámaras y posiciones
+### Temporadas
 
-- Crear y editar cámaras.
-- Definir bandas numéricas verticales, posiciones desde el fondo hacia la entrada y niveles.
-- Previsualizar y generar la cuadrícula.
-- Ajustar posiciones individuales.
-- Activar, bloquear o desactivar posiciones.
-- Desactivar cámaras sin eliminar su historial.
-- Calcular capacidad desde las posiciones activas.
+- Temporada operacional global compartida por los módulos.
+- Creación, edición, activación y migración exclusivamente desde Accesos.
+- Conservación de la temporada original en procesos históricos.
+- Copia controlada de catálogos estacionales.
+- Migración opcional del inventario vivo de Materiales.
+- Bloqueo de migración cuando existen reservas o despachos abiertos.
 
-### Folios
+### Clientes y proveedores
 
-- Buscar por número de folio.
-- Crear automáticamente un folio que no exista al realizar su primera ubicación.
-- Identificar el bulto como pallet o saldo.
-- Registrar condición SAG, estado operacional, fecha de ingreso y estado activo.
-- Mantener datos descriptivos opcionales.
-- Consultar ubicación e historial.
-- Corregir información mediante permisos controlados, sin eliminar trazabilidad.
+- Maestro global de clientes administrado desde Accesos.
+- Configuraciones estacionales para Validación y Materiales.
+- Proveedores de Materiales con asociaciones a clientes.
+- Snapshots contractuales en los documentos que deben conservar el nombre y código históricos.
 
-No existirá un formulario operacional separado para dar de alta folios.
+## Recepción de materia prima
 
-### Estiba y movimientos
+### Romana
 
-- Consultar una cámara sin bloquearla.
-- Obtener una sesión exclusiva para modificarla.
-- Advertir quién está editando y desde qué momento.
-- Ubicar o ingresar un folio en una posición libre; ambos términos representan la misma operación inicial.
-- Reubicar un folio entre posiciones de una misma cámara.
-- Trasladar un folio desde una cámara hacia otra, liberando el origen y ocupando el destino en una sola operación.
-- Exigir autorización exclusiva de edición sobre ambas cámaras durante un traslado.
-- Retirar un folio de su posición.
-- Revertir movimientos mediante una nueva operación autorizada.
-- Mantener origen, destino, usuario, dispositivo, sesión o sesiones y fechas.
+Incluye:
 
-### Operación offline
+- registro inicial del peso bruto;
+- correlativo mensual `REC-AAMM-####` asignado al crear la recepción;
+- antecedentes del camión, carro, conductor, cliente, temporada y guía;
+- declaración de bins, totes y esponjas;
+- confirmación de ingreso;
+- captura de tara al retorno;
+- cálculo del peso neto;
+- cierre irreversible;
+- eventos auditables;
+- Aviso de Recibo PDF;
+- indicadores diarios en el panel gerencial.
 
-- Descargar el plano necesario.
-- Conservar la sesión en la tablet.
-- Registrar operaciones localmente.
-- Sincronizar operaciones en orden.
-- Evitar ejecuciones duplicadas.
-- Detectar conflictos de versión, posición, cámara o folio.
-- Mantener visibles las operaciones pendientes o rechazadas.
+Romana no crea folios, lotes ni movimientos de Frigorífico.
 
-## Preparado para el futuro
+### Validación MP
 
-El modelo deberá admitir una integración posterior con cualquier ERP, incluido el utilizado por la empresa, sin modificar el núcleo de estibas.
+Incluye:
 
-Se dejarán previstos:
+- bandeja de recepciones pendientes;
+- búsqueda o pistoleo mediante el correlativo `REC-*`;
+- toma exclusiva de una recepción;
+- herencia de cliente, temporada, guía y transporte;
+- conteo real de bins, totes y esponjas;
+- diferencia informativa respecto de lo declarado;
+- revisión visual de tarjas;
+- recepción con fruta o solo de envases;
+- segregación por CSG, cuartel y variedad;
+- segmentos provisionales `pendiente_lote`;
+- confirmación de cantidades reales en el kardex de envases.
 
-- Sistema de origen.
-- Identificador externo.
-- Estado de vinculación.
-- Fechas de actualización y sincronización.
-- Adaptadores para API, Webservice, ODBC o archivos.
-- Importación manual o masiva como alternativa.
+No incluye todavía la creación del número de lote definitivo.
 
-La WMS será la fuente oficial de ubicaciones y movimientos. El ERP podrá enriquecer los datos descriptivos de un folio existente mediante su número único.
+### Envases
 
-## Fuera del MVP inicial
+Incluye:
 
-- Integración automática con ERP.
-- Repaletizaje y consolidación de saldos.
-- Balance o transformación de cajas.
-- Registros de temperatura.
+- cuenta corriente y existencia por cliente;
+- movimientos firmados para compra, arriendo, recepción, despacho, anulación y ajustes permitidos;
+- revisión u observación de movimientos;
+- guías internas correlativas `GDE-AAMM-NNNN`;
+- líneas independientes para bins, totes y esponjas;
+- propiedad propia, del cliente o arrendada;
+- descuento físico y cuenta corriente al confirmar;
+- anulación mediante movimientos compensatorios;
+- conservación de la cuenta del arrendador cuando corresponde.
+
+Las guías son documentos operacionales internos y no DTE legales.
+
+## Frigorífico
+
+### Validación PT
+
+- Catálogo jerárquico estacional.
+- Clientes globales con marcas estacionales.
+- Especies, variedades, calibres, envases, categorías y CSG.
+- Proyección compatible con la PDA.
+- Importación CSV/XLSX con previsualización y confirmación.
+- Captura móvil vertical.
+- Aprobación, observación y rechazo.
+- Intentos históricos e idempotencia.
+- Creación atómica del folio aprobado como `pendiente_prefrio`.
+- Caché de catálogo y bandeja offline por usuario y dispositivo.
+
+### Prefrío
+
+- Túneles independientes de las cámaras.
+- Posiciones configurables y plano de dos lados.
+- Procesos históricos con versión incremental.
+- Carga y retiro de folios antes del inicio.
+- Confirmación de armado, inicio y envío a verificación.
+- Lecturas, inversión, pausa, reanudación y deshielo.
+- Aprobación, reproceso y cancelación.
+- Condición térmica separada de la ubicación y del estado comercial.
+- Habilitación para almacenamiento.
+- Oficina de supervisión y aplicación móvil horizontal.
+- Bandeja offline e idempotencia.
+
+### Cámaras y estiba
+
+- Creación y edición de cámaras.
+- Contenido separado entre producto y materiales.
+- Bandas, posiciones, niveles y estado de cada posición.
+- Consulta concurrente del plano.
+- Una sesión exclusiva de edición por cámara.
+- Ubicación inicial, reubicación, traslado y retiro.
+- Versiones de plano y control de concurrencia.
+- Historial completo de movimientos.
+- Consulta previa del folio y autocompletado de datos nacidos en Validación.
+- Ingreso inicial de producto aprobado en Prefrío.
+
+En cámaras de producto una posición admite un único folio. En cámaras de materiales una posición puede contener varias líneas del mismo cliente.
+
+### Cargas y despacho
+
+- Cargas `CAR-*` de hasta 26 folios.
+- Borrador, publicación, separación y cancelación.
+- Reserva exclusiva del folio en una carga vigente.
+- Distribución por cámara desde la ubicación actual.
+- Tareas y plan de extracción.
+- Incidencias y resolución.
+- Envío individual a andén.
+- Cierre documental del despacho.
+- Liberación de ubicaciones mediante movimientos auditados.
+
+## Bodega de materiales
+
+Incluye:
+
+- catálogo estacional por cliente;
+- importación CSV/XLSX solo de maestros;
+- proveedores y asociaciones con clientes;
+- ingreso y ubicación de bultos;
+- posiciones multilínea para materiales del mismo cliente;
+- inventario inicial, actual, reservado y disponible;
+- retiros parciales;
+- reserva y sugerencia FIFO;
+- registro de excepciones FIFO;
+- destinos y centros de costo;
+- despachos de materiales;
+- kardex completo;
+- notificaciones persistentes;
+- corrección supervisada del código de un ítem con motivo y restricciones.
+
+La importación del catálogo no crea folios, existencias ni movimientos.
+
+## Gestión y diagnóstico
+
+### Panel gerencial
+
+- Indicadores de ocupación y capacidad de cámaras.
+- Producto disponible.
+- Inventario de Materiales separado por unidad de medida.
+- Estado y ocupación de túneles de Prefrío.
+- Recepciones, peso neto y tendencia de Romana.
+- Alertas operacionales.
+- Lectura automática y refresco manual.
+- Sin acciones de escritura.
+
+### Telescope
+
+- Disponible solo en entorno `local`.
+- Acceso restringido a loopback.
+- Ocultamiento de tokens, contraseñas y cabeceras sensibles.
+- Limpieza programada de entradas antiguas.
+
+## Operación offline
+
+Implementada específicamente en:
+
+- Validación PT: catálogo local y bandeja de capturas.
+- Prefrío: túneles, procesos, catálogo de folios y bandeja de comandos.
+
+Las operaciones guardan el UUID antes de intentar transmitirlo. Los conflictos no sobrescriben silenciosamente el estado central.
+
+La operación offline completa de Cámaras, Materiales, Cargas, Romana y Validación MP continúa siendo una evolución pendiente.
+
+## Integración futura
+
+El modelo conserva:
+
+- sistema de origen;
+- identificadores externos;
+- estados de vinculación;
+- datos externos y snapshots;
+- fechas de sincronización;
+- adaptadores previstos para API, Webservice, ODBC o archivos.
+
+La WMS es la fuente de verdad de ubicaciones y movimientos. Una futura integración ERP podrá enriquecer datos, pero no debe modificar directamente la trazabilidad física.
+
+## Fuera del alcance actual
+
+- Integración automática con Suit Export u otro ERP productivo.
+- Creación definitiva de lotes desde Validación MP.
+- Repaletizaje y genealogía de saldos.
 - Impresión de etiquetas.
-- Integraciones con impresoras o ERP productivo.
-- Operación entre múltiples plantas.
-- Cargas y despachos en la primera entrega.
+- Telemetría automática desde equipos de frío o romana.
+- Evidencia fotográfica en todos los procesos.
+- Operación multi-planta.
+- Documentos tributarios electrónicos.
 
-## Módulo posterior de cargas
+## Criterios de operación controlada
 
-Una vez estabilizados estibas y movimientos se incorporará:
+El sistema se considera apto para un piloto cuando:
 
-- Creación de cargas.
-- Asignación de entre 1 y 26 bultos.
-- Validación.
-- Confirmación de despacho.
-- Liberación de posiciones.
-- Historial de salida.
-
-## Criterios de término
-
-El MVP se considerará operativo cuando:
-
-- Dos usuarios puedan consultar la misma cámara.
-- Solo un usuario pueda modificarla.
-- No sea posible duplicar una posición ni ubicar un folio dos veces.
-- Cada movimiento conserve trazabilidad completa.
-- Un traslado entre cámaras nunca deje ocupadas ambas posiciones ni libere el origen sin confirmar el destino.
-- Un folio inexistente pueda crearse durante su ubicación.
-- Una operación repetida no vuelva a ejecutarse.
-- La tablet conserve movimientos al perder conexión o reiniciarse.
-- Los conflictos no modifiquen silenciosamente el inventario central.
-- El plano digital concuerde con una prueba física controlada.
+- los catálogos reales han sido validados por operación;
+- los roles solo observan y ejecutan acciones de su ámbito;
+- ningún folio ocupa dos ubicaciones incompatibles;
+- las posiciones y procesos mantienen exclusividad según su dominio;
+- los reintentos no duplican movimientos;
+- los conflictos quedan visibles;
+- los documentos y procesos conservan su temporada y snapshots históricos;
+- una prueba física coincide con Cámaras, Materiales, Prefrío, Romana y Envases;
+- existen respaldos y un procedimiento de contingencia durante el piloto.
