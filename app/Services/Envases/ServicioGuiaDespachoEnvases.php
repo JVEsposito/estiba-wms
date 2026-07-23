@@ -471,9 +471,6 @@ class ServicioGuiaDespachoEnvases
     }
 
     /** @param array<string, mixed> $detalle */
-    private function validarOrigen
-
-    /** @param array<string, mixed> $detalle */
     private function validarOrigen(
         MovimientoEnvase $origen,
         Temporada $temporada,
@@ -691,12 +688,6 @@ class ServicioGuiaDespachoEnvases
             TipoMovimientoEnvase::RecepcionCompra->value,
         ];
     }
-
-    /**
-     * @param  array<string, mixed>  $detalle
-     * @return array<string, mixed>
-     */
-    private function asignacion
 
     /**
      * @param  array<string, mixed>  $detalle
