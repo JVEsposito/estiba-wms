@@ -30,7 +30,10 @@ class GeneradorGuiaDespachoEnvasesPdf
             : $guia->estado->value;
         $esBorrador = ! $salidaConfirmada;
         $reservaActiva = $guia->estado === EstadoGuiaDespachoEnvase::Borrador;
-        $esHistoricoReconstruido = $salidaConfirmada && ! $guia->documento_snapshot;
+        $esHistoricoReconstruido = $salidaConfirmada && (
+            ! $guia->documento_snapshot
+            || ($snapshot['historico_reconstruido'] ?? false) === true
+        );
 
         $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
         $contenido .= $this->texto(38, 810, 20, 'ESTIBA WMS', true, '1 1 1');
