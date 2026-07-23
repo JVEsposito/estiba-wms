@@ -15,7 +15,6 @@ use App\Models\ItemMaterial;
 use App\Models\TemporadaMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -26,7 +25,7 @@ class CatalogoMaterialController extends Controller
         Gate::authorize('consultar-despachos-materiales');
         $temporada = TemporadaMaterial::query()->where('activa', true)->first();
 
-        if (! $temporada) {
+        if ($temporada === null) {
             return response()->json([
                 'temporada' => null,
                 'clientes' => [],

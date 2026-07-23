@@ -109,12 +109,12 @@ class MaterialesApiTest extends TestCase
             $clienteGlobalId = $this
                 ->conToken($tokenOficina)
                 ->postJson('/api/administracion/clientes', [
-                'codigo' => $codigo,
-                'nombre' => 'Cliente '.$codigo,
-                'activo' => true,
-            ])
-            ->assertCreated()
-            ->json('data.id');
+                    'codigo' => $codigo,
+                    'nombre' => 'Cliente '.$codigo,
+                    'activo' => true,
+                ])
+                ->assertCreated()
+                ->json('data.id');
 
             return ClienteMaterial::query()
                 ->where('temporada_material_id', $temporadaId)
