@@ -1,113 +1,164 @@
 # Configuración de cámaras y preparación de cargas
 
-Este documento fija el vocabulario y las reglas operativas acordadas antes de
-modificar la estructura de datos o agregar módulos de oficina.
-
 ## Vocabulario físico
 
-- **Cámara:** recinto físico en el que se ubican bultos. Su código operacional
-  es correlativo y estable, por ejemplo `CAM-01`.
-- **Banda:** eje numérico que los camareros utilizan para identificar una línea
-  vertical dentro de la cámara. Reemplaza el término anterior `fila`.
-- **Posición:** lugar dentro de una banda. La posición `1` corresponde al fondo
-  y es la primera que normalmente se ocupa. La numeración aumenta desde el
-  fondo hacia la entrada. Reemplaza el término anterior `profundidad`.
+- **Cámara:** recinto físico en el que se ubican bultos. Su código operacional es estable, por ejemplo `CAM-01`.
+- **Banda:** eje numérico vertical dentro de la cámara.
+- **Posición:** lugar dentro de una banda. `P01` corresponde al fondo y la numeración avanza hacia la entrada.
 - **Nivel:** altura física de una posición, numerada desde `1`.
-- **Etiqueta de posición:** `B01-P01-N1`.
-- **Ubicación completa:** combina cámara y posición, por ejemplo
-  `CAM-01/B01-P01-N1`.
+- **Etiqueta:** código como `B01-P01-N1`.
+- **Ubicación completa:** cámara más etiqueta, por ejemplo `CAM-01/B01-P01-N1`.
 
-Los identificadores UUID continúan siendo las claves internas. Los códigos y
-etiquetas operacionales son estables una vez que existe trazabilidad asociada.
+Los UUID son las claves internas. Los códigos y etiquetas operacionales se mantienen estables cuando existe trazabilidad asociada.
+
+## Contenido de cámaras
+
+Cada cámara declara el tipo de contenido que acepta.
+
+### Producto
+
+- pallets y saldos;
+- una posición admite un único folio;
+- el folio debe encontrarse activo y cumplir la regla térmica o de habilitación aplicable;
+- los folios nacidos en Validación se consultan y autocompletan antes de ubicarse.
+
+### Materiales
+
+- folios con ficha de inventario de Materiales;
+- una posición puede contener varias líneas o folios;
+- todos los ocupantes de una posición compartida deben pertenecer al mismo cliente;
+- la tablet permite seleccionar la línea exacta para mover o retirar.
+
+No se mezclan producto y materiales dentro de una misma cámara.
 
 ## Representación del plano
 
 - Cada banda se representa verticalmente.
 - El fondo se muestra arriba y la entrada abajo.
 - Las posiciones se ordenan desde `P01` hacia la entrada.
-- Los niveles se pueden consultar sin cambiar la orientación de las bandas.
-- El plano puede contener posiciones bloqueadas o fuera de servicio.
+- Los niveles se consultan sin alterar la orientación.
+- Las posiciones pueden estar activas, bloqueadas o fuera de servicio.
+- En Materiales el plano puede mostrar varios ocupantes dentro de una misma posición.
 
-## Reglas de ubicación con advertencia
+## Advertencias físicas
 
-Las reglas físicas orientan al operador, pero no bloquean una operación válida:
+Las reglas físicas orientan al operador, pero determinadas excepciones pueden confirmarse de forma auditada:
 
-1. Si se intenta ocupar una posición dejando libre otra más profunda en la
-   misma banda y nivel, el sistema solicita confirmación.
-2. Si se intenta ocupar un nivel superior sin un bulto de soporte debajo, el
-   sistema solicita confirmación.
-3. Si se intenta retirar o mover un nivel inferior con otro bulto encima, el
-   sistema solicita confirmación.
+1. ocupar una posición dejando otra más profunda disponible;
+2. ocupar un nivel superior sin soporte visible;
+3. retirar o mover un nivel inferior con otro bulto encima.
 
-La confirmación debe quedar asociada al movimiento, al usuario y al
-dispositivo. Una advertencia no confirmada no produce cambios.
+La confirmación queda asociada al movimiento, usuario y dispositivo. Una advertencia no confirmada no produce cambios.
 
 ## Configuración desde oficina
 
-La configuración se realiza normalmente desde PC y no exige que el equipo esté
-registrado como tablet. `supervisor_frio` crea únicamente cámaras de productos,
-`supervisor_materiales` crea únicamente cámaras de materiales y `administrador`
-puede crear ambas. Estos perfiles pueden:
+La oficina `/oficina/camaras` no exige que el PC esté registrado como tablet.
+
+- `supervisor_frio` crea cámaras de producto dentro de su ámbito.
+- `supervisor_materiales` crea cámaras de materiales dentro de su ámbito.
+- `administrador` puede crear ambas.
+
+La configuración permite:
 
 - crear cámaras;
 - definir bandas, posiciones y niveles;
-- revisar el plano antes de guardarlo;
-- marcar posiciones fuera de servicio;
+- revisar la cuadrícula antes de guardar;
+- marcar posiciones bloqueadas o fuera de servicio;
+- crear y mantener andenes según permisos.
 
-Solo el rol `administrador` puede editar una cámara existente, cambiar su
-nombre o tipo, ampliar o reducir el plano, desactivarla y reactivarla. El código
-`CAM-xx` es inmutable.
+Solo el administrador puede editar estructuralmente una cámara existente, ampliar o reducir el plano, cambiar propiedades reservadas, desactivarla o reactivarla.
 
-Una reducción nunca elimina posiciones físicamente: las coordenadas que quedan
-fuera del plano se archivan como fuera de servicio. Si una de ellas contiene un
-folio, la reducción se rechaza hasta que el bulto sea movido. Una cámara tampoco
-puede desactivarse mientras contenga folios o tenga una sesión de estiba abierta.
+Una reducción no elimina posiciones físicamente: archiva las coordenadas retiradas. Se rechaza si contienen ocupantes. Una cámara tampoco puede desactivarse con inventario o una sesión abierta.
 
-La creación, edición y desactivación se realizan en transacciones. No se
-eliminan físicamente cámaras o posiciones con historia operacional.
+## Sesiones de estiba
+
+- La consulta del plano es concurrente.
+- Una sola sesión modifica cada cámara.
+- La sesión identifica usuario y dispositivo.
+- Un traslado entre cámaras exige autorización válida sobre los extremos afectados.
+- Un cierre forzoso requiere supervisión del área o administración y motivo obligatorio.
+- Cada movimiento aceptado incrementa la versión del plano.
+
+## Consulta previa del folio
+
+Antes de una ubicación inicial, la interfaz puede consultar el número de folio.
+
+Para un folio existente recupera:
+
+- tipo de bulto;
+- estado operacional;
+- condición térmica;
+- habilitación de almacenamiento;
+- condición SAG;
+- variedad;
+- calibre;
+- marca;
+- exportadora;
+- ubicación actual;
+- ficha de Materiales cuando corresponde.
+
+Los datos nacidos en Validación no se reescriben desde Cámara.
+
+Un folio aprobado en Prefrío puede ejecutar su primera ubicación cuando mantiene:
+
+```text
+estado_operacional = pendiente_prefrio
+condicion_termica = prefrio_aprobado
+habilitacion_almacenamiento = habilitado
+```
+
+Después de ubicarse pasa a `disponible`.
 
 ## Preparación de cargas
 
-Una carga agrupa entre 1 y 26 folios disponibles para una orden de embarque. El
-despachador la prepara desde PC y los camareros la ejecutan desde tablet.
+Una carga `CAR-*` agrupa entre 1 y 26 folios de producto para una orden de embarque.
 
-La carga conserva un código interno estable, por ejemplo `CAR-000001`, separado
-del número de orden de embarque que en el futuro podrá provenir de Suit Export.
-Cada folio asignado muestra el código de la carga dentro del plano de estiba.
+El flujo incluye:
 
-### Separación física
+```text
+borrador
+→ publicación
+→ separación
+→ envío a andén
+→ cierre de despacho
+```
 
-Estar en la misma cámara no implica que una carga esté separada. El sistema
-calcula el mayor grupo conectado de folios de la carga:
+Reglas principales:
 
-- posiciones consecutivas dentro de una banda;
-- bandas consecutivas en posiciones equivalentes;
-- niveles consecutivos de una misma posición.
+- un folio solo mantiene una asignación vigente;
+- publicar exige folios activos, elegibles y ubicados;
+- la distribución por cámara se calcula desde las ubicaciones actuales;
+- la carga conserva una versión para controlar concurrencia;
+- cancelar libera asignaciones, pero conserva eventos;
+- las cargas pertenecen a una temporada y no aceptan folios de otro ciclo.
 
-El porcentaje agrupado es:
+## Separación física
 
-`folios del mayor grupo correlativo / folios pendientes de la carga * 100`
+El sistema calcula la concentración de los folios pendientes de una carga dentro del plano. Puede distinguir:
 
-- Menos de 80 %: `en_separacion`.
-- Entre 80 % y 99 %: `separada`, indicando cuántos folios faltan.
-- 100 %: `separacion_completa`.
+- grupo principal;
+- folios faltantes;
+- obstáculos de otras cargas;
+- tareas por cámara;
+- plan de extracción.
 
-El plano debe distinguir el grupo principal, los folios faltantes y los bultos
-ajenos que bloquean su salida.
+Los estados visuales de separación orientan la operación, pero cada folio mantiene su ubicación y tarea individual hasta ser enviado.
 
-### Envío a andén
+## Incidencias
 
-Enviar folios desde una cámara al andén es la acción **Despachar**:
+Durante la extracción pueden registrarse incidencias por asignación. La resolución no borra el reporte original; agrega la evidencia y decisión correspondiente.
 
-- con menos de 80 %, los folios se despachan individualmente;
-- con 80 % o más, se puede despachar conjuntamente el grupo correlativo;
-- con 100 %, se puede despachar la carga completa;
-- una carga queda `despachada` cuando todos sus folios fueron enviados al andén.
+## Envío a andén
 
-Cada despacho libera la posición y registra carga, folio, origen, andén,
-usuario, dispositivo y fecha. Los andenes tendrán códigos como `AND-01`.
+Enviar un folio al andén:
 
-## Entregas
+- retira el folio de su ubicación mediante un movimiento auditable;
+- registra carga, folio, cámara, posición, andén, usuario, dispositivo y fecha;
+- actualiza la tarea y el avance de la carga;
+- no permite dobles salidas del mismo folio.
 
-1. Configuración de cámaras, nomenclatura, plano vertical y advertencias.
-2. Configuración de andenes, órdenes de carga, separación y despacho.
+La carga queda despachada o cerrada cuando se cumplen las condiciones documentales y físicas del servicio de despacho.
+
+## Andenes
+
+Los andenes son destinos configurables, por ejemplo `AND-01`. Su administración depende de capacidades específicas y no convierte el andén en una cámara de almacenamiento.
