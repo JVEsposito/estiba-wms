@@ -348,6 +348,14 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeAnularDespachoEnvases(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorMateriales,
+        ]);
+    }
+
     public function puedeAccederOficina(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -401,6 +409,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_cuenta_envases' => $this->puedeConsultarCuentaEnvases($usuario),
             'puede_revisar_cuenta_envases' => $this->puedeRevisarCuentaEnvases($usuario),
             'puede_gestionar_despacho_envases' => $this->puedeGestionarDespachoEnvases($usuario),
+            'puede_anular_despacho_envases' => $this->puedeAnularDespachoEnvases($usuario),
         ];
     }
 

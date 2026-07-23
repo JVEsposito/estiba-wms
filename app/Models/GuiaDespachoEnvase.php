@@ -11,10 +11,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'operacion_id', 'payload_hash', 'numero', 'temporada_id', 'cliente_id', 'estado', 'salida_at',
+    'operacion_id', 'payload_hash', 'numero', 'temporada_id',
+    'temporada_codigo_snapshot', 'temporada_nombre_snapshot',
+    'cliente_id', 'cliente_codigo_snapshot', 'cliente_nombre_snapshot', 'estado', 'salida_at',
     'patente_camion', 'rut_conductor', 'nombre_conductor', 'observacion', 'version',
-    'creado_por_user_id', 'confirmado_por_user_id', 'anulado_por_user_id',
-    'confirmado_at', 'anulado_at', 'motivo_anulacion',
+    'creado_por_user_id', 'confirmado_por_user_id', 'anulado_por_user_id', 'cancelado_por_user_id',
+    'confirmado_at', 'cancelado_at', 'anulado_at', 'motivo_anulacion', 'motivo_cancelacion',
+    'documento_snapshot', 'documento_hash', 'documento_generado_at',
 ])]
 class GuiaDespachoEnvase extends Model
 {
@@ -52,13 +55,27 @@ class GuiaDespachoEnvase extends Model
         return $this->belongsTo(User::class, 'anulado_por_user_id');
     }
 
+    public function canceladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelado_por_user_id');
+    }
+
+    public function eventos(): HasMany
+    {
+        return $this->hasMany(EventoGuiaDespachoEnvase::class)
+            ->orderBy('ocurrido_at');
+    }
+
     protected function casts(): array
     {
         return [
             'estado' => EstadoGuiaDespachoEnvase::class,
             'salida_at' => 'datetime',
             'confirmado_at' => 'datetime',
+            'cancelado_at' => 'datetime',
             'anulado_at' => 'datetime',
+            'documento_snapshot' => 'array',
+            'documento_generado_at' => 'datetime',
             'version' => 'integer',
         ];
     }

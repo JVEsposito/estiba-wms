@@ -201,6 +201,10 @@ class AppServiceProvider extends ServiceProvider
             'gestionar-despacho-envases',
             fn (User $usuario): bool => $alcance->puedeGestionarDespachoEnvases($usuario),
         );
+        Gate::define(
+            'anular-despacho-envases',
+            fn (User $usuario): bool => $alcance->puedeAnularDespachoEnvases($usuario),
+        );
 
         Sanctum::authenticateAccessTokensUsing(
             function (PersonalAccessToken $token, bool $esValido): bool {
