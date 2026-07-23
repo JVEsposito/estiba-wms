@@ -9,8 +9,9 @@ recepción / compra / arriendo
 → movimiento de existencia y cuenta corriente
 → revisión
 → disponibilidad
-→ guía interna GDE-*
-→ confirmación
+→ guía interna GDE-* en borrador
+→ reserva FIFO de existencia
+→ confirmación o cancelación
 → eventual anulación compensatoria
 ```
 
@@ -23,7 +24,7 @@ Envases es un dominio independiente de los folios de Frigorífico y del inventar
 /oficina/envases/despachos
 ```
 
-La primera oficina consulta y revisa movimientos. La segunda crea, confirma y anula guías internas de salida.
+La primera oficina consulta movimientos confirmados y reservas. La segunda crea, edita, cancela, confirma y anula guías internas de salida, además de generar sus respaldos PDF.
 
 ## Tipos de envase
 
@@ -125,14 +126,16 @@ La guía es un documento operacional interno. No debe presentarse como factura, 
 ```text
 borrador
 confirmada
+cancelada
 anulada
 ```
 
 ### Borrador
 
-- permite preparar y revisar las líneas;
-- no descuenta existencia;
-- puede modificarse según las reglas de la interfaz.
+- permite preparar, revisar y editar las líneas;
+- asigna orígenes FIFO y reserva disponibilidad;
+- no modifica todavía la existencia física ni la cuenta corriente;
+- puede cancelarse sin generar movimientos.
 
 ### Confirmada
 
@@ -140,6 +143,12 @@ anulada
 - genera el movimiento negativo de cuenta corriente;
 - queda inmutable;
 - conserva la hora exacta de salida.
+
+### Cancelada
+
+- libera la reserva del borrador;
+- conserva el motivo, usuario y fecha;
+- no genera movimientos de existencia ni cuenta corriente.
 
 ### Anulada
 
@@ -158,11 +167,12 @@ anulada
 
 ## Idempotencia
 
-Crear, confirmar o anular utiliza UUID y hash del payload cuando la operación lo requiere.
+La creación utiliza UUID y hash del payload. Las transiciones posteriores se serializan mediante bloqueo transaccional y estado terminal.
 
-- mismo UUID y mismo contenido: resultado existente;
+- mismo UUID y mismo contenido al crear: resultado existente;
 - mismo UUID y contenido diferente: conflicto;
 - doble confirmación: no duplica el descuento;
+- doble cancelación: no modifica nuevamente la reserva;
 - doble anulación: no duplica la compensación.
 
 La oficina incorpora un fallback UUID v4 basado en `crypto.getRandomValues()` para navegadores de red local que no exponen `crypto.randomUUID()`.
@@ -190,8 +200,13 @@ POST /api/envases/cuenta-corriente/movimientos/{movimiento}/revisar
 ```http
 GET  /api/envases/guias-despacho/catalogos
 GET  /api/envases/guias-despacho
+GET  /api/envases/guias-despacho/{guia}
+GET  /api/envases/guias-despacho/{guia}/documento
+GET  /api/envases/guias-despacho/{guia}/comprobante-anulacion
 POST /api/envases/guias-despacho
+PUT  /api/envases/guias-despacho/{guia}
 POST /api/envases/guias-despacho/{guia}/confirmar
+POST /api/envases/guias-despacho/{guia}/cancelar
 POST /api/envases/guias-despacho/{guia}/anular
 ```
 
@@ -211,7 +226,7 @@ El sistema debe poder reconstruir:
 - revisión;
 - compensaciones posteriores.
 
-Los movimientos y las guías confirmadas no se eliminan físicamente.
+Los movimientos, eventos y guías no se eliminan físicamente. Las guías confirmadas antes del versionado documental se reconstruyen una vez, se marcan expresamente como históricas y conservan desde entonces su snapshot y hash.
 
 ## Límites actuales
 

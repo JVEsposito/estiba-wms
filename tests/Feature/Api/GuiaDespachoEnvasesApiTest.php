@@ -4,12 +4,15 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
+use App\Models\GuiaDespachoEnvase;
 use App\Models\MovimientoEnvase;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Envases\ServicioGuiaDespachoEnvases;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -77,6 +80,12 @@ class GuiaDespachoEnvasesApiTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf');
         $this->assertStringStartsWith('%PDF-1.4', (string) $pdfBorrador->getContent());
+        $this->get('/api/envases/guias-despacho/'.$guia['id'].'/comprobante-anulacion')
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'El comprobante de anulación solo existe para una guía anulada.',
+            );
 
         $this->postJson('/api/envases/guias-despacho/'.$guia['id'].'/confirmar')
             ->assertOk()
@@ -151,6 +160,17 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         $this->postJson('/api/envases/guias-despacho', $duplicada)
             ->assertConflict()
             ->assertJsonPath('message', 'No repitas el mismo tipo, propiedad y origen dentro de una guía.');
+
+        $mixta = $this->payloadGuia($cliente, (string) Str::uuid(), [
+            ['tipo_envase' => 'bins', 'cantidad' => 3, 'propiedad' => 'propia', 'movimiento_origen_id' => null],
+            ['tipo_envase' => 'bins', 'cantidad' => 2, 'propiedad' => 'propia', 'movimiento_origen_id' => $origen->id],
+        ]);
+        $this->postJson('/api/envases/guias-despacho', $mixta)
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'No combines asignación automática y manual para el mismo tipo y propiedad.',
+            );
 
         $operacionId = (string) Str::uuid();
         $payload = $this->payloadGuia($cliente, $operacionId, [
@@ -251,6 +271,10 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         $this->getJson('/api/envases/guias-despacho/catalogos')
             ->assertJsonPath('inventario.0.reservado', 45)
             ->assertJsonPath('inventario.0.disponible', 55);
+        $this->getJson('/api/envases/cuenta-corriente/movimientos?desde=2026-07-22')
+            ->assertOk()
+            ->assertJsonCount(0, 'reservas')
+            ->assertJsonPath('resumen.envases_reservados', 0);
         $this->postJson('/api/envases/guias-despacho/'.$guia['id'].'/cancelar', [
             'motivo' => 'El cliente postergó el retiro.',
         ])->assertOk()
@@ -304,6 +328,149 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         ]);
         $this->assertSame(10, $this->existencia('cliente'));
         $this->assertSame(10, $this->saldoCuenta($cliente));
+    }
+
+    public function test_descuenta_salidas_propias_historicas_sin_origen_antes_de_reservar(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create(['codigo' => 'CLI-LEG', 'nombre' => 'Cliente legado', 'activo' => true]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $this->movimientoIngreso($temporada, $cliente, $operador, 'propia', 100);
+        MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $temporada->id,
+            'cliente_id' => $cliente->id,
+            'documento_tipo' => 'guia_despacho_envases',
+            'numero_documento' => 'GDE-LEGACY-01',
+            'tipo_movimiento' => 'despacho_cliente',
+            'tipo_envase' => 'bins',
+            'cantidad' => 60,
+            'signo_cuenta' => -1,
+            'signo_existencia' => -1,
+            'propiedad' => 'propia',
+            'movimiento_origen_id' => null,
+            'ocurrido_at' => now(),
+            'salida_at' => now(),
+            'estado_revision' => 'pendiente',
+            'creado_por_user_id' => $operador->id,
+        ]);
+
+        $this->actingAs($operador, 'sanctum');
+        $this->getJson('/api/envases/guias-despacho/catalogos')
+            ->assertOk()
+            ->assertJsonPath('inventario.0.fisico', 40)
+            ->assertJsonPath('inventario.0.disponible', 40);
+        $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
+            $cliente,
+            (string) Str::uuid(),
+            [['tipo_envase' => 'bins', 'cantidad' => 41, 'propiedad' => 'propia', 'movimiento_origen_id' => null]],
+        ))
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'No existe disponibilidad suficiente de bins propia; faltan 1 unidades.',
+            );
+        MovimientoEnvase::create([
+            'operacion_id' => (string) Str::uuid(),
+            'temporada_id' => $temporada->id,
+            'cliente_id' => $cliente->id,
+            'documento_tipo' => 'guia_despacho_envases',
+            'numero_documento' => 'GDE-LEGACY-01',
+            'tipo_movimiento' => 'reversion_despacho',
+            'tipo_envase' => 'bins',
+            'cantidad' => 60,
+            'signo_cuenta' => 1,
+            'signo_existencia' => 1,
+            'propiedad' => 'propia',
+            'movimiento_origen_id' => null,
+            'ocurrido_at' => now(),
+            'ingreso_at' => now(),
+            'estado_revision' => 'pendiente',
+            'creado_por_user_id' => $operador->id,
+        ]);
+
+        $this->getJson('/api/envases/guias-despacho/catalogos')
+            ->assertOk()
+            ->assertJsonPath('inventario.0.fisico', 100)
+            ->assertJsonPath('inventario.0.disponible', 100);
+        $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
+            $cliente,
+            (string) Str::uuid(),
+            [['tipo_envase' => 'bins', 'cantidad' => 100, 'propiedad' => 'propia', 'movimiento_origen_id' => null]],
+        ))->assertCreated();
+    }
+
+    public function test_reconstruye_documento_y_eventos_de_una_guia_confirmada_anterior(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create(['codigo' => 'CLI-DOC', 'nombre' => 'Cliente documento', 'activo' => true]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $origen = $this->movimientoIngreso($temporada, $cliente, $operador, 'propia', 20);
+        $this->actingAs($operador, 'sanctum');
+        $guia = $this->postJson('/api/envases/guias-despacho', $this->payloadGuia(
+            $cliente,
+            (string) Str::uuid(),
+            [['tipo_envase' => 'bins', 'cantidad' => 5, 'propiedad' => 'propia', 'movimiento_origen_id' => $origen->id]],
+        ))->assertCreated()->json('data');
+        $this->postJson('/api/envases/guias-despacho/'.$guia['id'].'/confirmar')
+            ->assertOk();
+
+        DB::table('eventos_guias_despacho_envases')
+            ->where('guia_despacho_envase_id', $guia['id'])
+            ->delete();
+        DB::table('guias_despacho_envases')->where('id', $guia['id'])->update([
+            'temporada_codigo_snapshot' => null,
+            'temporada_nombre_snapshot' => null,
+            'cliente_codigo_snapshot' => null,
+            'cliente_nombre_snapshot' => null,
+            'documento_snapshot' => null,
+            'documento_hash' => null,
+            'documento_generado_at' => null,
+        ]);
+
+        $migracion = require database_path(
+            'migrations/2026_07_23_190000_compatibilizar_historial_guias_envases.php',
+        );
+        $migracion->up();
+
+        $reconstruida = GuiaDespachoEnvase::query()->findOrFail($guia['id']);
+        $this->assertTrue($reconstruida->documento_snapshot['historico_reconstruido']);
+        $this->assertSame($cliente->codigo, $reconstruida->cliente_codigo_snapshot);
+        $this->assertSame(64, strlen((string) $reconstruida->documento_hash));
+        $this->assertDatabaseHas('eventos_guias_despacho_envases', [
+            'guia_despacho_envase_id' => $guia['id'],
+            'tipo' => 'creada',
+        ]);
+        $this->assertDatabaseHas('eventos_guias_despacho_envases', [
+            'guia_despacho_envase_id' => $guia['id'],
+            'tipo' => 'confirmada',
+        ]);
+
+        $pdf = (string) $this->get('/api/envases/guias-despacho/'.$guia['id'].'/documento')
+            ->assertOk()
+            ->getContent();
+        $this->assertStringContainsString('SALIDA CONFIRMADA', $pdf);
+        $this->assertStringContainsString('RESPALDO HIST', $pdf);
+        $this->assertStringNotContainsString('Sin movimiento', $pdf);
+    }
+
+    public function test_inventario_agrega_saldos_sin_consultas_por_cada_origen(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create(['codigo' => 'CLI-PERF', 'nombre' => 'Cliente rendimiento', 'activo' => true]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        foreach (range(1, 25) as $indice) {
+            $this->movimientoIngreso($temporada, $cliente, $operador, 'propia', $indice);
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $inventario = app(ServicioGuiaDespachoEnvases::class)->inventario($temporada);
+        $consultas = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertCount(25, $inventario['origenes']);
+        $this->assertLessThanOrEqual(7, count($consultas));
     }
 
     /** @param array<int, array<string, mixed>> $detalles */

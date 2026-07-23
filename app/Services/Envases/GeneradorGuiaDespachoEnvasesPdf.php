@@ -3,9 +3,9 @@
 namespace App\Services\Envases;
 
 use App\Enums\EstadoGuiaDespachoEnvase;
+use App\Exceptions\ConflictoOperacion;
 use App\Models\GuiaDespachoEnvase;
 use Carbon\CarbonImmutable;
-use DomainException;
 use Illuminate\Support\Collection;
 
 class GeneradorGuiaDespachoEnvasesPdf
@@ -21,11 +21,19 @@ class GeneradorGuiaDespachoEnvasesPdf
             'canceladoPor',
         ]);
         $snapshot = $guia->documento_snapshot ?: $this->snapshotBorrador($guia);
-        $estado = $guia->documento_snapshot
+        $salidaConfirmada = in_array($guia->estado, [
+            EstadoGuiaDespachoEnvase::Confirmada,
+            EstadoGuiaDespachoEnvase::Anulada,
+        ], true);
+        $estado = $salidaConfirmada
             ? EstadoGuiaDespachoEnvase::Confirmada->value
             : $guia->estado->value;
-        $esBorrador = ! $guia->documento_snapshot;
+        $esBorrador = ! $salidaConfirmada;
         $reservaActiva = $guia->estado === EstadoGuiaDespachoEnvase::Borrador;
+        $esHistoricoReconstruido = $salidaConfirmada && (
+            ! $guia->documento_snapshot
+            || ($snapshot['historico_reconstruido'] ?? false) === true
+        );
 
         $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
         $contenido .= $this->texto(38, 810, 20, 'ESTIBA WMS', true, '1 1 1');
@@ -120,7 +128,9 @@ class GeneradorGuiaDespachoEnvasesPdf
                 ? 'BORRADOR: reserva existencia, pero no afecta la cuenta corriente ni acredita salida física.'
                 : ($esBorrador
                     ? 'DOCUMENTO CANCELADO: la reserva fue liberada sin afectar existencia ni cuenta corriente.'
-                    : 'Documento operacional interno generado desde un registro confirmado e inmutable de Estiba WMS.'),
+                    : ($esHistoricoReconstruido
+                        ? 'RESPALDO HISTÓRICO: salida confirmada antes del versionado documental; datos reconstruidos desde el registro conservado.'
+                        : 'Documento operacional interno generado desde un registro confirmado e inmutable de Estiba WMS.')),
         );
 
         return $this->documento($contenido);
@@ -129,7 +139,7 @@ class GeneradorGuiaDespachoEnvasesPdf
     public function generarComprobanteAnulacion(GuiaDespachoEnvase $guia): string
     {
         if ($guia->estado !== EstadoGuiaDespachoEnvase::Anulada) {
-            throw new DomainException('El comprobante de anulación solo existe para una guía anulada.');
+            throw new ConflictoOperacion('El comprobante de anulación solo existe para una guía anulada.');
         }
         $guia->loadMissing(['cliente', 'anuladoPor']);
 

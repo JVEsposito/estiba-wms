@@ -113,6 +113,16 @@ class CuentaCorrienteEnvaseController extends Controller
                             ->where('cliente_id', $filtros['cliente_id']),
                     )
                     ->when(
+                        ! empty($filtros['desde']),
+                        fn (Builder $consulta): Builder => $consulta
+                            ->whereDate('salida_at', '>=', $filtros['desde']),
+                    )
+                    ->when(
+                        ! empty($filtros['hasta']),
+                        fn (Builder $consulta): Builder => $consulta
+                            ->whereDate('salida_at', '<=', $filtros['hasta']),
+                    )
+                    ->when(
                         ! empty($filtros['buscar']),
                         function (Builder $consulta) use ($filtros): void {
                             $buscar = '%'.str_replace(
