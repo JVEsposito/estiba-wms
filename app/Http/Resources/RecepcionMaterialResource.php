@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\BultoRecepcionMaterial;
 use App\Models\DetalleRecepcionMaterial;
+use App\Models\EventoRecepcionMaterial;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -76,6 +77,19 @@ class RecepcionMaterialResource extends JsonResource
                             ] : null,
                         ])->values()
                         : [],
+                ])->values()),
+            'eventos' => $this->whenLoaded('eventos', fn () => $this->eventos
+                ->map(fn (EventoRecepcionMaterial $evento): array => [
+                    'id' => $evento->id,
+                    'tipo' => $evento->tipo->value,
+                    'operacion_id' => $evento->operacion_id,
+                    'datos' => $evento->datos,
+                    'observacion' => $evento->observacion,
+                    'usuario' => $evento->usuario ? [
+                        'id' => $evento->usuario->id,
+                        'nombre' => $evento->usuario->name,
+                    ] : null,
+                    'ocurrido_at' => $evento->ocurrido_at?->toAtomString(),
                 ])->values()),
             'snapshot_confirmacion' => $this->snapshot_confirmacion,
             'creado_por' => $this->creadoPor ? [
