@@ -59,6 +59,14 @@ class RecepcionMaterialController extends Controller
             ->whereNotNull('categoria_operacional')
             ->orderBy('codigo')
             ->get();
+        $categoriasActivasPorCliente = $items
+            ->groupBy(fn (ItemMaterial $item): string => (string) $clienteIdsPorCatalogo
+                ->get($item->cliente_material_id))
+            ->map(fn ($items) => $items->mapWithKeys(function (ItemMaterial $item): array {
+                $categoria = trim((string) $item->categoria);
+
+                return $categoria === '' ? [] : [mb_strtolower($categoria) => $categoria];
+            }));
         $proveedores = ProveedorMaterial::query()
             ->with(['clientes' => fn ($consulta) => $consulta
                 ->whereIn('clientes.id', $clienteIds)
@@ -85,20 +93,29 @@ class RecepcionMaterialController extends Controller
                 'codigo_folio_materiales' => $catalogo->cliente->codigo_folio_materiales,
                 'nombre' => $catalogo->cliente->nombre,
             ])->values(),
-            'proveedores' => $proveedores->map(function (ProveedorMaterial $proveedor): array {
-                $categorias = $proveedor->clientes->flatMap(function ($cliente) {
+            'proveedores' => $proveedores->map(function (ProveedorMaterial $proveedor) use ($categoriasActivasPorCliente): array {
+                $categorias = $proveedor->clientes->flatMap(function ($cliente) use ($categoriasActivasPorCliente) {
                     $valor = $cliente->pivot?->categorias;
                     if (is_string($valor)) {
                         $valor = json_decode($valor, true);
                     }
+                    $categoriasActivas = $categoriasActivasPorCliente
+                        ->get((string) $cliente->id, collect());
 
                     return collect(is_array($valor) ? $valor : [])
-                        ->map(fn ($categoria): array => [
-                            'cliente_id' => $cliente->id,
-                            'categoria' => trim((string) $categoria),
-                        ])
-                        ->filter(fn (array $asignacion): bool => $asignacion['categoria'] !== '');
-                })->values();
+                        ->map(function ($categoria) use ($cliente, $categoriasActivas): ?array {
+                            $categoriaActiva = $categoriasActivas
+                                ->get(mb_strtolower(trim((string) $categoria)));
+
+                            return $categoriaActiva ? [
+                                'cliente_id' => $cliente->id,
+                                'categoria' => $categoriaActiva,
+                            ] : null;
+                        })
+                        ->filter();
+                })->unique(fn (array $asignacion): string => $asignacion['cliente_id'].'|'
+                    .mb_strtolower($asignacion['categoria']))
+                    ->values();
 
                 return [
                     'id' => $proveedor->id,
