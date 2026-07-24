@@ -83,7 +83,7 @@ class CuentaCorrienteEnvaseController extends Controller
             ->get();
 
         $balances = MovimientoEnvase::query()
-            ->selectRaw('cliente_id, tipo_envase, SUM(cantidad * signo_cuenta) as saldo')
+            ->selectRaw('cliente_id, tipo_envase, SUM(CAST(cantidad AS SIGNED) * signo_cuenta) as saldo')
             ->where('temporada_id', $filtros['temporada_id'])
             ->when(
                 ! empty($filtros['cliente_id']),
