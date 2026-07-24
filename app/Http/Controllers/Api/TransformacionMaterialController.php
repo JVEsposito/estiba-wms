@@ -12,6 +12,7 @@ use App\Http\Resources\RecetaMaterialResource;
 use App\Models\OrdenTransformacionMaterial;
 use App\Models\RecetaMaterial;
 use App\Services\Materiales\ServicioTransformacionMaterial;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -45,10 +46,12 @@ class TransformacionMaterialController extends Controller
     public function guardarReceta(
         CrearRecetaMaterialRequest $request,
         ServicioTransformacionMaterial $servicio,
-    ): RecetaMaterialResource {
-        return new RecetaMaterialResource(
+    ): JsonResponse {
+        return (new RecetaMaterialResource(
             $servicio->crearReceta($request->validated(), $request->user()),
-        );
+        ))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function ordenes(Request $request): AnonymousResourceCollection
@@ -91,10 +94,12 @@ class TransformacionMaterialController extends Controller
     public function guardarOrden(
         CrearOrdenTransformacionMaterialRequest $request,
         ServicioTransformacionMaterial $servicio,
-    ): OrdenTransformacionMaterialResource {
+    ): JsonResponse {
         return (new OrdenTransformacionMaterialResource(
             $servicio->crearOrden($request->validated(), $request->user()),
-        ))->additional(['status' => Response::HTTP_CREATED]);
+        ))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function planificar(
