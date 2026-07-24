@@ -51,6 +51,7 @@ class RecepcionMaterialController extends Controller
             ->get();
         $clienteMaterialIds = $clientesMateriales->pluck('id');
         $clienteIds = $clientesMateriales->pluck('cliente_id')->unique()->values();
+        $clienteIdsPorCatalogo = $clientesMateriales->pluck('cliente_id', 'id');
 
         $items = ItemMaterial::query()
             ->whereIn('cliente_material_id', $clienteMaterialIds)
@@ -92,8 +93,7 @@ class RecepcionMaterialController extends Controller
             ])->values(),
             'items' => $items->map(fn (ItemMaterial $item): array => [
                 'id' => $item->id,
-                'cliente_id' => $clientesMateriales
-                    ->firstWhere('id', $item->cliente_material_id)?->cliente_id,
+                'cliente_id' => $clienteIdsPorCatalogo->get($item->cliente_material_id),
                 'cliente_material_id' => $item->cliente_material_id,
                 'codigo' => $item->codigo,
                 'nombre' => $item->nombre,
