@@ -48,3 +48,7 @@ La interfaz filtra las opciones, pero Laravel valida nuevamente la relación al 
 La migración inicial asigna a cada vínculo activo existente todas las categorías activas que actualmente posee su cliente. Esto evita bloquear recepciones ya configuradas y permite que la restricción se refine posteriormente desde Oficina de Materiales.
 
 `categoria` es la clasificación comercial del catálogo, como `ABSORPAD`, `CAJAS` o `ETIQUETAS`. No reemplaza a `categoria_operacional`, que continúa distinguiendo `insumo`, `material_mp` y `material_pt`.
+
+## Cobertura automatizada
+
+Las pruebas verifican la creación de proveedores con categorías por cliente, la publicación del catálogo para tablet, el rechazo de ítems no autorizados, la compatibilidad con Transformación de Materiales y la presencia de los controles correspondientes en oficina y móvil.
