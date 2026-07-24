@@ -290,7 +290,7 @@ class RecepcionMaterialApiTest extends TestCase
             'etiqueta' => sprintf('B01-P%02d-N1', $numero),
         ]));
 
-        return [$camara, ...$posiciones];
+        return [$camara, ...$posiciones->all()];
     }
 
     private function payloadRecepcion(
