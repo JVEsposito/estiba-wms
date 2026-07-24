@@ -76,6 +76,15 @@ class ProveedorMaterialController extends Controller
                     'updated_at' => now(),
                 ]);
 
+            $categoriasPorCliente = collect($datos['categorias'])
+                ->groupBy('cliente_id')
+                ->map(fn ($asignaciones) => $asignaciones
+                    ->pluck('categoria')
+                    ->unique(fn (string $categoria): string => mb_strtolower($categoria))
+                    ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+                    ->values()
+                    ->all());
+
             foreach ($datos['cliente_ids'] as $clienteId) {
                 ClienteProveedorMaterial::query()->updateOrCreate(
                     [
@@ -84,6 +93,7 @@ class ProveedorMaterialController extends Controller
                     ],
                     [
                         'activo' => true,
+                        'categorias' => $categoriasPorCliente->get($clienteId, []),
                         'creado_por_user_id' => $request->user()->id,
                         'actualizado_por_user_id' => $request->user()->id,
                     ],
@@ -111,9 +121,31 @@ class ProveedorMaterialController extends Controller
                 'id' => $cliente->id,
                 'codigo' => $cliente->codigo,
                 'nombre' => $cliente->nombre,
+                'categorias' => $this->categoriasPivot($cliente->pivot?->categorias),
             ])->values(),
+            'categorias' => $proveedor->clientes->flatMap(fn ($cliente) => collect(
+                $this->categoriasPivot($cliente->pivot?->categorias),
+            )->map(fn (string $categoria): array => [
+                'cliente_id' => $cliente->id,
+                'categoria' => $categoria,
+            ]))->values(),
             'created_at' => $proveedor->created_at?->toAtomString(),
             'updated_at' => $proveedor->updated_at?->toAtomString(),
         ];
+    }
+
+    /** @return list<string> */
+    private function categoriasPivot(mixed $valor): array
+    {
+        if (is_string($valor)) {
+            $valor = json_decode($valor, true);
+        }
+
+        return collect(is_array($valor) ? $valor : [])
+            ->map(fn ($categoria): string => trim((string) $categoria))
+            ->filter()
+            ->unique(fn (string $categoria): string => mb_strtolower($categoria))
+            ->values()
+            ->all();
     }
 }

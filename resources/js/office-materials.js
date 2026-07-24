@@ -11,7 +11,7 @@ const elements = {
     clientList: byId('clientsMaterialList'),
     providerForm: byId('providerMaterialForm'), providerError: byId('providerMaterialError'),
     providerCancel: byId('cancelProviderEdit'), providerList: byId('providersMaterialList'),
-    providerClientOptions: byId('providerClientOptions'), providersSummary: byId('providersSummary'),
+    providerClientOptions: byId('providerClientOptions'), providerCategoryOptions: byId('providerCategoryOptions'), providersSummary: byId('providersSummary'),
     destinationForm: byId('destinationMaterialForm'), destinationError: byId('destinationMaterialError'),
     destinationCancel: byId('cancelDestinationEdit'), destinationList: byId('destinationsMaterialList'),
     dispatchForm: byId('dispatchMaterialForm'), dispatchError: byId('dispatchMaterialError'),
@@ -185,17 +185,40 @@ function renderClients() {
     elements.itemForm.elements.cliente_material_id.innerHTML = '<option value="">Selecciona un cliente</option>' + clients.filter((client) => client.activo).map((client) => `<option value="${client.id}">${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</option>`).join('');
     if ([...elements.itemForm.elements.cliente_material_id.options].some((option) => option.value === current)) elements.itemForm.elements.cliente_material_id.value = current;
 }
+function providerCategoryKey(clientId, category) { return `${clientId}|${normalizedSearch(category)}`; }
+function providerCategoryAssignments() {
+    const selectedClients = new Set([...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value));
+    const clientCatalogs = new Map(state.clients.map((client) => [client.id, client]));
+    const unique = new Map();
+    seasonItems().filter((item) => item.activo && item.categoria?.trim()).forEach((item) => {
+        const client = clientCatalogs.get(item.cliente?.id);
+        if (!client?.cliente_id || !selectedClients.has(client.cliente_id)) return;
+        const category = item.categoria.trim();
+        const key = providerCategoryKey(client.cliente_id, category);
+        const current = unique.get(key);
+        unique.set(key, { key, clientId: client.cliente_id, clientCode: client.codigo, category, count: Number(current?.count || 0) + 1 });
+    });
+    return [...unique.values()].sort((left, right) => `${left.clientCode} ${left.category}`.localeCompare(`${right.clientCode} ${right.category}`, 'es'));
+}
+function renderProviderCategories(checkedKeys = null) {
+    const checked = checkedKeys || new Set([...elements.providerCategoryOptions.querySelectorAll('input:checked')].map((input) => input.dataset.key));
+    const assignments = providerCategoryAssignments();
+    elements.providerCategoryOptions.innerHTML = assignments.map((assignment) => `<label><input name="categorias" type="checkbox" data-key="${escapeHtml(assignment.key)}" data-client-id="${assignment.clientId}" data-category="${escapeHtml(assignment.category)}"${checked.has(assignment.key) ? ' checked' : ''}><span>${escapeHtml(assignment.clientCode)} · ${escapeHtml(assignment.category)} · ${assignment.count} ${assignment.count === 1 ? 'ítem' : 'ítems'}</span></label>`).join('') || '<p class="empty-state">Selecciona un cliente con categorías activas en la temporada elegida.</p>';
+}
 function renderProviders() {
     if (!elements.providerForm) return;
     elements.providersSummary.textContent = `${state.providers.length} registrados`;
     const checked = new Set([...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value));
+    const checkedCategories = new Set([...elements.providerCategoryOptions.querySelectorAll('input:checked')].map((input) => input.dataset.key));
     elements.providerClientOptions.innerHTML = globalClients()
         .filter((client) => client.activo)
         .map((client) => `<label><input name="cliente_ids" type="checkbox" value="${client.cliente_id}"${checked.has(client.cliente_id) ? ' checked' : ''}><span>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</span></label>`)
         .join('') || '<p class="empty-state">No existen clientes activos en Accesos.</p>';
+    renderProviderCategories(checkedCategories);
     elements.providerList.innerHTML = state.providers.map((provider) => {
         const clients = (provider.clientes || []).map((client) => `${client.codigo} · ${client.nombre}`).join(', ');
-        return `<article class="material-row${provider.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(provider.codigo)} · ${escapeHtml(provider.nombre)}</strong><small>${escapeHtml(clients || 'Sin clientes asociados')}${provider.codigo_externo ? ` · ERP ${escapeHtml(provider.codigo_externo)}` : ''}</small></div><button data-edit-provider="${provider.id}" type="button">Editar</button></article>`;
+        const categories = (provider.categorias || []).map((entry) => entry.categoria).filter(Boolean);
+        return `<article class="material-row${provider.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(provider.codigo)} · ${escapeHtml(provider.nombre)}</strong><small>${escapeHtml(clients || 'Sin clientes asociados')} · ${escapeHtml([...new Set(categories)].join(', ') || 'Sin categorías')}${provider.codigo_externo ? ` · ERP ${escapeHtml(provider.codigo_externo)}` : ''}</small></div><button data-edit-provider="${provider.id}" type="button">Editar</button></article>`;
     }).join('') || '<p class="empty-state">No existen proveedores registrados.</p>';
 }
 function renderItems() {
@@ -349,15 +372,16 @@ elements.providerForm.addEventListener('submit', async (event) => {
     const id = data.id; delete data.id;
     data.activo = elements.providerForm.elements.activo.checked;
     data.cliente_ids = [...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value);
+    data.categorias = [...elements.providerCategoryOptions.querySelectorAll('input:checked')].map((input) => ({ cliente_id: input.dataset.clientId, categoria: input.dataset.category }));
     setBusy(true, 'Guardando proveedor…');
     try {
         await api(id ? `/api/administracion/materiales/proveedores/${id}` : '/api/administracion/materiales/proveedores', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
-        resetProviderForm(); await loadAll(); toast('Proveedor y clientes asociados actualizados.');
+        resetProviderForm(); await loadAll(); toast('Proveedor, clientes y categorías actualizados.');
     } catch (error) { elements.providerError.textContent = error.message; } finally { setBusy(false); }
 });
 elements.itemForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.itemError.textContent = ''; const data = Object.fromEntries(new FormData(elements.itemForm)); const id = data.id; delete data.id; data.activo = elements.itemForm.elements.activo.checked; setBusy(true, 'Guardando ítem…'); try { await api(id ? `/api/administracion/materiales/items/${id}` : '/api/administracion/materiales/items', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetItemForm(); await loadAll(); toast('Ítem guardado correctamente.'); } catch (error) { elements.itemError.textContent = error.message; } finally { setBusy(false); } });
 elements.destinationForm.addEventListener('submit', async (event) => { event.preventDefault(); elements.destinationError.textContent = ''; const data = Object.fromEntries(new FormData(elements.destinationForm)); const id = data.id; delete data.id; data.activo = elements.destinationForm.elements.activo.checked; setBusy(true, 'Guardando destino…'); try { await api(id ? `/api/administracion/materiales/destinos/${id}` : '/api/administracion/materiales/destinos', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) }); resetDestinationForm(); await loadAll(); toast('Destino guardado correctamente.'); } catch (error) { elements.destinationError.textContent = error.message; } finally { setBusy(false); } });
-elements.seasonSelector.addEventListener('change', () => { state.selectedSeasonId = elements.seasonSelector.value || null; resetItemForm(); renderAll(); });
+elements.seasonSelector.addEventListener('change', () => { state.selectedSeasonId = elements.seasonSelector.value || null; resetItemForm(); resetProviderForm(); renderAll(); });
 elements.providerList.addEventListener('click', (event) => {
     const button = event.target.closest('[data-edit-provider]'); if (!button) return;
     const provider = state.providers.find((candidate) => candidate.id === button.dataset.editProvider); if (!provider) return;
@@ -365,10 +389,13 @@ elements.providerList.addEventListener('click', (event) => {
     elements.providerForm.elements.activo.checked = provider.activo;
     const clientIds = new Set((provider.clientes || []).map((client) => client.id));
     elements.providerClientOptions.querySelectorAll('input').forEach((input) => { input.checked = clientIds.has(input.value); });
+    const categoryKeys = new Set((provider.categorias || []).map((entry) => providerCategoryKey(entry.cliente_id, entry.categoria)));
+    renderProviderCategories(categoryKeys);
     elements.providerCancel.classList.remove('is-hidden');
 });
 elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.cliente_material_id.value = item.cliente?.id || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
 elements.destinationList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-destination]'); if (!button) return; const destination = state.destinations.find((candidate) => candidate.id === button.dataset.editDestination); if (!destination) return; for (const field of ['id', 'nombre', 'centro_costo', 'descripcion', 'codigo_externo']) elements.destinationForm.elements[field].value = destination[field] || ''; elements.destinationForm.elements.activo.checked = destination.activo; elements.destinationCancel.classList.remove('is-hidden'); });
+elements.providerClientOptions.addEventListener('change', () => renderProviderCategories());
 elements.providerCancel.addEventListener('click', resetProviderForm); elements.itemCancel.addEventListener('click', resetItemForm); elements.destinationCancel.addEventListener('click', resetDestinationForm);
 elements.importOpen.addEventListener('click', () => elements.importDialog.showModal());
 elements.importClose.addEventListener('click', () => elements.importDialog.close());

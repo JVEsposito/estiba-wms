@@ -20,6 +20,7 @@ export type ReceptionSupplier = {
   codigo: string;
   nombre: string;
   cliente_ids: string[];
+  categorias: { cliente_id: string; categoria: string }[];
 };
 
 export type ReceptionCatalogItem = {
@@ -28,6 +29,7 @@ export type ReceptionCatalogItem = {
   cliente_material_id: string;
   codigo: string;
   nombre: string;
+  categoria: string | null;
   categoria_operacional: string;
   categoria_operacional_etiqueta: string;
   unidad_medida: string;

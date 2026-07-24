@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'cliente_id',
     'proveedor_material_id',
     'activo',
+    'categorias',
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
@@ -32,6 +33,9 @@ class ClienteProveedorMaterial extends Model
 
     protected function casts(): array
     {
-        return ['activo' => 'boolean'];
+        return [
+            'activo' => 'boolean',
+            'categorias' => 'array',
+        ];
     }
 }

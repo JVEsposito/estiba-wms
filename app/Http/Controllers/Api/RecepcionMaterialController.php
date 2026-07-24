@@ -85,18 +85,36 @@ class RecepcionMaterialController extends Controller
                 'codigo_folio_materiales' => $catalogo->cliente->codigo_folio_materiales,
                 'nombre' => $catalogo->cliente->nombre,
             ])->values(),
-            'proveedores' => $proveedores->map(fn (ProveedorMaterial $proveedor): array => [
-                'id' => $proveedor->id,
-                'codigo' => $proveedor->codigo,
-                'nombre' => $proveedor->nombre,
-                'cliente_ids' => $proveedor->clientes->pluck('id')->values(),
-            ])->values(),
+            'proveedores' => $proveedores->map(function (ProveedorMaterial $proveedor): array {
+                $categorias = $proveedor->clientes->flatMap(function ($cliente) {
+                    $valor = $cliente->pivot?->categorias;
+                    if (is_string($valor)) {
+                        $valor = json_decode($valor, true);
+                    }
+
+                    return collect(is_array($valor) ? $valor : [])
+                        ->map(fn ($categoria): array => [
+                            'cliente_id' => $cliente->id,
+                            'categoria' => trim((string) $categoria),
+                        ])
+                        ->filter(fn (array $asignacion): bool => $asignacion['categoria'] !== '');
+                })->values();
+
+                return [
+                    'id' => $proveedor->id,
+                    'codigo' => $proveedor->codigo,
+                    'nombre' => $proveedor->nombre,
+                    'cliente_ids' => $categorias->pluck('cliente_id')->unique()->values(),
+                    'categorias' => $categorias,
+                ];
+            })->filter(fn (array $proveedor): bool => count($proveedor['cliente_ids']) > 0)->values(),
             'items' => $items->map(fn (ItemMaterial $item): array => [
                 'id' => $item->id,
                 'cliente_id' => $clienteIdsPorCatalogo->get($item->cliente_material_id),
                 'cliente_material_id' => $item->cliente_material_id,
                 'codigo' => $item->codigo,
                 'nombre' => $item->nombre,
+                'categoria' => $item->categoria,
                 'categoria_operacional' => $item->categoria_operacional->value,
                 'categoria_operacional_etiqueta' => $item->categoria_operacional->etiqueta(),
                 'unidad_medida' => $item->unidad_medida,
