@@ -64,7 +64,6 @@ class GuardarProveedorMaterialRequest extends FormRequest
                 ->with('cliente:id,cliente_id')
                 ->where('activo', true)
                 ->whereNotNull('categoria')
-                ->whereNotNull('categoria_operacional')
                 ->whereHas('cliente', fn ($consulta) => $consulta
                     ->whereIn('cliente_id', $clienteIds)
                     ->where('activo', true))
@@ -97,7 +96,7 @@ class GuardarProveedorMaterialRequest extends FormRequest
                         ->contains($categoriaNormalizada);
 
                 if (! $existe) {
-                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría no posee ítems operacionales activos para el cliente.');
+                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría no posee ítems activos para el cliente.');
                 }
             }
 
@@ -107,6 +106,15 @@ class GuardarProveedorMaterialRequest extends FormRequest
                 }
             }
         }];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'categorias.required' => 'Selecciona al menos una categoría habilitada.',
+            'categorias.min' => 'Selecciona al menos una categoría habilitada.',
+        ];
     }
 
     protected function prepareForValidation(): void

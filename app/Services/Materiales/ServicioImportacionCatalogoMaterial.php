@@ -2,6 +2,7 @@
 
 namespace App\Services\Materiales;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Models\ClienteMaterial;
 use App\Models\ImportacionCatalogoMaterial;
 use App\Models\ItemMaterial;
@@ -265,6 +266,7 @@ class ServicioImportacionCatalogoMaterial
                 ]);
                 $datos = [
                     'nombre' => $fila['nombre'],
+                    'categoria_operacional' => $fila['categoria_operacional'],
                     'unidad_medida' => $fila['unidad_medida'],
                 ];
 
@@ -329,6 +331,8 @@ class ServicioImportacionCatalogoMaterial
             'codigo' => mb_strtoupper($this->texto($fila['codigo'] ?? '')),
             'nombre' => $this->texto($fila['nombre'] ?? ''),
             'categoria' => $this->opcional($fila['categoria'] ?? ''),
+            'categoria_operacional' => $this->categoriaOperacional($fila['categoria_operacional'] ?? ''),
+            'categoria_operacional_original' => $this->texto($fila['categoria_operacional'] ?? ''),
             'unidad_medida' => mb_strtolower($this->texto($fila['unidad_medida'] ?? '')),
             'codigo_externo' => $this->opcional($fila['codigo_externo'] ?? ''),
             'activo' => $this->activo($fila['activo'] ?? ''),
@@ -368,6 +372,11 @@ class ServicioImportacionCatalogoMaterial
         if (mb_strlen((string) ($fila['categoria'] ?? '')) > 100) {
             $errores[] = 'La categoría admite hasta 100 caracteres.';
         }
+        if ($fila['categoria_operacional_original'] === '') {
+            $errores[] = 'Falta el tipo de ítem.';
+        } elseif ($fila['categoria_operacional'] === null) {
+            $errores[] = 'El tipo de ítem debe ser insumo, material_mp o material_pt.';
+        }
         if ($fila['unidad_medida'] === '' || mb_strlen((string) $fila['unidad_medida']) > 40) {
             $errores[] = 'La unidad de medida es obligatoria y admite hasta 40 caracteres.';
         }
@@ -393,6 +402,7 @@ class ServicioImportacionCatalogoMaterial
         $cambio = $existente->nombre !== $fila['nombre']
             || $existente->unidad_medida !== $fila['unidad_medida']
             || (($fila['categoria'] ?? null) !== null && $existente->categoria !== $fila['categoria'])
+            || $existente->categoria_operacional?->value !== $fila['categoria_operacional']
             || (($fila['codigo_externo'] ?? null) !== null && $existente->codigo_externo !== $fila['codigo_externo'])
             || (($fila['activo'] ?? null) !== null && $existente->activo !== $fila['activo']);
 
@@ -434,6 +444,7 @@ class ServicioImportacionCatalogoMaterial
             'codigo' => $item->codigo,
             'nombre' => $item->nombre,
             'categoria' => $item->categoria,
+            'categoria_operacional' => $item->categoria_operacional?->value,
             'unidad_medida' => $item->unidad_medida,
             'codigo_externo' => $item->codigo_externo,
             'activo' => (bool) $item->activo,
@@ -455,6 +466,23 @@ class ServicioImportacionCatalogoMaterial
         $texto = $this->texto($valor);
 
         return $texto === '' ? null : $texto;
+    }
+
+    private function categoriaOperacional(mixed $valor): ?string
+    {
+        $texto = Str::of((string) $valor)
+            ->ascii()
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '_')
+            ->trim('_')
+            ->toString();
+
+        return match ($texto) {
+            CategoriaOperacionalMaterial::Insumo->value => CategoriaOperacionalMaterial::Insumo->value,
+            'mp', 'material_mp', 'material_mp_sin_preparar', 'material_sin_preparar', 'material_de_embalaje_sin_preparar' => CategoriaOperacionalMaterial::MaterialMp->value,
+            'pt', 'material_pt', 'material_pt_preparado_para_linea', 'material_preparado', 'material_preparado_para_linea' => CategoriaOperacionalMaterial::MaterialPt->value,
+            default => null,
+        };
     }
 
     private function activo(mixed $valor): ?bool

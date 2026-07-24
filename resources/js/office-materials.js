@@ -46,6 +46,7 @@ function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'n
 function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 function errorMessage(data, fallback) { return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback; }
 function statusText(value) { return String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()); }
+function itemTypeLabel(value) { return ({ insumo: 'Insumo', material_mp: 'Material MP', material_pt: 'Material PT' })[value] || 'Sin tipo operacional'; }
 function quantity(value) { return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 3 }).format(Number(value || 0)); }
 function dateTime(value) { return value ? new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Pendiente'; }
 function operationUuid() {
@@ -190,20 +191,22 @@ function providerCategoryAssignments() {
     const selectedClients = new Set([...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value));
     const clientCatalogs = new Map(state.clients.map((client) => [client.id, client]));
     const unique = new Map();
-    seasonItems().filter((item) => item.activo && item.categoria_operacional && item.categoria?.trim()).forEach((item) => {
+    seasonItems().filter((item) => item.activo && item.categoria?.trim()).forEach((item) => {
         const client = clientCatalogs.get(item.cliente?.id);
         if (!client?.cliente_id || !selectedClients.has(client.cliente_id)) return;
         const category = item.categoria.trim();
         const key = providerCategoryKey(client.cliente_id, category);
-        const current = unique.get(key);
-        unique.set(key, { key, clientId: client.cliente_id, clientCode: client.codigo, category, count: Number(current?.count || 0) + 1 });
+        const current = unique.get(key) || { key, clientId: client.cliente_id, clientCode: client.codigo, category, total: 0, typed: 0 };
+        current.total += 1;
+        current.typed += Number(Boolean(item.categoria_operacional));
+        unique.set(key, current);
     });
     return [...unique.values()].sort((left, right) => `${left.clientCode} ${left.category}`.localeCompare(`${right.clientCode} ${right.category}`, 'es'));
 }
 function renderProviderCategories(checkedKeys = null) {
     const checked = checkedKeys || new Set([...elements.providerCategoryOptions.querySelectorAll('input:checked')].map((input) => input.dataset.key));
     const assignments = providerCategoryAssignments();
-    elements.providerCategoryOptions.innerHTML = assignments.map((assignment) => `<label><input name="categorias" type="checkbox" data-key="${escapeHtml(assignment.key)}" data-client-id="${assignment.clientId}" data-category="${escapeHtml(assignment.category)}"${checked.has(assignment.key) ? ' checked' : ''}><span>${escapeHtml(assignment.clientCode)} · ${escapeHtml(assignment.category)} · ${assignment.count} ${assignment.count === 1 ? 'ítem' : 'ítems'}</span></label>`).join('') || '<p class="empty-state">Selecciona un cliente con categorías activas en la temporada elegida.</p>';
+    elements.providerCategoryOptions.innerHTML = assignments.map((assignment) => { const pending = assignment.total - assignment.typed; const detail = pending > 0 ? `${assignment.total} ítems · ${assignment.typed} tipificados · ${pending} pendientes` : `${assignment.total} ${assignment.total === 1 ? 'ítem tipificado' : 'ítems tipificados'}`; return `<label><input name="categorias" type="checkbox" data-key="${escapeHtml(assignment.key)}" data-client-id="${assignment.clientId}" data-category="${escapeHtml(assignment.category)}"${checked.has(assignment.key) ? ' checked' : ''}><span>${escapeHtml(assignment.clientCode)} · ${escapeHtml(assignment.category)} · ${escapeHtml(detail)}</span></label>`; }).join('') || '<p class="empty-state">El cliente seleccionado no posee categorías comerciales activas en esta temporada.</p>';
 }
 function renderProviders() {
     if (!elements.providerForm) return;
@@ -225,7 +228,7 @@ function renderItems() {
     const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
     const items = seasonItems();
     elements.itemsSummary.textContent = `${items.length} registrados`;
-    elements.itemList.innerHTML = items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.cliente?.codigo || 'SIN CLIENTE')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría')} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems en esta temporada.</p>';
+    elements.itemList.innerHTML = items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.cliente?.codigo || 'SIN CLIENTE')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría comercial')} · ${escapeHtml(itemTypeLabel(item.categoria_operacional))} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems en esta temporada.</p>';
     refreshDispatchLines();
 }
 function renderDestinations() {
@@ -276,7 +279,7 @@ function renderImportPreview() {
     const errors = preview.errores || [];
     elements.importErrors.classList.toggle('is-hidden', errors.length === 0);
     elements.importErrors.innerHTML = errors.map((error) => `<p><strong>Fila ${Number(error.fila || 0)}${error.codigo ? ` · ${escapeHtml(error.codigo)}` : ''}:</strong> ${escapeHtml(error.mensaje)}</p>`).join('');
-    elements.importRows.innerHTML = (preview.filas || []).slice(0, 100).map((row) => `<tr><td>${Number(row.fila)}</td><td><strong>${escapeHtml(row.temporada_codigo)}</strong><small>${escapeHtml(row.temporada_nombre || '')}</small></td><td><strong>${escapeHtml(row.cliente_codigo)}</strong><small>${escapeHtml(row.cliente_nombre || '')}</small></td><td><strong>${escapeHtml(row.codigo)}</strong></td><td>${escapeHtml(row.nombre)}</td><td>${escapeHtml(row.unidad_medida)}</td><td><span class="material-import-action">${escapeHtml(statusText(row.accion))}</span></td></tr>`).join('') || '<tr><td colspan="7">No existen filas válidas para mostrar.</td></tr>';
+    elements.importRows.innerHTML = (preview.filas || []).slice(0, 100).map((row) => `<tr><td>${Number(row.fila)}</td><td><strong>${escapeHtml(row.temporada_codigo)}</strong><small>${escapeHtml(row.temporada_nombre || '')}</small></td><td><strong>${escapeHtml(row.cliente_codigo)}</strong><small>${escapeHtml(row.cliente_nombre || '')}</small></td><td><strong>${escapeHtml(row.codigo)}</strong></td><td>${escapeHtml(row.nombre)}</td><td>${escapeHtml(itemTypeLabel(row.categoria_operacional))}</td><td>${escapeHtml(row.unidad_medida)}</td><td><span class="material-import-action">${escapeHtml(statusText(row.accion))}</span></td></tr>`).join('') || '<tr><td colspan="8">No existen filas válidas para mostrar.</td></tr>';
     const confirmed = preview.estado === 'confirmada';
     elements.importConfirm.disabled = errors.length > 0 || confirmed;
     elements.importConfirmationHelp.textContent = confirmed
@@ -393,14 +396,14 @@ elements.providerList.addEventListener('click', (event) => {
     renderProviderCategories(categoryKeys);
     elements.providerCancel.classList.remove('is-hidden');
 });
-elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.cliente_material_id.value = item.cliente?.id || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
+elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'categoria_operacional', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.cliente_material_id.value = item.cliente?.id || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
 elements.destinationList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-destination]'); if (!button) return; const destination = state.destinations.find((candidate) => candidate.id === button.dataset.editDestination); if (!destination) return; for (const field of ['id', 'nombre', 'centro_costo', 'descripcion', 'codigo_externo']) elements.destinationForm.elements[field].value = destination[field] || ''; elements.destinationForm.elements.activo.checked = destination.activo; elements.destinationCancel.classList.remove('is-hidden'); });
 elements.providerClientOptions.addEventListener('change', () => renderProviderCategories());
 elements.providerCancel.addEventListener('click', resetProviderForm); elements.itemCancel.addEventListener('click', resetItemForm); elements.destinationCancel.addEventListener('click', resetDestinationForm);
 elements.importOpen.addEventListener('click', () => elements.importDialog.showModal());
 elements.importClose.addEventListener('click', () => elements.importDialog.close());
 elements.importTemplate.addEventListener('click', () => {
-    const content = '\uFEFFtemporada_codigo;cliente_codigo;codigo;nombre;categoria;unidad_medida;codigo_externo;activo\n2026-2027;AG-001;CAJ-5KG;Caja cartón 5 kg;Cajas;unidad;ERP-1054;si\n';
+    const content = '\uFEFFtemporada_codigo;cliente_codigo;codigo;nombre;categoria;tipo_item;unidad_medida;codigo_externo;activo\n2026-2027;AG-001;CAJ-5KG;Caja cartón 5 kg;Cajas;material_mp;unidad;ERP-1054;si\n';
     const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = 'plantilla_catalogo_materiales.csv'; link.click();
     URL.revokeObjectURL(url);

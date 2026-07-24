@@ -22,6 +22,7 @@ class LectorPlanillaMaterial extends LectorPlanillaValidacion
             'codigo', 'codigo_item', 'item', 'sku' => 'codigo',
             'nombre', 'descripcion', 'descripcion_item', 'formato' => 'nombre',
             'categoria', 'familia', 'grupo' => 'categoria',
+            'tipo_item', 'tipo_material', 'categoria_operacional', 'clasificacion_operacional' => 'categoria_operacional',
             'unidad_medida', 'unidad', 'um', 'uom' => 'unidad_medida',
             'codigo_externo', 'codigo_erp', 'id_externo' => 'codigo_externo',
             'activo', 'estado' => 'activo',

@@ -99,10 +99,12 @@
                                 <label><span>Cliente *</span><select name="cliente_material_id" required></select></label>
                                 <label><span>Código *</span><input name="codigo" maxlength="80" placeholder="MAT-CAJ-010" required></label>
                                 <label><span>Descripción *</span><input name="nombre" maxlength="180" placeholder="Caja cartón 10 kg" required></label>
-                                <label><span>Categoría</span><input name="categoria" maxlength="100" placeholder="Cajas"></label>
+                                <label><span>Categoría comercial</span><input name="categoria" maxlength="100" placeholder="Cajas"></label>
+                                <label><span>Tipo de ítem *</span><select name="categoria_operacional" required><option value="">Selecciona un tipo</option><option value="insumo">Insumo</option><option value="material_mp">Material MP · sin preparar</option><option value="material_pt">Material PT · preparado para línea</option></select></label>
                                 <label><span>Unidad *</span><input name="unidad_medida" maxlength="40" placeholder="unidades" required></label>
                                 <label><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
                                 <label class="materials-check"><input name="activo" type="checkbox" checked><span>Ítem activo</span></label>
+                                <p class="materials-help materials-wide">El tipo determina si el ítem puede recibirse como insumo o Material MP, o generarse como Material PT mediante una receta. Los ítems sin tipo permanecen fuera de Recepción y Transformación.</p>
                             </div>
                             <p class="form-error" id="itemMaterialError" role="alert"></p>
                             <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelItemEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar ítem</button></div>
@@ -157,13 +159,13 @@
             <form class="materials-import__form" id="materialImportForm">
                 <label><span>Planilla CSV o XLSX *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
                 <div class="materials-import__actions"><button class="secondary-button" id="downloadMaterialTemplate" type="button">Descargar plantilla CSV</button><button class="primary-button" type="submit">Previsualizar</button></div>
-                <p class="materials-import__help">Columnas: temporada_codigo, cliente_codigo, código, nombre, categoría, unidad_medida, código_externo y activo. La temporada debe existir y el cliente debe estar creado previamente en Accesos. Máximo 5.000 filas.</p>
+                <p class="materials-import__help">Columnas: temporada_codigo, cliente_codigo, código, nombre, categoría, tipo_item, unidad_medida, código_externo y activo. La temporada debe existir y el cliente debe estar creado previamente en Accesos. Máximo 5.000 filas.</p>
                 <p class="form-error" id="materialImportError" role="alert"></p>
             </form>
             <section class="materials-import__preview is-hidden" id="materialImportPreview">
                 <div class="materials-import__metrics" id="materialImportMetrics"></div>
                 <div class="materials-import__errors is-hidden" id="materialImportErrors"></div>
-                <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Fila</th><th>Temporada</th><th>Cliente</th><th>Código</th><th>Nombre</th><th>Unidad</th><th>Acción</th></tr></thead><tbody id="materialImportRows"></tbody></table></div>
+                <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Fila</th><th>Temporada</th><th>Cliente</th><th>Código</th><th>Nombre</th><th>Tipo</th><th>Unidad</th><th>Acción</th></tr></thead><tbody id="materialImportRows"></tbody></table></div>
                 <div class="materials-import__confirm"><p id="materialImportConfirmationHelp"></p><button class="primary-button" id="confirmMaterialImport" type="button">Confirmar importación</button></div>
             </section>
             <section class="materials-import__history"><div class="materials-panel__heading"><div><p class="eyebrow">AUDITORÍA</p><h3>Importaciones recientes</h3></div></div><div id="materialImportHistory"></div></section>

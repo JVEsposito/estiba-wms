@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\RolUsuario;
 use App\Models\ClienteMaterial;
 use App\Models\Folio;
@@ -34,9 +35,9 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
         ]);
         $archivo = UploadedFile::fake()->createWithContent(
             'formatos.csv',
-            "temporada_codigo;cliente_codigo;codigo;nombre;categoria;unidad_medida;codigo_externo;activo\n".
-            "GENERAL;GENERAL;FILM-01;Film stretch reforzado;Embalaje;ROLLOS;;si\n".
-            "GENERAL;GENERAL;CAJ-5KG;Caja cartón 5 kg;Cajas;UNIDAD;ERP-CAJ-5;si\n",
+            "temporada_codigo;cliente_codigo;codigo;nombre;categoria;tipo_item;unidad_medida;codigo_externo;activo\n".
+            "GENERAL;GENERAL;FILM-01;Film stretch reforzado;Embalaje;insumo;ROLLOS;;si\n".
+            "GENERAL;GENERAL;CAJ-5KG;Caja cartón 5 kg;Cajas;material_mp;UNIDAD;ERP-CAJ-5;si\n",
         );
 
         $importacionId = $this->actingAs($administrador, 'sanctum')
@@ -68,6 +69,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
             'nombre' => 'Film stretch reforzado',
             'codigo_externo' => 'ERP-FILM',
             'unidad_medida' => 'rollos',
+            'categoria_operacional' => 'insumo',
             'activo' => true,
             'origen_sistema' => 'importacion_catalogo',
         ]);
@@ -75,6 +77,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
             'codigo' => 'CAJ-5KG',
             'nombre' => 'Caja cartón 5 kg',
             'unidad_medida' => 'unidad',
+            'categoria_operacional' => 'material_mp',
             'codigo_externo' => 'ERP-CAJ-5',
         ]);
         $this->assertDatabaseHas('items_materiales', [
@@ -107,10 +110,10 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $camarero = User::factory()->create(['rol' => RolUsuario::CamareroMateriales]);
-        $contenido = "temporada_codigo;cliente_codigo;codigo;nombre;unidad_medida;activo\n".
-            "GENERAL;GENERAL;CAJA-01;Caja uno;unidad;si\n".
-            "GENERAL;GENERAL;CAJA-01;Caja duplicada;unidad;si\n".
-            "GENERAL;GENERAL;FILM-01;Film stretch;rollos;quizas\n";
+        $contenido = "temporada_codigo;cliente_codigo;codigo;nombre;tipo_item;unidad_medida;activo\n".
+            "GENERAL;GENERAL;CAJA-01;Caja uno;material_mp;unidad;si\n".
+            "GENERAL;GENERAL;CAJA-01;Caja duplicada;material_mp;unidad;si\n".
+            "GENERAL;GENERAL;FILM-01;Film stretch;insumo;rollos;quizas\n";
 
         $this->actingAs($camarero, 'sanctum')
             ->post('/api/administracion/materiales/importaciones/previsualizar', [
@@ -154,9 +157,9 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
         });
         $archivo = UploadedFile::fake()->createWithContent(
             'catalogo-clientes.csv',
-            "temporada_codigo;cliente_codigo;codigo;nombre;unidad_medida\n".
-            "GENERAL;CLI-NORTE;CAJA-5KG;Caja cliente norte;unidades\n".
-            "GENERAL;CLI-SUR;CAJA-5KG;Caja cliente sur;unidades\n",
+            "temporada_codigo;cliente_codigo;codigo;nombre;tipo_item;unidad_medida\n".
+            "GENERAL;CLI-NORTE;CAJA-5KG;Caja cliente norte;material_mp;unidades\n".
+            "GENERAL;CLI-SUR;CAJA-5KG;Caja cliente sur;material_mp;unidades\n",
         );
 
         $importacionId = $this->actingAs($administrador, 'sanctum')
@@ -204,7 +207,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
         ]);
         $archivo = UploadedFile::fake()->createWithContent(
             'unidad.csv',
-            "temporada_codigo;cliente_codigo;codigo;nombre;unidad_medida\nGENERAL;GENERAL;FILM-01;Film stretch;cajas\n",
+            "temporada_codigo;cliente_codigo;codigo;nombre;tipo_item;unidad_medida\nGENERAL;GENERAL;FILM-01;Film stretch;insumo;cajas\n",
         );
 
         $this->actingAs($administrador, 'sanctum')
@@ -225,7 +228,7 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
         $item = $this->crearItem($administrador);
         $archivo = UploadedFile::fake()->createWithContent(
             'catalogo.csv',
-            "temporada_codigo;cliente_codigo;codigo;nombre;unidad_medida\nGENERAL;GENERAL;FILM-01;Film importado;rollos\n",
+            "temporada_codigo;cliente_codigo;codigo;nombre;tipo_item;unidad_medida\nGENERAL;GENERAL;FILM-01;Film importado;insumo;rollos\n",
         );
 
         $importacionId = $this->actingAs($administrador, 'sanctum')
@@ -262,10 +265,10 @@ class ImportacionCatalogoMaterialApiTest extends TestCase
     public function test_previsualizacion_rechaza_planilla_con_mas_de_cinco_mil_filas(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
-        $filas = ['temporada_codigo;cliente_codigo;codigo;nombre;unidad_medida'];
+        $filas = ['temporada_codigo;cliente_codigo;codigo;nombre;tipo_item;unidad_medida'];
 
         for ($indice = 1; $indice <= 5001; $indice++) {
-            $filas[] = "GENERAL;GENERAL;ITEM-{$indice};Material {$indice};unidad";
+            $filas[] = "GENERAL;GENERAL;ITEM-{$indice};Material {$indice};insumo;unidad";
         }
 
         $this->actingAs($administrador, 'sanctum')
@@ -346,6 +349,7 @@ XML);
             'codigo' => 'FILM-01',
             'nombre' => 'Film stretch',
             'categoria' => 'Embalaje',
+            'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
             'unidad_medida' => 'rollos',
             'origen_sistema' => 'manual',
             'activo' => true,
