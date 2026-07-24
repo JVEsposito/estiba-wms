@@ -7,7 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
-class CrearUsuarioAdministracionRequest extends FormRequest
+class ActualizarUsuarioAdministracionRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -19,14 +19,21 @@ class CrearUsuarioAdministracionRequest extends FormRequest
      */
     public function rules(): array
     {
+        $usuario = $this->route('usuario');
+
         return [
             'nombre' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($usuario),
+            ],
             'rol' => ['required', Rule::enum(RolUsuario::class)],
-            'activo' => ['sometimes', 'boolean'],
+            'activo' => ['required', 'boolean'],
             'password' => [
                 'bail',
-                'required',
+                'nullable',
                 'string',
                 'confirmed',
                 'min:10',
@@ -50,9 +57,9 @@ class CrearUsuarioAdministracionRequest extends FormRequest
             'email.unique' => 'Ese correo electrónico ya está registrado.',
             'rol.required' => 'Selecciona un rol.',
             'rol.enum' => 'El rol seleccionado no es válido.',
+            'activo.required' => 'Indica si el usuario queda activo o inactivo.',
             'activo.boolean' => 'El estado del usuario no es válido.',
-            'password.required' => 'Ingresa una contraseña temporal.',
-            'password.string' => 'La contraseña temporal debe ser texto.',
+            'password.string' => 'La contraseña debe ser texto.',
             'password.confirmed' => 'La confirmación de la contraseña no coincide.',
             'password.min' => 'La contraseña debe tener al menos 10 caracteres.',
             'password.regex' => 'La contraseña debe contener al menos una letra y un número.',
@@ -61,9 +68,12 @@ class CrearUsuarioAdministracionRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $password = (string) $this->input('password');
+
         $this->merge([
             'nombre' => trim((string) $this->input('nombre')),
             'email' => mb_strtolower(trim((string) $this->input('email'))),
+            'password' => $password !== '' ? $password : null,
         ]);
     }
 }

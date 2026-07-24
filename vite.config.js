@@ -14,6 +14,7 @@ export default defineConfig({
                 'resources/js/office-loads.js',
                 'resources/css/office-admin.css',
                 'resources/js/office-admin.js',
+                'resources/js/office-user-management.js',
                 'resources/css/office-materials.css',
                 'resources/js/office-materials.js',
                 'resources/css/office-validation.css',

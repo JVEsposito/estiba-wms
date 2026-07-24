@@ -9,7 +9,7 @@
         <title>Estiba WMS · Administración de accesos</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-user-management.js'])
         @endif
     </head>
     <body>
@@ -182,7 +182,7 @@
                                 <label class="field"><span>Contraseña temporal *</span><input name="password" type="password" minlength="10" maxlength="255" autocomplete="new-password" placeholder="Mínimo 10 caracteres" required></label>
                                 <label class="field"><span>Confirmar contraseña *</span><input name="password_confirmation" type="password" minlength="10" maxlength="255" autocomplete="new-password" required></label>
                             </div>
-                            <p class="admin-form__hint">Mínimo 10 caracteres; debe contener al menos una letra y un número.</p>
+                            <p class="admin-form__hint">Mínimo 10 caracteres; debe contener al menos una letra y un número. Al editar, déjala vacía para conservar la contraseña actual.</p>
                             <p class="form-error" id="createUserError" role="alert"></p>
                             <div class="admin-form__actions"><button class="primary-button" type="submit">Crear usuario <span>→</span></button></div>
                         </form>
