@@ -26,8 +26,10 @@ use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
+use App\Http\Controllers\Api\RecepcionMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\SesionEstibaController;
+use App\Http\Controllers\Api\TransformacionMaterialController;
 use App\Http\Controllers\Api\TunelPrefrioController;
 use App\Http\Controllers\Api\ValidacionMpController;
 use App\Http\Controllers\Api\ValidacionPalletController;
@@ -173,6 +175,42 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
         ->middleware('can:cancelar-despachos-materiales');
 
+    Route::prefix('materiales/recepciones')->group(function () {
+        Route::middleware('can:consultar-recepciones-materiales')->group(function () {
+            Route::get('/catalogos', [RecepcionMaterialController::class, 'catalogos']);
+            Route::get('/folios-pendientes', [RecepcionMaterialController::class, 'foliosPendientes']);
+            Route::get('/', [RecepcionMaterialController::class, 'index']);
+            Route::get('/{recepcionMaterial}', [RecepcionMaterialController::class, 'show']);
+        });
+
+        Route::middleware('can:gestionar-recepciones-materiales')->group(function () {
+            Route::post('/', [RecepcionMaterialController::class, 'store']);
+            Route::post('/{recepcionMaterial}/confirmar', [RecepcionMaterialController::class, 'confirmar']);
+        });
+
+        Route::post('/{recepcionMaterial}/anular', [RecepcionMaterialController::class, 'anular'])
+            ->middleware('can:anular-recepciones-materiales');
+    });
+
+    Route::prefix('materiales/transformaciones')->group(function () {
+        Route::middleware('can:consultar-transformaciones-materiales')->group(function () {
+            Route::get('/recetas', [TransformacionMaterialController::class, 'recetas']);
+            Route::get('/ordenes', [TransformacionMaterialController::class, 'ordenes']);
+            Route::get('/ordenes/{ordenTransformacionMaterial}', [TransformacionMaterialController::class, 'mostrarOrden']);
+        });
+
+        Route::middleware('can:administrar-recetas-materiales')->group(function () {
+            Route::post('/recetas', [TransformacionMaterialController::class, 'guardarReceta']);
+            Route::post('/recetas/{recetaMaterial}/versiones', [TransformacionMaterialController::class, 'guardarVersionReceta']);
+        });
+
+        Route::middleware('can:gestionar-transformaciones-materiales')->group(function () {
+            Route::post('/ordenes', [TransformacionMaterialController::class, 'guardarOrden']);
+            Route::post('/ordenes/{ordenTransformacionMaterial}/planificar', [TransformacionMaterialController::class, 'planificar']);
+            Route::post('/ordenes/{ordenTransformacionMaterial}/cancelar', [TransformacionMaterialController::class, 'cancelar']);
+        });
+    });
+
     Route::middleware('can:consultar-cargas-operacion')->group(function () {
         Route::get('/cargas/pendientes', [CargaController::class, 'pendientes']);
         Route::get('/cargas/{carga}/tareas', [DespachoFrigorificoController::class, 'tareas']);
@@ -213,6 +251,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:administrar-accesos')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
+        Route::put('/administracion/usuarios/{usuario}', [AdministracionAccesoController::class, 'actualizarUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
         Route::get('/administracion/clientes', [ClienteGlobalController::class, 'index']);
         Route::post('/administracion/clientes', [ClienteGlobalController::class, 'store']);
