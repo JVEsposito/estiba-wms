@@ -18,6 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'cantidad_resultante',
     'despacho_material_id',
     'retiro_material_id',
+    'orden_transformacion_material_id',
+    'lote_transformacion_material_id',
     'user_id',
     'dispositivo_id',
     'destino_nombre',
@@ -40,6 +42,16 @@ class MovimientoInventarioMaterial extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(ItemMaterial::class, 'item_material_id');
+    }
+
+    public function ordenTransformacion(): BelongsTo
+    {
+        return $this->belongsTo(OrdenTransformacionMaterial::class, 'orden_transformacion_material_id');
+    }
+
+    public function loteTransformacion(): BelongsTo
+    {
+        return $this->belongsTo(LoteTransformacionMaterial::class, 'lote_transformacion_material_id');
     }
 
     protected function casts(): array
