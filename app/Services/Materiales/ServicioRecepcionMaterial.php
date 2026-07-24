@@ -624,16 +624,16 @@ class ServicioRecepcionMaterial
 
     private function siguienteFolio(Cliente $cliente): string
     {
+        $ahora = now();
+        CorrelativoMaterialCliente::query()->insertOrIgnore([
+            'cliente_id' => $cliente->id,
+            'ultimo_numero' => 0,
+            'created_at' => $ahora,
+            'updated_at' => $ahora,
+        ]);
         $correlativo = CorrelativoMaterialCliente::query()
             ->lockForUpdate()
-            ->find($cliente->id);
-
-        if (! $correlativo) {
-            $correlativo = CorrelativoMaterialCliente::create([
-                'cliente_id' => $cliente->id,
-                'ultimo_numero' => 0,
-            ]);
-        }
+            ->findOrFail($cliente->id);
 
         $siguiente = $correlativo->ultimo_numero + 1;
 
