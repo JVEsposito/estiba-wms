@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,6 @@ import { AuthSession } from '../domain/estiba';
 import {
   CreateMaterialReceptionPayload,
   MaterialReception,
-  MaterialReceptionCapabilities,
   MaterialReceptionCatalog,
   MaterialReceptionState,
   PendingReceptionFolio,
@@ -57,11 +56,12 @@ const EMPTY_CATALOG: MaterialReceptionCatalog = {
 
 export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   const compact = useWindowDimensions().width < 900;
-  const capabilities = auth.usuario.capacidades as typeof auth.usuario.capacidades
-    & MaterialReceptionCapabilities;
+  const capabilities = auth.usuario.capacidades;
   const canManage = capabilities.puede_gestionar_recepciones_materiales === true;
   const canAnnul = capabilities.puede_anular_recepciones_materiales === true;
   const api = useMemo(() => createMaterialReceptionApi(baseUrl, auth.token), [auth.token, baseUrl]);
+  const confirmationOperationIds = useRef(new Map<string, string>());
+  const annulmentOperationIds = useRef(new Map<string, { operationId: string; reason: string }>());
 
   const [tab, setTab] = useState<Tab>(canManage ? 'nueva' : 'historial');
   const [catalog, setCatalog] = useState<MaterialReceptionCatalog>(EMPTY_CATALOG);
@@ -80,6 +80,24 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   useEffect(() => {
     void loadAll();
   }, [api]);
+
+  function confirmationOperationId(receptionId: string) {
+    const existing = confirmationOperationIds.current.get(receptionId);
+    if (existing) return existing;
+
+    const operationId = Crypto.randomUUID();
+    confirmationOperationIds.current.set(receptionId, operationId);
+    return operationId;
+  }
+
+  function annulmentOperationId(receptionId: string, reason: string) {
+    const existing = annulmentOperationIds.current.get(receptionId);
+    if (existing?.reason === reason) return existing.operationId;
+
+    const operationId = Crypto.randomUUID();
+    annulmentOperationIds.current.set(receptionId, { operationId, reason });
+    return operationId;
+  }
 
   async function loadAll() {
     setBusy(true);
@@ -192,6 +210,12 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     let payload: CreateMaterialReceptionPayload;
     try {
       payload = buildPayload(form, operationId);
+      const client = catalog.clientes.find((candidate) => candidate.id === form.cliente_id);
+      if (confirmImmediately && !client?.codigo_folio_materiales) {
+        throw new Error(
+          'El cliente no tiene código corto de folios. Puedes guardar el borrador, pero no confirmarlo.',
+        );
+      }
     } catch (reason) {
       setError(errorMessage(reason));
       return;
@@ -200,22 +224,59 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     setActionBusy(true);
     setError('');
     setMessage('');
+    let reception: MaterialReception | null = null;
+
     try {
-      let reception = await api.create(payload);
-      if (confirmImmediately) {
-        reception = await api.confirm(reception.id, Crypto.randomUUID(), reception.version);
+      reception = await api.create(payload);
+      if (confirmImmediately && reception.estado === 'borrador') {
+        reception = await api.confirm(
+          reception.id,
+          confirmationOperationId(reception.id),
+          reception.version,
+        );
+        confirmationOperationIds.current.delete(reception.id);
       }
-      setReceptions(await api.list());
-      setPending(await api.pendingFolios());
+
+      const [loadedReceptions, loadedPending] = await Promise.all([
+        api.list(),
+        api.pendingFolios(),
+      ]);
+      setReceptions(loadedReceptions);
+      setPending(loadedPending);
       setSelected(reception);
       setForm(emptyForm());
       setOperationId(Crypto.randomUUID());
+      setFilter('todas');
       setTab('historial');
       setMessage(confirmImmediately
         ? 'Recepción confirmada. Los folios quedaron disponibles para ubicación.'
         : 'Borrador guardado correctamente.');
     } catch (reason) {
-      setError(errorMessage(reason));
+      if (reception && confirmImmediately) {
+        const [historyResult, pendingResult, detailResult] = await Promise.allSettled([
+          api.list(),
+          api.pendingFolios(),
+          api.show(reception.id),
+        ]);
+        if (historyResult.status === 'fulfilled') setReceptions(historyResult.value);
+        if (pendingResult.status === 'fulfilled') setPending(pendingResult.value);
+
+        const latest = detailResult.status === 'fulfilled' ? detailResult.value : reception;
+        setSelected(latest);
+        setForm(emptyForm());
+        setOperationId(Crypto.randomUUID());
+        setFilter('todas');
+        setTab('historial');
+
+        if (latest.estado === 'confirmada') {
+          confirmationOperationIds.current.delete(latest.id);
+          setMessage('Recepción confirmada. Los folios quedaron disponibles para ubicación.');
+        } else {
+          setError(`El borrador quedó guardado, pero no fue posible confirmarlo: ${errorMessage(reason)}`);
+        }
+      } else {
+        setError(errorMessage(reason));
+      }
     } finally {
       setActionBusy(false);
     }
@@ -249,7 +310,12 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     setActionBusy(true);
     setError('');
     try {
-      const confirmed = await api.confirm(reception.id, Crypto.randomUUID(), reception.version);
+      const confirmed = await api.confirm(
+        reception.id,
+        confirmationOperationId(reception.id),
+        reception.version,
+      );
+      confirmationOperationIds.current.delete(reception.id);
       setSelected(confirmed);
       setReceptions(await api.list(filter === 'todas' ? undefined : filter));
       setPending(await api.pendingFolios());
@@ -280,7 +346,13 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     setActionBusy(true);
     setError('');
     try {
-      const annulled = await api.annul(reception.id, Crypto.randomUUID(), annulReason.trim());
+      const reason = annulReason.trim();
+      const annulled = await api.annul(
+        reception.id,
+        annulmentOperationId(reception.id, reason),
+        reason,
+      );
+      annulmentOperationIds.current.delete(reception.id);
       setSelected(annulled);
       setReceptions(await api.list(filter === 'todas' ? undefined : filter));
       setPending(await api.pendingFolios());
@@ -305,7 +377,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, compact && styles.headerCompact]}>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>MATERIALES · RECEPCIÓN</Text>
           <Text style={styles.title}>Ingreso documental y generación de folios</Text>
@@ -741,12 +813,18 @@ function Empty({ title }: { title: string }) {
   return <View style={styles.empty}><Text style={styles.sectionTitle}>{title}</Text></View>;
 }
 
+function localDate() {
+  const date = new Date();
+  const localTime = date.getTime() - date.getTimezoneOffset() * 60_000;
+  return new Date(localTime).toISOString().slice(0, 10);
+}
+
 function emptyForm(): Form {
   return {
     cliente_id: '',
     proveedor_material_id: '',
     numero_guia_despacho: '',
-    fecha_documento: new Date().toISOString().slice(0, 10),
+    fecha_documento: localDate(),
     orden_compra: '',
     patente: '',
     transportista: '',
@@ -889,13 +967,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   fill: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: 18, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.backgroundDeep },
+  headerCompact: { flexDirection: 'column', alignItems: 'stretch' },
   headerCopy: { flex: 1 },
   eyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   title: { color: colors.text, fontSize: 21, fontWeight: '900', marginTop: 3 },
   muted: { color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 3 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 9, flexWrap: 'wrap' },
-  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  tabs: { flexDirection: 'row', gap: 8, padding: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.borderSoft, backgroundColor: colors.panel },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.borderSoft, backgroundColor: colors.panel },
   tab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
   tabActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
   tabText: { color: colors.muted, fontSize: 10, fontWeight: '900' },
@@ -944,7 +1023,7 @@ const styles = StyleSheet.create({
   smallCaps: { color: colors.text, fontSize: 8, fontWeight: '900', textTransform: 'uppercase' },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 9 },
   summary: { minWidth: 135, flexGrow: 1, flexBasis: 165, padding: 9, gap: 4, borderRadius: 8, backgroundColor: colors.backgroundDeep },
-  packageResult: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11, padding: 10, marginTop: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panelStrong },
+  packageResult: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 11, padding: 10, marginTop: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panelStrong },
   folioBox: { minWidth: 135, padding: 9, borderRadius: 9, backgroundColor: colors.backgroundDeep },
   folio: { color: colors.cyan, fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
   empty: { alignItems: 'center', justifyContent: 'center', padding: 34, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
