@@ -204,6 +204,21 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeConsultarRecepcionesMateriales(User $usuario): bool
+    {
+        return $this->puedeConsultarDespachosMateriales($usuario);
+    }
+
+    public function puedeGestionarRecepcionesMateriales(User $usuario): bool
+    {
+        return $this->puedeCorregirItemsEstibadosMateriales($usuario);
+    }
+
+    public function puedeAnularRecepcionesMateriales(User $usuario): bool
+    {
+        return $this->puedeCorregirItemsEstibadosMateriales($usuario);
+    }
+
     public function puedeRetirarMateriales(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -394,6 +409,9 @@ class AlcanceOperacionalUsuario
             'puede_cancelar_despachos_materiales' => $this->puedeCancelarDespachosMateriales($usuario),
             'puede_consultar_kardex_materiales' => $this->puedeConsultarKardexMateriales($usuario),
             'puede_corregir_items_estibados_materiales' => $this->puedeCorregirItemsEstibadosMateriales($usuario),
+            'puede_consultar_recepciones_materiales' => $this->puedeConsultarRecepcionesMateriales($usuario),
+            'puede_gestionar_recepciones_materiales' => $this->puedeGestionarRecepcionesMateriales($usuario),
+            'puede_anular_recepciones_materiales' => $this->puedeAnularRecepcionesMateriales($usuario),
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
