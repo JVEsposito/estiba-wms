@@ -47,7 +47,7 @@ class CatalogoRecepcionMaterialApiTest extends TestCase
             'cliente_material_id' => $catalogoCliente->id,
             'codigo' => 'SIN-CATEGORIA-TABLET',
             'nombre' => 'Ítem sin categoría operacional',
-            'categoria' => 'Embalaje',
+            'categoria' => 'Solo no operacional',
             'categoria_operacional' => null,
             'unidad_medida' => 'unidades',
             'origen_sistema' => 'manual',
@@ -88,12 +88,20 @@ class CatalogoRecepcionMaterialApiTest extends TestCase
             'creado_por_user_id' => $administrador->id,
             'actualizado_por_user_id' => $administrador->id,
         ]);
-        $vincularProveedor = function (ProveedorMaterial $proveedorMaterial, bool $activo) use ($cliente, $administrador): void {
+        $proveedorSinItemsRecepcion = ProveedorMaterial::create([
+            'codigo' => 'PROV-SIN-ITEMS-RECEPCION',
+            'nombre' => 'Proveedor sin ítems recepcionables',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        $vincularProveedor = function (ProveedorMaterial $proveedorMaterial, bool $activo, array $categorias = ['Embalaje']) use ($cliente, $administrador): void {
             DB::table('clientes_proveedores_materiales')->insert([
                 'id' => (string) Str::uuid(),
                 'cliente_id' => $cliente->id,
                 'proveedor_material_id' => $proveedorMaterial->id,
                 'activo' => $activo,
+                'categorias' => json_encode($categorias, JSON_UNESCAPED_UNICODE),
                 'creado_por_user_id' => $administrador->id,
                 'actualizado_por_user_id' => $administrador->id,
                 'created_at' => now(),
@@ -103,6 +111,7 @@ class CatalogoRecepcionMaterialApiTest extends TestCase
         $vincularProveedor($proveedor, true);
         $vincularProveedor($proveedorInactivo, true);
         $vincularProveedor($proveedorNoAutorizado, false);
+        $vincularProveedor($proveedorSinItemsRecepcion, true, ['Solo no operacional']);
 
         $operador = User::factory()->create([
             'rol' => RolUsuario::CamareroMateriales,
@@ -140,7 +149,8 @@ class CatalogoRecepcionMaterialApiTest extends TestCase
             ->assertJsonMissing(['id' => $itemSinCategoria->id])
             ->assertJsonMissing(['id' => $itemInactivo->id])
             ->assertJsonMissing(['id' => $proveedorInactivo->id])
-            ->assertJsonMissing(['id' => $proveedorNoAutorizado->id]);
+            ->assertJsonMissing(['id' => $proveedorNoAutorizado->id])
+            ->assertJsonMissing(['id' => $proveedorSinItemsRecepcion->id]);
 
         $this->assertContains($cliente->id, collect($response->json('proveedores'))
             ->firstWhere('id', $proveedor->id)['cliente_ids']);

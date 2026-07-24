@@ -79,6 +79,11 @@
                                     <legend>Clientes asociados *</legend>
                                     <div id="providerClientOptions"></div>
                                 </fieldset>
+                                <fieldset class="materials-provider-clients materials-wide">
+                                    <legend>Categorías habilitadas *</legend>
+                                    <p class="materials-help">Cada selección habilita automáticamente todos los ítems activos de esa categoría para el cliente indicado.</p>
+                                    <div id="providerCategoryOptions"></div>
+                                </fieldset>
                             </div>
                             <p class="form-error" id="providerMaterialError" role="alert"></p>
                             <div class="materials-actions"><button class="secondary-button is-hidden" id="cancelProviderEdit" type="button">Cancelar</button><button class="primary-button" type="submit">Guardar proveedor</button></div>

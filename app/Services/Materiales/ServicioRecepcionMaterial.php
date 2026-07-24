@@ -11,6 +11,7 @@ use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\BultoRecepcionMaterial;
 use App\Models\Cliente;
+use App\Models\ClienteProveedorMaterial;
 use App\Models\CorrelativoMaterialCliente;
 use App\Models\DetalleRecepcionMaterial;
 use App\Models\EventoRecepcionMaterial;
@@ -63,7 +64,7 @@ class ServicioRecepcionMaterial
                 }
 
                 $temporada = $this->temporadaActiva->obtener(bloquear: true);
-                [$cliente, $proveedor] = $this->validarCabecera(
+                [$cliente, $proveedor, $vinculoProveedor] = $this->validarCabecera(
                     $datos['cliente_id'],
                     $datos['proveedor_material_id'],
                 );
@@ -85,7 +86,7 @@ class ServicioRecepcionMaterial
                 ]);
 
                 foreach ($datos['detalles'] as $linea) {
-                    $this->crearDetalle($recepcion, $linea, $cliente, $temporada->id);
+                    $this->crearDetalle($recepcion, $linea, $cliente, $proveedor, $vinculoProveedor, $temporada->id);
                 }
 
                 $this->registrarEvento(
@@ -170,7 +171,7 @@ class ServicioRecepcionMaterial
                 );
             }
 
-            [$cliente, $proveedor] = $this->validarCabecera(
+            [$cliente, $proveedor, $vinculoProveedor] = $this->validarCabecera(
                 $recepcion->cliente_id,
                 $recepcion->proveedor_material_id,
                 exigirCodigoFolio: true,
@@ -187,6 +188,8 @@ class ServicioRecepcionMaterial
                 $item = $this->validarItem(
                     $detalle->item_material_id,
                     $cliente,
+                    $proveedor,
+                    $vinculoProveedor,
                     $recepcion->temporada_id,
                     bloquear: true,
                 );
@@ -477,9 +480,17 @@ class ServicioRecepcionMaterial
         RecepcionMaterial $recepcion,
         array $linea,
         Cliente $cliente,
+        ProveedorMaterial $proveedor,
+        ClienteProveedorMaterial $vinculoProveedor,
         string $temporadaId,
     ): void {
-        $item = $this->validarItem($linea['item_material_id'], $cliente, $temporadaId);
+        $item = $this->validarItem(
+            $linea['item_material_id'],
+            $cliente,
+            $proveedor,
+            $vinculoProveedor,
+            $temporadaId,
+        );
         $cantidadDocumental = $this->cantidad($linea['cantidad_documental']);
         $cantidadRecibida = $this->cantidad($linea['cantidad_recibida']);
         $cantidadRechazada = $this->cantidad($linea['cantidad_rechazada'] ?? 0, permitirCero: true);
@@ -532,7 +543,7 @@ class ServicioRecepcionMaterial
     }
 
     /**
-     * @return array{Cliente, ProveedorMaterial}
+     * @return array{Cliente, ProveedorMaterial, ClienteProveedorMaterial}
      */
     private function validarCabecera(
         string $clienteId,
@@ -558,14 +569,14 @@ class ServicioRecepcionMaterial
             throw new DomainException('El proveedor no existe o se encuentra inactivo.');
         }
 
-        $vinculado = DB::table('clientes_proveedores_materiales')
+        $vinculo = ClienteProveedorMaterial::query()
             ->where('cliente_id', $cliente->id)
             ->where('proveedor_material_id', $proveedor->id)
             ->where('activo', true)
             ->lockForUpdate()
-            ->exists();
+            ->first();
 
-        if (! $vinculado) {
+        if (! $vinculo) {
             throw new DomainException(
                 'El proveedor no se encuentra autorizado para el cliente seleccionado.',
             );
@@ -581,12 +592,14 @@ class ServicioRecepcionMaterial
             }
         }
 
-        return [$cliente, $proveedor];
+        return [$cliente, $proveedor, $vinculo];
     }
 
     private function validarItem(
         string $itemId,
         Cliente $cliente,
+        ProveedorMaterial $proveedor,
+        ClienteProveedorMaterial $vinculoProveedor,
         string $temporadaId,
         bool $bloquear = false,
     ): ItemMaterial {
@@ -615,6 +628,20 @@ class ServicioRecepcionMaterial
         if (! $item->categoria_operacional) {
             throw new DomainException(sprintf(
                 'El ítem %s no posee categoría operacional configurada.',
+                $item->codigo,
+            ));
+        }
+
+        $categoria = trim((string) $item->categoria);
+        $categoriasAutorizadas = collect($vinculoProveedor->categorias ?? [])
+            ->map(fn ($valor): string => mb_strtolower(trim((string) $valor)))
+            ->filter();
+
+        if ($categoria === '' || ! $categoriasAutorizadas->contains(mb_strtolower($categoria))) {
+            throw new DomainException(sprintf(
+                'El proveedor %s no está habilitado para la categoría %s del ítem %s.',
+                $proveedor->codigo,
+                $categoria !== '' ? $categoria : 'sin categoría',
                 $item->codigo,
             ));
         }

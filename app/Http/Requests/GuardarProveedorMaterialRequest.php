@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Models\ItemMaterial;
 use App\Models\ProveedorMaterial;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class GuardarProveedorMaterialRequest extends FormRequest
 {
@@ -42,11 +44,86 @@ class GuardarProveedorMaterialRequest extends FormRequest
                 'distinct',
                 Rule::exists('clientes', 'id')->where('activo', true),
             ],
+            'categorias' => ['required', 'array', 'min:1'],
+            'categorias.*.cliente_id' => ['required', 'uuid'],
+            'categorias.*.categoria' => ['required', 'string', 'max:100'],
         ];
+    }
+
+    /** @return array<int, callable(Validator): void> */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $entradaClienteIds = $this->input('cliente_ids', []);
+            $clienteIds = collect(is_array($entradaClienteIds) ? $entradaClienteIds : [])
+                ->filter(fn ($clienteId): bool => is_string($clienteId) && $clienteId !== '')
+                ->values();
+            $categorias = collect($this->input('categorias', []));
+            $claves = [];
+            $categoriasDisponibles = ItemMaterial::query()
+                ->with('cliente:id,cliente_id')
+                ->where('activo', true)
+                ->whereNotNull('categoria')
+                ->whereNotNull('categoria_operacional')
+                ->whereHas('cliente', fn ($consulta) => $consulta
+                    ->whereIn('cliente_id', $clienteIds)
+                    ->where('activo', true))
+                ->get(['id', 'cliente_material_id', 'categoria'])
+                ->groupBy(fn (ItemMaterial $item): string => (string) $item->cliente?->cliente_id)
+                ->map(fn ($items) => $items
+                    ->map(fn (ItemMaterial $item): string => $this->normalizarCategoria($item->categoria))
+                    ->filter()
+                    ->unique()
+                    ->values());
+
+            foreach ($categorias as $indice => $asignacion) {
+                $clienteId = (string) ($asignacion['cliente_id'] ?? '');
+                $categoria = trim((string) ($asignacion['categoria'] ?? ''));
+                $categoriaNormalizada = $this->normalizarCategoria($categoria);
+                $clave = $clienteId.'|'.$categoriaNormalizada;
+
+                if (! $clienteIds->contains($clienteId)) {
+                    $validator->errors()->add("categorias.$indice.cliente_id", 'La categoría pertenece a un cliente que no está asociado al proveedor.');
+                }
+                if (isset($claves[$clave])) {
+                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría está repetida para el mismo cliente.');
+                }
+                $claves[$clave] = true;
+
+                $existe = $clienteId !== ''
+                    && $categoriaNormalizada !== ''
+                    && $categoriasDisponibles
+                        ->get($clienteId, collect())
+                        ->contains($categoriaNormalizada);
+
+                if (! $existe) {
+                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría no posee ítems operacionales activos para el cliente.');
+                }
+            }
+
+            foreach ($clienteIds as $clienteId) {
+                if (! $categorias->contains(fn ($asignacion): bool => ($asignacion['cliente_id'] ?? null) === $clienteId)) {
+                    $validator->errors()->add('categorias', 'Cada cliente asociado debe tener al menos una categoría habilitada.');
+                }
+            }
+        }];
     }
 
     protected function prepareForValidation(): void
     {
+        $entradaCategorias = $this->input('categorias', []);
+        $categorias = collect(is_array($entradaCategorias) ? $entradaCategorias : [])
+            ->map(function ($asignacion): array {
+                $asignacion = is_array($asignacion) ? $asignacion : [];
+
+                return [
+                    'cliente_id' => (string) ($asignacion['cliente_id'] ?? ''),
+                    'categoria' => trim((string) ($asignacion['categoria'] ?? '')),
+                ];
+            })
+            ->values()
+            ->all();
+
         $this->merge([
             'codigo' => mb_strtoupper(trim((string) $this->input('codigo'))),
             'nombre' => trim((string) $this->input('nombre')),
@@ -54,6 +131,12 @@ class GuardarProveedorMaterialRequest extends FormRequest
                 ? trim((string) $this->input('codigo_externo'))
                 : null,
             'activo' => $this->boolean('activo'),
+            'categorias' => $categorias,
         ]);
+    }
+
+    private function normalizarCategoria(mixed $categoria): string
+    {
+        return mb_strtolower(trim((string) $categoria));
     }
 }

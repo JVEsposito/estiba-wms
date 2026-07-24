@@ -152,6 +152,14 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     }));
   }
 
+  function changeSupplier(supplierId: string) {
+    setForm((current) => ({
+      ...current,
+      proveedor_material_id: supplierId,
+      detalles: current.detalles.map((detail) => ({ ...detail, item_material_id: '' })),
+    }));
+  }
+
   function updateDetail(id: string, patch: Partial<ReceptionDraftDetail>) {
     setForm((current) => ({
       ...current,
@@ -369,12 +377,18 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   const supplierOptions: Option[] = catalog.proveedores
     .filter((supplier) => !form.cliente_id || supplier.cliente_ids.includes(form.cliente_id))
     .map((supplier) => ({ id: supplier.id, label: `${supplier.codigo} · ${supplier.nombre}` }));
+  const selectedSupplier = catalog.proveedores.find((supplier) => supplier.id === form.proveedor_material_id);
+  const enabledCategories = new Set((selectedSupplier?.categorias || [])
+    .filter((assignment) => assignment.cliente_id === form.cliente_id)
+    .map((assignment) => assignment.categoria.trim().toLocaleLowerCase('es')));
   const itemOptions: Option[] = catalog.items
-    .filter((item) => !form.cliente_id || item.cliente_id === form.cliente_id)
+    .filter((item) => item.cliente_id === form.cliente_id
+      && Boolean(item.categoria)
+      && enabledCategories.has(item.categoria!.trim().toLocaleLowerCase('es')))
     .map((item) => ({
       id: item.id,
       label: `${item.codigo} · ${item.nombre}`,
-      description: `${item.categoria_operacional_etiqueta} · ${item.unidad_medida}`,
+      description: `${item.categoria ?? 'Sin categoría'} · ${item.categoria_operacional_etiqueta} · ${item.unidad_medida}`,
     }));
 
   return (
@@ -434,7 +448,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                     placeholder={form.cliente_id ? 'Seleccionar proveedor' : 'Selecciona primero el cliente'}
                     options={supplierOptions}
                     disabled={!form.cliente_id}
-                    onChange={(value) => setForm({ ...form, proveedor_material_id: value })}
+                    onChange={changeSupplier}
                   />
                   <Field label="N.º guía despacho" value={form.numero_guia_despacho} onChange={(value) => setForm({ ...form, numero_guia_despacho: value })} placeholder="GD-12345" />
                   <Field label="Fecha documento" value={form.fecha_documento} onChange={(value) => setForm({ ...form, fecha_documento: value })} placeholder="AAAA-MM-DD" />
@@ -462,9 +476,9 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                           <Choice
                             label="Ítem material"
                             value={detail.item_material_id}
-                            placeholder={form.cliente_id ? 'Seleccionar ítem' : 'Selecciona primero el cliente'}
+                            placeholder={form.proveedor_material_id ? 'Seleccionar ítem' : 'Selecciona primero el proveedor'}
                             options={itemOptions}
-                            disabled={!form.cliente_id}
+                            disabled={!form.proveedor_material_id}
                             onChange={(value) => updateDetail(detail.local_id, { item_material_id: value })}
                           />
                           <Field label="Cantidad documental" value={detail.cantidad_documental} onChange={(value) => updateDetail(detail.local_id, { cantidad_documental: decimal(value) })} placeholder="0" numeric />

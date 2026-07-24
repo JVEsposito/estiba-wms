@@ -32,7 +32,7 @@ class ProveedorMaterial extends Model
             'proveedor_material_id',
             'cliente_id',
         )
-            ->withPivot(['id', 'activo', 'creado_por_user_id', 'actualizado_por_user_id'])
+            ->withPivot(['id', 'activo', 'categorias', 'creado_por_user_id', 'actualizado_por_user_id'])
             ->withTimestamps();
     }
 

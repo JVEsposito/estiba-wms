@@ -10,9 +10,15 @@ class InterfazEdicionUsuarioAccesosTest extends TestCase
     {
         $this->get('/oficina/accesos')
             ->assertOk()
-            ->assertSee('office-user-management', false)
             ->assertSee('Al editar, déjala vacía para conservar la contraseña actual.')
             ->assertSee('id="createUserForm"', false)
             ->assertSee('id="usersTableBody"', false);
+
+        $script = file_get_contents(resource_path('js/office-user-management.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('createUserForm', $script);
+        $this->assertStringContainsString('usersTableBody', $script);
+        $this->assertStringContainsString('Usuario activo y habilitado', $script);
     }
 }

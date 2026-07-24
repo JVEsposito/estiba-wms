@@ -210,6 +210,78 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertConflict();
     }
 
+    public function test_proveedor_solo_puede_recibir_items_de_categorias_habilitadas(): void
+    {
+        [$administrador, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $noAutorizado = ItemMaterial::create([
+            'cliente_material_id' => $item->cliente_material_id,
+            'codigo' => 'QUIM-REC',
+            'nombre' => 'Químico no autorizado',
+            'categoria' => 'Químicos',
+            'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
+            'unidad_medida' => 'litros',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+
+        $this->conToken($token)
+            ->getJson('/api/materiales/recepciones/catalogos')
+            ->assertOk()
+            ->assertJsonPath('proveedores.0.categorias.0.categoria', 'Embalaje');
+
+        $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $noAutorizado,
+                [['cantidad' => 1]],
+            ))
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+    }
+
+    public function test_confirmacion_revalida_categorias_revocadas_despues_del_borrador(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 1]],
+            ))
+            ->assertCreated()
+            ->json('data');
+
+        DB::table('clientes_proveedores_materiales')
+            ->where('cliente_id', $cliente->id)
+            ->where('proveedor_material_id', $proveedor->id)
+            ->update([
+                'categorias' => json_encode(['Categoría revocada'], JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseHas('recepciones_materiales', [
+            'id' => $recepcion['id'],
+            'estado' => 'borrador',
+            'version' => 1,
+        ]);
+        $this->assertDatabaseMissing('eventos_recepciones_materiales', [
+            'recepcion_material_id' => $recepcion['id'],
+            'tipo' => 'confirmada',
+        ]);
+    }
+
     private function prepararCatalogo(): array
     {
         $administrador = User::factory()->create([
@@ -248,6 +320,7 @@ class RecepcionMaterialApiTest extends TestCase
             'cliente_id' => $cliente->id,
             'proveedor_material_id' => $proveedor->id,
             'activo' => true,
+            'categorias' => json_encode(['Embalaje'], JSON_UNESCAPED_UNICODE),
             'creado_por_user_id' => $administrador->id,
             'actualizado_por_user_id' => $administrador->id,
             'created_at' => now(),
