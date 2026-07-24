@@ -63,6 +63,7 @@ class MaterialesApiTest extends TestCase
                 'codigo' => '  film-01 ',
                 'nombre' => ' Film stretch ',
                 'categoria' => 'Embalaje',
+                'categoria_operacional' => 'insumo',
                 'unidad_medida' => 'ROLLOS',
             ])
             ->assertCreated()
@@ -129,6 +130,7 @@ class MaterialesApiTest extends TestCase
                     'cliente_material_id' => $clienteId,
                     'codigo' => 'CAJA-5KG',
                     'nombre' => 'Caja cartón 5 kg',
+                    'categoria_operacional' => 'material_mp',
                     'unidad_medida' => 'unidades',
                 ])
                 ->assertCreated();
@@ -139,6 +141,7 @@ class MaterialesApiTest extends TestCase
                 'cliente_material_id' => $clientes->first(),
                 'codigo' => 'CAJA-5KG',
                 'nombre' => 'Caja duplicada',
+                'categoria_operacional' => 'material_mp',
                 'unidad_medida' => 'unidades',
             ])
             ->assertUnprocessable();
@@ -178,6 +181,7 @@ class MaterialesApiTest extends TestCase
                 'cliente_material_id' => $clienteId,
                 'codigo' => 'CAJA-5KG',
                 'nombre' => 'Caja temporada nueva',
+                'categoria_operacional' => 'material_mp',
                 'unidad_medida' => 'unidades',
             ])
             ->assertCreated();
