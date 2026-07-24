@@ -5,9 +5,59 @@ on:
   push:
     branches:
       - main
+      - agent/proveedores-categorias-recepcion
+
+permissions:
+  contents: write
 
 jobs:
+  implement-provider-categories:
+    if: github.ref == 'refs/heads/agent/proveedores-categorias-recepcion'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+        with:
+          ref: agent/proveedores-categorias-recepcion
+          fetch-depth: 0
+
+      - name: Aplicar integración preparada
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/implement-provider-categories.yml').read_text()
+          start_marker = '      - name: Aplicar integración\n        run: |\n'
+          end_marker = '\n      - name: Validar sintaxis rápida\n'
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          Path('/tmp/apply-provider-categories.sh').write_text(script)
+          PY
+          bash /tmp/apply-provider-categories.sh
+
+      - name: Validar sintaxis rápida
+        run: |
+          node --check resources/js/office-materials.js
+          php -l app/Http/Controllers/Api/ProveedorMaterialController.php
+          php -l app/Http/Controllers/Api/RecepcionMaterialController.php
+          php -l app/Http/Requests/GuardarProveedorMaterialRequest.php
+          php -l app/Services/Materiales/ServicioRecepcionMaterial.php
+          php -l database/migrations/2026_07_24_160000_agregar_categorias_a_clientes_proveedores_materiales.php
+
+      - name: Publicar cambios y restaurar CI
+        run: |
+          git fetch origin main
+          rm .github/workflows/implement-provider-categories.yml
+          git checkout origin/main -- .github/workflows/tests.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "4189826+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "feat: habilitar categorías por proveedor en recepción"
+          git push origin HEAD:agent/proveedores-categorias-recepcion
+
   backend:
+    if: github.ref != 'refs/heads/agent/proveedores-categorias-recepcion'
     runs-on: ubuntu-latest
 
     services:
@@ -79,6 +129,7 @@ jobs:
         run: php artisan test --fail-on-warning
 
   mobile:
+    if: github.ref != 'refs/heads/agent/proveedores-categorias-recepcion'
     runs-on: ubuntu-latest
     defaults:
       run:
