@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'codigo',
     'nombre',
     'codigo_externo',
+    'codigo_folio_materiales',
     'activo',
     'creado_por_user_id',
     'actualizado_por_user_id',
@@ -35,6 +37,16 @@ class Cliente extends Model
     public function recepcionesRomana(): HasMany
     {
         return $this->hasMany(RecepcionRomana::class);
+    }
+
+    public function recepcionesMateriales(): HasMany
+    {
+        return $this->hasMany(RecepcionMaterial::class);
+    }
+
+    public function correlativoMateriales(): HasOne
+    {
+        return $this->hasOne(CorrelativoMaterialCliente::class);
     }
 
     public function movimientosEnvases(): HasMany

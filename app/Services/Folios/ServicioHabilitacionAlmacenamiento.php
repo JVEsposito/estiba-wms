@@ -161,12 +161,12 @@ class ServicioHabilitacionAlmacenamiento
 
     public function validarIngresoCamara(Folio $folio): void
     {
-        if ($folio->tipo_bulto === TipoBulto::Material) {
-            return;
-        }
-
         if (! $folio->activo) {
             throw new DomainException('El folio se encuentra inactivo y no puede ingresar a cámara.');
+        }
+
+        if ($folio->tipo_bulto === TipoBulto::Material) {
+            return;
         }
 
         if (in_array($folio->estado_operacional, [
@@ -202,7 +202,14 @@ class ServicioHabilitacionAlmacenamiento
             throw new DomainException('El folio se encuentra inactivo y no puede ingresar a cámara.');
         }
 
-        if ($folio->estado_operacional === EstadoOperacionalFolio::Disponible) {
+        $esMaterialPendiente = $folio->tipo_bulto === TipoBulto::Material
+            && in_array($folio->estado_operacional, [
+                EstadoOperacionalFolio::PendienteUbicacion,
+                EstadoOperacionalFolio::Bloqueado,
+            ], true);
+
+        if ($esMaterialPendiente
+            || $folio->estado_operacional === EstadoOperacionalFolio::Disponible) {
             $this->validarIngresoCamara($folio);
 
             return;

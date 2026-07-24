@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -11,13 +12,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'folio_id',
     'item_material_id',
+    'bulto_recepcion_material_id',
+    'proveedor_material_id',
+    'categoria_operacional',
     'cantidad_inicial',
     'cantidad_actual',
     'cantidad_reservada',
     'unidad_medida',
     'lote',
+    'fecha_fabricacion',
+    'fecha_vencimiento',
     'proveedor',
     'observacion',
+    'motivo_bloqueo',
 ])]
 class FolioMaterial extends Model
 {
@@ -39,6 +46,16 @@ class FolioMaterial extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(ItemMaterial::class, 'item_material_id');
+    }
+
+    public function bultoRecepcion(): BelongsTo
+    {
+        return $this->belongsTo(BultoRecepcionMaterial::class, 'bulto_recepcion_material_id');
+    }
+
+    public function proveedorMaterial(): BelongsTo
+    {
+        return $this->belongsTo(ProveedorMaterial::class, 'proveedor_material_id');
     }
 
     public function reservas(): HasMany
@@ -64,9 +81,12 @@ class FolioMaterial extends Model
     protected function casts(): array
     {
         return [
+            'categoria_operacional' => CategoriaOperacionalMaterial::class,
             'cantidad_inicial' => 'decimal:3',
             'cantidad_actual' => 'decimal:3',
             'cantidad_reservada' => 'decimal:3',
+            'fecha_fabricacion' => 'date',
+            'fecha_vencimiento' => 'date',
         ];
     }
 }

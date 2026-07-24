@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'codigo',
@@ -33,6 +34,16 @@ class ProveedorMaterial extends Model
         )
             ->withPivot(['id', 'activo', 'creado_por_user_id', 'actualizado_por_user_id'])
             ->withTimestamps();
+    }
+
+    public function recepciones(): HasMany
+    {
+        return $this->hasMany(RecepcionMaterial::class, 'proveedor_material_id');
+    }
+
+    public function foliosMateriales(): HasMany
+    {
+        return $this->hasMany(FolioMaterial::class, 'proveedor_material_id');
     }
 
     public function creadoPor(): BelongsTo

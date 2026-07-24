@@ -66,6 +66,7 @@ class ClienteGlobalController extends Controller
             'codigo' => $cliente->codigo,
             'nombre' => $cliente->nombre,
             'codigo_externo' => $cliente->codigo_externo,
+            'codigo_folio_materiales' => $cliente->codigo_folio_materiales,
             'activo' => $cliente->activo,
             'aliases' => $cliente->relationLoaded('aliases')
                 ? $cliente->aliases->map(fn ($alias): array => [

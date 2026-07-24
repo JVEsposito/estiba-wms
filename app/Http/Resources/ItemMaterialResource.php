@@ -29,6 +29,8 @@ class ItemMaterialResource extends JsonResource
             'codigo' => $this->codigo,
             'nombre' => $this->nombre,
             'categoria' => $this->categoria,
+            'categoria_operacional' => $this->categoria_operacional?->value,
+            'categoria_operacional_etiqueta' => $this->categoria_operacional?->etiqueta(),
             'unidad_medida' => $this->unidad_medida,
             'codigo_externo' => $this->codigo_externo,
             'origen_sistema' => $this->origen_sistema,

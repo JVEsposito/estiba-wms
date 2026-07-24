@@ -25,6 +25,9 @@ class ServicioCliente
             $codigo = $this->normalizarCodigo($datos['codigo']);
             $nombre = Str::of($datos['nombre'])->squish()->toString();
             $codigoExterno = $this->opcional($datos['codigo_externo'] ?? null);
+            $codigoFolioMateriales = $this->normalizarCodigoFolioMateriales(
+                $datos['codigo_folio_materiales'] ?? null,
+            );
 
             $duplicado = Cliente::query()
                 ->where('codigo', $codigo)
@@ -32,6 +35,15 @@ class ServicioCliente
                 ->exists();
             if ($duplicado) {
                 throw new DomainException('Ya existe un cliente global con ese código.');
+            }
+
+            if ($cliente?->exists
+                && $cliente->codigo_folio_materiales !== null
+                && $cliente->codigo_folio_materiales !== $codigoFolioMateriales
+                && $cliente->correlativoMateriales()->exists()) {
+                throw new DomainException(
+                    'El código corto de folios no puede cambiar porque el cliente ya posee correlativos de materiales.',
+                );
             }
 
             if ($cliente?->exists
@@ -44,6 +56,7 @@ class ServicioCliente
                 'codigo' => $codigo,
                 'nombre' => $nombre,
                 'codigo_externo' => $codigoExterno,
+                'codigo_folio_materiales' => $codigoFolioMateriales,
                 'activo' => (bool) ($datos['activo'] ?? true),
                 'creado_por_user_id' => $cliente->creado_por_user_id ?? $usuario->id,
                 'actualizado_por_user_id' => $usuario->id,
@@ -217,6 +230,23 @@ class ServicioCliente
         $codigo = trim($codigo, '-_.');
 
         return mb_substr($codigo !== '' ? $codigo : 'CLIENTE', 0, 80);
+    }
+
+    private function normalizarCodigoFolioMateriales(?string $valor): ?string
+    {
+        $codigo = mb_strtoupper(trim((string) $valor));
+
+        if ($codigo === '') {
+            return null;
+        }
+
+        if (! preg_match('/^[A-Z0-9]{2}$/', $codigo)) {
+            throw new DomainException(
+                'El código corto de folios de materiales debe tener exactamente dos caracteres alfanuméricos.',
+            );
+        }
+
+        return $codigo;
     }
 
     private function claveNombre(string $valor): string
