@@ -154,6 +154,18 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeAnularRecepcionesMateriales($usuario),
         );
         Gate::define(
+            'consultar-transformaciones-materiales',
+            fn (User $usuario): bool => $alcance->puedeConsultarRecepcionesMateriales($usuario),
+        );
+        Gate::define(
+            'gestionar-transformaciones-materiales',
+            fn (User $usuario): bool => $alcance->puedeGestionarRecepcionesMateriales($usuario),
+        );
+        Gate::define(
+            'administrar-recetas-materiales',
+            fn (User $usuario): bool => $alcance->puedeGestionarRecepcionesMateriales($usuario),
+        );
+        Gate::define(
             'validar-pallets',
             fn (User $usuario): bool => $alcance->puedeValidarPallets($usuario),
         );
