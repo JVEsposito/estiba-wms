@@ -231,7 +231,9 @@ class ServicioTransformacionMaterial
 
             if ($eventoExistente) {
                 if ($eventoExistente->orden_transformacion_material_id !== $orden->id
-                    || $eventoExistente->tipo !== TipoEventoTransformacionMaterial::Planificada) {
+                    || $eventoExistente->tipo !== TipoEventoTransformacionMaterial::Planificada
+                    || $eventoExistente->user_id !== $usuario->id
+                    || (int) data_get($eventoExistente->datos, 'version_conocida') !== $versionConocida) {
                     throw new ConflictoOperacion(
                         'El UUID de planificación ya fue utilizado por otra operación.',
                     );
@@ -241,7 +243,6 @@ class ServicioTransformacionMaterial
             }
 
             $orden = OrdenTransformacionMaterial::query()
-                ->with(['versionReceta.detalles.itemEntrada'])
                 ->lockForUpdate()
                 ->findOrFail($orden->id);
 
@@ -253,17 +254,30 @@ class ServicioTransformacionMaterial
                 throw new ConflictoOperacion('La orden cambió desde la última lectura.');
             }
 
-            if ($orden->versionReceta->estado !== EstadoVersionRecetaMaterial::Activa) {
-                throw new DomainException('La versión de receta ya no se encuentra activa.');
+            $snapshot = $orden->snapshot_receta;
+            $cantidadBaseSalida = round((float) data_get($snapshot, 'salida.cantidad_base'), 3);
+            $componentes = data_get($snapshot, 'componentes');
+
+            if ($cantidadBaseSalida <= 0 || ! is_array($componentes) || $componentes === []) {
+                throw new DomainException('El snapshot de receta de la orden no es válido.');
             }
 
             $requerimientos = [];
 
-            foreach ($orden->versionReceta->detalles as $detalle) {
+            foreach ($componentes as $componente) {
+                $itemId = (string) ($componente['item_id'] ?? '');
+                $codigo = trim((string) ($componente['codigo'] ?? ''));
+                $unidadMedida = trim((string) ($componente['unidad_medida'] ?? ''));
+                $cantidadEstandar = round((float) ($componente['cantidad_estandar'] ?? 0), 3);
+
+                if ($itemId === '' || $codigo === '' || $unidadMedida === '' || $cantidadEstandar <= 0) {
+                    throw new DomainException('El snapshot de receta contiene un componente inválido.');
+                }
+
                 $requerido = round(
-                    (float) $detalle->cantidad_estandar
+                    $cantidadEstandar
                     * (float) $orden->cantidad_planificada_salida
-                    / (float) $orden->versionReceta->cantidad_base_salida,
+                    / $cantidadBaseSalida,
                     3,
                 );
                 $pendiente = $requerido;
@@ -271,7 +285,7 @@ class ServicioTransformacionMaterial
                 $folios = FolioMaterial::query()
                     ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
                     ->select('folios_materiales.*')
-                    ->where('folios_materiales.item_material_id', $detalle->item_entrada_id)
+                    ->where('folios_materiales.item_material_id', $itemId)
                     ->whereNull('folios_materiales.motivo_bloqueo')
                     ->where('folios.activo', true)
                     ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
@@ -296,7 +310,7 @@ class ServicioTransformacionMaterial
                     ReservaTransformacionMaterial::create([
                         'orden_transformacion_material_id' => $orden->id,
                         'folio_id' => $folio->folio_id,
-                        'item_material_id' => $detalle->item_entrada_id,
+                        'item_material_id' => $itemId,
                         'cantidad' => $cantidad,
                         'estado' => EstadoReservaMaterial::Activa,
                         'orden_fifo' => $ordenFifo++,
@@ -312,17 +326,17 @@ class ServicioTransformacionMaterial
                 if ($pendiente > 0.0001) {
                     throw new DomainException(sprintf(
                         'No existe saldo disponible suficiente para el ítem %s. Faltan %.3f %s.',
-                        $detalle->itemEntrada->codigo,
+                        $codigo,
                         $pendiente,
-                        $detalle->unidad_medida,
+                        $unidadMedida,
                     ));
                 }
 
                 $requerimientos[] = [
-                    'item_material_id' => $detalle->item_entrada_id,
-                    'codigo' => $detalle->itemEntrada->codigo,
+                    'item_material_id' => $itemId,
+                    'codigo' => $codigo,
                     'cantidad_requerida' => number_format($requerido, 3, '.', ''),
-                    'unidad_medida' => $detalle->unidad_medida,
+                    'unidad_medida' => $unidadMedida,
                 ];
             }
 
@@ -335,7 +349,10 @@ class ServicioTransformacionMaterial
                 TipoEventoTransformacionMaterial::Planificada,
                 $usuario,
                 $operacionId,
-                ['requerimientos' => $requerimientos],
+                [
+                    'version_conocida' => $versionConocida,
+                    'requerimientos' => $requerimientos,
+                ],
             );
 
             return $this->cargarOrden($orden->refresh());
@@ -358,7 +375,9 @@ class ServicioTransformacionMaterial
 
             if ($eventoExistente) {
                 if ($eventoExistente->orden_transformacion_material_id !== $orden->id
-                    || $eventoExistente->tipo !== TipoEventoTransformacionMaterial::Cancelada) {
+                    || $eventoExistente->tipo !== TipoEventoTransformacionMaterial::Cancelada
+                    || $eventoExistente->user_id !== $usuario->id
+                    || $eventoExistente->observacion !== $motivo) {
                     throw new ConflictoOperacion(
                         'El UUID de cancelación ya fue utilizado por otra operación.',
                     );
