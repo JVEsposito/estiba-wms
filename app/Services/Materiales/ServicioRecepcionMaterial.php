@@ -220,7 +220,7 @@ class ServicioRecepcionMaterial
                         'fecha_ingreso' => $ahora,
                         'activo' => true,
                         'origen_sistema' => 'recepcion_materiales',
-                        'identificador_externo' => $recepcion->numero_guia_despacho,
+                        'identificador_externo' => $bulto->id,
                         'datos_externos' => [
                             'recepcion_material_id' => $recepcion->id,
                             'guia_despacho' => $recepcion->numero_guia_despacho,
