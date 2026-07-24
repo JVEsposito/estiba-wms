@@ -1,11 +1,5 @@
 export type MaterialReceptionState = 'borrador' | 'confirmada' | 'anulada';
 
-export type MaterialReceptionCapabilities = {
-  puede_consultar_recepciones_materiales?: boolean;
-  puede_gestionar_recepciones_materiales?: boolean;
-  puede_anular_recepciones_materiales?: boolean;
-};
-
 export type ReceptionSeason = {
   id: string;
   catalogo_material_id: string;
