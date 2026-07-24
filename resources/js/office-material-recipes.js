@@ -8,6 +8,7 @@ const recipeState = {
     recipes: [],
     editingRecipeId: null,
     loadedToken: null,
+    loading: false,
 };
 
 const recipeElements = {};
@@ -44,8 +45,30 @@ function recipeStatus(value) {
     return String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
 
+function canConsultRecipes() {
+    if (recipeState.identity?.puede_consultar_transformaciones_materiales === true) return true;
+    return ['administrador', 'supervisor_materiales', 'camarero_materiales', 'despachador', 'consulta']
+        .includes(recipeState.identity?.rol);
+}
+
+function canAdminRecipes() {
+    if (recipeState.identity?.puede_administrar_recetas_materiales === true) return true;
+    return ['administrador', 'supervisor_materiales'].includes(recipeState.identity?.rol);
+}
+
 function recipeErrorMessage(data, fallback) {
     return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
+}
+
+function recipeRowId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    if (globalThis.crypto?.getRandomValues) {
+        const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 async function recipeApi(path, options = {}) {
@@ -174,7 +197,7 @@ function injectRecipePanel() {
     recipeElements.reload.addEventListener('click', () => loadRecipesOffice(true));
     recipeElements.filter.addEventListener('change', renderRecipes);
     recipeElements.form.elements.cliente_id.addEventListener('change', () => {
-        recipeState.editingRecipeId = null;
+        if (recipeState.editingRecipeId) return;
         populateRecipeItems();
         resetRecipeComponents();
     });
@@ -187,8 +210,7 @@ function injectRecipePanel() {
     recipeElements.cancelVersion.addEventListener('click', resetRecipeForm);
     recipeElements.list.addEventListener('click', (event) => {
         const button = event.target.closest('[data-new-recipe-version]');
-        if (!button) return;
-        openRecipeVersion(button.dataset.newRecipeVersion);
+        if (button) openRecipeVersion(button.dataset.newRecipeVersion);
     });
     recipeElements.form.addEventListener('submit', submitRecipeForm);
 }
@@ -203,28 +225,42 @@ function recipeItemsForGlobalClient(globalClientId) {
     return recipeState.catalog.items.filter((item) => item.cliente?.id === client.id && item.activo !== false);
 }
 
-function populateRecipeSelectors() {
+function populateRecipeSelectors(selectedClientId = null) {
     const clients = recipeState.catalog.clientes || [];
+    const currentClient = selectedClientId || recipeElements.form.elements.cliente_id.value || clients[0]?.cliente_id || '';
+    const currentFilter = recipeElements.filter.value;
+
     recipeElements.form.elements.cliente_id.innerHTML = clients
         .map((client) => `<option value="${recipeEscape(client.cliente_id)}">${recipeEscape(client.codigo)} · ${recipeEscape(client.nombre)}</option>`)
         .join('') || '<option value="">Sin clientes activos</option>';
-    recipeElements.filter.innerHTML = '<option value="">Todos los clientes</option>' + clients
-        .map((client) => `<option value="${recipeEscape(client.cliente_id)}">${recipeEscape(client.codigo)} · ${recipeEscape(client.nombre)}</option>`)
+    recipeElements.form.elements.cliente_id.value = currentClient;
+
+    const filterClients = new Map();
+    clients.forEach((client) => filterClients.set(client.cliente_id, { id: client.cliente_id, codigo: client.codigo, nombre: client.nombre }));
+    recipeState.recipes.forEach((recipe) => filterClients.set(recipe.cliente?.id, recipe.cliente));
+    recipeElements.filter.innerHTML = '<option value="">Todos los clientes</option>' + [...filterClients.values()]
+        .filter((client) => client?.id)
+        .sort((left, right) => String(left.nombre).localeCompare(String(right.nombre), 'es'))
+        .map((client) => `<option value="${recipeEscape(client.id)}">${recipeEscape(client.codigo)} · ${recipeEscape(client.nombre)}</option>`)
         .join('');
+    recipeElements.filter.value = currentFilter;
     populateRecipeItems();
 }
 
 function populateRecipeItems() {
     const globalClientId = recipeElements.form.elements.cliente_id.value;
     const items = recipeItemsForGlobalClient(globalClientId);
+    const currentOutput = recipeElements.form.elements.item_salida_id.value;
     const outputs = items.filter((item) => item.categoria_operacional === 'material_pt');
+
     recipeElements.form.elements.item_salida_id.innerHTML = outputs
         .map((item) => `<option value="${recipeEscape(item.id)}">${recipeEscape(item.codigo)} · ${recipeEscape(item.nombre)} · ${recipeEscape(item.unidad_medida)}</option>`)
         .join('') || '<option value="">El cliente no tiene ítems Material PT activos</option>';
+    if (outputs.some((item) => item.id === currentOutput)) recipeElements.form.elements.item_salida_id.value = currentOutput;
+
     recipeElements.components.querySelectorAll('[name="item_entrada_id"]').forEach((select) => {
         const previous = select.value;
-        select.innerHTML = recipeInputOptions(globalClientId);
-        select.value = previous;
+        select.innerHTML = recipeInputOptions(globalClientId, previous);
     });
 }
 
@@ -237,9 +273,10 @@ function recipeInputOptions(globalClientId, selected = '') {
 
 function addRecipeComponent(component = {}) {
     const globalClientId = recipeElements.form.elements.cliente_id.value;
-    const rowId = `recipe-component-${crypto.randomUUID?.() || Math.random().toString(36).slice(2)}`;
+    const rowId = `recipe-component-${recipeRowId()}`;
     const row = document.createElement('div');
     row.className = 'materials-recipe-component';
+    row.dataset.componentRow = rowId;
     row.innerHTML = `
         <label><span>Ítem de entrada *</span><select name="item_entrada_id" required>${recipeInputOptions(globalClientId, component.item?.id || component.item_entrada_id || '')}</select></label>
         <label><span>Cantidad *</span><input name="cantidad_estandar" type="number" min="0.001" step="0.001" value="${recipeEscape(component.cantidad_estandar ?? 1)}" required></label>
@@ -248,17 +285,13 @@ function addRecipeComponent(component = {}) {
         <label><span>Tolerancia %</span><input name="tolerancia_porcentaje" type="number" min="0" max="100" step="0.0001" value="${recipeEscape(component.tolerancia_porcentaje ?? 0)}"></label>
         <div><label class="recipe-principal"><input name="recipe_principal" type="radio" value="${recipeEscape(rowId)}"${component.es_componente_principal ? ' checked' : ''}><span>Principal</span></label><button class="secondary-button" data-remove-recipe-component type="button" aria-label="Quitar componente">×</button></div>
     `;
-    row.dataset.componentRow = rowId;
     recipeElements.components.append(row);
 }
 
 function resetRecipeComponents(components = []) {
     recipeElements.components.innerHTML = '';
-    if (components.length) {
-        components.forEach((component) => addRecipeComponent(component));
-    } else {
-        addRecipeComponent({ es_componente_principal: true });
-    }
+    if (components.length) components.forEach((component) => addRecipeComponent(component));
+    else addRecipeComponent({ es_componente_principal: true });
 }
 
 function resetRecipeForm() {
@@ -277,18 +310,19 @@ function resetRecipeForm() {
 }
 
 function latestRecipeVersion(recipe) {
-    return [...(recipe.versiones || [])].sort((left, right) => Number(right.numero_version) - Number(left.numero_version))[0] || null;
+    return [...(recipe?.versiones || [])]
+        .sort((left, right) => Number(right.numero_version) - Number(left.numero_version))[0] || null;
 }
 
 function openRecipeVersion(recipeId) {
     const recipe = recipeState.recipes.find((candidate) => candidate.id === recipeId);
     const version = latestRecipeVersion(recipe);
-    if (!recipe || !version) return;
+    const activeClient = activeCatalogClientByGlobalId(recipe?.cliente?.id);
+    if (!recipe || !version || !activeClient || recipe.temporada?.activa !== true) return;
 
     recipeState.editingRecipeId = recipe.id;
     recipeElements.form.elements.recipe_id.value = recipe.id;
-    recipeElements.form.elements.cliente_id.value = recipe.cliente.id;
-    populateRecipeItems();
+    populateRecipeSelectors(recipe.cliente.id);
     recipeElements.form.elements.item_salida_id.value = recipe.item_salida.id;
     recipeElements.form.elements.nombre.value = recipe.nombre;
     recipeElements.form.elements.cantidad_base_salida.value = version.cantidad_base_salida;
@@ -311,16 +345,25 @@ function recipeComponentsPayload() {
     const seen = new Set();
     return rows.map((row, index) => {
         const itemId = row.querySelector('[name="item_entrada_id"]').value;
+        const amount = Number(row.querySelector('[name="cantidad_estandar"]').value);
+        const factor = Number(row.querySelector('[name="factor_conversion"]').value || 1);
+        const waste = Number(row.querySelector('[name="merma_estandar_porcentaje"]').value || 0);
+        const tolerance = Number(row.querySelector('[name="tolerancia_porcentaje"]').value || 0);
+
         if (!itemId) throw new RecipeApiError(`Selecciona el ítem de entrada de la línea ${index + 1}.`, 422);
         if (seen.has(itemId)) throw new RecipeApiError('Un mismo ítem no puede repetirse dentro de la receta.', 422);
+        if (!Number.isFinite(amount) || amount <= 0) throw new RecipeApiError(`La cantidad de la línea ${index + 1} debe ser mayor que cero.`, 422);
+        if (!Number.isFinite(factor) || factor <= 0) throw new RecipeApiError(`El factor de la línea ${index + 1} debe ser mayor que cero.`, 422);
+        if (waste < 0 || waste > 100 || tolerance < 0 || tolerance > 100) throw new RecipeApiError('Merma y tolerancia deben estar entre 0 y 100%.', 422);
         seen.add(itemId);
+
         return {
             item_entrada_id: itemId,
-            cantidad_estandar: Number(row.querySelector('[name="cantidad_estandar"]').value),
+            cantidad_estandar: amount,
             es_componente_principal: row.dataset.componentRow === principal,
-            factor_conversion: Number(row.querySelector('[name="factor_conversion"]').value || 1),
-            merma_estandar_porcentaje: Number(row.querySelector('[name="merma_estandar_porcentaje"]').value || 0),
-            tolerancia_porcentaje: Number(row.querySelector('[name="tolerancia_porcentaje"]').value || 0),
+            factor_conversion: factor,
+            merma_estandar_porcentaje: waste,
+            tolerancia_porcentaje: tolerance,
         };
     });
 }
@@ -329,19 +372,26 @@ async function submitRecipeForm(event) {
     event.preventDefault();
     recipeElements.error.textContent = '';
     const data = Object.fromEntries(new FormData(recipeElements.form));
+    const originalButtonText = recipeElements.save.textContent;
 
     try {
+        const amount = Number(data.cantidad_base_salida);
+        if (!Number.isFinite(amount) || amount <= 0) throw new RecipeApiError('La cantidad base de salida debe ser mayor que cero.', 422);
+
         const payload = {
-            cantidad_base_salida: Number(data.cantidad_base_salida),
+            cantidad_base_salida: amount,
             componentes: recipeComponentsPayload(),
         };
         let path = '/api/materiales/transformaciones/recetas';
         if (recipeState.editingRecipeId) {
             path += `/${recipeState.editingRecipeId}/versiones`;
         } else {
+            if (!data.cliente_id || !data.item_salida_id || String(data.nombre || '').trim().length < 3) {
+                throw new RecipeApiError('Completa cliente, producto de salida y nombre de la receta.', 422);
+            }
             payload.cliente_id = data.cliente_id;
             payload.item_salida_id = data.item_salida_id;
-            payload.nombre = data.nombre;
+            payload.nombre = String(data.nombre).trim();
         }
 
         recipeElements.save.disabled = true;
@@ -353,7 +403,7 @@ async function submitRecipeForm(event) {
         recipeElements.error.textContent = error.message;
     } finally {
         recipeElements.save.disabled = false;
-        if (!recipeState.editingRecipeId) recipeElements.save.textContent = 'Crear receta';
+        recipeElements.save.textContent = recipeState.editingRecipeId ? originalButtonText : 'Crear receta';
     }
 }
 
@@ -366,17 +416,21 @@ function renderRecipes() {
         const version = latestRecipeVersion(recipe);
         const components = version?.componentes || [];
         const principal = components.find((component) => component.es_componente_principal);
+        const canVersion = canAdminRecipes()
+            && recipe.temporada?.activa === true
+            && activeCatalogClientByGlobalId(recipe.cliente?.id) !== null;
         return `
             <article class="materials-recipe-card${recipe.activa ? '' : ' is-inactive'}">
                 <div class="materials-recipe-card__header">
                     <div>
                         <h3>${recipeEscape(recipe.nombre)}</h3>
-                        <small>${recipeEscape(recipe.cliente?.codigo)} · ${recipeEscape(recipe.cliente?.nombre)} → ${recipeEscape(recipe.item_salida?.codigo)} · ${recipeEscape(recipe.item_salida?.nombre)}</small>
+                        <small>${recipeEscape(recipe.temporada?.codigo)} · ${recipeEscape(recipe.cliente?.codigo)} · ${recipeEscape(recipe.cliente?.nombre)} → ${recipeEscape(recipe.item_salida?.codigo)} · ${recipeEscape(recipe.item_salida?.nombre)}</small>
                     </div>
-                    ${recipeState.identity?.puede_administrar_recetas_materiales === true ? `<button class="secondary-button" data-new-recipe-version="${recipeEscape(recipe.id)}" type="button">Nueva versión</button>` : ''}
+                    ${canVersion ? `<button class="secondary-button" data-new-recipe-version="${recipeEscape(recipe.id)}" type="button">Nueva versión</button>` : ''}
                 </div>
                 <div class="materials-recipe-card__meta">
                     <span>Versión ${recipeEscape(version?.numero_version || '—')}</span>
+                    <span>Historial: ${(recipe.versiones || []).length} ${(recipe.versiones || []).length === 1 ? 'versión' : 'versiones'}</span>
                     <span>${recipeEscape(recipeStatus(version?.estado || 'sin_version'))}</span>
                     <span>Salida base: ${recipeQuantity(version?.cantidad_base_salida)} ${recipeEscape(version?.unidad_medida_salida || recipe.item_salida?.unidad_medida || '')}</span>
                     <span>Principal: ${recipeEscape(principal?.item?.codigo || 'No definido')}</span>
@@ -394,13 +448,18 @@ function renderRecipes() {
 async function loadRecipesOffice(showErrors = false) {
     recipeState.token = localStorage.getItem(recipeTokenKey);
     recipeState.identity = recipeReadJson(recipeIdentityKey);
-    if (!recipeState.token || recipeState.identity?.puede_consultar_transformaciones_materiales !== true) {
+    if (!recipeState.token || !canConsultRecipes()) {
         recipeElements.panel?.classList.add('is-hidden');
         return;
     }
+    if (recipeState.loading) return;
 
+    const editingRecipeId = recipeState.editingRecipeId;
+    recipeState.loading = true;
+    recipeState.loadedToken = recipeState.token;
     recipeElements.panel.classList.remove('is-hidden');
-    recipeElements.form.classList.toggle('is-hidden', recipeState.identity?.puede_administrar_recetas_materiales !== true);
+    recipeElements.form.classList.toggle('is-hidden', !canAdminRecipes());
+
     try {
         const [catalog, recipes] = await Promise.all([
             recipeApi('/api/materiales/catalogo'),
@@ -408,14 +467,16 @@ async function loadRecipesOffice(showErrors = false) {
         ]);
         recipeState.catalog = catalog;
         recipeState.recipes = recipes.data || [];
-        recipeState.loadedToken = recipeState.token;
         populateRecipeSelectors();
-        if (!recipeState.editingRecipeId) resetRecipeComponents();
+        if (editingRecipeId && canAdminRecipes()) openRecipeVersion(editingRecipeId);
+        else if (!recipeState.editingRecipeId) resetRecipeComponents();
         renderRecipes();
     } catch (error) {
-        if (showErrors) {
+        if (showErrors || !recipeState.recipes.length) {
             recipeElements.list.innerHTML = `<p class="materials-recipe-empty">${recipeEscape(error.message)}</p>`;
         }
+    } finally {
+        recipeState.loading = false;
     }
 }
 
@@ -427,7 +488,7 @@ function bootMaterialRecipes() {
     document.getElementById('reloadMaterialsButton')?.addEventListener('click', () => loadRecipesOffice(false));
     window.setInterval(() => {
         const token = localStorage.getItem(recipeTokenKey);
-        if (token && token !== recipeState.loadedToken) loadRecipesOffice(false);
+        if (token && token !== recipeState.loadedToken && !recipeState.loading) loadRecipesOffice(false);
         if (!token && recipeState.loadedToken) {
             recipeState.loadedToken = null;
             recipeElements.panel.classList.add('is-hidden');
