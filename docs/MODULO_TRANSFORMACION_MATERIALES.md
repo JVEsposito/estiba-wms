@@ -96,7 +96,9 @@ La entrega actual implementa `borrador`, `planificada` y `cancelada`.
 
 Cada orden conserva temporada global, cliente global, versión de receta,
 cantidad planificada, línea, turno, fecha operacional, snapshot de receta y
-eventos auditables.
+eventos auditables. La planificación utiliza exclusivamente el snapshot de la
+orden; por ello, una nueva versión puede retirar la versión anterior sin
+invalidar órdenes en borrador ya creadas.
 
 ## Reservas FIFO
 
@@ -136,7 +138,8 @@ La cancelación de una orden planificada:
 - devuelve las cantidades reservadas a cada folio;
 - cambia las reservas a `liberada`;
 - registra usuario, operación, motivo y evento;
-- es idempotente por UUID de comando.
+- es idempotente por UUID de comando cuando coinciden orden, usuario y motivo;
+- rechaza como conflicto cualquier reutilización alterada del mismo UUID.
 
 Una orden con consumos futuros no podrá cancelarse directamente: deberá
 revertirse mediante movimientos compensatorios.
@@ -202,4 +205,6 @@ misma.
   órdenes, cancelar antes del consumo;
 - camarero de Materiales, despachador y consulta: lectura según su capacidad de
   consulta vigente;
+- el login publica capacidades explícitas para consultar transformaciones,
+  gestionarlas y administrar recetas;
 - la operación PDA de consumo se definirá en la siguiente entrega.
