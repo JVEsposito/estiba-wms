@@ -280,6 +280,13 @@ class ServicioTransformacionMaterial
                     / $cantidadBaseSalida,
                     3,
                 );
+                if ($requerido <= 0) {
+                    throw new DomainException(sprintf(
+                        'La cantidad requerida para el ítem %s es inferior a la precisión operacional.',
+                        $codigo,
+                    ));
+                }
+
                 $pendiente = $requerido;
                 $ordenFifo = 1;
                 $folios = FolioMaterial::query()
