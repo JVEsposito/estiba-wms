@@ -11,7 +11,10 @@ class InterfazCategoriasProveedorMaterialTest extends TestCase
         $this->get('/oficina/materiales')
             ->assertOk()
             ->assertSee('providerCategoryOptions', false)
-            ->assertSee('Categorías habilitadas', false);
+            ->assertSee('Categorías habilitadas', false)
+            ->assertSee('name="categoria_operacional"', false)
+            ->assertSee('Material MP · sin preparar', false)
+            ->assertSee('Material PT · preparado para línea', false);
 
         $office = file_get_contents(resource_path('js/office-materials.js'));
         $mobile = file_get_contents(base_path('mobile/src/screens/MaterialReceptionScreen.tsx'));
@@ -20,6 +23,9 @@ class InterfazCategoriasProveedorMaterialTest extends TestCase
         $this->assertStringContainsString('data-client-id', $office);
         $this->assertStringContainsString('data-category', $office);
         $this->assertStringContainsString('Proveedor, clientes y categorías actualizados.', $office);
+        $this->assertStringContainsString('tipificados', $office);
+        $this->assertStringContainsString('categoria_operacional', $office);
+        $this->assertStringContainsString('tipo_item', $office);
 
         $this->assertIsString($mobile);
         $this->assertStringContainsString('enabledCategories', $mobile);

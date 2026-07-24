@@ -52,3 +52,15 @@ La migración inicial asigna a cada vínculo activo existente todas las categor�
 ## Cobertura automatizada
 
 Las pruebas verifican la creación de proveedores con categorías por cliente, la publicación del catálogo para tablet, el rechazo de ítems no autorizados, la compatibilidad con Transformación de Materiales y la presencia de los controles correspondientes en oficina y móvil.
+
+
+## Clasificación operacional de los ítems
+
+La categoría comercial y el tipo de ítem cumplen funciones diferentes:
+
+- `categoria`: familia comercial utilizada para habilitar proveedores, por ejemplo `ABSORPAD`, `CAJAS` o `ETIQUETAS`;
+- `categoria_operacional`: comportamiento logístico del ítem: `insumo`, `material_mp` o `material_pt`.
+
+Una categoría comercial puede asociarse al proveedor aunque algunos de sus ítems todavía estén pendientes de tipificación. La oficina muestra cuántos están tipificados y cuántos pendientes. Sin embargo, un ítem sin tipo operacional no se ofrece en Recepción ni puede participar en una receta.
+
+Los ítems existentes pueden editarse para agregar el tipo. La carga masiva acepta la columna `tipo_item` y los valores `insumo`, `material_mp` y `material_pt`.

@@ -37,7 +37,7 @@ class GuardarItemMaterialRequest extends FormRequest
             'nombre' => ['required', 'string', 'min:3', 'max:180'],
             'categoria' => ['nullable', 'string', 'max:100'],
             'categoria_operacional' => [
-                'nullable',
+                'required',
                 Rule::enum(CategoriaOperacionalMaterial::class),
             ],
             'unidad_medida' => ['required', 'string', 'max:40'],
@@ -50,6 +50,15 @@ class GuardarItemMaterialRequest extends FormRequest
                     ->ignore($itemId),
             ],
             'activo' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'categoria_operacional.required' => 'Selecciona el tipo de ítem.',
+            'categoria_operacional.enum' => 'El tipo de ítem debe ser Insumo, Material MP o Material PT.',
         ];
     }
 
