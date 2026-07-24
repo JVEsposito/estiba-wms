@@ -1,0 +1,63 @@
+name: Aplicar parche recepción de materiales
+
+on:
+  push:
+    branches:
+      - agent/recepcion-materiales-fundacion
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar rama del PR
+        uses: actions/checkout@v7
+        with:
+          ref: agent/recepcion-materiales-fundacion
+          fetch-depth: 0
+
+      - name: Aplicar parche exacto
+        shell: python
+        run: |
+          from pathlib import Path
+
+          controller = Path('app/Http/Controllers/Api/DespachoMaterialController.php')
+          service = Path('app/Services/Materiales/ServicioRecepcionMaterial.php')
+
+          controller_before = "$estados = array_filter(explode(',', (string) $request->query('estados', ''));"
+          controller_after = "$estados = array_filter(explode(',', (string) $request->query('estados', '')));"
+          service_import = 'use Illuminate\\Support\\Str;\n'
+
+          controller_text = controller.read_text(encoding='utf-8')
+          service_text = service.read_text(encoding='utf-8')
+
+          if controller_text.count(controller_before) != 1:
+              raise SystemExit('No se encontró exactamente una vez la línea de sintaxis esperada.')
+          if service_text.count(service_import) != 1:
+              raise SystemExit('No se encontró exactamente una vez el import de Str esperado.')
+
+          controller.write_text(
+              controller_text.replace(controller_before, controller_after, 1),
+              encoding='utf-8',
+          )
+          service.write_text(
+              service_text.replace(service_import, '', 1),
+              encoding='utf-8',
+          )
+
+      - name: Verificar diferencias
+        run: |
+          git diff --check
+          git diff --exit-code -- . ':!app/Http/Controllers/Api/DespachoMaterialController.php' ':!app/Services/Materiales/ServicioRecepcionMaterial.php'
+
+      - name: Confirmar parche en la rama
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/Http/Controllers/Api/DespachoMaterialController.php app/Services/Materiales/ServicioRecepcionMaterial.php
+          git commit -m "fix: corregir sintaxis y import en recepción de materiales"
+          git push origin HEAD:agent/recepcion-materiales-fundacion
