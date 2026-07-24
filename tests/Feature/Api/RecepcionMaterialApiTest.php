@@ -214,32 +214,32 @@ class RecepcionMaterialApiTest extends TestCase
     {
         [$administrador, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
         $noAutorizado = ItemMaterial::create([
-  'cliente_material_id' => $item->cliente_material_id,
-  'codigo' => 'QUIM-REC',
-  'nombre' => 'Químico no autorizado',
-  'categoria' => 'Químicos',
-  'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
-  'unidad_medida' => 'litros',
-  'origen_sistema' => 'manual',
-  'activo' => true,
-  'creado_por_user_id' => $administrador->id,
-  'actualizado_por_user_id' => $administrador->id,
+            'cliente_material_id' => $item->cliente_material_id,
+            'codigo' => 'QUIM-REC',
+            'nombre' => 'Químico no autorizado',
+            'categoria' => 'Químicos',
+            'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
+            'unidad_medida' => 'litros',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
         ]);
 
         $this->conToken($token)
-  ->getJson('/api/materiales/recepciones/catalogos')
-  ->assertOk()
-  ->assertJsonPath('proveedores.0.categorias.0.categoria', 'Embalaje');
+            ->getJson('/api/materiales/recepciones/catalogos')
+            ->assertOk()
+            ->assertJsonPath('proveedores.0.categorias.0.categoria', 'Embalaje');
 
         $this->conToken($token)
-  ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
-      $cliente,
-      $proveedor,
-      $noAutorizado,
-      [['cantidad' => 1]],
-  ))
-  ->assertUnprocessable()
-  ->assertJsonPath('codigo', 'regla_de_negocio');
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $noAutorizado,
+                [['cantidad' => 1]],
+            ))
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
     }
 
     private function prepararCatalogo(): array
