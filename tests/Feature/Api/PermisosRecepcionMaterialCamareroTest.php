@@ -45,7 +45,6 @@ class PermisosRecepcionMaterialCamareroTest extends TestCase
                 'cliente_id',
                 'proveedor_material_id',
                 'numero_guia_despacho',
-                'fecha_documento',
                 'detalles',
             ]);
     }
