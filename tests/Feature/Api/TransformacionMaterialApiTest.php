@@ -16,6 +16,7 @@ use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\ReservaTransformacionMaterial;
 use App\Models\User;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -121,6 +122,26 @@ class TransformacionMaterialApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.id', $orden['id']);
 
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/recetas/{$receta['id']}/versiones", [
+                'cantidad_base_salida' => 100,
+                'componentes' => [
+                    [
+                        'item_entrada_id' => $entradaPrincipal->id,
+                        'cantidad_estandar' => 120,
+                        'es_componente_principal' => true,
+                    ],
+                    [
+                        'item_entrada_id' => $entradaAuxiliar->id,
+                        'cantidad_estandar' => 20,
+                        'es_componente_principal' => false,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.versiones.0.numero_version', 2)
+            ->assertJsonPath('data.versiones.1.estado', 'retirada');
+
         $operacionPlanificacion = (string) Str::uuid();
         $planificada = $this->conToken($tokenOficina)
             ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
@@ -183,6 +204,12 @@ class TransformacionMaterialApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.estado', 'cancelada');
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cancelar", [
+                'operacion_id' => $operacionCancelacion,
+                'motivo' => 'Motivo diferente con el mismo UUID.',
+            ])
+            ->assertConflict();
 
         $this->assertSame('0.000', FolioMaterial::query()
             ->findOrFail(Folio::query()->where('numero_folio', $folioPrincipal)->value('id'))
@@ -194,17 +221,73 @@ class TransformacionMaterialApiTest extends TestCase
             ->where('orden_transformacion_material_id', $orden['id'])
             ->where('estado', 'liberada')
             ->count());
+
+        $recetaSinSaldo = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $salida->id,
+                'nombre' => 'Receta con auxiliar insuficiente',
+                'cantidad_base_salida' => 100,
+                'componentes' => [
+                    [
+                        'item_entrada_id' => $entradaPrincipal->id,
+                        'cantidad_estandar' => 100,
+                        'es_componente_principal' => true,
+                    ],
+                    [
+                        'item_entrada_id' => $entradaAuxiliar->id,
+                        'cantidad_estandar' => 40,
+                        'es_componente_principal' => false,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+        $ordenSinSaldo = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/ordenes', [
+                'operacion_id' => (string) Str::uuid(),
+                'version_receta_material_id' => $recetaSinSaldo['versiones'][0]['id'],
+                'cantidad_planificada_salida' => 50,
+                'fecha_operacional' => '2026-07-24',
+            ])
+            ->assertCreated()
+            ->json('data');
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$ordenSinSaldo['id']}/planificar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->assertSame(0, ReservaTransformacionMaterial::query()
+            ->where('orden_transformacion_material_id', $ordenSinSaldo['id'])
+            ->count());
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail(Folio::query()->where('numero_folio', $folioPrincipal)->value('id'))
+            ->cantidad_reservada);
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail(Folio::query()->where('numero_folio', $folioAuxiliar)->value('id'))
+            ->cantidad_reservada);
     }
 
     public function test_rechaza_receta_sin_unico_componente_principal_y_restringe_permisos(): void
     {
-        [, $tokenOficina, $cliente, , $entradaPrincipal, $entradaAuxiliar, $salida] =
+        [$administrador, $tokenOficina, $cliente, , $entradaPrincipal, $entradaAuxiliar, $salida] =
             $this->prepararCatalogo();
         $camarero = User::factory()->create([
             'rol' => RolUsuario::CamareroMateriales,
             'activo' => true,
         ]);
         $tokenCamarero = $camarero->createToken('oficina-consulta', ['oficina'])->plainTextToken;
+        $alcance = app(AlcanceOperacionalUsuario::class);
+        $capacidadesAdministrador = $alcance->capacidadesApi($administrador);
+        $capacidadesCamarero = $alcance->capacidadesApi($camarero);
+        $this->assertTrue($capacidadesAdministrador['puede_consultar_transformaciones_materiales']);
+        $this->assertTrue($capacidadesAdministrador['puede_gestionar_transformaciones_materiales']);
+        $this->assertTrue($capacidadesAdministrador['puede_administrar_recetas_materiales']);
+        $this->assertTrue($capacidadesCamarero['puede_consultar_transformaciones_materiales']);
+        $this->assertFalse($capacidadesCamarero['puede_gestionar_transformaciones_materiales']);
+        $this->assertFalse($capacidadesCamarero['puede_administrar_recetas_materiales']);
         $payload = [
             'cliente_id' => $cliente->id,
             'item_salida_id' => $salida->id,
