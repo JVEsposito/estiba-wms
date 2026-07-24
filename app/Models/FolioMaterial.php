@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'folio_id',
     'item_material_id',
     'bulto_recepcion_material_id',
+    'lote_transformacion_origen_id',
     'proveedor_material_id',
     'categoria_operacional',
     'cantidad_inicial',
@@ -53,6 +54,11 @@ class FolioMaterial extends Model
         return $this->belongsTo(BultoRecepcionMaterial::class, 'bulto_recepcion_material_id');
     }
 
+    public function loteTransformacionOrigen(): BelongsTo
+    {
+        return $this->belongsTo(LoteTransformacionMaterial::class, 'lote_transformacion_origen_id');
+    }
+
     public function proveedorMaterial(): BelongsTo
     {
         return $this->belongsTo(ProveedorMaterial::class, 'proveedor_material_id');
@@ -61,6 +67,11 @@ class FolioMaterial extends Model
     public function reservas(): HasMany
     {
         return $this->hasMany(ReservaMaterial::class, 'folio_id');
+    }
+
+    public function reservasTransformacion(): HasMany
+    {
+        return $this->hasMany(ReservaTransformacionMaterial::class, 'folio_id');
     }
 
     public function retiros(): HasMany
