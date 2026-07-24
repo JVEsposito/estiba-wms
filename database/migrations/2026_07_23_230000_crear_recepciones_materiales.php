@@ -60,12 +60,22 @@ return new class extends Migration
             $table->decimal('cantidad_rechazada', 14, 3)->default(0);
             $table->text('observacion')->nullable();
             $table->timestamps();
-            $table->index(['recepcion_material_id', 'item_material_id']);
+            $table->index(
+                ['recepcion_material_id', 'item_material_id'],
+                'detalles_recepcion_item_idx',
+            );
         });
 
         Schema::create('bultos_recepciones_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('detalle_recepcion_material_id')->constrained('detalles_recepciones_materiales')->restrictOnDelete();
+            $table->uuid('detalle_recepcion_material_id');
+            $table->foreign(
+                'detalle_recepcion_material_id',
+                'bultos_recepcion_detalle_fk',
+            )
+                ->references('id')
+                ->on('detalles_recepciones_materiales')
+                ->restrictOnDelete();
             $table->decimal('cantidad', 14, 3);
             $table->string('lote_proveedor', 100)->nullable();
             $table->date('fecha_fabricacion')->nullable();
