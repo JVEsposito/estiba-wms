@@ -102,6 +102,26 @@ class AdministracionAccesoApiTest extends TestCase
             ])
             ->assertCreated()
             ->json('data.id'));
+        $categorias = $clienteIds->map(function (string $clienteId) use ($administrador): array {
+            $catalogo = ClienteMaterial::query()
+                ->where('cliente_id', $clienteId)
+                ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
+                ->firstOrFail();
+            ItemMaterial::create([
+                'cliente_material_id' => $catalogo->id,
+                'codigo' => $catalogo->codigo.'-EMBALAJE-PRV',
+                'nombre' => 'Material de embalaje para proveedor',
+                'categoria' => 'Embalaje',
+                'categoria_operacional' => 'insumo',
+                'unidad_medida' => 'unidades',
+                'origen_sistema' => 'manual',
+                'activo' => true,
+                'creado_por_user_id' => $administrador->id,
+                'actualizado_por_user_id' => $administrador->id,
+            ]);
+
+            return ['cliente_id' => $clienteId, 'categoria' => 'Embalaje'];
+        });
 
         $proveedorId = $this->postJson('/api/administracion/materiales/proveedores', [
             'codigo' => 'PRV-001',
@@ -109,9 +129,11 @@ class AdministracionAccesoApiTest extends TestCase
             'codigo_externo' => null,
             'activo' => true,
             'cliente_ids' => $clienteIds->all(),
+            'categorias' => $categorias->all(),
         ])
             ->assertCreated()
             ->assertJsonCount(2, 'data.clientes')
+            ->assertJsonCount(2, 'data.categorias')
             ->json('data.id');
 
         $this->assertSame(

@@ -94,6 +94,7 @@ class CatalogoRecepcionMaterialApiTest extends TestCase
                 'cliente_id' => $cliente->id,
                 'proveedor_material_id' => $proveedorMaterial->id,
                 'activo' => $activo,
+                'categorias' => json_encode(['Embalaje'], JSON_UNESCAPED_UNICODE),
                 'creado_por_user_id' => $administrador->id,
                 'actualizado_por_user_id' => $administrador->id,
                 'created_at' => now(),

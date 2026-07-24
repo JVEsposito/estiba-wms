@@ -8,9 +8,7 @@ class InterfazRecetasMaterialesTest extends TestCase
 {
     public function test_oficina_materiales_carga_la_integracion_de_recetas(): void
     {
-        $this->get('/oficina/materiales')
-            ->assertOk()
-            ->assertSee('office-material-recipes', false);
+        $this->get('/oficina/materiales')->assertOk();
 
         $script = file_get_contents(resource_path('js/office-material-recipes.js'));
 

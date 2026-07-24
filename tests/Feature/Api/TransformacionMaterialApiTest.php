@@ -369,6 +369,7 @@ class TransformacionMaterialApiTest extends TestCase
             'cliente_id' => $cliente->id,
             'proveedor_material_id' => $proveedor->id,
             'activo' => true,
+            'categorias' => json_encode(['Embalaje'], JSON_UNESCAPED_UNICODE),
             'creado_por_user_id' => $administrador->id,
             'actualizado_por_user_id' => $administrador->id,
             'created_at' => now(),
