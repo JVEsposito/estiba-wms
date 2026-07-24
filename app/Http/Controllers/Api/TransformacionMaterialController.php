@@ -6,12 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarOrdenTransformacionMaterialRequest;
 use App\Http\Requests\CrearOrdenTransformacionMaterialRequest;
 use App\Http\Requests\CrearRecetaMaterialRequest;
+use App\Http\Requests\CrearVersionRecetaMaterialRequest;
 use App\Http\Requests\PlanificarOrdenTransformacionMaterialRequest;
 use App\Http\Resources\OrdenTransformacionMaterialResource;
 use App\Http\Resources\RecetaMaterialResource;
 use App\Models\OrdenTransformacionMaterial;
 use App\Models\RecetaMaterial;
 use App\Services\Materiales\ServicioTransformacionMaterial;
+use App\Services\Materiales\ServicioVersionRecetaMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,6 +51,18 @@ class TransformacionMaterialController extends Controller
     ): JsonResponse {
         return (new RecetaMaterialResource(
             $servicio->crearReceta($request->validated(), $request->user()),
+        ))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    public function guardarVersionReceta(
+        CrearVersionRecetaMaterialRequest $request,
+        RecetaMaterial $recetaMaterial,
+        ServicioVersionRecetaMaterial $servicio,
+    ): JsonResponse {
+        return (new RecetaMaterialResource(
+            $servicio->crear($recetaMaterial, $request->validated(), $request->user()),
         ))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
