@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\Response;
 
 class RecepcionMaterialController extends Controller
 {
@@ -40,9 +41,16 @@ class RecepcionMaterialController extends Controller
         );
     }
 
-    public function show(RecepcionMaterial $recepcionMaterial): RecepcionMaterialResource
-    {
+    public function show(
+        Request $request,
+        RecepcionMaterial $recepcionMaterial,
+    ): RecepcionMaterialResource {
         Gate::authorize('consultar-recepciones-materiales');
+        abort_if(
+            ! $request->user()->can('gestionar-recepciones-materiales')
+                && $recepcionMaterial->estado !== EstadoRecepcionMaterial::Confirmada,
+            Response::HTTP_NOT_FOUND,
+        );
 
         return new RecepcionMaterialResource(
             app(ServicioRecepcionMaterial::class)->cargar($recepcionMaterial),
@@ -52,10 +60,12 @@ class RecepcionMaterialController extends Controller
     public function store(
         CrearRecepcionMaterialRequest $request,
         ServicioRecepcionMaterial $servicio,
-    ): RecepcionMaterialResource {
-        return new RecepcionMaterialResource(
+    ): JsonResponse {
+        return (new RecepcionMaterialResource(
             $servicio->crear($request->validated(), $request->user()),
-        );
+        ))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function confirmar(
