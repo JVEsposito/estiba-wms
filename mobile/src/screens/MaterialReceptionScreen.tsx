@@ -252,7 +252,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
         ? 'Recepción confirmada. Los folios quedaron disponibles para ubicación.'
         : 'Borrador guardado correctamente.');
     } catch (reason) {
-      if (reception && confirmImmediately) {
+      if (reception) {
         const [historyResult, pendingResult, detailResult] = await Promise.allSettled([
           api.list(),
           api.pendingFolios(),
@@ -268,11 +268,13 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
         setFilter('todas');
         setTab('historial');
 
-        if (latest.estado === 'confirmada') {
+        if (confirmImmediately && latest.estado === 'confirmada') {
           confirmationOperationIds.current.delete(latest.id);
           setMessage('Recepción confirmada. Los folios quedaron disponibles para ubicación.');
+        } else if (confirmImmediately) {
+          setError(`La recepción quedó guardada en estado ${stateLabel(latest.estado)}, pero no fue posible confirmarla: ${errorMessage(reason)}`);
         } else {
-          setError(`El borrador quedó guardado, pero no fue posible confirmarlo: ${errorMessage(reason)}`);
+          setMessage('Borrador guardado correctamente.');
         }
       } else {
         setError(errorMessage(reason));
