@@ -149,6 +149,54 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonPath('data.0.codigo', 'PRV-001');
     }
 
+    public function test_proveedor_rechaza_categorias_sin_items_operacionales_y_entradas_malformadas(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $catalogo = ClienteMaterial::query()
+            ->with('cliente')
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
+            ->firstOrFail();
+        ItemMaterial::create([
+            'cliente_material_id' => $catalogo->id,
+            'codigo' => 'SIN-OPERACION-PROVEEDOR',
+            'nombre' => 'Material sin categoría operacional',
+            'categoria' => 'Solo no operacional',
+            'categoria_operacional' => null,
+            'unidad_medida' => 'unidades',
+            'origen_sistema' => 'manual',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        $payload = [
+            'codigo' => 'PROV-SIN-OPERACION',
+            'nombre' => 'Proveedor sin material recepcionable',
+            'codigo_externo' => null,
+            'activo' => true,
+            'cliente_ids' => [$catalogo->cliente_id],
+            'categorias' => [[
+                'cliente_id' => $catalogo->cliente_id,
+                'categoria' => 'Solo no operacional',
+            ]],
+        ];
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/materiales/proveedores', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['categorias.0.categoria']);
+
+        $payload['categorias'] = ['entrada-malformada'];
+        $this->postJson('/api/administracion/materiales/proveedores', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'categorias.0.cliente_id',
+                'categorias.0.categoria',
+            ]);
+    }
+
     public function test_el_administrador_crea_usuarios_y_tablets_autorizadas(): void
     {
         $administrador = User::factory()->create([
