@@ -5,7 +5,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthSession, LoginPayload } from './src/domain/estiba';
+import { MaterialReceptionCapabilities } from './src/domain/materialReception';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
 import { PrefrioScreen } from './src/screens/PrefrioScreen';
 import { ValidationScreen } from './src/screens/ValidationScreen';
@@ -15,7 +17,7 @@ import { applyAvailableUpdate } from './src/services/appUpdates';
 import { createEstibaApi } from './src/services/estibaApi';
 import { colors } from './src/theme/colors';
 
-type MobileModule = 'operacion' | 'validacion' | 'validacion_mp' | 'prefrio';
+type MobileModule = 'operacion' | 'recepcion_materiales' | 'validacion' | 'validacion_mp' | 'prefrio';
 
 export default function App() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -115,6 +117,12 @@ export default function App() {
               />
             ) : activeModule === 'validacion_mp' ? (
               <ValidationMpScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
+            ) : activeModule === 'recepcion_materiales' ? (
+              <MaterialReceptionScreen
+                auth={auth}
+                baseUrl={api.baseUrl ?? ''}
+                onLogout={() => void logoutPersistentModule()}
+              />
             ) : (
               <OperationalScreen api={api} auth={auth} onLogout={clearSession} />
             )}
@@ -134,7 +142,8 @@ export default function App() {
 }
 
 function availableModules(auth: AuthSession): MobileModule[] {
-  const capabilities = auth.usuario.capacidades;
+  const capabilities = auth.usuario.capacidades as typeof auth.usuario.capacidades
+    & MaterialReceptionCapabilities;
   const modules: MobileModule[] = [];
   const canOperate = capabilities.puede_operar_productos
     || capabilities.puede_operar_materiales
@@ -142,6 +151,7 @@ function availableModules(auth: AuthSession): MobileModule[] {
     || capabilities.puede_consultar_despachos_materiales;
 
   if (canOperate) modules.push('operacion');
+  if (capabilities.puede_consultar_recepciones_materiales) modules.push('recepcion_materiales');
   if (capabilities.puede_validar_pallets) modules.push('validacion');
   if (capabilities.puede_validar_mp) modules.push('validacion_mp');
   if (capabilities.puede_consultar_prefrio) modules.push('prefrio');
@@ -159,9 +169,11 @@ function moduleLabel(module: MobileModule) {
     ? 'Validación'
     : module === 'validacion_mp'
       ? 'Validación MP'
-    : module === 'prefrio'
-      ? 'Prefrío'
-      : 'Operación frigorífico';
+      : module === 'prefrio'
+        ? 'Prefrío'
+        : module === 'recepcion_materiales'
+          ? 'Recepción de materiales'
+          : 'Operación frigorífico';
 }
 
 function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModule[]; onSelect: (module: MobileModule) => void; userName: string }) {
@@ -192,6 +204,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorCardCopy}>Cargar túneles, iniciar procesos, registrar eventos y enviar a verificación.</Text>
           </Pressable>
         ) : null}
+        {modules.includes('recepcion_materiales') ? (
+          <Pressable onPress={() => onSelect('recepcion_materiales')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>▦</Text>
+            <Text style={styles.selectorCardTitle}>Recepción materiales</Text>
+            <Text style={styles.selectorCardCopy}>Registrar guías, separar bultos, confirmar folios y revisar pendientes.</Text>
+          </Pressable>
+        ) : null}
         {modules.includes('operacion') ? (
           <Pressable onPress={() => onSelect('operacion')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>❄</Text>
@@ -218,8 +237,8 @@ const styles = StyleSheet.create({
   selectorEyebrow: { color: colors.cyan, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
   selectorTitle: { color: colors.text, fontSize: 28, fontWeight: '900', marginTop: 7, textAlign: 'center' },
   selectorCopy: { color: colors.muted, marginTop: 8, textAlign: 'center' },
-  selectorCards: { width: '100%', maxWidth: 1120, flexDirection: 'row', gap: 16, marginTop: 28 },
-  selectorCard: { flex: 1, minHeight: 220, justifyContent: 'center', padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.panel },
+  selectorCards: { width: '100%', maxWidth: 1300, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 28 },
+  selectorCard: { flexGrow: 1, flexBasis: 220, maxWidth: 300, minHeight: 210, justifyContent: 'center', padding: 24, borderRadius: 18, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.panel },
   selectorIcon: { color: colors.cyan, fontSize: 34, fontWeight: '900' },
   selectorCardTitle: { color: colors.text, fontSize: 21, fontWeight: '900', marginTop: 14 },
   selectorCardCopy: { color: colors.muted, lineHeight: 20, marginTop: 7 },
