@@ -1,0 +1,162 @@
+export type MaterialReceptionState = 'borrador' | 'confirmada' | 'anulada';
+
+export type ReceptionSeason = {
+  id: string;
+  catalogo_material_id: string;
+  codigo: string;
+  nombre: string;
+};
+
+export type ReceptionClient = {
+  id: string;
+  cliente_material_id: string;
+  codigo: string;
+  codigo_folio_materiales: string | null;
+  nombre: string;
+};
+
+export type ReceptionSupplier = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  cliente_ids: string[];
+};
+
+export type ReceptionCatalogItem = {
+  id: string;
+  cliente_id: string;
+  cliente_material_id: string;
+  codigo: string;
+  nombre: string;
+  categoria_operacional: string;
+  categoria_operacional_etiqueta: string;
+  unidad_medida: string;
+};
+
+export type MaterialReceptionCatalog = {
+  temporada: ReceptionSeason | null;
+  clientes: ReceptionClient[];
+  proveedores: ReceptionSupplier[];
+  items: ReceptionCatalogItem[];
+};
+
+export type ReceptionPackage = {
+  id: string;
+  cantidad: string;
+  lote_proveedor: string | null;
+  fecha_fabricacion: string | null;
+  fecha_vencimiento: string | null;
+  bloqueado: boolean;
+  motivo_bloqueo: string | null;
+  folio: {
+    id: string;
+    numero_folio: string;
+    estado_operacional: string;
+    ubicacion: { camara: string | null; posicion: string | null } | null;
+  } | null;
+};
+
+export type ReceptionDetail = {
+  id: string;
+  item: { id: string; codigo: string; nombre: string } | null;
+  categoria_operacional: string;
+  categoria_operacional_etiqueta: string;
+  unidad_medida: string;
+  cantidad_documental: string;
+  cantidad_recibida: string;
+  cantidad_rechazada: string;
+  observacion: string | null;
+  bultos: ReceptionPackage[];
+};
+
+export type MaterialReception = {
+  id: string;
+  temporada: { id: string; codigo: string; nombre: string; activa: boolean } | null;
+  cliente: {
+    id: string;
+    codigo: string;
+    codigo_folio_materiales: string | null;
+    nombre: string;
+  } | null;
+  proveedor: { id: string; codigo: string; nombre: string } | null;
+  numero_guia_despacho: string;
+  fecha_documento: string | null;
+  orden_compra: string | null;
+  patente: string | null;
+  transportista: string | null;
+  estado: MaterialReceptionState;
+  version: number;
+  observacion: string | null;
+  detalles?: ReceptionDetail[];
+  confirmado_at: string | null;
+  anulado_at: string | null;
+  motivo_anulacion: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type PendingReceptionFolio = {
+  folio_id: string;
+  numero_folio: string;
+  estado_operacional: string;
+  cliente: { id: string; codigo: string; nombre: string } | null;
+  item: { id: string; codigo: string; nombre: string };
+  categoria_operacional: string;
+  cantidad_actual: string;
+  unidad_medida: string;
+  lote_proveedor: string | null;
+  bloqueado: boolean;
+  motivo_bloqueo: string | null;
+  recepcion: {
+    id: string;
+    numero_guia_despacho: string;
+    proveedor: string | null;
+    confirmado_at: string | null;
+  } | null;
+};
+
+export type ReceptionDraftPackage = {
+  local_id: string;
+  cantidad: string;
+  lote_proveedor: string;
+  fecha_fabricacion: string;
+  fecha_vencimiento: string;
+  bloqueado: boolean;
+  motivo_bloqueo: string;
+};
+
+export type ReceptionDraftDetail = {
+  local_id: string;
+  item_material_id: string;
+  cantidad_documental: string;
+  cantidad_rechazada: string;
+  observacion: string;
+  bultos: ReceptionDraftPackage[];
+};
+
+export type CreateMaterialReceptionPayload = {
+  operacion_id: string;
+  cliente_id: string;
+  proveedor_material_id: string;
+  numero_guia_despacho: string;
+  fecha_documento: string | null;
+  orden_compra: string | null;
+  patente: string | null;
+  transportista: string | null;
+  observacion: string | null;
+  detalles: Array<{
+    item_material_id: string;
+    cantidad_documental: number;
+    cantidad_recibida: number;
+    cantidad_rechazada: number;
+    observacion: string | null;
+    bultos: Array<{
+      cantidad: number;
+      lote_proveedor: string | null;
+      fecha_fabricacion: string | null;
+      fecha_vencimiento: string | null;
+      bloqueado: boolean;
+      motivo_bloqueo: string | null;
+    }>;
+  }>;
+};
