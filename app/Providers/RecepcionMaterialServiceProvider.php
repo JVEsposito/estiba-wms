@@ -14,6 +14,7 @@ class RecepcionMaterialServiceProvider extends ServiceProvider
             ->prefix('api/materiales/recepciones')
             ->group(function (): void {
                 Route::middleware('can:consultar-recepciones-materiales')->group(function (): void {
+                    Route::get('/catalogos', [RecepcionMaterialController::class, 'catalogos']);
                     Route::get('/folios-pendientes', [RecepcionMaterialController::class, 'foliosPendientes']);
                     Route::get('/', [RecepcionMaterialController::class, 'index']);
                     Route::get('/{recepcionMaterial}', [RecepcionMaterialController::class, 'show']);
