@@ -56,6 +56,7 @@ class RecepcionMaterialController extends Controller
         $items = ItemMaterial::query()
             ->whereIn('cliente_material_id', $clienteMaterialIds)
             ->where('activo', true)
+            ->whereNotNull('categoria')
             ->whereNotNull('categoria_operacional')
             ->orderBy('codigo')
             ->get();
