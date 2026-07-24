@@ -24,6 +24,6 @@ class InterfazCategoriasProveedorMaterialTest extends TestCase
         $this->assertIsString($mobile);
         $this->assertStringContainsString('enabledCategories', $mobile);
         $this->assertStringContainsString('changeSupplier', $mobile);
-        $this->assertStringContainsString("disabled={!form.proveedor_material_id}", $mobile);
+        $this->assertStringContainsString('disabled={!form.proveedor_material_id}', $mobile);
     }
 }
