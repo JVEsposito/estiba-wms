@@ -27,7 +27,7 @@ class DespachoMaterialController extends Controller
         ServicioDespachoMaterial $servicio,
     ): JsonResponse {
         Gate::authorize('consultar-despachos-materiales');
-        $estados = array_filter(explode(',', (string) $request->query('estados', ''));
+        $estados = array_filter(explode(',', (string) $request->query('estados', '')));
         $despachos = DespachoMaterial::query()
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
