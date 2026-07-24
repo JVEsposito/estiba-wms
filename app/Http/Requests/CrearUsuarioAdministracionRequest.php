@@ -23,6 +23,7 @@ class CrearUsuarioAdministracionRequest extends FormRequest
             'nombre' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
             'rol' => ['required', Rule::enum(RolUsuario::class)],
+            'activo' => ['sometimes', 'boolean'],
             'password' => [
                 'bail',
                 'required',
@@ -49,6 +50,7 @@ class CrearUsuarioAdministracionRequest extends FormRequest
             'email.unique' => 'Ese correo electrónico ya está registrado.',
             'rol.required' => 'Selecciona un rol.',
             'rol.enum' => 'El rol seleccionado no es válido.',
+            'activo.boolean' => 'El estado del usuario no es válido.',
             'password.required' => 'Ingresa una contraseña temporal.',
             'password.string' => 'La contraseña temporal debe ser texto.',
             'password.confirmed' => 'La confirmación de la contraseña no coincide.',
