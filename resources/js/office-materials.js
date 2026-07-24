@@ -185,12 +185,12 @@ function renderClients() {
     elements.itemForm.elements.cliente_material_id.innerHTML = '<option value="">Selecciona un cliente</option>' + clients.filter((client) => client.activo).map((client) => `<option value="${client.id}">${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</option>`).join('');
     if ([...elements.itemForm.elements.cliente_material_id.options].some((option) => option.value === current)) elements.itemForm.elements.cliente_material_id.value = current;
 }
-function providerCategoryKey(clientId, category) { return `${clientId}|${normalizedSearch(category)}`; }
+function providerCategoryKey(clientId, category) { return `${clientId}|${String(category || '').trim().toLocaleLowerCase('es-CL')}`; }
 function providerCategoryAssignments() {
     const selectedClients = new Set([...elements.providerClientOptions.querySelectorAll('input:checked')].map((input) => input.value));
     const clientCatalogs = new Map(state.clients.map((client) => [client.id, client]));
     const unique = new Map();
-    seasonItems().filter((item) => item.activo && item.categoria?.trim()).forEach((item) => {
+    seasonItems().filter((item) => item.activo && item.categoria_operacional && item.categoria?.trim()).forEach((item) => {
         const client = clientCatalogs.get(item.cliente?.id);
         if (!client?.cliente_id || !selectedClients.has(client.cliente_id)) return;
         const category = item.categoria.trim();
