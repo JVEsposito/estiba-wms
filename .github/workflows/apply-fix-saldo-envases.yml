@@ -1,0 +1,43 @@
+name: Aplicar corrección saldo envases
+
+on:
+  push:
+    branches:
+      - agent/fix-saldo-negativo-envases
+    paths:
+      - .github/workflows/apply-fix-saldo-envases.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: agent/fix-saldo-negativo-envases
+          fetch-depth: 0
+
+      - name: Corregir aritmética firmada
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/Http/Controllers/Api/CuentaCorrienteEnvaseController.php')
+          content = path.read_text()
+          old = "->selectRaw('cliente_id, tipo_envase, SUM(cantidad * signo_cuenta) as saldo')"
+          new = "->selectRaw('cliente_id, tipo_envase, SUM(CAST(cantidad AS SIGNED) * signo_cuenta) as saldo')"
+          if content.count(old) != 1:
+              raise SystemExit(f'Se esperaba una coincidencia exacta y se encontraron {content.count(old)}.')
+          path.write_text(content.replace(old, new, 1))
+          PY
+
+      - name: Retirar workflow temporal y publicar
+        run: |
+          rm .github/workflows/apply-fix-saldo-envases.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/Http/Controllers/Api/CuentaCorrienteEnvaseController.php .github/workflows/apply-fix-saldo-envases.yml
+          git commit -m "fix: calcular saldos firmados de envases"
+          git push origin HEAD:agent/fix-saldo-negativo-envases
