@@ -219,6 +219,21 @@ class AlcanceOperacionalUsuario
         return $this->puedeCorregirItemsEstibadosMateriales($usuario);
     }
 
+    public function puedeConsultarTransformacionesMateriales(User $usuario): bool
+    {
+        return $this->puedeConsultarDespachosMateriales($usuario);
+    }
+
+    public function puedeGestionarTransformacionesMateriales(User $usuario): bool
+    {
+        return $this->puedeCorregirItemsEstibadosMateriales($usuario);
+    }
+
+    public function puedeAdministrarRecetasMateriales(User $usuario): bool
+    {
+        return $this->puedeGestionarTransformacionesMateriales($usuario);
+    }
+
     public function puedeRetirarMateriales(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -412,6 +427,9 @@ class AlcanceOperacionalUsuario
             'puede_consultar_recepciones_materiales' => $this->puedeConsultarRecepcionesMateriales($usuario),
             'puede_gestionar_recepciones_materiales' => $this->puedeGestionarRecepcionesMateriales($usuario),
             'puede_anular_recepciones_materiales' => $this->puedeAnularRecepcionesMateriales($usuario),
+            'puede_consultar_transformaciones_materiales' => $this->puedeConsultarTransformacionesMateriales($usuario),
+            'puede_gestionar_transformaciones_materiales' => $this->puedeGestionarTransformacionesMateriales($usuario),
+            'puede_administrar_recetas_materiales' => $this->puedeAdministrarRecetasMateriales($usuario),
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
