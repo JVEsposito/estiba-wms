@@ -139,5 +139,4 @@ class GuardarProveedorMaterialRequest extends FormRequest
     {
         return mb_strtolower(trim((string) $categoria));
     }
-
 }
