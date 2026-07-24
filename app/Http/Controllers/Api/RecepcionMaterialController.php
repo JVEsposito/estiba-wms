@@ -9,8 +9,12 @@ use App\Http\Requests\AnularRecepcionMaterialRequest;
 use App\Http\Requests\ConfirmarRecepcionMaterialRequest;
 use App\Http\Requests\CrearRecepcionMaterialRequest;
 use App\Http\Resources\RecepcionMaterialResource;
+use App\Models\ClienteMaterial;
 use App\Models\FolioMaterial;
+use App\Models\ItemMaterial;
+use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
+use App\Models\TemporadaMaterial;
 use App\Services\Materiales\ServicioRecepcionMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +24,86 @@ use Symfony\Component\HttpFoundation\Response;
 
 class RecepcionMaterialController extends Controller
 {
+    public function catalogos(): JsonResponse
+    {
+        Gate::authorize('consultar-recepciones-materiales');
+        $temporada = TemporadaMaterial::query()
+            ->with('temporadaGlobal')
+            ->where('activa', true)
+            ->whereHas('temporadaGlobal', fn ($consulta) => $consulta->where('activa', true))
+            ->first();
+
+        if (! $temporada || ! $temporada->temporadaGlobal) {
+            return response()->json([
+                'temporada' => null,
+                'clientes' => [],
+                'proveedores' => [],
+                'items' => [],
+            ]);
+        }
+
+        $clientesMateriales = ClienteMaterial::query()
+            ->with('cliente')
+            ->where('temporada_material_id', $temporada->id)
+            ->where('activo', true)
+            ->whereHas('cliente', fn ($consulta) => $consulta->where('activo', true))
+            ->orderBy('nombre')
+            ->get();
+        $clienteMaterialIds = $clientesMateriales->pluck('id');
+        $clienteIds = $clientesMateriales->pluck('cliente_id')->unique()->values();
+
+        $items = ItemMaterial::query()
+            ->whereIn('cliente_material_id', $clienteMaterialIds)
+            ->where('activo', true)
+            ->whereNotNull('categoria_operacional')
+            ->orderBy('codigo')
+            ->get();
+        $proveedores = ProveedorMaterial::query()
+            ->with(['clientes' => fn ($consulta) => $consulta
+                ->whereIn('clientes.id', $clienteIds)
+                ->wherePivot('activo', true)
+                ->orderBy('clientes.codigo')])
+            ->where('activo', true)
+            ->whereHas('clientes', fn ($consulta) => $consulta
+                ->whereIn('clientes.id', $clienteIds)
+                ->where('clientes_proveedores_materiales.activo', true))
+            ->orderBy('codigo')
+            ->get();
+
+        return response()->json([
+            'temporada' => [
+                'id' => $temporada->temporadaGlobal->id,
+                'catalogo_material_id' => $temporada->id,
+                'codigo' => $temporada->temporadaGlobal->codigo,
+                'nombre' => $temporada->temporadaGlobal->nombre,
+            ],
+            'clientes' => $clientesMateriales->map(fn (ClienteMaterial $catalogo): array => [
+                'id' => $catalogo->cliente->id,
+                'cliente_material_id' => $catalogo->id,
+                'codigo' => $catalogo->cliente->codigo,
+                'codigo_folio_materiales' => $catalogo->cliente->codigo_folio_materiales,
+                'nombre' => $catalogo->cliente->nombre,
+            ])->values(),
+            'proveedores' => $proveedores->map(fn (ProveedorMaterial $proveedor): array => [
+                'id' => $proveedor->id,
+                'codigo' => $proveedor->codigo,
+                'nombre' => $proveedor->nombre,
+                'cliente_ids' => $proveedor->clientes->pluck('id')->values(),
+            ])->values(),
+            'items' => $items->map(fn (ItemMaterial $item): array => [
+                'id' => $item->id,
+                'cliente_id' => $clientesMateriales
+                    ->firstWhere('id', $item->cliente_material_id)?->cliente_id,
+                'cliente_material_id' => $item->cliente_material_id,
+                'codigo' => $item->codigo,
+                'nombre' => $item->nombre,
+                'categoria_operacional' => $item->categoria_operacional->value,
+                'categoria_operacional_etiqueta' => $item->categoria_operacional->etiqueta(),
+                'unidad_medida' => $item->unidad_medida,
+            ])->values(),
+        ]);
+    }
+
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('consultar-recepciones-materiales');
