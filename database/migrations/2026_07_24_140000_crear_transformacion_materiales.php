@@ -46,8 +46,13 @@ return new class extends Migration
 
         Schema::create('detalles_versiones_recetas_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('version_receta_material_id')
-                ->constrained('versiones_recetas_materiales')
+            $table->uuid('version_receta_material_id');
+            $table->foreign(
+                'version_receta_material_id',
+                'detalle_version_receta_fk',
+            )
+                ->references('id')
+                ->on('versiones_recetas_materiales')
                 ->restrictOnDelete();
             $table->foreignUuid('item_entrada_id')->constrained('items_materiales')->restrictOnDelete();
             $table->decimal('cantidad_estandar', 14, 3);
@@ -70,8 +75,13 @@ return new class extends Migration
             $table->char('payload_hash', 64);
             $table->foreignUuid('temporada_id')->constrained('temporadas')->restrictOnDelete();
             $table->foreignUuid('cliente_id')->constrained('clientes')->restrictOnDelete();
-            $table->foreignUuid('version_receta_material_id')
-                ->constrained('versiones_recetas_materiales')
+            $table->uuid('version_receta_material_id');
+            $table->foreign(
+                'version_receta_material_id',
+                'orden_version_receta_fk',
+            )
+                ->references('id')
+                ->on('versiones_recetas_materiales')
                 ->restrictOnDelete();
             $table->string('estado', 30)->default('borrador')->index();
             $table->decimal('cantidad_planificada_salida', 14, 3);
@@ -95,8 +105,13 @@ return new class extends Migration
 
         Schema::create('eventos_transformacion_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('orden_transformacion_material_id')
-                ->constrained('ordenes_transformacion_materiales')
+            $table->uuid('orden_transformacion_material_id');
+            $table->foreign(
+                'orden_transformacion_material_id',
+                'evento_transformacion_orden_fk',
+            )
+                ->references('id')
+                ->on('ordenes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->uuid('operacion_id')->nullable()->unique();
             $table->string('tipo', 32)->index();
@@ -110,8 +125,13 @@ return new class extends Migration
 
         Schema::create('lotes_transformacion_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('orden_transformacion_material_id')
-                ->constrained('ordenes_transformacion_materiales')
+            $table->uuid('orden_transformacion_material_id');
+            $table->foreign(
+                'orden_transformacion_material_id',
+                'lote_transformacion_orden_fk',
+            )
+                ->references('id')
+                ->on('ordenes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->unsignedInteger('numero_lote');
             $table->string('estado', 24)->default('abierto')->index();
@@ -135,8 +155,13 @@ return new class extends Migration
 
         Schema::create('reservas_transformacion_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('orden_transformacion_material_id')
-                ->constrained('ordenes_transformacion_materiales')
+            $table->uuid('orden_transformacion_material_id');
+            $table->foreign(
+                'orden_transformacion_material_id',
+                'reserva_transformacion_orden_fk',
+            )
+                ->references('id')
+                ->on('ordenes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->foreignUuid('folio_id')->constrained('folios_materiales', 'folio_id')->restrictOnDelete();
             $table->foreignUuid('item_material_id')->constrained('items_materiales')->restrictOnDelete();
@@ -153,8 +178,13 @@ return new class extends Migration
 
         Schema::create('consumos_transformacion_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('lote_transformacion_material_id')
-                ->constrained('lotes_transformacion_materiales')
+            $table->uuid('lote_transformacion_material_id');
+            $table->foreign(
+                'lote_transformacion_material_id',
+                'consumo_transformacion_lote_fk',
+            )
+                ->references('id')
+                ->on('lotes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->foreignUuid('folio_id')->constrained('folios_materiales', 'folio_id')->restrictOnDelete();
             $table->foreignUuid('item_material_id')->constrained('items_materiales')->restrictOnDelete();
@@ -171,8 +201,13 @@ return new class extends Migration
 
         Schema::create('salidas_transformacion_materiales', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('lote_transformacion_material_id')
-                ->constrained('lotes_transformacion_materiales')
+            $table->uuid('lote_transformacion_material_id');
+            $table->foreign(
+                'lote_transformacion_material_id',
+                'salida_transformacion_lote_fk',
+            )
+                ->references('id')
+                ->on('lotes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->foreignUuid('folio_id')->unique()->constrained('folios_materiales', 'folio_id')->restrictOnDelete();
             $table->foreignUuid('item_material_id')->constrained('items_materiales')->restrictOnDelete();
@@ -182,23 +217,32 @@ return new class extends Migration
         });
 
         Schema::table('folios_materiales', function (Blueprint $table) {
-            $table->foreignUuid('lote_transformacion_origen_id')
-                ->nullable()
-                ->after('bulto_recepcion_material_id')
-                ->constrained('lotes_transformacion_materiales')
+            $table->uuid('lote_transformacion_origen_id')->nullable()->after('bulto_recepcion_material_id');
+            $table->foreign(
+                'lote_transformacion_origen_id',
+                'folio_material_lote_origen_fk',
+            )
+                ->references('id')
+                ->on('lotes_transformacion_materiales')
                 ->restrictOnDelete();
         });
 
         Schema::table('movimientos_inventario_materiales', function (Blueprint $table) {
-            $table->foreignUuid('orden_transformacion_material_id')
-                ->nullable()
-                ->after('retiro_material_id')
-                ->constrained('ordenes_transformacion_materiales')
+            $table->uuid('orden_transformacion_material_id')->nullable()->after('retiro_material_id');
+            $table->foreign(
+                'orden_transformacion_material_id',
+                'mov_inventario_orden_transformacion_fk',
+            )
+                ->references('id')
+                ->on('ordenes_transformacion_materiales')
                 ->restrictOnDelete();
-            $table->foreignUuid('lote_transformacion_material_id')
-                ->nullable()
-                ->after('orden_transformacion_material_id')
-                ->constrained('lotes_transformacion_materiales')
+            $table->uuid('lote_transformacion_material_id')->nullable()->after('orden_transformacion_material_id');
+            $table->foreign(
+                'lote_transformacion_material_id',
+                'mov_inventario_lote_transformacion_fk',
+            )
+                ->references('id')
+                ->on('lotes_transformacion_materiales')
                 ->restrictOnDelete();
         });
     }
@@ -206,12 +250,17 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('movimientos_inventario_materiales', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('lote_transformacion_material_id');
-            $table->dropConstrainedForeignId('orden_transformacion_material_id');
+            $table->dropForeign('mov_inventario_lote_transformacion_fk');
+            $table->dropForeign('mov_inventario_orden_transformacion_fk');
+            $table->dropColumn([
+                'lote_transformacion_material_id',
+                'orden_transformacion_material_id',
+            ]);
         });
 
         Schema::table('folios_materiales', function (Blueprint $table) {
-            $table->dropConstrainedForeignId('lote_transformacion_origen_id');
+            $table->dropForeign('folio_material_lote_origen_fk');
+            $table->dropColumn('lote_transformacion_origen_id');
         });
 
         Schema::dropIfExists('salidas_transformacion_materiales');
