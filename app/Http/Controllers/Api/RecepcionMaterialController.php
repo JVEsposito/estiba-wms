@@ -107,6 +107,7 @@ class RecepcionMaterialController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('consultar-recepciones-materiales');
+        $usuario = $request->user();
         $consulta = RecepcionMaterial::query()
             ->with(['temporada', 'cliente', 'proveedor', 'creadoPor', 'confirmadoPor', 'anuladoPor'])
             ->when($request->query('estado'), fn ($query, $estado) => $query->where('estado', $estado))
@@ -116,8 +117,15 @@ class RecepcionMaterialController extends Controller
             ->when($request->query('guia'), fn ($query, $guia) => $query
                 ->where('numero_guia_despacho', 'like', '%'.trim((string) $guia).'%'));
 
-        if (! $request->user()->can('gestionar-recepciones-materiales')) {
-            $consulta->where('estado', EstadoRecepcionMaterial::Confirmada->value);
+        if (! $usuario->can('anular-recepciones-materiales')) {
+            if ($usuario->can('gestionar-recepciones-materiales')) {
+                $consulta->where(function ($query) use ($usuario): void {
+                    $query->where('estado', EstadoRecepcionMaterial::Confirmada->value)
+                        ->orWhere('creado_por_user_id', $usuario->id);
+                });
+            } else {
+                $consulta->where('estado', EstadoRecepcionMaterial::Confirmada->value);
+            }
         }
 
         return RecepcionMaterialResource::collection(
@@ -130,9 +138,8 @@ class RecepcionMaterialController extends Controller
         RecepcionMaterial $recepcionMaterial,
     ): RecepcionMaterialResource {
         Gate::authorize('consultar-recepciones-materiales');
-        abort_if(
-            ! $request->user()->can('gestionar-recepciones-materiales')
-                && $recepcionMaterial->estado !== EstadoRecepcionMaterial::Confirmada,
+        abort_unless(
+            $this->puedeVerRecepcion($request, $recepcionMaterial),
             Response::HTTP_NOT_FOUND,
         );
 
@@ -157,6 +164,11 @@ class RecepcionMaterialController extends Controller
         RecepcionMaterial $recepcionMaterial,
         ServicioRecepcionMaterial $servicio,
     ): RecepcionMaterialResource {
+        abort_unless(
+            $this->puedeOperarRecepcion($request, $recepcionMaterial),
+            Response::HTTP_NOT_FOUND,
+        );
+
         return new RecepcionMaterialResource($servicio->confirmar(
             $recepcionMaterial,
             $request->validated('operacion_id'),
@@ -235,5 +247,23 @@ class RecepcionMaterialController extends Controller
             });
 
         return response()->json(['data' => $folios]);
+    }
+
+    private function puedeVerRecepcion(Request $request, RecepcionMaterial $recepcion): bool
+    {
+        if ($recepcion->estado === EstadoRecepcionMaterial::Confirmada) {
+            return true;
+        }
+
+        return $this->puedeOperarRecepcion($request, $recepcion);
+    }
+
+    private function puedeOperarRecepcion(Request $request, RecepcionMaterial $recepcion): bool
+    {
+        $usuario = $request->user();
+
+        return $usuario->can('anular-recepciones-materiales')
+            || ($usuario->can('gestionar-recepciones-materiales')
+                && $recepcion->creado_por_user_id === $usuario->id);
     }
 }
