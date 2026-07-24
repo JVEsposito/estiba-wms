@@ -54,14 +54,33 @@ class GuardarProveedorMaterialRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
-            $clienteIds = collect($this->input('cliente_ids', []))->filter()->values();
+            $entradaClienteIds = $this->input('cliente_ids', []);
+            $clienteIds = collect(is_array($entradaClienteIds) ? $entradaClienteIds : [])
+                ->filter(fn ($clienteId): bool => is_string($clienteId) && $clienteId !== '')
+                ->values();
             $categorias = collect($this->input('categorias', []));
             $claves = [];
+            $categoriasDisponibles = ItemMaterial::query()
+                ->with('cliente:id,cliente_id')
+                ->where('activo', true)
+                ->whereNotNull('categoria')
+                ->whereNotNull('categoria_operacional')
+                ->whereHas('cliente', fn ($consulta) => $consulta
+                    ->whereIn('cliente_id', $clienteIds)
+                    ->where('activo', true))
+                ->get(['id', 'cliente_material_id', 'categoria'])
+                ->groupBy(fn (ItemMaterial $item): string => (string) $item->cliente?->cliente_id)
+                ->map(fn ($items) => $items
+                    ->map(fn (ItemMaterial $item): string => $this->normalizarCategoria($item->categoria))
+                    ->filter()
+                    ->unique()
+                    ->values());
 
             foreach ($categorias as $indice => $asignacion) {
                 $clienteId = (string) ($asignacion['cliente_id'] ?? '');
                 $categoria = trim((string) ($asignacion['categoria'] ?? ''));
-                $clave = $clienteId.'|'.mb_strtolower($categoria);
+                $categoriaNormalizada = $this->normalizarCategoria($categoria);
+                $clave = $clienteId.'|'.$categoriaNormalizada;
 
                 if (! $clienteIds->contains($clienteId)) {
                     $validator->errors()->add("categorias.$indice.cliente_id", 'La categoría pertenece a un cliente que no está asociado al proveedor.');
@@ -71,16 +90,14 @@ class GuardarProveedorMaterialRequest extends FormRequest
                 }
                 $claves[$clave] = true;
 
-                $existe = $clienteId !== '' && $categoria !== '' && ItemMaterial::query()
-                    ->where('activo', true)
-                    ->whereRaw('LOWER(TRIM(categoria)) = ?', [mb_strtolower($categoria)])
-                    ->whereHas('cliente', fn ($consulta) => $consulta
-                        ->where('cliente_id', $clienteId)
-                        ->where('activo', true))
-                    ->exists();
+                $existe = $clienteId !== ''
+                    && $categoriaNormalizada !== ''
+                    && $categoriasDisponibles
+                        ->get($clienteId, collect())
+                        ->contains($categoriaNormalizada);
 
                 if (! $existe) {
-                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría no existe en el catálogo activo del cliente.');
+                    $validator->errors()->add("categorias.$indice.categoria", 'La categoría no posee ítems operacionales activos para el cliente.');
                 }
             }
 
@@ -94,11 +111,16 @@ class GuardarProveedorMaterialRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $categorias = collect($this->input('categorias', []))
-            ->map(fn ($asignacion): array => [
-                'cliente_id' => (string) ($asignacion['cliente_id'] ?? ''),
-                'categoria' => trim((string) ($asignacion['categoria'] ?? '')),
-            ])
+        $entradaCategorias = $this->input('categorias', []);
+        $categorias = collect(is_array($entradaCategorias) ? $entradaCategorias : [])
+            ->map(function ($asignacion): array {
+                $asignacion = is_array($asignacion) ? $asignacion : [];
+
+                return [
+                    'cliente_id' => (string) ($asignacion['cliente_id'] ?? ''),
+                    'categoria' => trim((string) ($asignacion['categoria'] ?? '')),
+                ];
+            })
             ->values()
             ->all();
 
@@ -112,4 +134,10 @@ class GuardarProveedorMaterialRequest extends FormRequest
             'categorias' => $categorias,
         ]);
     }
+
+    private function normalizarCategoria(mixed $categoria): string
+    {
+        return mb_strtolower(trim((string) $categoria));
+    }
+
 }
