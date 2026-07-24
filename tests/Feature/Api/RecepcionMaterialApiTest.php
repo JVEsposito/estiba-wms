@@ -242,6 +242,46 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertJsonPath('codigo', 'regla_de_negocio');
     }
 
+    public function test_confirmacion_revalida_categorias_revocadas_despues_del_borrador(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 1]],
+            ))
+            ->assertCreated()
+            ->json('data');
+
+        DB::table('clientes_proveedores_materiales')
+            ->where('cliente_id', $cliente->id)
+            ->where('proveedor_material_id', $proveedor->id)
+            ->update([
+                'categorias' => json_encode(['Categoría revocada'], JSON_UNESCAPED_UNICODE),
+                'updated_at' => now(),
+            ]);
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseHas('recepciones_materiales', [
+            'id' => $recepcion['id'],
+            'estado' => 'borrador',
+            'version' => 1,
+        ]);
+        $this->assertDatabaseMissing('eventos_recepciones_materiales', [
+            'recepcion_material_id' => $recepcion['id'],
+            'tipo' => 'confirmada',
+        ]);
+    }
+
     private function prepararCatalogo(): array
     {
         $administrador = User::factory()->create([
