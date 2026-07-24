@@ -5,7 +5,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthSession, LoginPayload } from './src/domain/estiba';
-import { MaterialReceptionCapabilities } from './src/domain/materialReception';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
@@ -142,8 +141,7 @@ export default function App() {
 }
 
 function availableModules(auth: AuthSession): MobileModule[] {
-  const capabilities = auth.usuario.capacidades as typeof auth.usuario.capacidades
-    & MaterialReceptionCapabilities;
+  const capabilities = auth.usuario.capacidades;
   const modules: MobileModule[] = [];
   const canOperate = capabilities.puede_operar_productos
     || capabilities.puede_operar_materiales
