@@ -19,8 +19,10 @@ class TransformacionMaterialServiceProvider extends ServiceProvider
                     Route::get('/ordenes/{ordenTransformacionMaterial}', [TransformacionMaterialController::class, 'mostrarOrden']);
                 });
 
-                Route::post('/recetas', [TransformacionMaterialController::class, 'guardarReceta'])
-                    ->middleware('can:administrar-recetas-materiales');
+                Route::middleware('can:administrar-recetas-materiales')->group(function (): void {
+                    Route::post('/recetas', [TransformacionMaterialController::class, 'guardarReceta']);
+                    Route::post('/recetas/{recetaMaterial}/versiones', [TransformacionMaterialController::class, 'guardarVersionReceta']);
+                });
 
                 Route::middleware('can:gestionar-transformaciones-materiales')->group(function (): void {
                     Route::post('/ordenes', [TransformacionMaterialController::class, 'guardarOrden']);
