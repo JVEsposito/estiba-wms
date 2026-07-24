@@ -24,6 +24,7 @@ return new class extends Migration
                 ->where('catalogos.activo', true)
                 ->where('items.activo', true)
                 ->whereNotNull('items.categoria')
+                ->whereNotNull('items.categoria_operacional')
                 ->pluck('items.categoria')
                 ->map(fn ($categoria): string => trim((string) $categoria))
                 ->filter()
