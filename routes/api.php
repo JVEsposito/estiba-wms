@@ -21,10 +21,12 @@ use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
+use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
+use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
@@ -184,7 +186,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('can:consultar-recepciones-materiales')->group(function () {
             Route::get('/catalogos', [RecepcionMaterialController::class, 'catalogos']);
             Route::get('/folios-pendientes', [RecepcionMaterialController::class, 'foliosPendientes']);
+            Route::get('/perfiles-impresion', [PerfilImpresionEtiquetaController::class, 'index']);
             Route::get('/', [RecepcionMaterialController::class, 'index']);
+            Route::get('/{recepcionMaterial}/impresiones', [ImpresionEtiquetaMaterialController::class, 'index']);
             Route::get('/{recepcionMaterial}', [RecepcionMaterialController::class, 'show']);
         });
 
@@ -192,6 +196,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/', [RecepcionMaterialController::class, 'store']);
             Route::post('/{recepcionMaterial}/confirmar', [RecepcionMaterialController::class, 'confirmar']);
         });
+        Route::post('/{recepcionMaterial}/etiquetas', [ImpresionEtiquetaMaterialController::class, 'store'])
+            ->middleware('can:imprimir-etiquetas-materiales');
 
         Route::post('/{recepcionMaterial}/anular', [RecepcionMaterialController::class, 'anular'])
             ->middleware('can:anular-recepciones-materiales');
@@ -266,6 +272,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
         Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
         Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
+        Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
+        Route::post('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'store']);
+        Route::put('/administracion/etiquetas/materiales/perfiles/{perfilImpresionEtiqueta}', [PerfilImpresionEtiquetaController::class, 'update']);
     });
     Route::middleware('can:gestionar-andenes')->group(function () {
         Route::post('/administracion/andenes', [AndenController::class, 'store']);

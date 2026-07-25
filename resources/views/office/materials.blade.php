@@ -7,7 +7,7 @@
         <meta name="color-scheme" content="dark">
         <title>Estiba WMS · Materiales</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-labels.js'])
         @endif
     </head>
     <body>
@@ -129,6 +129,36 @@
                         <div class="materials-list" id="destinationsMaterialList"></div>
                     </section>
                 </div>
+
+                <section class="panel materials-panel material-label-workspace" id="materialLabelWorkspace">
+                    <div class="materials-panel__heading">
+                        <div><p class="eyebrow">ETIQUETAS DE RECEPCIÓN</p><h2>Descarga PDF y ZPL</h2><span id="materialLabelSummary">Selecciona una recepción confirmada</span></div>
+                        <button class="secondary-button" id="reloadMaterialLabels" type="button">↻ Actualizar recepciones</button>
+                    </div>
+                    <form class="materials-form material-label-form" id="materialLabelForm" novalidate>
+                        <div class="materials-form__grid material-label-controls">
+                            <label><span>Recepción confirmada *</span><select name="recepcion_id" id="materialLabelReception" required><option value="">Seleccionar recepción</option></select></label>
+                            <label><span>Perfil de impresora *</span><select name="perfil_id" id="materialLabelProfile" required><option value="">Seleccionar perfil</option></select></label>
+                            <label><span>Formato *</span><select name="formato" required><option value="pdf">PDF · imprimir desde oficina</option><option value="zpl">ZPL · enviar a impresora compatible</option></select></label>
+                            <label><span>Copias por folio *</span><input name="copias" type="number" min="1" max="20" value="1" required></label>
+                            <label class="materials-wide"><span>Motivo de reimpresión</span><textarea name="motivo_reimpresion" minlength="5" maxlength="1000" rows="2" placeholder="Será obligatorio si uno de los folios ya fue generado anteriormente."></textarea></label>
+                        </div>
+                        <div class="material-label-selection">
+                            <div class="material-label-selection__heading">
+                                <strong>Folios de la recepción</strong>
+                                <label class="materials-check"><input id="selectAllMaterialLabels" type="checkbox"><span>Seleccionar todos</span></label>
+                            </div>
+                            <div id="materialLabelFolios" class="material-label-folios"><p class="empty-state">Selecciona una recepción para consultar sus folios.</p></div>
+                        </div>
+                        <p class="materials-help">La descarga queda auditada como archivo generado. El sistema no la marca como impresión física confirmada.</p>
+                        <p class="form-error" id="materialLabelError" role="alert"></p>
+                        <div class="materials-actions"><button class="primary-button" type="submit">Generar y descargar etiquetas</button></div>
+                    </form>
+                    <div class="material-label-history">
+                        <div class="materials-panel__heading"><div><p class="eyebrow">TRAZABILIDAD</p><h3>Generaciones anteriores</h3></div></div>
+                        <div id="materialLabelHistory" class="materials-list"><p class="empty-state">Sin recepción seleccionada.</p></div>
+                    </div>
+                </section>
 
                 <div class="materials-operation-grid">
                     <section class="panel materials-panel">

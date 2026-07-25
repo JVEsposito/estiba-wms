@@ -158,6 +158,10 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeAnularRecepcionesMateriales($usuario),
         );
         Gate::define(
+            'imprimir-etiquetas-materiales',
+            fn (User $usuario): bool => $alcance->puedeImprimirEtiquetasMateriales($usuario),
+        );
+        Gate::define(
             'consultar-transformaciones-materiales',
             fn (User $usuario): bool => $alcance->puedeConsultarTransformacionesMateriales($usuario),
         );
