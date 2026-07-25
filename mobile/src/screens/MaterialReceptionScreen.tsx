@@ -208,7 +208,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   function removePackage(detailId: string, packageId: string) {
     setForm((current) => ({
       ...current,
-      detalles: current.detalles.map((detail) => detail.local_id === detailId && detail.bultos.length > 1
+      detalles: current.detalles.map((detail) => detail.local_id === detailId
         ? { ...detail, bultos: detail.bultos.filter((itemPackage) => itemPackage.local_id !== packageId) }
         : detail),
     }));
@@ -437,7 +437,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                       id: client.id,
                       label: `${client.codigo} · ${client.nombre}`,
                       description: client.codigo_folio_materiales
-                        ? `Folios F${client.codigo_folio_materiales}xxxxxxx`
+                        ? `Primer folio F${client.codigo_folio_materiales}0000001`
                         : 'Código de folio pendiente',
                     }))}
                     onChange={changeClient}
@@ -482,8 +482,9 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                             onChange={(value) => updateDetail(detail.local_id, { item_material_id: value })}
                           />
                           <Field label="Cantidad documental" value={detail.cantidad_documental} onChange={(value) => updateDetail(detail.local_id, { cantidad_documental: decimal(value) })} placeholder="0" numeric />
-                          <Readonly label="Cantidad recibida" value={format(sumPackages(detail.bultos))} />
-                          <Field label="Cantidad rechazada" value={detail.cantidad_rechazada} onChange={(value) => updateDetail(detail.local_id, { cantidad_rechazada: decimal(value) })} placeholder="0" numeric />
+                          <Field label="Cantidad contada" value={detail.cantidad_contada} onChange={(value) => updateDetail(detail.local_id, { cantidad_contada: decimal(value) })} placeholder="0" numeric />
+                          <Readonly label="Cantidad aceptada" value={format(sumPackages(detail.bultos))} />
+                          <Readonly label="Cantidad rechazada" value={format(rejectedQuantity(detail))} />
                           <Field label="Observación del ítem" value={detail.observacion} onChange={(value) => updateDetail(detail.local_id, { observacion: value })} placeholder="Opcional" multiline />
                         </View>
 
@@ -493,7 +494,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                             <View key={itemPackage.local_id} style={styles.packageCard}>
                               <View style={styles.between}>
                                 <Text style={styles.cardTitle}>Bulto {packageIndex + 1}</Text>
-                                {detail.bultos.length > 1 ? <Button label="Quitar" onPress={() => removePackage(detail.local_id, itemPackage.local_id)} danger small /> : null}
+                                <Button label="Quitar" onPress={() => removePackage(detail.local_id, itemPackage.local_id)} danger small />
                               </View>
                               <View style={[styles.grid, compact && styles.column]}>
                                 <Field label={`Cantidad${item ? ` (${item.unidad_medida})` : ''}`} value={itemPackage.cantidad} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { cantidad: decimal(value) })} placeholder="0" numeric />
@@ -660,11 +661,12 @@ function ReceptionDetail({
               <Text style={styles.cardTitle}>{index + 1}. {detail.item?.codigo} · {detail.item?.nombre}</Text>
               <Text style={styles.muted}>{detail.categoria_operacional_etiqueta} · {detail.unidad_medida}</Text>
             </View>
-            <Text style={styles.greenText}>{detail.cantidad_recibida} {detail.unidad_medida}</Text>
+            <Text style={styles.greenText}>{detail.cantidad_aceptada} {detail.unidad_medida} aceptadas</Text>
           </View>
           <View style={styles.summaryGrid}>
             <Summary label="Documental" value={detail.cantidad_documental} />
-            <Summary label="Recibido" value={detail.cantidad_recibida} />
+            <Summary label="Contado" value={detail.cantidad_contada} />
+            <Summary label="Aceptado" value={detail.cantidad_aceptada} />
             <Summary label="Rechazado" value={detail.cantidad_rechazada} />
             <Summary label="Bultos" value={String(detail.bultos.length)} />
           </View>
@@ -854,7 +856,7 @@ function emptyDetail(): ReceptionDraftDetail {
     local_id: Crypto.randomUUID(),
     item_material_id: '',
     cantidad_documental: '',
-    cantidad_rechazada: '0',
+    cantidad_contada: '',
     observacion: '',
     bultos: [emptyPackage()],
   };
@@ -885,7 +887,7 @@ function buildPayload(form: Form, operationId: string): CreateMaterialReceptionP
     usedItems.add(detail.item_material_id);
 
     const documentary = positive(detail.cantidad_documental, `Cantidad documental del ítem ${detailIndex + 1}`);
-    const rejected = nonNegative(detail.cantidad_rechazada || '0', `Cantidad rechazada del ítem ${detailIndex + 1}`);
+    const counted = positive(detail.cantidad_contada, `Cantidad contada del ítem ${detailIndex + 1}`);
     const packages = detail.bultos.map((itemPackage, packageIndex) => {
       const quantity = positive(itemPackage.cantidad, `Cantidad del bulto ${packageIndex + 1}`);
       validateDate(itemPackage.fecha_fabricacion, 'fecha de fabricación');
@@ -903,10 +905,18 @@ function buildPayload(form: Form, operationId: string): CreateMaterialReceptionP
       };
     });
 
+    const accepted = round(packages.reduce((total, itemPackage) => total + itemPackage.cantidad, 0));
+    if (accepted > counted) {
+      throw new Error(`La cantidad aceptada del ítem ${detailIndex + 1} no puede superar la cantidad contada.`);
+    }
+    const rejected = round(counted - accepted);
+
     return {
       item_material_id: detail.item_material_id,
       cantidad_documental: documentary,
-      cantidad_recibida: round(packages.reduce((total, itemPackage) => total + itemPackage.cantidad, 0)),
+      cantidad_contada: counted,
+      cantidad_aceptada: accepted,
+      cantidad_recibida: accepted,
       cantidad_rechazada: rejected,
       observacion: optional(detail.observacion),
       bultos: packages,
@@ -934,15 +944,16 @@ function sumPackages(packages: ReceptionDraftPackage[]) {
   }, 0));
 }
 
+function rejectedQuantity(detail: ReceptionDraftDetail) {
+  const counted = Number(detail.cantidad_contada.replace(',', '.'));
+  if (!Number.isFinite(counted)) return 0;
+
+  return Math.max(0, round(counted - sumPackages(detail.bultos)));
+}
+
 function positive(value: string, label: string) {
   const parsed = Number(value.replace(',', '.'));
   if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${label} debe ser mayor que cero.`);
-  return round(parsed);
-}
-
-function nonNegative(value: string, label: string) {
-  const parsed = Number(value.replace(',', '.'));
-  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${label} no puede ser negativa.`);
   return round(parsed);
 }
 

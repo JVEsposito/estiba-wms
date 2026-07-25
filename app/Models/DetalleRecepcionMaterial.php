@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'categoria_operacional',
     'unidad_medida',
     'cantidad_documental',
+    'cantidad_contada',
     'cantidad_recibida',
     'cantidad_rechazada',
     'observacion',
@@ -46,6 +47,7 @@ class DetalleRecepcionMaterial extends Model
         return [
             'categoria_operacional' => CategoriaOperacionalMaterial::class,
             'cantidad_documental' => 'decimal:3',
+            'cantidad_contada' => 'decimal:3',
             'cantidad_recibida' => 'decimal:3',
             'cantidad_rechazada' => 'decimal:3',
         ];

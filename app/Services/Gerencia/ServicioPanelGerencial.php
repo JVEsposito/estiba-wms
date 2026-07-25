@@ -161,6 +161,9 @@ class ServicioPanelGerencial
             ->join('items_materiales as i', 'i.id', '=', 'fm.item_material_id')
             ->join('clientes_materiales as cm', 'cm.id', '=', 'i.cliente_material_id')
             ->join('temporadas_materiales as tm', 'tm.id', '=', 'cm.temporada_material_id')
+            ->leftJoin('ubicaciones_actuales as ua', 'ua.folio_id', '=', 'f.id')
+            ->leftJoin('posiciones as p', 'p.id', '=', 'ua.posicion_id')
+            ->leftJoin('camaras as c', 'c.id', '=', 'p.camara_id')
             ->where('f.activo', true)
             ->where('i.activo', true)
             ->where('fm.cantidad_actual', '>', 0)
@@ -194,11 +197,68 @@ class ServicioPanelGerencial
             ])
             ->selectRaw('COUNT(DISTINCT fm.folio_id) as folios')
             ->selectRaw('SUM(fm.cantidad_actual) as cantidad_actual')
-            ->selectRaw('SUM(fm.cantidad_reservada) as cantidad_reservada')
+            ->selectRaw(
+                'SUM(CASE WHEN (f.estado_operacional = ? OR fm.motivo_bloqueo IS NOT NULL) '
+                .'THEN fm.cantidad_actual ELSE 0 END) as cantidad_bloqueada',
+                [EstadoOperacionalFolio::Bloqueado->value],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN f.estado_operacional <> ? '
+                .'AND fm.motivo_bloqueo IS NULL '
+                .'AND (ua.id IS NULL OR f.estado_operacional = ?) '
+                .'THEN fm.cantidad_actual ELSE 0 END) as cantidad_pendiente_ubicacion',
+                [
+                    EstadoOperacionalFolio::Bloqueado->value,
+                    EstadoOperacionalFolio::PendienteUbicacion->value,
+                ],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN f.estado_operacional = ? '
+                .'AND fm.motivo_bloqueo IS NULL '
+                .'AND tm.activa = ? '
+                .'AND ua.id IS NOT NULL '
+                .'AND p.estado = ? '
+                .'AND c.estado = ? '
+                .'AND c.contenido = ? '
+                .'THEN LEAST(fm.cantidad_reservada, fm.cantidad_actual) ELSE 0 END) '
+                .'as cantidad_reservada',
+                [
+                    EstadoOperacionalFolio::Disponible->value,
+                    true,
+                    EstadoPosicion::Activa->value,
+                    EstadoCamara::Activa->value,
+                    ContenidoCamara::Materiales->value,
+                ],
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN f.estado_operacional = ? '
+                .'AND fm.motivo_bloqueo IS NULL '
+                .'AND tm.activa = ? '
+                .'AND ua.id IS NOT NULL '
+                .'AND p.estado = ? '
+                .'AND c.estado = ? '
+                .'AND c.contenido = ? '
+                .'THEN GREATEST(fm.cantidad_actual - fm.cantidad_reservada, 0) ELSE 0 END) '
+                .'as cantidad_disponible',
+                [
+                    EstadoOperacionalFolio::Disponible->value,
+                    true,
+                    EstadoPosicion::Activa->value,
+                    EstadoCamara::Activa->value,
+                    ContenidoCamara::Materiales->value,
+                ],
+            )
             ->get()
             ->map(function (object $fila): array {
                 $actual = round((float) $fila->cantidad_actual, 3);
                 $reservada = round((float) $fila->cantidad_reservada, 3);
+                $disponible = round((float) $fila->cantidad_disponible, 3);
+                $bloqueada = round((float) $fila->cantidad_bloqueada, 3);
+                $pendiente = round((float) $fila->cantidad_pendiente_ubicacion, 3);
+                $noDisponible = round(max(
+                    0,
+                    $actual - $reservada - $disponible - $bloqueada - $pendiente,
+                ), 3);
 
                 return [
                     'item_id' => $fila->item_material_id,
@@ -220,7 +280,10 @@ class ServicioPanelGerencial
                     'folios' => (int) $fila->folios,
                     'cantidad_actual' => $actual,
                     'cantidad_reservada' => $reservada,
-                    'cantidad_disponible' => round(max(0, $actual - $reservada), 3),
+                    'cantidad_disponible' => $disponible,
+                    'cantidad_bloqueada' => $bloqueada,
+                    'cantidad_pendiente_ubicacion' => $pendiente,
+                    'cantidad_no_disponible' => $noDisponible,
                 ];
             });
 
@@ -229,6 +292,10 @@ class ServicioPanelGerencial
             ->map(function (Collection $items, string $unidad): array {
                 $actual = round((float) $items->sum('cantidad_actual'), 3);
                 $reservada = round((float) $items->sum('cantidad_reservada'), 3);
+                $disponible = round((float) $items->sum('cantidad_disponible'), 3);
+                $bloqueada = round((float) $items->sum('cantidad_bloqueada'), 3);
+                $pendiente = round((float) $items->sum('cantidad_pendiente_ubicacion'), 3);
+                $noDisponible = round((float) $items->sum('cantidad_no_disponible'), 3);
 
                 return [
                     'unidad_medida' => $unidad,
@@ -236,9 +303,12 @@ class ServicioPanelGerencial
                     'folios_con_stock' => (int) $items->sum('folios'),
                     'cantidad_actual' => $actual,
                     'cantidad_reservada' => $reservada,
-                    'cantidad_disponible' => round(max(0, $actual - $reservada), 3),
+                    'cantidad_disponible' => $disponible,
+                    'cantidad_bloqueada' => $bloqueada,
+                    'cantidad_pendiente_ubicacion' => $pendiente,
+                    'cantidad_no_disponible' => $noDisponible,
                     'items' => $items
-                        ->sortByDesc('cantidad_disponible')
+                        ->sortByDesc('cantidad_actual')
                         ->values()
                         ->all(),
                 ];
@@ -409,8 +479,28 @@ class ServicioPanelGerencial
             ->each(function (array $unidad) use ($alertas): void {
                 $alertas->push([
                     'nivel' => 'advertencia',
-                    'titulo' => "Stock {$unidad['unidad_medida']} completamente reservado",
-                    'detalle' => 'No queda cantidad libre para nuevos despachos en esta unidad de medida.',
+                    'titulo' => "Stock {$unidad['unidad_medida']} sin disponibilidad operativa",
+                    'detalle' => 'No queda cantidad habilitada para nuevos despachos en esta unidad de medida.',
+                ]);
+            });
+
+        collect($materiales['unidades_medida'])
+            ->filter(fn (array $unidad): bool => $unidad['cantidad_bloqueada'] > 0)
+            ->each(function (array $unidad) use ($alertas): void {
+                $alertas->push([
+                    'nivel' => 'advertencia',
+                    'titulo' => "Material {$unidad['unidad_medida']} bloqueado",
+                    'detalle' => "{$unidad['cantidad_bloqueada']} {$unidad['unidad_medida']} requieren revisión supervisada.",
+                ]);
+            });
+
+        collect($materiales['unidades_medida'])
+            ->filter(fn (array $unidad): bool => $unidad['cantidad_pendiente_ubicacion'] > 0)
+            ->each(function (array $unidad) use ($alertas): void {
+                $alertas->push([
+                    'nivel' => 'advertencia',
+                    'titulo' => "Material {$unidad['unidad_medida']} sin ubicación",
+                    'detalle' => "{$unidad['cantidad_pendiente_ubicacion']} {$unidad['unidad_medida']} todavía no están disponibles para operación.",
                 ]);
             });
 

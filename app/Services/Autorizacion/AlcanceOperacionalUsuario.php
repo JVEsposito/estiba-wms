@@ -211,7 +211,11 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarRecepcionesMateriales(User $usuario): bool
     {
-        return $this->puedeCorregirItemsEstibadosMateriales($usuario);
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorMateriales,
+            RolUsuario::CamareroMateriales,
+        ]);
     }
 
     public function puedeAnularRecepcionesMateriales(User $usuario): bool
@@ -256,6 +260,11 @@ class AlcanceOperacionalUsuario
     public function puedeCorregirItemsEstibadosMateriales(User $usuario): bool
     {
         return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::SupervisorMateriales]);
+    }
+
+    public function puedeGestionarBloqueosMateriales(User $usuario): bool
+    {
+        return $this->puedeCorregirItemsEstibadosMateriales($usuario);
     }
 
     public function puedeValidarPallets(User $usuario): bool
@@ -424,6 +433,7 @@ class AlcanceOperacionalUsuario
             'puede_cancelar_despachos_materiales' => $this->puedeCancelarDespachosMateriales($usuario),
             'puede_consultar_kardex_materiales' => $this->puedeConsultarKardexMateriales($usuario),
             'puede_corregir_items_estibados_materiales' => $this->puedeCorregirItemsEstibadosMateriales($usuario),
+            'puede_gestionar_bloqueos_materiales' => $this->puedeGestionarBloqueosMateriales($usuario),
             'puede_consultar_recepciones_materiales' => $this->puedeConsultarRecepcionesMateriales($usuario),
             'puede_gestionar_recepciones_materiales' => $this->puedeGestionarRecepcionesMateriales($usuario),
             'puede_anular_recepciones_materiales' => $this->puedeAnularRecepcionesMateriales($usuario),

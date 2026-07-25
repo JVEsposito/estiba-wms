@@ -29,10 +29,12 @@ class CrearRecepcionMaterialRequest extends FormRequest
             'detalles' => ['required', 'array', 'min:1', 'max:100'],
             'detalles.*.item_material_id' => ['required', 'uuid', 'exists:items_materiales,id'],
             'detalles.*.cantidad_documental' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'detalles.*.cantidad_recibida' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
-            'detalles.*.cantidad_rechazada' => ['nullable', 'numeric', 'min:0', 'decimal:0,3'],
+            'detalles.*.cantidad_contada' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'detalles.*.cantidad_aceptada' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
+            'detalles.*.cantidad_recibida' => ['nullable', 'numeric', 'min:0', 'decimal:0,3'],
+            'detalles.*.cantidad_rechazada' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
             'detalles.*.observacion' => ['nullable', 'string', 'max:2000'],
-            'detalles.*.bultos' => ['required', 'array', 'min:1', 'max:500'],
+            'detalles.*.bultos' => ['required', 'array', 'max:500'],
             'detalles.*.bultos.*.cantidad' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
             'detalles.*.bultos.*.lote_proveedor' => ['nullable', 'string', 'max:100'],
             'detalles.*.bultos.*.fecha_fabricacion' => ['nullable', 'date'],
@@ -44,12 +46,40 @@ class CrearRecepcionMaterialRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $detalles = collect($this->input('detalles', []))
+            ->map(function (mixed $valor): mixed {
+                if (! is_array($valor)) {
+                    return $valor;
+                }
+
+                $aceptada = $valor['cantidad_aceptada']
+                    ?? $valor['cantidad_recibida']
+                    ?? null;
+                $rechazada = $valor['cantidad_rechazada'] ?? 0;
+                $contada = $valor['cantidad_contada'] ?? null;
+
+                if ($contada === null
+                    && is_numeric($aceptada)
+                    && is_numeric($rechazada)) {
+                    $contada = round((float) $aceptada + (float) $rechazada, 3);
+                }
+
+                $valor['cantidad_aceptada'] = $aceptada;
+                $valor['cantidad_recibida'] = $aceptada;
+                $valor['cantidad_rechazada'] = $rechazada;
+                $valor['cantidad_contada'] = $contada;
+
+                return $valor;
+            })
+            ->all();
+
         $this->merge([
             'numero_guia_despacho' => trim((string) $this->input('numero_guia_despacho')),
             'orden_compra' => $this->limpiar($this->input('orden_compra')),
             'patente' => $this->limpiar($this->input('patente')),
             'transportista' => $this->limpiar($this->input('transportista')),
             'observacion' => $this->limpiar($this->input('observacion')),
+            'detalles' => $detalles,
         ]);
     }
 

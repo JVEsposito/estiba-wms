@@ -308,7 +308,7 @@ function renderClients() {
     elements.clientsSummary.textContent = `${state.clients.length} ${state.clients.length === 1 ? 'registrado' : 'registrados'}`;
 
     if (!state.clients.length) {
-        elements.clientsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="5">No existen clientes globales registrados.</td></tr>';
+        elements.clientsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="6">No existen clientes globales registrados.</td></tr>';
         return;
     }
 
@@ -324,6 +324,7 @@ function renderClients() {
         return `
             <tr>
                 <td><strong>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</strong><small>Maestro transversal${aliasDetail}</small></td>
+                <td>${client.codigo_folio_materiales ? `F${escapeHtml(client.codigo_folio_materiales)}0000001` : 'Pendiente'}</td>
                 <td>${escapeHtml(client.codigo_externo || '—')}</td>
                 <td>${escapeHtml(presence)}</td>
                 <td>${statusBadge(client.activo)}</td>
@@ -452,6 +453,9 @@ elements.seasonForm.addEventListener('submit', async (event) => {
 elements.clientForm.elements.codigo.addEventListener('input', (event) => {
     event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9._-]/g, '');
 });
+elements.clientForm.elements.codigo_folio_materiales.addEventListener('input', (event) => {
+    event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+});
 
 elements.clientForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -481,7 +485,7 @@ elements.clientsTableBody.addEventListener('click', (event) => {
     if (!button) return;
     const client = state.clients.find((candidate) => candidate.id === button.dataset.editClient);
     if (!client) return;
-    for (const field of ['id', 'codigo', 'nombre', 'codigo_externo']) {
+    for (const field of ['id', 'codigo', 'nombre', 'codigo_externo', 'codigo_folio_materiales']) {
         elements.clientForm.elements[field].value = client[field] || '';
     }
     elements.clientForm.elements.activo.checked = client.activo;

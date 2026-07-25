@@ -37,10 +37,12 @@ class AdministracionAccesoApiTest extends TestCase
                 'codigo' => 'AG-001',
                 'nombre' => 'LA AGUADA',
                 'codigo_externo' => 'ERP-AGUADA',
+                'codigo_folio_materiales' => 'AG',
                 'activo' => true,
             ])
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'AG-001')
+            ->assertJsonPath('data.codigo_folio_materiales', 'AG')
             ->json('data.id');
 
         $this->assertDatabaseHas('clientes_materiales', [
@@ -58,6 +60,7 @@ class AdministracionAccesoApiTest extends TestCase
             'codigo' => 'AG-002',
             'nombre' => 'LA AGUADA ACTUALIZADA',
             'codigo_externo' => 'ERP-AGUADA',
+            'codigo_folio_materiales' => 'AG',
             'activo' => true,
         ])
             ->assertOk()
@@ -82,6 +85,15 @@ class AdministracionAccesoApiTest extends TestCase
 
         $this->postJson('/api/administracion/materiales/clientes', [])->assertStatus(405);
         $this->postJson('/api/administracion/validacion/clientes', [])->assertNotFound();
+
+        $this->postJson('/api/administracion/clientes', [
+            'codigo' => 'CLIENTE-NUMERICO',
+            'nombre' => 'CLIENTE CON CÓDIGO CORTO INVÁLIDO',
+            'codigo_folio_materiales' => 'A1',
+            'activo' => true,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('codigo_folio_materiales');
     }
 
     public function test_bodega_asocia_proveedores_a_clientes_globales_sin_duplicarlos(): void

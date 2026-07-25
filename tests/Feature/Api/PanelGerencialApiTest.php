@@ -57,20 +57,23 @@ class PanelGerencialApiTest extends TestCase
             ->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('data.actualizacion_segundos', 30)
-            ->assertJsonPath('data.camaras.resumen.operativas', 2)
-            ->assertJsonPath('data.camaras.resumen.ocupadas', 1)
+            ->assertJsonPath('data.camaras.resumen.operativas', 3)
+            ->assertJsonPath('data.camaras.resumen.ocupadas', 2)
             ->assertJsonPath('data.camaras.resumen.disponibles', 1)
-            ->assertJsonPath('data.camaras.resumen.ocupacion_porcentaje', 50)
+            ->assertJsonPath('data.camaras.resumen.ocupacion_porcentaje', 66.7)
             ->assertJsonPath('data.productos.total_activos', 3)
             ->assertJsonPath('data.productos.disponibles_despacho', 1)
             ->assertJsonPath('data.productos.pendientes_prefrio', 1)
             ->assertJsonPath('data.productos.bloqueados', 1)
             ->assertJsonPath('data.materiales.items_con_stock', 1)
-            ->assertJsonPath('data.materiales.folios_con_stock', 1)
+            ->assertJsonPath('data.materiales.folios_con_stock', 3)
             ->assertJsonPath('data.materiales.unidades_medida.0.unidad_medida', 'unidad')
-            ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_actual', 125)
+            ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_actual', 155)
             ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_reservada', 25)
             ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_disponible', 100)
+            ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_bloqueada', 20)
+            ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_pendiente_ubicacion', 10)
+            ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_no_disponible', 0)
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.cliente.codigo', 'GENERAL')
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.temporada.activa', true)
             ->assertJsonPath('data.prefrio.tuneles_operativos', 1)
@@ -172,19 +175,81 @@ class PanelGerencialApiTest extends TestCase
             'creado_por_user_id' => $administrador->id,
             'actualizado_por_user_id' => $administrador->id,
         ]);
-        $folio = Folio::create([
-            'numero_folio' => 'MAT-FOLIO-001',
+        $operador = User::factory()->create([
+            'rol' => RolUsuario::CamareroMateriales,
+            'activo' => true,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-GE',
+            'nombre' => 'Tablet materiales gerencia',
+        ]);
+        $camara = Camara::create([
+            'codigo' => 'MAT-GE-01',
+            'nombre' => 'Cámara materiales gerencia',
+            'contenido' => ContenidoCamara::Materiales,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $posicion = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P01-N1',
+        ]);
+        $sesion = app(ServicioSesionEstiba::class)->abrir(
+            $camara,
+            $operador,
+            $dispositivo,
+        );
+        $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
+            operacionId: (string) Str::uuid(),
+            numeroFolio: 'MAT-FOLIO-001',
+            tipoBulto: TipoBulto::Material,
+            posicionDestino: $posicion,
+            sesionDestino: $sesion,
+            usuario: $operador,
+            dispositivo: $dispositivo,
+            versionDestinoConocida: 0,
+            generadoDispositivoAt: now(),
+            datosMaterial: [
+                'item_material_id' => $item->id,
+                'cantidad' => 125,
+            ],
+        );
+        $movimiento->folio->material->update(['cantidad_reservada' => 25]);
+
+        $folioBloqueado = Folio::create([
+            'numero_folio' => 'MAT-FOLIO-BLOQ',
             'tipo_bulto' => TipoBulto::Material,
-            'estado_operacional' => EstadoOperacionalFolio::Disponible,
+            'estado_operacional' => EstadoOperacionalFolio::Bloqueado,
             'fecha_ingreso' => now(),
             'activo' => true,
         ]);
         FolioMaterial::create([
-            'folio_id' => $folio->id,
+            'folio_id' => $folioBloqueado->id,
             'item_material_id' => $item->id,
-            'cantidad_inicial' => 125,
-            'cantidad_actual' => 125,
-            'cantidad_reservada' => 25,
+            'cantidad_inicial' => 20,
+            'cantidad_actual' => 20,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => 'unidad',
+            'motivo_bloqueo' => 'Pendiente de revisión.',
+        ]);
+
+        $folioPendiente = Folio::create([
+            'numero_folio' => 'MAT-FOLIO-PEND',
+            'tipo_bulto' => TipoBulto::Material,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folioPendiente->id,
+            'item_material_id' => $item->id,
+            'cantidad_inicial' => 10,
+            'cantidad_actual' => 10,
+            'cantidad_reservada' => 0,
             'unidad_medida' => 'unidad',
         ]);
     }

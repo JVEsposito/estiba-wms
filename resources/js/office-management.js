@@ -379,6 +379,9 @@ function renderMaterialChart() {
             datasets: [
                 { label: 'Disponible', data: items.map((item) => item.cantidad_disponible), backgroundColor: palette.purple, borderRadius: 5, borderSkipped: false },
                 { label: 'Reservado', data: items.map((item) => item.cantidad_reservada), backgroundColor: palette.amber, borderRadius: 5, borderSkipped: false },
+                { label: 'Bloqueado', data: items.map((item) => item.cantidad_bloqueada), backgroundColor: palette.red, borderRadius: 5, borderSkipped: false },
+                { label: 'Pendiente de ubicación', data: items.map((item) => item.cantidad_pendiente_ubicacion), backgroundColor: palette.quiet, borderRadius: 5, borderSkipped: false },
+                { label: 'No disponible', data: items.map((item) => item.cantidad_no_disponible), backgroundColor: palette.muted, borderRadius: 5, borderSkipped: false },
             ],
         },
         options: {
@@ -404,8 +407,11 @@ function renderMaterialChart() {
 
     elements.materialSummary.innerHTML = selected ? `
         <span><b>${formatQuantity(selected.cantidad_actual)} ${escapeHtml(selected.unidad_medida)}</b>stock actual</span>
-        <span><b>${formatQuantity(selected.cantidad_reservada)} ${escapeHtml(selected.unidad_medida)}</b>reservado</span>
         <span><b>${formatQuantity(selected.cantidad_disponible)} ${escapeHtml(selected.unidad_medida)}</b>disponible</span>
+        <span><b>${formatQuantity(selected.cantidad_reservada)} ${escapeHtml(selected.unidad_medida)}</b>reservado</span>
+        <span><b>${formatQuantity(selected.cantidad_bloqueada)} ${escapeHtml(selected.unidad_medida)}</b>bloqueado</span>
+        <span><b>${formatQuantity(selected.cantidad_pendiente_ubicacion)} ${escapeHtml(selected.unidad_medida)}</b>pendiente de ubicación</span>
+        <span><b>${formatQuantity(selected.cantidad_no_disponible)} ${escapeHtml(selected.unidad_medida)}</b>no disponible</span>
     ` : '<span>Sin materiales con stock</span>';
 }
 

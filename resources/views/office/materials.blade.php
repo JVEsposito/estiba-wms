@@ -146,7 +146,7 @@
 
                     <section class="panel materials-panel materials-inventory-panel">
                         <div class="materials-panel__heading"><div><p class="eyebrow">EXISTENCIA POR CLIENTE</p><h2>Folios en cámaras</h2><span id="materialsInventorySummary">Sin existencias</span></div><div class="materials-panel__tools"><select id="materialsInventoryClient" aria-label="Filtrar inventario por cliente"><option value="">Todos los clientes</option></select><input id="materialsInventorySearch" type="search" placeholder="Buscar folio o ítem"></div></div>
-                        <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
+                        <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Estado</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
                     </section>
                 </div>
             </section>

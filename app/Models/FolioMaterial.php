@@ -89,6 +89,11 @@ class FolioMaterial extends Model
         return $this->hasMany(CorreccionItemFolioMaterial::class, 'folio_id');
     }
 
+    public function eventosBloqueo(): HasMany
+    {
+        return $this->hasMany(EventoBloqueoMaterial::class, 'folio_id');
+    }
+
     protected function casts(): array
     {
         return [

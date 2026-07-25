@@ -54,6 +54,8 @@ class RecepcionMaterialResource extends JsonResource
                     'categoria_operacional_etiqueta' => $detalle->categoria_operacional->etiqueta(),
                     'unidad_medida' => $detalle->unidad_medida,
                     'cantidad_documental' => $detalle->cantidad_documental,
+                    'cantidad_contada' => $detalle->cantidad_contada,
+                    'cantidad_aceptada' => $detalle->cantidad_recibida,
                     'cantidad_recibida' => $detalle->cantidad_recibida,
                     'cantidad_rechazada' => $detalle->cantidad_rechazada,
                     'observacion' => $detalle->observacion,
