@@ -508,9 +508,12 @@ class ServicioRecepcionMaterial
         $cantidadRechazada = $this->cantidad($linea['cantidad_rechazada'] ?? 0, permitirCero: true);
 
         if (abs($cantidadContada - $cantidadAceptada - $cantidadRechazada) > 0.0001) {
-            throw new DomainException(
-                'La cantidad contada debe coincidir con la suma de cantidad aceptada y rechazada.',
-            );
+            throw new DomainException(sprintf(
+                'La cantidad contada (%.3f) debe coincidir con la suma de cantidad aceptada (%.3f) y rechazada (%.3f).',
+                $cantidadContada,
+                $cantidadAceptada,
+                $cantidadRechazada,
+            ));
         }
 
         $detalle = DetalleRecepcionMaterial::create([
