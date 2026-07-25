@@ -34,7 +34,7 @@ class CrearRecepcionMaterialRequest extends FormRequest
             'detalles.*.cantidad_recibida' => ['nullable', 'numeric', 'min:0', 'decimal:0,3'],
             'detalles.*.cantidad_rechazada' => ['required', 'numeric', 'min:0', 'decimal:0,3'],
             'detalles.*.observacion' => ['nullable', 'string', 'max:2000'],
-            'detalles.*.bultos' => ['required', 'array', 'max:500'],
+            'detalles.*.bultos' => ['present', 'array', 'max:500'],
             'detalles.*.bultos.*.cantidad' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
             'detalles.*.bultos.*.lote_proveedor' => ['nullable', 'string', 'max:100'],
             'detalles.*.bultos.*.fecha_fabricacion' => ['nullable', 'date'],
