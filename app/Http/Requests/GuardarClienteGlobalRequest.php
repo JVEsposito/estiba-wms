@@ -44,7 +44,7 @@ class GuardarClienteGlobalRequest extends FormRequest
                 'nullable',
                 'string',
                 'size:2',
-                'regex:/^[A-Z0-9]{2}$/',
+                'regex:/^[A-Z]{2}$/',
                 Rule::unique('clientes', 'codigo_folio_materiales')->ignore($clienteId),
             ],
             'activo' => ['required', 'boolean'],

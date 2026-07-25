@@ -65,6 +65,8 @@ export type ReceptionDetail = {
   categoria_operacional_etiqueta: string;
   unidad_medida: string;
   cantidad_documental: string;
+  cantidad_contada: string;
+  cantidad_aceptada: string;
   cantidad_recibida: string;
   cantidad_rechazada: string;
   observacion: string | null;
@@ -131,7 +133,7 @@ export type ReceptionDraftDetail = {
   local_id: string;
   item_material_id: string;
   cantidad_documental: string;
-  cantidad_rechazada: string;
+  cantidad_contada: string;
   observacion: string;
   bultos: ReceptionDraftPackage[];
 };
@@ -149,6 +151,8 @@ export type CreateMaterialReceptionPayload = {
   detalles: Array<{
     item_material_id: string;
     cantidad_documental: number;
+    cantidad_contada: number;
+    cantidad_aceptada: number;
     cantidad_recibida: number;
     cantidad_rechazada: number;
     observacion: string | null;

@@ -54,7 +54,11 @@ class ServicioRecepcionMaterial
 
                 if ($existente) {
                     if ($existente->creado_por_user_id !== $usuario->id
-                        || ! hash_equals($existente->payload_hash, $payloadHash)) {
+                        || ! $this->coincidePayloadCreacion(
+                            $existente->payload_hash,
+                            $datos,
+                            $payloadHash,
+                        )) {
                         throw new ConflictoOperacion(
                             'El UUID de creación ya fue utilizado con datos diferentes.',
                         );
@@ -106,7 +110,11 @@ class ServicioRecepcionMaterial
 
             if ($existente
                 && $existente->creado_por_user_id === $usuario->id
-                && hash_equals($existente->payload_hash, $payloadHash)) {
+                && $this->coincidePayloadCreacion(
+                    $existente->payload_hash,
+                    $datos,
+                    $payloadHash,
+                )) {
                 return $this->cargar($existente);
             }
 
@@ -171,10 +179,13 @@ class ServicioRecepcionMaterial
                 );
             }
 
+            $requiereFolio = $recepcion->detalles->contains(
+                fn (DetalleRecepcionMaterial $detalle): bool => $detalle->bultos->isNotEmpty(),
+            );
             [$cliente, $proveedor, $vinculoProveedor] = $this->validarCabecera(
                 $recepcion->cliente_id,
                 $recepcion->proveedor_material_id,
-                exigirCodigoFolio: true,
+                exigirCodigoFolio: $requiereFolio,
             );
 
             if ($recepcion->detalles->isEmpty()) {
@@ -199,14 +210,14 @@ class ServicioRecepcionMaterial
 
                 if (abs($sumaBultos - (float) $detalle->cantidad_recibida) > 0.0001) {
                     throw new DomainException(sprintf(
-                        'La distribución física del ítem %s no coincide con la cantidad recibida.',
+                        'La distribución física del ítem %s no coincide con la cantidad aceptada.',
                         $item->codigo,
                     ));
                 }
 
-                if ($detalle->bultos->isEmpty()) {
+                if ((float) $detalle->cantidad_recibida > 0 && $detalle->bultos->isEmpty()) {
                     throw new DomainException(sprintf(
-                        'El ítem %s no posee bultos físicos definidos.',
+                        'El ítem %s posee cantidad aceptada, pero no tiene bultos físicos definidos.',
                         $item->codigo,
                     ));
                 }
@@ -492,11 +503,17 @@ class ServicioRecepcionMaterial
             $temporadaId,
         );
         $cantidadDocumental = $this->cantidad($linea['cantidad_documental']);
-        $cantidadRecibida = $this->cantidad($linea['cantidad_recibida']);
+        $cantidadContada = $this->cantidad($linea['cantidad_contada']);
+        $cantidadAceptada = $this->cantidad($linea['cantidad_aceptada'], permitirCero: true);
         $cantidadRechazada = $this->cantidad($linea['cantidad_rechazada'] ?? 0, permitirCero: true);
 
-        if ($cantidadRecibida <= 0) {
-            throw new DomainException('La cantidad recibida debe ser mayor que cero.');
+        if (abs($cantidadContada - $cantidadAceptada - $cantidadRechazada) > 0.0001) {
+            throw new DomainException(sprintf(
+                'La cantidad contada (%.3f) debe coincidir con la suma de cantidad aceptada (%.3f) y rechazada (%.3f).',
+                $cantidadContada,
+                $cantidadAceptada,
+                $cantidadRechazada,
+            ));
         }
 
         $detalle = DetalleRecepcionMaterial::create([
@@ -505,7 +522,8 @@ class ServicioRecepcionMaterial
             'categoria_operacional' => $item->categoria_operacional,
             'unidad_medida' => $item->unidad_medida,
             'cantidad_documental' => $cantidadDocumental,
-            'cantidad_recibida' => $cantidadRecibida,
+            'cantidad_contada' => $cantidadContada,
+            'cantidad_recibida' => $cantidadAceptada,
             'cantidad_rechazada' => $cantidadRechazada,
             'observacion' => $this->textoOpcional($linea['observacion'] ?? null),
         ]);
@@ -534,9 +552,9 @@ class ServicioRecepcionMaterial
             $sumaBultos = round($sumaBultos + $cantidad, 3);
         }
 
-        if (abs($sumaBultos - $cantidadRecibida) > 0.0001) {
+        if (abs($sumaBultos - $cantidadAceptada) > 0.0001) {
             throw new DomainException(sprintf(
-                'La suma de bultos del ítem %s debe coincidir con la cantidad recibida.',
+                'La suma de bultos del ítem %s debe coincidir con la cantidad aceptada.',
                 $item->codigo,
             ));
         }
@@ -585,9 +603,9 @@ class ServicioRecepcionMaterial
         if ($exigirCodigoFolio) {
             $codigo = mb_strtoupper(trim((string) $cliente->codigo_folio_materiales));
 
-            if (! preg_match('/^[A-Z0-9]{2}$/', $codigo)) {
+            if (! preg_match('/^[A-Z]{2}$/', $codigo)) {
                 throw new DomainException(
-                    'El cliente debe tener un código de folio de materiales de exactamente dos caracteres.',
+                    'El cliente debe tener un código de folio de materiales de exactamente dos letras.',
                 );
             }
         }
@@ -732,6 +750,36 @@ class ServicioRecepcionMaterial
         } catch (JsonException $exception) {
             throw new DomainException('No fue posible normalizar la operación.', previous: $exception);
         }
+    }
+
+    /**
+     * Acepta reintentos creados antes de separar cantidad contada y aceptada.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function coincidePayloadCreacion(
+        string $hashGuardado,
+        array $datos,
+        string $hashActual,
+    ): bool {
+        if (hash_equals($hashGuardado, $hashActual)) {
+            return true;
+        }
+
+        $payloadAnterior = $datos;
+
+        foreach ($payloadAnterior['detalles'] ?? [] as $indice => $detalle) {
+            if (! is_array($detalle)) {
+                continue;
+            }
+
+            unset(
+                $payloadAnterior['detalles'][$indice]['cantidad_contada'],
+                $payloadAnterior['detalles'][$indice]['cantidad_aceptada'],
+            );
+        }
+
+        return hash_equals($hashGuardado, $this->payloadHash($payloadAnterior));
     }
 
     private function normalizar(mixed $valor): mixed

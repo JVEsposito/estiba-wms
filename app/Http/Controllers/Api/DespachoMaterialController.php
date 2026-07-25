@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoPosicion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
@@ -132,7 +134,10 @@ class DespachoMaterialController extends Controller
                 $posicion = $folio->ubicacionActual?->posicion;
                 $ubicado = $posicion?->camara?->contenido === ContenidoCamara::Materiales;
                 $reservable = $ubicado
-                    && $folio->estado_operacional === EstadoOperacionalFolio::Disponible;
+                    && $posicion->estado === EstadoPosicion::Activa
+                    && $posicion->camara?->estado === EstadoCamara::Activa
+                    && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
+                    && $material->motivo_bloqueo === null;
                 $disponible = $reservable
                     ? max(0, (float) $material->cantidad_actual - (float) $material->cantidad_reservada)
                     : 0;
@@ -144,6 +149,7 @@ class DespachoMaterialController extends Controller
                     'estado_operacional' => $folio->estado_operacional->value,
                     'estado_ubicacion' => $ubicado ? 'ubicado' : 'pendiente_ubicacion',
                     'reservable' => $reservable,
+                    'motivo_bloqueo' => $material->motivo_bloqueo,
                     'item' => [
                         'id' => $material->item->id,
                         'cliente' => [
@@ -199,7 +205,8 @@ class DespachoMaterialController extends Controller
                         'unidad_medida' => $unidad,
                         'cantidad_actual' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
                         'cantidad_pendiente_ubicacion' => number_format($grupo
-                            ->where('estado_ubicacion', 'pendiente_ubicacion')
+                            ->filter(fn (array $fila): bool => $fila['estado_ubicacion'] === 'pendiente_ubicacion'
+                                && $fila['estado_operacional'] !== EstadoOperacionalFolio::Bloqueado->value)
                             ->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
                         'cantidad_bloqueada' => number_format($grupo
                             ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
@@ -213,7 +220,8 @@ class DespachoMaterialController extends Controller
                     'cliente' => $cliente,
                     'folios' => $existencias->count(),
                     'folios_pendientes_ubicacion' => $existencias
-                        ->where('estado_ubicacion', 'pendiente_ubicacion')
+                        ->filter(fn (array $fila): bool => $fila['estado_ubicacion'] === 'pendiente_ubicacion'
+                            && $fila['estado_operacional'] !== EstadoOperacionalFolio::Bloqueado->value)
                         ->count(),
                     'folios_bloqueados' => $existencias
                         ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)

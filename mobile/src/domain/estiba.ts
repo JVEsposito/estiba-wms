@@ -30,6 +30,7 @@ export type UserCapabilities = {
   puede_retirar_materiales: boolean;
   puede_cancelar_despachos_materiales: boolean;
   puede_consultar_kardex_materiales: boolean;
+  puede_gestionar_bloqueos_materiales?: boolean;
   puede_consultar_recepciones_materiales?: boolean;
   puede_gestionar_recepciones_materiales?: boolean;
   puede_anular_recepciones_materiales?: boolean;

@@ -10,7 +10,9 @@ retiros parciales por cantidad.
 
 - Una cámara se clasifica como `productos` o `materiales` al configurarla.
 - Una cámara ocupada no puede cambiar de clasificación.
-- Un folio de material representa un único ítem y ocupa una posición física.
+- Un folio de material representa un único ítem. Una posición puede contener
+  varios folios pequeños cuando la operación física los mantiene apilados en
+  el mismo bulto o sector autorizado.
 - El ítem se selecciona desde el catálogo administrado en oficina.
 - El ingreso registra cantidad inicial, unidad de medida, lote, proveedor y
   observación. La unidad se copia desde el catálogo y no puede cambiarse en un
@@ -36,6 +38,56 @@ En Materiales el administrador mantiene:
 Los registros se activan o desactivan; no se eliminan físicamente. Los campos
 de integración permiten que una futura sincronización con ERP mantenga la
 identidad interna del registro.
+
+## Recepción y conciliación física
+
+Recepción de Materiales distingue cuatro cantidades por ítem:
+
+```text
+cantidad documental = lo indicado por la guía
+cantidad contada = lo observado físicamente
+cantidad aceptada = suma de los bultos que generan folio
+cantidad rechazada = parte contada que no ingresa al inventario
+```
+
+La conciliación obligatoria es:
+
+```text
+cantidad contada = cantidad aceptada + cantidad rechazada
+```
+
+La cantidad documental puede diferir de la contada y esa diferencia permanece
+visible como antecedente operacional. Los folios se generan exclusivamente por
+los bultos aceptados. Un ítem totalmente rechazado conserva su línea documental
+y física, pero no crea folios ni saldo de inventario.
+
+El formato del folio es único: `F` + las dos letras configuradas para el cliente
++ un correlativo de siete dígitos. Por ejemplo, el primer folio del cliente
+`AG` es `FAG0000001`; no existe un prefijo fijo `FAG` para todos los clientes.
+
+El contrato mantiene temporalmente `cantidad_recibida` como alias de
+`cantidad_aceptada` para no interrumpir clientes móviles anteriores.
+
+## Bloqueo supervisado
+
+Administrador y supervisor de Materiales pueden bloquear un folio activo que no
+posea reservas. El bloqueo exige motivo, retira inmediatamente el saldo de la
+disponibilidad y no elimina su ubicación ni su existencia física.
+
+La liberación también exige motivo y registra usuario, fecha, estado anterior y
+estado resultante:
+
+- un folio ubicado vuelve a `disponible`;
+- un folio sin ubicación vuelve a `pendiente_ubicacion`.
+
+Cada acción utiliza UUID idempotente y queda registrada en
+`eventos_bloqueos_materiales`. Camareros, despachadores y perfiles de consulta
+pueden observar el estado, pero no modificarlo.
+
+El panel gerencial separa stock actual, disponible, reservado, bloqueado y
+pendiente de ubicación. Solo se considera disponible el saldo de folios
+ubicados en posiciones y cámaras de Materiales activas, con estado
+`disponible` y sin motivo de bloqueo.
 
 ### Cambio de temporada e inventario
 

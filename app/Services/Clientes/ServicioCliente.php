@@ -240,9 +240,9 @@ class ServicioCliente
             return null;
         }
 
-        if (! preg_match('/^[A-Z0-9]{2}$/', $codigo)) {
+        if (! preg_match('/^[A-Z]{2}$/', $codigo)) {
             throw new DomainException(
-                'El código corto de folios de materiales debe tener exactamente dos caracteres alfanuméricos.',
+                'El código corto de folios de materiales debe tener exactamente dos letras.',
             );
         }
 

@@ -21,6 +21,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RecepcionMaterialApiTest extends TestCase
@@ -208,6 +209,148 @@ class RecepcionMaterialApiTest extends TestCase
                 'motivo' => $anulada['motivo'],
             ])
             ->assertConflict();
+    }
+
+    public function test_camarero_crea_y_confirma_su_recepcion_pero_no_puede_anularla(): void
+    {
+        [, , $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        [, , $tokenCamarero] = $this->crearOperador();
+        $payload = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 4, 'lote_proveedor' => 'L-CAM-01']],
+        );
+
+        $recepcion = $this->conToken($tokenCamarero)
+            ->postJson('/api/materiales/recepciones', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->json('data');
+        $this->conToken($tokenCamarero)
+            ->getJson("/api/materiales/recepciones/{$recepcion['id']}")
+            ->assertOk();
+        $this->conToken($tokenCamarero)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'confirmada')
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001');
+        $this->conToken($tokenCamarero)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Intento sin atribución de supervisión.',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_concilia_contado_aceptado_y_rechazado_y_rechaza_inconsistencias(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'proveedor_material_id' => $proveedor->id,
+            'numero_guia_despacho' => 'GD-CONCILIADA-001',
+            'detalles' => [[
+                'item_material_id' => $item->id,
+                'cantidad_documental' => 12,
+                'cantidad_contada' => 10,
+                'cantidad_aceptada' => 7,
+                'cantidad_rechazada' => 3,
+                'bultos' => [['cantidad' => 7]],
+            ]],
+        ];
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.detalles.0.cantidad_documental', '12.000')
+            ->assertJsonPath('data.detalles.0.cantidad_contada', '10.000')
+            ->assertJsonPath('data.detalles.0.cantidad_aceptada', '7.000')
+            ->assertJsonPath('data.detalles.0.cantidad_recibida', '7.000')
+            ->assertJsonPath('data.detalles.0.cantidad_rechazada', '3.000')
+            ->json('data');
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.detalles.0.bultos');
+        $this->assertDatabaseHas('folios_materiales', [
+            'cantidad_inicial' => 7,
+            'cantidad_actual' => 7,
+        ]);
+
+        $inconsistente = $payload;
+        $inconsistente['operacion_id'] = (string) Str::uuid();
+        $inconsistente['numero_guia_despacho'] = 'GD-INCONSISTENTE-001';
+        $inconsistente['detalles'][0]['cantidad_contada'] = 11;
+        $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $inconsistente)
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+    }
+
+    /**
+     * @param  array<string, int|string>  $cantidadAceptada
+     */
+    #[DataProvider('cantidadesCeroAceptadas')]
+    public function test_confirma_rechazo_total_sin_generar_folios(
+        array $cantidadAceptada,
+    ): void {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'proveedor_material_id' => $proveedor->id,
+            'numero_guia_despacho' => 'GD-RECHAZO-TOTAL-001',
+            'detalles' => [[
+                'item_material_id' => $item->id,
+                'cantidad_documental' => 5,
+                'cantidad_contada' => 5,
+                ...$cantidadAceptada,
+                'cantidad_rechazada' => 5,
+                'bultos' => [],
+            ]],
+        ];
+        $rechazada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.detalles.0.cantidad_contada', '5.000')
+            ->assertJsonPath('data.detalles.0.cantidad_aceptada', '0.000')
+            ->assertJsonPath('data.detalles.0.cantidad_recibida', '0.000')
+            ->assertJsonPath('data.detalles.0.cantidad_rechazada', '5.000')
+            ->assertJsonCount(0, 'data.detalles.0.bultos')
+            ->json('data');
+        $foliosAntes = Folio::query()->where('tipo_bulto', 'material')->count();
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$rechazada['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'confirmada')
+            ->assertJsonCount(0, 'data.snapshot_confirmacion.folios');
+        $this->assertSame(
+            $foliosAntes,
+            Folio::query()->where('tipo_bulto', 'material')->count(),
+        );
+    }
+
+    /**
+     * @return array<string, array{array<string, int|string>}>
+     */
+    public static function cantidadesCeroAceptadas(): array
+    {
+        return [
+            'cantidad aceptada numérica' => [['cantidad_aceptada' => 0]],
+            'cantidad aceptada textual' => [['cantidad_aceptada' => '0']],
+            'alias legado cantidad recibida' => [['cantidad_recibida' => '0']],
+        ];
     }
 
     public function test_proveedor_solo_puede_recibir_items_de_categorias_habilitadas(): void

@@ -21,7 +21,7 @@ Todavía no incorpora:
 
 - consumo físico de los folios reservados;
 - apertura y cierre operacional de lotes;
-- generación de folios FAG de salida;
+- generación de folios de salida con prefijo por cliente;
 - impresión de etiquetas de transformación;
 - oficina web o flujo PDA;
 - integración del panel gerencial.
@@ -50,7 +50,7 @@ Receta versionada
 → inicio
 → lotes parciales
 → consumos reales
-→ generación de folios FAG material_pt
+→ generación de folios de salida `material_pt`
 → folios visibles y pendientes de ubicación
 → estiba en cámara de Materiales
 → disponibilidad para reservas y despacho
@@ -153,7 +153,7 @@ Cada lote podrá vincular:
 folios de entrada
 → cantidades consumidas
 → lote de transformación
-→ folios FAG de salida
+→ folios de salida con prefijo por cliente
 ```
 
 El origen de los materiales se remonta a Recepción de Materiales y sus guías de
@@ -162,7 +162,7 @@ proveedor. `REC-*` pertenece a Romana y no forma parte de esta genealogía.
 Los folios producidos utilizarán el mismo correlativo global por cliente:
 
 ```text
-F + código de cliente de 2 caracteres + correlativo de 7 dígitos
+F + código de cliente de 2 letras + correlativo de 7 dígitos
 ```
 
 Nacerán como existencia visible, `pendiente_ubicacion` y no reservable. La

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdministracionAccesoController;
 use App\Http\Controllers\Api\AdministracionTemporadaController;
 use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AndenController;
+use App\Http\Controllers\Api\BloqueoMaterialController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
@@ -168,6 +169,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:consultar-kardex-materiales');
     Route::post('/materiales/inventario/{folioMaterial}/corregir-item', [CorreccionItemMaterialController::class, 'store'])
         ->middleware('can:corregir-items-estibados-materiales');
+    Route::middleware('can:gestionar-bloqueos-materiales')->group(function () {
+        Route::post('/materiales/inventario/{folioMaterial}/bloquear', [BloqueoMaterialController::class, 'bloquear']);
+        Route::post('/materiales/inventario/{folioMaterial}/liberar-bloqueo', [BloqueoMaterialController::class, 'liberar']);
+    });
     Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])
         ->middleware('can:gestionar-despachos-materiales');
     Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])

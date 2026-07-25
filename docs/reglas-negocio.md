@@ -223,7 +223,22 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 5. Una falla del ERP no debe impedir una operación manual autorizada.
 6. Toda importación conserva origen, fecha, resultado y errores.
 
-## 16. Autorización
+## 16. Recepción y bloqueo de materiales
+
+1. La cantidad contada debe ser igual a la cantidad aceptada más la rechazada.
+2. Los bultos físicos deben sumar exactamente la cantidad aceptada.
+3. Solo la cantidad aceptada genera folios y movimientos de ingreso.
+4. Un rechazo total puede confirmarse sin crear inventario.
+5. `cantidad_recibida` permanece como alias compatible de cantidad aceptada.
+6. Un folio con reservas activas no puede bloquearse.
+7. Bloquear o liberar exige supervisor de Materiales o administrador, UUID de
+   operación y motivo.
+8. Liberar un folio ubicado lo deja disponible; sin ubicación lo devuelve a
+   pendiente de ubicación.
+9. La disponibilidad gerencial excluye materiales bloqueados, no ubicados o
+   almacenados en infraestructura inactiva.
+
+## 17. Autorización
 
 Los roles vigentes son:
 

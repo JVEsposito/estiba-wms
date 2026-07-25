@@ -38,7 +38,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
-    cancellationOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
+    cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
@@ -258,7 +258,30 @@ function renderInventory() {
         ? `${selectedSummary.folios} folios · ${selectedSummary.items} ítems · ${selectedSummary.posiciones} posiciones`
         : `${rows.length} folios · ${clients.length} clientes`;
     const canCorrect = state.identity?.puede_corregir_items_estibados_materiales === true;
-    elements.inventoryBody.innerHTML = rows.map((folio) => `<tr><td><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(folio.lote || 'Sin lote')}</small></td><td><strong>${escapeHtml(folio.item.cliente?.codigo || '—')} · ${escapeHtml(folio.item.cliente?.nombre || '—')}</strong><small>${escapeHtml(folio.item.cliente?.temporada?.codigo || '—')}</small></td><td><strong>${escapeHtml(folio.item.codigo)}</strong><small>${escapeHtml(folio.item.nombre)}</small></td><td>${quantity(folio.cantidad_actual)} ${escapeHtml(folio.unidad_medida)}</td><td>${quantity(folio.cantidad_reservada)}</td><td>${quantity(folio.cantidad_disponible)}</td><td><strong>${escapeHtml(folio.camara?.codigo || 'Sin cámara')}</strong><small>${escapeHtml(folio.posicion?.etiqueta || 'Sin posición')}</small></td><td>${canCorrect ? `<button data-correct-material="${folio.folio_id}" type="button">Corregir código</button>` : '—'}</td></tr>`).join('') || '<tr><td colspan="8">No existen folios coincidentes.</td></tr>';
+    const canManageBlock = state.identity?.puede_gestionar_bloqueos_materiales === true;
+    elements.inventoryBody.innerHTML = rows.map((folio) => {
+        const blocked = folio.estado_operacional === 'bloqueado';
+        const canBlock = canManageBlock
+            && ['disponible', 'pendiente_ubicacion'].includes(folio.estado_operacional)
+            && Number(folio.cantidad_reservada || 0) <= 0;
+        const status = blocked
+            ? `<strong class="material-status--blocked">Bloqueado</strong><small>${escapeHtml(folio.motivo_bloqueo || 'Sin motivo')}</small>`
+            : folio.estado_ubicacion === 'pendiente_ubicacion'
+                ? '<strong>Pendiente de ubicación</strong>'
+                : folio.reservable
+                    ? '<strong>Disponible</strong>'
+                    : '<strong>No disponible</strong>';
+        const actions = [
+            canCorrect ? `<button data-correct-material="${folio.folio_id}" type="button">Corregir código</button>` : '',
+            canManageBlock && blocked
+                ? `<button data-release-material="${folio.folio_id}" type="button">Liberar</button>`
+                : canBlock
+                    ? `<button data-block-material="${folio.folio_id}" type="button">Bloquear</button>`
+                    : '',
+        ].filter(Boolean).join(' ');
+
+        return `<tr><td><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(folio.lote || 'Sin lote')}</small></td><td><strong>${escapeHtml(folio.item.cliente?.codigo || '—')} · ${escapeHtml(folio.item.cliente?.nombre || '—')}</strong><small>${escapeHtml(folio.item.cliente?.temporada?.codigo || '—')}</small></td><td><strong>${escapeHtml(folio.item.codigo)}</strong><small>${escapeHtml(folio.item.nombre)}</small></td><td>${quantity(folio.cantidad_actual)} ${escapeHtml(folio.unidad_medida)}</td><td>${quantity(folio.cantidad_reservada)}</td><td>${quantity(folio.cantidad_disponible)}</td><td>${status}</td><td><strong>${escapeHtml(folio.camara?.codigo || 'Sin cámara')}</strong><small>${escapeHtml(folio.posicion?.etiqueta || 'Sin posición')}</small></td><td>${actions || '—'}</td></tr>`;
+    }).join('') || '<tr><td colspan="9">No existen folios coincidentes.</td></tr>';
 }
 function renderImportHistory() {
     elements.importHistory.innerHTML = state.imports.map((entry) => `<article class="material-row"><div><strong>${escapeHtml(entry.nombre_archivo)}</strong><small>${escapeHtml(entry.creado_por?.nombre || 'Usuario')} · ${escapeHtml(dateTime(entry.created_at))}</small></div><span class="material-import-action">${escapeHtml(statusText(entry.estado))}</span></article>`).join('') || '<p class="empty-state">Aún no existen importaciones.</p>';
@@ -520,7 +543,48 @@ elements.dispatchList.addEventListener('click', async (event) => {
 });
 elements.inventorySearch.addEventListener('input', renderInventory);
 elements.inventoryClient.addEventListener('change', renderInventory);
-elements.inventoryBody.addEventListener('click', (event) => {
+elements.inventoryBody.addEventListener('click', async (event) => {
+    const blockButton = event.target.closest('[data-block-material], [data-release-material]');
+    if (blockButton && state.identity?.puede_gestionar_bloqueos_materiales === true) {
+        const releasing = Boolean(blockButton.dataset.releaseMaterial);
+        const folioId = blockButton.dataset.releaseMaterial || blockButton.dataset.blockMaterial;
+        const folio = state.inventory.find((candidate) => candidate.folio_id === folioId);
+        if (!folio) return;
+        const key = `${releasing ? 'liberar' : 'bloquear'}:${folioId}`;
+        const previous = state.blockOperations.get(key);
+        const reason = window.prompt(
+            releasing
+                ? `Indica por qué se libera ${folio.numero_folio}:`
+                : `Indica por qué se bloquea ${folio.numero_folio}:`,
+            previous?.reason || '',
+        );
+        if (reason === null) return;
+        const normalizedReason = reason.trim();
+        if (normalizedReason.length < 5) {
+            toast('El motivo debe contener al menos 5 caracteres.', true);
+            return;
+        }
+        const operation = previous?.reason === normalizedReason
+            ? previous
+            : { id: operationUuid(), reason: normalizedReason };
+        state.blockOperations.set(key, operation);
+        setBusy(true, releasing ? 'Liberando material…' : 'Bloqueando material…');
+        try {
+            await api(`/api/materiales/inventario/${folioId}/${releasing ? 'liberar-bloqueo' : 'bloquear'}`, {
+                method: 'POST',
+                body: JSON.stringify({ operacion_id: operation.id, motivo: operation.reason }),
+            });
+            state.blockOperations.delete(key);
+            await loadAll();
+            toast(releasing ? 'Material liberado y disponible según su ubicación.' : 'Material bloqueado y retirado de la disponibilidad.');
+        } catch (error) {
+            toast(error.message, true);
+        } finally {
+            setBusy(false);
+        }
+        return;
+    }
+
     const button = event.target.closest('[data-correct-material]');
     if (!button || state.identity?.puede_corregir_items_estibados_materiales !== true) return;
     const folio = state.inventory.find((candidate) => candidate.folio_id === button.dataset.correctMaterial);

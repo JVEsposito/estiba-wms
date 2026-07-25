@@ -65,7 +65,14 @@ Opera únicamente cámaras de producto, movimientos, tareas de carga y acciones 
 
 ### `camarero_materiales`
 
-Opera únicamente cámaras de Materiales y ejecuta retiros sobre despachos existentes. Puede seleccionar líneas concretas dentro de una posición multilínea.
+Opera únicamente cámaras de Materiales, registra y confirma sus propias
+recepciones desde la tablet y ejecuta retiros sobre despachos existentes. Puede
+seleccionar líneas concretas dentro de una posición multilínea. Consulta
+recepciones confirmadas y sus propios borradores, pero no anula recepciones ni
+gestiona bloqueos.
+
+El bloqueo y la liberación de materiales están reservados al administrador y al
+supervisor de Materiales.
 
 ### `validador`
 
