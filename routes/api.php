@@ -198,6 +198,8 @@ Route::middleware('auth:sanctum')->group(function () {
         });
         Route::post('/{recepcionMaterial}/etiquetas', [ImpresionEtiquetaMaterialController::class, 'store'])
             ->middleware('can:imprimir-etiquetas-materiales');
+        Route::post('/trabajos-impresion/{trabajoImpresionMaterial}/resultado', [ImpresionEtiquetaMaterialController::class, 'resultado'])
+            ->middleware('can:imprimir-etiquetas-materiales');
 
         Route::post('/{recepcionMaterial}/anular', [RecepcionMaterialController::class, 'anular'])
             ->middleware('can:anular-recepciones-materiales');
