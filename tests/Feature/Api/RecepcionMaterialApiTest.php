@@ -21,6 +21,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class RecepcionMaterialApiTest extends TestCase
@@ -245,7 +246,7 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_concilia_contado_aceptado_y_rechazado_incluso_con_rechazo_total(): void
+    public function test_concilia_contado_aceptado_y_rechazado_y_rechaza_inconsistencias(): void
     {
         [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
         $payload = [
@@ -292,21 +293,37 @@ class RecepcionMaterialApiTest extends TestCase
             ->postJson('/api/materiales/recepciones', $inconsistente)
             ->assertUnprocessable()
             ->assertJsonPath('codigo', 'regla_de_negocio');
+    }
 
-        $rechazoTotal = $payload;
-        $rechazoTotal['operacion_id'] = (string) Str::uuid();
-        $rechazoTotal['numero_guia_despacho'] = 'GD-RECHAZO-TOTAL-001';
-        $rechazoTotal['detalles'][0] = [
-            'item_material_id' => $item->id,
-            'cantidad_documental' => 5,
-            'cantidad_contada' => 5,
-            'cantidad_aceptada' => 0,
-            'cantidad_rechazada' => 5,
-            'bultos' => [],
+    /**
+     * @param  array<string, int|string>  $cantidadAceptada
+     */
+    #[DataProvider('cantidadesCeroAceptadas')]
+    public function test_confirma_rechazo_total_sin_generar_folios(
+        array $cantidadAceptada,
+    ): void {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'proveedor_material_id' => $proveedor->id,
+            'numero_guia_despacho' => 'GD-RECHAZO-TOTAL-001',
+            'detalles' => [[
+                'item_material_id' => $item->id,
+                'cantidad_documental' => 5,
+                'cantidad_contada' => 5,
+                ...$cantidadAceptada,
+                'cantidad_rechazada' => 5,
+                'bultos' => [],
+            ]],
         ];
         $rechazada = $this->conToken($token)
-            ->postJson('/api/materiales/recepciones', $rechazoTotal)
+            ->postJson('/api/materiales/recepciones', $payload)
             ->assertCreated()
+            ->assertJsonPath('data.detalles.0.cantidad_contada', '5.000')
+            ->assertJsonPath('data.detalles.0.cantidad_aceptada', '0.000')
+            ->assertJsonPath('data.detalles.0.cantidad_recibida', '0.000')
+            ->assertJsonPath('data.detalles.0.cantidad_rechazada', '5.000')
             ->assertJsonCount(0, 'data.detalles.0.bultos')
             ->json('data');
         $foliosAntes = Folio::query()->where('tipo_bulto', 'material')->count();
@@ -322,6 +339,18 @@ class RecepcionMaterialApiTest extends TestCase
             $foliosAntes,
             Folio::query()->where('tipo_bulto', 'material')->count(),
         );
+    }
+
+    /**
+     * @return array<string, array{array<string, int|string>}>
+     */
+    public static function cantidadesCeroAceptadas(): array
+    {
+        return [
+            'cantidad aceptada numérica' => [['cantidad_aceptada' => 0]],
+            'cantidad aceptada textual' => [['cantidad_aceptada' => '0']],
+            'alias legado cantidad recibida' => [['cantidad_recibida' => '0']],
+        ];
     }
 
     public function test_proveedor_solo_puede_recibir_items_de_categorias_habilitadas(): void
