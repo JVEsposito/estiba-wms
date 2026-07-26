@@ -63,7 +63,8 @@ y física, pero no crea folios ni saldo de inventario.
 
 El formato del folio es único: `F` + las dos letras configuradas para el cliente
 + un correlativo de siete dígitos. Por ejemplo, el primer folio del cliente
-`AG` es `FAG0000001`; no existe un prefijo fijo `FAG` para todos los clientes.
+`GE` es `FGE0000001`; las letras centrales cambian según el cliente y no forman
+un prefijo fijo compartido.
 
 El contrato mantiene temporalmente `cantidad_recibida` como alias de
 `cantidad_aceptada` para no interrumpir clientes móviles anteriores.

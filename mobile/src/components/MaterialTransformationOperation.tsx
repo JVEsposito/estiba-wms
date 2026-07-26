@@ -441,7 +441,7 @@ export function MaterialTransformationOperation({
                       blurOnSubmit={false}
                       onChangeText={setScan}
                       onSubmitEditing={() => addScannedFolio()}
-                      placeholder="Pistolear folio FAG"
+                      placeholder="Pistolear folio de material"
                       placeholderTextColor={colors.muted}
                       style={[styles.input, styles.flex]}
                       value={scan}
@@ -506,7 +506,11 @@ export function MaterialTransformationOperation({
                     onChangeText={setActualQuantity}
                     value={actualQuantity}
                   />
-                  <PrimaryButton disabled={!canOperate} label="Cerrar lote y generar FAG" onPress={() => void closeLot()} />
+                  <PrimaryButton
+                    disabled={!canOperate}
+                    label="Cerrar lote y generar folio de salida"
+                    onPress={() => void closeLot()}
+                  />
                 </ActionCard>
               ) : null}
 

@@ -152,7 +152,7 @@
                             <label class="field"><span>Letras para folio de materiales</span><input name="codigo_folio_materiales" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" placeholder="AG"></label>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Cliente activo para todas las oficinas</span></label>
                         </div>
-                        <p class="admin-form__hint">Este es el único lugar para crear o modificar clientes. El folio de bodega usa F + 2 letras del cliente + 7 dígitos (ejemplo: FAG0000001).</p>
+                        <p class="admin-form__hint">Este es el único lugar para crear o modificar clientes. El folio de materiales usa F + 2 letras configuradas para el cliente + 7 dígitos (por ejemplo, para GE: FGE0000001).</p>
                         <p class="form-error" id="globalClientError" role="alert"></p>
                         <div class="admin-form__actions">
                             <button class="secondary-button is-hidden" id="cancelGlobalClientEdit" type="button">Nuevo cliente</button>
