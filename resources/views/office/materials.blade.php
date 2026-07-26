@@ -7,7 +7,7 @@
         <meta name="color-scheme" content="dark">
         <title>Estiba WMS · Materiales</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-labels.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-orders.js', 'resources/js/office-material-labels.js'])
         @endif
     </head>
     <body>
