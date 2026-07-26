@@ -160,6 +160,7 @@ La reversa se rechaza cuando:
 - existe otro lote abierto;
 - se intenta revertir un lote que no es el más reciente de la orden;
 - la orden ya fue cerrada;
+- alguna etiqueta del lote ya fue enviada a impresión directa;
 - el folio de salida fue ubicado, reservado o modificado;
 - un folio de entrada posee movimientos de inventario posteriores.
 
