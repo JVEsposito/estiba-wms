@@ -27,6 +27,7 @@ use App\Models\OrdenTransformacionMaterial;
 use App\Models\RecetaMaterial;
 use App\Models\ReservaTransformacionMaterial;
 use App\Models\SalidaTransformacionMaterial;
+use App\Models\TrabajoImpresionMaterial;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Models\VersionRecetaMaterial;
@@ -1068,6 +1069,15 @@ class ServicioTransformacionMaterial
             if (! $ultimoLote || $ultimoLote->id !== $lote->id) {
                 throw new DomainException(
                     'Solo se puede revertir el lote más reciente de la orden.',
+                );
+            }
+
+            if (TrabajoImpresionMaterial::query()
+                ->where('lote_transformacion_material_id', $lote->id)
+                ->where('estado', 'enviado')
+                ->exists()) {
+                throw new DomainException(
+                    'El lote posee etiquetas enviadas a impresión y no puede revertirse.',
                 );
             }
 
