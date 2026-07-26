@@ -22,8 +22,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'desviacion_merma',
     'iniciado_por_user_id',
     'cerrado_por_user_id',
+    'reversado_por_user_id',
     'iniciado_at',
     'cerrado_at',
+    'reversado_at',
+    'motivo_reversa',
 ])]
 class LoteTransformacionMaterial extends Model
 {
@@ -46,6 +49,11 @@ class LoteTransformacionMaterial extends Model
         return $this->hasMany(SalidaTransformacionMaterial::class, 'lote_transformacion_material_id');
     }
 
+    public function reversadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reversado_por_user_id');
+    }
+
     protected function casts(): array
     {
         return [
@@ -59,6 +67,7 @@ class LoteTransformacionMaterial extends Model
             'desviacion_merma' => 'decimal:3',
             'iniciado_at' => 'datetime',
             'cerrado_at' => 'datetime',
+            'reversado_at' => 'datetime',
         ];
     }
 }
