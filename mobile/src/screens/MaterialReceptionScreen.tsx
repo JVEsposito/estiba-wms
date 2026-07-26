@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { MaterialLabelPrintPanel } from '../components/MaterialLabelPrintPanel';
 import {
   CreateMaterialReceptionPayload,
   MaterialReception,
@@ -546,6 +547,9 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
             reception={selected}
             canManage={canManage}
             canAnnul={canAnnul}
+            canPrint={capabilities.puede_imprimir_etiquetas_materiales === true}
+            api={api}
+            deviceId={auth.dispositivo.id}
             annulReason={annulReason}
             onAnnulReason={setAnnulReason}
             onBack={() => setSelected(null)}
@@ -618,6 +622,9 @@ function ReceptionDetail({
   reception,
   canManage,
   canAnnul,
+  canPrint,
+  api,
+  deviceId,
   annulReason,
   onAnnulReason,
   onBack,
@@ -627,6 +634,9 @@ function ReceptionDetail({
   reception: MaterialReception;
   canManage: boolean;
   canAnnul: boolean;
+  canPrint: boolean;
+  api: ReturnType<typeof createMaterialReceptionApi>;
+  deviceId: string;
   annulReason: string;
   onAnnulReason: (value: string) => void;
   onBack: () => void;
@@ -687,6 +697,10 @@ function ReceptionDetail({
           ))}
         </View>
       ))}
+
+      {reception.estado === 'confirmada' && canPrint ? (
+        <MaterialLabelPrintPanel api={api} deviceId={deviceId} reception={reception} />
+      ) : null}
 
       {reception.estado === 'borrador' && canManage ? <Button label="Confirmar y generar folios" onPress={onConfirm} /> : null}
       {reception.estado === 'confirmada' && canAnnul ? (

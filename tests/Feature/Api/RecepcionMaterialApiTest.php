@@ -592,6 +592,120 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_tablet_informa_resultado_directo_sin_reintentar_un_estado_indeterminado(): void
+    {
+        [, $tokenOficina, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        [, $dispositivo, $tokenTablet] = $this->crearOperador();
+        $recepcion = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 2, 'lote_proveedor' => 'LOTE-IP-01']],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $perfil = PerfilImpresionEtiqueta::query()->where('predeterminado', true)->firstOrFail();
+        $folioId = $confirmada['detalles'][0]['bultos'][0]['folio']['id'];
+        $payloadDirecto = [
+            'operacion_id' => (string) Str::uuid(),
+            'perfil_id' => $perfil->id,
+            'formato' => 'zpl',
+            'canal' => 'pda_directa',
+            'folio_ids' => [$folioId],
+            'copias' => 1,
+        ];
+        $this->conToken($tokenOficina)
+            ->postJson(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                $payloadDirecto,
+            )
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->conToken($tokenTablet)
+            ->postJson(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                [
+                    ...$payloadDirecto,
+                    'operacion_id' => (string) Str::uuid(),
+                    'formato' => 'pdf',
+                ],
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('formato');
+        $generado = $this->conToken($tokenTablet)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                [
+                    ...$payloadDirecto,
+                    'operacion_id' => (string) Str::uuid(),
+                ],
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk();
+        $trabajoId = $generado->headers->get('X-Estiba-Print-Job');
+        $operacionResultado = (string) Str::uuid();
+        $resultado = [
+            'operacion_id' => $operacionResultado,
+            'estado' => 'indeterminado',
+            'bytes_enviados' => 0,
+            'error' => 'La conexión se cerró después de iniciar la escritura.',
+            'impresora' => [
+                'nombre' => 'Zebra patio',
+                'host' => '192.168.10.25',
+                'puerto' => 9100,
+            ],
+        ];
+
+        $this->conToken($tokenTablet)
+            ->postJson(
+                "/api/materiales/recepciones/trabajos-impresion/{$trabajoId}/resultado",
+                $resultado,
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'indeterminado');
+        $this->conToken($tokenTablet)
+            ->postJson(
+                "/api/materiales/recepciones/trabajos-impresion/{$trabajoId}/resultado",
+                $resultado,
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'indeterminado');
+        $this->assertDatabaseHas('trabajos_impresion_materiales', [
+            'id' => $trabajoId,
+            'estado' => 'indeterminado',
+            'dispositivo_id' => $dispositivo->id,
+            'resultado_operacion_id' => $operacionResultado,
+            'bytes_enviados' => 0,
+        ]);
+
+        $this->conToken($tokenTablet)
+            ->postJson(
+                "/api/materiales/recepciones/trabajos-impresion/{$trabajoId}/resultado",
+                [
+                    ...$resultado,
+                    'operacion_id' => (string) Str::uuid(),
+                    'estado' => 'enviado',
+                    'error' => null,
+                ],
+            )
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+        $this->conToken($tokenOficina)
+            ->postJson(
+                "/api/materiales/recepciones/trabajos-impresion/{$trabajoId}/resultado",
+                $resultado,
+            )
+            ->assertNotFound();
+    }
+
     private function prepararCatalogo(): array
     {
         $administrador = User::factory()->create([

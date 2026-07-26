@@ -1,5 +1,9 @@
 import {
   CreateMaterialReceptionPayload,
+  GenerateMaterialLabelsPayload,
+  LabelPrintProfile,
+  MaterialPrintJob,
+  MaterialPrintOutcomePayload,
   MaterialReception,
   MaterialReceptionCatalog,
   MaterialReceptionState,
@@ -89,6 +93,65 @@ export function createMaterialReceptionApi(baseUrl: string, token: string) {
       return (await request<ApiList<PendingReceptionFolio>>(
         '/api/materiales/recepciones/folios-pendientes?limit=1000',
       )).data;
+    },
+
+    async printProfiles(): Promise<LabelPrintProfile[]> {
+      return (await request<ApiList<LabelPrintProfile>>(
+        '/api/materiales/recepciones/perfiles-impresion',
+      )).data;
+    },
+
+    async printJobs(receptionId: string): Promise<MaterialPrintJob[]> {
+      return (await request<ApiList<MaterialPrintJob>>(
+        `/api/materiales/recepciones/${encodeURIComponent(receptionId)}/impresiones`,
+      )).data;
+    },
+
+    async generateLabels(
+      receptionId: string,
+      payload: GenerateMaterialLabelsPayload,
+    ): Promise<{ jobId: string; zpl: string }> {
+      let response: Response;
+      try {
+        response = await fetch(
+          `${baseUrl}/api/materiales/recepciones/${encodeURIComponent(receptionId)}/etiquetas`,
+          {
+            method: 'POST',
+            headers: {
+              Accept: 'application/zpl',
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          },
+        );
+      } catch {
+        throw new Error(`No fue posible conectar con ${baseUrl}. No se envió nada a la impresora.`);
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(validationMessage(data, 'No fue posible preparar las etiquetas.'));
+      }
+      const jobId = response.headers.get('X-Estiba-Print-Job');
+      if (!jobId) {
+        throw new Error('La API no devolvió el identificador auditable de impresión.');
+      }
+
+      return { jobId, zpl: await response.text() };
+    },
+
+    async reportPrintOutcome(
+      jobId: string,
+      payload: MaterialPrintOutcomePayload,
+    ): Promise<void> {
+      await request<ApiItem<MaterialPrintJob>>(
+        `/api/materiales/recepciones/trabajos-impresion/${encodeURIComponent(jobId)}/resultado`,
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        },
+      );
     },
   };
 }

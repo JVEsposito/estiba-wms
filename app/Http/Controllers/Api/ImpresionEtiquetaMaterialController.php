@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ConflictoOperacion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerarEtiquetasMaterialRequest;
+use App\Http\Requests\RegistrarResultadoImpresionMaterialRequest;
 use App\Models\PersonalAccessToken;
 use App\Models\RecepcionMaterial;
 use App\Models\TrabajoImpresionMaterial;
 use App\Services\Materiales\ServicioImpresionEtiquetaMaterial;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -51,6 +55,10 @@ class ImpresionEtiquetaMaterialController extends Controller
                     ])->values(),
                     'solicitado_por' => $trabajo->solicitadoPor?->name,
                     'solicitado_at' => $trabajo->solicitado_at?->toAtomString(),
+                    'enviado_at' => $trabajo->enviado_at?->toAtomString(),
+                    'bytes_enviados' => $trabajo->bytes_enviados,
+                    'destino_impresion' => $trabajo->destino_impresion_snapshot,
+                    'ultimo_error' => $trabajo->ultimo_error,
                 ]),
         ]);
     }
@@ -64,9 +72,15 @@ class ImpresionEtiquetaMaterialController extends Controller
         $dispositivoId = $token instanceof PersonalAccessToken
             ? $token->dispositivo_id
             : null;
+        $datos = $request->validated();
+        if ($datos['canal'] === 'pda_directa' && $dispositivoId === null) {
+            throw new DomainException(
+                'La impresión directa solo puede iniciarse desde una PDA o tablet registrada.',
+            );
+        }
         $resultado = $servicio->generar(
             $recepcionMaterial,
-            $request->validated(),
+            $datos,
             $request->user(),
             $dispositivoId,
         );
@@ -77,6 +91,79 @@ class ImpresionEtiquetaMaterialController extends Controller
             'X-Estiba-Print-Job' => $resultado['trabajo']->id,
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    public function resultado(
+        RegistrarResultadoImpresionMaterialRequest $request,
+        TrabajoImpresionMaterial $trabajoImpresionMaterial,
+    ): JsonResponse {
+        $token = $request->user()?->currentAccessToken();
+        $dispositivoId = $token instanceof PersonalAccessToken
+            ? $token->dispositivo_id
+            : null;
+        abort_unless(
+            $trabajoImpresionMaterial->canal === 'pda_directa'
+                && $trabajoImpresionMaterial->solicitado_por_user_id === $request->user()->id
+                && $dispositivoId !== null
+                && $trabajoImpresionMaterial->dispositivo_id === $dispositivoId,
+            Response::HTTP_NOT_FOUND,
+        );
+        $datos = $request->validated();
+        $payloadHash = hash('sha256', json_encode(
+            [
+                'estado' => $datos['estado'],
+                'bytes_enviados' => $datos['bytes_enviados'],
+                'error' => $datos['error'],
+                'impresora' => $datos['impresora'],
+            ],
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        ));
+
+        $trabajo = DB::transaction(function () use (
+            $trabajoImpresionMaterial,
+            $datos,
+            $payloadHash,
+        ): TrabajoImpresionMaterial {
+            $trabajo = TrabajoImpresionMaterial::query()
+                ->lockForUpdate()
+                ->findOrFail($trabajoImpresionMaterial->id);
+
+            if ($trabajo->resultado_operacion_id !== null) {
+                if ($trabajo->resultado_operacion_id !== $datos['operacion_id']
+                    || ! hash_equals((string) $trabajo->resultado_payload_hash, $payloadHash)) {
+                    throw new ConflictoOperacion(
+                        'El resultado de esta impresión ya fue informado y no puede reemplazarse.',
+                    );
+                }
+
+                return $trabajo;
+            }
+            if ($trabajo->estado !== 'generado') {
+                throw new ConflictoOperacion('El trabajo ya no admite un resultado de impresión.');
+            }
+
+            $trabajo->update([
+                'resultado_operacion_id' => $datos['operacion_id'],
+                'resultado_payload_hash' => $payloadHash,
+                'destino_impresion_snapshot' => $datos['impresora'],
+                'bytes_enviados' => $datos['bytes_enviados'],
+                'estado' => $datos['estado'],
+                'enviado_at' => $datos['estado'] === 'enviado' ? now() : null,
+                'ultimo_error' => $datos['error'],
+            ]);
+
+            return $trabajo->refresh();
+        }, attempts: 3);
+
+        return response()->json([
+            'data' => [
+                'id' => $trabajo->id,
+                'estado' => $trabajo->estado,
+                'bytes_enviados' => $trabajo->bytes_enviados,
+                'enviado_at' => $trabajo->enviado_at?->toAtomString(),
+                'ultimo_error' => $trabajo->ultimo_error,
+            ],
         ]);
     }
 }
