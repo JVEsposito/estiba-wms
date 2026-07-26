@@ -12,6 +12,7 @@ use App\Http\Requests\CrearRecetaMaterialRequest;
 use App\Http\Requests\CrearVersionRecetaMaterialRequest;
 use App\Http\Requests\IniciarOrdenTransformacionMaterialRequest;
 use App\Http\Requests\PlanificarOrdenTransformacionMaterialRequest;
+use App\Http\Requests\RevertirLoteTransformacionMaterialRequest;
 use App\Http\Resources\OrdenTransformacionMaterialResource;
 use App\Http\Resources\RecetaMaterialResource;
 use App\Models\Dispositivo;
@@ -92,6 +93,7 @@ class TransformacionMaterialController extends Controller
                 'lotes.consumos.item',
                 'lotes.salidas.folioMaterial.folio',
                 'lotes.salidas.item',
+                'lotes.reversadoPor:id,name',
                 'eventos' => fn ($consulta) => $consulta->orderBy('ocurrido_at'),
                 'eventos.usuario:id,name',
                 'creadoPor:id,name',
@@ -206,6 +208,21 @@ class TransformacionMaterialController extends Controller
             $request->validated('operacion_id'),
             $request->integer('version_conocida'),
             $request->validated('motivo_desviacion'),
+            $request->user(),
+            $this->dispositivo($request),
+        ));
+    }
+
+    public function revertirLote(
+        RevertirLoteTransformacionMaterialRequest $request,
+        LoteTransformacionMaterial $loteTransformacionMaterial,
+        ServicioTransformacionMaterial $servicio,
+    ): OrdenTransformacionMaterialResource {
+        return new OrdenTransformacionMaterialResource($servicio->revertirLote(
+            $loteTransformacionMaterial,
+            $request->validated('operacion_id'),
+            $request->integer('version_conocida'),
+            $request->validated('motivo'),
             $request->user(),
             $this->dispositivo($request),
         ));
