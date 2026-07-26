@@ -6,8 +6,8 @@ use App\Exceptions\ConflictoOperacion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerarEtiquetasMaterialRequest;
 use App\Http\Requests\RegistrarResultadoImpresionMaterialRequest;
-use App\Models\PersonalAccessToken;
 use App\Models\OrdenTransformacionMaterial;
+use App\Models\PersonalAccessToken;
 use App\Models\RecepcionMaterial;
 use App\Models\TrabajoImpresionMaterial;
 use App\Services\Materiales\ServicioImpresionEtiquetaMaterial;
@@ -178,9 +178,11 @@ class ImpresionEtiquetaMaterialController extends Controller
     {
         $token = $request->user()?->currentAccessToken();
 
-        return $token instanceof PersonalAccessToken
-            ? $token->dispositivo_id
-            : null;
+        if ($token instanceof PersonalAccessToken) {
+            return $token->dispositivo_id;
+        }
+
+        return null;
     }
 
     /** @param array{trabajo: TrabajoImpresionMaterial, contenido: string, mime: string, nombre: string} $resultado */
