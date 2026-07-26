@@ -22,6 +22,13 @@ import {
   SagCondition,
   WithdrawMaterialPayload,
 } from '../domain/estiba';
+import {
+  CloseMaterialTransformationLotPayload,
+  CloseMaterialTransformationOrderPayload,
+  MaterialTransformationOrder,
+  OpenMaterialTransformationLotPayload,
+  StartMaterialTransformationPayload,
+} from '../domain/materialTransformation';
 import { ApiError } from './apiError';
 import type { EstibaApi } from './estibaApi';
 
@@ -296,6 +303,42 @@ export class DemoEstibaApi implements EstibaApi {
 
   async withdrawMaterial(_token: string, _dispatchId: string, _payload: WithdrawMaterialPayload): Promise<MaterialDispatch> {
     throw new ApiError('El despacho de materiales no está disponible en modo demo.', 422);
+  }
+
+  async listMaterialTransformations(): Promise<MaterialTransformationOrder[]> {
+    return [];
+  }
+
+  async startMaterialTransformation(
+    _token: string,
+    _orderId: string,
+    _payload: StartMaterialTransformationPayload,
+  ): Promise<MaterialTransformationOrder> {
+    throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
+  }
+
+  async openMaterialTransformationLot(
+    _token: string,
+    _orderId: string,
+    _payload: OpenMaterialTransformationLotPayload,
+  ): Promise<MaterialTransformationOrder> {
+    throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
+  }
+
+  async closeMaterialTransformationLot(
+    _token: string,
+    _lotId: string,
+    _payload: CloseMaterialTransformationLotPayload,
+  ): Promise<MaterialTransformationOrder> {
+    throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
+  }
+
+  async closeMaterialTransformationOrder(
+    _token: string,
+    _orderId: string,
+    _payload: CloseMaterialTransformationOrderPayload,
+  ): Promise<MaterialTransformationOrder> {
+    throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
   }
 
   async getPlan(_token: string, cameraId: string) {

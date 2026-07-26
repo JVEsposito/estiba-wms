@@ -12,7 +12,6 @@ use App\Exceptions\ConflictoOperacion;
 use App\Models\BultoRecepcionMaterial;
 use App\Models\Cliente;
 use App\Models\ClienteProveedorMaterial;
-use App\Models\CorrelativoMaterialCliente;
 use App\Models\DetalleRecepcionMaterial;
 use App\Models\EventoRecepcionMaterial;
 use App\Models\Folio;
@@ -32,10 +31,9 @@ use JsonException;
 
 class ServicioRecepcionMaterial
 {
-    private const MAXIMO_CORRELATIVO = 9_999_999;
-
     public function __construct(
         private readonly ServicioTemporadaActiva $temporadaActiva,
+        private readonly ServicioCorrelativoFolioMaterial $correlativoFolio,
     ) {}
 
     /**
@@ -223,7 +221,7 @@ class ServicioRecepcionMaterial
                 }
 
                 foreach ($detalle->bultos as $bulto) {
-                    $codigoFolio = $this->siguienteFolio($cliente);
+                    $codigoFolio = $this->correlativoFolio->siguiente($cliente);
                     $folio = Folio::create([
                         'temporada_id' => $recepcion->temporada_id,
                         'numero_folio' => $codigoFolio,
@@ -665,36 +663,6 @@ class ServicioRecepcionMaterial
         }
 
         return $item;
-    }
-
-    private function siguienteFolio(Cliente $cliente): string
-    {
-        $ahora = now();
-        CorrelativoMaterialCliente::query()->insertOrIgnore([
-            'cliente_id' => $cliente->id,
-            'ultimo_numero' => 0,
-            'created_at' => $ahora,
-            'updated_at' => $ahora,
-        ]);
-        $correlativo = CorrelativoMaterialCliente::query()
-            ->lockForUpdate()
-            ->findOrFail($cliente->id);
-
-        $siguiente = $correlativo->ultimo_numero + 1;
-
-        if ($siguiente > self::MAXIMO_CORRELATIVO) {
-            throw new DomainException(
-                'El cliente agotó el correlativo disponible para folios de materiales.',
-            );
-        }
-
-        $correlativo->update(['ultimo_numero' => $siguiente]);
-
-        return sprintf(
-            'F%s%07d',
-            mb_strtoupper(trim((string) $cliente->codigo_folio_materiales)),
-            $siguiente,
-        );
     }
 
     /**

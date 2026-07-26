@@ -27,6 +27,13 @@ import {
 import { ApiError } from './apiError';
 import { normalizeApiBaseUrl } from './apiConfiguration';
 import { DemoEstibaApi } from './estibaApiDemo';
+import {
+  CloseMaterialTransformationLotPayload,
+  CloseMaterialTransformationOrderPayload,
+  MaterialTransformationOrder,
+  OpenMaterialTransformationLotPayload,
+  StartMaterialTransformationPayload,
+} from '../domain/materialTransformation';
 
 export interface EstibaApi {
   readonly mode: ApiMode;
@@ -50,6 +57,11 @@ export interface EstibaApi {
   ): Promise<MaterialDispatch[]>;
   createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
   withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
+  listMaterialTransformations(token: string): Promise<MaterialTransformationOrder[]>;
+  startMaterialTransformation(token: string, orderId: string, payload: StartMaterialTransformationPayload): Promise<MaterialTransformationOrder>;
+  openMaterialTransformationLot(token: string, orderId: string, payload: OpenMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
+  closeMaterialTransformationLot(token: string, lotId: string, payload: CloseMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
+  closeMaterialTransformationOrder(token: string, orderId: string, payload: CloseMaterialTransformationOrderPayload): Promise<MaterialTransformationOrder>;
   listRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[]>;
   getExtractionPlan(token: string, loadId: string): Promise<ExtractionPlan>;
   listDocks(token: string): Promise<Dock[]>;
@@ -203,6 +215,61 @@ class HttpEstibaApi implements EstibaApi {
     )).data;
   }
 
+  async listMaterialTransformations(token: string) {
+    return (await this.request<ApiList<MaterialTransformationOrder>>(
+      '/api/materiales/transformaciones/ordenes?per_page=100',
+      token,
+    )).data;
+  }
+
+  async startMaterialTransformation(
+    token: string,
+    orderId: string,
+    payload: StartMaterialTransformationPayload,
+  ) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/iniciar`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
+
+  async openMaterialTransformationLot(
+    token: string,
+    orderId: string,
+    payload: OpenMaterialTransformationLotPayload,
+  ) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/lotes`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
+
+  async closeMaterialTransformationLot(
+    token: string,
+    lotId: string,
+    payload: CloseMaterialTransformationLotPayload,
+  ) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/lotes/${encodeURIComponent(lotId)}/cerrar`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
+
+  async closeMaterialTransformationOrder(
+    token: string,
+    orderId: string,
+    payload: CloseMaterialTransformationOrderPayload,
+  ) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/cerrar`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
+
   async listRefrigeratedLoads(token: string) {
     return (await this.request<ApiList<RefrigeratedLoad>>('/api/cargas/pendientes', token)).data;
   }
@@ -319,6 +386,11 @@ function createUnavailableApi(message: string): EstibaApi {
     listMaterialDispatches: unavailable,
     createMaterialDispatch: unavailable,
     withdrawMaterial: unavailable,
+    listMaterialTransformations: unavailable,
+    startMaterialTransformation: unavailable,
+    openMaterialTransformationLot: unavailable,
+    closeMaterialTransformationLot: unavailable,
+    closeMaterialTransformationOrder: unavailable,
     listRefrigeratedLoads: unavailable,
     getExtractionPlan: unavailable,
     listDocks: unavailable,

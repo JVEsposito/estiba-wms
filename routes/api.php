@@ -222,6 +222,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/ordenes/{ordenTransformacionMaterial}/planificar', [TransformacionMaterialController::class, 'planificar']);
             Route::post('/ordenes/{ordenTransformacionMaterial}/cancelar', [TransformacionMaterialController::class, 'cancelar']);
         });
+
+        Route::middleware('can:operar-transformaciones-materiales')->group(function () {
+            Route::post('/ordenes/{ordenTransformacionMaterial}/iniciar', [TransformacionMaterialController::class, 'iniciar']);
+            Route::post('/ordenes/{ordenTransformacionMaterial}/lotes', [TransformacionMaterialController::class, 'abrirLote']);
+            Route::post('/lotes/{loteTransformacionMaterial}/cerrar', [TransformacionMaterialController::class, 'cerrarLote']);
+            Route::post('/ordenes/{ordenTransformacionMaterial}/cerrar', [TransformacionMaterialController::class, 'cerrarOrden']);
+        });
     });
 
     Route::middleware('can:consultar-cargas-operacion')->group(function () {

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'folio_id',
     'item_material_id',
     'cantidad',
+    'cantidad_consumida',
     'estado',
     'orden_fifo',
 ])]
@@ -42,6 +43,7 @@ class ReservaTransformacionMaterial extends Model
     {
         return [
             'cantidad' => 'decimal:3',
+            'cantidad_consumida' => 'decimal:3',
             'estado' => EstadoReservaMaterial::class,
             'orden_fifo' => 'integer',
         ];

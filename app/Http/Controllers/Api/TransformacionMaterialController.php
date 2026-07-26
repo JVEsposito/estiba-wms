@@ -3,14 +3,21 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AbrirLoteTransformacionMaterialRequest;
 use App\Http\Requests\CancelarOrdenTransformacionMaterialRequest;
+use App\Http\Requests\CerrarLoteTransformacionMaterialRequest;
+use App\Http\Requests\CerrarOrdenTransformacionMaterialRequest;
 use App\Http\Requests\CrearOrdenTransformacionMaterialRequest;
 use App\Http\Requests\CrearRecetaMaterialRequest;
 use App\Http\Requests\CrearVersionRecetaMaterialRequest;
+use App\Http\Requests\IniciarOrdenTransformacionMaterialRequest;
 use App\Http\Requests\PlanificarOrdenTransformacionMaterialRequest;
 use App\Http\Resources\OrdenTransformacionMaterialResource;
 use App\Http\Resources\RecetaMaterialResource;
+use App\Models\Dispositivo;
+use App\Models\LoteTransformacionMaterial;
 use App\Models\OrdenTransformacionMaterial;
+use App\Models\PersonalAccessToken;
 use App\Models\RecetaMaterial;
 use App\Services\Materiales\ServicioTransformacionMaterial;
 use App\Services\Materiales\ServicioVersionRecetaMaterial;
@@ -80,6 +87,11 @@ class TransformacionMaterialController extends Controller
                     ->orderBy('item_material_id')
                     ->orderBy('orden_fifo'),
                 'reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
+                'lotes' => fn ($consulta) => $consulta->orderBy('numero_lote'),
+                'lotes.consumos.folioMaterial.folio',
+                'lotes.consumos.item',
+                'lotes.salidas.folioMaterial.folio',
+                'lotes.salidas.item',
                 'eventos' => fn ($consulta) => $consulta->orderBy('ocurrido_at'),
                 'eventos.usuario:id,name',
                 'creadoPor:id,name',
@@ -140,5 +152,76 @@ class TransformacionMaterialController extends Controller
             $request->validated('motivo'),
             $request->user(),
         ));
+    }
+
+    public function iniciar(
+        IniciarOrdenTransformacionMaterialRequest $request,
+        OrdenTransformacionMaterial $ordenTransformacionMaterial,
+        ServicioTransformacionMaterial $servicio,
+    ): OrdenTransformacionMaterialResource {
+        return new OrdenTransformacionMaterialResource($servicio->iniciar(
+            $ordenTransformacionMaterial,
+            $request->validated('operacion_id'),
+            $request->integer('version_conocida'),
+            $request->user(),
+            $this->dispositivo($request),
+        ));
+    }
+
+    public function abrirLote(
+        AbrirLoteTransformacionMaterialRequest $request,
+        OrdenTransformacionMaterial $ordenTransformacionMaterial,
+        ServicioTransformacionMaterial $servicio,
+    ): OrdenTransformacionMaterialResource {
+        return new OrdenTransformacionMaterialResource($servicio->abrirLote(
+            $ordenTransformacionMaterial,
+            $request->validated('operacion_id'),
+            $request->integer('version_conocida'),
+            (float) $request->validated('cantidad_planificada_salida'),
+            $request->user(),
+            $this->dispositivo($request),
+        ));
+    }
+
+    public function cerrarLote(
+        CerrarLoteTransformacionMaterialRequest $request,
+        LoteTransformacionMaterial $loteTransformacionMaterial,
+        ServicioTransformacionMaterial $servicio,
+    ): OrdenTransformacionMaterialResource {
+        return new OrdenTransformacionMaterialResource($servicio->cerrarLote(
+            $loteTransformacionMaterial,
+            $request->validated(),
+            $request->user(),
+            $this->dispositivo($request),
+        ));
+    }
+
+    public function cerrarOrden(
+        CerrarOrdenTransformacionMaterialRequest $request,
+        OrdenTransformacionMaterial $ordenTransformacionMaterial,
+        ServicioTransformacionMaterial $servicio,
+    ): OrdenTransformacionMaterialResource {
+        return new OrdenTransformacionMaterialResource($servicio->cerrarOrden(
+            $ordenTransformacionMaterial,
+            $request->validated('operacion_id'),
+            $request->integer('version_conocida'),
+            $request->validated('motivo_desviacion'),
+            $request->user(),
+            $this->dispositivo($request),
+        ));
+    }
+
+    private function dispositivo(Request $request): ?Dispositivo
+    {
+        $token = $request->user()?->currentAccessToken();
+
+        if (! $token instanceof PersonalAccessToken || $token->dispositivo_id === null) {
+            return null;
+        }
+
+        return Dispositivo::query()
+            ->whereKey($token->dispositivo_id)
+            ->where('activo', true)
+            ->first();
     }
 }
