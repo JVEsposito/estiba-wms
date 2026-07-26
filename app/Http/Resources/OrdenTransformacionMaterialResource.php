@@ -21,6 +21,7 @@ class OrdenTransformacionMaterialResource extends JsonResource
             'fecha_operacional' => $this->fecha_operacional?->toDateString(),
             'observacion' => $this->observacion,
             'motivo_cancelacion' => $this->motivo_cancelacion,
+            'receta_snapshot' => $this->snapshot_receta,
             'temporada' => $this->whenLoaded('temporada', fn (): array => [
                 'id' => $this->temporada->id,
                 'codigo' => $this->temporada->codigo,
@@ -52,6 +53,11 @@ class OrdenTransformacionMaterialResource extends JsonResource
                     'id' => $reserva->id,
                     'estado' => $reserva->estado->value,
                     'cantidad' => $reserva->cantidad,
+                    'cantidad_consumida' => $reserva->cantidad_consumida,
+                    'cantidad_pendiente' => number_format(max(
+                        0,
+                        round((float) $reserva->cantidad - (float) $reserva->cantidad_consumida, 3),
+                    ), 3, '.', ''),
                     'orden_fifo' => $reserva->orden_fifo,
                     'item_material_id' => $reserva->item_material_id,
                     'folio' => $reserva->relationLoaded('folioMaterial') ? [
@@ -64,6 +70,55 @@ class OrdenTransformacionMaterialResource extends JsonResource
                             'posicion' => $reserva->folioMaterial->folio->ubicacionActual->posicion->etiqueta,
                         ] : null,
                     ] : null,
+                ],
+            )->values()),
+            'lotes' => $this->whenLoaded('lotes', fn () => $this->lotes->map(
+                fn ($lote): array => [
+                    'id' => $lote->id,
+                    'numero_lote' => $lote->numero_lote,
+                    'estado' => $lote->estado->value,
+                    'cantidad_planificada_salida' => $lote->cantidad_planificada_salida,
+                    'cantidad_real_salida' => $lote->cantidad_real_salida,
+                    'salida_teorica' => $lote->salida_teorica,
+                    'merma_estandar' => $lote->merma_estandar,
+                    'merma_real' => $lote->merma_real,
+                    'desviacion_merma' => $lote->desviacion_merma,
+                    'iniciado_at' => $lote->iniciado_at?->toAtomString(),
+                    'cerrado_at' => $lote->cerrado_at?->toAtomString(),
+                    'consumos' => $lote->relationLoaded('consumos')
+                        ? $lote->consumos->map(fn ($consumo): array => [
+                            'id' => $consumo->id,
+                            'folio_id' => $consumo->folio_id,
+                            'numero_folio' => $consumo->folioMaterial->folio->numero_folio,
+                            'item' => [
+                                'id' => $consumo->item->id,
+                                'codigo' => $consumo->item->codigo,
+                                'nombre' => $consumo->item->nombre,
+                                'unidad_medida' => $consumo->item->unidad_medida,
+                            ],
+                            'cantidad_consumida' => $consumo->cantidad_consumida,
+                            'cantidad_anterior' => $consumo->cantidad_anterior,
+                            'cantidad_resultante' => $consumo->cantidad_resultante,
+                            'siguio_fifo' => $consumo->siguio_fifo,
+                            'motivo_desviacion_fifo' => $consumo->motivo_desviacion_fifo,
+                            'ocurrido_at' => $consumo->ocurrido_at?->toAtomString(),
+                        ])->values()
+                        : [],
+                    'salidas' => $lote->relationLoaded('salidas')
+                        ? $lote->salidas->map(fn ($salida): array => [
+                            'id' => $salida->id,
+                            'folio_id' => $salida->folio_id,
+                            'numero_folio' => $salida->folioMaterial->folio->numero_folio,
+                            'item' => [
+                                'id' => $salida->item->id,
+                                'codigo' => $salida->item->codigo,
+                                'nombre' => $salida->item->nombre,
+                                'unidad_medida' => $salida->item->unidad_medida,
+                            ],
+                            'cantidad_producida' => $salida->cantidad_producida,
+                            'es_salida_principal' => $salida->es_salida_principal,
+                        ])->values()
+                        : [],
                 ],
             )->values()),
             'eventos' => $this->whenLoaded('eventos', fn () => $this->eventos->map(

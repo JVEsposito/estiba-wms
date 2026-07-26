@@ -15,6 +15,7 @@ import {
 import { ActionPanel } from '../components/ActionPanel';
 import { CameraCard } from '../components/CameraCard';
 import { MaterialDispatchOperation } from '../components/MaterialDispatchOperation';
+import { MaterialTransformationOperation } from '../components/MaterialTransformationOperation';
 import {
   LocateFormValue,
   LocateModal,
@@ -65,7 +66,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [locateVisible, setLocateVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
   const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
-  const [activeModule, setActiveModule] = useState<'camaras' | 'cargas' | 'materiales'>('camaras');
+  const [activeModule, setActiveModule] = useState<'camaras' | 'cargas' | 'materiales' | 'transformacion'>('camaras');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -78,6 +79,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const materialWithdrawOperationId = useRef(Crypto.randomUUID());
   const capabilities = auth.usuario.capacidades;
   const canUseMaterials = capabilities.puede_consultar_despachos_materiales;
+  const canUseTransformations = capabilities.puede_consultar_transformaciones_materiales === true;
   const canCreateMaterialDispatch = capabilities.puede_gestionar_despachos_materiales;
   const canWithdrawMaterial = capabilities.puede_retirar_materiales;
   const canUseLoads = capabilities.puede_consultar_cargas;
@@ -650,6 +652,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                 <Text style={[styles.moduleButtonText, activeModule === 'materiales' && styles.moduleButtonTextActive]}>Despachos</Text>
               </Pressable>
             )}
+            {canUseTransformations && (
+              <Pressable
+                onPress={() => setActiveModule('transformacion')}
+                style={[styles.moduleButton, activeModule === 'transformacion' && styles.moduleButtonActive]}
+              >
+                <Text style={[styles.moduleButtonText, activeModule === 'transformacion' && styles.moduleButtonTextActive]}>Transformación</Text>
+              </Pressable>
+            )}
           </View>
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
@@ -709,6 +719,12 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             onOpenPosition={(cameraId, positionId) => (
               void openPositionFromMaterialDispatch(cameraId, positionId)
             )}
+          />
+        ) : activeModule === 'transformacion' && canUseTransformations ? (
+          <MaterialTransformationOperation
+            api={api}
+            auth={auth}
+            onConnectionFailure={(reason) => reportFailure(reason, setError)}
           />
         ) : (
           <>

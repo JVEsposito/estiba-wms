@@ -12,6 +12,7 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
+use App\Models\MovimientoInventarioMaterial;
 use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\ReservaTransformacionMaterial;
@@ -287,6 +288,7 @@ class TransformacionMaterialApiTest extends TestCase
         $this->assertTrue($capacidadesAdministrador['puede_administrar_recetas_materiales']);
         $this->assertTrue($capacidadesCamarero['puede_consultar_transformaciones_materiales']);
         $this->assertFalse($capacidadesCamarero['puede_gestionar_transformaciones_materiales']);
+        $this->assertTrue($capacidadesCamarero['puede_operar_transformaciones_materiales']);
         $this->assertFalse($capacidadesCamarero['puede_administrar_recetas_materiales']);
         $payload = [
             'cliente_id' => $cliente->id,
@@ -320,6 +322,376 @@ class TransformacionMaterialApiTest extends TestCase
         $this->conToken($tokenCamarero)
             ->getJson('/api/materiales/transformaciones/recetas')
             ->assertOk();
+    }
+
+    public function test_ejecuta_lotes_parciales_genera_fag_y_cierra_liberando_saldos(): void
+    {
+        [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
+            $this->prepararCatalogo();
+        [$operador, $dispositivo, $tokenTablet] = $this->crearOperador();
+        [$camara, $posicionUno, $posicionDos] = $this->crearCamaraMateriales();
+        $recepcion = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $entradaPrincipal,
+                $entradaAuxiliar,
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folioPrincipal = $confirmada['detalles'][0]['bultos'][0]['folio'];
+        $folioAuxiliar = $confirmada['detalles'][1]['bultos'][0]['folio'];
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $folioPrincipal['numero_folio'],
+                $posicionUno,
+                $sesion,
+                $entradaPrincipal,
+                0,
+            ))
+            ->assertOk();
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $folioAuxiliar['numero_folio'],
+                $posicionDos,
+                $sesion,
+                $entradaAuxiliar,
+                1,
+            ))
+            ->assertOk();
+
+        $receta = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $salida->id,
+                'nombre' => 'Caja preparada operativa',
+                'cantidad_base_salida' => 100,
+                'componentes' => [
+                    [
+                        'item_entrada_id' => $entradaPrincipal->id,
+                        'cantidad_estandar' => 100,
+                        'es_componente_principal' => true,
+                        'factor_conversion' => 1,
+                        'merma_estandar_porcentaje' => 1,
+                    ],
+                    [
+                        'item_entrada_id' => $entradaAuxiliar->id,
+                        'cantidad_estandar' => 10,
+                        'es_componente_principal' => false,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/ordenes', [
+                'operacion_id' => (string) Str::uuid(),
+                'version_receta_material_id' => $receta['versiones'][0]['id'],
+                'cantidad_planificada_salida' => 50,
+                'fecha_operacional' => '2026-07-25',
+            ])
+            ->assertCreated()
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'planificada')
+            ->json('data');
+
+        $operacionInicio = (string) Str::uuid();
+        $inicio = [
+            'operacion_id' => $operacionInicio,
+            'version_conocida' => 2,
+        ];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/iniciar", $inicio)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'en_proceso')
+            ->assertJsonPath('data.version', 3)
+            ->json('data');
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/iniciar", $inicio)
+            ->assertOk()
+            ->assertJsonPath('data.version', 3);
+
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 30,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.version', 4)
+            ->assertJsonPath('data.lotes.0.estado', 'abierto')
+            ->json('data');
+        $loteUno = $orden['lotes'][0];
+        $payloadCierreUno = [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 4,
+            'cantidad_real_salida' => 29,
+            'consumos' => [
+                ['folio_id' => $folioPrincipal['id'], 'cantidad' => 30],
+                ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 3],
+            ],
+        ];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteUno['id']}/cerrar", $payloadCierreUno)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'en_proceso')
+            ->assertJsonPath('data.version', 5)
+            ->assertJsonPath('data.cantidad_real_salida', '29.000')
+            ->assertJsonPath('data.lotes.0.salida_teorica', '30.000')
+            ->assertJsonPath('data.lotes.0.merma_estandar', '0.300')
+            ->assertJsonPath('data.lotes.0.merma_real', '1.000')
+            ->assertJsonPath('data.lotes.0.desviacion_merma', '0.700')
+            ->assertJsonPath('data.lotes.0.salidas.0.numero_folio', 'FGE0000003')
+            ->json('data');
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteUno['id']}/cerrar", $payloadCierreUno)
+            ->assertOk()
+            ->assertJsonCount(1, 'data.lotes.0.salidas');
+
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.version', 6)
+            ->json('data');
+        $loteDos = $orden['lotes'][1];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteDos['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 6,
+                'cantidad_real_salida' => 20,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'en_proceso')
+            ->assertJsonPath('data.version', 7)
+            ->assertJsonPath('data.cantidad_real_salida', '49.000')
+            ->assertJsonPath('data.lotes.1.salidas.0.numero_folio', 'FGE0000004')
+            ->json('data');
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 7,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $cerrada = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 7,
+                'motivo_desviacion' => 'Producción real inferior por ajuste de línea.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cerrada')
+            ->assertJsonPath('data.version', 8)
+            ->assertJsonPath('data.cantidad_real_salida', '49.000')
+            ->json('data');
+
+        $this->assertCount(2, $cerrada['lotes']);
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail($folioPrincipal['id'])
+            ->cantidad_reservada);
+        $this->assertSame('30.000', FolioMaterial::query()
+            ->findOrFail($folioPrincipal['id'])
+            ->cantidad_actual);
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail($folioAuxiliar['id'])
+            ->cantidad_reservada);
+        $this->assertSame('5.000', FolioMaterial::query()
+            ->findOrFail($folioAuxiliar['id'])
+            ->cantidad_actual);
+        $this->assertSame(2, Folio::query()
+            ->where('origen_sistema', 'transformacion_materiales')
+            ->where('estado_operacional', 'pendiente_ubicacion')
+            ->where('activo', true)
+            ->count());
+        $this->assertSame(4, MovimientoInventarioMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->where('tipo', 'consumo_transformacion')
+            ->count());
+        $this->assertSame(2, MovimientoInventarioMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->where('tipo', 'produccion_transformacion')
+            ->count());
+        $this->assertDatabaseHas('eventos_transformacion_materiales', [
+            'orden_transformacion_material_id' => $orden['id'],
+            'tipo' => 'iniciada',
+            'user_id' => $operador->id,
+            'dispositivo_id' => $dispositivo->id,
+        ]);
+    }
+
+    public function test_exige_motivo_fuera_de_fifo_y_revierte_el_cierre_incompleto(): void
+    {
+        [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
+            $this->prepararCatalogo();
+        [, , $tokenTablet] = $this->crearOperador();
+        [$camara, $posicionUno, $posicionDos, $posicionTres] = $this->crearCamaraMateriales();
+        $payloadRecepcion = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $entradaPrincipal,
+            $entradaAuxiliar,
+        );
+        $payloadRecepcion['numero_guia_despacho'] = 'GD-TRA-FIFO';
+        $payloadRecepcion['detalles'][0]['bultos'] = [
+            ['cantidad' => 40, 'lote_proveedor' => 'MP-FIFO-01'],
+            ['cantidad' => 40, 'lote_proveedor' => 'MP-FIFO-02'],
+        ];
+        $recepcion = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/recepciones', $payloadRecepcion)
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folioPrincipalUno = $confirmada['detalles'][0]['bultos'][0]['folio'];
+        $folioPrincipalDos = $confirmada['detalles'][0]['bultos'][1]['folio'];
+        $folioAuxiliar = $confirmada['detalles'][1]['bultos'][0]['folio'];
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+
+        foreach ([
+            [$folioPrincipalUno['numero_folio'], $posicionUno, $entradaPrincipal, 0],
+            [$folioPrincipalDos['numero_folio'], $posicionDos, $entradaPrincipal, 1],
+            [$folioAuxiliar['numero_folio'], $posicionTres, $entradaAuxiliar, 2],
+        ] as [$folio, $posicion, $item, $version]) {
+            $this->conToken($tokenTablet)
+                ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                    $folio,
+                    $posicion,
+                    $sesion,
+                    $item,
+                    $version,
+                ))
+                ->assertOk();
+        }
+
+        $receta = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $salida->id,
+                'nombre' => 'Control FIFO operacional',
+                'cantidad_base_salida' => 100,
+                'componentes' => [
+                    [
+                        'item_entrada_id' => $entradaPrincipal->id,
+                        'cantidad_estandar' => 100,
+                        'es_componente_principal' => true,
+                    ],
+                    [
+                        'item_entrada_id' => $entradaAuxiliar->id,
+                        'cantidad_estandar' => 10,
+                        'es_componente_principal' => false,
+                    ],
+                ],
+            ])
+            ->assertCreated()
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/ordenes', [
+                'operacion_id' => (string) Str::uuid(),
+                'version_receta_material_id' => $receta['versiones'][0]['id'],
+                'cantidad_planificada_salida' => 50,
+                'fecha_operacional' => '2026-07-25',
+            ])
+            ->assertCreated()
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/iniciar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 2,
+            ])
+            ->assertOk()
+            ->json('data');
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 10,
+            ])
+            ->assertOk()
+            ->json('data');
+        $lote = $orden['lotes'][0];
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 10,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipalDos['id'], 'cantidad' => 10],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 1],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->assertDatabaseCount('consumos_transformacion_materiales', 0);
+        $this->assertSame(0, MovimientoInventarioMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->count());
+        $this->assertSame('40.000', FolioMaterial::query()
+            ->findOrFail($folioPrincipalDos['id'])
+            ->cantidad_actual);
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 10,
+                'consumos' => [
+                    [
+                        'folio_id' => $folioPrincipalDos['id'],
+                        'cantidad' => 10,
+                        'motivo_desviacion_fifo' => 'Bulto delantero inaccesible durante el turno.',
+                    ],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 1],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.lotes.0.consumos.0.siguio_fifo', false)
+            ->assertJsonPath(
+                'data.lotes.0.consumos.0.motivo_desviacion_fifo',
+                'Bulto delantero inaccesible durante el turno.',
+            )
+            ->assertJsonPath('data.lotes.0.salidas.0.numero_folio', 'FGE0000004');
     }
 
     private function prepararCatalogo(): array
@@ -433,7 +805,7 @@ class TransformacionMaterialApiTest extends TestCase
             'nombre' => 'Cámara transformación',
             'contenido' => ContenidoCamara::Materiales,
         ]);
-        $posiciones = collect([1, 2])->map(fn (int $numero): Posicion => Posicion::create([
+        $posiciones = collect([1, 2, 3])->map(fn (int $numero): Posicion => Posicion::create([
             'camara_id' => $camara->id,
             'banda' => 1,
             'posicion' => $numero,

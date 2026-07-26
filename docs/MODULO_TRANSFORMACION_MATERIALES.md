@@ -6,7 +6,7 @@ Esta entrega funda el dominio de transformación sobre el inventario de Bodega y
 consolidado por Recepción de Materiales. No crea una segunda contabilidad ni
 convierte una transformación interna en una recepción ficticia.
 
-La primera entrega incorpora:
+El módulo incorpora:
 
 - recetas con versiones históricas;
 - un único producto principal `material_pt` por receta;
@@ -15,16 +15,19 @@ La primera entrega incorpora:
 - órdenes en borrador y planificación;
 - reservas FIFO sobre folios existentes, disponibles y ubicados;
 - cancelación con liberación transaccional de reservas;
-- esquema preparado para lotes, consumos, salidas, merma y genealogía.
+- inicio operacional desde PDA;
+- lotes parciales con un único lote abierto por orden;
+- consumos reales contra reservas y saldo de inventario;
+- control y justificación de excepciones FIFO;
+- generación de folios de salida con el correlativo global del cliente;
+- cálculo de merma por lote y genealogía de entradas y salidas;
+- cierre de orden con liberación del saldo reservado no consumido.
 
-Todavía no incorpora:
+Quedan para entregas posteriores:
 
-- consumo físico de los folios reservados;
-- apertura y cierre operacional de lotes;
-- generación de folios de salida con prefijo por cliente;
-- impresión de etiquetas de transformación;
-- oficina web o flujo PDA;
-- integración del panel gerencial.
+- impresión de etiquetas de transformación desde la misma pantalla;
+- reversa compensatoria de lotes cerrados;
+- indicadores de transformación en el panel gerencial.
 
 ## Principio de inventario único
 
@@ -92,7 +95,9 @@ borrador | planificada
 → cancelada
 ```
 
-La entrega actual implementa `borrador`, `planificada` y `cancelada`.
+La ejecución implementa todos estos estados. La orden pasa a
+`pendiente_cierre` cuando la salida acumulada alcanza la cantidad planificada;
+también puede cerrarse antes, siempre que se justifique la desviación.
 
 Cada orden conserva temporada global, cliente global, versión de receta,
 cantidad planificada, línea, turno, fecha operacional, snapshot de receta y
@@ -144,10 +149,14 @@ La cancelación de una orden planificada:
 Una orden con consumos futuros no podrá cancelarse directamente: deberá
 revertirse mediante movimientos compensatorios.
 
-## Lotes y genealogía
+## Ejecución PDA, lotes y genealogía
 
-El esquema incluye lotes de transformación para permitir producción parcial.
-Cada lote podrá vincular:
+La PDA lista las órdenes planificadas y en ejecución. El operador puede iniciar
+una orden, abrir un lote parcial, pistolear los folios reservados, registrar
+cantidades reales y cerrar el lote. Solo puede existir un lote abierto por
+orden.
+
+Cada lote vincula:
 
 ```text
 folios de entrada
@@ -159,14 +168,29 @@ folios de entrada
 El origen de los materiales se remonta a Recepción de Materiales y sus guías de
 proveedor. `REC-*` pertenece a Romana y no forma parte de esta genealogía.
 
-Los folios producidos utilizarán el mismo correlativo global por cliente:
+Los folios producidos utilizan el mismo correlativo global por cliente que
+Recepción de Materiales:
 
 ```text
 F + código de cliente de 2 letras + correlativo de 7 dígitos
 ```
 
-Nacerán como existencia visible, `pendiente_ubicacion` y no reservable. La
+Nacen como existencia visible, `pendiente_ubicacion` y no reservable. La
 primera estiba los promoverá a `disponible`, salvo que estén bloqueados.
+
+El cierre de lote es una sola transacción:
+
+- valida que todos los folios pertenezcan a reservas activas de la orden;
+- exige consumo para cada componente de la receta;
+- descuenta `cantidad_actual` y `cantidad_reservada`;
+- retira la ubicación y desactiva el folio cuando su saldo llega a cero;
+- registra consumo, movimiento de inventario, usuario y dispositivo;
+- genera el FAG de salida y su movimiento positivo;
+- calcula merma y cierra el lote;
+- revierte todo si falla cualquiera de estos pasos.
+
+Si se selecciona un folio posterior mientras un folio FIFO anterior conserva
+saldo, el motivo de excepción es obligatorio.
 
 ## Merma
 
@@ -199,12 +223,12 @@ consumo_real_componente − consumo_estandar_componente
 Una merma real negativa se conserva como dato operacional; no se rechaza por sí
 misma.
 
-## Permisos iniciales
+## Permisos
 
 - administrador y supervisor de Materiales: crear recetas, crear y planificar
   órdenes, cancelar antes del consumo;
-- camarero de Materiales, despachador y consulta: lectura según su capacidad de
-  consulta vigente;
+- administrador, supervisor y camarero de Materiales: iniciar órdenes, abrir y
+  cerrar lotes y cerrar la orden desde PDA;
+- despachador y consulta: lectura según su capacidad de consulta vigente;
 - el login publica capacidades explícitas para consultar transformaciones,
-  gestionarlas y administrar recetas;
-- la operación PDA de consumo se definirá en la siguiente entrega.
+  gestionarlas, operarlas y administrar recetas.
