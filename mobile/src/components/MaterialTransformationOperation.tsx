@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { MaterialLabelPrintPanel } from './MaterialLabelPrintPanel';
 import {
   MaterialTransformationOrder,
   MaterialTransformationReservation,
@@ -553,6 +554,35 @@ export function MaterialTransformationOperation({
                 </View>
               ))}
               {!selected.lotes.length ? <Text style={styles.empty}>La orden aún no tiene lotes.</Text> : null}
+
+              {closedLots.some((lot) => lot.salidas.length > 0) ? (
+                <MaterialLabelPrintPanel
+                  deviceId={auth.dispositivo.id}
+                  sourceApi={{
+                    printProfiles: () => api.materialLabelProfiles(auth.token),
+                    printJobs: () => api.materialTransformationPrintJobs(auth.token, selected.id),
+                    generateLabels: (payload) => api.generateMaterialTransformationLabels(
+                      auth.token,
+                      selected.id,
+                      payload,
+                    ),
+                    reportPrintOutcome: (jobId, payload) =>
+                      api.reportMaterialTransformationPrintOutcome(
+                        auth.token,
+                        jobId,
+                        payload,
+                      ),
+                  }}
+                  sourceFolios={closedLots.flatMap((lot) => lot.salidas.map((output) => ({
+                    id: output.folio_id,
+                    number: output.numero_folio,
+                    item: `Lote ${lot.numero_lote} · ${output.item.codigo} · ${output.item.nombre}`,
+                    quantity: `${formatQuantity(output.cantidad_producida)} ${output.item.unidad_medida}`,
+                  })))}
+                  sourceId={selected.id}
+                  sourceLabel={`orden OT-${selected.id.slice(0, 8).toUpperCase()}`}
+                />
+              ) : null}
             </>
           ) : (
             <View style={styles.emptyDetail}>

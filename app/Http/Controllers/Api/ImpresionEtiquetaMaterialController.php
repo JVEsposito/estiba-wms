@@ -6,6 +6,7 @@ use App\Exceptions\ConflictoOperacion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GenerarEtiquetasMaterialRequest;
 use App\Http\Requests\RegistrarResultadoImpresionMaterialRequest;
+use App\Models\OrdenTransformacionMaterial;
 use App\Models\PersonalAccessToken;
 use App\Models\RecepcionMaterial;
 use App\Models\TrabajoImpresionMaterial;
@@ -39,27 +40,23 @@ class ImpresionEtiquetaMaterialController extends Controller
                 ->latest('solicitado_at')
                 ->limit(100)
                 ->get()
-                ->map(fn (TrabajoImpresionMaterial $trabajo): array => [
-                    'id' => $trabajo->id,
-                    'operacion_id' => $trabajo->operacion_id,
-                    'formato' => $trabajo->formato,
-                    'canal' => $trabajo->canal,
-                    'estado' => $trabajo->estado,
-                    'copias' => $trabajo->copias,
-                    'motivo_reimpresion' => $trabajo->motivo_reimpresion,
-                    'perfil' => $trabajo->perfil_snapshot,
-                    'folios' => $trabajo->folios->map(fn ($folio): array => [
-                        'id' => $folio->folio_id,
-                        'numero_folio' => $folio->numero_folio_snapshot,
-                        'es_reimpresion' => $folio->es_reimpresion,
-                    ])->values(),
-                    'solicitado_por' => $trabajo->solicitadoPor?->name,
-                    'solicitado_at' => $trabajo->solicitado_at?->toAtomString(),
-                    'enviado_at' => $trabajo->enviado_at?->toAtomString(),
-                    'bytes_enviados' => $trabajo->bytes_enviados,
-                    'destino_impresion' => $trabajo->destino_impresion_snapshot,
-                    'ultimo_error' => $trabajo->ultimo_error,
-                ]),
+                ->map(fn (TrabajoImpresionMaterial $trabajo): array => $this->trabajoData($trabajo)),
+        ]);
+    }
+
+    public function indexTransformacion(
+        OrdenTransformacionMaterial $ordenTransformacionMaterial,
+    ): JsonResponse {
+        Gate::authorize('consultar-transformaciones-materiales');
+
+        return response()->json([
+            'data' => TrabajoImpresionMaterial::query()
+                ->with(['folios', 'solicitadoPor:id,name'])
+                ->where('orden_transformacion_material_id', $ordenTransformacionMaterial->id)
+                ->latest('solicitado_at')
+                ->limit(100)
+                ->get()
+                ->map(fn (TrabajoImpresionMaterial $trabajo): array => $this->trabajoData($trabajo)),
         ]);
     }
 
@@ -68,10 +65,7 @@ class ImpresionEtiquetaMaterialController extends Controller
         RecepcionMaterial $recepcionMaterial,
         ServicioImpresionEtiquetaMaterial $servicio,
     ): Response {
-        $token = $request->user()?->currentAccessToken();
-        $dispositivoId = $token instanceof PersonalAccessToken
-            ? $token->dispositivo_id
-            : null;
+        $dispositivoId = $this->dispositivoId($request);
         $datos = $request->validated();
         if ($datos['canal'] === 'pda_directa' && $dispositivoId === null) {
             throw new DomainException(
@@ -85,23 +79,36 @@ class ImpresionEtiquetaMaterialController extends Controller
             $dispositivoId,
         );
 
-        return response($resultado['contenido'], Response::HTTP_OK, [
-            'Content-Type' => $resultado['mime'],
-            'Content-Disposition' => 'attachment; filename="'.$resultado['nombre'].'"',
-            'X-Estiba-Print-Job' => $resultado['trabajo']->id,
-            'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'no-store, private',
-        ]);
+        return $this->respuestaArchivo($resultado);
+    }
+
+    public function storeTransformacion(
+        GenerarEtiquetasMaterialRequest $request,
+        OrdenTransformacionMaterial $ordenTransformacionMaterial,
+        ServicioImpresionEtiquetaMaterial $servicio,
+    ): Response {
+        $dispositivoId = $this->dispositivoId($request);
+        $datos = $request->validated();
+        if ($datos['canal'] === 'pda_directa' && $dispositivoId === null) {
+            throw new DomainException(
+                'La impresión directa solo puede iniciarse desde una PDA o tablet registrada.',
+            );
+        }
+        $resultado = $servicio->generarTransformacion(
+            $ordenTransformacionMaterial,
+            $datos,
+            $request->user(),
+            $dispositivoId,
+        );
+
+        return $this->respuestaArchivo($resultado);
     }
 
     public function resultado(
         RegistrarResultadoImpresionMaterialRequest $request,
         TrabajoImpresionMaterial $trabajoImpresionMaterial,
     ): JsonResponse {
-        $token = $request->user()?->currentAccessToken();
-        $dispositivoId = $token instanceof PersonalAccessToken
-            ? $token->dispositivo_id
-            : null;
+        $dispositivoId = $this->dispositivoId($request);
         abort_unless(
             $trabajoImpresionMaterial->canal === 'pda_directa'
                 && $trabajoImpresionMaterial->solicitado_por_user_id === $request->user()->id
@@ -165,5 +172,58 @@ class ImpresionEtiquetaMaterialController extends Controller
                 'ultimo_error' => $trabajo->ultimo_error,
             ],
         ]);
+    }
+
+    private function dispositivoId(Request $request): ?string
+    {
+        $token = $request->user()?->currentAccessToken();
+
+        if ($token instanceof PersonalAccessToken) {
+            return $token->dispositivo_id;
+        }
+
+        return null;
+    }
+
+    /** @param array{trabajo: TrabajoImpresionMaterial, contenido: string, mime: string, nombre: string} $resultado */
+    private function respuestaArchivo(array $resultado): Response
+    {
+        return response($resultado['contenido'], Response::HTTP_OK, [
+            'Content-Type' => $resultado['mime'],
+            'Content-Disposition' => 'attachment; filename="'.$resultado['nombre'].'"',
+            'X-Estiba-Print-Job' => $resultado['trabajo']->id,
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function trabajoData(TrabajoImpresionMaterial $trabajo): array
+    {
+        return [
+            'id' => $trabajo->id,
+            'operacion_id' => $trabajo->operacion_id,
+            'origen' => $trabajo->origen,
+            'recepcion_material_id' => $trabajo->recepcion_material_id,
+            'orden_transformacion_material_id' => $trabajo->orden_transformacion_material_id,
+            'lote_transformacion_material_id' => $trabajo->lote_transformacion_material_id,
+            'formato' => $trabajo->formato,
+            'canal' => $trabajo->canal,
+            'estado' => $trabajo->estado,
+            'copias' => $trabajo->copias,
+            'motivo_reimpresion' => $trabajo->motivo_reimpresion,
+            'perfil' => $trabajo->perfil_snapshot,
+            'folios' => $trabajo->folios->map(fn ($folio): array => [
+                'id' => $folio->folio_id,
+                'numero_folio' => $folio->numero_folio_snapshot,
+                'es_reimpresion' => $folio->es_reimpresion,
+            ])->values(),
+            'solicitado_por' => $trabajo->solicitadoPor?->name,
+            'solicitado_at' => $trabajo->solicitado_at?->toAtomString(),
+            'enviado_at' => $trabajo->enviado_at?->toAtomString(),
+            'bytes_enviados' => $trabajo->bytes_enviados,
+            'destino_impresion' => $trabajo->destino_impresion_snapshot,
+            'ultimo_error' => $trabajo->ultimo_error,
+        ];
     }
 }

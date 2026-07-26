@@ -13,6 +13,7 @@ use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\MovimientoInventarioMaterial;
+use App\Models\PerfilImpresionEtiqueta;
 use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\ReservaTransformacionMaterial;
@@ -464,6 +465,54 @@ class TransformacionMaterialApiTest extends TestCase
             ->postJson("/api/materiales/transformaciones/lotes/{$loteUno['id']}/cerrar", $payloadCierreUno)
             ->assertOk()
             ->assertJsonCount(1, 'data.lotes.0.salidas');
+
+        $perfil = PerfilImpresionEtiqueta::query()->where('predeterminado', true)->firstOrFail();
+        $folioSalidaUno = $orden['lotes'][0]['salidas'][0];
+        $descarga = $this->conToken($tokenOficina)
+            ->post(
+                "/api/materiales/transformaciones/ordenes/{$orden['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'pdf',
+                    'canal' => 'oficina_descarga',
+                    'folio_ids' => [$folioSalidaUno['folio_id']],
+                    'copias' => 1,
+                ],
+                ['Accept' => 'application/pdf'],
+            )
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-1.4', $descarga->getContent());
+        $this->assertDatabaseHas('trabajos_impresion_materiales', [
+            'id' => $descarga->headers->get('X-Estiba-Print-Job'),
+            'origen' => 'transformacion',
+            'recepcion_material_id' => null,
+            'orden_transformacion_material_id' => $orden['id'],
+            'lote_transformacion_material_id' => $loteUno['id'],
+        ]);
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/impresiones")
+            ->assertOk()
+            ->assertJsonPath('data.0.origen', 'transformacion')
+            ->assertJsonPath('data.0.folios.0.numero_folio', 'FGE0000003');
+        $this->conToken($tokenTablet)
+            ->post(
+                "/api/materiales/transformaciones/ordenes/{$orden['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'zpl',
+                    'canal' => 'pda_directa',
+                    'folio_ids' => [$folioSalidaUno['folio_id']],
+                    'copias' => 1,
+                    'motivo_reimpresion' => 'Etiqueta dañada durante la manipulación.',
+                ],
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk()
+            ->assertSee('FGE0000003', escape: false)
+            ->assertSee('Transformaci', escape: false);
 
         $orden = $this->conToken($tokenTablet)
             ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [

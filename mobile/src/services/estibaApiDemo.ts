@@ -29,6 +29,12 @@ import {
   OpenMaterialTransformationLotPayload,
   StartMaterialTransformationPayload,
 } from '../domain/materialTransformation';
+import {
+  GenerateMaterialLabelsPayload,
+  LabelPrintProfile,
+  MaterialPrintJob,
+  MaterialPrintOutcomePayload,
+} from '../domain/materialReception';
 import { ApiError } from './apiError';
 import type { EstibaApi } from './estibaApi';
 
@@ -339,6 +345,30 @@ export class DemoEstibaApi implements EstibaApi {
     _payload: CloseMaterialTransformationOrderPayload,
   ): Promise<MaterialTransformationOrder> {
     throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
+  }
+
+  async materialLabelProfiles(): Promise<LabelPrintProfile[]> {
+    return [];
+  }
+
+  async materialTransformationPrintJobs(): Promise<MaterialPrintJob[]> {
+    return [];
+  }
+
+  async generateMaterialTransformationLabels(
+    _token: string,
+    _orderId: string,
+    _payload: GenerateMaterialLabelsPayload,
+  ): Promise<{ jobId: string; zpl: string }> {
+    throw new ApiError('La impresión directa requiere conexión con la API.', 422);
+  }
+
+  async reportMaterialTransformationPrintOutcome(
+    _token: string,
+    _jobId: string,
+    _payload: MaterialPrintOutcomePayload,
+  ): Promise<void> {
+    throw new ApiError('La impresión directa requiere conexión con la API.', 422);
   }
 
   async getPlan(_token: string, cameraId: string) {

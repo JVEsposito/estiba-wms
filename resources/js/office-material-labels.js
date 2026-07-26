@@ -3,6 +3,7 @@ const labelElements = {
     form: document.getElementById('materialLabelForm'),
     error: document.getElementById('materialLabelError'),
     summary: document.getElementById('materialLabelSummary'),
+    source: document.getElementById('materialLabelSource'),
     reception: document.getElementById('materialLabelReception'),
     profile: document.getElementById('materialLabelProfile'),
     folios: document.getElementById('materialLabelFolios'),
@@ -12,8 +13,10 @@ const labelElements = {
 };
 const labelState = {
     receptions: [],
+    orders: [],
     profiles: [],
     selected: null,
+    source: 'recepcion',
     history: [],
     loading: false,
 };
@@ -75,10 +78,41 @@ function receiptFolios(receipt) {
         })));
 }
 
-function renderReceptionOptions() {
-    labelElements.reception.innerHTML = '<option value="">Seleccionar recepción</option>'
-        + labelState.receptions.map((receipt) => `
-            <option value="${receipt.id}">${labelEscape(receipt.numero_guia_despacho)} · ${labelEscape(receipt.cliente?.codigo)} · ${new Date(receipt.confirmado_at).toLocaleDateString('es-CL')}</option>
+function transformationFolios(order) {
+    return (order?.lotes || []).filter((lot) => lot.estado === 'cerrado')
+        .flatMap((lot) => (lot.salidas || []).map((output) => ({
+            id: output.folio_id,
+            numero_folio: output.numero_folio,
+            cantidad: output.cantidad_producida,
+            lote_proveedor: `Lote ${lot.numero_lote}`,
+            item: output.item,
+            unidad_medida: output.item?.unidad_medida,
+            bloqueado: false,
+        })));
+}
+
+function selectedFolios() {
+    return labelState.source === 'transformacion'
+        ? transformationFolios(labelState.selected)
+        : receiptFolios(labelState.selected);
+}
+
+function renderSourceOptions() {
+    const placeholder = labelState.source === 'transformacion'
+        ? 'Seleccionar orden de transformación'
+        : 'Seleccionar recepción';
+    const records = labelState.source === 'transformacion'
+        ? labelState.orders.map((order) => ({
+            id: order.id,
+            label: `OT-${order.id.slice(0, 8).toUpperCase()} · ${order.cliente?.codigo || '—'} · ${order.version_receta?.receta?.nombre || 'Transformación'}`,
+        }))
+        : labelState.receptions.map((receipt) => ({
+            id: receipt.id,
+            label: `${receipt.numero_guia_despacho} · ${receipt.cliente?.codigo || '—'} · ${new Date(receipt.confirmado_at).toLocaleDateString('es-CL')}`,
+        }));
+    labelElements.reception.innerHTML = `<option value="">${placeholder}</option>`
+        + records.map((record) => `
+            <option value="${record.id}">${labelEscape(record.label)}</option>
         `).join('');
 }
 
@@ -89,17 +123,20 @@ function renderProfileOptions() {
 }
 
 function renderFolios() {
-    const folios = receiptFolios(labelState.selected);
+    const folios = selectedFolios();
     const generated = new Set(labelState.history.flatMap((job) => job.folios.map((folio) => folio.id)));
+    const reference = labelState.source === 'transformacion'
+        ? `OT-${labelState.selected?.id?.slice(0, 8).toUpperCase() || ''}`
+        : labelState.selected?.numero_guia_despacho;
     labelElements.summary.textContent = labelState.selected
-        ? `${labelState.selected.numero_guia_despacho} · ${folios.length} folios disponibles`
-        : 'Selecciona una recepción confirmada';
+        ? `${reference} · ${folios.length} folios disponibles`
+        : 'Selecciona una recepción confirmada u orden con lotes cerrados';
     labelElements.folios.innerHTML = folios.map((folio) => `
         <label class="material-label-folio">
             <input name="folio_ids[]" type="checkbox" value="${folio.id}">
             <span><strong>${labelEscape(folio.numero_folio)}${generated.has(folio.id) ? ' · reimpresión' : ''}</strong><small>${labelEscape(folio.item?.codigo)} · ${labelEscape(folio.item?.nombre)}</small><small>${labelEscape(folio.cantidad)} ${labelEscape(folio.unidad_medida)} · lote ${labelEscape(folio.lote_proveedor || '—')}${folio.bloqueado ? ' · BLOQUEADO' : ''}</small></span>
         </label>
-    `).join('') || '<p class="empty-state">Esta recepción no generó folios físicos.</p>';
+    `).join('') || '<p class="empty-state">El origen seleccionado no posee folios etiquetables.</p>';
     labelElements.selectAll.checked = false;
 }
 
@@ -109,20 +146,23 @@ function renderHistory() {
             <div><strong>${labelEscape(job.formato.toUpperCase())} · ${job.folios.length} folios × ${job.copias} copias</strong><small>${new Date(job.solicitado_at).toLocaleString('es-CL')} · ${labelEscape(job.solicitado_por)} · ${labelEscape(job.perfil?.nombre)}</small>${job.motivo_reimpresion ? `<small>Motivo: ${labelEscape(job.motivo_reimpresion)}</small>` : ''}</div>
             <span class="material-import-action">${labelEscape(job.estado)}</span>
         </article>
-    `).join('') || '<p class="empty-state">Aún no se han generado etiquetas para esta recepción.</p>';
+    `).join('') || '<p class="empty-state">Aún no se han generado etiquetas para este origen.</p>';
 }
 
-async function selectReception(id) {
+async function selectSourceRecord(id) {
     labelState.selected = null;
     labelState.history = [];
     renderFolios();
     renderHistory();
     if (!id) return;
-    const [receipt, history] = await Promise.all([
-        labelApi(`/api/materiales/recepciones/${encodeURIComponent(id)}`),
-        labelApi(`/api/materiales/recepciones/${encodeURIComponent(id)}/impresiones`),
+    const prefix = labelState.source === 'transformacion'
+        ? '/api/materiales/transformaciones/ordenes'
+        : '/api/materiales/recepciones';
+    const [record, history] = await Promise.all([
+        labelApi(`${prefix}/${encodeURIComponent(id)}`),
+        labelApi(`${prefix}/${encodeURIComponent(id)}/impresiones`),
     ]);
-    labelState.selected = receipt.data;
+    labelState.selected = record.data;
     labelState.history = history.data || [];
     renderFolios();
     renderHistory();
@@ -137,13 +177,16 @@ async function loadLabels() {
     labelState.loading = true;
     labelElements.error.textContent = '';
     try {
-        const [receptions, profiles] = await Promise.all([
+        const [receptions, orders, profiles] = await Promise.all([
             labelApi('/api/materiales/recepciones?estado=confirmada&per_page=100'),
+            labelApi('/api/materiales/transformaciones/ordenes?per_page=100'),
             labelApi('/api/materiales/recepciones/perfiles-impresion'),
         ]);
         labelState.receptions = receptions.data || [];
+        labelState.orders = (orders.data || []).filter((order) =>
+            (order.lotes || []).some((lot) => lot.estado === 'cerrado' && (lot.salidas || []).length));
         labelState.profiles = profiles.data || [];
-        renderReceptionOptions();
+        renderSourceOptions();
         renderProfileOptions();
         labelState.selected = null;
         labelState.history = [];
@@ -159,10 +202,19 @@ async function loadLabels() {
 labelElements.reception?.addEventListener('change', async (event) => {
     labelElements.error.textContent = '';
     try {
-        await selectReception(event.target.value);
+        await selectSourceRecord(event.target.value);
     } catch (error) {
         labelElements.error.textContent = error.message;
     }
+});
+
+labelElements.source?.addEventListener('change', (event) => {
+    labelState.source = event.target.value;
+    labelState.selected = null;
+    labelState.history = [];
+    renderSourceOptions();
+    renderFolios();
+    renderHistory();
 });
 
 labelElements.selectAll?.addEventListener('change', (event) => {
@@ -178,7 +230,7 @@ labelElements.form?.addEventListener('submit', async (event) => {
     const folioIds = [...labelElements.folios.querySelectorAll('input[type="checkbox"]:checked')]
         .map((checkbox) => checkbox.value);
     if (!labelState.selected || folioIds.length === 0) {
-        labelElements.error.textContent = 'Selecciona una recepción y al menos un folio.';
+        labelElements.error.textContent = 'Selecciona un origen y al menos un folio.';
         return;
     }
     const payload = {
@@ -191,7 +243,10 @@ labelElements.form?.addEventListener('submit', async (event) => {
         motivo_reimpresion: String(form.get('motivo_reimpresion') || '').trim() || null,
     };
     try {
-        const response = await fetch(`/api/materiales/recepciones/${encodeURIComponent(labelState.selected.id)}/etiquetas`, {
+        const prefix = labelState.source === 'transformacion'
+            ? '/api/materiales/transformaciones/ordenes'
+            : '/api/materiales/recepciones';
+        const response = await fetch(`${prefix}/${encodeURIComponent(labelState.selected.id)}/etiquetas`, {
             method: 'POST',
             headers: {
                 Accept: payload.formato === 'pdf' ? 'application/pdf' : 'application/zpl',
@@ -214,7 +269,7 @@ labelElements.form?.addEventListener('submit', async (event) => {
         link.click();
         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         labelElements.form.elements.motivo_reimpresion.value = '';
-        await selectReception(labelState.selected.id);
+        await selectSourceRecord(labelState.selected.id);
     } catch (error) {
         labelElements.error.textContent = error.message;
     }

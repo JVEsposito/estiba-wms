@@ -22,11 +22,13 @@ class ApiRoutesConventionTest extends TestCase
             ['GET', 'api/materiales/transformaciones/recetas', 'can:consultar-transformaciones-materiales'],
             ['GET', 'api/materiales/transformaciones/ordenes', 'can:consultar-transformaciones-materiales'],
             ['GET', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}', 'can:consultar-transformaciones-materiales'],
+            ['GET', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/impresiones', 'can:consultar-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/recetas', 'can:administrar-recetas-materiales'],
             ['POST', 'api/materiales/transformaciones/recetas/{recetaMaterial}/versiones', 'can:administrar-recetas-materiales'],
             ['POST', 'api/materiales/transformaciones/ordenes', 'can:gestionar-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/planificar', 'can:gestionar-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/cancelar', 'can:gestionar-transformaciones-materiales'],
+            ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/etiquetas', 'can:operar-transformaciones-materiales'],
             ['PUT', 'api/administracion/usuarios/{usuario}', 'can:administrar-accesos'],
         ];
 

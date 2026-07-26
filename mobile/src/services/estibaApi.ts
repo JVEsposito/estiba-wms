@@ -34,6 +34,12 @@ import {
   OpenMaterialTransformationLotPayload,
   StartMaterialTransformationPayload,
 } from '../domain/materialTransformation';
+import {
+  GenerateMaterialLabelsPayload,
+  LabelPrintProfile,
+  MaterialPrintJob,
+  MaterialPrintOutcomePayload,
+} from '../domain/materialReception';
 
 export interface EstibaApi {
   readonly mode: ApiMode;
@@ -62,6 +68,10 @@ export interface EstibaApi {
   openMaterialTransformationLot(token: string, orderId: string, payload: OpenMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
   closeMaterialTransformationLot(token: string, lotId: string, payload: CloseMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
   closeMaterialTransformationOrder(token: string, orderId: string, payload: CloseMaterialTransformationOrderPayload): Promise<MaterialTransformationOrder>;
+  materialLabelProfiles(token: string): Promise<LabelPrintProfile[]>;
+  materialTransformationPrintJobs(token: string, orderId: string): Promise<MaterialPrintJob[]>;
+  generateMaterialTransformationLabels(token: string, orderId: string, payload: GenerateMaterialLabelsPayload): Promise<{ jobId: string; zpl: string }>;
+  reportMaterialTransformationPrintOutcome(token: string, jobId: string, payload: MaterialPrintOutcomePayload): Promise<void>;
   listRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[]>;
   getExtractionPlan(token: string, loadId: string): Promise<ExtractionPlan>;
   listDocks(token: string): Promise<Dock[]>;
@@ -270,6 +280,70 @@ class HttpEstibaApi implements EstibaApi {
     )).data;
   }
 
+  async materialLabelProfiles(token: string) {
+    return (await this.request<ApiList<LabelPrintProfile>>(
+      '/api/materiales/recepciones/perfiles-impresion',
+      token,
+    )).data;
+  }
+
+  async materialTransformationPrintJobs(token: string, orderId: string) {
+    return (await this.request<ApiList<MaterialPrintJob>>(
+      `/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/impresiones`,
+      token,
+    )).data;
+  }
+
+  async generateMaterialTransformationLabels(
+    token: string,
+    orderId: string,
+    payload: GenerateMaterialLabelsPayload,
+  ) {
+    let response: Response;
+    try {
+      response = await fetch(
+        `${this.baseUrl}/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/etiquetas`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/zpl',
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+    } catch {
+      throw new ApiError('No fue posible preparar la etiqueta de transformación.', 0);
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(
+        validationMessage(data, 'No fue posible preparar la etiqueta de transformación.'),
+        response.status,
+        data,
+      );
+    }
+    const jobId = response.headers.get('X-Estiba-Print-Job');
+    if (!jobId) {
+      throw new ApiError('La API no devolvió el identificador auditable de impresión.', 500);
+    }
+
+    return { jobId, zpl: await response.text() };
+  }
+
+  async reportMaterialTransformationPrintOutcome(
+    token: string,
+    jobId: string,
+    payload: MaterialPrintOutcomePayload,
+  ) {
+    await this.request(
+      `/api/materiales/transformaciones/trabajos-impresion/${encodeURIComponent(jobId)}/resultado`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    );
+  }
+
   async listRefrigeratedLoads(token: string) {
     return (await this.request<ApiList<RefrigeratedLoad>>('/api/cargas/pendientes', token)).data;
   }
@@ -391,6 +465,10 @@ function createUnavailableApi(message: string): EstibaApi {
     openMaterialTransformationLot: unavailable,
     closeMaterialTransformationLot: unavailable,
     closeMaterialTransformationOrder: unavailable,
+    materialLabelProfiles: unavailable,
+    materialTransformationPrintJobs: unavailable,
+    generateMaterialTransformationLabels: unavailable,
+    reportMaterialTransformationPrintOutcome: unavailable,
     listRefrigeratedLoads: unavailable,
     getExtractionPlan: unavailable,
     listDocks: unavailable,
