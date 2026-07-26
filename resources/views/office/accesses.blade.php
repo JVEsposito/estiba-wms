@@ -9,7 +9,7 @@
         <title>Estiba WMS · Administración de accesos</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-user-management.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-user-management.js', 'resources/js/office-label-profiles.js'])
         @endif
     </head>
     <body>
@@ -164,6 +164,41 @@
                         <table class="admin-table">
                             <thead><tr><th>Cliente</th><th>Folio materiales</th><th>Código ERP</th><th>Presencia</th><th>Estado</th><th>Acciones</th></tr></thead>
                             <tbody id="globalClientsTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="admin-panel panel" aria-labelledby="labelProfilesTitle">
+                    <div class="admin-panel__heading">
+                        <div><p class="eyebrow">IMPRESIÓN TRANSVERSAL</p><h2 id="labelProfilesTitle">Perfiles de etiquetas</h2></div>
+                        <span id="labelProfilesSummary">0 registrados</span>
+                    </div>
+                    <form class="admin-form" id="labelProfileForm" novalidate>
+                        <input name="id" type="hidden">
+                        <div class="admin-form__grid admin-form__grid--label-profile">
+                            <label class="field"><span>Código *</span><input name="codigo" maxlength="60" placeholder="ZEBRA-100X50-203" required></label>
+                            <label class="field"><span>Nombre *</span><input name="nombre" maxlength="120" placeholder="Zebra 100 × 50 mm" required></label>
+                            <label class="field"><span>Fabricante *</span><select name="fabricante" required><option value="Zebra">Zebra</option><option value="Bixolon">Bixolon</option><option value="Genérico">Genérico / compatible</option></select></label>
+                            <label class="field"><span>Modelo</span><input name="modelo" maxlength="80" placeholder="ZD421, XD5-40d…"></label>
+                            <label class="field"><span>DPI *</span><select name="dpi" required><option value="203">203 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></label>
+                            <label class="field"><span>Lenguaje *</span><select name="lenguaje" required><option value="zpl">ZPL / compatible</option></select></label>
+                            <label class="field"><span>Ancho (mm) *</span><input name="ancho_mm" type="number" min="30" max="200" step="0.01" value="100" required></label>
+                            <label class="field"><span>Alto (mm) *</span><input name="alto_mm" type="number" min="20" max="150" step="0.01" value="50" required></label>
+                            <label class="field"><span>Orientación *</span><select name="orientacion" required><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></label>
+                            <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo</span></label>
+                            <label class="admin-check"><input name="predeterminado" type="checkbox"><span>Usar como predeterminado</span></label>
+                        </div>
+                        <p class="admin-form__hint">El perfil define tamaño físico, resolución y lenguaje. La IP se configura en cada PDA/tablet, no en este maestro.</p>
+                        <p class="form-error" id="labelProfileError" role="alert"></p>
+                        <div class="admin-form__actions">
+                            <button class="secondary-button is-hidden" id="cancelLabelProfileEdit" type="button">Nuevo perfil</button>
+                            <button class="primary-button" type="submit">Guardar perfil <span>→</span></button>
+                        </div>
+                    </form>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead><tr><th>Perfil</th><th>Equipo</th><th>Formato</th><th>Lenguaje</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <tbody id="labelProfilesTableBody"></tbody>
                         </table>
                     </div>
                 </section>

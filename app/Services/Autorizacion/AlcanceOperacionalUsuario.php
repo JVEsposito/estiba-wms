@@ -223,6 +223,11 @@ class AlcanceOperacionalUsuario
         return $this->puedeCorregirItemsEstibadosMateriales($usuario);
     }
 
+    public function puedeImprimirEtiquetasMateriales(User $usuario): bool
+    {
+        return $this->puedeGestionarRecepcionesMateriales($usuario);
+    }
+
     public function puedeConsultarTransformacionesMateriales(User $usuario): bool
     {
         return $this->puedeConsultarDespachosMateriales($usuario);
@@ -437,6 +442,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_recepciones_materiales' => $this->puedeConsultarRecepcionesMateriales($usuario),
             'puede_gestionar_recepciones_materiales' => $this->puedeGestionarRecepcionesMateriales($usuario),
             'puede_anular_recepciones_materiales' => $this->puedeAnularRecepcionesMateriales($usuario),
+            'puede_imprimir_etiquetas_materiales' => $this->puedeImprimirEtiquetasMateriales($usuario),
             'puede_consultar_transformaciones_materiales' => $this->puedeConsultarTransformacionesMateriales($usuario),
             'puede_gestionar_transformaciones_materiales' => $this->puedeGestionarTransformacionesMateriales($usuario),
             'puede_administrar_recetas_materiales' => $this->puedeAdministrarRecetasMateriales($usuario),

@@ -14,9 +14,11 @@ use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\MovimientoInventarioMaterial;
+use App\Models\PerfilImpresionEtiqueta;
 use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
+use App\Models\TrabajoImpresionMaterial;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -423,6 +425,171 @@ class RecepcionMaterialApiTest extends TestCase
             'recepcion_material_id' => $recepcion['id'],
             'tipo' => 'confirmada',
         ]);
+    }
+
+    public function test_genera_etiquetas_zpl_y_pdf_con_idempotencia_y_auditoria_de_reimpresion(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 5, 'lote_proveedor' => 'LOTE-ETIQUETA-01']],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folio = $confirmada['detalles'][0]['bultos'][0]['folio'];
+        $perfil = PerfilImpresionEtiqueta::query()
+            ->where('predeterminado', true)
+            ->firstOrFail();
+        $operacion = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacion,
+            'perfil_id' => $perfil->id,
+            'formato' => 'zpl',
+            'canal' => 'oficina_descarga',
+            'folio_ids' => [$folio['id']],
+            'copias' => 1,
+        ];
+
+        $zpl = $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                $payload,
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk()
+            ->assertHeader('content-type', 'application/zpl')
+            ->assertSee('^XA', escape: false)
+            ->assertSee('FGE0000001', escape: false);
+        $trabajoId = $zpl->headers->get('X-Estiba-Print-Job');
+
+        $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                $payload,
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk()
+            ->assertHeader('X-Estiba-Print-Job', $trabajoId);
+        $this->assertDatabaseCount('trabajos_impresion_materiales', 1);
+        $this->assertDatabaseHas('folios_trabajos_impresion_materiales', [
+            'trabajo_impresion_material_id' => $trabajoId,
+            'folio_id' => $folio['id'],
+            'numero_folio_snapshot' => 'FGE0000001',
+            'es_reimpresion' => false,
+        ]);
+
+        $reimpresion = [
+            ...$payload,
+            'operacion_id' => (string) Str::uuid(),
+            'formato' => 'pdf',
+        ];
+        $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                $reimpresion,
+                ['Accept' => 'application/pdf'],
+            )
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $reimpresion['operacion_id'] = (string) Str::uuid();
+        $reimpresion['motivo_reimpresion'] = 'Etiqueta dañada durante la instalación.';
+        $pdf = $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                $reimpresion,
+                ['Accept' => 'application/pdf'],
+            )
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-1.4', $pdf->getContent());
+        $this->assertDatabaseHas('folios_trabajos_impresion_materiales', [
+            'trabajo_impresion_material_id' => $pdf->headers->get('X-Estiba-Print-Job'),
+            'folio_id' => $folio['id'],
+            'es_reimpresion' => true,
+        ]);
+        $this->assertSame(2, TrabajoImpresionMaterial::query()->count());
+
+        $this->conToken($token)
+            ->getJson("/api/materiales/recepciones/{$recepcion['id']}/impresiones")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.motivo_reimpresion', 'Etiqueta dañada durante la instalación.');
+    }
+
+    public function test_administra_perfiles_globales_y_un_usuario_de_consulta_no_puede_imprimir(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $perfil = $this->conToken($token)
+            ->postJson('/api/administracion/etiquetas/materiales/perfiles', [
+                'codigo' => 'BIX-80X40-300',
+                'nombre' => 'Bixolon 80 × 40 mm',
+                'fabricante' => 'Bixolon',
+                'modelo' => 'XD5-40d',
+                'lenguaje' => 'zpl',
+                'dpi' => 300,
+                'ancho_mm' => 80,
+                'alto_mm' => 40,
+                'orientacion' => 'horizontal',
+                'predeterminado' => true,
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.predeterminado', true)
+            ->json('data');
+        $this->assertDatabaseHas('perfiles_impresion_etiquetas', [
+            'id' => $perfil['id'],
+            'fabricante' => 'Bixolon',
+            'dpi' => 300,
+        ]);
+        $this->assertSame(1, PerfilImpresionEtiqueta::query()
+            ->where('predeterminado', true)
+            ->count());
+
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 1]],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $consulta = User::factory()->create([
+            'rol' => RolUsuario::Consulta,
+            'activo' => true,
+        ])->createToken('consulta', ['oficina'])->plainTextToken;
+
+        $this->conToken($consulta)
+            ->getJson('/api/materiales/recepciones/perfiles-impresion')
+            ->assertOk();
+        $this->conToken($consulta)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/etiquetas", [
+                'operacion_id' => (string) Str::uuid(),
+                'perfil_id' => $perfil['id'],
+                'formato' => 'zpl',
+                'canal' => 'oficina_descarga',
+                'folio_ids' => [$confirmada['detalles'][0]['bultos'][0]['folio']['id']],
+                'copias' => 1,
+            ])
+            ->assertForbidden();
     }
 
     private function prepararCatalogo(): array

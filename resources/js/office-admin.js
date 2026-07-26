@@ -142,6 +142,9 @@ function persistSession(payload) {
     state.identity = payload.usuario;
     localStorage.setItem(keys.token, payload.token);
     localStorage.setItem(keys.identity, JSON.stringify(payload.usuario));
+    window.dispatchEvent(new CustomEvent('estiba:office-session', {
+        detail: { authenticated: true, identity: payload.usuario },
+    }));
 }
 
 function clearSession() {
@@ -155,6 +158,9 @@ function clearSession() {
     localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden');
     elements.access.classList.remove('is-hidden');
+    window.dispatchEvent(new CustomEvent('estiba:office-session', {
+        detail: { authenticated: false },
+    }));
 }
 
 function showApp() {

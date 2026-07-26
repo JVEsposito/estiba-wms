@@ -303,12 +303,20 @@
     text-align: center;
 }
 
+.admin-form__grid--label-profile {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1120px) {
     .admin-grid {
         grid-template-columns: 1fr;
     }
 
     .admin-form__grid--season {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-form__grid--label-profile {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
