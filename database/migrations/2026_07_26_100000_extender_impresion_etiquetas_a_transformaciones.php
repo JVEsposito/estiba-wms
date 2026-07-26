@@ -15,15 +15,25 @@ return new class extends Migration
         Schema::table('trabajos_impresion_materiales', function (Blueprint $table): void {
             $table->uuid('recepcion_material_id')->nullable()->change();
             $table->string('origen', 24)->default('recepcion')->after('payload_hash')->index();
-            $table->foreignUuid('orden_transformacion_material_id')
+            $table->uuid('orden_transformacion_material_id')
                 ->nullable()
-                ->after('recepcion_material_id')
-                ->constrained('ordenes_transformacion_materiales')
+                ->after('recepcion_material_id');
+            $table->foreign(
+                'orden_transformacion_material_id',
+                'trabajos_impresion_orden_fk',
+            )
+                ->references('id')
+                ->on('ordenes_transformacion_materiales')
                 ->restrictOnDelete();
-            $table->foreignUuid('lote_transformacion_material_id')
+            $table->uuid('lote_transformacion_material_id')
                 ->nullable()
-                ->after('orden_transformacion_material_id')
-                ->constrained('lotes_transformacion_materiales')
+                ->after('orden_transformacion_material_id');
+            $table->foreign(
+                'lote_transformacion_material_id',
+                'trabajos_impresion_lote_fk',
+            )
+                ->references('id')
+                ->on('lotes_transformacion_materiales')
                 ->restrictOnDelete();
             $table->foreign('recepcion_material_id')
                 ->references('id')
@@ -40,8 +50,8 @@ return new class extends Migration
     {
         Schema::table('trabajos_impresion_materiales', function (Blueprint $table): void {
             $table->dropIndex('trabajos_impresion_material_orden_fecha_idx');
-            $table->dropForeign(['lote_transformacion_material_id']);
-            $table->dropForeign(['orden_transformacion_material_id']);
+            $table->dropForeign('trabajos_impresion_lote_fk');
+            $table->dropForeign('trabajos_impresion_orden_fk');
             $table->dropForeign(['recepcion_material_id']);
             $table->dropColumn([
                 'lote_transformacion_material_id',
