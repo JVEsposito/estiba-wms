@@ -32,6 +32,7 @@ import {
   CloseMaterialTransformationOrderPayload,
   MaterialTransformationOrder,
   OpenMaterialTransformationLotPayload,
+  ReverseMaterialTransformationLotPayload,
   StartMaterialTransformationPayload,
 } from '../domain/materialTransformation';
 import {
@@ -67,6 +68,7 @@ export interface EstibaApi {
   startMaterialTransformation(token: string, orderId: string, payload: StartMaterialTransformationPayload): Promise<MaterialTransformationOrder>;
   openMaterialTransformationLot(token: string, orderId: string, payload: OpenMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
   closeMaterialTransformationLot(token: string, lotId: string, payload: CloseMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
+  reverseMaterialTransformationLot(token: string, lotId: string, payload: ReverseMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
   closeMaterialTransformationOrder(token: string, orderId: string, payload: CloseMaterialTransformationOrderPayload): Promise<MaterialTransformationOrder>;
   materialLabelProfiles(token: string): Promise<LabelPrintProfile[]>;
   materialTransformationPrintJobs(token: string, orderId: string): Promise<MaterialPrintJob[]>;
@@ -268,6 +270,18 @@ class HttpEstibaApi implements EstibaApi {
     )).data;
   }
 
+  async reverseMaterialTransformationLot(
+    token: string,
+    lotId: string,
+    payload: ReverseMaterialTransformationLotPayload,
+  ) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/lotes/${encodeURIComponent(lotId)}/revertir`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )).data;
+  }
+
   async closeMaterialTransformationOrder(
     token: string,
     orderId: string,
@@ -464,6 +478,7 @@ function createUnavailableApi(message: string): EstibaApi {
     startMaterialTransformation: unavailable,
     openMaterialTransformationLot: unavailable,
     closeMaterialTransformationLot: unavailable,
+    reverseMaterialTransformationLot: unavailable,
     closeMaterialTransformationOrder: unavailable,
     materialLabelProfiles: unavailable,
     materialTransformationPrintJobs: unavailable,
