@@ -185,7 +185,7 @@ El cierre de lote es una sola transacción:
 - descuenta `cantidad_actual` y `cantidad_reservada`;
 - retira la ubicación y desactiva el folio cuando su saldo llega a cero;
 - registra consumo, movimiento de inventario, usuario y dispositivo;
-- genera el FAG de salida y su movimiento positivo;
+- genera el folio de material de salida y su movimiento positivo;
 - calcula merma y cierra el lote;
 - revierte todo si falla cualquiera de estos pasos.
 
