@@ -13,6 +13,7 @@ El módulo incorpora:
 - componentes de entrada `material_mp` o `insumo`;
 - identificación explícita del componente principal;
 - órdenes en borrador y planificación;
+- creación, planificación, seguimiento y cancelación desde Oficina de Materiales;
 - reservas FIFO sobre folios existentes, disponibles y ubicados;
 - cancelación con liberación transaccional de reservas;
 - inicio operacional desde PDA;
@@ -104,6 +105,12 @@ cantidad planificada, línea, turno, fecha operacional, snapshot de receta y
 eventos auditables. La planificación utiliza exclusivamente el snapshot de la
 orden; por ello, una nueva versión puede retirar la versión anterior sin
 invalidar órdenes en borrador ya creadas.
+
+Oficina de Materiales muestra los requerimientos proporcionales, la
+disponibilidad referencial, las reservas por folio y ubicación, el avance de
+producción, los lotes, las salidas y la auditoría. Una orden histórica continúa
+visible y puede cancelarse para liberar reservas, pero solo una orden de la
+temporada global activa puede planificarse y llegar a la PDA.
 
 ## Reservas FIFO
 
