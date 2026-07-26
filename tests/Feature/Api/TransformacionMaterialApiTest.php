@@ -17,6 +17,7 @@ use App\Models\PerfilImpresionEtiqueta;
 use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\ReservaTransformacionMaterial;
+use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -325,6 +326,64 @@ class TransformacionMaterialApiTest extends TestCase
         $this->conToken($tokenCamarero)
             ->getJson('/api/materiales/transformaciones/recetas')
             ->assertOk();
+    }
+
+    public function test_no_planifica_una_orden_de_una_temporada_historica(): void
+    {
+        [, $tokenOficina, $cliente, , $entradaPrincipal, , $salida] =
+            $this->prepararCatalogo();
+        $receta = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $salida->id,
+                'nombre' => 'Receta de temporada anterior',
+                'cantidad_base_salida' => 100,
+                'componentes' => [[
+                    'item_entrada_id' => $entradaPrincipal->id,
+                    'cantidad_estandar' => 100,
+                    'es_componente_principal' => true,
+                ]],
+            ])
+            ->assertCreated()
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/ordenes', [
+                'operacion_id' => (string) Str::uuid(),
+                'version_receta_material_id' => $receta['versiones'][0]['id'],
+                'cantidad_planificada_salida' => 20,
+                'fecha_operacional' => '2026-07-26',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->json('data');
+
+        Temporada::query()->where('activa', true)->update(['activa' => false]);
+        Temporada::create([
+            'codigo' => 'TEMP-SIGUIENTE',
+            'nombre' => 'Temporada siguiente',
+            'activa' => true,
+        ]);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath(
+                'message',
+                'La orden pertenece a una temporada histórica y no puede planificarse.',
+            );
+
+        $this->assertDatabaseHas('ordenes_transformacion_materiales', [
+            'id' => $orden['id'],
+            'estado' => 'borrador',
+            'version' => 1,
+        ]);
+        $this->assertSame(0, ReservaTransformacionMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->count());
     }
 
     public function test_ejecuta_lotes_parciales_revierte_el_ultimo_y_cierra_liberando_saldos(): void

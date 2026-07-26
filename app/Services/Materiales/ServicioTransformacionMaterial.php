@@ -254,9 +254,16 @@ class ServicioTransformacionMaterial
                 return $this->cargarOrden($orden->refresh());
             }
 
+            $temporada = $this->temporadaActiva->obtener(bloquear: true);
             $orden = OrdenTransformacionMaterial::query()
                 ->lockForUpdate()
                 ->findOrFail($orden->id);
+
+            if ($orden->temporada_id !== $temporada->id) {
+                throw new DomainException(
+                    'La orden pertenece a una temporada histórica y no puede planificarse.',
+                );
+            }
 
             if ($orden->estado !== EstadoOrdenTransformacionMaterial::Borrador) {
                 throw new DomainException('La orden ya no se encuentra en borrador.');
