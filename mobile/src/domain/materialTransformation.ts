@@ -64,6 +64,9 @@ export type MaterialTransformationLot = {
   desviacion_merma: string | null;
   iniciado_at: string;
   cerrado_at: string | null;
+  reversado_at: string | null;
+  motivo_reversa: string | null;
+  reversado_por: { id: number; nombre: string } | null;
   consumos: MaterialTransformationConsumption[];
   salidas: MaterialTransformationOutput[];
 };
@@ -139,4 +142,8 @@ export type CloseMaterialTransformationLotPayload = StartMaterialTransformationP
 
 export type CloseMaterialTransformationOrderPayload = StartMaterialTransformationPayload & {
   motivo_desviacion?: string;
+};
+
+export type ReverseMaterialTransformationLotPayload = StartMaterialTransformationPayload & {
+  motivo: string;
 };
