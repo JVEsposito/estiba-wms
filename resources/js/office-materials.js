@@ -617,6 +617,7 @@ elements.correctionForm.addEventListener('submit', async (event) => {
     } catch (error) { elements.correctionError.textContent = error.message; } finally { setBusy(false); }
 });
 elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando materiales…'); try { await loadAll(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
+window.addEventListener('estiba:materials-updated', () => void refreshOperationalData());
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 
 async function boot() { addDispatchLine(); if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) return; showApp(); setBusy(true, 'Cargando materiales…'); try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); } }
