@@ -9,6 +9,7 @@ enum TipoEventoTransformacionMaterial: string
     case Iniciada = 'iniciada';
     case LoteAbierto = 'lote_abierto';
     case LoteCerrado = 'lote_cerrado';
+    case LoteReversado = 'lote_reversado';
     case Cerrada = 'cerrada';
     case Cancelada = 'cancelada';
 }
