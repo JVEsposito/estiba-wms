@@ -19,6 +19,7 @@ export default defineConfig({
                 'resources/css/office-materials.css',
                 'resources/js/office-materials.js',
                 'resources/js/office-material-recipes.js',
+                'resources/js/office-material-orders.js',
                 'resources/js/office-material-labels.js',
                 'resources/css/office-validation.css',
                 'resources/js/office-validation.js',
