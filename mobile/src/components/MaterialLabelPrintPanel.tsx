@@ -30,10 +30,30 @@ import {
 } from '../services/printerConfiguration';
 import { colors } from '../theme/colors';
 
+export type DirectMaterialLabelFolio = {
+  id: string;
+  number: string;
+  item: string;
+  quantity: string;
+};
+
+export type DirectMaterialLabelApi = {
+  printProfiles: () => Promise<LabelPrintProfile[]>;
+  printJobs: () => Promise<MaterialPrintJob[]>;
+  generateLabels: (payload: GenerateMaterialLabelsPayload) => Promise<{ jobId: string; zpl: string }>;
+  reportPrintOutcome: (jobId: string, payload: MaterialPrintOutcomePayload) => Promise<void>;
+};
+
 type Props = {
   api: MaterialReceptionApi;
   deviceId: string;
   reception: MaterialReception;
+} | {
+  deviceId: string;
+  sourceApi: DirectMaterialLabelApi;
+  sourceFolios: DirectMaterialLabelFolio[];
+  sourceId: string;
+  sourceLabel: string;
 };
 
 type PendingReport = {
@@ -48,14 +68,37 @@ const EMPTY_CONFIGURATION: PrinterConfiguration = {
   profileId: '',
 };
 
-export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
-  const folios = useMemo(() => (reception.detalles || []).flatMap((detail) =>
-    detail.bultos.filter((itemPackage) => itemPackage.folio).map((itemPackage) => ({
-      id: itemPackage.folio!.id,
-      number: itemPackage.folio!.numero_folio,
-      item: `${detail.item?.codigo ?? '—'} · ${detail.item?.nombre ?? 'Ítem sin datos'}`,
-      quantity: `${itemPackage.cantidad} ${detail.unidad_medida}`,
-    }))), [reception]);
+export function MaterialLabelPrintPanel(props: Props) {
+  const reception = 'reception' in props ? props.reception : null;
+  const receptionApi = 'reception' in props ? props.api : null;
+  const deviceId = props.deviceId;
+  const sourceId = reception?.id ?? ('sourceId' in props ? props.sourceId : '');
+  const sourceLabel = reception
+    ? `recepción ${reception.numero_guia_despacho}`
+    : ('sourceLabel' in props ? props.sourceLabel : 'origen');
+  const sourceApi: DirectMaterialLabelApi = reception && receptionApi
+    ? {
+      printProfiles: () => receptionApi.printProfiles(),
+      printJobs: () => receptionApi.printJobs(reception.id),
+      generateLabels: (payload) => receptionApi.generateLabels(reception.id, payload),
+      reportPrintOutcome: (jobId, payload) => receptionApi.reportPrintOutcome(jobId, payload),
+    }
+    : ('sourceApi' in props ? props.sourceApi : {
+      printProfiles: async () => [],
+      printJobs: async () => [],
+      generateLabels: async () => { throw new Error('Origen de etiquetas no configurado.'); },
+      reportPrintOutcome: async () => undefined,
+    });
+  const folios = useMemo(() => reception
+    ? (reception.detalles || []).flatMap((detail) =>
+      detail.bultos.filter((itemPackage) => itemPackage.folio).map((itemPackage) => ({
+        id: itemPackage.folio!.id,
+        number: itemPackage.folio!.numero_folio,
+        item: `${detail.item?.codigo ?? '—'} · ${detail.item?.nombre ?? 'Ítem sin datos'}`,
+        quantity: `${itemPackage.cantidad} ${detail.unidad_medida}`,
+      })))
+    : ('sourceFolios' in props ? props.sourceFolios : []), [reception, props]);
+  const folioKey = folios.map((folio) => folio.id).sort().join(':');
   const generation = useRef<{ key: string; operationId: string } | null>(null);
   const [profiles, setProfiles] = useState<LabelPrintProfile[]>([]);
   const [history, setHistory] = useState<MaterialPrintJob[]>([]);
@@ -71,15 +114,15 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
 
   useEffect(() => {
     void load();
-  }, [api, deviceId, reception.id]);
+  }, [deviceId, sourceId, folioKey]);
 
   async function load() {
     setBusy(true);
     setError('');
     try {
       const [loadedProfiles, loadedHistory, saved] = await Promise.all([
-        api.printProfiles(),
-        api.printJobs(reception.id),
+        sourceApi.printProfiles(),
+        sourceApi.printJobs(),
         loadPrinterConfiguration(deviceId),
       ]);
       setProfiles(loadedProfiles);
@@ -156,7 +199,7 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
     }
 
     const operationKey = JSON.stringify({
-      receptionId: reception.id,
+      sourceId,
       profileId: printer.profileId,
       folioIds,
       copies: printCopies,
@@ -177,7 +220,7 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
 
     setBusy(true);
     try {
-      const generated = await api.generateLabels(reception.id, payload);
+      const generated = await sourceApi.generateLabels(payload);
       const result = await sendToPrinter(printer.host, printer.port, generated.zpl);
       const outcome: MaterialPrintOutcomePayload = {
         operacion_id: Crypto.randomUUID(),
@@ -196,11 +239,11 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
       };
       const report = { jobId: generated.jobId, payload: outcome };
       setPendingReport(report);
-      await api.reportPrintOutcome(report.jobId, report.payload);
+      await sourceApi.reportPrintOutcome(report.jobId, report.payload);
       setPendingReport(null);
       generation.current = null;
       setReason('');
-      setHistory(await api.printJobs(reception.id));
+      setHistory(await sourceApi.printJobs());
       if (outcome.estado === 'enviado') {
         setMessage(`${folioIds.length} etiqueta(s) enviadas a ${printer.name}.`);
       } else if (outcome.estado === 'indeterminado') {
@@ -220,11 +263,11 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
     setBusy(true);
     setError('');
     try {
-      await api.reportPrintOutcome(pendingReport.jobId, pendingReport.payload);
+      await sourceApi.reportPrintOutcome(pendingReport.jobId, pendingReport.payload);
       const outcome = pendingReport.payload.estado;
       setPendingReport(null);
       generation.current = null;
-      setHistory(await api.printJobs(reception.id));
+      setHistory(await sourceApi.printJobs());
       setMessage(outcome === 'enviado'
         ? 'Resultado confirmado en la trazabilidad.'
         : 'Resultado registrado. Verifica la impresora antes de reimprimir.');
@@ -333,7 +376,7 @@ export function MaterialLabelPrintPanel({ api, deviceId, reception }: Props) {
         </View>
       ) : null}
       <View style={styles.between}>
-        <Text style={styles.muted}>{history.length} trabajo(s) auditados para esta recepción.</Text>
+        <Text style={styles.muted}>{history.length} trabajo(s) auditados para {sourceLabel}.</Text>
         <Action label={`Imprimir ${selected.size} folio(s)`} onPress={() => void print()} disabled={busy || Boolean(pendingReport)} />
       </View>
       {busy ? <ActivityIndicator color={colors.cyan} /> : null}

@@ -137,7 +137,8 @@
                     </div>
                     <form class="materials-form material-label-form" id="materialLabelForm" novalidate>
                         <div class="materials-form__grid material-label-controls">
-                            <label><span>Recepción confirmada *</span><select name="recepcion_id" id="materialLabelReception" required><option value="">Seleccionar recepción</option></select></label>
+                            <label><span>Origen de folios *</span><select id="materialLabelSource"><option value="recepcion">Recepciones confirmadas</option><option value="transformacion">Órdenes de transformación</option></select></label>
+                            <label><span>Documento / proceso *</span><select name="origen_id" id="materialLabelReception" required><option value="">Seleccionar origen</option></select></label>
                             <label><span>Perfil de impresora *</span><select name="perfil_id" id="materialLabelProfile" required><option value="">Seleccionar perfil</option></select></label>
                             <label><span>Formato *</span><select name="formato" required><option value="pdf">PDF · imprimir desde oficina</option><option value="zpl">ZPL · enviar a impresora compatible</option></select></label>
                             <label><span>Copias por folio *</span><input name="copias" type="number" min="1" max="20" value="1" required></label>
@@ -148,7 +149,7 @@
                                 <strong>Folios de la recepción</strong>
                                 <label class="materials-check"><input id="selectAllMaterialLabels" type="checkbox"><span>Seleccionar todos</span></label>
                             </div>
-                            <div id="materialLabelFolios" class="material-label-folios"><p class="empty-state">Selecciona una recepción para consultar sus folios.</p></div>
+                            <div id="materialLabelFolios" class="material-label-folios"><p class="empty-state">Selecciona una recepción u orden para consultar sus folios.</p></div>
                         </div>
                         <p class="materials-help">La descarga queda auditada como archivo generado. El sistema no la marca como impresión física confirmada.</p>
                         <p class="form-error" id="materialLabelError" role="alert"></p>

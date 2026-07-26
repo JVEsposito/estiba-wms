@@ -80,8 +80,7 @@ class GeneradorEtiquetaMaterialPdf
             $etiqueta['cliente_codigo'].' · '.$etiqueta['cliente_nombre'],
             $etiqueta['item_codigo'].' · '.$etiqueta['item_nombre'],
             'Cantidad: '.$etiqueta['cantidad'].' '.$etiqueta['unidad_medida'],
-            'Guía: '.$etiqueta['numero_guia'].' · Lote: '.($etiqueta['lote_proveedor'] ?: '—'),
-            'Proveedor: '.$etiqueta['proveedor_nombre'],
+            ...$this->lineasOrigen($etiqueta),
         ];
         if ($etiqueta['bloqueado']) {
             $lineas[] = 'BLOQUEADO: '.($etiqueta['motivo_bloqueo'] ?: 'Sin motivo');
@@ -146,6 +145,26 @@ class GeneradorEtiquetaMaterialPdf
         }
 
         return $contenido."\n";
+    }
+
+    /**
+     * @param  array<string, mixed>  $etiqueta
+     * @return array<int, string>
+     */
+    private function lineasOrigen(array $etiqueta): array
+    {
+        if (($etiqueta['origen'] ?? 'recepcion') === 'transformacion') {
+            return [
+                'Transformación: '.$etiqueta['orden_transformacion']
+                    .' · Lote '.$etiqueta['numero_lote_transformacion'],
+                'Lote material: '.($etiqueta['lote_proveedor'] ?: '—'),
+            ];
+        }
+
+        return [
+            'Guía: '.$etiqueta['numero_guia'].' · Lote: '.($etiqueta['lote_proveedor'] ?: '—'),
+            'Proveedor: '.$etiqueta['proveedor_nombre'],
+        ];
     }
 
     private function texto(

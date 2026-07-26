@@ -209,6 +209,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('can:consultar-transformaciones-materiales')->group(function () {
             Route::get('/recetas', [TransformacionMaterialController::class, 'recetas']);
             Route::get('/ordenes', [TransformacionMaterialController::class, 'ordenes']);
+            Route::get('/ordenes/{ordenTransformacionMaterial}/impresiones', [ImpresionEtiquetaMaterialController::class, 'indexTransformacion']);
             Route::get('/ordenes/{ordenTransformacionMaterial}', [TransformacionMaterialController::class, 'mostrarOrden']);
         });
 
@@ -228,6 +229,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/ordenes/{ordenTransformacionMaterial}/lotes', [TransformacionMaterialController::class, 'abrirLote']);
             Route::post('/lotes/{loteTransformacionMaterial}/cerrar', [TransformacionMaterialController::class, 'cerrarLote']);
             Route::post('/ordenes/{ordenTransformacionMaterial}/cerrar', [TransformacionMaterialController::class, 'cerrarOrden']);
+            Route::post('/ordenes/{ordenTransformacionMaterial}/etiquetas', [ImpresionEtiquetaMaterialController::class, 'storeTransformacion']);
+            Route::post('/trabajos-impresion/{trabajoImpresionMaterial}/resultado', [ImpresionEtiquetaMaterialController::class, 'resultado']);
         });
     });
 

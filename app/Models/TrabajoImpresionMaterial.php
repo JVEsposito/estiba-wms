@@ -12,7 +12,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'operacion_id',
     'payload_hash',
+    'origen',
     'recepcion_material_id',
+    'orden_transformacion_material_id',
+    'lote_transformacion_material_id',
     'perfil_impresion_etiqueta_id',
     'formato',
     'canal',
@@ -41,6 +44,16 @@ class TrabajoImpresionMaterial extends Model
     public function recepcion(): BelongsTo
     {
         return $this->belongsTo(RecepcionMaterial::class, 'recepcion_material_id');
+    }
+
+    public function ordenTransformacion(): BelongsTo
+    {
+        return $this->belongsTo(OrdenTransformacionMaterial::class, 'orden_transformacion_material_id');
+    }
+
+    public function loteTransformacion(): BelongsTo
+    {
+        return $this->belongsTo(LoteTransformacionMaterial::class, 'lote_transformacion_material_id');
     }
 
     public function perfil(): BelongsTo
