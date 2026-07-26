@@ -21,12 +21,12 @@ El módulo incorpora:
 - control y justificación de excepciones FIFO;
 - generación de folios de salida con el correlativo global del cliente;
 - cálculo de merma por lote y genealogía de entradas y salidas;
-- cierre de orden con liberación del saldo reservado no consumido.
+- cierre de orden con liberación del saldo reservado no consumido;
+- etiquetas PDF/ZPL desde oficina y envío ZPL directo desde PDA;
+- reversa compensatoria y supervisada del último lote cerrado.
 
 Quedan para entregas posteriores:
 
-- impresión de etiquetas de transformación desde la misma pantalla;
-- reversa compensatoria de lotes cerrados;
 - indicadores de transformación en el panel gerencial.
 
 ## Principio de inventario único
@@ -149,6 +149,29 @@ La cancelación de una orden planificada:
 Una orden con consumos futuros no podrá cancelarse directamente: deberá
 revertirse mediante movimientos compensatorios.
 
+## Reversa supervisada de lotes
+
+Administrador y supervisor de Materiales pueden revertir el último lote cerrado
+mientras la orden permanezca `en_proceso` o `pendiente_cierre`. La operación
+exige un motivo, versión conocida y UUID idempotente.
+
+La reversa se rechaza cuando:
+
+- existe otro lote abierto;
+- se intenta revertir un lote que no es el más reciente de la orden;
+- la orden ya fue cerrada;
+- el folio de salida fue ubicado, reservado o modificado;
+- un folio de entrada posee movimientos de inventario posteriores.
+
+La historia no se elimina. El lote pasa a `anulado`, el folio de salida queda
+anulado con saldo cero y se registran movimientos `reversa_transformacion`. Los
+saldos y reservas consumidos vuelven a sus folios de entrada.
+
+Cuando un folio de entrada había quedado completamente agotado, la reversa lo
+reactiva como `pendiente_ubicacion`. Conserva la cantidad reservada para la
+orden, pero debe ser ubicado nuevamente desde Cámaras antes de poder cerrar un
+nuevo lote. Un folio parcialmente consumido conserva su ubicación vigente.
+
 ## Ejecución PDA, lotes y genealogía
 
 La PDA lista las órdenes planificadas y en ejecución. El operador puede iniciar
@@ -229,6 +252,8 @@ misma.
   órdenes, cancelar antes del consumo;
 - administrador, supervisor y camarero de Materiales: iniciar órdenes, abrir y
   cerrar lotes y cerrar la orden desde PDA;
+- solo administrador y supervisor de Materiales: revertir el último lote
+  cerrado con motivo obligatorio;
 - despachador y consulta: lectura según su capacidad de consulta vigente;
 - el login publica capacidades explícitas para consultar transformaciones,
   gestionarlas, operarlas y administrar recetas.
