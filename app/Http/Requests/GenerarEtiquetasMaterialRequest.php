@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class GenerarEtiquetasMaterialRequest extends FormRequest
 {
@@ -29,6 +30,20 @@ class GenerarEtiquetasMaterialRequest extends FormRequest
             'copias' => ['required', 'integer', 'between:1,20'],
             'motivo_reimpresion' => ['nullable', 'string', 'min:5', 'max:1000'],
         ];
+    }
+
+    /** @return array<int, callable(Validator): void> */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($this->input('canal') === 'pda_directa'
+                && $this->input('formato') !== 'zpl') {
+                $validator->errors()->add(
+                    'formato',
+                    'La impresión directa desde PDA requiere formato ZPL.',
+                );
+            }
+        }];
     }
 
     protected function prepareForValidation(): void

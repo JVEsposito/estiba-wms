@@ -1,12 +1,12 @@
 # Estiba WMS móvil
 
-Cliente nativo para tablets Android, construido con Expo, React Native y TypeScript. Está dedicado exclusivamente al trabajo dentro de cámaras: autenticación del operador y dispositivo, sesiones de estiba, plano, ubicación inicial, movimientos y ejecución física de cargas frigoríficas.
+Cliente nativo para tablets Android, construido con Expo, React Native y TypeScript. Reúne la operación física de cámaras, cargas, recepción de materiales e impresión de etiquetas desde terreno.
 
 ## Requisitos locales
 
 - Node.js 24 (la versión usada por CI).
 - npm.
-- Expo Go compatible con el SDK indicado en `package.json`, en una tablet Android o un emulador.
+- Expo Go compatible con el SDK indicado en `package.json`, en una tablet Android o un emulador, salvo al probar funciones nativas como la impresión por IP.
 
 PHP, Composer y MySQL no son necesarios para trabajar únicamente en esta carpeta. Serán necesarios cuando se quiera ejecutar el backend Laravel en el mismo equipo.
 
@@ -68,6 +68,8 @@ npm run update:production -- --message "Descripción del cambio"
 
 Cambios nativos —por ejemplo instalar otra biblioteca nativa, modificar permisos o subir la versión de Expo— requieren incrementar la versión, generar una APK nueva e instalarla. EAS Update no reemplaza silenciosamente el binario Android.
 
+La impresión directa de etiquetas utiliza un módulo Android local que abre una conexión RAW TCP con la impresora configurada (puerto `9100` por defecto). Por eso debe probarse con la APK `1.2.0` o superior: Expo Go y una APK anterior muestran la interfaz, pero no pueden abrir el socket de impresión.
+
 ## Modo demostración explícito
 
 El simulador local sigue disponible, pero debe habilitarse deliberadamente:
@@ -116,5 +118,9 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 - Envío individual o secuencial de folios a un andén.
 - Centro de notificaciones persistentes con lectura y confirmación individual.
 - Polling resiliente cada 12 segundos para alertas, cargas y rutas de extracción.
+- Recepción de materiales con folios trazables.
+- Selección de uno, varios o todos los folios de una recepción confirmada.
+- Perfiles ZPL por fabricante, modelo, formato y DPI para equipos Zebra y Bixolon compatibles.
+- Impresora por IP configurable y persistente por dispositivo, con prueba de conexión y resultado auditable.
 
-Todavía no incluye lectura real de códigos de barras, persistencia offline ni sincronización diferida. Durante una interrupción se conserva el último estado descargado, pero las operaciones nuevas continúan requiriendo conexión con Laravel.
+Todavía no incluye lectura real de códigos de barras, persistencia offline ni sincronización diferida. Durante una interrupción se conserva el último estado descargado, pero las operaciones nuevas continúan requiriendo conexión con Laravel. Un envío de impresión que pierde confirmación después de comenzar se marca como indeterminado y nunca se reintenta automáticamente.

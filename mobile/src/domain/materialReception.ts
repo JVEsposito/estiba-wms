@@ -119,6 +119,69 @@ export type PendingReceptionFolio = {
   } | null;
 };
 
+export type LabelPrintProfile = {
+  id: string;
+  codigo: string;
+  nombre: string;
+  fabricante: string;
+  modelo: string | null;
+  lenguaje: 'zpl';
+  dpi: number;
+  ancho_mm: string | number;
+  alto_mm: string | number;
+  orientacion: 'horizontal' | 'vertical';
+  predeterminado: boolean;
+  activo: boolean;
+};
+
+export type MaterialPrintJob = {
+  id: string;
+  operacion_id: string;
+  formato: 'pdf' | 'zpl';
+  canal: 'oficina_descarga' | 'pda_directa';
+  estado: 'generado' | 'enviado' | 'fallido' | 'indeterminado';
+  copias: number;
+  motivo_reimpresion: string | null;
+  perfil: LabelPrintProfile;
+  folios: Array<{
+    id: string;
+    numero_folio: string;
+    es_reimpresion: boolean;
+  }>;
+  solicitado_por: string;
+  solicitado_at: string;
+  enviado_at: string | null;
+  bytes_enviados: number | null;
+  destino_impresion: {
+    nombre: string;
+    host: string;
+    puerto: number;
+  } | null;
+  ultimo_error: string | null;
+};
+
+export type GenerateMaterialLabelsPayload = {
+  operacion_id: string;
+  perfil_id: string;
+  formato: 'zpl';
+  canal: 'pda_directa';
+  folio_ids: string[];
+  copias: number;
+  motivo_reimpresion: string | null;
+};
+
+export type MaterialPrintOutcomePayload = {
+  operacion_id: string;
+  estado: 'enviado' | 'fallido' | 'indeterminado';
+  bytes_enviados: number;
+  error: string | null;
+  impresora: {
+    nombre: string;
+    host: string;
+    puerto: number;
+  };
+};
+
 export type ReceptionDraftPackage = {
   local_id: string;
   cantidad: string;
