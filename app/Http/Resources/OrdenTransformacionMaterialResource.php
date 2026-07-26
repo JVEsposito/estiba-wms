@@ -85,6 +85,13 @@ class OrdenTransformacionMaterialResource extends JsonResource
                     'desviacion_merma' => $lote->desviacion_merma,
                     'iniciado_at' => $lote->iniciado_at?->toAtomString(),
                     'cerrado_at' => $lote->cerrado_at?->toAtomString(),
+                    'reversado_at' => $lote->reversado_at?->toAtomString(),
+                    'motivo_reversa' => $lote->motivo_reversa,
+                    'reversado_por' => $lote->relationLoaded('reversadoPor')
+                        && $lote->reversadoPor ? [
+                            'id' => $lote->reversadoPor->id,
+                            'nombre' => $lote->reversadoPor->name,
+                        ] : null,
                     'consumos' => $lote->relationLoaded('consumos')
                         ? $lote->consumos->map(fn ($consumo): array => [
                             'id' => $consumo->id,

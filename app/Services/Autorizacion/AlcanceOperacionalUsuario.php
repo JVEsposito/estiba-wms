@@ -247,6 +247,11 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeRevertirTransformacionesMateriales(User $usuario): bool
+    {
+        return $this->puedeGestionarTransformacionesMateriales($usuario);
+    }
+
     public function puedeAdministrarRecetasMateriales(User $usuario): bool
     {
         return $this->puedeGestionarTransformacionesMateriales($usuario);
@@ -455,6 +460,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_transformaciones_materiales' => $this->puedeConsultarTransformacionesMateriales($usuario),
             'puede_gestionar_transformaciones_materiales' => $this->puedeGestionarTransformacionesMateriales($usuario),
             'puede_operar_transformaciones_materiales' => $this->puedeOperarTransformacionesMateriales($usuario),
+            'puede_revertir_transformaciones_materiales' => $this->puedeRevertirTransformacionesMateriales($usuario),
             'puede_administrar_recetas_materiales' => $this->puedeAdministrarRecetasMateriales($usuario),
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),

@@ -16,6 +16,7 @@ import {
 import { AuthSession } from '../domain/estiba';
 import { MaterialLabelPrintPanel } from './MaterialLabelPrintPanel';
 import {
+  MaterialTransformationLot,
   MaterialTransformationOrder,
   MaterialTransformationReservation,
   MaterialTransformationState,
@@ -50,6 +51,7 @@ export function MaterialTransformationOperation({
   const { width } = useWindowDimensions();
   const compact = width < 980;
   const canOperate = auth.usuario.capacidades.puede_operar_transformaciones_materiales === true;
+  const canReverse = auth.usuario.capacidades.puede_revertir_transformaciones_materiales === true;
   const [orders, setOrders] = useState<MaterialTransformationOrder[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<QueueFilter>('activas');
@@ -57,6 +59,8 @@ export function MaterialTransformationOperation({
   const [actualQuantity, setActualQuantity] = useState('');
   const [scan, setScan] = useState('');
   const [closeReason, setCloseReason] = useState('');
+  const [reverseCandidateId, setReverseCandidateId] = useState<string | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
   const [draft, setDraft] = useState<Record<string, DraftConsumption>>({});
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -81,6 +85,8 @@ export function MaterialTransformationOperation({
       && reservation.folio,
   ) ?? [];
   const closedLots = selected?.lotes.filter((lot) => lot.estado === 'cerrado') ?? [];
+  const lastLot = [...(selected?.lotes ?? [])]
+    .sort((a, b) => b.numero_lote - a.numero_lote)[0] ?? null;
 
   useEffect(() => {
     void refresh(false);
@@ -100,6 +106,8 @@ export function MaterialTransformationOperation({
     setActualQuantity('');
     setScan('');
     setCloseReason('');
+    setReverseCandidateId(null);
+    setReverseReason('');
     setPlannedQuantity('');
     operationIds.current.clear();
   }, [selected?.id, openLot?.id]);
@@ -198,6 +206,10 @@ export function MaterialTransformationOperation({
 
     if (!matched?.folio) {
       setError('El folio no pertenece a una reserva activa de esta orden.');
+      return;
+    }
+    if (!matched.folio.ubicacion) {
+      setError('El folio debe ubicarse nuevamente antes de registrarlo como consumo.');
       return;
     }
 
@@ -304,6 +316,44 @@ export function MaterialTransformationOperation({
       applyOrder(order, 'Orden cerrada. Los saldos de reserva no consumidos fueron liberados.');
     } catch (reasonCaught) {
       fail(reasonCaught, 'No fue posible cerrar la orden.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reverseLot(lot: MaterialTransformationLot) {
+    if (!selected || !canReverse || lot.id !== lastLot?.id || lot.estado !== 'cerrado') return;
+    const reason = reverseReason.trim();
+
+    if (reason.length < 5) {
+      setError('Indica un motivo de al menos 5 caracteres para revertir el lote.');
+      return;
+    }
+
+    const key = `reverse-lot:${lot.id}:${selected.version}:${reason}`;
+    setBusy(true);
+    try {
+      const order = await api.reverseMaterialTransformationLot(auth.token, lot.id, {
+        operacion_id: operationId(key),
+        version_conocida: selected.version,
+        motivo: reason,
+      });
+      const pendingLocation = order.reservas.filter(
+        (reservation) => reservation.estado === 'activa'
+          && Number(reservation.cantidad_pendiente) > 0
+          && reservation.folio
+          && !reservation.folio.ubicacion,
+      );
+      applyOrder(
+        order,
+        pendingLocation.length > 0
+          ? `Lote revertido. ${pendingLocation.length} folio(s) de entrada deben ubicarse nuevamente.`
+          : 'Lote revertido. Los saldos y reservas de entrada fueron restaurados.',
+      );
+      setReverseCandidateId(null);
+      setReverseReason('');
+    } catch (reasonCaught) {
+      fail(reasonCaught, 'No fue posible revertir el lote.');
     } finally {
       setBusy(false);
     }
@@ -477,7 +527,9 @@ export function MaterialTransformationOperation({
                               </Text>
                             </View>
                             <Text style={styles.pending}>
-                              {formatQuantity(reservation.cantidad_pendiente)} disponibles
+                              {reservation.folio.ubicacion
+                                ? `${formatQuantity(reservation.cantidad_pendiente)} disponibles`
+                                : 'REUBICAR ANTES DE CONSUMIR'}
                             </Text>
                           </Pressable>
                           {line ? (
@@ -555,6 +607,60 @@ export function MaterialTransformationOperation({
                       {' '}{formatQuantity(output.cantidad_producida)} {output.item.unidad_medida}
                     </Text>
                   ))}
+                  {lot.estado === 'anulado' ? (
+                    <Text style={styles.reversed}>
+                      REVERTIDO{lot.reversado_por ? ` por ${lot.reversado_por.nombre}` : ''}
+                      {lot.motivo_reversa ? ` · ${lot.motivo_reversa}` : ''}
+                    </Text>
+                  ) : null}
+                  {canReverse
+                    && !openLot
+                    && (selected.estado === 'en_proceso' || selected.estado === 'pendiente_cierre')
+                    && lastLot?.id === lot.id
+                    && lot.estado === 'cerrado' ? (
+                      <View style={styles.reversePanel}>
+                        {reverseCandidateId === lot.id ? (
+                          <>
+                            <Text style={styles.reverseWarning}>
+                              La salida quedará anulada y los consumos se compensarán. El motivo será permanente.
+                            </Text>
+                            <Field
+                              label="Motivo obligatorio de la reversa"
+                              onChangeText={setReverseReason}
+                              value={reverseReason}
+                            />
+                            <View style={styles.reverseActions}>
+                              <Pressable
+                                disabled={reverseReason.trim().length < 5}
+                                onPress={() => void reverseLot(lot)}
+                                style={[
+                                  styles.dangerButton,
+                                  reverseReason.trim().length < 5 && styles.buttonDisabled,
+                                ]}
+                              >
+                                <Text style={styles.dangerButtonText}>Confirmar reversa</Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => {
+                                  setReverseCandidateId(null);
+                                  setReverseReason('');
+                                }}
+                                style={styles.secondaryButton}
+                              >
+                                <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                              </Pressable>
+                            </View>
+                          </>
+                        ) : (
+                          <Pressable
+                            onPress={() => setReverseCandidateId(lot.id)}
+                            style={styles.secondaryButton}
+                          >
+                            <Text style={styles.secondaryButtonText}>Revertir último lote</Text>
+                          </Pressable>
+                        )}
+                      </View>
+                    ) : null}
                 </View>
               ))}
               {!selected.lotes.length ? <Text style={styles.empty}>La orden aún no tiene lotes.</Text> : null}
@@ -781,6 +887,12 @@ const styles = StyleSheet.create({
   lotState: { color: colors.muted, fontSize: 7, fontWeight: '900' },
   trace: { marginTop: 6, color: colors.muted, fontSize: 8 },
   output: { marginTop: 6, color: colors.green, fontSize: 9, fontWeight: '900' },
+  reversed: { marginTop: 8, color: colors.red, fontSize: 8, fontWeight: '900' },
+  reversePanel: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border, gap: 8 },
+  reverseWarning: { color: colors.red, fontSize: 8, lineHeight: 12, fontWeight: '800' },
+  reverseActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  dangerButton: { minHeight: 40, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: colors.red, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  dangerButtonText: { color: colors.red, fontSize: 8, fontWeight: '900' },
   empty: { padding: 18, color: colors.muted, fontSize: 9, textAlign: 'center' },
   emptyDetail: { minHeight: 400, alignItems: 'center', justifyContent: 'center' },
   errorBanner: { margin: 10, marginBottom: 0, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.red, backgroundColor: colors.background },

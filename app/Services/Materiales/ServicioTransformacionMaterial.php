@@ -27,6 +27,7 @@ use App\Models\OrdenTransformacionMaterial;
 use App\Models\RecetaMaterial;
 use App\Models\ReservaTransformacionMaterial;
 use App\Models\SalidaTransformacionMaterial;
+use App\Models\TrabajoImpresionMaterial;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Models\VersionRecetaMaterial;
@@ -985,6 +986,365 @@ class ServicioTransformacionMaterial
         }, attempts: 3);
     }
 
+    public function revertirLote(
+        LoteTransformacionMaterial $lote,
+        string $operacionId,
+        int $versionConocida,
+        string $motivo,
+        User $usuario,
+        ?Dispositivo $dispositivo,
+    ): OrdenTransformacionMaterial {
+        $motivo = trim($motivo);
+
+        if (mb_strlen($motivo) < 5) {
+            throw new DomainException('Debe indicar un motivo suficiente para revertir el lote.');
+        }
+
+        $datosOperacion = [
+            'operacion_id' => $operacionId,
+            'version_conocida' => $versionConocida,
+            'motivo' => $motivo,
+        ];
+        $payloadHash = $this->payloadHash($datosOperacion);
+
+        return DB::transaction(function () use (
+            $lote,
+            $operacionId,
+            $versionConocida,
+            $motivo,
+            $usuario,
+            $dispositivo,
+            $payloadHash,
+        ): OrdenTransformacionMaterial {
+            $lote = LoteTransformacionMaterial::query()
+                ->lockForUpdate()
+                ->findOrFail($lote->id);
+            $orden = OrdenTransformacionMaterial::query()
+                ->lockForUpdate()
+                ->findOrFail($lote->orden_transformacion_material_id);
+
+            if ($this->eventoYaProcesado(
+                $orden,
+                $operacionId,
+                TipoEventoTransformacionMaterial::LoteReversado,
+                $usuario,
+                $dispositivo,
+                $payloadHash,
+            )) {
+                return $this->cargarOrden($orden->refresh());
+            }
+
+            $this->validarVersion($orden, $versionConocida);
+
+            if (! in_array($orden->estado, [
+                EstadoOrdenTransformacionMaterial::EnProceso,
+                EstadoOrdenTransformacionMaterial::PendienteCierre,
+            ], true)) {
+                throw new DomainException(
+                    'Solo se puede revertir un lote mientras la orden continúe en ejecución.',
+                );
+            }
+
+            if ($lote->estado !== EstadoLoteTransformacionMaterial::Cerrado) {
+                throw new DomainException('Solo se puede revertir un lote cerrado.');
+            }
+
+            $lotes = LoteTransformacionMaterial::query()
+                ->where('orden_transformacion_material_id', $orden->id)
+                ->orderBy('numero_lote')
+                ->lockForUpdate()
+                ->get();
+
+            if ($lotes->contains(
+                fn (LoteTransformacionMaterial $candidato): bool => $candidato->estado
+                    === EstadoLoteTransformacionMaterial::Abierto,
+            )) {
+                throw new DomainException(
+                    'Debe cerrar o descartar el lote abierto antes de revertir un lote anterior.',
+                );
+            }
+
+            $ultimoLote = $lotes->sortByDesc('numero_lote')->first();
+
+            if (! $ultimoLote || $ultimoLote->id !== $lote->id) {
+                throw new DomainException(
+                    'Solo se puede revertir el lote más reciente de la orden.',
+                );
+            }
+
+            if (TrabajoImpresionMaterial::query()
+                ->where('lote_transformacion_material_id', $lote->id)
+                ->where('estado', 'enviado')
+                ->exists()) {
+                throw new DomainException(
+                    'El lote posee etiquetas enviadas a impresión y no puede revertirse.',
+                );
+            }
+
+            $consumos = ConsumoTransformacionMaterial::query()
+                ->where('lote_transformacion_material_id', $lote->id)
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get();
+            $salidas = SalidaTransformacionMaterial::query()
+                ->where('lote_transformacion_material_id', $lote->id)
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get();
+
+            if ($consumos->isEmpty() || $salidas->isEmpty()) {
+                throw new DomainException(
+                    'El lote no posee la genealogía necesaria para una reversa compensatoria.',
+                );
+            }
+
+            $folioIds = $consumos->pluck('folio_id')
+                ->merge($salidas->pluck('folio_id'))
+                ->unique()
+                ->sort()
+                ->values();
+            $materiales = FolioMaterial::query()
+                ->whereIn('folio_id', $folioIds)
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('folio_id');
+            $folios = Folio::query()
+                ->whereIn('id', $folioIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+            $ubicaciones = UbicacionActual::query()
+                ->whereIn('folio_id', $folioIds)
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('folio_id');
+            $reservas = ReservaTransformacionMaterial::query()
+                ->where('orden_transformacion_material_id', $orden->id)
+                ->whereIn('folio_id', $consumos->pluck('folio_id'))
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('folio_id');
+            $ahora = now();
+            $foliosSalida = [];
+            $foliosReubicacion = [];
+
+            foreach ($salidas as $salida) {
+                $material = $materiales->get($salida->folio_id);
+                $folio = $folios->get($salida->folio_id);
+
+                if (! $material || ! $folio) {
+                    throw new DomainException('El folio de salida ya no posee una ficha válida.');
+                }
+
+                $cantidadActual = round((float) $material->cantidad_actual, 3);
+                $cantidadProducida = round((float) $salida->cantidad_producida, 3);
+                $movimientosSalida = MovimientoInventarioMaterial::query()
+                    ->where('folio_id', $folio->id)
+                    ->orderBy('ocurrido_at')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+                $movimientoProduccion = $movimientosSalida->first();
+                $salidaIntacta = $movimientosSalida->count() === 1
+                    && $movimientoProduccion?->tipo
+                        === TipoMovimientoInventarioMaterial::ProduccionTransformacion
+                    && $movimientoProduccion->lote_transformacion_material_id === $lote->id;
+
+                if (! $folio->activo
+                    || $folio->estado_operacional !== EstadoOperacionalFolio::PendienteUbicacion
+                    || $ubicaciones->has($folio->id)
+                    || $material->item_material_id !== $salida->item_material_id
+                    || abs($cantidadActual - $cantidadProducida) > 0.0001
+                    || (float) $material->cantidad_reservada > 0.0001
+                    || ! $salidaIntacta) {
+                    throw new DomainException(sprintf(
+                        'El folio de salida %s ya fue ubicado, reservado o modificado y no puede anularse.',
+                        $folio->numero_folio,
+                    ));
+                }
+
+                MovimientoInventarioMaterial::create([
+                    'folio_id' => $folio->id,
+                    'item_material_id' => $material->item_material_id,
+                    'tipo' => TipoMovimientoInventarioMaterial::ReversaTransformacion,
+                    'cantidad' => -$cantidadProducida,
+                    'cantidad_anterior' => $cantidadActual,
+                    'cantidad_resultante' => 0,
+                    'orden_transformacion_material_id' => $orden->id,
+                    'lote_transformacion_material_id' => $lote->id,
+                    'user_id' => $usuario->id,
+                    'dispositivo_id' => $dispositivo?->id,
+                    'motivo' => $motivo,
+                    'metadatos' => [
+                        'sentido' => 'anulacion_salida',
+                        'salida_transformacion_material_id' => $salida->id,
+                        'numero_lote' => $lote->numero_lote,
+                    ],
+                    'ocurrido_at' => $ahora,
+                ]);
+                $material->update([
+                    'cantidad_actual' => 0,
+                    'cantidad_reservada' => 0,
+                ]);
+                $folio->update([
+                    'estado_operacional' => EstadoOperacionalFolio::Anulado,
+                    'activo' => false,
+                ]);
+                $foliosSalida[] = $folio->numero_folio;
+            }
+
+            foreach ($consumos as $consumo) {
+                $material = $materiales->get($consumo->folio_id);
+                $folio = $folios->get($consumo->folio_id);
+                $reserva = $reservas->get($consumo->folio_id);
+
+                if (! $material || ! $folio || ! $reserva) {
+                    throw new DomainException(
+                        'Uno de los consumos ya no posee folio o reserva recuperable.',
+                    );
+                }
+
+                $cantidadActual = round((float) $material->cantidad_actual, 3);
+                $cantidadEsperada = round((float) $consumo->cantidad_resultante, 3);
+                $cantidadConsumida = round((float) $consumo->cantidad_consumida, 3);
+                $cantidadReservada = round((float) $material->cantidad_reservada, 3);
+                $reservaConsumida = round((float) $reserva->cantidad_consumida, 3);
+                $quedoAgotado = $cantidadEsperada <= 0.0001;
+                $ultimoMovimiento = MovimientoInventarioMaterial::query()
+                    ->where('folio_id', $folio->id)
+                    ->orderByDesc('ocurrido_at')
+                    ->orderByDesc('id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($material->item_material_id !== $consumo->item_material_id
+                    || abs($cantidadActual - $cantidadEsperada) > 0.0001
+                    || $reservaConsumida + 0.0001 < $cantidadConsumida
+                    || ! $ultimoMovimiento
+                    || $ultimoMovimiento->tipo
+                        !== TipoMovimientoInventarioMaterial::ConsumoTransformacion
+                    || $ultimoMovimiento->lote_transformacion_material_id !== $lote->id) {
+                    throw new DomainException(sprintf(
+                        'El folio de entrada %s posee movimientos posteriores y no puede restaurarse.',
+                        $folio->numero_folio,
+                    ));
+                }
+
+                if ($quedoAgotado) {
+                    if ($folio->activo
+                        || $folio->estado_operacional !== EstadoOperacionalFolio::RetiradoDefinitivo
+                        || $ubicaciones->has($folio->id)) {
+                        throw new DomainException(sprintf(
+                            'El folio agotado %s cambió después del consumo y no puede restaurarse.',
+                            $folio->numero_folio,
+                        ));
+                    }
+                } elseif (! $folio->activo
+                    || $folio->estado_operacional !== EstadoOperacionalFolio::Disponible
+                    || ! $ubicaciones->has($folio->id)
+                    || $material->motivo_bloqueo !== null) {
+                    throw new DomainException(sprintf(
+                        'El folio de entrada %s ya no conserva su condición operacional.',
+                        $folio->numero_folio,
+                    ));
+                }
+
+                $cantidadRestaurada = round($cantidadActual + $cantidadConsumida, 3);
+                $reservaRestaurada = round($cantidadReservada + $cantidadConsumida, 3);
+                $reservaConsumidaRestante = max(
+                    0,
+                    round($reservaConsumida - $cantidadConsumida, 3),
+                );
+
+                if ($reservaRestaurada - $cantidadRestaurada > 0.0001) {
+                    throw new DomainException(sprintf(
+                        'La reversa dejaría una reserva superior al saldo del folio %s.',
+                        $folio->numero_folio,
+                    ));
+                }
+
+                $material->update([
+                    'cantidad_actual' => $cantidadRestaurada,
+                    'cantidad_reservada' => $reservaRestaurada,
+                ]);
+                $reserva->update([
+                    'cantidad_consumida' => $reservaConsumidaRestante,
+                    'estado' => EstadoReservaMaterial::Activa,
+                ]);
+                $folio->update([
+                    'estado_operacional' => $quedoAgotado
+                        ? EstadoOperacionalFolio::PendienteUbicacion
+                        : EstadoOperacionalFolio::Disponible,
+                    'activo' => true,
+                ]);
+                MovimientoInventarioMaterial::create([
+                    'folio_id' => $folio->id,
+                    'item_material_id' => $material->item_material_id,
+                    'tipo' => TipoMovimientoInventarioMaterial::ReversaTransformacion,
+                    'cantidad' => $cantidadConsumida,
+                    'cantidad_anterior' => $cantidadActual,
+                    'cantidad_resultante' => $cantidadRestaurada,
+                    'orden_transformacion_material_id' => $orden->id,
+                    'lote_transformacion_material_id' => $lote->id,
+                    'user_id' => $usuario->id,
+                    'dispositivo_id' => $dispositivo?->id,
+                    'motivo' => $motivo,
+                    'metadatos' => [
+                        'sentido' => 'restauracion_entrada',
+                        'consumo_transformacion_material_id' => $consumo->id,
+                        'numero_lote' => $lote->numero_lote,
+                        'requiere_reubicacion' => $quedoAgotado,
+                    ],
+                    'ocurrido_at' => $ahora,
+                ]);
+
+                if ($quedoAgotado) {
+                    $foliosReubicacion[] = $folio->numero_folio;
+                }
+            }
+
+            $lote->update([
+                'estado' => EstadoLoteTransformacionMaterial::Anulado,
+                'reversado_por_user_id' => $usuario->id,
+                'reversado_at' => $ahora,
+                'motivo_reversa' => $motivo,
+            ]);
+            $cantidadRealOrden = round(LoteTransformacionMaterial::query()
+                ->where('orden_transformacion_material_id', $orden->id)
+                ->where('estado', EstadoLoteTransformacionMaterial::Cerrado->value)
+                ->sum('cantidad_real_salida'), 3);
+            $orden->update([
+                'cantidad_real_salida' => $cantidadRealOrden,
+                'estado' => $cantidadRealOrden + 0.0001 >= (float) $orden->cantidad_planificada_salida
+                    ? EstadoOrdenTransformacionMaterial::PendienteCierre
+                    : EstadoOrdenTransformacionMaterial::EnProceso,
+                'version' => $orden->version + 1,
+            ]);
+            $this->registrarEvento(
+                $orden,
+                TipoEventoTransformacionMaterial::LoteReversado,
+                $usuario,
+                $operacionId,
+                [
+                    'version_conocida' => $versionConocida,
+                    'payload_hash' => $payloadHash,
+                    'lote_id' => $lote->id,
+                    'numero_lote' => $lote->numero_lote,
+                    'folios_salida_anulados' => $foliosSalida,
+                    'folios_entrada_requieren_ubicacion' => $foliosReubicacion,
+                ],
+                observacion: $motivo,
+                dispositivo: $dispositivo,
+            );
+
+            return $this->cargarOrden($orden->refresh());
+        }, attempts: 3);
+    }
+
     public function cerrarOrden(
         OrdenTransformacionMaterial $orden,
         string $operacionId,
@@ -1140,6 +1500,7 @@ class ServicioTransformacionMaterial
             'lotes.consumos.item',
             'lotes.salidas.folioMaterial.folio',
             'lotes.salidas.item',
+            'lotes.reversadoPor:id,name',
             'eventos' => fn ($consulta) => $consulta->orderBy('ocurrido_at'),
             'eventos.usuario:id,name',
             'creadoPor:id,name',

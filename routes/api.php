@@ -223,6 +223,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/ordenes/{ordenTransformacionMaterial}/planificar', [TransformacionMaterialController::class, 'planificar']);
             Route::post('/ordenes/{ordenTransformacionMaterial}/cancelar', [TransformacionMaterialController::class, 'cancelar']);
         });
+        Route::post('/lotes/{loteTransformacionMaterial}/revertir', [TransformacionMaterialController::class, 'revertirLote'])
+            ->middleware('can:revertir-transformaciones-materiales');
 
         Route::middleware('can:operar-transformaciones-materiales')->group(function () {
             Route::post('/ordenes/{ordenTransformacionMaterial}/iniciar', [TransformacionMaterialController::class, 'iniciar']);
