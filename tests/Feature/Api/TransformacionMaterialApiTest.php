@@ -981,6 +981,101 @@ class TransformacionMaterialApiTest extends TestCase
             ->count());
     }
 
+    public function test_rechaza_reversa_si_la_etiqueta_de_salida_ya_fue_enviada_a_impresion(): void
+    {
+        [$tokenOficina, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
+            $this->prepararOrdenOperacional(20);
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->json('data');
+        $lote = $orden['lotes'][0];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 20,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->json('data');
+        $folioSalida = $orden['lotes'][0]['salidas'][0];
+        $perfil = PerfilImpresionEtiqueta::query()->firstOrFail();
+        $generado = $this->conToken($tokenTablet)
+            ->post(
+                "/api/materiales/transformaciones/ordenes/{$orden['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'zpl',
+                    'canal' => 'pda_directa',
+                    'folio_ids' => [$folioSalida['folio_id']],
+                    'copias' => 1,
+                ],
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk();
+        $trabajoId = $generado->headers->get('X-Estiba-Print-Job');
+
+        $this->conToken($tokenTablet)
+            ->postJson(
+                "/api/materiales/transformaciones/trabajos-impresion/{$trabajoId}/resultado",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'estado' => 'enviado',
+                    'bytes_enviados' => 128,
+                    'error' => null,
+                    'impresora' => [
+                        'nombre' => 'Zebra transformación',
+                        'host' => '192.168.10.25',
+                        'puerto' => 9100,
+                    ],
+                ],
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'enviado');
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/revertir", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'motivo' => 'La cantidad real del lote fue digitada incorrectamente.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio')
+            ->assertJsonPath(
+                'message',
+                'El lote posee etiquetas enviadas a impresión y no puede revertirse.',
+            );
+
+        $this->assertDatabaseHas('lotes_transformacion_materiales', [
+            'id' => $lote['id'],
+            'estado' => 'cerrado',
+        ]);
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioSalida['folio_id'],
+            'estado_operacional' => 'pendiente_ubicacion',
+            'activo' => true,
+        ]);
+        $this->assertSame('60.000', FolioMaterial::query()
+            ->findOrFail($folioPrincipal['id'])
+            ->cantidad_actual);
+        $this->assertSame('8.000', FolioMaterial::query()
+            ->findOrFail($folioAuxiliar['id'])
+            ->cantidad_actual);
+        $this->assertSame(0, MovimientoInventarioMaterial::query()
+            ->where('lote_transformacion_material_id', $lote['id'])
+            ->where('tipo', 'reversa_transformacion')
+            ->count());
+    }
+
     private function prepararOrdenOperacional(float $cantidadPlanificada): array
     {
         [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
