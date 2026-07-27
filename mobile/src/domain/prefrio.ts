@@ -63,10 +63,16 @@ export type PrefrioFolioCandidate = {
   estado_operacional: string;
   condicion_termica: 'pendiente_prefrio' | 'requiere_reproceso' | 'retenido';
   habilitacion_almacenamiento: 'no_habilitado' | 'retenido';
+  especie: string | null;
   variedad: string | null;
   calibre: string | null;
+  envase: string | null;
+  categoria: string | null;
   marca: string | null;
   exportadora: string | null;
+  csg: string | null;
+  predio: string | null;
+  cantidad_cajas: number | null;
   fecha_ingreso: string | null;
 };
 

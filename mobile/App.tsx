@@ -8,7 +8,7 @@ import { AuthSession, LoginPayload } from './src/domain/estiba';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
-import { PrefrioScreen } from './src/screens/PrefrioScreen';
+import { PrefrioWorkspaceScreen } from './src/screens/PrefrioWorkspaceScreen';
 import { ValidationScreen } from './src/screens/ValidationScreen';
 import { ValidationMpScreen } from './src/screens/ValidationMpScreen';
 import { loadApiBaseUrl, saveApiBaseUrl } from './src/services/apiConfiguration';
@@ -109,7 +109,7 @@ export default function App() {
                 onLogout={() => void logoutPersistentModule()}
               />
             ) : activeModule === 'prefrio' ? (
-              <PrefrioScreen
+              <PrefrioWorkspaceScreen
                 auth={auth}
                 baseUrl={api.baseUrl}
                 onLogout={() => void logoutPersistentModule()}
@@ -199,7 +199,7 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
           <Pressable onPress={() => onSelect('prefrio')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>◫</Text>
             <Text style={styles.selectorCardTitle}>Prefrío</Text>
-            <Text style={styles.selectorCardCopy}>Cargar túneles, iniciar procesos, registrar eventos y enviar a verificación.</Text>
+            <Text style={styles.selectorCardCopy}>Consultar folios pendientes, cargarlos a túneles y operar procesos térmicos.</Text>
           </Pressable>
         ) : null}
         {modules.includes('recepcion_materiales') ? (
