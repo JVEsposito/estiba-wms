@@ -118,6 +118,9 @@
                     <label class="field field--span-2"><span>Nombre conductor *</span><input name="nombre_conductor" maxlength="150" required></label>
                     <label class="field weight-field"><span>Peso bruto *</span><div><input name="peso_bruto" type="number" min="1" max="200000" step="0.01" inputmode="decimal" required><b>kg</b></div><small>Lectura del camión cargado sobre la romana.</small></label>
                     <label class="field field--span-2"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
+                    <label class="field weight-field is-hidden" id="administrativeTareField"><span>Peso tara corregido *</span><div><input name="peso_tara" type="number" min="1" max="200000" step="0.01" inputmode="decimal"><b>kg</b></div><small>Disponible únicamente para una recepción ya cerrada.</small></label>
+                    <label class="field is-hidden" id="administrativeNetContainerField"><span>Envase para cálculo neto individual *</span><select name="tipo_envase_calculo_neto"></select></label>
+                    <label class="field field--span-2 is-hidden" id="administrativeCorrectionField"><span>Motivo de la corrección administrativa *</span><textarea name="motivo_correccion" maxlength="1000"></textarea><small>Quedará registrado junto al usuario, fecha y valores anteriores en la trazabilidad del expediente.</small></label>
                 </div>
                 <p class="form-error" id="receptionFormError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" id="saveReceptionButton" value="default" type="submit">Guardar pesaje de ingreso</button></div>

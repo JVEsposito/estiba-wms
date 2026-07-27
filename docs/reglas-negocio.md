@@ -31,7 +31,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 2. El correlativo es propio de Romana y no es un folio de Frigorífico.
 3. La guía no puede repetirse para el mismo cliente y temporada.
 4. La recepción registra temporada, cliente, transporte, conductor, guía, servicio, envases y peso bruto.
-5. Confirmar el ingreso congela los antecedentes contractuales que ya no deben editarse.
+5. Confirmar el ingreso congela los antecedentes para la operación normal. Solo un administrador puede corregirlos mientras Validación MP siga pendiente, con motivo y valores anteriores/posteriores auditados.
 6. La tara debe ser positiva y menor que el peso bruto.
 7. El peso neto se calcula al cerrar.
 8. Una recepción cerrada no vuelve a estados anteriores.
@@ -39,6 +39,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 10. El Aviso de Recibo solo se emite para una recepción cerrada.
 11. Romana no crea folios, lotes, validaciones PT, procesos de Prefrío ni ubicaciones.
 12. Los eventos de Romana no se eliminan físicamente.
+13. Una corrección administrativa de una recepción cerrada recalcula los pesos derivados y no modifica su estado.
 
 ## 4. Validación MP
 
