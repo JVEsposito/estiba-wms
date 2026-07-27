@@ -71,19 +71,22 @@ class ExistenciasApiTest extends TestCase
             ->assertGone();
     }
 
-    public function test_supervisor_materiales_no_puede_descargar_materia_prima(): void
+    public function test_supervisor_materiales_solo_recibe_existencia_de_materiales(): void
     {
         [, $token] = $this->acceso(RolUsuario::SupervisorMateriales);
 
         $this->withToken($token)
             ->get('/api/existencias/materia-prima/corte')
             ->assertForbidden();
+        $this->withToken($token)
+            ->get('/api/existencias/producto-terminado/corte')
+            ->assertForbidden();
 
         $this->withToken($token)
             ->getJson('/api/existencias')
             ->assertOk()
-            ->assertJsonFragment(['tipo' => 'materiales'])
-            ->assertJsonMissing(['tipo' => 'materia-prima']);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.tipo', 'materiales');
     }
 
     public function test_oficina_de_existencias_esta_disponible(): void
