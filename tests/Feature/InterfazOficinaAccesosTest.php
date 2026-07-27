@@ -21,8 +21,9 @@ class InterfazOficinaAccesosTest extends TestCase
             ->assertSee('seasonsTableBody', false)
             ->assertSee('createUserForm', false)
             ->assertSee('createDeviceForm', false)
-            ->assertSee('/oficina/camaras', false)
-            ->assertSee('/oficina/cargas', false)
+            ->assertSee('data-active-domain="administracion"', false)
+            ->assertSee('/oficina/administracion/camaras', false)
+            ->assertDontSee('data-office-key="cargas"', false)
             ->assertSee('aria-live="assertive"', false);
     }
 }
