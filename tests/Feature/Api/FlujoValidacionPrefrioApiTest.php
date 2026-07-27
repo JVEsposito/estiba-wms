@@ -40,7 +40,8 @@ class FlujoValidacionPrefrioApiTest extends TestCase
 
         $folioId = Folio::query()
             ->where('numero_folio', 'PAL-VALIDADO-PF-001')
-            ->valueOrFail('id');
+            ->firstOrFail()
+            ->id;
 
         $this->conToken($tokenPrefrio)
             ->getJson('/api/prefrio/folios-disponibles')
@@ -73,7 +74,8 @@ class FlujoValidacionPrefrioApiTest extends TestCase
         $posicionId = PosicionTunelPrefrio::query()
             ->where('tunel_prefrio_id', $tunelId)
             ->orderBy('numero')
-            ->valueOrFail('id');
+            ->firstOrFail()
+            ->id;
 
         $proceso = $this->conToken($tokenPrefrio)
             ->postJson('/api/prefrio/procesos', [
