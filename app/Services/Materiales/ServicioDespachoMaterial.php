@@ -213,6 +213,15 @@ class ServicioDespachoMaterial
                     ->with(['folio.ubicacionActual.posicion.camara', 'item'])
                     ->lockForUpdate()
                     ->findOrFail($datosRetiro['folio_id']);
+
+                if (! $folioMaterial->folio?->activo
+                    || $folioMaterial->motivo_bloqueo !== null
+                    || $folioMaterial->folio->estado_operacional !== EstadoOperacionalFolio::Disponible) {
+                    throw new DomainException(
+                        'El folio se encuentra bloqueado o no está disponible para retiro.',
+                    );
+                }
+
                 $detalle = $despacho->detalles->firstWhere(
                     'item_material_id',
                     $folioMaterial->item_material_id,
@@ -494,7 +503,9 @@ class ServicioDespachoMaterial
             ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
             ->select('folios_materiales.*')
             ->where('folios_materiales.item_material_id', $detalle->item_material_id)
+            ->whereNull('folios_materiales.motivo_bloqueo')
             ->where('folios.activo', true)
+            ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
             ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
                 ->where('contenido', ContenidoCamara::Materiales->value))
             ->orderBy('folios.fecha_ingreso')

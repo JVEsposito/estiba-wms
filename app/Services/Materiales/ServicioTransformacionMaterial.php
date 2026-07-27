@@ -1079,12 +1079,22 @@ class ServicioTransformacionMaterial
                 );
             }
 
-            if (TrabajoImpresionMaterial::query()
+            $trabajosImpresion = TrabajoImpresionMaterial::query()
                 ->where('lote_transformacion_material_id', $lote->id)
-                ->where('estado', 'enviado')
-                ->exists()) {
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id', 'canal', 'estado']);
+            $poseeImpresionRiesgosa = $trabajosImpresion->contains(
+                fn (TrabajoImpresionMaterial $trabajo): bool => in_array(
+                    $trabajo->estado,
+                    ['enviado', 'indeterminado'],
+                    true,
+                ) || ($trabajo->canal === 'pda_directa' && $trabajo->estado === 'generado'),
+            );
+
+            if ($poseeImpresionRiesgosa) {
                 throw new DomainException(
-                    'El lote posee etiquetas enviadas a impresión y no puede revertirse.',
+                    'El lote posee etiquetas directas pendientes, enviadas o indeterminadas y no puede revertirse.',
                 );
             }
 

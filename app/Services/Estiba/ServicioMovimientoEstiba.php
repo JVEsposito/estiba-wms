@@ -7,15 +7,12 @@ use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
-use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoMovimiento;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
-use App\Models\ItemMaterial;
 use App\Models\Movimiento;
-use App\Models\MovimientoInventarioMaterial;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
@@ -55,7 +52,7 @@ class ServicioMovimientoEstiba
     ) {}
 
     /**
-     * Ubica un folio por primera vez y lo crea si todavía no existe.
+     * Ubica un folio por primera vez. Solo los folios de productos pueden nacer aquí; los de Materiales deben existir previamente.
      *
      * @param  array<string, mixed>  $datosFolio
      * @param  array<string, mixed>  $datosMaterial
@@ -470,22 +467,18 @@ class ServicioMovimientoEstiba
             ->first();
 
         if (! $folio) {
+            if ($tipoBulto === TipoBulto::Material) {
+                throw new DomainException(
+                    'El folio de material no existe. Debe nacer desde Recepción, Transformación o una migración controlada antes de ubicarlo.',
+                );
+            }
+
             $folio = Folio::create($this->atributosNuevoFolio(
                 $numeroFolio,
                 $tipoBulto,
                 $generadoDispositivoAt,
                 $datosFolio,
             ));
-
-            if ($tipoBulto === TipoBulto::Material) {
-                $this->crearFichaMaterial(
-                    $folio,
-                    $datosMaterial,
-                    $usuario,
-                    $dispositivo,
-                    $recibidoServidorAt,
-                );
-            }
         } elseif ($folio->tipo_bulto !== $tipoBulto) {
             throw new DomainException('El tipo de bulto no coincide con el folio existente.');
         } elseif ($tipoBulto === TipoBulto::Material) {
@@ -898,63 +891,6 @@ class ServicioMovimientoEstiba
 
             throw new DomainException($mensaje);
         }
-    }
-
-    /**
-     * @param  array<string, mixed>  $datos
-     */
-    private function crearFichaMaterial(
-        Folio $folio,
-        array $datos,
-        User $usuario,
-        Dispositivo $dispositivo,
-        DateTimeInterface $fecha,
-    ): void {
-        $item = ItemMaterial::query()
-            ->with('cliente.temporada')
-            ->whereKey($datos['item_material_id'] ?? null)
-            ->where('activo', true)
-            ->whereHas('cliente', fn ($consulta) => $consulta
-                ->where('activo', true)
-                ->whereHas('temporada', fn ($temporadas) => $temporadas->where('activa', true)))
-            ->lockForUpdate()
-            ->first();
-        $cantidad = round((float) ($datos['cantidad'] ?? 0), 3);
-
-        if ($item === null) {
-            throw new DomainException('El ítem de material no existe o se encuentra inactivo.');
-        }
-
-        if ($cantidad <= 0) {
-            throw new DomainException('La cantidad inicial del material debe ser mayor que cero.');
-        }
-
-        $folio->update(['temporada_id' => $item->cliente->temporada->temporada_id]);
-
-        FolioMaterial::create([
-            'folio_id' => $folio->id,
-            'item_material_id' => $item->id,
-            'cantidad_inicial' => $cantidad,
-            'cantidad_actual' => $cantidad,
-            'cantidad_reservada' => 0,
-            'unidad_medida' => $item->unidad_medida,
-            'lote' => $datos['lote'] ?? null,
-            'proveedor' => $datos['proveedor'] ?? null,
-            'observacion' => $datos['observacion'] ?? null,
-        ]);
-
-        MovimientoInventarioMaterial::create([
-            'folio_id' => $folio->id,
-            'item_material_id' => $item->id,
-            'tipo' => TipoMovimientoInventarioMaterial::Ingreso,
-            'cantidad' => $cantidad,
-            'cantidad_anterior' => 0,
-            'cantidad_resultante' => $cantidad,
-            'user_id' => $usuario->id,
-            'dispositivo_id' => $dispositivo->id,
-            'motivo' => 'Ingreso inicial del folio a cámara de materiales.',
-            'ocurrido_at' => $fecha,
-        ]);
     }
 
     private function validarNumeroFolio(string $numeroFolio): void

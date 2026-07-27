@@ -48,16 +48,16 @@ class UbicarFolioRequest extends FormRequest
             'datos_folio.marca' => ['nullable', 'string', 'max:150'],
             'datos_folio.exportadora' => ['nullable', 'string', 'max:150'],
             'datos_material' => [
-                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'sometimes',
                 'array:item_material_id,cantidad,lote,proveedor,observacion',
             ],
             'datos_material.item_material_id' => [
-                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'required_with:datos_material',
                 'uuid',
                 'exists:items_materiales,id',
             ],
             'datos_material.cantidad' => [
-                Rule::requiredIf($this->input('tipo_bulto') === TipoBulto::Material->value),
+                'required_with:datos_material',
                 'numeric',
                 'gt:0',
                 'decimal:0,3',

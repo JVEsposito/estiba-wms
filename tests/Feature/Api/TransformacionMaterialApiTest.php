@@ -18,6 +18,7 @@ use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\ReservaTransformacionMaterial;
 use App\Models\Temporada;
+use App\Models\TrabajoImpresionMaterial;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -189,6 +190,29 @@ class TransformacionMaterialApiTest extends TestCase
             ->findOrFail(Folio::query()->where('numero_folio', $folioAuxiliar)->value('id'))
             ->cantidad_reservada);
         $this->assertSame($administrador->id, $planificada['creado_por']['id']);
+
+        $itemAlternativo = $this->crearItem(
+            ClienteMaterial::findOrFail($entradaPrincipal->cliente_material_id),
+            $administrador,
+            'CAJA-DES-CORR',
+            'Caja desarmada alternativa',
+            CategoriaOperacionalMaterial::MaterialMp,
+        );
+        $folioPrincipalId = Folio::query()
+            ->where('numero_folio', $folioPrincipal)
+            ->value('id');
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/inventario/{$folioPrincipalId}/corregir-item", [
+                'operacion_id' => (string) Str::uuid(),
+                'item_material_id' => $itemAlternativo->id,
+                'motivo' => 'Intento de corrección con reserva de transformación activa.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioPrincipalId,
+            'item_material_id' => $entradaPrincipal->id,
+        ]);
 
         $operacionCancelacion = (string) Str::uuid();
         $this->conToken($tokenOficina)
@@ -1042,46 +1066,20 @@ class TransformacionMaterialApiTest extends TestCase
 
     public function test_rechaza_reversa_si_la_etiqueta_de_salida_ya_fue_enviada_a_impresion(): void
     {
-        [$tokenOficina, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
-            $this->prepararOrdenOperacional(20);
-        $orden = $this->conToken($tokenTablet)
-            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
-                'operacion_id' => (string) Str::uuid(),
-                'version_conocida' => 3,
-                'cantidad_planificada_salida' => 20,
-            ])
-            ->assertOk()
-            ->json('data');
-        $lote = $orden['lotes'][0];
-        $orden = $this->conToken($tokenTablet)
-            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
-                'operacion_id' => (string) Str::uuid(),
-                'version_conocida' => 4,
-                'cantidad_real_salida' => 20,
-                'consumos' => [
-                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
-                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
-                ],
-            ])
-            ->assertOk()
-            ->json('data');
-        $folioSalida = $orden['lotes'][0]['salidas'][0];
-        $perfil = PerfilImpresionEtiqueta::query()->firstOrFail();
-        $generado = $this->conToken($tokenTablet)
-            ->post(
-                "/api/materiales/transformaciones/ordenes/{$orden['id']}/etiquetas",
-                [
-                    'operacion_id' => (string) Str::uuid(),
-                    'perfil_id' => $perfil->id,
-                    'formato' => 'zpl',
-                    'canal' => 'pda_directa',
-                    'folio_ids' => [$folioSalida['folio_id']],
-                    'copias' => 1,
-                ],
-                ['Accept' => 'application/zpl'],
-            )
-            ->assertOk();
-        $trabajoId = $generado->headers->get('X-Estiba-Print-Job');
+        [
+            $tokenOficina,
+            $tokenTablet,
+            $folioPrincipal,
+            $folioAuxiliar,
+            $orden,
+            $lote,
+            $folioSalida,
+        ] = $this->prepararLoteCerradoParaImpresion();
+        $trabajoId = $this->generarTrabajoImpresionDirecta(
+            $tokenTablet,
+            $orden,
+            $folioSalida,
+        );
 
         $this->conToken($tokenTablet)
             ->postJson(
@@ -1111,7 +1109,7 @@ class TransformacionMaterialApiTest extends TestCase
             ->assertJsonPath('codigo', 'regla_de_negocio')
             ->assertJsonPath(
                 'message',
-                'El lote posee etiquetas enviadas a impresión y no puede revertirse.',
+                'El lote posee etiquetas directas pendientes, enviadas o indeterminadas y no puede revertirse.',
             );
 
         $this->assertDatabaseHas('lotes_transformacion_materiales', [
@@ -1133,6 +1131,135 @@ class TransformacionMaterialApiTest extends TestCase
             ->where('lote_transformacion_material_id', $lote['id'])
             ->where('tipo', 'reversa_transformacion')
             ->count());
+    }
+
+    public function test_rechaza_reversa_con_impresion_directa_pendiente_o_indeterminada(): void
+    {
+        [
+            $tokenOficina,
+            $tokenTablet,
+            ,
+            ,
+            $orden,
+            $lote,
+            $folioSalida,
+        ] = $this->prepararLoteCerradoParaImpresion();
+        $trabajoId = $this->generarTrabajoImpresionDirecta(
+            $tokenTablet,
+            $orden,
+            $folioSalida,
+        );
+
+        $this->assertDatabaseHas('trabajos_impresion_materiales', [
+            'id' => $trabajoId,
+            'canal' => 'pda_directa',
+            'estado' => 'generado',
+        ]);
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/revertir", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'motivo' => 'Intento mientras la impresión directa continúa pendiente.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El lote posee etiquetas directas pendientes, enviadas o indeterminadas y no puede revertirse.',
+            );
+
+        TrabajoImpresionMaterial::query()->findOrFail($trabajoId)->update([
+            'estado' => 'indeterminado',
+            'bytes_enviados' => 64,
+            'ultimo_error' => 'La conexión se perdió después de iniciar el envío.',
+        ]);
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/revertir", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'motivo' => 'Intento con resultado de impresión indeterminado.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El lote posee etiquetas directas pendientes, enviadas o indeterminadas y no puede revertirse.',
+            );
+
+        $this->assertDatabaseHas('lotes_transformacion_materiales', [
+            'id' => $lote['id'],
+            'estado' => 'cerrado',
+        ]);
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioSalida['folio_id'],
+            'estado_operacional' => 'pendiente_ubicacion',
+            'activo' => true,
+        ]);
+        $this->assertSame(0, MovimientoInventarioMaterial::query()
+            ->where('lote_transformacion_material_id', $lote['id'])
+            ->where('tipo', 'reversa_transformacion')
+            ->count());
+    }
+
+    private function prepararLoteCerradoParaImpresion(): array
+    {
+        [$tokenOficina, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
+            $this->prepararOrdenOperacional(20);
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->json('data');
+        $lote = $orden['lotes'][0];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 20,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->json('data');
+
+        return [
+            $tokenOficina,
+            $tokenTablet,
+            $folioPrincipal,
+            $folioAuxiliar,
+            $orden,
+            $lote,
+            $orden['lotes'][0]['salidas'][0],
+        ];
+    }
+
+    private function generarTrabajoImpresionDirecta(
+        string $tokenTablet,
+        array $orden,
+        array $folioSalida,
+    ): string {
+        $perfil = PerfilImpresionEtiqueta::query()->firstOrFail();
+        $generado = $this->conToken($tokenTablet)
+            ->post(
+                "/api/materiales/transformaciones/ordenes/{$orden['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'zpl',
+                    'canal' => 'pda_directa',
+                    'folio_ids' => [$folioSalida['folio_id']],
+                    'copias' => 1,
+                ],
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk();
+        $trabajoId = $generado->headers->get('X-Estiba-Print-Job');
+        $this->assertIsString($trabajoId);
+
+        return $trabajoId;
     }
 
     private function prepararOrdenOperacional(float $cantidadPlanificada): array

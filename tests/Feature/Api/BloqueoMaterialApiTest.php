@@ -220,9 +220,25 @@ class BloqueoMaterialApiTest extends TestCase
             $operador,
             $dispositivo,
         );
+        $folio = Folio::create([
+            'numero_folio' => 'FGE1234567',
+            'tipo_bulto' => TipoBulto::Material,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'origen_sistema' => 'recepcion_materiales',
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'cantidad_inicial' => 10,
+            'cantidad_actual' => 10,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => $item->unidad_medida,
+        ]);
         $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
             operacionId: (string) Str::uuid(),
-            numeroFolio: 'FGE1234567',
+            numeroFolio: $folio->numero_folio,
             tipoBulto: TipoBulto::Material,
             posicionDestino: $posicion,
             sesionDestino: $sesion,
@@ -230,10 +246,6 @@ class BloqueoMaterialApiTest extends TestCase
             dispositivo: $dispositivo,
             versionDestinoConocida: 0,
             generadoDispositivoAt: now(),
-            datosMaterial: [
-                'item_material_id' => $item->id,
-                'cantidad' => 10,
-            ],
         );
 
         return [$movimiento->folio, $movimiento->folio->material];

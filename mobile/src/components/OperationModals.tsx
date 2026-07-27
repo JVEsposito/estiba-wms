@@ -170,15 +170,19 @@ export function LocateModal({
   function isCompatible(result: FolioLookup) {
     if (!result.existe) return true;
 
-    return isMaterial ? result.tipo_bulto === 'material' : result.tipo_bulto !== 'material';
+    return isMaterial
+      ? result.tipo_bulto === 'material' && result.material !== null
+      : result.tipo_bulto !== 'material';
   }
 
   function applyLookup(result: FolioLookup) {
     setLookup(result);
 
     if (!result.existe) {
-      setLookupMessage('Folio nuevo. Completa sus datos antes de confirmar la ubicación.');
-      setLookupTone('neutral');
+      setLookupMessage(isMaterial
+        ? 'El folio de material no existe. Debe crearse y confirmarse desde Recepción o Transformación antes de ubicarlo.'
+        : 'Folio nuevo. Completa sus datos antes de confirmar la ubicación.');
+      setLookupTone(isMaterial ? 'warning' : 'neutral');
       return;
     }
 
@@ -203,9 +207,13 @@ export function LocateModal({
     const source = result.origen_sistema === 'validacion'
       ? 'Datos recuperados desde Validación.'
       : 'Datos recuperados del folio existente.';
-    const availability = compatible
-      ? result.mensaje_disponibilidad
-      : 'El tipo de folio no corresponde a esta cámara.';
+    const availability = isMaterial
+      && result.tipo_bulto === 'material'
+      && result.material === null
+      ? 'El folio no posee una ficha válida de inventario de Materiales.'
+      : compatible
+        ? result.mensaje_disponibilidad
+        : 'El tipo de folio no corresponde a esta cámara.';
     setLookupMessage(`${source} ${availability}`);
     setLookupTone(result.disponible_ubicacion && compatible ? 'success' : 'warning');
   }
@@ -241,7 +249,9 @@ export function LocateModal({
   async function submit() {
     if (!folio.trim()) return;
     const result = await lookupFolio(folio);
-    if (!result || (result.existe && (!result.disponible_ubicacion || !isCompatible(result)))) return;
+    if (!result
+      || (isMaterial && !result.existe)
+      || (result.existe && (!result.disponible_ubicacion || !isCompatible(result)))) return;
 
     if (result.existe) {
       await onConfirm({
@@ -333,7 +343,7 @@ export function LocateModal({
               </View>
             ) : null}
 
-            {isMaterial ? (
+            {isMaterial && existingFolio ? (
               <>
                 <View style={[styles.field, styles.wide]}>
                   <Text style={styles.label}>Temporada activa</Text>
@@ -376,6 +386,13 @@ export function LocateModal({
                 <FormField editable={!existingFolio} label="Proveedor" onChangeText={setMaterialSupplier} placeholder="Opcional" value={materialSupplier} />
                 <FormField editable={!existingFolio} label="Observación" onChangeText={setMaterialObservation} placeholder="Opcional" value={materialObservation} />
               </>
+            ) : isMaterial ? (
+              <View style={[styles.field, styles.wide]}>
+                <Text style={styles.label}>Origen del folio</Text>
+                <Text style={styles.emptyInline}>
+                  Escanea un folio FAG generado previamente por Recepción o Transformación de Materiales.
+                </Text>
+              </View>
             ) : (
               <>
                 <View style={styles.field}>
@@ -415,7 +432,7 @@ export function LocateModal({
               !folio.trim()
               || lookupBusy
               || lookupBlocked
-              || (isMaterial && !existingFolio && (!materialItemId || Number(materialQuantity) <= 0))
+              || (isMaterial && !existingFolio)
             }
             confirmLabel="Confirmar ubicación"
             onCancel={onCancel}

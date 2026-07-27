@@ -13,6 +13,7 @@ use App\Models\ClienteMaterial;
 use App\Models\Dispositivo;
 use App\Models\EventoCarga;
 use App\Models\Folio;
+use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\Posicion;
 use App\Models\ReservaCargaFolio;
@@ -587,9 +588,25 @@ class CargaApiTest extends TestCase
         ]);
         $sesion = app(ServicioSesionEstiba::class)
             ->abrir($camara, $operador, $dispositivo);
+        $folio = Folio::create([
+            'numero_folio' => $numeroFolio,
+            'tipo_bulto' => TipoBulto::Material,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'origen_sistema' => 'recepcion_materiales',
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'cantidad_inicial' => 10,
+            'cantidad_actual' => 10,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => $item->unidad_medida,
+        ]);
         $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
             operacionId: (string) Str::uuid(),
-            numeroFolio: $numeroFolio,
+            numeroFolio: $folio->numero_folio,
             tipoBulto: TipoBulto::Material,
             posicionDestino: $posicion,
             sesionDestino: $sesion,
@@ -597,10 +614,6 @@ class CargaApiTest extends TestCase
             dispositivo: $dispositivo,
             versionDestinoConocida: 0,
             generadoDispositivoAt: now(),
-            datosMaterial: [
-                'item_material_id' => $item->id,
-                'cantidad' => 10,
-            ],
         );
 
         return [$camara, $movimiento->folio];

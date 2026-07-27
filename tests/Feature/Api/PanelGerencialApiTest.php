@@ -203,9 +203,25 @@ class PanelGerencialApiTest extends TestCase
             $operador,
             $dispositivo,
         );
+        $folioDisponible = Folio::create([
+            'numero_folio' => 'MAT-FOLIO-001',
+            'tipo_bulto' => TipoBulto::Material,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'origen_sistema' => 'recepcion_materiales',
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folioDisponible->id,
+            'item_material_id' => $item->id,
+            'cantidad_inicial' => 125,
+            'cantidad_actual' => 125,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => $item->unidad_medida,
+        ]);
         $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
             operacionId: (string) Str::uuid(),
-            numeroFolio: 'MAT-FOLIO-001',
+            numeroFolio: $folioDisponible->numero_folio,
             tipoBulto: TipoBulto::Material,
             posicionDestino: $posicion,
             sesionDestino: $sesion,
@@ -213,10 +229,6 @@ class PanelGerencialApiTest extends TestCase
             dispositivo: $dispositivo,
             versionDestinoConocida: 0,
             generadoDispositivoAt: now(),
-            datosMaterial: [
-                'item_material_id' => $item->id,
-                'cantidad' => 125,
-            ],
         );
         $movimiento->folio->material->update(['cantidad_reservada' => 25]);
 
