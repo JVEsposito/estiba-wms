@@ -14,7 +14,7 @@ class ConfiguracionCamaraApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_supervisor_accede_desde_oficina_sin_dispositivo_registrado(): void
+    public function test_supervisor_accede_desde_oficina_sin_permiso_para_configurar_camaras(): void
     {
         $usuario = User::factory()->create([
             'email' => 'supervisor@estiba.local',
@@ -31,7 +31,7 @@ class ConfiguracionCamaraApiTest extends TestCase
         $respuesta
             ->assertOk()
             ->assertJsonPath('usuario.rol', 'supervisor_frio')
-            ->assertJsonPath('usuario.puede_configurar_camaras', true)
+            ->assertJsonPath('usuario.puede_configurar_camaras', false)
             ->assertJsonPath('usuario.puede_administrar_camaras', false);
 
         $this->assertNotEmpty($respuesta->json('token'));
@@ -74,15 +74,15 @@ class ConfiguracionCamaraApiTest extends TestCase
             ->assertJsonPath('usuario.puede_administrar_camaras', true);
     }
 
-    public function test_crea_codigo_correlativo_y_posiciones_en_una_transaccion(): void
+    public function test_administrador_crea_codigo_correlativo_y_posiciones_en_una_transaccion(): void
     {
         Camara::create(['codigo' => 'CAM-01', 'nombre' => 'Cámara existente']);
-        $supervisor = User::factory()->create([
-            'rol' => RolUsuario::SupervisorFrio,
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
             'activo' => true,
         ]);
 
-        $respuesta = $this->actingAs($supervisor, 'sanctum')
+        $respuesta = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/configuracion/camaras', [
                 'nombre' => 'Cámara de tránsito norte',
                 'tipo' => 'transito',
@@ -105,7 +105,7 @@ class ConfiguracionCamaraApiTest extends TestCase
             ->assertJsonPath('data.capacidad.fuera_servicio', 1);
 
         $camara = Camara::query()->where('codigo', 'CAM-02')->firstOrFail();
-        $this->assertSame($supervisor->id, $camara->creado_por_user_id);
+        $this->assertSame($administrador->id, $camara->creado_por_user_id);
         $this->assertSame(12, $camara->posiciones()->count());
         $this->assertDatabaseHas('posiciones', [
             'camara_id' => $camara->id,
@@ -124,34 +124,36 @@ class ConfiguracionCamaraApiTest extends TestCase
         ]);
     }
 
-    public function test_solo_supervisor_o_administrador_puede_configurar_camaras(): void
+    public function test_supervisor_y_operador_no_pueden_configurar_camaras(): void
     {
-        $operador = User::factory()->create([
-            'rol' => RolUsuario::CamareroFrio,
-            'activo' => true,
-        ]);
+        foreach ([RolUsuario::SupervisorFrio, RolUsuario::CamareroFrio] as $rol) {
+            $usuario = User::factory()->create([
+                'rol' => $rol,
+                'activo' => true,
+            ]);
 
-        $this->actingAs($operador, 'sanctum')
-            ->postJson('/api/configuracion/camaras', [
-                'nombre' => 'Cámara bloqueada',
-                'tipo' => 'transito',
-                'bandas' => 1,
-                'posiciones_por_banda' => 1,
-                'niveles' => 1,
-            ])
-            ->assertForbidden();
+            $this->actingAs($usuario, 'sanctum')
+                ->postJson('/api/configuracion/camaras', [
+                    'nombre' => 'Cámara bloqueada',
+                    'tipo' => 'transito',
+                    'bandas' => 1,
+                    'posiciones_por_banda' => 1,
+                    'niveles' => 1,
+                ])
+                ->assertForbidden();
+        }
 
         $this->assertSame(0, Posicion::query()->count());
     }
 
-    public function test_rechaza_planos_mayores_a_mil_posiciones(): void
+    public function test_administrador_no_puede_crear_planos_mayores_a_mil_posiciones(): void
     {
-        $supervisor = User::factory()->create([
-            'rol' => RolUsuario::SupervisorFrio,
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
             'activo' => true,
         ]);
 
-        $this->actingAs($supervisor, 'sanctum')
+        $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/configuracion/camaras', [
                 'nombre' => 'Cámara demasiado grande',
                 'tipo' => 'almacenaje',
