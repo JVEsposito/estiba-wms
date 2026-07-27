@@ -112,6 +112,11 @@ producción, los lotes, las salidas y la auditoría. Una orden histórica contin
 visible y puede cancelarse para liberar reservas, pero solo una orden de la
 temporada global activa puede planificarse y llegar a la PDA.
 
+La reversa de un lote se rechaza si alguna etiqueta directa asociada permanece
+pendiente, fue enviada o terminó con resultado indeterminado. Los trabajos se
+bloquean dentro de la misma transacción para impedir que una reversa invalide
+folios cuya impresión ya comenzó.
+
 ## Reservas FIFO
 
 Al planificar una orden, el sistema calcula cada requerimiento en proporción a la
