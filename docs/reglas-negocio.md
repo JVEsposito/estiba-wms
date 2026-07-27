@@ -263,7 +263,9 @@ Las capacidades se calculan en el backend. Cada endpoint debe exigir el Gate cor
 
 - Un folio de Materiales no puede nacer desde la operación genérica de ubicación. Debe existir previamente por Recepción, Transformación o migración controlada.
 - La ubicación inicial de Materiales solo asigna una posición física a un folio existente con ficha de inventario válida.
+- La PDA rechaza un código de Materiales inexistente antes de confirmar y no solicita datos de nacimiento durante la ubicación.
 - Un folio bloqueado o con estado distinto de `disponible` no participa en reservas FIFO de despacho.
 - El retiro vuelve a validar, dentro de la transacción y con bloqueo pesimista, que el folio siga activo, disponible y sin motivo de bloqueo.
 - La corrección supervisada de ítem se rechaza cuando existe cantidad reservada, reservas activas de despacho o transformación, consumos de transformación, origen como producto transformado o retiros previos.
+- Un lote no puede revertirse si posee una impresión directa pendiente, enviada o con resultado indeterminado.
 - Las validaciones de interfaz son auxiliares; estas reglas se aplican obligatoriamente en backend.
