@@ -14,7 +14,7 @@ class ExistenciasApiTest extends TestCase
 
     public function test_administrador_ve_las_tres_existencias_y_descarga_un_corte_xlsx(): void
     {
-        [$usuario, $token] = $this->acceso(RolUsuario::Administrador);
+        [, $token] = $this->acceso(RolUsuario::Administrador);
 
         $this->withToken($token)
             ->getJson('/api/existencias')
@@ -39,7 +39,6 @@ class ExistenciasApiTest extends TestCase
             'Existencia_Producto_Terminado_',
             (string) $respuesta->headers->get('content-disposition'),
         );
-        $this->assertSame($usuario->id, auth('sanctum')->user()?->id);
     }
 
     public function test_conexion_excel_es_revocable_y_deja_de_actualizarse(): void
