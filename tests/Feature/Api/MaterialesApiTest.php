@@ -286,26 +286,30 @@ class MaterialesApiTest extends TestCase
         $sesionMaterial = $this->abrirSesion($tokenTablet, $camaraMaterial);
         $sesionProducto = $this->abrirSesion($tokenFrio, $camaraProducto);
 
+        $payloadCamaraIncorrecta = $this->payloadUbicacion(
+            $posicionProducto,
+            $sesionProducto,
+            $item,
+            'MAT-RECHAZADO',
+            0,
+            25,
+        );
+        unset($payloadCamaraIncorrecta['datos_material']);
         $this->conToken($tokenFrio)
-            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
-                $posicionProducto,
-                $sesionProducto,
-                $item,
-                'MAT-RECHAZADO',
-                0,
-                25,
-            ))
+            ->postJson('/api/movimientos/ubicar', $payloadCamaraIncorrecta)
             ->assertUnprocessable();
 
+        $payloadAltaManual = $this->payloadUbicacion(
+            $posicionMaterial,
+            $sesionMaterial,
+            $item,
+            'MAT-0001',
+            0,
+            25.5,
+        );
+        unset($payloadAltaManual['datos_material']);
         $this->conToken($tokenTablet)
-            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
-                $posicionMaterial,
-                $sesionMaterial,
-                $item,
-                'MAT-0001',
-                0,
-                25.5,
-            ))
+            ->postJson('/api/movimientos/ubicar', $payloadAltaManual)
             ->assertUnprocessable()
             ->assertJsonPath(
                 'message',
@@ -321,15 +325,17 @@ class MaterialesApiTest extends TestCase
             25.5,
             now()->toAtomString(),
         );
+        $payloadFolioExistente = $this->payloadUbicacion(
+            $posicionMaterial,
+            $sesionMaterial,
+            $item,
+            'FGE0000001',
+            0,
+            25.5,
+        );
+        unset($payloadFolioExistente['datos_material']);
         $this->conToken($tokenTablet)
-            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
-                $posicionMaterial,
-                $sesionMaterial,
-                $item,
-                'FGE0000001',
-                0,
-                25.5,
-            ))
+            ->postJson('/api/movimientos/ubicar', $payloadFolioExistente)
             ->assertOk()
             ->assertJsonPath('data.folio.id', $folioId)
             ->assertJsonPath('data.folio.tipo_bulto', 'material');
