@@ -229,3 +229,7 @@ export type CreateMaterialReceptionPayload = {
     }>;
   }>;
 };
+
+export type UpdateMaterialReceptionPayload = CreateMaterialReceptionPayload & {
+  version_conocida: number;
+};

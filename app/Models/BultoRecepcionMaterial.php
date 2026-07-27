@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'detalle_recepcion_material_id',
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class BultoRecepcionMaterial extends Model
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, SoftDeletes;
 
     protected $table = 'bultos_recepciones_materiales';
 

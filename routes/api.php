@@ -214,6 +214,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::middleware('can:gestionar-recepciones-materiales')->group(function () {
             Route::post('/', [RecepcionMaterialController::class, 'store']);
+            Route::put('/{recepcionMaterial}', [RecepcionMaterialController::class, 'update']);
             Route::post('/{recepcionMaterial}/confirmar', [RecepcionMaterialController::class, 'confirmar']);
         });
         Route::post('/{recepcionMaterial}/etiquetas', [ImpresionEtiquetaMaterialController::class, 'store'])

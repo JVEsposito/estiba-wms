@@ -158,6 +158,103 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertSame($administrador->id, RecepcionMaterial::findOrFail($recepcion['id'])->creado_por_user_id);
     }
 
+    public function test_borrador_puede_reabrirse_actualizarse_y_confirmarse(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $creada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [
+                    ['cantidad' => 6, 'lote_proveedor' => 'LOTE-ORIGINAL-01'],
+                    ['cantidad' => 4, 'lote_proveedor' => 'LOTE-ORIGINAL-02'],
+                ],
+            ))
+            ->assertCreated()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->assertJsonPath('data.version', 1)
+            ->json('data');
+        $detalleAnterior = $creada['detalles'][0]['id'];
+        $bultosAnteriores = collect($creada['detalles'][0]['bultos'])->pluck('id')->all();
+        $actualizacion = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 7, 'lote_proveedor' => 'LOTE-CORREGIDO-01']],
+        );
+        $actualizacion['version_conocida'] = 1;
+        $actualizacion['numero_guia_despacho'] = 'GD-REC-EDITADA';
+        $actualizacion['observacion'] = 'Borrador corregido antes de crear inventario.';
+        $actualizacion['detalles'][0]['cantidad_documental'] = 8;
+        $actualizacion['detalles'][0]['cantidad_contada'] = 8;
+        $actualizacion['detalles'][0]['cantidad_aceptada'] = 7;
+        $actualizacion['detalles'][0]['cantidad_recibida'] = 7;
+        $actualizacion['detalles'][0]['cantidad_rechazada'] = 1;
+
+        $editada = $this->conToken($token)
+            ->putJson("/api/materiales/recepciones/{$creada['id']}", $actualizacion)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.numero_guia_despacho', 'GD-REC-EDITADA')
+            ->assertJsonPath('data.observacion', 'Borrador corregido antes de crear inventario.')
+            ->assertJsonPath('data.detalles.0.cantidad_documental', '8.000')
+            ->assertJsonPath('data.detalles.0.cantidad_contada', '8.000')
+            ->assertJsonPath('data.detalles.0.cantidad_aceptada', '7.000')
+            ->assertJsonPath('data.detalles.0.cantidad_rechazada', '1.000')
+            ->assertJsonCount(1, 'data.detalles.0.bultos')
+            ->assertJsonPath('data.detalles.0.bultos.0.lote_proveedor', 'LOTE-CORREGIDO-01')
+            ->assertJsonPath('data.eventos.1.tipo', 'actualizada')
+            ->json('data');
+
+        $this->conToken($token)
+            ->putJson("/api/materiales/recepciones/{$creada['id']}", $actualizacion)
+            ->assertOk()
+            ->assertJsonPath('data.version', 2);
+        $this->assertNotNull(DB::table('detalles_recepciones_materiales')
+            ->where('id', $detalleAnterior)
+            ->value('deleted_at'));
+        foreach ($bultosAnteriores as $bultoId) {
+            $this->assertNotNull(DB::table('bultos_recepciones_materiales')
+                ->where('id', $bultoId)
+                ->value('deleted_at'));
+        }
+        $this->assertSame(1, DB::table('detalles_recepciones_materiales')
+            ->where('recepcion_material_id', $creada['id'])
+            ->whereNull('deleted_at')
+            ->count());
+        $this->assertSame(1, DB::table('bultos_recepciones_materiales')
+            ->whereNull('deleted_at')
+            ->count());
+
+        $actualizacionObsoleta = $actualizacion;
+        $actualizacionObsoleta['operacion_id'] = (string) Str::uuid();
+        $actualizacionObsoleta['numero_guia_despacho'] = 'GD-REC-OBSOLETA';
+        $this->conToken($token)
+            ->putJson("/api/materiales/recepciones/{$creada['id']}", $actualizacionObsoleta)
+            ->assertConflict();
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$creada['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $editada['version'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'confirmada')
+            ->assertJsonPath('data.version', 3)
+            ->assertJsonCount(1, 'data.detalles.0.bultos')
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001');
+        $this->assertSame(1, Folio::query()
+            ->where('origen_sistema', 'recepcion_materiales')
+            ->count());
+        $this->assertDatabaseHas('folios_materiales', [
+            'cantidad_inicial' => 7,
+            'lote' => 'LOTE-CORREGIDO-01',
+        ]);
+        $this->assertDatabaseCount('eventos_recepciones_materiales', 3);
+    }
+
     public function test_anulacion_intacta_compensa_saldos_y_es_idempotente(): void
     {
         [, $tokenOficina, $cliente, $proveedor, $item] = $this->prepararCatalogo();

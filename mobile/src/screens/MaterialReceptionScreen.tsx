@@ -72,6 +72,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   const [filter, setFilter] = useState<HistoryFilter>('todas');
   const [form, setForm] = useState<Form>(() => emptyForm());
   const [operationId, setOperationId] = useState(() => Crypto.randomUUID());
+  const [editingDraft, setEditingDraft] = useState<{ id: string; version: number; guide: string } | null>(null);
   const [annulReason, setAnnulReason] = useState('');
   const [busy, setBusy] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
@@ -137,6 +138,11 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
   }
 
   function switchTab(next: Tab) {
+    if (next === 'nueva') {
+      setEditingDraft(null);
+      setForm(emptyForm());
+      setOperationId(Crypto.randomUUID());
+    }
     setTab(next);
     setSelected(null);
     setError('');
@@ -236,7 +242,12 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     let reception: MaterialReception | null = null;
 
     try {
-      reception = await api.create(payload);
+      reception = editingDraft
+        ? await api.update(editingDraft.id, {
+          ...payload,
+          version_conocida: editingDraft.version,
+        })
+        : await api.create(payload);
       if (confirmImmediately && reception.estado === 'borrador') {
         reception = await api.confirm(
           reception.id,
@@ -254,12 +265,15 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
       setPending(loadedPending);
       setSelected(reception);
       setForm(emptyForm());
+      setEditingDraft(null);
       setOperationId(Crypto.randomUUID());
       setFilter('todas');
       setTab('historial');
       setMessage(confirmImmediately
         ? 'Recepción confirmada. Los folios quedaron disponibles para ubicación.'
-        : 'Borrador guardado correctamente.');
+        : editingDraft
+          ? 'Borrador actualizado correctamente.'
+          : 'Borrador guardado correctamente.');
     } catch (reason) {
       if (reception) {
         const [historyResult, pendingResult, detailResult] = await Promise.allSettled([
@@ -273,6 +287,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
         const latest = detailResult.status === 'fulfilled' ? detailResult.value : reception;
         setSelected(latest);
         setForm(emptyForm());
+        setEditingDraft(null);
         setOperationId(Crypto.randomUUID());
         setFilter('todas');
         setTab('historial');
@@ -283,7 +298,9 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
         } else if (confirmImmediately) {
           setError(`La recepción quedó guardada en estado ${stateLabel(latest.estado)}, pero no fue posible confirmarla: ${errorMessage(reason)}`);
         } else {
-          setMessage('Borrador guardado correctamente.');
+          setMessage(editingDraft
+            ? 'Borrador actualizado correctamente.'
+            : 'Borrador guardado correctamente.');
         }
       } else {
         setError(errorMessage(reason));
@@ -299,6 +316,32 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     try {
       setSelected(await api.show(id));
       setAnnulReason('');
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function editDraft(reception: MaterialReception) {
+    setActionBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const [draft, loadedCatalog] = await Promise.all([
+        api.show(reception.id),
+        api.catalog(),
+      ]);
+      if (draft.estado !== 'borrador') {
+        throw new Error('La recepción ya no se encuentra en borrador.');
+      }
+      setCatalog(loadedCatalog);
+      setForm(formFromReception(draft));
+      setEditingDraft({ id: draft.id, version: draft.version, guide: draft.numero_guia_despacho });
+      setOperationId(Crypto.randomUUID());
+      setSelected(null);
+      setTab('nueva');
+      setMessage(`Editando borrador de la guía ${draft.numero_guia_despacho}.`);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -424,6 +467,18 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
         </View>
       ) : tab === 'nueva' ? (
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {editingDraft ? (
+            <View style={styles.infoCard}>
+              <View style={styles.between}>
+                <View style={styles.headerCopy}>
+                  <Text style={styles.eyebrow}>EDITANDO BORRADOR</Text>
+                  <Text style={styles.cardTitle}>Guía {editingDraft.guide} · versión {editingDraft.version}</Text>
+                  <Text style={styles.muted}>Los cambios reemplazarán el contenido provisional. Los folios se crearán únicamente al confirmar.</Text>
+                </View>
+                <Button label="Cancelar edición" onPress={() => switchTab('nueva')} secondary />
+              </View>
+            </View>
+          ) : null}
           {!catalog.temporada ? (
             <Empty title="No existe una temporada activa para materiales" />
           ) : (
@@ -534,8 +589,8 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                   <Text style={styles.muted}>Un reintento de red no duplicará la recepción.</Text>
                 </View>
                 <View style={styles.row}>
-                  <Button label="Guardar borrador" onPress={() => void submit(false)} secondary />
-                  <Button label="Crear y confirmar" onPress={() => void submit(true)} />
+                  <Button label={editingDraft ? 'Actualizar borrador' : 'Guardar borrador'} onPress={() => void submit(false)} secondary />
+                  <Button label={editingDraft ? 'Actualizar y confirmar' : 'Crear y confirmar'} onPress={() => void submit(true)} />
                 </View>
               </View>
             </>
@@ -552,8 +607,9 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
             deviceId={auth.dispositivo.id}
             annulReason={annulReason}
             onAnnulReason={setAnnulReason}
-            onBack={() => setSelected(null)}
-            onConfirm={() => requestConfirm(selected)}
+             onBack={() => setSelected(null)}
+             onEdit={() => void editDraft(selected)}
+             onConfirm={() => requestConfirm(selected)}
             onAnnul={() => requestAnnul(selected)}
           />
         ) : (
@@ -628,6 +684,7 @@ function ReceptionDetail({
   annulReason,
   onAnnulReason,
   onBack,
+  onEdit,
   onConfirm,
   onAnnul,
 }: {
@@ -640,6 +697,7 @@ function ReceptionDetail({
   annulReason: string;
   onAnnulReason: (value: string) => void;
   onBack: () => void;
+  onEdit: () => void;
   onConfirm: () => void;
   onAnnul: () => void;
 }) {
@@ -702,7 +760,12 @@ function ReceptionDetail({
         <MaterialLabelPrintPanel api={api} deviceId={deviceId} reception={reception} />
       ) : null}
 
-      {reception.estado === 'borrador' && canManage ? <Button label="Confirmar y generar folios" onPress={onConfirm} /> : null}
+      {reception.estado === 'borrador' && canManage ? (
+        <View style={styles.row}>
+          <Button label="Editar borrador" onPress={onEdit} secondary />
+          <Button label="Confirmar y generar folios" onPress={onConfirm} />
+        </View>
+      ) : null}
       {reception.estado === 'confirmada' && canAnnul ? (
         <View style={styles.dangerCard}>
           <Text style={styles.cardTitle}>Anulación controlada</Text>
@@ -849,6 +912,35 @@ function localDate() {
   const date = new Date();
   const localTime = date.getTime() - date.getTimezoneOffset() * 60_000;
   return new Date(localTime).toISOString().slice(0, 10);
+}
+
+function formFromReception(reception: MaterialReception): Form {
+  return {
+    cliente_id: reception.cliente?.id ?? '',
+    proveedor_material_id: reception.proveedor?.id ?? '',
+    numero_guia_despacho: reception.numero_guia_despacho,
+    fecha_documento: reception.fecha_documento ?? '',
+    orden_compra: reception.orden_compra ?? '',
+    patente: reception.patente ?? '',
+    transportista: reception.transportista ?? '',
+    observacion: reception.observacion ?? '',
+    detalles: (reception.detalles ?? []).map((detail) => ({
+      local_id: Crypto.randomUUID(),
+      item_material_id: detail.item?.id ?? '',
+      cantidad_documental: detail.cantidad_documental,
+      cantidad_contada: detail.cantidad_contada,
+      observacion: detail.observacion ?? '',
+      bultos: detail.bultos.map((itemPackage) => ({
+        local_id: Crypto.randomUUID(),
+        cantidad: itemPackage.cantidad,
+        lote_proveedor: itemPackage.lote_proveedor ?? '',
+        fecha_fabricacion: itemPackage.fecha_fabricacion ?? '',
+        fecha_vencimiento: itemPackage.fecha_vencimiento ?? '',
+        bloqueado: itemPackage.bloqueado,
+        motivo_bloqueo: itemPackage.motivo_bloqueo ?? '',
+      })),
+    })),
+  };
 }
 
 function emptyForm(): Form {
