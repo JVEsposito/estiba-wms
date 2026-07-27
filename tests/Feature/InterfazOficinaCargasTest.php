@@ -13,8 +13,9 @@ class InterfazOficinaCargasTest extends TestCase
             ->assertSee('Órdenes de carga')
             ->assertSee('Ingresar a cargas')
             ->assertSee('Crear primera orden')
-            ->assertSee('/oficina/camaras', false)
-            ->assertSee('/oficina/accesos', false)
+            ->assertSee('data-active-domain="frigorifico"', false)
+            ->assertSee('/oficina/frigorifico/camaras', false)
+            ->assertDontSee('data-office-key="accesos"', false)
             ->assertSee('aria-labelledby="folioAddTitle"', false)
             ->assertSee('availableFolioSelectPage', false)
             ->assertSee('availableFolioPagination', false)
@@ -30,12 +31,13 @@ class InterfazOficinaCargasTest extends TestCase
             ->assertSee('aria-live="assertive"', false);
     }
 
-    public function test_la_oficina_de_camaras_enlaza_el_modulo_de_cargas(): void
+    public function test_la_oficina_operacional_de_camaras_enlaza_el_modulo_de_cargas(): void
     {
-        $this->get('/oficina/camaras')
+        $this->get('/oficina/frigorifico/camaras')
             ->assertOk()
+            ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('/oficina/cargas', false)
-            ->assertSee('/oficina/accesos', false)
+            ->assertDontSee('data-office-key="accesos"', false)
             ->assertSee('Consulta la disponibilidad')
             ->assertDontSee('Cargas · próximamente');
     }
