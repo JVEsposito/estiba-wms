@@ -117,5 +117,7 @@
 </nav>
 
 @once
-    @vite('resources/js/office-navigation.js')
+    @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+        @vite('resources/js/office-navigation.js')
+    @endif
 @endonce
