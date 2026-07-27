@@ -3,6 +3,9 @@
 namespace App\Services\Existencias;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
+use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoPosicion;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\LoteMateriaPrima;
@@ -25,7 +28,7 @@ class ServicioExistencias
             self::PRODUCTO_TERMINADO => [
                 'tipo' => self::PRODUCTO_TERMINADO,
                 'titulo' => 'Existencia de producto terminado',
-                'descripcion' => 'Folios activos de pallets y saldos, desde Validación y Prefrío hasta cámara.',
+                'descripcion' => 'Folios activos de pallets y saldos, desde Validación y Prefrío hasta cámara y despacho.',
                 'archivo' => 'Existencia_Producto_Terminado',
                 'columnas' => [
                     ['clave' => 'temporada', 'titulo' => 'Temporada', 'ancho' => 18],
@@ -48,6 +51,10 @@ class ServicioExistencias
                     ['clave' => 'tunel_prefrio', 'titulo' => 'Túnel / proceso Prefrío', 'ancho' => 25],
                     ['clave' => 'camara', 'titulo' => 'Cámara', 'ancho' => 18],
                     ['clave' => 'posicion', 'titulo' => 'Posición', 'ancho' => 18],
+                    ['clave' => 'carga', 'titulo' => 'Carga', 'ancho' => 18],
+                    ['clave' => 'orden_embarque', 'titulo' => 'Orden de embarque', 'ancho' => 20],
+                    ['clave' => 'estado_carga', 'titulo' => 'Estado en carga', 'ancho' => 20],
+                    ['clave' => 'anden', 'titulo' => 'Andén', 'ancho' => 18],
                     ['clave' => 'fecha_ingreso', 'titulo' => 'Fecha de ingreso', 'ancho' => 22],
                     ['clave' => 'ultima_actualizacion', 'titulo' => 'Última actualización', 'ancho' => 22],
                 ],
@@ -73,6 +80,7 @@ class ServicioExistencias
                     ['clave' => 'unidad_medida', 'titulo' => 'Unidad de medida', 'ancho' => 18],
                     ['clave' => 'estado_operacional', 'titulo' => 'Estado operacional', 'ancho' => 22],
                     ['clave' => 'estado_ubicacion', 'titulo' => 'Estado de ubicación', 'ancho' => 22],
+                    ['clave' => 'reservable', 'titulo' => 'Disponible para reserva', 'ancho' => 22],
                     ['clave' => 'motivo_bloqueo', 'titulo' => 'Motivo de bloqueo', 'ancho' => 30],
                     ['clave' => 'camara', 'titulo' => 'Cámara', 'ancho' => 18],
                     ['clave' => 'posicion', 'titulo' => 'Posición', 'ancho' => 18],
@@ -136,10 +144,7 @@ class ServicioExistencias
     public function puedeConsultar(User $usuario, string $tipo): bool
     {
         return match ($tipo) {
-            self::PRODUCTO_TERMINADO => $usuario->can('consultar-catalogo-cargas')
-                || $usuario->can('gestionar-cargas')
-                || $usuario->can('consultar-prefrio')
-                || $usuario->can('consultar-panel-gerencial'),
+            self::PRODUCTO_TERMINADO => $usuario->can('consultar-catalogo-cargas'),
             self::MATERIALES => $usuario->can('consultar-despachos-materiales'),
             self::MATERIA_PRIMA => $usuario->can('consultar-materia-prima'),
             default => false,
@@ -172,6 +177,8 @@ class ServicioExistencias
                 'temporada:id,codigo,nombre,activa',
                 'ubicacionActual.posicion.camara',
                 'procesosPrefrio.proceso.tunel',
+                'asignacionCargaActual.carga',
+                'asignacionCargaActual.anden',
             ])
             ->where('activo', true)
             ->whereDoesntHave('material')
@@ -191,13 +198,20 @@ class ServicioExistencias
                     ->sortByDesc(fn ($asignacion) => $asignacion->cargado_at?->getTimestamp() ?? 0)
                     ->first();
                 $proceso = $asignacionPrefrio?->proceso;
+                $asignacionCarga = $folio->asignacionCargaActual;
+                $carga = $asignacionCarga?->carga;
 
                 return [
                     'temporada' => $folio->temporada?->codigo,
                     'folio' => $folio->numero_folio,
                     'tipo_bulto' => $this->humanizar($folio->tipo_bulto->value),
                     'estado_operacional' => $this->humanizar($folio->estado_operacional->value),
-                    'etapa_actual' => $this->etapaProducto($folio, $ubicacion !== null, $asignacionPrefrio !== null),
+                    'etapa_actual' => $this->etapaProducto(
+                        $folio,
+                        $ubicacion !== null,
+                        $asignacionPrefrio !== null,
+                        $asignacionCarga?->estado?->value,
+                    ),
                     'cantidad_cajas' => isset($datos['cantidad_cajas']) ? (int) $datos['cantidad_cajas'] : null,
                     'cliente' => $folio->exportadora,
                     'marca' => $folio->marca,
@@ -217,11 +231,19 @@ class ServicioExistencias
                         ? trim($posicion->camara->codigo.' · '.$posicion->camara->nombre)
                         : null,
                     'posicion' => $posicion?->etiqueta,
+                    'carga' => $carga?->codigo,
+                    'orden_embarque' => $carga?->numero_orden_externa,
+                    'estado_carga' => $this->humanizar($asignacionCarga?->estado?->value),
+                    'anden' => $asignacionCarga?->anden
+                        ? trim($asignacionCarga->anden->codigo.' · '.$asignacionCarga->anden->nombre)
+                        : null,
                     'fecha_ingreso' => $folio->fecha_ingreso?->toAtomString(),
                     'ultima_actualizacion' => collect([
                         $folio->updated_at,
                         $ubicacion?->ubicado_at,
                         $asignacionPrefrio?->updated_at,
+                        $asignacionCarga?->updated_at,
+                        $asignacionCarga?->enviado_anden_at,
                     ])->filter()->sortDesc()->first()?->toAtomString(),
                 ];
             });
@@ -235,6 +257,7 @@ class ServicioExistencias
                 'folio.ubicacionActual.posicion.camara',
                 'item.cliente.temporada',
                 'item.cliente.cliente',
+                'proveedorMaterial',
             ])
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
             ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
@@ -245,8 +268,14 @@ class ServicioExistencias
                 $posicion = $folio->ubicacionActual?->posicion;
                 $camara = $posicion?->camara;
                 $ubicado = $camara?->contenido === ContenidoCamara::Materiales;
+                $reservable = $ubicado
+                    && $posicion?->estado === EstadoPosicion::Activa
+                    && $camara?->estado === EstadoCamara::Activa
+                    && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
+                    && $material->motivo_bloqueo === null;
                 $actual = (float) $material->cantidad_actual;
                 $reservada = (float) $material->cantidad_reservada;
+                $disponible = $reservable ? max(0, $actual - $reservada) : 0;
 
                 return [
                     'temporada' => $material->item->cliente->temporada?->codigo,
@@ -255,15 +284,16 @@ class ServicioExistencias
                     'item' => $material->item->nombre,
                     'categoria_operacional' => $this->humanizar($material->categoria_operacional?->value),
                     'cliente' => $material->item->cliente->nombre,
-                    'proveedor' => $material->proveedor,
+                    'proveedor' => $material->proveedor ?? $material->proveedorMaterial?->nombre,
                     'lote' => $material->lote,
                     'cantidad_inicial' => (float) $material->cantidad_inicial,
                     'cantidad_actual' => $actual,
                     'cantidad_reservada' => $reservada,
-                    'cantidad_disponible' => max(0, $actual - $reservada),
+                    'cantidad_disponible' => $disponible,
                     'unidad_medida' => $material->unidad_medida,
                     'estado_operacional' => $this->humanizar($folio->estado_operacional->value),
                     'estado_ubicacion' => $ubicado ? 'Ubicado' : 'Pendiente de ubicación',
+                    'reservable' => $reservable ? 'Sí' : 'No',
                     'motivo_bloqueo' => $material->motivo_bloqueo,
                     'camara' => $camara ? trim($camara->codigo.' · '.$camara->nombre) : null,
                     'posicion' => $posicion?->etiqueta,
@@ -335,8 +365,24 @@ class ServicioExistencias
             });
     }
 
-    private function etapaProducto(Folio $folio, bool $ubicado, bool $enPrefrio): string
-    {
+    private function etapaProducto(
+        Folio $folio,
+        bool $ubicado,
+        bool $enPrefrio,
+        ?string $estadoCarga,
+    ): string {
+        if ($estadoCarga === 'en_anden') {
+            return 'En andén';
+        }
+
+        if ($estadoCarga === 'con_incidencia') {
+            return 'Carga con incidencia';
+        }
+
+        if ($estadoCarga === 'pendiente') {
+            return 'Reservado para carga';
+        }
+
         if ($ubicado) {
             return 'Ubicado en cámara';
         }
