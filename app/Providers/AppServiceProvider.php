@@ -233,6 +233,10 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeOperarRomana($usuario),
         );
         Gate::define(
+            'corregir-recepciones-romana',
+            fn (User $usuario): bool => $alcance->puedeCorregirRecepcionesRomana($usuario),
+        );
+        Gate::define(
             'validar-mp',
             fn (User $usuario): bool => $alcance->puedeValidarMp($usuario),
         );

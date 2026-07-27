@@ -69,10 +69,12 @@ Asignar el correlativo desde el inicio permite que Validación MP busque, pistol
 | Estado | Significado | Acciones permitidas |
 |---|---|---|
 | `en_bascula_ingreso` | Se registró el bruto y los antecedentes pueden revisarse. | Editar datos permitidos o confirmar ingreso. |
-| `en_bascula_salida` | El ingreso fue confirmado y el camión debe volver vacío. | Registrar tara y cerrar. |
-| `cerrado` | Se capturó la tara y se calculó el peso neto. | Consultar y descargar PDF. |
+| `en_bascula_salida` | El ingreso fue confirmado y el camión debe volver vacío. | Registrar tara y cerrar; corrección administrativa mientras Validación MP siga pendiente. |
+| `cerrado` | Se capturó la tara y se calculó el peso neto. | Consultar, descargar PDF o corregir administrativamente mientras Validación MP siga pendiente. |
 
-No se permite volver a un estado anterior. Después de confirmar el ingreso se congelan los antecedentes contractuales definidos por el dominio.
+No se permite volver a un estado anterior. Después de confirmar el ingreso los antecedentes contractuales quedan congelados para la operación normal. Solo un administrador puede corregirlos mientras Validación MP no haya tomado la recepción; la corrección exige motivo, conserva valores anteriores y posteriores, incrementa la versión y no cambia el estado.
+
+Si la recepción ya está cerrada, una corrección del bruto o de la cantidad del envase seleccionado recalcula peso neto y neto por envase. No puede retirarse el tipo de envase usado para ese cálculo.
 
 El estado de pesaje es independiente del avance de Validación MP. Una recepción puede estar cerrada en Romana y continuar pendiente, tomada o confirmada en el flujo de Validación MP.
 
@@ -154,6 +156,7 @@ Los eventos de Romana incluyen, entre otros:
 ```text
 ingreso_registrado
 ingreso_actualizado
+correccion_administrativa
 ingreso_confirmado
 recepcion_cerrada
 ```
@@ -216,18 +219,19 @@ POST /api/romana/recepciones
 PUT /api/romana/recepciones/{id}
 POST /api/romana/recepciones/{id}/confirmar-ingreso
 POST /api/romana/recepciones/{id}/cerrar
+PUT /api/romana/recepciones/{id}/corregir
 ```
 
 Todas las rutas requieren `auth:sanctum` y el Gate correspondiente.
 
 ## Roles
 
-| Rol | Consulta | Operación |
-|---|---:|---:|
-| `administrador` | Sí | Sí |
-| `supervisor_frio` | Sí | Sí |
-| `operador_romana` | Sí | Sí |
-| `despachador` | Sí | No |
+| Rol | Consulta | Operación | Corrección administrativa |
+|---|---:|---:|---:|
+| `administrador` | Sí | Sí | Sí |
+| `supervisor_frio` | Sí | Sí | No |
+| `operador_romana` | Sí | Sí | No |
+| `despachador` | Sí | No | No |
 | `consulta` | Sí | No |
 
 ## Usuario local

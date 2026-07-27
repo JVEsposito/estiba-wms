@@ -163,6 +163,121 @@ class ServicioRecepcionRomana
         });
     }
 
+    /** @param array<string, mixed> $datos */
+    public function corregirAdministrativamente(
+        RecepcionRomana $recepcion,
+        array $datos,
+        User $usuario,
+    ): RecepcionRomana {
+        $payload = [
+            ...$this->datosRecepcion($datos),
+            'version_conocida' => (int) $datos['version_conocida'],
+            'motivo_correccion' => $datos['motivo_correccion'],
+            'peso_tara' => isset($datos['peso_tara'])
+                ? round((float) $datos['peso_tara'], 2)
+                : null,
+            'tipo_envase_calculo_neto' => $datos['tipo_envase_calculo_neto'] ?? null,
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($recepcion, $datos, $usuario, $payload, $hash): RecepcionRomana {
+            $recepcion = RecepcionRomana::query()
+                ->with('detallesEnvases')
+                ->lockForUpdate()
+                ->findOrFail($recepcion->id);
+            $evento = EventoRecepcionRomana::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+
+            if ($evento) {
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $recepcion,
+                    $hash,
+                    TipoEventoRomana::CorreccionAdministrativa,
+                );
+
+                return $this->cargar($recepcion);
+            }
+
+            if ($recepcion->estado_validacion_mp !== EstadoValidacionMp::Pendiente) {
+                throw new ConflictoOperacion(
+                    'La recepción ya fue tomada por Validación MP y no admite correcciones administrativas.',
+                );
+            }
+            if ($recepcion->version !== $payload['version_conocida']) {
+                throw new ConflictoOperacion(
+                    'La recepción cambió desde que abriste el expediente. Actualiza antes de corregir.',
+                );
+            }
+
+            $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
+            $cliente = $this->clienteActivo((string) $payload['cliente_id']);
+            $this->asegurarGuiaUnica(
+                $temporada->id,
+                $cliente->id,
+                (string) $payload['numero_guia_despacho'],
+                $recepcion->id,
+            );
+
+            $estado = $recepcion->estado;
+            $anterior = $this->snapshotCorreccion($recepcion);
+            $envasePrincipal = $payload['envases'][0];
+            $actualizacion = [
+                'temporada_id' => $temporada->id,
+                'temporada_codigo_snapshot' => $temporada->codigo,
+                'temporada_nombre_snapshot' => $temporada->nombre,
+                'cliente_id' => $cliente->id,
+                'cliente_codigo_snapshot' => $cliente->codigo,
+                'cliente_nombre_snapshot' => $cliente->nombre,
+                'tipo_recepcion' => $payload['tipo_recepcion'],
+                'concepto_envases' => $payload['concepto_envases'],
+                'tipo_servicio' => $payload['tipo_servicio'],
+                'cantidad_envases_declarados' => collect($payload['envases'])->sum('cantidad'),
+                'tipo_envase_declarado' => $envasePrincipal['tipo_envase'],
+                'numero_guia_despacho' => $payload['numero_guia_despacho'],
+                'patente_camion' => $payload['patente_camion'],
+                'patente_carro' => $payload['patente_carro'],
+                'rut_conductor' => $payload['rut_conductor'],
+                'nombre_conductor' => $payload['nombre_conductor'],
+                'peso_bruto' => $payload['peso_bruto'],
+                'observacion' => $payload['observacion'],
+                'version' => $recepcion->version + 1,
+            ];
+
+            if ($estado === EstadoRecepcionRomana::Cerrado) {
+                $actualizacion = [
+                    ...$actualizacion,
+                    ...$this->recalcularCierreCorregido($recepcion, $payload),
+                ];
+            }
+
+            $recepcion->update($actualizacion);
+            $this->sincronizarEnvases($recepcion, $payload['envases']);
+            $recepcion->refresh()->load('detallesEnvases');
+            $posterior = $this->snapshotCorreccion($recepcion);
+
+            $this->registrarEvento(
+                $recepcion,
+                (string) $datos['operacion_id'],
+                $hash,
+                TipoEventoRomana::CorreccionAdministrativa,
+                $estado,
+                $estado,
+                $usuario,
+                CarbonImmutable::now(),
+                [
+                    'motivo' => $payload['motivo_correccion'],
+                    'version' => $recepcion->version,
+                    'anterior' => $anterior,
+                    'posterior' => $posterior,
+                ],
+            );
+
+            return $this->cargar($recepcion);
+        });
+    }
+
     public function confirmarIngreso(RecepcionRomana $recepcion, string $operacionId, User $usuario): RecepcionRomana
     {
         $hash = $this->hash(['accion' => 'confirmar_ingreso', 'recepcion_id' => $recepcion->id]);
@@ -320,6 +435,83 @@ class ServicioRecepcionRomana
             'nombre_conductor' => $datos['nombre_conductor'],
             'peso_bruto' => round((float) $datos['peso_bruto'], 2),
             'observacion' => $datos['observacion'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, float|int|string>
+     */
+    private function recalcularCierreCorregido(
+        RecepcionRomana $recepcion,
+        array $payload,
+    ): array {
+        $tara = $payload['peso_tara'] !== null
+            ? (float) $payload['peso_tara']
+            : (float) $recepcion->peso_tara;
+        $bruto = (float) $payload['peso_bruto'];
+        if ($tara <= 0 || $tara >= $bruto) {
+            throw new ConflictoOperacion(
+                'El peso bruto corregido debe ser mayor que la tara registrada.',
+            );
+        }
+
+        $tipoCalculo = (string) (
+            $payload['tipo_envase_calculo_neto']
+            ?? $recepcion->tipo_envase_calculo_neto
+        );
+        $detalleCalculo = collect($payload['envases'])->first(
+            fn (array $envase): bool => $envase['tipo_envase'] === $tipoCalculo,
+        );
+        if (! $detalleCalculo) {
+            throw new ConflictoOperacion(
+                'No puedes retirar el envase utilizado para calcular el neto individual.',
+            );
+        }
+
+        $cantidad = (int) $detalleCalculo['cantidad'];
+        $pesoNeto = round($bruto - $tara, 2);
+
+        return [
+            'peso_tara' => $tara,
+            'peso_neto' => $pesoNeto,
+            'tipo_envase_calculo_neto' => $tipoCalculo,
+            'cantidad_envase_calculo_neto' => $cantidad,
+            'peso_neto_por_envase' => round($pesoNeto / $cantidad, 3),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function snapshotCorreccion(RecepcionRomana $recepcion): array
+    {
+        return [
+            'temporada_id' => $recepcion->temporada_id,
+            'cliente_id' => $recepcion->cliente_id,
+            'tipo_recepcion' => $recepcion->tipo_recepcion->value,
+            'concepto_envases' => $recepcion->concepto_envases?->value,
+            'tipo_servicio' => $recepcion->tipo_servicio->value,
+            'envases' => $recepcion->detallesEnvases
+                ->sortBy(fn ($detalle): string => $detalle->tipo_envase->value)
+                ->map(fn ($detalle): array => [
+                    'tipo_envase' => $detalle->tipo_envase->value,
+                    'cantidad' => $detalle->cantidad_declarada,
+                ])
+                ->values()
+                ->all(),
+            'numero_guia_despacho' => $recepcion->numero_guia_despacho,
+            'patente_camion' => $recepcion->patente_camion,
+            'patente_carro' => $recepcion->patente_carro,
+            'rut_conductor' => $recepcion->rut_conductor,
+            'nombre_conductor' => $recepcion->nombre_conductor,
+            'peso_bruto' => (float) $recepcion->peso_bruto,
+            'peso_tara' => $recepcion->peso_tara !== null ? (float) $recepcion->peso_tara : null,
+            'peso_neto' => $recepcion->peso_neto !== null ? (float) $recepcion->peso_neto : null,
+            'tipo_envase_calculo_neto' => $recepcion->tipo_envase_calculo_neto,
+            'cantidad_envase_calculo_neto' => $recepcion->cantidad_envase_calculo_neto,
+            'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
+                ? (float) $recepcion->peso_neto_por_envase
+                : null,
+            'observacion' => $recepcion->observacion,
         ];
     }
 

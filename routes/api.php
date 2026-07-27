@@ -60,6 +60,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/recepciones/{recepcion}/confirmar-ingreso', [RecepcionRomanaController::class, 'confirmarIngreso']);
         Route::post('/recepciones/{recepcion}/cerrar', [RecepcionRomanaController::class, 'cerrar']);
     });
+    Route::put('/romana/recepciones/{recepcion}/corregir', [RecepcionRomanaController::class, 'corregir'])
+        ->middleware('can:corregir-recepciones-romana');
     Route::middleware('can:consultar-cuenta-envases')->prefix('envases/cuenta-corriente')->group(function () {
         Route::get('/catalogos', [CuentaCorrienteEnvaseController::class, 'catalogos']);
         Route::get('/movimientos', [CuentaCorrienteEnvaseController::class, 'index']);

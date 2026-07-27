@@ -163,9 +163,106 @@ class RecepcionRomanaApiTest extends TestCase
         ]);
     }
 
+    public function test_administrador_corrige_recepcion_cerrada_y_recalcula_pesos_con_trazabilidad(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $datos = $this->datosIngreso($this->cliente());
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/confirmar-ingreso", [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+        $cerrada = $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'peso_tara' => 10540,
+            'tipo_envase_calculo_neto' => 'bins',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.version', 3)
+            ->assertJsonPath('data.correccion_administrativa_disponible', true)
+            ->json('data');
+
+        $correccion = $datos;
+        $correccion['operacion_id'] = (string) Str::uuid();
+        $correccion['version_conocida'] = $cerrada['version'];
+        $correccion['motivo_correccion'] = 'Peso bruto y cantidad de bins digitados incorrectamente.';
+        $correccion['peso_bruto'] = 30000;
+        $correccion['peso_tara'] = 10000;
+        $correccion['tipo_envase_calculo_neto'] = 'bins';
+        $correccion['envases'] = [
+            ['tipo_envase' => 'bins', 'cantidad' => 60],
+        ];
+
+        $this->actingAs($operador, 'sanctum')
+            ->putJson("/api/romana/recepciones/{$recepcion['id']}/corregir", $correccion)
+            ->assertForbidden();
+
+        $corregida = $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/romana/recepciones/{$recepcion['id']}/corregir", $correccion)
+            ->assertOk()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
+            ->assertJsonPath('data.peso_bruto', 30000)
+            ->assertJsonPath('data.peso_tara', 10000)
+            ->assertJsonPath('data.peso_neto', 20000)
+            ->assertJsonPath('data.cantidad_envase_calculo_neto', 60)
+            ->assertJsonPath('data.peso_neto_por_envase', 333.333)
+            ->assertJsonPath('data.version', 4)
+            ->assertJsonPath('data.puede_editar', false)
+            ->assertJsonPath('data.correccion_administrativa_disponible', true)
+            ->assertJsonFragment(['tipo' => 'correccion_administrativa'])
+            ->assertJsonFragment(['motivo' => $correccion['motivo_correccion']])
+            ->json('data');
+
+        $this->putJson("/api/romana/recepciones/{$recepcion['id']}/corregir", $correccion)
+            ->assertOk()
+            ->assertJsonPath('data.version', 4);
+
+        $this->assertSame(4, EventoRecepcionRomana::query()->count());
+        $evento = EventoRecepcionRomana::query()
+            ->where('recepcion_romana_id', $recepcion['id'])
+            ->where('tipo', 'correccion_administrativa')
+            ->firstOrFail();
+        $this->assertSame(28540.0, (float) $evento->datos['anterior']['peso_bruto']);
+        $this->assertSame(30000.0, (float) $evento->datos['posterior']['peso_bruto']);
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $corregida['id'],
+            'peso_bruto' => 30000,
+            'peso_tara' => 10000,
+            'peso_neto' => 20000,
+            'peso_neto_por_envase' => 333.333,
+            'version' => 4,
+        ]);
+
+        $sinEnvaseCalculado = $correccion;
+        $sinEnvaseCalculado['operacion_id'] = (string) Str::uuid();
+        $sinEnvaseCalculado['version_conocida'] = 4;
+        $sinEnvaseCalculado['envases'] = [
+            ['tipo_envase' => 'totes', 'cantidad' => 60],
+        ];
+        $this->putJson("/api/romana/recepciones/{$recepcion['id']}/corregir", $sinEnvaseCalculado)
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'No puedes retirar el envase utilizado para calcular el neto individual.',
+            );
+
+        $correccion['operacion_id'] = (string) Str::uuid();
+        $this->putJson("/api/romana/recepciones/{$recepcion['id']}/corregir", $correccion)
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'La recepción cambió desde que abriste el expediente. Actualiza antes de corregir.',
+            );
+    }
+
     public function test_bloquea_edicion_en_romana_cuando_validacion_mp_ya_tomo_la_recepcion(): void
     {
         $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $datos = $this->datosIngreso($this->cliente());
         $recepcionId = $this->actingAs($operador, 'sanctum')
             ->postJson('/api/romana/recepciones', $datos)
@@ -187,6 +284,17 @@ class RecepcionRomanaApiTest extends TestCase
         $this->putJson('/api/romana/recepciones/'.$recepcionId, $edicion)
             ->assertConflict()
             ->assertJsonPath('message', 'La recepción ya fue tomada por Validación MP y sus antecedentes no pueden editarse.');
+
+        $edicion['operacion_id'] = (string) Str::uuid();
+        $edicion['version_conocida'] = 1;
+        $edicion['motivo_correccion'] = 'Corrección solicitada fuera de plazo.';
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/romana/recepciones/{$recepcionId}/corregir", $edicion)
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'La recepción ya fue tomada por Validación MP y no admite correcciones administrativas.',
+            );
     }
 
     public function test_separa_consulta_de_operacion_y_expone_capacidades_en_el_acceso(): void
@@ -211,7 +319,20 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('usuario.puede_consultar_romana', true)
             ->assertJsonPath('usuario.puede_operar_romana', true)
+            ->assertJsonPath('usuario.puede_corregir_recepciones_romana', false)
             ->assertJsonPath('usuario.ambito_camaras', 'ninguno');
+
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'email' => 'admin-romana@estiba.local',
+            'password' => 'password123',
+        ]);
+        $this->postJson('/api/acceso-oficina', [
+            'email' => $administrador->email,
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('usuario.puede_corregir_recepciones_romana', true);
     }
 
     public function test_requiere_un_cliente_operacional_activo_y_un_rut_valido(): void
