@@ -30,6 +30,7 @@ class ApiRoutesConventionTest extends TestCase
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/cancelar', 'can:gestionar-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/lotes/{loteTransformacionMaterial}/revertir', 'can:revertir-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/etiquetas', 'can:operar-transformaciones-materiales'],
+            ['PUT', 'api/romana/recepciones/{recepcion}/corregir', 'can:corregir-recepciones-romana'],
             ['PUT', 'api/administracion/usuarios/{usuario}', 'can:administrar-accesos'],
         ];
 

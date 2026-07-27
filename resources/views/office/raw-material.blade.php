@@ -37,6 +37,7 @@
                     <a href="/oficina/materia-prima/envases">Envases</a>
                     <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
+                    <a href="/oficina/existencias">Existencias</a>
                 </nav>
                 <div class="identity"><span class="identity__avatar" id="officeInitials">MP</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Digitación</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
             </header>

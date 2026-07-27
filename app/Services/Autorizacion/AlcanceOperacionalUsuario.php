@@ -375,6 +375,11 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeCorregirRecepcionesRomana(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [RolUsuario::Administrador]);
+    }
+
     public function puedeValidarMp(User $usuario): bool
     {
         return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::ValidadorMp]);
@@ -509,6 +514,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_panel_gerencial' => $this->puedeConsultarPanelGerencial($usuario),
             'puede_consultar_romana' => $this->puedeConsultarRomana($usuario),
             'puede_operar_romana' => $this->puedeOperarRomana($usuario),
+            'puede_corregir_recepciones_romana' => $this->puedeCorregirRecepcionesRomana($usuario),
             'puede_validar_mp' => $this->puedeValidarMp($usuario),
             'puede_consultar_cuenta_envases' => $this->puedeConsultarCuentaEnvases($usuario),
             'puede_revisar_cuenta_envases' => $this->puedeRevisarCuentaEnvases($usuario),
