@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('conexiones_existencias', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('tipo', 40);
             $table->char('token_hash', 64)->unique();
             $table->timestamp('expira_at')->nullable()->index();
