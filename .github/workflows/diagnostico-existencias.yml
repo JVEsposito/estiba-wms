@@ -6,12 +6,31 @@ on:
 jobs:
   existencias:
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: estiba_wms_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     env:
       APP_ENV: testing
       APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
       CACHE_STORE: array
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: estiba_wms_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
       QUEUE_CONNECTION: sync
       SESSION_DRIVER: array
 
@@ -23,18 +42,21 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, pdo_sqlite, zip
+          extensions: mbstring, pdo_mysql, zip
           coverage: none
 
       - name: Instalar dependencias
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Ejecutar pruebas aisladas
+      - name: Crear esquema limpio
+        run: php artisan migrate:fresh --force
+
+      - name: Ejecutar suite con reporte
         id: pruebas
         shell: bash
         run: |
           set +e
-          php artisan test tests/Feature/Api/ExistenciasApiTest.php tests/Unit/GeneradorLibroXlsxTest.php --log-junit resultados-existencias.xml
+          php artisan test --fail-on-warning --log-junit resultados-existencias.xml
           codigo=$?
           echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
           exit 0
