@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 
 class ProductorCsgResource extends JsonResource
 {
@@ -25,7 +26,7 @@ class ProductorCsgResource extends JsonResource
             'estado_asociacion' => $this->estado_asociacion,
             'primera_verificacion_at' => $this->primera_verificacion_at?->toIso8601String(),
             'ultima_verificacion_at' => $this->ultima_verificacion_at?->toIso8601String(),
-            'clientes' => $clientes instanceof \Illuminate\Support\Collection
+            'clientes' => $clientes instanceof Collection
                 ? $clientes
                     ->filter(fn ($cliente): bool => (bool) $cliente->pivot->activo)
                     ->values()

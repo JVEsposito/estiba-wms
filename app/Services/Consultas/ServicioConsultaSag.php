@@ -27,7 +27,7 @@ class ServicioConsultaSag
         $inicio = hrtime(true);
 
         try {
-            $cookies = new CookieJar();
+            $cookies = new CookieJar;
             $cliente = Http::withOptions(['cookies' => $cookies])
                 ->accept('text/html,application/xhtml+xml')
                 ->withHeaders([
@@ -43,15 +43,15 @@ class ServicioConsultaSag
             }
 
             $respuesta = $cliente->asForm()->post(self::URL, [
-                    'opcMenu' => 'AsocProv',
-                    'codigos' => '',
-                    'idpred' => '',
-                    'searchRutCodigo' => $tipo === 'rut' ? 'Rut' : 'Codigo SAG',
-                    'rut_part' => $tipo === 'rut' ? $valor : '',
-                    'tipo_part' => '2',
-                    'cod_sag' => $tipo === 'codigo_sag' ? $valor : '',
-                    'Buscar' => 'Buscar',
-                ]);
+                'opcMenu' => 'AsocProv',
+                'codigos' => '',
+                'idpred' => '',
+                'searchRutCodigo' => $tipo === 'rut' ? 'Rut' : 'Codigo SAG',
+                'rut_part' => $tipo === 'rut' ? $valor : '',
+                'tipo_part' => '2',
+                'cod_sag' => $tipo === 'codigo_sag' ? $valor : '',
+                'Buscar' => 'Buscar',
+            ]);
 
             if (! $respuesta->successful()) {
                 throw new ServicioSagNoDisponible(
@@ -130,7 +130,7 @@ class ServicioConsultaSag
     private function extraerResultados(string $html): Collection
     {
         $utf8 = mb_convert_encoding($html, 'UTF-8', 'Windows-1252');
-        $documento = new DOMDocument();
+        $documento = new DOMDocument;
         $estadoLibxml = libxml_use_internal_errors(true);
         $documento->loadHTML('<?xml encoding="UTF-8">'.$utf8);
         libxml_clear_errors();
