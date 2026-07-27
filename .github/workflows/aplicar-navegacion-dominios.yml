@@ -19,6 +19,19 @@ jobs:
           ref: agent/navegacion-por-dominios
           fetch-depth: 0
 
+      - name: Ajustar cabeceras compactas
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/aplicar_navegacion_dominios.py')
+          content = path.read_text(encoding='utf-8')
+          old = 'pattern = re.compile(r"\\n\\s*<header class=\\"office-topbar[^\\"]*\\">.*?</header>\\n", re.S)'
+          new = 'pattern = re.compile(r"<header class=\\"office-topbar[^\\"]*\\">.*?</header>", re.S)'
+          if old not in content:
+              raise SystemExit('No se encontró el patrón original de cabecera.')
+          path.write_text(content.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Aplicar rediseño
         id: aplicar
         shell: bash
@@ -53,7 +66,7 @@ jobs:
         if: steps.aplicar.outputs.codigo == '0'
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "418982982+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "feat: reorganizar oficinas por dominios"
           git push origin HEAD:agent/navegacion-por-dominios
