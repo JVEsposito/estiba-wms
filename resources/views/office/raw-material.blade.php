@@ -35,6 +35,7 @@
                     <a class="is-active" href="/oficina/materia-prima">Digitación</a>
                     <a href="/oficina/materia-prima/romana">Romana</a>
                     <a href="/oficina/materia-prima/envases">Envases</a>
+                    <a class="is-hidden" id="officeQueriesNav" href="/oficina/consultas">Consultas</a>
                     <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
                     <a href="/oficina/existencias">Existencias</a>

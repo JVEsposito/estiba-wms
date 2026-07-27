@@ -10,6 +10,7 @@ const elements = {
     logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'),
     managementNav: byId('officeManagementNav'),
+    queriesNav: byId('officeQueriesNav'),
     reload: byId('reloadButton'),
     seasonDescription: byId('seasonDescription'),
     pendingSegmentsCount: byId('pendingSegmentsCount'),
@@ -244,6 +245,10 @@ function showApp() {
     elements.managementNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_consultar_panel_gerencial !== true,
+    );
+    elements.queriesNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_oficina_consultas !== true,
     );
     return true;
 }

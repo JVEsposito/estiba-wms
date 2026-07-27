@@ -9,12 +9,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-#[Fillable(['temporada_id', 'codigo', 'predio', 'codigo_externo', 'activo'])]
+#[Fillable(['productor_csg_id', 'temporada_id', 'codigo', 'predio', 'codigo_externo', 'activo'])]
 class CsgValidacion extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'csg_validacion';
+
+    public function productor(): BelongsTo
+    {
+        return $this->belongsTo(ProductorCsg::class, 'productor_csg_id');
+    }
 
     public function temporada(): BelongsTo
     {

@@ -19,6 +19,7 @@ Route::view('/oficina/romana', 'office.weighbridge');
 Route::view('/oficina/envases/cuenta-corriente', 'office.container-accounts');
 Route::view('/oficina/envases/despachos', 'office.container-dispatches');
 Route::view('/oficina/materia-prima', 'office.raw-material');
+Route::view('/oficina/consultas', 'office.queries');
 Route::view('/oficina/materia-prima/lotes', 'office.raw-material');
 Route::redirect('/oficina/materia-prima/romana', '/oficina/romana');
 Route::redirect('/oficina/materia-prima/envases', '/oficina/envases/cuenta-corriente');

@@ -18,6 +18,7 @@ const elements = {
     accessesNav: byId('officeAccessesNav'),
     romanaNav: byId('officeRomanaNav'),
     rawMaterialNav: byId('officeRawMaterialNav'),
+    queriesNav: byId('officeQueriesNav'),
     refresh: byId('refreshDashboardButton'),
     lastUpdated: byId('lastUpdatedAt'),
     refreshStatus: byId('refreshStatus'),
@@ -206,6 +207,7 @@ function showApp() {
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
     elements.romanaNav.classList.toggle('is-hidden', state.identity?.puede_consultar_romana !== true);
     elements.rawMaterialNav.classList.toggle('is-hidden', state.identity?.puede_consultar_materia_prima !== true);
+    elements.queriesNav.classList.toggle('is-hidden', state.identity?.puede_consultar_oficina_consultas !== true);
 
     return true;
 }

@@ -32,6 +32,11 @@ class ApiRoutesConventionTest extends TestCase
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/etiquetas', 'can:operar-transformaciones-materiales'],
             ['PUT', 'api/romana/recepciones/{recepcion}/corregir', 'can:corregir-recepciones-romana'],
             ['PUT', 'api/administracion/usuarios/{usuario}', 'can:administrar-accesos'],
+            ['GET', 'api/consultas/resumen', 'can:consultar-oficina-consultas'],
+            ['GET', 'api/consultas/buscar', 'can:consultar-oficina-consultas'],
+            ['GET', 'api/consultas/productores/{productorCsg}', 'can:consultar-oficina-consultas'],
+            ['POST', 'api/consultas/sag', 'can:consultar-sag'],
+            ['POST', 'api/consultas/productores/{productorCsg}/clientes', 'can:asociar-productores-csg'],
         ];
 
         $registradas = collect(Route::getRoutes()->getRoutes());

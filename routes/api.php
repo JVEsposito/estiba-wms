@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\CatalogoValidacionController;
 use App\Http\Controllers\Api\ClienteGlobalController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
+use App\Http\Controllers\Api\ConsultaOficinaController;
+use App\Http\Controllers\Api\ConsultaSagController;
 use App\Http\Controllers\Api\CorreccionItemMaterialController;
 use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
@@ -47,6 +49,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/gerencia/resumen', PanelGerencialController::class)
         ->middleware('can:consultar-panel-gerencial');
+
+    Route::middleware('can:consultar-oficina-consultas')->prefix('consultas')->group(function () {
+        Route::get('/resumen', [ConsultaOficinaController::class, 'resumen']);
+        Route::get('/buscar', [ConsultaOficinaController::class, 'buscar']);
+        Route::get('/catalogos', [ConsultaOficinaController::class, 'catalogos']);
+        Route::get('/productores', [ConsultaOficinaController::class, 'productores']);
+        Route::get('/productores/{productorCsg}', [ConsultaOficinaController::class, 'productor']);
+    });
+    Route::post('/consultas/sag', [ConsultaSagController::class, 'store'])
+        ->middleware(['can:consultar-sag', 'throttle:30,1']);
+    Route::post('/consultas/productores/{productorCsg}/clientes', [ConsultaOficinaController::class, 'asociar'])
+        ->middleware('can:asociar-productores-csg');
 
     Route::middleware('can:consultar-romana')->prefix('romana')->group(function () {
         Route::get('/catalogos', [RecepcionRomanaController::class, 'catalogos']);
