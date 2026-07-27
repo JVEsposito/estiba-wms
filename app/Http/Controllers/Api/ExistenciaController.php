@@ -60,7 +60,7 @@ class ExistenciaController extends Controller
         $temporadas = $filas->pluck('temporada')->filter()->unique()->implode(', ');
         $ruta = $generador->generar(
             $definicion['titulo'],
-            $definicion['columnas'],
+            $this->columnasExcel($definicion['columnas']),
             $filas,
             [
                 'fecha_corte' => now()->toAtomString(),
@@ -169,6 +169,43 @@ class ExistenciaController extends Controller
         return response()->json([
             'data' => $this->serializarConexion($conexionExistencia->refresh()),
         ]);
+    }
+
+    /**
+     * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
+     * @return array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>
+     */
+    private function columnasExcel(array $columnas): array
+    {
+        $fechas = [
+            'fecha_cosecha',
+            'fecha_fabricacion',
+            'fecha_vencimiento',
+        ];
+        $fechasHora = [
+            'fecha_ingreso',
+            'ultima_actualizacion',
+            'inicio_hidrocooler',
+            'termino_hidrocooler',
+            'asignado_at',
+            'confirmado_at',
+        ];
+
+        return collect($columnas)
+            ->map(function (array $columna) use ($fechas, $fechasHora): array {
+                if (isset($columna['tipo'])) {
+                    return $columna;
+                }
+
+                if (in_array($columna['clave'], $fechas, true)) {
+                    $columna['tipo'] = 'fecha';
+                } elseif (in_array($columna['clave'], $fechasHora, true)) {
+                    $columna['tipo'] = 'fecha_hora';
+                }
+
+                return $columna;
+            })
+            ->all();
     }
 
     /**
