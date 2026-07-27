@@ -17,6 +17,7 @@ const elements = {
     prefrioNav: byId('officePrefrioNav'),
     accessesNav: byId('officeAccessesNav'),
     romanaNav: byId('officeRomanaNav'),
+    rawMaterialNav: byId('officeRawMaterialNav'),
     refresh: byId('refreshDashboardButton'),
     lastUpdated: byId('lastUpdatedAt'),
     refreshStatus: byId('refreshStatus'),
@@ -124,6 +125,18 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function cameraAreaLabel(content) {
+    if (content === 'materiales') return 'Materiales';
+    if (content === 'materia_prima') return 'Materia prima';
+    return 'Producto terminado';
+}
+
+function cameraAreaClass(content) {
+    if (content === 'materiales') return ' area-chip--materials';
+    if (content === 'materia_prima') return ' area-chip--raw-material';
+    return '';
+}
+
 function errorMessage(data, fallback) {
     return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
 }
@@ -192,6 +205,7 @@ function showApp() {
     elements.prefrioNav.classList.toggle('is-hidden', state.identity?.puede_consultar_prefrio !== true);
     elements.accessesNav.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
     elements.romanaNav.classList.toggle('is-hidden', state.identity?.puede_consultar_romana !== true);
+    elements.rawMaterialNav.classList.toggle('is-hidden', state.identity?.puede_consultar_materia_prima !== true);
 
     return true;
 }
@@ -479,7 +493,7 @@ function renderCameraTable(cameras) {
         ? cameras.map((camera) => `
             <tr>
                 <td><strong>${escapeHtml(camera.codigo)}</strong><small>${escapeHtml(camera.nombre)}</small></td>
-                <td><span class="area-chip${camera.contenido === 'materiales' ? ' area-chip--materials' : ''}">${camera.contenido === 'materiales' ? 'Materiales' : 'Productos'}</span></td>
+                <td><span class="area-chip${cameraAreaClass(camera.contenido)}">${escapeHtml(cameraAreaLabel(camera.contenido))}</span></td>
                 <td>${formatInteger(camera.ocupadas)}</td>
                 <td>${formatInteger(camera.disponibles)}</td>
                 <td>${formatInteger(camera.no_operativas)}</td>

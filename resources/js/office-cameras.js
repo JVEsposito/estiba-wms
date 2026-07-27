@@ -12,6 +12,7 @@ const elements = {
     accessesNav: byId('officeAccessesNav'),
     managementNav: byId('officeManagementNav'),
     romanaNav: byId('officeRomanaNav'),
+    rawMaterialNav: byId('officeRawMaterialNav'),
     loadsNav: byId('officeLoadsNav'),
     materialsNav: byId('officeMaterialsNav'),
     prefrioNav: byId('officePrefrioNav'),
@@ -177,6 +178,10 @@ function showApp() {
         'is-hidden',
         state.identity?.puede_consultar_romana !== true,
     );
+    elements.rawMaterialNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_materia_prima !== true,
+    );
     elements.loadsNav.classList.toggle(
         'is-hidden',
         state.identity?.puede_consultar_cargas !== true,
@@ -222,9 +227,14 @@ function switchConfigurationModule(module) {
 function allowedCreationContent() {
     const canCreateProducts = state.identity?.puede_crear_camaras_productos === true;
     const canCreateMaterials = state.identity?.puede_crear_camaras_materiales === true;
+    const canCreateRawMaterial = state.identity?.puede_crear_camaras_materia_prima === true;
+    const allowed = [
+        canCreateProducts ? 'productos' : null,
+        canCreateMaterials ? 'materiales' : null,
+        canCreateRawMaterial ? 'materia_prima' : null,
+    ].filter(Boolean);
 
-    if (canCreateProducts && !canCreateMaterials) return 'productos';
-    if (canCreateMaterials && !canCreateProducts) return 'materiales';
+    if (allowed.length === 1) return allowed[0];
 
     return null;
 }

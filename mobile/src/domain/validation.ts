@@ -83,6 +83,10 @@ export type ValidationAttempt = {
   numero_intento: number;
   tipo_bulto: 'pallet' | 'saldo';
   cantidad_cajas: number;
+  temporada_id: string;
+  articulo_validacion_id: string;
+  origen_validacion_id: string;
+  categoria_validacion_id: string;
   resultado: ValidationResult;
   estado: ValidationAttemptState;
   motivo: string | null;

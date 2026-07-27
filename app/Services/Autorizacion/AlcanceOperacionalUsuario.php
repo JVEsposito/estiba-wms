@@ -23,6 +23,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::CamareroFrio => [ContenidoCamara::Productos],
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales => [ContenidoCamara::Materiales],
+            RolUsuario::DigitadorMateriaPrima => [ContenidoCamara::MateriaPrima],
             RolUsuario::Administrador,
             RolUsuario::Despachador,
             RolUsuario::Consulta => ContenidoCamara::cases(),
@@ -37,7 +38,7 @@ class AlcanceOperacionalUsuario
     {
         $contenidos = $this->contenidosVisibles($usuario);
 
-        if (count($contenidos) === 2) {
+        if (count($contenidos) > 1) {
             return 'ambos';
         }
 
@@ -70,6 +71,7 @@ class AlcanceOperacionalUsuario
                 RolUsuario::SupervisorMateriales,
                 RolUsuario::CamareroMateriales,
             ], true),
+            ContenidoCamara::MateriaPrima => false,
         };
     }
 
@@ -358,6 +360,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::OperadorRomana,
+            RolUsuario::DigitadorMateriaPrima,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
         ]);
@@ -377,12 +380,41 @@ class AlcanceOperacionalUsuario
         return $this->rolActivo($usuario, [RolUsuario::Administrador, RolUsuario::ValidadorMp]);
     }
 
+    public function puedeConsultarMateriaPrima(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorRomana,
+            RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::Consulta,
+        ]);
+    }
+
+    public function puedeGestionarLotesMateriaPrima(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::DigitadorMateriaPrima,
+        ]);
+    }
+
+    public function puedeSupervisarLotesMateriaPrima(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ]);
+    }
+
     public function puedeConsultarCuentaEnvases(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::OperadorRomana,
+            RolUsuario::DigitadorMateriaPrima,
             RolUsuario::Despachador,
             RolUsuario::Consulta,
         ]);
@@ -422,6 +454,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::SupervisorMateriales,
             RolUsuario::Despachador,
             RolUsuario::OperadorRomana,
+            RolUsuario::DigitadorMateriaPrima,
             RolUsuario::Consulta,
         ]);
     }
@@ -437,6 +470,9 @@ class AlcanceOperacionalUsuario
                 || $this->puedeSupervisarCamara($usuario, ContenidoCamara::Materiales),
             'puede_operar_productos' => $this->puedeOperarCamara($usuario, ContenidoCamara::Productos),
             'puede_operar_materiales' => $this->puedeOperarCamara($usuario, ContenidoCamara::Materiales),
+            'puede_consultar_materia_prima' => $this->puedeConsultarMateriaPrima($usuario),
+            'puede_gestionar_lotes_materia_prima' => $this->puedeGestionarLotesMateriaPrima($usuario),
+            'puede_supervisar_lotes_materia_prima' => $this->puedeSupervisarLotesMateriaPrima($usuario),
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),
             'puede_consultar_catalogo_cargas' => $this->puedeConsultarCatalogoCargas($usuario),
             'puede_gestionar_cargas' => $this->puedeGestionarCargas($usuario),

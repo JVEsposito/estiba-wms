@@ -35,6 +35,8 @@ export default defineConfig({
                 'resources/js/office-container-accounts.js',
                 'resources/css/office-container-dispatches.css',
                 'resources/js/office-container-dispatches.js',
+                'resources/css/office-raw-material.css',
+                'resources/js/office-raw-material.js',
             ],
             refresh: true,
         }),

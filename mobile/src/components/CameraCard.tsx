@@ -12,8 +12,14 @@ type CameraCardProps = {
 export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
   const ownSession = camera.acceso.modo === 'edicion' && camera.acceso.sesion?.es_propia;
   const locked = camera.acceso.modo === 'solo_lectura';
-  const status = ownSession ? 'Edición propia' : locked ? 'En uso' : 'Disponible';
-  const statusColor = ownSession ? colors.cyan : locked ? colors.amber : colors.green;
+  const readOnly = camera.contenido === 'materia_prima';
+  const status = readOnly ? 'Solo consulta' : ownSession ? 'Edición propia' : locked ? 'En uso' : 'Disponible';
+  const statusColor = readOnly ? colors.muted : ownSession ? colors.cyan : locked ? colors.amber : colors.green;
+  const contentLabel = camera.contenido === 'materiales'
+    ? 'MATERIALES · '
+    : camera.contenido === 'materia_prima'
+      ? 'MATERIA PRIMA · '
+      : '';
 
   return (
     <Pressable
@@ -33,7 +39,7 @@ export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
           <Text style={[styles.stateText, { color: statusColor }]}>{status}</Text>
         </View>
       </View>
-      <Text numberOfLines={1} style={styles.name}>{camera.contenido === 'materiales' ? 'MATERIALES · ' : ''}{camera.nombre}</Text>
+      <Text numberOfLines={1} style={styles.name}>{contentLabel}{camera.nombre}</Text>
       <View style={styles.occupancyRow}>
         <Text style={styles.occupancyLabel}>Ocupación</Text>
         <Text style={styles.occupancyValue}>{camera.ocupacion.porcentaje}%</Text>

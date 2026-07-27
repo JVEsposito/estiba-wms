@@ -52,11 +52,32 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 8. La revisión de tarjas es visual; no se utiliza como identidad del lote.
 9. Una recepción puede contener fruta o exclusivamente envases.
 10. Las segregaciones solo pueden usar tipos de envase declarados y no pueden duplicar la misma línea incompatible.
-11. Los segmentos resultantes permanecen `pendiente_lote` hasta que exista un flujo formal de creación de lotes.
+11. Los segmentos resultantes permanecen `pendiente_lote` hasta que Digitación distribuya y confirme sus envases.
 12. Validación MP no crea folios ni movimientos del dominio Frigorífico.
 13. La temporada se hereda de la recepción aunque posteriormente cambie la temporada global activa.
 
-## 5. Cuenta corriente y despacho de envases
+## 5. Materia prima y lotización
+
+1. Un segmento confirmado puede dividirse en uno o varios lotes.
+2. El número de lote es manual y único por temporada y cliente mientras el lote esté vigente.
+3. SdP es manual, numérico y obligatorio.
+4. GGN es manual, numérico, obligatorio y contiene exactamente 13 dígitos.
+5. CSG, cosecha, predio, especie, variedad, calibre, cuartel y tipo de producto son obligatorios.
+6. Romana selecciona el envase usado para calcular `peso neto / cantidad de envases`.
+7. El neto calculado del lote multiplica ese valor individual por sus envases primarios.
+8. El digitador confirma o corrige el neto y ambos valores se conservan.
+9. Los lotes vigentes no pueden exceder los envases del segmento ni los kilos netos de la recepción.
+10. Confirmar pregunta si el lote requiere hidrocooler.
+11. Sin hidrocooler, el lote pasa a `pendiente_asignacion`.
+12. Con hidrocooler, se registran operadores, equipo, inicio, término, temperatura, duración calculada y observación.
+13. Solo un hidrocooler completado puede dejar el lote `pendiente_asignacion`.
+14. Una cámara de materia prima es independiente de producto terminado y materiales.
+15. Asignar un lote a cámara no crea un folio ni ocupa una posición.
+16. Solo los borradores son editables.
+17. La anulación supervisada exige motivo, conserva historia y libera el número, los envases y los kilos.
+18. Un lote con ejecución física de hidrocooler o asignación a cámara no se anula desde Digitación.
+
+## 6. Cuenta corriente y despacho de envases
 
 1. Bins, totes y esponjas se registran como líneas independientes.
 2. Cada movimiento identifica temporada, cliente, tipo de envase, cantidad, propiedad y origen.
@@ -74,7 +95,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 14. La guía es un documento operacional interno y no un DTE legal.
 15. Cada mutación crítica utiliza UUID y hash de payload.
 
-## 6. Validación de pallets/PT
+## 7. Validación de pallets/PT
 
 1. Validación PT y Validación MP son procesos distintos.
 2. Validación PT utiliza la temporada global activa y su catálogo estacional.
@@ -92,7 +113,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 14. El mismo UUID con datos diferentes produce conflicto.
 15. Los snapshots conservan el catálogo utilizado aunque los maestros cambien.
 
-## 7. Prefrío
+## 8. Prefrío
 
 1. Los túneles son activos independientes de las cámaras.
 2. Solo el administrador modifica la estructura de un túnel.
@@ -111,7 +132,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 15. La primera ubicación en cámara de un folio aprobado lo promueve a disponible.
 16. Una condición térmica heredada puede habilitar rutas autorizadas distintas de Prefrío, dejando registrada su fuente.
 
-## 8. Cámaras, posiciones y sesiones
+## 9. Cámaras, posiciones y sesiones
 
 1. Una cámara debe existir antes de generar posiciones.
 2. Cámara, banda, posición y nivel forman una coordenada única.
@@ -127,7 +148,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 12. Los bloqueos se adquieren en un orden estable para evitar interbloqueos.
 13. Cada movimiento incrementa las versiones de las cámaras afectadas.
 
-## 9. Folios y ubicaciones
+## 10. Folios y ubicaciones
 
 1. El número de folio es único.
 2. Un folio representa un bulto de producto o material.
@@ -146,7 +167,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 15. Un folio anulado, bloqueado, retirado definitivamente o despachado no se reactiva automáticamente.
 16. Los folios y movimientos históricos no se eliminan físicamente.
 
-## 10. Materiales
+## 11. Materiales
 
 1. Los ítems pertenecen a una temporada y cliente.
 2. Un mismo código puede existir bajo clientes diferentes cuando la configuración lo permite.
@@ -165,7 +186,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 15. No se corrige un folio con reservas activas o retiros previos.
 16. La corrección genera asientos de kardex que explican el antes y el después.
 
-## 11. Cargas y despacho de producto
+## 12. Cargas y despacho de producto
 
 1. Una carga en borrador contiene entre 0 y 26 folios.
 2. Publicar exige entre 1 y 26 folios elegibles y ubicados.
@@ -180,7 +201,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 11. Una carga histórica conserva su temporada.
 12. Las cargas y eventos no se eliminan físicamente.
 
-## 12. Idempotencia y concurrencia
+## 13. Idempotencia y concurrencia
 
 1. Cada operación crítica utiliza un UUID.
 2. El servidor conserva el hash del payload normalizado.
@@ -192,7 +213,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 8. Ante concurrencia, el servidor central decide.
 9. Una operación rechazada o en conflicto no deja cambios parciales.
 
-## 13. Operación offline
+## 14. Operación offline
 
 1. El comando se guarda localmente antes de transmitirse.
 2. El UUID se mantiene durante todos los reintentos.
@@ -204,7 +225,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 8. Un error o conflicto de Prefrío detiene las acciones posteriores del mismo proceso.
 9. Los módulos sin bandeja offline deben informar claramente la dependencia de conexión.
 
-## 14. Auditoría y correcciones
+## 15. Auditoría y correcciones
 
 1. Los movimientos físicos son inalterables.
 2. Los eventos terminales no se eliminan.
@@ -214,7 +235,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 6. La historia se consulta por temporada y dominio sin mezclarla con la operación activa.
 7. Telescope es una herramienta local de diagnóstico y no una bitácora operacional de producción.
 
-## 15. Integración ERP
+## 16. Integración ERP
 
 1. Las tablets nunca consultan directamente el ERP.
 2. La WMS mantiene la autoridad de ubicaciones, movimientos y procesos confirmados.
@@ -223,7 +244,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 5. Una falla del ERP no debe impedir una operación manual autorizada.
 6. Toda importación conserva origen, fecha, resultado y errores.
 
-## 16. Recepción y bloqueo de materiales
+## 17. Recepción y bloqueo de materiales
 
 1. La cantidad contada debe ser igual a la cantidad aceptada más la rechazada.
 2. Los bultos físicos deben sumar exactamente la cantidad aceptada.
@@ -238,7 +259,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 9. La disponibilidad gerencial excluye materiales bloqueados, no ubicados o
    almacenados en infraestructura inactiva.
 
-## 17. Autorización
+## 18. Autorización
 
 Los roles vigentes son:
 

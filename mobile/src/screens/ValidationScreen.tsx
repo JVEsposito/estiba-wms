@@ -26,6 +26,7 @@ import { ApiError } from '../services/apiError';
 import {
   getValidationCatalog,
   listRecentValidations,
+  listValidationsByFolio,
   registerValidation,
 } from '../services/validationApi';
 import {
@@ -53,6 +54,12 @@ type ObservationDraft = {
   note: string;
 };
 
+type FolioReview = {
+  numero_folio: string;
+  status: 'nuevo' | ValidationResult;
+  attempt: ValidationAttempt | null;
+};
+
 export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenProps) {
   const { height, width } = useWindowDimensions();
   const compact = width < 700 || width < height;
@@ -67,6 +74,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const [error, setError] = useState('');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [folio, setFolio] = useState('');
+  const [folioReview, setFolioReview] = useState<FolioReview | null>(null);
   const [boxes, setBoxes] = useState('');
   const [packageType, setPackageType] = useState<'pallet' | 'saldo'>('pallet');
   const [species, setSpecies] = useState('');
@@ -82,6 +90,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const userId = auth.usuario.id;
   const deviceId = auth.dispositivo.id;
   const canReject = auth.usuario.capacidades.puede_rechazar_pallets;
+  const terminalDecision = folioReview?.status === 'aprobado' || folioReview?.status === 'rechazado';
+  const observedAttempt = folioReview?.status === 'observado' ? folioReview.attempt : null;
 
   const activeArticles = useMemo(
     () => catalog?.articulos.filter((item) => item.activo) ?? [],
@@ -244,14 +254,141 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     setClient(''); setBrand(''); setCsg('');
   }
 
+  function handleFolioChange(value: string) {
+    setFolio(value);
+    if (folioReview && normalizeFolio(value) !== folioReview.numero_folio) {
+      setFolioReview(null);
+      setObservation(null);
+    }
+  }
+
+  function applyAttempt(attempt: ValidationAttempt): boolean {
+    if (!catalog) {
+      setError('No existe un catálogo sincronizado para recuperar el folio.');
+      return false;
+    }
+    if (attempt.temporada_id !== catalog.temporada.id) {
+      setError('El folio pertenece a otra temporada y no puede resolverse con el catálogo activo.');
+      return false;
+    }
+
+    const article = catalog.articulos.find((item) => item.id === attempt.articulo_validacion_id && item.activo);
+    const origin = catalog.origenes.find((item) => item.id === attempt.origen_validacion_id && item.activo);
+    const category = catalog.categorias.find((item) => item.id === attempt.categoria_validacion_id && item.activo);
+    const combination = catalog.combinaciones.find((item) => (
+      item.articulo_validacion_id === article?.id
+      && item.origen_validacion_id === origin?.id
+    ));
+
+    if (!article || !origin || !category || !combination) {
+      setError('La información guardada del folio ya no está habilitada en el catálogo activo. Requiere revisión de supervisión.');
+      return false;
+    }
+
+    setPackageType(attempt.tipo_bulto);
+    setBoxes(String(attempt.cantidad_cajas));
+    setCategoryId(category.id);
+    setSpecies(article.especie);
+    setVariety(article.variedad);
+    setCaliber(article.calibre);
+    setPackageName(article.envase);
+    setClient(origin.cliente);
+    setBrand(origin.marca);
+    setCsg(origin.csg);
+    setObservation(null);
+    setFolioReview({
+      numero_folio: attempt.numero_folio,
+      status: attempt.resultado,
+      attempt,
+    });
+    return true;
+  }
+
+  async function inspectFolio(requestedFolio?: string) {
+    const normalized = normalizeFolio(requestedFolio ?? folio);
+    if (!normalized) {
+      setError('Escanea o ingresa el folio.');
+      return;
+    }
+
+    setFolio(normalized);
+    setError('');
+    setNotice('');
+
+    const localItem = outbox.find((item) => normalizeFolio(item.payload.numero_folio) === normalized);
+    if (localItem) {
+      setFolioReview(null);
+      setError(`El folio ${normalized} posee una validación local ${statusLabel(localItem.status).toLowerCase()}. Sincronízala antes de registrar otro intento.`);
+      return;
+    }
+
+    const cachedAttempts = recent.filter((item) => (
+      item.numero_folio === normalized && item.estado === 'aceptada'
+    ));
+
+    setBusy(true);
+    try {
+      let attempts: ValidationAttempt[];
+      if (!baseUrl) {
+        attempts = cachedAttempts;
+      } else {
+        try {
+          attempts = await listValidationsByFolio(baseUrl, auth.token, normalized);
+          setOnline(true);
+        } catch (reason) {
+          if (reason instanceof ApiError && reason.status === 401) {
+            Alert.alert('Sesión vencida', 'Vuelve a iniciar el turno.');
+            onLogout();
+            return;
+          }
+          if (reason instanceof ApiError && reason.status === 0 && cachedAttempts.length) {
+            setOnline(false);
+            attempts = cachedAttempts;
+          } else {
+            throw reason;
+          }
+        }
+      }
+
+      const accepted = attempts.find((item) => item.estado === 'aceptada') ?? null;
+      if (!accepted) {
+        if (!baseUrl && cachedAttempts.length === 0) {
+          setError('Conecta la PDA para comprobar si el folio posee validaciones anteriores.');
+          setFolioReview(null);
+          return;
+        }
+        setFolioReview({ numero_folio: normalized, status: 'nuevo', attempt: null });
+        setNotice(`${normalized} no posee validaciones anteriores en la temporada activa.`);
+        return;
+      }
+
+      if (!applyAttempt(accepted)) return;
+      if (accepted.resultado === 'observado') {
+        setNotice(`${normalized} recuperado desde el intento ${accepted.numero_intento}. Corrige los datos y registra una nueva decisión.`);
+      } else if (accepted.resultado === 'aprobado') {
+        setNotice(`${normalized} ya fue aprobado en el intento ${accepted.numero_intento}.`);
+      } else {
+        setNotice(`${normalized} posee un rechazo definitivo en el intento ${accepted.numero_intento}.`);
+      }
+    } catch (reason) {
+      setError(messageFrom(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function validateForm() {
     if (!catalog) return 'No existe un catálogo sincronizado en esta PDA.';
     if (!folio.trim()) return 'Escanea o ingresa el folio.';
+    if (terminalDecision) return 'El folio ya posee una decisión final y no admite una nueva validación.';
     if (!Number.isInteger(Number(boxes)) || Number(boxes) < 1) return 'Ingresa una cantidad válida de cajas.';
     if (!selectedCategory) return 'Selecciona una categoría.';
     if (!selectedArticle) return 'Completa especie, variedad, calibre y envase.';
     if (!selectedOrigin) return 'Completa cliente, marca y CSG.';
     if (!selectedCombination) return 'La combinación artículo–origen no está habilitada.';
+    if (outbox.some((item) => normalizeFolio(item.payload.numero_folio) === normalizeFolio(folio))) {
+      return 'El folio posee una validación local pendiente o con error. Sincronízala antes de registrar otro intento.';
+    }
     return null;
   }
 
@@ -265,7 +402,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
     const payload: RegisterValidationPayload = {
       operacion_id: Crypto.randomUUID(),
-      numero_folio: folio.trim().toUpperCase(),
+      numero_folio: normalizeFolio(folio),
       tipo_bulto: packageType,
       cantidad_cajas: Number(boxes),
       temporada_id: catalog.temporada.id,
@@ -314,6 +451,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       }
 
       setFolio('');
+      setFolioReview(null);
       setBoxes('');
       setObservation(null);
       setTimeout(() => folioInput.current?.focus(), 180);
@@ -325,6 +463,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   async function retryItem(item: ValidationOutboxItem) {
     setOutbox(await retryValidationOutboxItem(userId, deviceId, item.id));
     await flushOutbox();
+  }
+
+  function openObservation(result: Exclude<ValidationResult, 'aprobado'>) {
+    setObservation({
+      result,
+      reason: observedAttempt?.motivo ?? '',
+      note: observedAttempt?.observacion ?? '',
+    });
   }
 
   function logout() {
@@ -371,46 +517,54 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             <Text style={styles.sectionTitle}>Escanea y valida</Text>
 
             <Text style={styles.label}>Folio *</Text>
-            <TextInput
-              ref={folioInput}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              onChangeText={setFolio}
-              placeholder="Escanear código de barras"
-              placeholderTextColor={colors.muted}
-              returnKeyType="next"
-              selectTextOnFocus
-              style={styles.folioInput}
-              value={folio}
-            />
+            <View style={[styles.folioRow, compact && styles.folioRowCompact]}>
+              <TextInput
+                ref={folioInput}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                onChangeText={handleFolioChange}
+                onSubmitEditing={() => void inspectFolio()}
+                placeholder="Escanear código de barras"
+                placeholderTextColor={colors.muted}
+                returnKeyType="search"
+                selectTextOnFocus
+                style={styles.folioInput}
+                value={folio}
+              />
+              <Pressable disabled={busy || !folio.trim()} onPress={() => void inspectFolio()} style={[styles.lookupButton, (busy || !folio.trim()) && styles.disabled]}>
+                <Text style={styles.lookupButtonText}>CONSULTAR</Text>
+              </Pressable>
+            </View>
+
+            {folioReview ? <FolioReviewCard review={folioReview} /> : null}
 
             <View style={[styles.typeRow, compact && styles.typeRowCompact]}>
               {(['pallet', 'saldo'] as const).map((type) => (
-                <Pressable key={type} onPress={() => setPackageType(type)} style={[styles.typeButton, compact && styles.typeButtonCompact, packageType === type && styles.typeButtonActive]}>
+                <Pressable disabled={terminalDecision} key={type} onPress={() => setPackageType(type)} style={[styles.typeButton, compact && styles.typeButtonCompact, packageType === type && styles.typeButtonActive, terminalDecision && styles.disabled]}>
                   <Text style={[styles.typeButtonText, packageType === type && styles.typeButtonTextActive]}>{type === 'pallet' ? 'PALLET COMPLETO' : 'SALDO'}</Text>
                 </Pressable>
               ))}
-              <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={boxes} /></View>
+              <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={[styles.boxInput, terminalDecision && styles.disabled]} value={boxes} /></View>
             </View>
 
             <Text style={styles.groupTitle}>Categoría</Text>
             <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <View style={styles.wideField}><SelectField compact={compact} label="Categoría" options={categoryOptions} searchable value={categoryId} onChange={setCategoryId} /></View>
+              <View style={styles.wideField}><SelectField compact={compact} disabled={terminalDecision} label="Categoría" options={categoryOptions} searchable value={categoryId} onChange={setCategoryId} /></View>
             </View>
 
             <Text style={styles.groupTitle}>Artículo</Text>
             <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <SelectField compact={compact} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={!species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={!variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={!caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={terminalDecision} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={terminalDecision || !species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={terminalDecision || !variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} disabled={terminalDecision || !caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
             </View>
 
             <Text style={styles.groupTitle}>Origen comercial</Text>
             <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <SelectField compact={compact} disabled={!selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setCsg(''); }} />
-              <SelectField compact={compact} disabled={!client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setCsg(''); }} />
-              <View style={styles.wideField}><SelectField compact={compact} disabled={!brand} label="CSG / Predio" options={csgOptions} searchable value={csg} onChange={setCsg} /></View>
+              <SelectField compact={compact} disabled={terminalDecision || !selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setCsg(''); }} />
+              <SelectField compact={compact} disabled={terminalDecision || !client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setCsg(''); }} />
+              <View style={styles.wideField}><SelectField compact={compact} disabled={terminalDecision || !brand} label="CSG / Predio" options={csgOptions} searchable value={csg} onChange={setCsg} /></View>
             </View>
 
             <View style={styles.selectionSummary}>
@@ -421,9 +575,9 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
 
             <View style={[styles.resultActions, compact && styles.resultActionsCompact]}>
-              <Pressable disabled={busy} onPress={() => void submit('aprobado')} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.approveButton]}><Text style={styles.resultIcon}>✓</Text><Text style={styles.resultButtonText}>APROBAR</Text></Pressable>
-              <Pressable disabled={busy} onPress={() => setObservation({ result: 'observado', reason: '', note: '' })} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.observeButton]}><Text style={styles.resultIcon}>!</Text><Text style={styles.resultButtonText}>OBSERVAR</Text></Pressable>
-              {canReject ? <Pressable disabled={busy} onPress={() => setObservation({ result: 'rechazado', reason: '', note: '' })} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.rejectButton]}><Text style={styles.resultIcon}>×</Text><Text style={styles.resultButtonText}>RECHAZAR</Text></Pressable> : null}
+              <Pressable disabled={busy || terminalDecision} onPress={() => void submit('aprobado')} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.approveButton, (busy || terminalDecision) && styles.disabled]}><Text style={styles.resultIcon}>✓</Text><Text style={styles.resultButtonText}>{observedAttempt ? 'APROBAR CORRECCIÓN' : 'APROBAR'}</Text></Pressable>
+              <Pressable disabled={busy || terminalDecision} onPress={() => openObservation('observado')} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.observeButton, (busy || terminalDecision) && styles.disabled]}><Text style={styles.resultIcon}>!</Text><Text style={styles.resultButtonText}>{observedAttempt ? 'MANTENER OBSERVADO' : 'OBSERVAR'}</Text></Pressable>
+              {canReject ? <Pressable disabled={busy || terminalDecision} onPress={() => openObservation('rechazado')} style={[styles.resultButton, compact && styles.resultButtonCompact, styles.rejectButton, (busy || terminalDecision) && styles.disabled]}><Text style={styles.resultIcon}>×</Text><Text style={styles.resultButtonText}>RECHAZAR</Text></Pressable> : null}
             </View>
           </View>
 
@@ -432,13 +586,44 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>{statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
 
             <Text style={[styles.sectionEyebrow, styles.recentEyebrow]}>ÚLTIMAS CONFIRMADAS</Text>
-            {recent.slice(0, 6).map((item) => <View key={item.id} style={styles.recentItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></View>)}
+            {recent.slice(0, 6).map((item) => <Pressable key={item.id} onPress={() => { setFolio(item.numero_folio); void inspectFolio(item.numero_folio); }} style={styles.recentItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></Pressable>)}
           </View>
         </View>
       </ScrollView>
 
       {busy ? <View pointerEvents="none" style={styles.busy}><ActivityIndicator color={colors.cyan} size="large" /><Text style={styles.busyText}>Procesando…</Text></View> : null}
       <ObservationModal catalog={catalog} draft={observation} onCancel={() => setObservation(null)} onConfirm={(draft) => void submit(draft.result, draft.reason, draft.note)} />
+    </View>
+  );
+}
+
+function FolioReviewCard({ review }: { review: FolioReview }) {
+  const attempt = review.attempt;
+  const title = review.status === 'nuevo'
+    ? 'FOLIO SIN VALIDACIONES PREVIAS'
+    : review.status === 'observado'
+      ? 'FOLIO OBSERVADO · CORRECCIÓN PENDIENTE'
+      : review.status === 'aprobado'
+        ? 'FOLIO YA APROBADO'
+        : 'FOLIO RECHAZADO DEFINITIVAMENTE';
+  const detail = review.status === 'nuevo'
+    ? 'Puedes completar y registrar su primera validación.'
+    : review.status === 'observado'
+      ? 'La información del intento anterior fue recuperada. Corrige únicamente lo necesario y registra una nueva decisión.'
+      : 'Los datos se muestran como consulta y no admiten una nueva decisión desde esta pantalla.';
+
+  return (
+    <View style={[
+      styles.reviewCard,
+      review.status === 'observado' && styles.reviewObserved,
+      review.status === 'aprobado' && styles.reviewApproved,
+      review.status === 'rechazado' && styles.reviewRejected,
+    ]}>
+      <Text style={styles.reviewTitle}>{title}</Text>
+      {attempt ? <Text style={styles.reviewMeta}>Intento {attempt.numero_intento} · {attempt.usuario.nombre} · {formatTime(attempt.recibido_servidor_at)}</Text> : null}
+      {attempt?.motivo ? <Text style={styles.reviewText}>Motivo: {reasonLabel(attempt.motivo)}</Text> : null}
+      {attempt?.observacion ? <Text style={styles.reviewText}>Observación: {attempt.observacion}</Text> : null}
+      <Text style={styles.reviewDetail}>{detail}</Text>
     </View>
   );
 }
@@ -473,6 +658,7 @@ function ObservationModal({ catalog, draft, onCancel, onConfirm }: { catalog: Va
 function uniqueOptions(values: string[]): Option[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')).map((value) => ({ value, label: value }));
 }
+function normalizeFolio(value: string) { return value.trim().toUpperCase(); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' }).format(date); }
 function messageFrom(reason: unknown) { return reason instanceof Error ? reason.message : 'Ocurrió un error inesperado.'; }
 function statusLabel(status: ValidationOutboxItem['status']) { return status === 'pendiente' ? 'Pendiente' : status === 'conflicto' ? 'Conflicto' : 'Requiere revisión'; }
@@ -513,7 +699,19 @@ const styles = StyleSheet.create({
   sectionEyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: 4, marginBottom: 17 },
   label: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: .7, textTransform: 'uppercase', marginBottom: 6 },
-  folioInput: { minHeight: 60, paddingHorizontal: 16, borderRadius: 13, borderWidth: 2, borderColor: colors.cyan, color: colors.text, backgroundColor: colors.backgroundDeep, fontSize: 23, fontWeight: '900', letterSpacing: 1.2 },
+  folioRow: { flexDirection: 'row', alignItems: 'stretch', gap: 9 },
+  folioRowCompact: { flexDirection: 'column' },
+  folioInput: { flex: 1, minHeight: 60, paddingHorizontal: 16, borderRadius: 13, borderWidth: 2, borderColor: colors.cyan, color: colors.text, backgroundColor: colors.backgroundDeep, fontSize: 23, fontWeight: '900', letterSpacing: 1.2 },
+  lookupButton: { minWidth: 126, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.cyan, backgroundColor: colors.selected },
+  lookupButtonText: { color: colors.cyan, fontSize: 11, fontWeight: '900' },
+  reviewCard: { marginTop: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.selected },
+  reviewObserved: { borderColor: colors.amber, backgroundColor: colors.amberDark },
+  reviewApproved: { borderColor: colors.green, backgroundColor: colors.greenDark },
+  reviewRejected: { borderColor: colors.red, backgroundColor: colors.blocked },
+  reviewTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },
+  reviewMeta: { color: colors.muted, fontSize: 10, fontWeight: '800', marginTop: 4 },
+  reviewText: { color: colors.text, fontSize: 12, marginTop: 5 },
+  reviewDetail: { color: colors.text, fontSize: 11, fontWeight: '700', marginTop: 8 },
   typeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, marginTop: 12 },
   typeRowCompact: { flexWrap: 'wrap' },
   typeButton: { minHeight: 49, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },

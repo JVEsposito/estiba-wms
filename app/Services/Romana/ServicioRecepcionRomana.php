@@ -210,12 +210,16 @@ class ServicioRecepcionRomana
             'accion' => 'cerrar',
             'recepcion_id' => $recepcion->id,
             'peso_tara' => round((float) $datos['peso_tara'], 2),
+            'tipo_envase_calculo_neto' => $datos['tipo_envase_calculo_neto'] ?? null,
             'observacion' => $datos['observacion'] ?? null,
         ];
         $hash = $this->hash($payload);
 
         return DB::transaction(function () use ($recepcion, $datos, $usuario, $payload, $hash): RecepcionRomana {
-            $recepcion = RecepcionRomana::query()->lockForUpdate()->findOrFail($recepcion->id);
+            $recepcion = RecepcionRomana::query()
+                ->with('detallesEnvases')
+                ->lockForUpdate()
+                ->findOrFail($recepcion->id);
             $evento = EventoRecepcionRomana::query()->where('operacion_id', $datos['operacion_id'])->first();
             if ($evento) {
                 $this->asegurarEventoIdempotente($evento, $recepcion, $hash, TipoEventoRomana::RecepcionCerrada);
@@ -233,10 +237,29 @@ class ServicioRecepcionRomana
                 throw new ConflictoOperacion('La tara debe ser menor que el peso bruto registrado.');
             }
 
+            $tipoCalculo = $payload['tipo_envase_calculo_neto']
+                ?? $recepcion->tipo_envase_declarado?->value
+                ?? $recepcion->detallesEnvases->first()?->tipo_envase?->value;
+            $detalleCalculo = $recepcion->detallesEnvases
+                ->first(fn ($detalle): bool => $detalle->tipo_envase->value === $tipoCalculo);
+            if (! $detalleCalculo || $detalleCalculo->cantidad_declarada < 1) {
+                throw new ConflictoOperacion(
+                    'Selecciona un envase declarado para calcular el peso neto individual.',
+                );
+            }
+
             $ahora = CarbonImmutable::now();
+            $pesoNeto = round($bruto - $tara, 2);
+            $pesoNetoPorEnvase = round(
+                $pesoNeto / $detalleCalculo->cantidad_declarada,
+                3,
+            );
             $recepcion->update([
                 'peso_tara' => $tara,
-                'peso_neto' => round($bruto - $tara, 2),
+                'peso_neto' => $pesoNeto,
+                'tipo_envase_calculo_neto' => $tipoCalculo,
+                'cantidad_envase_calculo_neto' => $detalleCalculo->cantidad_declarada,
+                'peso_neto_por_envase' => $pesoNetoPorEnvase,
                 'estado' => EstadoRecepcionRomana::Cerrado,
                 'salida_at' => $ahora,
                 'cerrado_por_user_id' => $usuario->id,
@@ -257,6 +280,9 @@ class ServicioRecepcionRomana
                     'peso_bruto' => $bruto,
                     'peso_tara' => $tara,
                     'peso_neto' => (float) $recepcion->peso_neto,
+                    'tipo_envase_calculo_neto' => $tipoCalculo,
+                    'cantidad_envase_calculo_neto' => $detalleCalculo->cantidad_declarada,
+                    'peso_neto_por_envase' => $pesoNetoPorEnvase,
                     'observacion_cierre' => $payload['observacion'],
                 ],
             );

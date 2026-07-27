@@ -41,7 +41,8 @@ class ValidacionPalletController extends Controller
                 $filtros['estado'] ?? null,
                 fn ($consulta, string $estado) => $consulta->where('estado', $estado),
             )
-            ->latest('recibido_servidor_at');
+            ->orderByDesc('recibido_servidor_at')
+            ->orderByDesc('numero_intento');
 
         return ValidacionPalletResource::collection(
             $consulta->paginate($filtros['per_page'] ?? 25)->withQueryString(),

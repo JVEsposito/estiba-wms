@@ -98,9 +98,11 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const ownSession = plan?.acceso.modo === 'edicion' && plan.acceso.sesion?.es_propia
     ? plan.acceso.sesion
     : null;
-  const canOpenSession = plan?.contenido === 'materiales'
-    ? capabilities.puede_operar_materiales
-    : capabilities.puede_operar_productos;
+  const canOpenSession = plan?.contenido === 'materia_prima'
+    ? false
+    : plan?.contenido === 'materiales'
+      ? capabilities.puede_operar_materiales
+      : capabilities.puede_operar_productos;
   const canOperate = Boolean(ownSession && canOpenSession);
 
   useEffect(() => {

@@ -71,3 +71,20 @@ export async function listRecentValidations(baseUrl: string, token: string) {
   );
   return response.data;
 }
+
+export async function listValidationsByFolio(
+  baseUrl: string,
+  token: string,
+  folio: string,
+) {
+  const query = new URLSearchParams({
+    folio: folio.trim().toUpperCase(),
+    per_page: '10',
+  });
+  const response = await request<{ data: ValidationAttempt[] }>(
+    baseUrl,
+    `/api/validacion/pallets?${query.toString()}`,
+    token,
+  );
+  return response.data;
+}

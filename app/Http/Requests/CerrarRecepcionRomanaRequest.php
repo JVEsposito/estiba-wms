@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\TipoEnvaseRomana;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CerrarRecepcionRomanaRequest extends FormRequest
 {
@@ -17,6 +19,7 @@ class CerrarRecepcionRomanaRequest extends FormRequest
         return [
             'operacion_id' => ['required', 'uuid'],
             'peso_tara' => ['required', 'numeric', 'min:1', 'max:200000', 'decimal:0,2'],
+            'tipo_envase_calculo_neto' => ['nullable', Rule::enum(TipoEnvaseRomana::class)],
             'observacion' => ['nullable', 'string', 'max:2000'],
         ];
     }

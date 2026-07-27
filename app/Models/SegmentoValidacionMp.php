@@ -39,6 +39,11 @@ class SegmentoValidacionMp extends Model
         return $this->hasMany(SegmentoEnvaseValidacionMp::class);
     }
 
+    public function lotesMateriaPrima(): HasMany
+    {
+        return $this->hasMany(LoteMateriaPrima::class, 'segmento_validacion_mp_id');
+    }
+
     protected function casts(): array
     {
         return ['secuencia' => 'integer', 'motivos' => 'array'];

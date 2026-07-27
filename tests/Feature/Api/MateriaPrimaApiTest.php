@@ -1,0 +1,385 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use App\Enums\ContenidoCamara;
+use App\Enums\RolUsuario;
+use App\Models\CalibreValidacion;
+use App\Models\Camara;
+use App\Models\Cliente;
+use App\Models\CsgValidacion;
+use App\Models\EspecieValidacion;
+use App\Models\Temporada;
+use App\Models\User;
+use App\Models\VariedadValidacion;
+use Carbon\CarbonImmutable;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+class MateriaPrimaApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_lotiza_un_segmento_en_varios_lotes_y_completa_hidrocooler_y_camara(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-27 15:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camara = Camara::create([
+            'codigo' => 'MP-01',
+            'nombre' => 'Cámara materia prima',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $this->actingAs($digitador, 'sanctum')
+            ->getJson('/api/materia-prima/segmentos-pendientes')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $contexto['segmento_id'])
+            ->assertJsonPath('data.0.recepcion.peso_neto', 18000)
+            ->assertJsonPath('data.0.recepcion.tipo_envase_calculo_neto', 'bins')
+            ->assertJsonPath('data.0.recepcion.peso_neto_por_envase', 375)
+            ->assertJsonPath('data.0.envases.0.cantidad_disponible', 48);
+
+        $primerPayload = $this->payloadLote($contexto, [
+            'numero_lote' => 'EXP-2026-001-A',
+            'cantidad_envases_primarios' => 20,
+            'cantidad_envases_secundarios' => 4,
+            'kilos_brutos' => 8000,
+            'kilos_netos_confirmados' => 7495,
+            'requiere_hidrocooler' => true,
+        ]);
+        $primerLote = $this->postJson('/api/materia-prima/lotes', $primerPayload)
+            ->assertCreated()
+            ->assertJsonPath('data.estado', 'borrador')
+            ->assertJsonPath('data.pesos.kilos_netos_calculados', 7500)
+            ->assertJsonPath('data.pesos.kilos_netos_confirmados', 7495)
+            ->assertJsonPath('data.pesos.corregido_por_digitador', true)
+            ->json('data');
+
+        $primerLote = $this->postJson(
+            "/api/materia-prima/lotes/{$primerLote['id']}/confirmar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $primerLote['version'],
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'pendiente_hidrocooler')
+            ->json('data');
+
+        $this->assertDatabaseHas('segmentos_validacion_mp', [
+            'id' => $contexto['segmento_id'],
+            'estado' => 'lotizacion_parcial',
+        ]);
+
+        $segundoPayload = $this->payloadLote($contexto, [
+            'numero_lote' => 'EXP-2026-001-B',
+            'cantidad_envases_primarios' => 28,
+            'cantidad_envases_secundarios' => 6,
+            'kilos_brutos' => 11000,
+            'kilos_netos_confirmados' => 10500,
+            'requiere_hidrocooler' => false,
+        ]);
+        $segundoLote = $this->postJson('/api/materia-prima/lotes', $segundoPayload)
+            ->assertCreated()
+            ->json('data');
+        $segundoLote = $this->postJson(
+            "/api/materia-prima/lotes/{$segundoLote['id']}/confirmar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $segundoLote['version'],
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'pendiente_asignacion')
+            ->json('data');
+
+        $this->assertDatabaseHas('segmentos_validacion_mp', [
+            'id' => $contexto['segmento_id'],
+            'estado' => 'lotizado',
+        ]);
+        $this->getJson('/api/materia-prima/segmentos-pendientes')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $inicio = now()->subMinutes(90);
+        $this->postJson(
+            "/api/materia-prima/lotes/{$primerLote['id']}/hidrocooler/iniciar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'equipo' => 'HIDRO-02',
+                'inicio_at' => $inicio->toAtomString(),
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'hidrocooler_en_curso')
+            ->assertJsonPath('data.hidrocooler.equipo', 'HIDRO-02')
+            ->assertJsonPath('data.hidrocooler.iniciado_por', $digitador->name);
+
+        $this->postJson(
+            "/api/materia-prima/lotes/{$primerLote['id']}/hidrocooler/completar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'termino_at' => now()->toAtomString(),
+                'temperatura_c' => 3.75,
+                'observacion' => 'Pulpa dentro del rango.',
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'pendiente_asignacion')
+            ->assertJsonPath('data.hidrocooler.duracion_minutos', 90)
+            ->assertJsonPath('data.hidrocooler.temperatura_c', 3.75)
+            ->assertJsonPath('data.hidrocooler.observacion', 'Pulpa dentro del rango.')
+            ->assertJsonPath('data.hidrocooler.completado_por', $digitador->name);
+
+        foreach ([$primerLote['id'], $segundoLote['id']] as $loteId) {
+            $this->postJson("/api/materia-prima/lotes/{$loteId}/asignar-camara", [
+                'operacion_id' => (string) Str::uuid(),
+                'camara_id' => $camara->id,
+                'observacion' => 'Disponible para proceso.',
+            ])
+                ->assertOk()
+                ->assertJsonPath('data.estado', 'asignado_camara')
+                ->assertJsonPath('data.asignacion_camara.camara.codigo', 'MP-01');
+        }
+
+        $this->getJson('/api/materia-prima/resumen')
+            ->assertOk()
+            ->assertJsonPath('lotes.borradores', 0)
+            ->assertJsonPath('lotes.pendientes_hidrocooler', 0)
+            ->assertJsonPath('lotes.pendientes_asignacion', 0)
+            ->assertJsonPath('lotes.asignados_camara', 2);
+        $this->assertDatabaseCount('lotes_materia_prima', 2);
+        $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 1);
+        $this->assertDatabaseCount('asignaciones_camara_lote_materia_prima', 2);
+    }
+
+    public function test_controla_identificadores_disponibilidad_y_correccion_supervisada(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-27 15:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create([
+            'rol' => RolUsuario::DigitadorMateriaPrima,
+            'email' => 'digitador.prueba@estiba.local',
+            'password' => 'password123',
+        ]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+
+        $this->postJson('/api/acceso-oficina', [
+            'email' => $digitador->email,
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('usuario.puede_consultar_materia_prima', true)
+            ->assertJsonPath('usuario.puede_gestionar_lotes_materia_prima', true)
+            ->assertJsonPath('usuario.puede_supervisar_lotes_materia_prima', false)
+            ->assertJsonPath('usuario.ambito_camaras', 'materia_prima');
+
+        $this->actingAs($digitador, 'sanctum');
+        $payload = $this->payloadLote($contexto, [
+            'numero_lote' => 'LOTE-CORREGIBLE',
+            'cantidad_envases_primarios' => 48,
+            'cantidad_envases_secundarios' => 10,
+            'kilos_brutos' => 19000,
+            'kilos_netos_confirmados' => 18000,
+            'requiere_hidrocooler' => false,
+        ]);
+
+        $invalido = $payload;
+        $invalido['ggn'] = '1234';
+        $this->postJson('/api/materia-prima/lotes', $invalido)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('ggn');
+
+        $lote = $this->postJson('/api/materia-prima/lotes', $payload)
+            ->assertCreated()
+            ->json('data');
+
+        $excedente = $this->payloadLote($contexto, [
+            'numero_lote' => 'LOTE-SIN-SALDO',
+            'cantidad_envases_primarios' => 1,
+            'cantidad_envases_secundarios' => 0,
+            'envase_secundario' => null,
+            'kilos_brutos' => 500,
+            'kilos_netos_confirmados' => 375,
+            'requiere_hidrocooler' => false,
+        ]);
+        $this->postJson('/api/materia-prima/lotes', $excedente)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('envases');
+
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/materia-prima/lotes/{$lote['id']}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'El número fue informado con antecedentes incorrectos.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'anulado')
+            ->assertJsonPath(
+                'data.motivo_anulacion',
+                'El número fue informado con antecedentes incorrectos.',
+            );
+
+        $this->assertDatabaseHas('segmentos_validacion_mp', [
+            'id' => $contexto['segmento_id'],
+            'estado' => 'pendiente_lote',
+        ]);
+        $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.numero_lote', 'LOTE-CORREGIBLE')
+            ->assertJsonPath('data.estado', 'borrador');
+
+        $this->assertDatabaseCount('lotes_materia_prima', 2);
+        $this->assertDatabaseHas('lotes_materia_prima', [
+            'id' => $lote['id'],
+            'estado' => 'anulado',
+            'clave_numero_vigente' => null,
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function prepararRecepcionValidada(): array
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create([
+            'codigo' => 'EXP-MP',
+            'nombre' => 'Exportadora Materia Prima',
+            'activo' => true,
+        ]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', [
+                'operacion_id' => (string) Str::uuid(),
+                'temporada_id' => $temporada->id,
+                'cliente_id' => $cliente->id,
+                'tipo_recepcion' => 'fruta_con_envases',
+                'tipo_servicio' => 'proceso',
+                'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 48],
+                    ['tipo_envase' => 'totes', 'cantidad' => 10],
+                ],
+                'numero_guia_despacho' => 'GD-MP-100',
+                'patente_camion' => 'ABCD12',
+                'rut_conductor' => '12.345.678-5',
+                'nombre_conductor' => 'Transportista MP',
+                'peso_bruto' => 28000,
+            ])
+            ->assertCreated()
+            ->json('data');
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/confirmar-ingreso", [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'peso_tara' => 10000,
+            'tipo_envase_calculo_neto' => 'bins',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.peso_neto', 18000)
+            ->assertJsonPath('data.cantidad_envase_calculo_neto', 48)
+            ->assertJsonPath('data.peso_neto_por_envase', 375);
+
+        $especie = EspecieValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cereza',
+            'activo' => true,
+        ]);
+        $variedad = VariedadValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => 'Santina',
+            'activo' => true,
+        ]);
+        $calibre = CalibreValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => '28 mm',
+            'activo' => true,
+        ]);
+        $csg = CsgValidacion::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => '12345678',
+            'predio' => 'Fundo El Maitén',
+            'activo' => true,
+        ]);
+
+        $validacion = $this->actingAs($validador, 'sanctum')
+            ->postJson("/api/validacion-mp/recepciones/{$recepcion['id']}/tomar", [
+                'operacion_id' => (string) Str::uuid(),
+            ])
+            ->assertOk()
+            ->json('data');
+        $segmentoId = $this->postJson(
+            "/api/validacion-mp/validaciones/{$validacion['id']}/confirmar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad_validada' => 48],
+                    ['tipo_envase' => 'totes', 'cantidad_validada' => 10],
+                ],
+                'tarjas_verificadas' => true,
+                'requiere_segregacion' => false,
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'validada')
+            ->json('data.segmentos.0.id');
+
+        return [
+            'temporada' => $temporada,
+            'cliente' => $cliente,
+            'recepcion_id' => $recepcion['id'],
+            'segmento_id' => $segmentoId,
+            'csg_id' => $csg->id,
+            'especie_id' => $especie->id,
+            'variedad_id' => $variedad->id,
+            'calibre_id' => $calibre->id,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexto
+     * @param  array<string, mixed>  $reemplazos
+     * @return array<string, mixed>
+     */
+    private function payloadLote(array $contexto, array $reemplazos = []): array
+    {
+        return [
+            'operacion_id' => (string) Str::uuid(),
+            'segmento_validacion_mp_id' => $contexto['segmento_id'],
+            'numero_lote' => 'EXP-2026-001',
+            'csg_validacion_id' => $contexto['csg_id'],
+            'sdp' => '987654321',
+            'ggn' => '1234567890123',
+            'fecha_cosecha' => '2026-07-26',
+            'predio' => 'Fundo El Maitén',
+            'especie_validacion_id' => $contexto['especie_id'],
+            'variedad_validacion_id' => $contexto['variedad_id'],
+            'calibre_validacion_id' => $contexto['calibre_id'],
+            'cuartel' => 'C-12',
+            'tipo_producto' => 'materia_prima',
+            'envase_primario' => 'bins',
+            'envase_secundario' => 'totes',
+            'cantidad_envases_primarios' => 48,
+            'cantidad_envases_secundarios' => 10,
+            'kilos_brutos' => 19000,
+            'kilos_netos_confirmados' => 18000,
+            'requiere_hidrocooler' => false,
+            'observacion' => 'Antecedentes informados por exportadora.',
+            ...$reemplazos,
+        ];
+    }
+}

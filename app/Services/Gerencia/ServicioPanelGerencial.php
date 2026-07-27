@@ -100,6 +100,9 @@ class ServicioPanelGerencial
                 'materiales' => $this->resumenCapacidad(
                     $camaras->where('contenido', ContenidoCamara::Materiales->value),
                 ),
+                'materia_prima' => $this->resumenCapacidad(
+                    $camaras->where('contenido', ContenidoCamara::MateriaPrima->value),
+                ),
             ],
             'detalle' => $camaras->values()->all(),
         ];
