@@ -635,7 +635,7 @@ class ServicioLoteMateriaPrima
     }
 
     /**
-     * @param array<string, mixed> $datos
+     * @param  array<string, mixed>  $datos
      */
     private function asegurarDisponibilidadSegmento(
         SegmentoValidacionMp $segmento,
@@ -779,7 +779,7 @@ class ServicioLoteMateriaPrima
     }
 
     /**
-     * @param array<string, mixed> $datos
+     * @param  array<string, mixed>  $datos
      * @return array<string, mixed>
      */
     private function payloadLote(array $datos): array
@@ -791,7 +791,7 @@ class ServicioLoteMateriaPrima
     }
 
     /**
-     * @param array<string, mixed>|null $datos
+     * @param  array<string, mixed>|null  $datos
      */
     private function registrarEvento(
         LoteMateriaPrima $lote,
