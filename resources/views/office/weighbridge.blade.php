@@ -29,22 +29,9 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar weighbridge-topbar">
-                <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">⚖</span><span><strong>ESTIBA WMS</strong><small>ROMANA</small></span></div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-active" href="/oficina/romana">Romana</a>
-                    <a class="is-hidden" id="officeRawMaterialNav" href="/oficina/materia-prima">Materia prima</a>
-                    <a class="is-hidden" id="officeContainerAccountsNav" href="/oficina/envases/cuenta-corriente">Cuenta envases</a>
-                    <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                    <a class="is-hidden" id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
-                    <a class="is-hidden" id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
-                    <a class="is-hidden" id="officeValidationNav" href="/oficina/validacion">Validación</a>
-                    <a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a>
-                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity"><span class="identity__avatar" id="officeInitials">RO</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Romana</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
-            </header>
+            
+            <x-office.navigation domain="materia-prima" office="romana" context="MATERIA PRIMA" icon="⚖" />
+
 
             <section class="weighbridge-workspace">
                 <header class="weighbridge-heading">

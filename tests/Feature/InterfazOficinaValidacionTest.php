@@ -18,7 +18,8 @@ class InterfazOficinaValidacionTest extends TestCase
             ->assertSee('Combinaciones artículo–origen habilitadas')
             ->assertSee('validationHistoryBody', false)
             ->assertSee('importPreview', false)
-            ->assertSee('/oficina/camaras', false)
+            ->assertSee('data-active-domain="frigorifico"', false)
+            ->assertSee('/oficina/frigorifico/camaras', false)
             ->assertSee('/oficina/cargas', false)
             ->assertSee('aria-live="assertive"', false);
     }

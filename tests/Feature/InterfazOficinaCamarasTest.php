@@ -8,8 +8,9 @@ class InterfazOficinaCamarasTest extends TestCase
 {
     public function test_la_configuracion_de_camaras_incluye_la_administracion_de_andenes(): void
     {
-        $this->get('/oficina/camaras')
+        $this->get('/oficina/administracion/camaras')
             ->assertOk()
+            ->assertSee('data-active-domain="administracion"', false)
             ->assertSee('Configuración de infraestructura')
             ->assertSee('Andenes creados')
             ->assertSee('Crear andén')

@@ -48,27 +48,9 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar">
-                <div class="brand-lockup">
-                    <span class="office-logo office-logo--small" aria-hidden="true">❄</span>
-                    <span><strong>ESTIBA WMS</strong><small>ADMINISTRACIÓN</small></span>
-                </div>
-                <nav aria-label="Módulos de oficina">
-                    <a href="/oficina/gerencia">Gerencia</a>
-                    <a href="/oficina/romana">Romana</a>
-                    <a href="/oficina/camaras">Cámaras</a>
-                    <a href="/oficina/cargas">Cargas</a>
-                    <a href="/oficina/materiales">Materiales</a>
-                    <a href="/oficina/validacion">Validación</a>
-                    <a href="/oficina/prefrio">Prefrío</a>
-                    <a class="is-active" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity">
-                    <span class="identity__avatar" id="officeInitials">AD</span>
-                    <span><strong id="officeUserName">Administrador</strong><small id="officeUserRole">Administrador</small></span>
-                    <button id="officeLogoutButton" type="button">Cerrar sesión</button>
-                </div>
-            </header>
+            
+            <x-office.navigation domain="administracion" office="accesos" context="ADMINISTRACIÓN & GERENCIA" icon="⚙" />
+
 
             <section class="admin-workspace">
                 <header class="admin-heading">

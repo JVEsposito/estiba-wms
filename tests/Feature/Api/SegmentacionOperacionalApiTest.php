@@ -75,10 +75,11 @@ class SegmentacionOperacionalApiTest extends TestCase
         }
     }
 
-    public function test_supervisores_crean_solo_camaras_de_su_area(): void
+    public function test_solo_administracion_crea_camaras_y_define_su_area(): void
     {
         $supervisorFrio = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
         $supervisorMateriales = User::factory()->create(['rol' => RolUsuario::SupervisorMateriales]);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
 
         $payload = [
             'nombre' => 'Cámara segmentada',
@@ -89,18 +90,18 @@ class SegmentacionOperacionalApiTest extends TestCase
             'niveles' => 1,
         ];
 
-        $this->actingAs($supervisorFrio, 'sanctum')
+        foreach ([$supervisorFrio, $supervisorMateriales] as $supervisor) {
+            $this->actingAs($supervisor, 'sanctum')
+                ->postJson('/api/configuracion/camaras', $payload)
+                ->assertForbidden();
+        }
+
+        $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/configuracion/camaras', $payload)
             ->assertCreated()
-            ->assertJsonPath('data.contenido', ContenidoCamara::Productos->value);
-
-        $this->actingAs($supervisorMateriales, 'sanctum')
-            ->postJson('/api/configuracion/camaras', [
-                ...$payload,
-                'contenido' => ContenidoCamara::Productos->value,
-            ])
-            ->assertCreated()
             ->assertJsonPath('data.contenido', ContenidoCamara::Materiales->value);
+
+        $this->assertDatabaseCount('camaras', 1);
     }
 
     public function test_modulos_de_cargas_y_materiales_rechazan_el_area_contraria(): void
