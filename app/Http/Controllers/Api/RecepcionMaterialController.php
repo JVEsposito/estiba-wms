@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoRecepcionMaterial;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ActualizarRecepcionMaterialRequest;
 use App\Http\Requests\AnularRecepcionMaterialRequest;
 use App\Http\Requests\ConfirmarRecepcionMaterialRequest;
 use App\Http\Requests\CrearRecepcionMaterialRequest;
@@ -193,6 +194,23 @@ class RecepcionMaterialController extends Controller
         ))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    public function update(
+        ActualizarRecepcionMaterialRequest $request,
+        RecepcionMaterial $recepcionMaterial,
+        ServicioRecepcionMaterial $servicio,
+    ): RecepcionMaterialResource {
+        abort_unless(
+            $this->puedeOperarRecepcion($request, $recepcionMaterial),
+            Response::HTTP_NOT_FOUND,
+        );
+
+        return new RecepcionMaterialResource($servicio->actualizar(
+            $recepcionMaterial,
+            $request->validated(),
+            $request->user(),
+        ));
     }
 
     public function confirmar(

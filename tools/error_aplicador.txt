@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/estiba-wms/estiba-wms/tools/aplicar_edicion_borradores_recepcion.py", line 496, in <module>
-    replace_once(
-  File "/home/runner/work/estiba-wms/estiba-wms/tools/aplicar_edicion_borradores_recepcion.py", line 9, in replace_once
-    raise RuntimeError(f"{path}: se esperaba 1 coincidencia y se encontraron {count}")
-RuntimeError: mobile/src/screens/MaterialReceptionScreen.tsx: se esperaba 1 coincidencia y se encontraron 0

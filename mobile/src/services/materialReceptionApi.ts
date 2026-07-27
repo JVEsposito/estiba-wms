@@ -8,6 +8,7 @@ import {
   MaterialReceptionCatalog,
   MaterialReceptionState,
   PendingReceptionFolio,
+  UpdateMaterialReceptionPayload,
 } from '../domain/materialReception';
 
 export type MaterialReceptionApi = ReturnType<typeof createMaterialReceptionApi>;
@@ -64,6 +65,16 @@ export function createMaterialReceptionApi(baseUrl: string, token: string) {
         method: 'POST',
         body: JSON.stringify(payload),
       })).data;
+    },
+
+    async update(id: string, payload: UpdateMaterialReceptionPayload): Promise<MaterialReception> {
+      return (await request<ApiItem<MaterialReception>>(
+        `/api/materiales/recepciones/${encodeURIComponent(id)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        },
+      )).data;
     },
 
     async confirm(id: string, operationId: string, knownVersion: number): Promise<MaterialReception> {

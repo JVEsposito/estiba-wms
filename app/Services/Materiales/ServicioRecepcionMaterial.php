@@ -123,6 +123,166 @@ class ServicioRecepcionMaterial
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    public function actualizar(
+        RecepcionMaterial $recepcion,
+        array $datos,
+        User $usuario,
+    ): RecepcionMaterial {
+        $payloadHash = $this->payloadHash($datos);
+
+        try {
+            return DB::transaction(function () use (
+                $recepcion,
+                $datos,
+                $usuario,
+                $payloadHash,
+            ): RecepcionMaterial {
+                $eventoExistente = EventoRecepcionMaterial::query()
+                    ->where('operacion_id', $datos['operacion_id'])
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($eventoExistente) {
+                    $hashExistente = (string) data_get($eventoExistente->datos, 'payload_hash', '');
+                    $mismaOperacion = $eventoExistente->recepcion_material_id === $recepcion->id
+                        && $eventoExistente->tipo === TipoEventoRecepcionMaterial::Actualizada
+                        && $eventoExistente->user_id === $usuario->id
+                        && $hashExistente !== ''
+                        && hash_equals($hashExistente, $payloadHash);
+
+                    if (! $mismaOperacion) {
+                        throw new ConflictoOperacion(
+                            'El UUID de actualización ya fue utilizado con datos diferentes.',
+                        );
+                    }
+
+                    return $this->cargar(RecepcionMaterial::query()->findOrFail($recepcion->id));
+                }
+
+                $recepcion = RecepcionMaterial::query()
+                    ->with(['detalles.bultos.folioMaterial'])
+                    ->lockForUpdate()
+                    ->findOrFail($recepcion->id);
+
+                if ($recepcion->estado !== EstadoRecepcionMaterial::Borrador) {
+                    throw new DomainException('Solo una recepción en borrador puede editarse.');
+                }
+
+                if ($recepcion->version !== (int) $datos['version_conocida']) {
+                    throw new ConflictoOperacion('La recepción cambió desde la última lectura.');
+                }
+
+                $temporada = $this->temporadaActiva->obtener(bloquear: true);
+
+                if ($temporada->id !== $recepcion->temporada_id) {
+                    throw new DomainException(
+                        'La temporada de la recepción ya no es la temporada global activa.',
+                    );
+                }
+
+                [$cliente, $proveedor, $vinculoProveedor] = $this->validarCabecera(
+                    $datos['cliente_id'],
+                    $datos['proveedor_material_id'],
+                );
+                $bultosActuales = $recepcion->detalles
+                    ->flatMap(fn (DetalleRecepcionMaterial $detalle) => $detalle->bultos);
+
+                if ($bultosActuales->contains(
+                    fn (BultoRecepcionMaterial $bulto): bool => $bulto->folioMaterial !== null,
+                )) {
+                    throw new DomainException(
+                        'La recepción ya posee inventario asociado y no puede volver a editarse.',
+                    );
+                }
+
+                $versionAnterior = $recepcion->version;
+                $ahora = now();
+                $bultoIds = $bultosActuales->pluck('id');
+                $detalleIds = $recepcion->detalles->pluck('id');
+
+                if ($bultoIds->isNotEmpty()) {
+                    BultoRecepcionMaterial::query()
+                        ->whereIn('id', $bultoIds)
+                        ->update([
+                            'deleted_at' => $ahora,
+                            'updated_at' => $ahora,
+                        ]);
+                }
+
+                if ($detalleIds->isNotEmpty()) {
+                    DetalleRecepcionMaterial::query()
+                        ->whereIn('id', $detalleIds)
+                        ->update([
+                            'deleted_at' => $ahora,
+                            'updated_at' => $ahora,
+                        ]);
+                }
+
+                $recepcion->update([
+                    'cliente_id' => $cliente->id,
+                    'proveedor_material_id' => $proveedor->id,
+                    'numero_guia_despacho' => trim($datos['numero_guia_despacho']),
+                    'fecha_documento' => $datos['fecha_documento'] ?? null,
+                    'orden_compra' => $this->textoOpcional($datos['orden_compra'] ?? null),
+                    'patente' => $this->textoOpcional($datos['patente'] ?? null),
+                    'transportista' => $this->textoOpcional($datos['transportista'] ?? null),
+                    'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
+                    'version' => $versionAnterior + 1,
+                ]);
+
+                foreach ($datos['detalles'] as $linea) {
+                    $this->crearDetalle(
+                        $recepcion,
+                        $linea,
+                        $cliente,
+                        $proveedor,
+                        $vinculoProveedor,
+                        $temporada->id,
+                    );
+                }
+
+                $this->registrarEvento(
+                    $recepcion,
+                    TipoEventoRecepcionMaterial::Actualizada,
+                    $usuario,
+                    $datos['operacion_id'],
+                    [
+                        'payload_hash' => $payloadHash,
+                        'version_anterior' => $versionAnterior,
+                        'version_resultante' => $recepcion->version,
+                        'cantidad_detalles' => count($datos['detalles']),
+                        'cantidad_bultos' => collect($datos['detalles'])
+                            ->sum(fn (array $linea): int => count($linea['bultos'] ?? [])),
+                    ],
+                );
+
+                return $this->cargar($recepcion->refresh());
+            }, attempts: 3);
+        } catch (UniqueConstraintViolationException $exception) {
+            $evento = EventoRecepcionMaterial::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            $hashExistente = (string) data_get($evento?->datos, 'payload_hash', '');
+
+            if ($evento
+                && $evento->recepcion_material_id === $recepcion->id
+                && $evento->tipo === TipoEventoRecepcionMaterial::Actualizada
+                && $evento->user_id === $usuario->id
+                && $hashExistente !== ''
+                && hash_equals($hashExistente, $payloadHash)) {
+                return $this->cargar(RecepcionMaterial::query()->findOrFail($recepcion->id));
+            }
+
+            throw new ConflictoOperacion(
+                'La actualización entró en conflicto con otra operación concurrente.',
+                previous: $exception,
+            );
+        }
+    }
+
     public function confirmar(
         RecepcionMaterial $recepcion,
         string $operacionId,
