@@ -1,0 +1,36 @@
+name: Aplicar edición de borradores de recepción
+
+on:
+  push:
+    branches:
+      - agent/editar-borradores-recepcion-materiales
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+        with:
+          ref: agent/editar-borradores-recepcion-materiales
+          fetch-depth: 0
+
+      - name: Aplicar corrección
+        run: python3 tools/aplicar_edicion_borradores_recepcion.py
+
+      - name: Retirar herramientas temporales
+        run: |
+          rm tools/aplicar_edicion_borradores_recepcion.py
+          rm .github/workflows/aplicar-edicion-borradores-recepcion.yml
+
+      - name: Publicar cambios
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: permitir editar borradores de recepción"
+          git push origin HEAD:agent/editar-borradores-recepcion-materiales
