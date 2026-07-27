@@ -46,6 +46,7 @@ Incluye:
 - confirmación de ingreso;
 - captura de tara al retorno;
 - cálculo del peso neto;
+- selección del envase y cálculo automático del neto individual;
 - cierre irreversible;
 - eventos auditables;
 - Aviso de Recibo PDF;
@@ -69,7 +70,23 @@ Incluye:
 - segmentos provisionales `pendiente_lote`;
 - confirmación de cantidades reales en el kardex de envases.
 
-No incluye todavía la creación del número de lote definitivo.
+### Digitación y lotización
+
+Incluye:
+
+- oficina madre `/oficina/materia-prima`;
+- número de lote escrito manualmente;
+- división de un segmento en varios lotes;
+- CSG, SdP, GGN, cosecha, predio, especie, variedad, calibre y cuartel;
+- producto materia prima, comercial, precalibre o descarte;
+- envases primarios y secundarios;
+- cálculo automático y confirmación o corrección de kilos netos;
+- borradores y confirmación;
+- hidrocooler opcional con operador, equipo, inicio, término, duración, temperatura y observación;
+- asignación a cámaras exclusivas de materia prima;
+- anulación supervisada sin borrar historia.
+
+Los lotes de materia prima no son folios ni ocupan posiciones frigoríficas.
 
 ### Envases
 
@@ -119,7 +136,7 @@ Las guías son documentos operacionales internos y no DTE legales.
 ### Cámaras y estiba
 
 - Creación y edición de cámaras.
-- Contenido separado entre producto y materiales.
+- Contenido separado entre producto terminado, materiales y materia prima.
 - Bandas, posiciones, niveles y estado de cada posición.
 - Consulta concurrente del plano.
 - Una sesión exclusiva de edición por cámara.

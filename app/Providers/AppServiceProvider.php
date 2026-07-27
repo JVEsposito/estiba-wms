@@ -62,6 +62,13 @@ class AppServiceProvider extends ServiceProvider
             ),
         );
         Gate::define(
+            'crear-camaras-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeCrearCamara(
+                $usuario,
+                ContenidoCamara::MateriaPrima,
+            ),
+        );
+        Gate::define(
             'operar-camaras-productos',
             fn (User $usuario): bool => $alcance->puedeOperarCamara(
                 $usuario,
@@ -228,6 +235,18 @@ class AppServiceProvider extends ServiceProvider
         Gate::define(
             'validar-mp',
             fn (User $usuario): bool => $alcance->puedeValidarMp($usuario),
+        );
+        Gate::define(
+            'consultar-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeConsultarMateriaPrima($usuario),
+        );
+        Gate::define(
+            'gestionar-lotes-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeGestionarLotesMateriaPrima($usuario),
+        );
+        Gate::define(
+            'supervisar-lotes-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeSupervisarLotesMateriaPrima($usuario),
         );
         Gate::define(
             'consultar-cuenta-envases',

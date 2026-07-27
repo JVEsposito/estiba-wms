@@ -387,6 +387,11 @@ body {
     color: #bba8ff;
 }
 
+.area-chip--raw-material {
+    background: rgba(122, 223, 156, .12);
+    color: #91ebb0;
+}
+
 .usage-chip { background: rgba(85, 216, 137, .1); color: var(--green); }
 .usage-chip--warning { background: rgba(243, 185, 79, .12); color: var(--amber); }
 

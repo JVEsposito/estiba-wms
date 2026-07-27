@@ -16,6 +16,8 @@ Administración transversal
 Recepción de materia prima
 ├─ Romana
 ├─ Validación MP
+├─ digitación y lotización
+├─ hidrocooler y asignación a cámara
 ├─ cuenta corriente de envases
 └─ guías internas de despacho de envases
 
@@ -74,9 +76,12 @@ Romana
 → Validación MP
 → conteo real de envases y segregación
 → segmentos pendiente_lote
+→ número manual y trazabilidad del lote
+→ hidrocooler opcional
+→ cámara de materia prima
 ```
 
-Validación MP todavía no genera el número de lote definitivo ni crea folios de Frigorífico.
+El lote de materia prima mantiene una identidad propia y no crea folios de Frigorífico.
 
 ### Materiales
 
@@ -124,6 +129,7 @@ El repositorio es un monorepo: Laravel y las oficinas web viven en la raíz; la 
 |---|---|
 | `/oficina/accesos` | Usuarios, dispositivos, clientes globales, temporadas y migración de ciclo |
 | `/oficina/romana` | Pesaje, recepción, tara, cierre y Aviso de Recibo |
+| `/oficina/materia-prima` | Oficina madre, digitación de lotes, hidrocooler y asignación |
 | `/oficina/envases/cuenta-corriente` | Existencia y cuenta corriente de envases |
 | `/oficina/envases/despachos` | Guías internas de salida de envases |
 | `/oficina/validacion` | Historial, importaciones y trazabilidad de Validación PT |
@@ -156,6 +162,7 @@ supervisor_materiales
 despachador
 operador_prefrio
 operador_romana
+digitador_materia_prima
 camarero_frio
 camarero_materiales
 validador
@@ -186,6 +193,7 @@ Ocultar una acción en la interfaz nunca reemplaza la autorización del backend.
 - [Prefrío](docs/MODULO_PREFRIO.md)
 - [Romana](docs/MODULO_ROMANA.md)
 - [Validación MP](docs/MODULO_VALIDACION_MP.md)
+- [Materia prima y lotización](docs/MODULO_MATERIA_PRIMA.md)
 - [Cuenta corriente y despacho de envases](docs/MODULO_ENVASES.md)
 
 ## Puesta en marcha local
@@ -212,6 +220,7 @@ Los datos de demostración solo se crean en `local` y `testing`. La contraseña 
 | Camarero de materiales | `camarero.materiales@estiba.local` |
 | Supervisor de materiales | `supervisor.materiales@estiba.local` |
 | Operador de Romana | `romana@estiba.local` |
+| Digitador de materia prima | `digitador.mp@estiba.local` |
 
 Código de dispositivo local: `TABLET-01`.
 

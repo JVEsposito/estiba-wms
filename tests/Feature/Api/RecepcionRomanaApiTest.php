@@ -60,6 +60,7 @@ class RecepcionRomanaApiTest extends TestCase
         $cerrada = $this->postJson('/api/romana/recepciones/'.$creada['id'].'/cerrar', [
             'operacion_id' => (string) Str::uuid(),
             'peso_tara' => 10540,
+            'tipo_envase_calculo_neto' => 'bins',
             'observacion' => 'Sellos y guía verificados.',
         ])
             ->assertOk()
@@ -67,6 +68,9 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
             ->assertJsonPath('data.peso_tara', 10540)
             ->assertJsonPath('data.peso_neto', 18000)
+            ->assertJsonPath('data.tipo_envase_calculo_neto', 'bins')
+            ->assertJsonPath('data.cantidad_envase_calculo_neto', 48)
+            ->assertJsonPath('data.peso_neto_por_envase', 375)
             ->assertJsonPath('data.aviso_recibo_disponible', true)
             ->json('data');
 

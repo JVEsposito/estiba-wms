@@ -12,12 +12,12 @@ export type UserIdentity = {
   nombre: string;
   email: string;
   rol: string;
-  ambito_camaras: 'productos' | 'materiales' | 'ambos' | 'ninguno';
+  ambito_camaras: 'productos' | 'materiales' | 'materia_prima' | 'ambos' | 'ninguno';
   capacidades: UserCapabilities;
 };
 
 export type UserCapabilities = {
-  ambito_camaras: 'productos' | 'materiales' | 'ambos' | 'ninguno';
+  ambito_camaras: 'productos' | 'materiales' | 'materia_prima' | 'ambos' | 'ninguno';
   puede_supervisar: boolean;
   puede_operar_productos: boolean;
   puede_operar_materiales: boolean;
@@ -49,6 +49,9 @@ export type UserCapabilities = {
   puede_operar_prefrio?: boolean;
   puede_supervisar_prefrio?: boolean;
   puede_administrar_tuneles_prefrio?: boolean;
+  puede_consultar_materia_prima?: boolean;
+  puede_gestionar_lotes_materia_prima?: boolean;
+  puede_supervisar_lotes_materia_prima?: boolean;
 };
 
 export type DeviceIdentity = {
@@ -102,7 +105,7 @@ export type CameraSummary = {
   codigo: string;
   nombre: string;
   tipo: string;
-  contenido: 'productos' | 'materiales';
+  contenido: 'productos' | 'materiales' | 'materia_prima';
   estado: string;
   version_plano: number;
   ocupacion: Occupancy;

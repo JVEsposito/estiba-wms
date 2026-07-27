@@ -76,9 +76,12 @@ La migración de temporada:
 Romana
 → Validación MP
 → segmentos pendiente_lote
+→ lotes de materia prima
+→ hidrocooler opcional
+→ asignación a cámara de materia prima
 ```
 
-Romana conserva el expediente contractual y el pesaje. Validación MP toma la recepción y confirma cantidades reales y segregaciones. Ninguno de estos procesos crea automáticamente folios de Frigorífico.
+Romana conserva el expediente contractual y calcula el neto individual. Validación MP confirma cantidades reales y segregaciones. Digitación crea lotes manuales, conserva ambos netos y registra su continuidad operacional. Ninguno de estos procesos crea automáticamente folios de Frigorífico.
 
 ### Frigorífico
 
@@ -105,6 +108,7 @@ Envases mantiene existencia y cuenta corriente mediante movimientos firmados. La
 - UUID interno: identidad técnica de las entidades.
 - `numero_folio`: identidad operacional de un bulto.
 - `REC-AAMM-####`: expediente de recepción de Romana.
+- `numero_lote`: identidad manual de materia prima, única por temporada y cliente mientras esté vigente.
 - `PF-AAAA-NNNNNN`: proceso térmico.
 - `CAR-*`: carga de producto.
 - `MAT-DES-*`: despacho de materiales.

@@ -69,8 +69,16 @@ export function PositionMap({
       <View style={styles.toolbar}>
         <View style={styles.legend}>
           <Legend color={colors.free} border={colors.freeBorder} label="Libre" />
-          <Legend color={colors.pallet} border={colors.palletBorder} label={plan.contenido === 'materiales' ? 'Material' : 'Pallet'} />
-          {plan.contenido !== 'materiales' && <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />}
+          <Legend
+            color={colors.pallet}
+            border={colors.palletBorder}
+            label={plan.contenido === 'materiales'
+              ? 'Material'
+              : plan.contenido === 'materia_prima'
+                ? 'Lote MP'
+                : 'Pallet'}
+          />
+          {plan.contenido === 'productos' && <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />}
           <Legend color={colors.blocked} border={colors.blockedBorder} label="Bloqueada" />
         </View>
         <View style={styles.levelPicker}>

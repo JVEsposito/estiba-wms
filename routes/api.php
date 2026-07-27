@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
+use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
@@ -128,6 +129,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/recepciones/{recepcion}/tomar', [ValidacionMpController::class, 'tomar']);
         Route::post('/validaciones/{validacionMp}/confirmar', [ValidacionMpController::class, 'confirmar']);
     });
+    Route::middleware('can:consultar-materia-prima')->prefix('materia-prima')->group(function () {
+        Route::get('/resumen', [MateriaPrimaController::class, 'resumen']);
+        Route::get('/catalogos', [MateriaPrimaController::class, 'catalogos']);
+        Route::get('/segmentos-pendientes', [MateriaPrimaController::class, 'segmentosPendientes']);
+        Route::get('/lotes', [MateriaPrimaController::class, 'index']);
+        Route::get('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'show']);
+    });
+    Route::middleware('can:gestionar-lotes-materia-prima')->prefix('materia-prima')->group(function () {
+        Route::post('/lotes', [MateriaPrimaController::class, 'store']);
+        Route::put('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'update']);
+        Route::post('/lotes/{loteMateriaPrima}/confirmar', [MateriaPrimaController::class, 'confirmar']);
+        Route::post('/lotes/{loteMateriaPrima}/hidrocooler/iniciar', [MateriaPrimaController::class, 'iniciarHidrocooler']);
+        Route::post('/lotes/{loteMateriaPrima}/hidrocooler/completar', [MateriaPrimaController::class, 'completarHidrocooler']);
+        Route::post('/lotes/{loteMateriaPrima}/asignar-camara', [MateriaPrimaController::class, 'asignarCamara']);
+    });
+    Route::post('/materia-prima/lotes/{loteMateriaPrima}/anular', [MateriaPrimaController::class, 'anular'])
+        ->middleware('can:supervisar-lotes-materia-prima');
     Route::prefix('administracion/validacion')
         ->middleware('can:administrar-catalogos-validacion')
         ->group(function () {

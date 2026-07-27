@@ -56,9 +56,11 @@ class AccesoOficinaController extends Controller
                 'ambito_camaras' => $alcance->ambitoCamaras($usuario),
                 'capacidades' => $capacidades,
                 'puede_configurar_camaras' => $usuario->can('crear-camaras-productos')
-                    || $usuario->can('crear-camaras-materiales'),
+                    || $usuario->can('crear-camaras-materiales')
+                    || $usuario->can('crear-camaras-materia-prima'),
                 'puede_crear_camaras_productos' => $usuario->can('crear-camaras-productos'),
                 'puede_crear_camaras_materiales' => $usuario->can('crear-camaras-materiales'),
+                'puede_crear_camaras_materia_prima' => $usuario->can('crear-camaras-materia-prima'),
                 'puede_administrar_camaras' => $usuario->can('administrar-camaras'),
                 'puede_administrar_accesos' => $usuario->can('administrar-accesos'),
                 'puede_gestionar_cargas' => $capacidades['puede_gestionar_cargas'],
@@ -89,6 +91,9 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_panel_gerencial' => $capacidades['puede_consultar_panel_gerencial'],
                 'puede_consultar_romana' => $capacidades['puede_consultar_romana'],
                 'puede_operar_romana' => $capacidades['puede_operar_romana'],
+                'puede_consultar_materia_prima' => $capacidades['puede_consultar_materia_prima'],
+                'puede_gestionar_lotes_materia_prima' => $capacidades['puede_gestionar_lotes_materia_prima'],
+                'puede_supervisar_lotes_materia_prima' => $capacidades['puede_supervisar_lotes_materia_prima'],
                 'puede_consultar_cuenta_envases' => $capacidades['puede_consultar_cuenta_envases'],
                 'puede_revisar_cuenta_envases' => $capacidades['puede_revisar_cuenta_envases'],
                 'puede_gestionar_despacho_envases' => $capacidades['puede_gestionar_despacho_envases'],
