@@ -473,6 +473,80 @@ class PrefrioApiTest extends TestCase
             ->assertJsonValidationErrors('capacidad_posiciones');
     }
 
+    public function test_agregar_folio_a_proceso_listo_reabre_armado_y_no_permite_cargar_durante_el_ciclo(): void
+    {
+        [$tunel, $primeraPosicion, $token] = $this->contexto();
+        $segundaPosicion = $tunel->posiciones()->orderBy('numero')->skip(1)->firstOrFail();
+        $terceraPosicion = $tunel->posiciones()->orderBy('numero')->skip(2)->firstOrFail();
+        $primerFolio = $this->folioPendiente('PAL-PF-REABRIR-001');
+        $segundoFolio = $this->folioPendiente('PAL-PF-REABRIR-002');
+        $tercerFolio = $this->folioPendiente('PAL-PF-REABRIR-003');
+        $proceso = $this->crearProceso($token, $tunel);
+
+        $proceso = $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 0,
+            'folio_id' => $primerFolio->id,
+            'posicion_tunel_prefrio_id' => $primeraPosicion->id,
+            'ocurrido_at' => now()->toAtomString(),
+        ]);
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/confirmar-armado",
+            $this->payloadAccion(1),
+        );
+
+        $this->assertSame('listo_para_iniciar', $proceso['estado']);
+        $this->assertSame(2, $proceso['version']);
+
+        $proceso = $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 2,
+            'folio_id' => $segundoFolio->id,
+            'posicion_tunel_prefrio_id' => $segundaPosicion->id,
+            'ocurrido_at' => now()->toAtomString(),
+        ]);
+
+        $this->assertSame('cargando', $proceso['estado']);
+        $this->assertSame(3, $proceso['version']);
+        $this->assertCount(2, $proceso['folios']);
+        $this->assertDatabaseHas('procesos_prefrio_folios', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'folio_id' => $segundoFolio->id,
+            'posicion_tunel_prefrio_id' => $segundaPosicion->id,
+            'estado' => 'cargado',
+        ]);
+
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/confirmar-armado",
+            $this->payloadAccion(3),
+        );
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/iniciar",
+            $this->payloadAccion(4),
+        );
+
+        $this->assertSame('en_proceso', $proceso['estado']);
+
+        $this->conToken($token)
+            ->postJson("/api/prefrio/procesos/{$proceso['id']}/folios", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $proceso['version'],
+                'folio_id' => $tercerFolio->id,
+                'posicion_tunel_prefrio_id' => $terceraPosicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseMissing('procesos_prefrio_folios', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'folio_id' => $tercerFolio->id,
+        ]);
+    }
+
     public function test_eventos_son_idempotentes_y_operador_prefrio_permanece_aislado(): void
     {
         [$tunel, $posicion, $token] = $this->contexto();

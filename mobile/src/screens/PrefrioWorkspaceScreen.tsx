@@ -47,7 +47,7 @@ type CandidateGroup = {
   items: PrefrioFolioCandidate[];
 };
 
-const LOADABLE_PROCESS_STATES = new Set(['borrador', 'cargando']);
+const LOADABLE_PROCESS_STATES = new Set(['borrador', 'cargando', 'listo_para_iniciar']);
 
 export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorkspaceProps) {
   const loadingFolio = useRef(false);
@@ -259,6 +259,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       return;
     }
 
+    const reopensAssembly = selectedProcess.estado === 'listo_para_iniciar';
     loadingFolio.current = true;
     setBusy(true);
     setError('');
@@ -291,7 +292,10 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
         synced_at: new Date().toISOString(),
       });
       setOnline(true);
-      setNotice(`${selectedFolio.numero_folio} cargado en ${positionLabel(selectedPositionId, freePositions)} del proceso ${updatedProcess.codigo}.`);
+      setNotice(
+        `${selectedFolio.numero_folio} cargado en ${positionLabel(selectedPositionId, freePositions)} del proceso ${updatedProcess.codigo}.`
+        + (reopensAssembly ? ' El proceso volvió a Cargando; confirma nuevamente el armado antes de iniciarlo.' : ''),
+      );
       closeCandidate();
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 0) setOnline(false);
@@ -477,6 +481,7 @@ function CandidateModal({
   onOpenTunnels: () => void;
 }) {
   if (!folio) return null;
+  const selectedProcess = loadableProcesses.find((process) => process.id === selectedProcessId) ?? null;
 
   return (
     <Modal animationType="slide" transparent visible onRequestClose={() => { if (!busy) onClose(); }}>
@@ -509,6 +514,7 @@ function CandidateModal({
                       <Pressable disabled={busy} key={process.id} onPress={() => onProcessChange(process.id)} style={[styles.optionCard, process.id === selectedProcessId && styles.optionCardSelected, busy && styles.disabled]}>
                         <Text style={styles.optionTitle}>{process.codigo}</Text>
                         <Text style={styles.optionDetail}>{process.tunel.codigo} · {process.folios.filter((item) => !['retirado', 'cancelado'].includes(item.estado)).length}/{process.tunel.capacidad_posiciones}</Text>
+                        <Text style={styles.optionState}>{processStateLabel(process.estado)}</Text>
                       </Pressable>
                     ))}
                   </View>
@@ -522,6 +528,11 @@ function CandidateModal({
 
                 {loadableProcesses.length ? (
                   <>
+                    {selectedProcess?.estado === 'listo_para_iniciar' ? (
+                      <Text style={styles.reopenNotice}>
+                        Al cargar este folio, el proceso volverá a Cargando y deberás confirmar nuevamente el armado antes de iniciarlo.
+                      </Text>
+                    ) : null}
                     <Text style={styles.modalSectionTitle}>Posición libre</Text>
                     <View style={styles.positionGrid}>
                       {freePositions.map((position) => (
@@ -573,6 +584,13 @@ function Metric({ label, value, warning = false }: { label: string; value: strin
 
 function thermalLabel(value: PrefrioFolioCandidate['condicion_termica']) {
   return value === 'pendiente_prefrio' ? 'Pendiente de Prefrío' : value === 'requiere_reproceso' ? 'Reproceso' : 'Retenido';
+}
+
+function processStateLabel(value: PrefrioProcess['estado']) {
+  if (value === 'borrador') return 'Borrador';
+  if (value === 'cargando') return 'Cargando';
+  if (value === 'listo_para_iniciar') return 'Listo para iniciar';
+  return value;
 }
 
 function formatDateTime(value: string | null) {
@@ -657,6 +675,8 @@ const styles = StyleSheet.create({
   optionCardSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
   optionTitle: { color: colors.text, fontWeight: '900' },
   optionDetail: { color: colors.muted, fontSize: 10, marginTop: 4 },
+  optionState: { color: colors.cyan, fontSize: 10, fontWeight: '900', marginTop: 5, textTransform: 'uppercase' },
+  reopenNotice: { color: colors.text, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: colors.amber, backgroundColor: colors.amberDark, fontWeight: '800', lineHeight: 18 },
   positionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   position: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
   positionSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },

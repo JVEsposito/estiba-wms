@@ -90,6 +90,8 @@ Un túnel admite como máximo un proceso activo. Un folio tampoco puede particip
 
 La relación histórica permite que el mismo folio participe posteriormente en otro proceso cuando requiere reproceso.
 
+Los estados `borrador`, `cargando` y `listo_para_iniciar` admiten carga de folios. Si se agrega o retira un folio después de confirmar el armado, el proceso vuelve a `cargando` y debe confirmarse nuevamente antes de iniciar. Desde `en_proceso` la composición queda cerrada.
+
 ## Folios y posiciones
 
 Durante la carga, cada folio ocupa una posición única del proceso:
