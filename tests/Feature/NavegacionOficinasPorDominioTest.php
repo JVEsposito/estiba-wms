@@ -39,4 +39,15 @@ class NavegacionOficinasPorDominioTest extends TestCase
         $this->get('/oficina/camaras')
             ->assertRedirect('/oficina/frigorifico/camaras');
     }
+
+    public function test_consultas_es_un_macromodulo_independiente(): void
+    {
+        $this->get('/oficina/consultas')
+            ->assertOk()
+            ->assertSee('data-active-domain="consultas"', false)
+            ->assertSee('Búsqueda Operacional')
+            ->assertSee('Productores SAG / CSG')
+            ->assertSee('Productores Verificados')
+            ->assertDontSee('Digitación de Lotes');
+    }
 }

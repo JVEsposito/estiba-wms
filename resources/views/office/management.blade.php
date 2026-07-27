@@ -46,9 +46,7 @@
         </section>
 
         <main class="office-app management-app is-hidden" id="officeApp">
-            
             <x-office.navigation domain="administracion" office="panel" context="ADMINISTRACIÓN & GERENCIA" icon="◆" />
-
 
             <section class="management-heading">
                 <div>

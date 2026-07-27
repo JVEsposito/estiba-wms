@@ -29,9 +29,7 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            
             <x-office.navigation domain="materia-prima" office="digitacion" context="MATERIA PRIMA" icon="◫" />
-
 
             <section class="raw-material-workspace">
                 <header class="raw-material-heading">

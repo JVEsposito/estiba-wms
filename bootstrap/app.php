@@ -4,6 +4,7 @@ use App\Exceptions\AdvertenciasMovimientoPendientes;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\FoliosCargaInvalidos;
 use App\Exceptions\OperacionNoAutorizada;
+use App\Exceptions\ServicioSagNoDisponible;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -89,6 +90,20 @@ return Application::configure(basePath: dirname(__DIR__))
                 'codigo' => 'folios_no_asignables',
                 'errores' => $exception->errores,
             ], 422);
+        });
+
+        $exceptions->render(function (
+            ServicioSagNoDisponible $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'servicio_sag_no_disponible',
+            ], 503);
         });
 
         $exceptions->render(function (DomainException $exception, Request $request) {

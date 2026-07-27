@@ -1,0 +1,65 @@
+.queries-access-brand { background: radial-gradient(circle at 20% 20%, rgba(243, 185, 79, .13), transparent 30rem), linear-gradient(145deg, #102a32, #041015); }
+.queries-app { min-width: 1120px; }
+.queries-topbar { position: sticky; top: 0; z-index: 20; }
+.queries-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 32px 34px 20px; }
+.queries-heading h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); }
+.queries-heading p:not(.eyebrow), .query-panel header p:not(.eyebrow), .producers-heading p:not(.eyebrow) { margin: 7px 0 0; color: var(--muted); line-height: 1.55; }
+.queries-refresh { min-width: 150px; }
+.query-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; padding: 0 34px 18px; }
+.query-kpis article { display: grid; gap: 5px; min-height: 130px; align-content: center; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(145deg, rgba(13, 34, 45, .96), rgba(7, 22, 30, .96)); padding: 20px; }
+.query-kpis span { color: var(--muted); font-size: .67rem; font-weight: 900; letter-spacing: .1em; }
+.query-kpis strong { color: var(--cyan-light); font-size: 2.1rem; }
+.query-kpis small { color: #bad0d8; }
+.queries-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(370px, .8fr); gap: 16px; padding: 0 34px 16px; }
+.query-panel { border: 1px solid var(--line); border-radius: 18px; background: rgba(8, 25, 34, .97); padding: 22px; box-shadow: 0 20px 46px rgba(0, 0, 0, .18); }
+.query-panel h2 { margin: 0; font-size: 1.35rem; }
+.query-search-form { display: grid; grid-template-columns: minmax(280px, 1fr) 210px 120px; gap: 10px; margin: 22px 0; }
+.query-search-form button, .sag-search-form button { min-height: 52px; }
+.sag-search-form { display: grid; grid-template-columns: 1fr 1.25fr; gap: 11px; margin-top: 22px; }
+.sag-search-form label { display: grid; gap: 7px; color: #c5d4da; font-size: .76rem; font-weight: 800; }
+.sag-search-form button { grid-column: 1 / -1; }
+.source-note { margin: 14px 0; color: var(--muted); font-size: .7rem; line-height: 1.5; }
+.query-empty { padding: 30px 18px; border: 1px dashed var(--line); border-radius: 13px; color: var(--muted); text-align: center; }
+.result-group { margin-top: 18px; }
+.result-group h3 { display: flex; align-items: center; justify-content: space-between; margin: 0 0 9px; font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
+.result-group h3 span { display: grid; min-width: 25px; height: 25px; place-items: center; border-radius: 999px; background: var(--soft); color: var(--cyan); font-size: .68rem; }
+.result-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.result-card, .producer-card, .sag-producer { border: 1px solid var(--line); border-radius: 13px; background: #06151d; padding: 14px; }
+.result-card { display: grid; gap: 7px; }
+.result-card__head, .producer-card__head, .producer-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.result-card strong, .producer-card h3, .sag-producer h3 { margin: 0; color: var(--text); font-size: 1rem; }
+.result-card p, .producer-card p, .sag-producer p { margin: 0; color: #c1d1d7; font-size: .74rem; line-height: 1.45; }
+.result-card small, .producer-card small, .sag-producer small { color: var(--muted); font-size: .68rem; }
+.query-badge { display: inline-flex; width: fit-content; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--soft); color: var(--cyan-light); padding: 5px 8px; font-size: .6rem; font-weight: 900; text-transform: uppercase; }
+.query-badge--pending { border-color: rgba(243, 185, 79, .4); background: rgba(243, 185, 79, .1); color: var(--amber); }
+.query-badge--active { border-color: rgba(85, 216, 137, .4); background: rgba(85, 216, 137, .1); color: var(--green); }
+.sag-result { margin-top: 10px; }
+.sag-result .sag-producer + .sag-producer { margin-top: 9px; }
+.sag-species { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.sag-species span { border-radius: 6px; background: var(--raised); color: #bed0d7; padding: 5px 7px; font-size: .62rem; }
+.producers-panel { margin: 0 34px 34px; }
+.producers-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+#producerFilters { display: grid; grid-template-columns: 260px 190px 90px; gap: 8px; }
+.producer-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; margin-top: 20px; }
+.producer-card { display: grid; gap: 10px; }
+.producer-card h3 { font-size: 1.08rem; }
+.producer-actions { margin-top: auto; padding-top: 9px; border-top: 1px solid var(--line); }
+.producer-actions button, .producer-association button { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); color: var(--cyan-light); padding: 0 11px; font-size: .68rem; font-weight: 900; }
+.producer-association { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.producer-association select { min-height: 38px; padding: 0 9px; font-size: .7rem; }
+.query-dialog { width: min(940px, calc(100vw - 40px)); max-height: 88vh; border: 1px solid var(--line); border-radius: 18px; background: #0a1b25; color: var(--text); padding: 0; }
+.query-dialog::backdrop { background: rgba(1, 7, 10, .82); backdrop-filter: blur(4px); }
+.query-dialog__shell { padding: 24px; }
+.query-dialog__shell > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; }
+.query-dialog__shell h2 { margin: 0; font-size: 1.6rem; }
+.query-dialog__shell > header button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); color: var(--text); font-size: 1.3rem; }
+.dossier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 18px 0; }
+.dossier-grid div { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 10px; background: #06151d; padding: 12px; }
+.dossier-grid span { color: var(--muted); font-size: .62rem; font-weight: 900; text-transform: uppercase; }
+.dossier-lots { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.dossier-lots th, .dossier-lots td { border-bottom: 1px solid var(--line); padding: 9px 7px; text-align: left; }
+.dossier-lots th { color: var(--muted); font-size: .62rem; text-transform: uppercase; }
+@media (max-width: 1250px) {
+    .producer-list { grid-template-columns: repeat(2, 1fr); }
+    .queries-grid { grid-template-columns: 1fr; }
+}

@@ -31,6 +31,12 @@
             'href' => '/oficina/gerencia',
             'permissions' => 'puede_consultar_panel_gerencial,puede_administrar_accesos,puede_administrar_camaras',
         ],
+        'consultas' => [
+            'label' => 'Consultas',
+            'icon' => '⌕',
+            'href' => '/oficina/consultas',
+            'permissions' => 'puede_consultar_oficina_consultas',
+        ],
     ];
 
     $offices = [
@@ -54,6 +60,11 @@
             ['key' => 'panel', 'label' => 'Panel Gerencial', 'href' => '/oficina/gerencia', 'permission' => 'puede_consultar_panel_gerencial'],
             ['key' => 'accesos', 'label' => 'Accesos & Temporadas', 'href' => '/oficina/accesos', 'permission' => 'puede_administrar_accesos'],
             ['key' => 'configuracion-camaras', 'label' => 'Configuración de cámaras', 'href' => '/oficina/administracion/camaras', 'permission' => 'puede_administrar_camaras'],
+        ],
+        'consultas' => [
+            ['key' => 'busqueda', 'label' => 'Búsqueda Operacional', 'href' => '/oficina/consultas#globalSearchForm', 'permission' => 'puede_consultar_oficina_consultas'],
+            ['key' => 'sag', 'label' => 'Productores SAG / CSG', 'href' => '/oficina/consultas#sagSearchForm', 'permission' => 'puede_consultar_sag'],
+            ['key' => 'productores', 'label' => 'Productores Verificados', 'href' => '/oficina/consultas#producerList', 'permission' => 'puede_consultar_oficina_consultas'],
         ],
     ];
 

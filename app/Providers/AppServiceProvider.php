@@ -253,6 +253,18 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeSupervisarLotesMateriaPrima($usuario),
         );
         Gate::define(
+            'consultar-oficina-consultas',
+            fn (User $usuario): bool => $alcance->puedeConsultarOficinaConsultas($usuario),
+        );
+        Gate::define(
+            'consultar-sag',
+            fn (User $usuario): bool => $alcance->puedeConsultarSag($usuario),
+        );
+        Gate::define(
+            'asociar-productores-csg',
+            fn (User $usuario): bool => $alcance->puedeAsociarProductoresCsg($usuario),
+        );
+        Gate::define(
             'consultar-cuenta-envases',
             fn (User $usuario): bool => $alcance->puedeConsultarCuentaEnvases($usuario),
         );

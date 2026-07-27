@@ -413,6 +413,28 @@ class AlcanceOperacionalUsuario
         ]);
     }
 
+    public function puedeConsultarOficinaConsultas(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::DigitadorMateriaPrima,
+        ]);
+    }
+
+    public function puedeConsultarSag(User $usuario): bool
+    {
+        return $this->puedeConsultarOficinaConsultas($usuario);
+    }
+
+    public function puedeAsociarProductoresCsg(User $usuario): bool
+    {
+        return $this->rolActivo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ]);
+    }
+
     public function puedeConsultarCuentaEnvases(User $usuario): bool
     {
         return $this->rolActivo($usuario, [
@@ -478,6 +500,9 @@ class AlcanceOperacionalUsuario
             'puede_consultar_materia_prima' => $this->puedeConsultarMateriaPrima($usuario),
             'puede_gestionar_lotes_materia_prima' => $this->puedeGestionarLotesMateriaPrima($usuario),
             'puede_supervisar_lotes_materia_prima' => $this->puedeSupervisarLotesMateriaPrima($usuario),
+            'puede_consultar_oficina_consultas' => $this->puedeConsultarOficinaConsultas($usuario),
+            'puede_consultar_sag' => $this->puedeConsultarSag($usuario),
+            'puede_asociar_productores_csg' => $this->puedeAsociarProductoresCsg($usuario),
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),
             'puede_consultar_catalogo_cargas' => $this->puedeConsultarCatalogoCargas($usuario),
             'puede_gestionar_cargas' => $this->puedeGestionarCargas($usuario),

@@ -71,6 +71,18 @@ class Cliente extends Model
             ->withTimestamps();
     }
 
+    public function productoresCsg(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ProductorCsg::class,
+            'clientes_productores_csg',
+            'cliente_id',
+            'productor_csg_id',
+        )
+            ->withPivot(['id', 'activo', 'asociado_por_user_id', 'actualizado_por_user_id'])
+            ->withTimestamps();
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
