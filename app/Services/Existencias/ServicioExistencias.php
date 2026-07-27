@@ -2,10 +2,13 @@
 
 namespace App\Services\Existencias;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
+use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\LoteMateriaPrima;
@@ -189,15 +192,19 @@ class ServicioExistencias
                 $datos = $folio->datos_externos ?? [];
                 $ubicacion = $folio->ubicacionActual;
                 $posicion = $ubicacion?->posicion;
-                $asignacionPrefrio = $folio->procesosPrefrio
-                    ->filter(fn ($asignacion) => ! in_array(
-                        $asignacion->estado->value,
-                        ['retirado', 'cancelado'],
-                        true,
-                    ))
+                $asignacionPrefrioActiva = $folio->procesosPrefrio
+                    ->filter(fn ($asignacion): bool => $asignacion->proceso?->estado?->esActivo() === true
+                        && ! in_array($asignacion->estado, [
+                            EstadoFolioProcesoPrefrio::Retirado,
+                            EstadoFolioProcesoPrefrio::Cancelado,
+                        ], true))
                     ->sortByDesc(fn ($asignacion) => $asignacion->cargado_at?->getTimestamp() ?? 0)
                     ->first();
-                $proceso = $asignacionPrefrio?->proceso;
+                $proceso = $asignacionPrefrioActiva?->proceso;
+                $pendienteUbicacion = $ubicacion === null
+                    && $asignacionPrefrioActiva === null
+                    && $folio->condicion_termica === CondicionTermicaFolio::PrefrioAprobado
+                    && $folio->habilitacion_almacenamiento === HabilitacionAlmacenamientoFolio::Habilitado;
                 $asignacionCarga = $folio->asignacionCargaActual;
                 $carga = $asignacionCarga?->carga;
 
@@ -205,11 +212,13 @@ class ServicioExistencias
                     'temporada' => $folio->temporada?->codigo,
                     'folio' => $folio->numero_folio,
                     'tipo_bulto' => $this->humanizar($folio->tipo_bulto->value),
-                    'estado_operacional' => $this->humanizar($folio->estado_operacional->value),
+                    'estado_operacional' => $pendienteUbicacion
+                        ? 'Pendiente de ubicación'
+                        : $this->humanizar($folio->estado_operacional->value),
                     'etapa_actual' => $this->etapaProducto(
                         $folio,
                         $ubicacion !== null,
-                        $asignacionPrefrio !== null,
+                        $asignacionPrefrioActiva !== null,
                         $asignacionCarga?->estado?->value,
                     ),
                     'cantidad_cajas' => isset($datos['cantidad_cajas']) ? (int) $datos['cantidad_cajas'] : null,
@@ -241,7 +250,7 @@ class ServicioExistencias
                     'ultima_actualizacion' => collect([
                         $folio->updated_at,
                         $ubicacion?->ubicado_at,
-                        $asignacionPrefrio?->updated_at,
+                        $asignacionPrefrioActiva?->updated_at,
                         $asignacionCarga?->updated_at,
                         $asignacionCarga?->enviado_anden_at,
                     ])->filter()->sortDesc()->first()?->toAtomString(),
@@ -389,6 +398,11 @@ class ServicioExistencias
 
         if ($enPrefrio) {
             return 'En Prefrío';
+        }
+
+        if ($folio->condicion_termica === CondicionTermicaFolio::PrefrioAprobado
+            && $folio->habilitacion_almacenamiento === HabilitacionAlmacenamientoFolio::Habilitado) {
+            return 'Pendiente de ubicación';
         }
 
         return match ($folio->condicion_termica->value) {

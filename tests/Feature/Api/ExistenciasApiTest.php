@@ -2,10 +2,24 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\CondicionTermicaFolio;
+use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
+use App\Enums\TipoBulto;
 use App\Models\ConexionExistencia;
+use App\Models\Folio;
+use App\Models\PosicionTunelPrefrio;
+use App\Models\ProcesoPrefrio;
+use App\Models\ProcesoPrefrioFolio;
+use App\Models\TunelPrefrio;
 use App\Models\User;
+use App\Services\Existencias\ServicioExistencias;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ExistenciasApiTest extends TestCase
@@ -39,6 +53,86 @@ class ExistenciasApiTest extends TestCase
             'Existencia_Producto_Terminado_',
             (string) $respuesta->headers->get('content-disposition'),
         );
+    }
+
+    public function test_producto_aprobado_en_prefrio_queda_pendiente_de_ubicacion_en_existencias(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'TEMP-EX-PF',
+            'nombre' => 'Temporada existencias Prefrío',
+            'activa' => true,
+        ], usuarioId: $administrador->id);
+        $tunel = TunelPrefrio::create([
+            'codigo' => 'TUN-EX-01',
+            'nombre' => 'Túnel existencias',
+            'capacidad_posiciones' => 2,
+            'setpoint_habitual' => -1.5,
+            'creado_por_user_id' => $administrador->id,
+        ]);
+        $posicion = PosicionTunelPrefrio::create([
+            'tunel_prefrio_id' => $tunel->id,
+            'numero' => 1,
+            'etiqueta' => 'TUN-EX-01-P01',
+            'activa' => true,
+        ]);
+        $folio = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-EX-PF-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::EnProceso,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $proceso = ProcesoPrefrio::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => 'PF-EX-000001',
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', 'proceso-existencias'),
+            'tunel_prefrio_id' => $tunel->id,
+            'estado' => EstadoProcesoPrefrio::EnProceso,
+            'setpoint' => -1.5,
+            'version' => 3,
+            'creado_por_user_id' => $administrador->id,
+        ]);
+        $asignacion = ProcesoPrefrioFolio::create([
+            'proceso_prefrio_id' => $proceso->id,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $posicion->id,
+            'estado' => EstadoFolioProcesoPrefrio::EnProceso,
+            'cargado_at' => now(),
+            'cargado_por_user_id' => $administrador->id,
+        ]);
+
+        $enPrefrio = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::PRODUCTO_TERMINADO)
+            ->firstWhere('folio', $folio->numero_folio);
+
+        $this->assertSame('En Prefrío', $enPrefrio['etapa_actual']);
+        $this->assertSame('TUN-EX-01 · PF-EX-000001', $enPrefrio['tunel_prefrio']);
+
+        $proceso->update([
+            'estado' => EstadoProcesoPrefrio::Aprobado,
+            'finalizado_por_user_id' => $administrador->id,
+            'finalizado_at' => now(),
+        ]);
+        $asignacion->update(['estado' => EstadoFolioProcesoPrefrio::Aprobado]);
+        $folio->update([
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+        ]);
+
+        $pendiente = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::PRODUCTO_TERMINADO)
+            ->firstWhere('folio', $folio->numero_folio);
+
+        $this->assertSame('Pendiente de ubicación', $pendiente['estado_operacional']);
+        $this->assertSame('Pendiente de ubicación', $pendiente['etapa_actual']);
+        $this->assertNull($pendiente['tunel_prefrio']);
+        $this->assertNull($pendiente['camara']);
+        $this->assertNull($pendiente['posicion']);
     }
 
     public function test_conexion_excel_es_revocable_y_deja_de_actualizarse(): void
