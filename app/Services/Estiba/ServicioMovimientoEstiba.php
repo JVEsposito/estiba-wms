@@ -893,7 +893,6 @@ class ServicioMovimientoEstiba
         }
     }
 
-
     private function validarNumeroFolio(string $numeroFolio): void
     {
         if ($numeroFolio === '' || mb_strlen($numeroFolio) > 50) {
