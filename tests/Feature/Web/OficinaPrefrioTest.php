@@ -18,18 +18,32 @@ class OficinaPrefrioTest extends TestCase
             ->assertSee('PENDIENTES DE VERIFICACIÓN');
     }
 
-    public function test_prefrio_queda_disponible_desde_la_navegacion_de_oficina(): void
+    public function test_prefrio_aparece_solamente_en_las_oficinas_del_dominio_frigorifico(): void
     {
         foreach ([
-            '/oficina/camaras',
+            '/oficina/frigorifico/camaras',
             '/oficina/cargas',
-            '/oficina/materiales',
             '/oficina/validacion',
-            '/oficina/accesos',
         ] as $ruta) {
             $this->get($ruta)
                 ->assertOk()
                 ->assertSee('/oficina/prefrio', false);
         }
+
+        foreach ([
+            '/oficina/materiales',
+            '/oficina/accesos',
+            '/oficina/materia-prima',
+        ] as $ruta) {
+            $this->get($ruta)
+                ->assertOk()
+                ->assertDontSee('data-office-key="prefrio"', false);
+        }
+    }
+
+    public function test_la_ruta_historica_de_camaras_deriva_al_dominio_frigorifico(): void
+    {
+        $this->get('/oficina/camaras')
+            ->assertRedirect('/oficina/frigorifico/camaras');
     }
 }
