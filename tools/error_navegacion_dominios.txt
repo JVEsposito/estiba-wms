@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/runner/work/estiba-wms/estiba-wms/tools/aplicar_navegacion_dominios.py", line 276, in <module>
-    replace_header(path, invocation)
-  File "/home/runner/work/estiba-wms/estiba-wms/tools/aplicar_navegacion_dominios.py", line 29, in replace_header
-    raise RuntimeError(f"{path}: no fue posible reemplazar la cabecera de oficina")
-RuntimeError: resources/views/office/container-dispatches.blade.php: no fue posible reemplazar la cabecera de oficina

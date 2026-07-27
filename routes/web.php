@@ -6,10 +6,23 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::view('/oficina/camaras', 'office.cameras');
+Route::redirect('/oficina/camaras', '/oficina/frigorifico/camaras');
+Route::view('/oficina/frigorifico/camaras', 'office.cameras', [
+    'navigationDomain' => 'frigorifico',
+    'navigationOffice' => 'camaras',
+    'cameraMode' => 'operacion',
+]);
+Route::view('/oficina/administracion/camaras', 'office.cameras', [
+    'navigationDomain' => 'administracion',
+    'navigationOffice' => 'configuracion-camaras',
+    'cameraMode' => 'configuracion',
+]);
 Route::view('/oficina/cargas', 'office.loads');
 Route::view('/oficina/accesos', 'office.accesses');
-Route::view('/oficina/materiales', 'office.materials');
+Route::view('/oficina/materiales', 'office.materials', ['navigationOffice' => 'recepcion']);
+Route::view('/oficina/materiales/recepcion', 'office.materials', ['navigationOffice' => 'recepcion']);
+Route::view('/oficina/materiales/transformacion', 'office.materials', ['navigationOffice' => 'transformacion']);
+Route::redirect('/oficina/materiales/existencias', '/oficina/existencias');
 Route::view('/oficina/validacion', 'office.validation');
 Route::view('/oficina/validacion/catalogo', 'office.validation-catalog');
 Route::view('/oficina/prefrio', 'office.precooling');
