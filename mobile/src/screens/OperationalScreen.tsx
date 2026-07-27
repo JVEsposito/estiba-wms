@@ -374,15 +374,6 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       version_destino_conocida: plan.version_plano,
       generado_dispositivo_at: new Date().toISOString(),
       ...(!form.existente && Object.keys(compactData).length ? { datos_folio: compactData } : {}),
-      ...(form.tipo_bulto === 'material' && form.item_material_id && form.cantidad ? {
-        datos_material: {
-          item_material_id: form.item_material_id,
-          cantidad: form.cantidad,
-          lote: form.lote,
-          proveedor: form.proveedor,
-          observacion: form.observacion_material,
-        },
-      } : {}),
     };
 
     const succeeded = await runOperation(
