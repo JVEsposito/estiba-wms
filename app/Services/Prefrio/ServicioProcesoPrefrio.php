@@ -144,6 +144,7 @@ class ServicioProcesoPrefrio
                 $this->validarEstado($procesoBloqueado, [
                     EstadoProcesoPrefrio::Borrador,
                     EstadoProcesoPrefrio::Cargando,
+                    EstadoProcesoPrefrio::ListoParaIniciar,
                 ]);
 
                 $folio = Folio::query()->lockForUpdate()->findOrFail($datos['folio_id']);

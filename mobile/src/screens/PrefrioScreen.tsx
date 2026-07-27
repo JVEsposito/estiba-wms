@@ -58,6 +58,8 @@ const ACTIVE_STATES = new Set([
   'pendiente_verificacion',
 ]);
 
+const LOADABLE_STATES = new Set(['borrador', 'cargando', 'listo_para_iniciar']);
+
 type PrefrioScreenProps = {
   auth: AuthSession;
   baseUrl: string | null;
@@ -325,7 +327,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
 
   async function addFolio() {
     if (!selectedProcess || !selectedTunnel || !canOperate) return;
-    if (!['borrador', 'cargando'].includes(selectedProcess.estado)) {
+    if (!LOADABLE_STATES.has(selectedProcess.estado)) {
       setError('El proceso ya no admite nuevos folios.');
       return;
     }
@@ -409,7 +411,12 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
       setFolioNumber('');
       setInitialTemperature('');
       setSelectedPositionId(nextFreePositionId(optimistic, selectedTunnel));
-      setNotice(`${folio.numero_folio} quedó registrado en ${position.etiqueta}.`);
+      setNotice(
+        `${folio.numero_folio} quedó registrado en ${position.etiqueta}.`
+        + (selectedProcess.estado === 'listo_para_iniciar'
+          ? ' El proceso volvió a Cargando; confirma nuevamente el armado antes de iniciarlo.'
+          : ''),
+      );
       setTimeout(() => scannerRef.current?.focus(), 180);
     } catch (reason) {
       setError(messageFrom(reason));
@@ -769,7 +776,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                   ref={scannerRef}
                   autoCapitalize="characters"
                   autoCorrect={false}
-                  editable={canOperate && ['borrador', 'cargando'].includes(selectedProcess.estado)}
+                  editable={canOperate && LOADABLE_STATES.has(selectedProcess.estado)}
                   onChangeText={setFolioNumber}
                   onSubmitEditing={() => void addFolio()}
                   placeholder="Escanea el folio"
@@ -779,7 +786,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                   value={folioNumber}
                 />
                 <TextInput
-                  editable={canOperate && ['borrador', 'cargando'].includes(selectedProcess.estado)}
+                  editable={canOperate && LOADABLE_STATES.has(selectedProcess.estado)}
                   keyboardType="decimal-pad"
                   onChangeText={setInitialTemperature}
                   placeholder="Temperatura inicial opcional"
@@ -788,9 +795,9 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                   value={initialTemperature}
                 />
                 <Pressable
-                  disabled={!canOperate || !['borrador', 'cargando'].includes(selectedProcess.estado)}
+                  disabled={!canOperate || !LOADABLE_STATES.has(selectedProcess.estado)}
                   onPress={() => void addFolio()}
-                  style={[styles.primaryButton, (!canOperate || !['borrador', 'cargando'].includes(selectedProcess.estado)) && styles.buttonDisabled]}
+                  style={[styles.primaryButton, (!canOperate || !LOADABLE_STATES.has(selectedProcess.estado)) && styles.buttonDisabled]}
                 >
                   <Text style={styles.primaryButtonText}>Agregar al túnel</Text>
                 </Pressable>
