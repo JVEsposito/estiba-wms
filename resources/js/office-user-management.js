@@ -14,6 +14,7 @@ if (form && tableBody) {
         despachador: 'Gestión de cargas, despachos de materiales, Romana y guías de envases según el flujo operacional.',
         operador_prefrio: 'Consulta y operación de túneles y procesos de prefrío.',
         operador_romana: 'Operación de Romana y gestión operacional de cuenta y guías de envases.',
+        digitador_materia_prima: 'Digitación, lotización, hidrocooler y asignación a cámaras de materia prima.',
         camarero_frio: 'Operación de cámaras de producto y ejecución física de movimientos y despachos.',
         camarero_materiales: 'Operación de cámaras de materiales y retiro de reservas autorizadas.',
         validador: 'Validación de pallets desde PDA o tablet.',

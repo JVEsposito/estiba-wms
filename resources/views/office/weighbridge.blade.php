@@ -34,6 +34,7 @@
                 <nav aria-label="Módulos de oficina">
                     <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
                     <a class="is-active" href="/oficina/romana">Romana</a>
+                    <a class="is-hidden" id="officeRawMaterialNav" href="/oficina/materia-prima">Materia prima</a>
                     <a class="is-hidden" id="officeContainerAccountsNav" href="/oficina/envases/cuenta-corriente">Cuenta envases</a>
                     <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
                     <a class="is-hidden" id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
@@ -127,8 +128,10 @@
             <form method="dialog" class="weighbridge-dialog__shell weighbridge-dialog__shell--compact" id="tareForm" novalidate>
                 <div class="weighbridge-dialog__heading"><div><p class="eyebrow">BÁSCULA DE SALIDA</p><h2>Registrar destare</h2><p id="tareDescription">Captura la lectura del camión vacío.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <label class="field weight-field"><span>Peso tara *</span><div><input name="peso_tara" type="number" min="1" max="200000" step="0.01" inputmode="decimal" required><b>kg</b></div></label>
+                <label class="field"><span>Envase para cálculo neto individual *</span><select name="tipo_envase_calculo_neto" required></select></label>
                 <label class="field"><span>Observación de cierre</span><textarea name="observacion" maxlength="2000"></textarea></label>
                 <div class="net-preview"><span>PESO NETO CALCULADO</span><strong id="netWeightPreview">—</strong></div>
+                <div class="net-preview"><span>NETO POR ENVASE</span><strong id="netPerContainerPreview">—</strong></div>
                 <p class="form-error" id="tareFormError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Cerrar y emitir aviso</button></div>
             </form>

@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Validación MP revisa la materia prima recibida por Romana, confirma las cantidades reales de envases y prepara segregaciones operacionales sin crear todavía el lote definitivo.
+Validación MP revisa la materia prima recibida por Romana, confirma las cantidades reales de envases y prepara las unidades que Digitación convertirá en lotes.
 
 ```text
 Romana
@@ -131,7 +131,7 @@ El estado actual es:
 pendiente_lote
 ```
 
-Este estado significa que existe una unidad operacional segregada, pero todavía no se ha asignado el número de lote definitivo.
+Este estado significa que existe una unidad operacional segregada disponible en `/oficina/materia-prima`.
 
 ## Límite con Frigorífico
 
@@ -143,7 +143,7 @@ Confirmar Validación MP no crea ni modifica:
 - ubicaciones de Cámaras;
 - cargas de producto.
 
-La futura trazabilidad hacia producción o Frigorífico debe relacionar entidades explícitas. No debe convertir `REC-*` en folio ni reutilizar el identificador del segmento como pallet.
+Digitación crea una relación explícita entre segmento y lote. No convierte `REC-*` en folio ni reutiliza el identificador del segmento como pallet.
 
 ## Cuenta corriente de envases
 
@@ -215,11 +215,14 @@ La trazabilidad debe permitir responder:
 
 Los resultados confirmados no se eliminan para recapturar la operación.
 
-## Pendientes
+## Continuidad
 
-- crear el número de lote definitivo;
-- definir la máquina de estados del lote;
-- relacionar lotes con procesos posteriores;
-- ampliar la bandeja offline si la operación lo requiere;
-- integrar etiquetas, impresoras o ERP;
-- definir recuperación auditada ante una validación incorrecta.
+La oficina de Materia prima consume los segmentos confirmados y permite:
+
+- dividirlos en uno o varios lotes;
+- capturar GGN, SdP, cosecha y demás trazabilidad;
+- confirmar o corregir el neto calculado desde Romana;
+- registrar hidrocooler cuando corresponda;
+- dejar el lote pendiente de asignación y enviarlo a una cámara de materia prima.
+
+La ampliación de este flujo con bandeja offline, etiquetas o integración ERP queda fuera del alcance actual.

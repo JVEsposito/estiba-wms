@@ -8,6 +8,7 @@ const elements = {
     role: byId('officeUserRole'),
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
+    rawMaterialNav: byId('officeRawMaterialNav'),
     reload: byId('reloadButton'),
     filters: byId('filtersForm'),
     confirmed: byId('confirmedCount'),
@@ -124,6 +125,10 @@ function showOffice() {
         .map((part) => part[0])
         .join('')
         .toUpperCase();
+    elements.rawMaterialNav.classList.toggle(
+        'is-hidden',
+        state.identity?.puede_consultar_materia_prima !== true,
+    );
     return true;
 }
 

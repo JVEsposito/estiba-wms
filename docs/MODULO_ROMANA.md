@@ -92,6 +92,8 @@ La recepción registra:
 - peso bruto;
 - tara;
 - peso neto;
+- tipo y cantidad de envases elegidos para el cálculo individual;
+- peso neto calculado por envase;
 - observaciones de ingreso y cierre;
 - versión;
 - usuarios responsables;
@@ -116,6 +118,7 @@ crear recepción y asignar REC-*
 → retorno del camión vacío
 → registrar tara
 → calcular peso neto
+→ seleccionar envase y calcular neto individual
 → cerrar
 → emitir Aviso de Recibo
 ```
@@ -136,7 +139,7 @@ Validación MP:
 - crea segregaciones provisionales;
 - confirma el movimiento real de envases.
 
-Los segmentos resultantes permanecen `pendiente_lote`. El módulo todavía no genera el lote definitivo.
+Los segmentos resultantes permanecen `pendiente_lote` hasta que la oficina de Materia prima distribuya sus envases y confirme uno o varios lotes.
 
 ## Cuenta corriente de envases
 

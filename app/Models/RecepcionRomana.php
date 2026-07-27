@@ -38,6 +38,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'peso_bruto',
     'peso_tara',
     'peso_neto',
+    'tipo_envase_calculo_neto',
+    'cantidad_envase_calculo_neto',
+    'peso_neto_por_envase',
     'estado',
     'estado_validacion_mp',
     'ingreso_at',
@@ -89,6 +92,11 @@ class RecepcionRomana extends Model
         return $this->hasMany(ValidacionMp::class, 'recepcion_romana_id');
     }
 
+    public function lotesMateriaPrima(): HasMany
+    {
+        return $this->hasMany(LoteMateriaPrima::class, 'recepcion_romana_id');
+    }
+
     public function validacionTomadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'validacion_tomada_por_user_id');
@@ -122,6 +130,8 @@ class RecepcionRomana extends Model
             'peso_bruto' => 'decimal:2',
             'peso_tara' => 'decimal:2',
             'peso_neto' => 'decimal:2',
+            'cantidad_envase_calculo_neto' => 'integer',
+            'peso_neto_por_envase' => 'decimal:3',
             'ingreso_at' => 'datetime',
             'ingreso_confirmado_at' => 'datetime',
             'salida_at' => 'datetime',

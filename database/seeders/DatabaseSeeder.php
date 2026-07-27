@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\ArticuloValidacion;
 use App\Models\Camara;
@@ -110,6 +111,16 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        User::query()->updateOrCreate(
+            ['email' => 'digitador.mp@estiba.local'],
+            [
+                'name' => 'Digitador de materia prima',
+                'password' => Hash::make('password'),
+                'rol' => RolUsuario::DigitadorMateriaPrima,
+                'activo' => true,
+            ],
+        );
+
         Dispositivo::query()->firstOrCreate(
             ['codigo' => 'TABLET-01'],
             [
@@ -134,6 +145,12 @@ class DatabaseSeeder extends Seeder
         $this->crearCamaraConPosiciones('CAM-01', 'Cámara de tránsito 01', 'transito');
         $this->crearCamaraConPosiciones('CAM-02', 'Cámara de tránsito 02', 'transito');
         $this->crearCamaraConPosiciones('DES-01', 'Zona de despacho', 'despacho');
+        $this->crearCamaraConPosiciones(
+            'MP-01',
+            'Cámara de materia prima',
+            'almacenaje',
+            ContenidoCamara::MateriaPrima->value,
+        );
     }
 
     private function crearCatalogoValidacion(): void
@@ -209,12 +226,14 @@ class DatabaseSeeder extends Seeder
         string $codigo,
         string $nombre,
         string $tipo,
+        string $contenido = 'productos',
     ): void {
         $camara = Camara::query()->firstOrCreate(
             ['codigo' => $codigo],
             [
                 'nombre' => $nombre,
                 'tipo' => $tipo,
+                'contenido' => $contenido,
                 'cantidad_bandas' => 3,
                 'posiciones_por_banda' => 4,
                 'cantidad_niveles' => 2,

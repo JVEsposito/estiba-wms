@@ -244,6 +244,11 @@ class RecepcionRomanaController extends Controller
             'peso_bruto' => (float) $recepcion->peso_bruto,
             'peso_tara' => $recepcion->peso_tara !== null ? (float) $recepcion->peso_tara : null,
             'peso_neto' => $recepcion->peso_neto !== null ? (float) $recepcion->peso_neto : null,
+            'tipo_envase_calculo_neto' => $recepcion->tipo_envase_calculo_neto,
+            'cantidad_envase_calculo_neto' => $recepcion->cantidad_envase_calculo_neto,
+            'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
+                ? (float) $recepcion->peso_neto_por_envase
+                : null,
             'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
             'ingreso_confirmado_at' => $recepcion->ingreso_confirmado_at?->toAtomString(),
             'salida_at' => $recepcion->salida_at?->toAtomString(),

@@ -2,7 +2,7 @@ const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
-    managementNav: byId('officeManagementNav'), containerAccountsNav: byId('officeContainerAccountsNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
+    managementNav: byId('officeManagementNav'), rawMaterialNav: byId('officeRawMaterialNav'), containerAccountsNav: byId('officeContainerAccountsNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadButton'), newReception: byId('newReceptionButton'), filters: byId('receptionFilters'), tableBody: byId('receptionTableBody'),
     entryCount: byId('entryCount'), exitCount: byId('exitCount'), closedCount: byId('closedCount'), netWeight: byId('netWeight'),
     paginationSummary: byId('paginationSummary'), previousPage: byId('previousPageButton'), nextPage: byId('nextPageButton'),
@@ -10,7 +10,7 @@ const elements = {
     editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
     receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionFormError: byId('receptionFormError'),
     serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'),
-    tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), netWeightPreview: byId('netWeightPreview'),
+    tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), netWeightPreview: byId('netWeightPreview'), netPerContainerPreview: byId('netPerContainerPreview'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 
@@ -99,6 +99,7 @@ function showApp() {
     elements.userName.textContent = name; elements.userRole.textContent = label(state.identity?.rol || 'consulta');
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     elements.newReception.classList.toggle('is-hidden', state.identity?.puede_operar_romana !== true);
+    elements.rawMaterialNav.classList.toggle('is-hidden', state.identity?.puede_consultar_materia_prima !== true);
     elements.containerAccountsNav.classList.toggle('is-hidden', state.identity?.puede_consultar_cuenta_envases !== true);
     elements.managementNav.classList.toggle('is-hidden', state.identity?.puede_consultar_panel_gerencial !== true);
     elements.camerasNav.classList.toggle('is-hidden', state.identity?.ambito_camaras === 'ninguno');
@@ -264,14 +265,21 @@ elements.confirmEntry.addEventListener('click', async () => {
 
 elements.closeReception.addEventListener('click', () => {
     if (!state.selected?.puede_cerrar) return;
-    elements.tareForm.reset(); elements.tareFormError.textContent = ''; elements.netWeightPreview.textContent = '—';
+    elements.tareForm.reset(); elements.tareFormError.textContent = ''; elements.netWeightPreview.textContent = '—'; elements.netPerContainerPreview.textContent = '—';
+    const containerSelect = elements.tareForm.elements.tipo_envase_calculo_neto;
+    containerSelect.innerHTML = state.selected.envases.map((item) => `<option value="${escapeHtml(item.tipo_envase)}">${escapeHtml(label(item.tipo_envase))} · ${item.cantidad_declarada} declarados</option>`).join('');
     elements.tareDescription.textContent = `${state.selected.patente_camion} · bruto ${formatWeight(state.selected.peso_bruto)}. Captura la lectura del camión vacío.`;
     elements.tareDialog.showModal(); elements.tareForm.elements.peso_tara.focus();
 });
-elements.tareForm.elements.peso_tara.addEventListener('input', () => {
+function updateNetPreviews() {
     const tare = Number(elements.tareForm.elements.peso_tara.value); const gross = Number(state.selected?.peso_bruto || 0); const net = gross - tare;
     elements.netWeightPreview.textContent = tare > 0 && net > 0 ? formatWeight(net) : '—';
-});
+    const type = elements.tareForm.elements.tipo_envase_calculo_neto.value;
+    const quantity = Number(state.selected?.envases?.find((item) => item.tipo_envase === type)?.cantidad_declarada || 0);
+    elements.netPerContainerPreview.textContent = tare > 0 && net > 0 && quantity > 0 ? `${formatWeight(net / quantity)} / ${label(type)}` : '—';
+}
+elements.tareForm.elements.peso_tara.addEventListener('input', updateNetPreviews);
+elements.tareForm.elements.tipo_envase_calculo_neto.addEventListener('change', updateNetPreviews);
 elements.tareForm.addEventListener('submit', async (event) => {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault(); if (!state.selected) return; elements.tareFormError.textContent = '';

@@ -54,6 +54,11 @@ class Camara extends Model
         return $this->hasMany(Movimiento::class, 'camara_destino_id');
     }
 
+    public function asignacionesLotesMateriaPrima(): HasMany
+    {
+        return $this->hasMany(AsignacionCamaraLoteMateriaPrima::class);
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');
