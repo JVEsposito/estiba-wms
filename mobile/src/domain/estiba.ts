@@ -496,13 +496,6 @@ export type LocatePayload = {
     marca?: string;
     exportadora?: string;
   };
-  datos_material?: {
-    item_material_id: string;
-    cantidad: number;
-    lote?: string;
-    proveedor?: string;
-    observacion?: string;
-  };
 };
 
 export type CreateMaterialDispatchPayload = {
