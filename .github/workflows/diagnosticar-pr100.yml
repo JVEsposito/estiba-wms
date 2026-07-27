@@ -5,9 +5,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: write
-
 jobs:
   diagnosticar:
     if: github.actor != 'github-actions[bot]'
@@ -42,7 +39,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: agent/navegacion-por-dominios
-          fetch-depth: 0
 
       - name: Preparar PHP
         uses: shivammathur/setup-php@v2
@@ -65,14 +61,13 @@ jobs:
           {
             echo "Código: $codigo"
             echo
-            tail -n 220 /tmp/tests.log
-          } > tools/diagnostico_pr100.txt
+            tail -n 260 /tmp/tests.log
+          } > diagnostico_pr100.txt
           exit 0
 
-      - name: Publicar diagnóstico
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tools/diagnostico_pr100.txt
-          git commit -m "chore: registrar diagnóstico de pruebas del PR 100" || true
-          git push origin HEAD:agent/navegacion-por-dominios
+      - name: Subir diagnóstico
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-pr100
+          path: diagnostico_pr100.txt
+          if-no-files-found: error
