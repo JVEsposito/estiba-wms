@@ -27,16 +27,21 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           path = Path('tools/aplicar_edicion_borradores_recepcion.py')
-          text = path.read_text(encoding='utf-8')
-          old = '''"""             onBack={() => setSelected(null)}
-               onConfirm={() => requestConfirm(selected)}
-          """'''
-          new = '''"""            onBack={() => setSelected(null)}
-              onConfirm={() => requestConfirm(selected)}
-          """'''
-          if old not in text:
-              raise RuntimeError('No se encontró el patrón del botón editar en el aplicador.')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+          corrected = False
+          for index, line in enumerate(lines):
+              if not corrected and 'onBack={() => setSelected(null)}' in line:
+                  position = line.index('onBack')
+                  if position == 0 or not line[position - 1].isspace():
+                      raise RuntimeError('El patrón onBack no posee espacio ajustable.')
+                  lines[index] = line[:position - 1] + line[position:]
+                  next_line = lines[index + 1]
+                  next_position = next_line.index('onConfirm')
+                  lines[index + 1] = next_line[:next_position - 1] + next_line[next_position:]
+                  corrected = True
+          if not corrected:
+              raise RuntimeError('No se encontró el primer patrón onBack/onConfirm.')
+          path.write_text(''.join(lines), encoding='utf-8')
           PY
           python3 tools/aplicar_edicion_borradores_recepcion.py > /tmp/aplicador.log 2>&1
           codigo=$?
@@ -53,6 +58,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tools/error_aplicador.txt
+          if git diff --cached --quiet; then
+            exit 0
+          fi
           git commit -m "chore: registrar error del aplicador"
           git push origin HEAD:agent/editar-borradores-recepcion-materiales
 
