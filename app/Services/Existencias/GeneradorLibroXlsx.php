@@ -2,7 +2,11 @@
 
 namespace App\Services\Existencias;
 
+use DateTimeImmutable;
+use DateTimeInterface;
+use DateTimeZone;
 use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 class GeneradorLibroXlsx
@@ -147,6 +151,10 @@ XML;
         return <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    <numFmts count="2">
+        <numFmt numFmtId="164" formatCode="yyyy-mm-dd"/>
+        <numFmt numFmtId="165" formatCode="yyyy-mm-dd hh:mm"/>
+    </numFmts>
     <fonts count="3">
         <font><sz val="11"/><name val="Calibri"/><family val="2"/></font>
         <font><b/><sz val="16"/><color rgb="FFF2F0E9"/><name val="Calibri"/><family val="2"/></font>
@@ -163,12 +171,14 @@ XML;
         <border><left style="thin"><color rgb="FF303A43"/></left><right style="thin"><color rgb="FF303A43"/></right><top style="thin"><color rgb="FF303A43"/></top><bottom style="thin"><color rgb="FF303A43"/></bottom><diagonal/></border>
     </borders>
     <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-    <cellXfs count="5">
+    <cellXfs count="7">
         <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
         <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
         <xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
         <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>
         <xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
+        <xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
+        <xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>
     </cellXfs>
     <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>
@@ -229,9 +239,14 @@ XML;
             foreach ($columnas as $indiceColumna => $columna) {
                 $referencia = $this->nombreColumna($indiceColumna + 1).$numeroFila;
                 $valor = $fila[$columna['clave']] ?? null;
-                $celdas[] = ($columna['tipo'] ?? 'texto') === 'numero' && is_numeric($valor)
-                    ? $this->celdaNumero($referencia, (float) $valor, 4)
-                    : $this->celdaTexto($referencia, $valor, 3);
+                $tipo = $columna['tipo'] ?? 'texto';
+                if ($tipo === 'numero' && is_numeric($valor)) {
+                    $celdas[] = $this->celdaNumero($referencia, (float) $valor, 4);
+                } elseif (in_array($tipo, ['fecha', 'fecha_hora'], true) && $valor !== null && $valor !== '') {
+                    $celdas[] = $this->celdaFecha($referencia, $valor, $tipo);
+                } else {
+                    $celdas[] = $this->celdaTexto($referencia, $valor, 3);
+                }
             }
             $filasXml .= $this->fila($numeroFila, $celdas);
         }
@@ -278,12 +293,39 @@ XML;
 
     private function celdaNumero(string $referencia, float $valor, int $estilo = 4): string
     {
-        $numero = rtrim(rtrim(number_format($valor, 6, '.', ''), '0'), '.');
+        $numero = rtrim(rtrim(number_format($valor, 8, '.', ''), '0'), '.');
         if ($numero === '' || $numero === '-0') {
             $numero = '0';
         }
 
         return "<c r=\"{$referencia}\" s=\"{$estilo}\"><v>{$numero}</v></c>";
+    }
+
+    private function celdaFecha(string $referencia, mixed $valor, string $tipo): string
+    {
+        $serial = $this->serialFecha($valor, $tipo === 'fecha');
+        if ($serial === null) {
+            return $this->celdaTexto($referencia, $valor, 3);
+        }
+
+        return $this->celdaNumero($referencia, $serial, $tipo === 'fecha' ? 5 : 6);
+    }
+
+    private function serialFecha(mixed $valor, bool $soloFecha): ?float
+    {
+        try {
+            $fecha = $valor instanceof DateTimeInterface
+                ? DateTimeImmutable::createFromInterface($valor)
+                : new DateTimeImmutable((string) $valor);
+            $horaNeutral = $soloFecha
+                ? $fecha->format('Y-m-d').' 00:00:00'
+                : $fecha->format('Y-m-d H:i:s');
+            $neutral = new DateTimeImmutable($horaNeutral, new DateTimeZone('UTC'));
+
+            return ($neutral->getTimestamp() / 86400) + 25569;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function nombreColumna(int $numero): string
