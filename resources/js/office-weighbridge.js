@@ -8,8 +8,8 @@ const elements = {
     paginationSummary: byId('paginationSummary'), previousPage: byId('previousPageButton'), nextPage: byId('nextPageButton'),
     detail: byId('receptionDetail'), detailTitle: byId('detailTitle'), detailSubtitle: byId('detailSubtitle'), detailFacts: byId('detailFacts'), detailTimeline: byId('detailTimeline'), weightBalance: byId('weightBalance'),
     editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
-    receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionFormError: byId('receptionFormError'),
-    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'),
+    receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionFormError: byId('receptionFormError'), saveReception: byId('saveReceptionButton'),
+    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'), administrativeCorrectionField: byId('administrativeCorrectionField'), administrativeTareField: byId('administrativeTareField'), administrativeNetContainerField: byId('administrativeNetContainerField'),
     tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), netWeightPreview: byId('netWeightPreview'), netPerContainerPreview: byId('netPerContainerPreview'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
@@ -24,6 +24,7 @@ const state = {
     page: 1,
     meta: null,
     timer: null,
+    administrativeCorrection: false,
 };
 
 class ApiError extends Error {
@@ -51,7 +52,7 @@ function formatWeight(value, fallback = '—') {
 function label(value) {
     const labels = {
         en_bascula_ingreso: 'En báscula ingreso', en_bascula_salida: 'Pendiente de destare', cerrado: 'Cerrado',
-        ingreso_registrado: 'Pesaje de ingreso registrado', ingreso_actualizado: 'Antecedentes de ingreso actualizados', ingreso_confirmado: 'Ingreso confirmado', recepcion_cerrada: 'Destare y recepción cerrados',
+        ingreso_registrado: 'Pesaje de ingreso registrado', ingreso_actualizado: 'Antecedentes de ingreso actualizados', correccion_administrativa: 'Corrección administrativa', ingreso_confirmado: 'Ingreso confirmado', recepcion_cerrada: 'Destare y recepción cerrados',
         almacenaje: 'Almacenaje', proceso: 'Proceso', prefrio: 'Pre-frío', bins: 'Bins', totes: 'Totes', esponjas: 'Esponjas', fruta_con_envases: 'Fruta con envases', solo_envases: 'Solo envases', compra: 'Compra', arriendo: 'Arriendo', pendiente: 'Pendiente', en_curso: 'En curso', validada: 'Validada',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
@@ -180,10 +181,14 @@ function renderDetail(reception) {
         fact('CAMIÓN', reception.patente_camion), fact('CARRO', reception.patente_carro || 'No informado'), fact('CONDUCTOR', reception.nombre_conductor), fact('RUT', reception.rut_conductor), fact('ENVASES DECLARADOS', envasesLabel(reception)), fact('VALIDACIÓN MP', label(reception.estado_validacion_mp)),
         fact('PESO BRUTO', formatWeight(reception.peso_bruto), true), fact('TARA', formatWeight(reception.peso_tara), true), fact('PESO NETO', formatWeight(reception.peso_neto), true), fact('VERSIÓN', String(reception.version)), fact('OBS. INGRESO', reception.observacion || 'Sin observaciones'), fact('OBS. CIERRE', reception.observacion_cierre || 'Sin observaciones'),
     ].join('');
-    elements.detailTimeline.innerHTML = (reception.eventos || []).map((event) => `<article class="timeline-item"><i></i><div><strong>${escapeHtml(label(event.tipo))}</strong><small>${escapeHtml(event.usuario?.nombre || 'Sistema')} · ${escapeHtml(event.estado_anterior ? `${label(event.estado_anterior)} → ${label(event.estado_nuevo)}` : label(event.estado_nuevo))}</small></div><time>${escapeHtml(formatDate(event.ocurrido_at))}</time></article>`).join('');
+    elements.detailTimeline.innerHTML = (reception.eventos || []).map((event) => `<article class="timeline-item"><i></i><div><strong>${escapeHtml(label(event.tipo))}</strong><small>${escapeHtml(event.usuario?.nombre || 'Sistema')} · ${escapeHtml(event.estado_anterior ? `${label(event.estado_anterior)} → ${label(event.estado_nuevo)}` : label(event.estado_nuevo))}</small>${event.datos?.motivo ? `<small>Motivo: ${escapeHtml(event.datos.motivo)}</small>` : ''}</div><time>${escapeHtml(formatDate(event.ocurrido_at))}</time></article>`).join('');
     elements.weightBalance.innerHTML = `<div><span>Bruto</span><strong>${escapeHtml(formatWeight(reception.peso_bruto))}</strong></div><div><span>Tara</span><strong>${escapeHtml(formatWeight(reception.peso_tara))}</strong></div><div class="net-row"><span>Neto legal</span><strong>${escapeHtml(formatWeight(reception.peso_neto))}</strong></div>`;
     const canOperate = state.identity?.puede_operar_romana === true;
-    elements.editReception.classList.toggle('is-hidden', !canOperate || !reception.puede_editar);
+    const canCorrect = state.identity?.puede_corregir_recepciones_romana === true
+        && reception.correccion_administrativa_disponible
+        && !reception.puede_editar;
+    elements.editReception.textContent = canCorrect ? 'Corregir recepción' : 'Editar ingreso';
+    elements.editReception.classList.toggle('is-hidden', (!canOperate || !reception.puede_editar) && !canCorrect);
     elements.confirmEntry.classList.toggle('is-hidden', !canOperate || !reception.puede_confirmar_ingreso);
     elements.closeReception.classList.toggle('is-hidden', !canOperate || !reception.puede_cerrar);
     elements.downloadReceipt.classList.toggle('is-hidden', !reception.aviso_recibo_disponible);
@@ -198,8 +203,36 @@ async function selectReception(id, { silent = false } = {}) {
 }
 function closeDetail() { state.selected = null; elements.detail.classList.add('is-hidden'); }
 
+function configureAdministrativeCorrection(enabled) {
+    const closedCorrection = enabled && state.selected?.estado === 'cerrado';
+    state.administrativeCorrection = enabled;
+    elements.administrativeCorrectionField.classList.toggle('is-hidden', !enabled);
+    elements.administrativeTareField.classList.toggle('is-hidden', !closedCorrection);
+    elements.administrativeNetContainerField.classList.toggle('is-hidden', !closedCorrection);
+    elements.receptionForm.elements.motivo_correccion.required = enabled;
+    elements.receptionForm.elements.peso_tara.required = closedCorrection;
+    elements.receptionForm.elements.peso_tara.disabled = !closedCorrection;
+    elements.receptionForm.elements.tipo_envase_calculo_neto.required = closedCorrection;
+    elements.receptionForm.elements.tipo_envase_calculo_neto.disabled = !closedCorrection;
+    elements.saveReception.textContent = enabled ? 'Guardar corrección' : 'Guardar pesaje de ingreso';
+    if (!enabled) elements.receptionForm.elements.motivo_correccion.value = '';
+}
+
+function syncAdministrativeNetContainerOptions(preferredType = null) {
+    if (!state.administrativeCorrection || state.selected?.estado !== 'cerrado') return;
+    const form = elements.receptionForm.elements;
+    const select = form.tipo_envase_calculo_neto;
+    const selected = preferredType || select.value || state.selected.tipo_envase_calculo_neto;
+    const available = ['bins', 'totes', 'esponjas']
+        .map((type) => ({ type, quantity: Number(form[`cantidad_${type}`].value || 0) }))
+        .filter((item) => item.quantity > 0);
+    select.innerHTML = available.map((item) => `<option value="${escapeHtml(item.type)}">${escapeHtml(label(item.type))} · ${item.quantity} declarados</option>`).join('');
+    if (available.some((item) => item.type === selected)) select.value = selected;
+}
+
 function openNewReception() {
     elements.receptionForm.reset(); elements.receptionForm.elements.recepcion_id.value = ''; elements.receptionFormError.textContent = '';
+    configureAdministrativeCorrection(false);
     elements.receptionDialogTitle.textContent = 'Registrar ingreso';
     const activeSeasons = state.catalogs.temporadas.filter((season) => season.activa);
     if (!activeSeasons.length) {
@@ -213,14 +246,24 @@ function openNewReception() {
     elements.receptionDialog.showModal();
 }
 function openEditReception() {
-    if (!state.selected?.puede_editar) return;
+    const canCorrect = state.identity?.puede_corregir_recepciones_romana === true
+        && state.selected?.correccion_administrativa_disponible
+        && !state.selected?.puede_editar;
+    if (!state.selected?.puede_editar && !canCorrect) return;
     const reception = state.selected; const form = elements.receptionForm.elements;
-    elements.receptionForm.reset(); elements.receptionFormError.textContent = ''; elements.receptionDialogTitle.textContent = 'Editar pesaje de ingreso';
+    elements.receptionForm.reset(); elements.receptionFormError.textContent = '';
+    configureAdministrativeCorrection(canCorrect);
+    elements.receptionDialogTitle.textContent = canCorrect ? 'Corregir recepción' : 'Editar pesaje de ingreso';
     form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_recepcion.value = reception.tipo_recepcion; form.concepto_envases.value = reception.concepto_envases || ''; form.tipo_servicio.value = reception.tipo_servicio;
     form.numero_guia_despacho.value = reception.numero_guia_despacho;
     ['bins', 'totes', 'esponjas'].forEach((tipo) => { const item = reception.envases.find((envase) => envase.tipo_envase === tipo); form[`cantidad_${tipo}`].value = item?.cantidad_declarada || 0; });
     form.patente_camion.value = reception.patente_camion; form.patente_carro.value = reception.patente_carro || ''; form.rut_conductor.value = reception.rut_conductor; form.nombre_conductor.value = reception.nombre_conductor;
     form.peso_bruto.value = reception.peso_bruto; form.observacion.value = reception.observacion || '';
+    if (canCorrect && reception.estado === 'cerrado') {
+        form.peso_tara.value = reception.peso_tara;
+        syncAdministrativeNetContainerOptions(reception.tipo_envase_calculo_neto);
+        form.tipo_envase_calculo_neto.value = reception.tipo_envase_calculo_neto;
+    }
     toggleReceptionType();
     elements.receptionDialog.showModal();
 }
@@ -245,16 +288,23 @@ elements.receptionForm.addEventListener('submit', async (event) => {
     const data = Object.fromEntries(new FormData(elements.receptionForm)); const id = data.recepcion_id; delete data.recepcion_id; data.operacion_id = operationUuid();
     data.envases = ['bins', 'totes', 'esponjas'].map((tipo) => ({ tipo_envase: tipo, cantidad: Number(data[`cantidad_${tipo}`] || 0) })).filter((item) => item.cantidad > 0);
     ['bins', 'totes', 'esponjas'].forEach((tipo) => delete data[`cantidad_${tipo}`]);
-    setBusy(true, id ? 'Actualizando ingreso…' : 'Registrando pesaje de ingreso…');
+    const administrativeCorrection = Boolean(id && state.administrativeCorrection);
+    if (administrativeCorrection) data.version_conocida = state.selected?.version;
+    else delete data.motivo_correccion;
+    setBusy(true, administrativeCorrection ? 'Aplicando corrección administrativa…' : id ? 'Actualizando ingreso…' : 'Registrando pesaje de ingreso…');
     try {
-        const payload = await api(id ? `/api/romana/recepciones/${id}` : '/api/romana/recepciones', { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
-        elements.receptionDialog.close(); await loadReceptions({ silent: true }); await selectReception(payload.data.id, { silent: true }); toast(id ? 'Ingreso actualizado.' : 'Pesaje de ingreso registrado.');
+        const path = administrativeCorrection
+            ? `/api/romana/recepciones/${id}/corregir`
+            : id ? `/api/romana/recepciones/${id}` : '/api/romana/recepciones';
+        const payload = await api(path, { method: id ? 'PUT' : 'POST', body: JSON.stringify(data) });
+        elements.receptionDialog.close(); await loadReceptions({ silent: true }); await selectReception(payload.data.id, { silent: true });
+        toast(administrativeCorrection ? 'Recepción corregida con trazabilidad.' : id ? 'Ingreso actualizado.' : 'Pesaje de ingreso registrado.');
     } catch (error) { elements.receptionFormError.textContent = error.message; }
     finally { setBusy(false); }
 });
 
 elements.confirmEntry.addEventListener('click', async () => {
-    if (!state.selected || !window.confirm(`¿Confirmar el ingreso de ${state.selected.patente_camion}? Después de esta acción los antecedentes contractuales no podrán editarse.`)) return;
+    if (!state.selected || !window.confirm(`¿Confirmar el ingreso de ${state.selected.patente_camion}? Después de esta acción solo un administrador podrá corregirlo mientras Validación MP no tome la recepción.`)) return;
     setBusy(true, 'Confirmando ingreso y liberando camión…');
     try {
         const payload = await api(`/api/romana/recepciones/${state.selected.id}/confirmar-ingreso`, { method: 'POST', body: JSON.stringify({ operacion_id: operationUuid() }) });
@@ -310,6 +360,7 @@ elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualiza
 elements.newReception.addEventListener('click', openNewReception); elements.editReception.addEventListener('click', openEditReception); elements.closeDetail.addEventListener('click', closeDetail);
 function toggleReceptionType() { const soloEnvases = elements.receptionForm.elements.tipo_recepcion.value === 'solo_envases'; elements.serviceField.classList.toggle('is-hidden', soloEnvases); elements.containerConceptField.classList.toggle('is-hidden', !soloEnvases); elements.receptionForm.elements.tipo_servicio.required = !soloEnvases; elements.receptionForm.elements.concepto_envases.required = soloEnvases; }
 elements.receptionForm.elements.tipo_recepcion.addEventListener('change', toggleReceptionType);
+['bins', 'totes', 'esponjas'].forEach((type) => elements.receptionForm.elements[`cantidad_${type}`].addEventListener('input', () => syncAdministrativeNetContainerOptions()));
 ['patente_camion', 'patente_carro'].forEach((name) => elements.receptionForm.elements[name].addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }));
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 

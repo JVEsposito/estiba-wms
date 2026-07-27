@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoValidacionMp;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
@@ -12,6 +13,7 @@ use App\Http\Requests\ActualizarRecepcionRomanaRequest;
 use App\Http\Requests\CerrarRecepcionRomanaRequest;
 use App\Http\Requests\ConfirmarIngresoRomanaRequest;
 use App\Http\Requests\ConsultarRecepcionesRomanaRequest;
+use App\Http\Requests\CorregirRecepcionRomanaRequest;
 use App\Http\Requests\CrearRecepcionRomanaRequest;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
@@ -165,6 +167,20 @@ class RecepcionRomanaController extends Controller
         return response()->json(['data' => $this->recepcion($recepcion, true)]);
     }
 
+    public function corregir(
+        CorregirRecepcionRomanaRequest $request,
+        RecepcionRomana $recepcion,
+        ServicioRecepcionRomana $servicio,
+    ): JsonResponse {
+        $recepcion = $servicio->corregirAdministrativamente(
+            $recepcion,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->recepcion($recepcion, true)]);
+    }
+
     public function confirmarIngreso(
         ConfirmarIngresoRomanaRequest $request,
         RecepcionRomana $recepcion,
@@ -258,6 +274,7 @@ class RecepcionRomanaController extends Controller
             'observacion_cierre' => $recepcion->observacion_cierre,
             'version' => $recepcion->version,
             'puede_editar' => $recepcion->estado->esEditable(),
+            'correccion_administrativa_disponible' => $recepcion->estado_validacion_mp === EstadoValidacionMp::Pendiente,
             'puede_confirmar_ingreso' => $recepcion->estado === EstadoRecepcionRomana::EnBasculaIngreso,
             'puede_cerrar' => $recepcion->estado === EstadoRecepcionRomana::EnBasculaSalida,
             'aviso_recibo_disponible' => $recepcion->estado === EstadoRecepcionRomana::Cerrado,

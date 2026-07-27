@@ -91,6 +91,7 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_panel_gerencial' => $capacidades['puede_consultar_panel_gerencial'],
                 'puede_consultar_romana' => $capacidades['puede_consultar_romana'],
                 'puede_operar_romana' => $capacidades['puede_operar_romana'],
+                'puede_corregir_recepciones_romana' => $capacidades['puede_corregir_recepciones_romana'],
                 'puede_consultar_materia_prima' => $capacidades['puede_consultar_materia_prima'],
                 'puede_gestionar_lotes_materia_prima' => $capacidades['puede_gestionar_lotes_materia_prima'],
                 'puede_supervisar_lotes_materia_prima' => $capacidades['puede_supervisar_lotes_materia_prima'],
