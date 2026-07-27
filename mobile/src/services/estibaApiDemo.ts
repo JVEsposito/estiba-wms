@@ -466,6 +466,14 @@ export class DemoEstibaApi implements EstibaApi {
   async locate(_token: string, payload: LocatePayload) {
     const destination = this.findPosition(payload.posicion_destino_id);
     this.assertOwnSession(destination.plan, payload.sesion_destino_id);
+
+    if (payload.tipo_bulto === 'material') {
+      throw new ApiError(
+        'El folio de material no existe. Debe crearse desde Recepción o Transformación antes de ubicarlo.',
+        422,
+      );
+    }
+
     if (destination.position.ocupada || destination.position.estado !== 'activa') {
       throw new ApiError('La posición de destino ya no está disponible.', 409);
     }
