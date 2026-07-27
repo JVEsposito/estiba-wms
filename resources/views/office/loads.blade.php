@@ -46,26 +46,9 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar">
-                <div class="brand-lockup">
-                    <span class="office-logo office-logo--small" aria-hidden="true">❄</span>
-                    <span><strong>ESTIBA WMS</strong><small>OPERACIÓN DE OFICINA</small></span>
-                </div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
-                    <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                    <a class="is-active" href="/oficina/cargas">Cargas</a>
-                    <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
-                    <a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a>
-                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity">
-                    <span class="identity__avatar" id="officeInitials">DP</span>
-                    <span><strong id="officeUserName">Despachador</strong><small id="officeUserRole">Despachador</small></span>
-                    <button id="officeLogoutButton" type="button">Cerrar sesión</button>
-                </div>
-            </header>
+            
+            <x-office.navigation domain="frigorifico" office="cargas" context="FRIGORÍFICO · PT" icon="▤" />
+
 
             <section class="loads-workspace">
                 <aside class="load-catalog panel">

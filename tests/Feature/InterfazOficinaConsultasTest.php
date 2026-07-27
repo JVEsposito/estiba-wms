@@ -11,6 +11,7 @@ class InterfazOficinaConsultasTest extends TestCase
         $this->get('/oficina/consultas')
             ->assertOk()
             ->assertSee('Oficina de consultas')
+            ->assertSee('data-active-domain="consultas"', false)
             ->assertSee('Trazabilidad operacional')
             ->assertSee('Buscar en Estiba WMS')
             ->assertSee('Consultar productor SAG')

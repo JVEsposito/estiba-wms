@@ -29,17 +29,7 @@
         </section>
 
         <main class="office-app queries-app is-hidden" id="officeApp">
-            <header class="office-topbar queries-topbar">
-                <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">⌕</span><span><strong>ESTIBA WMS</strong><small>CONSULTAS</small></span></div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-active" href="/oficina/consultas">Consultas</a>
-                    <a id="officeRawMaterialNav" href="/oficina/materia-prima">Materia prima</a>
-                    <a id="officeRomanaNav" href="/oficina/romana">Romana</a>
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                </nav>
-                <div class="identity"><span class="identity__avatar" id="officeInitials">CO</span><span><strong id="officeUserName">Consultas</strong><small id="officeUserRole">Usuario</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
-            </header>
+            <x-office.navigation domain="consultas" office="busqueda" context="CONSULTAS Y TRAZABILIDAD" icon="⌕" />
 
             <section class="queries-heading">
                 <div><p class="eyebrow">OFICINA DE CONSULTAS</p><h1>Trazabilidad operacional</h1><p>Busca información interna o verifica productores directamente en el registro público del SAG.</p></div>

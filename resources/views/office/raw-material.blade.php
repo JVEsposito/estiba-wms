@@ -29,19 +29,7 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar raw-material-topbar">
-                <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">◫</span><span><strong>ESTIBA WMS</strong><small>MATERIA PRIMA</small></span></div>
-                <nav aria-label="Módulos de materia prima">
-                    <a class="is-active" href="/oficina/materia-prima">Digitación</a>
-                    <a href="/oficina/materia-prima/romana">Romana</a>
-                    <a href="/oficina/materia-prima/envases">Envases</a>
-                    <a class="is-hidden" id="officeQueriesNav" href="/oficina/consultas">Consultas</a>
-                    <a class="is-hidden" id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a href="/oficina/existencias">Existencias</a>
-                </nav>
-                <div class="identity"><span class="identity__avatar" id="officeInitials">MP</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Digitación</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
-            </header>
+            <x-office.navigation domain="materia-prima" office="digitacion" context="MATERIA PRIMA" icon="◫" />
 
             <section class="raw-material-workspace">
                 <header class="raw-material-heading">

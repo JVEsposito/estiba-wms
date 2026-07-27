@@ -29,20 +29,9 @@
         </section>
 
         <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar">
-                <div class="brand-lockup"><span class="office-logo office-logo--small" aria-hidden="true">❄</span><span><strong>ESTIBA WMS</strong><small>PREFRÍO</small></span></div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
-                    <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                    <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
-                    <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
-                    <a id="officeValidationNav" href="/oficina/validacion">Validación</a>
-                    <a class="is-active" href="/oficina/prefrio">Prefrío</a>
-                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity"><span class="identity__avatar" id="officeInitials">PF</span><span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small></span><button id="officeLogoutButton" type="button">Cerrar sesión</button></div>
-            </header>
+            
+            <x-office.navigation domain="frigorifico" office="prefrio" context="FRIGORÍFICO · PT" icon="❄" />
+
 
             <section class="prefrio-workspace">
                 <header class="prefrio-heading panel">

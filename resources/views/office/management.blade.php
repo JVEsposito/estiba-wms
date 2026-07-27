@@ -46,30 +46,7 @@
         </section>
 
         <main class="office-app management-app is-hidden" id="officeApp">
-            <header class="office-topbar management-topbar">
-                <div class="brand-lockup">
-                    <span class="office-logo office-logo--small" aria-hidden="true">◆</span>
-                    <span><strong>ESTIBA WMS</strong><small>INTELIGENCIA OPERACIONAL</small></span>
-                </div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-active" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
-                    <a class="is-hidden" id="officeRawMaterialNav" href="/oficina/materia-prima">Materia prima</a>
-                    <a class="is-hidden" id="officeQueriesNav" href="/oficina/consultas">Consultas</a>
-                    <a id="officeCamerasNav" href="/oficina/camaras">Cámaras</a>
-                    <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
-                    <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
-                    <a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a>
-                    <a href="/oficina/existencias">Existencias</a>
-                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity">
-                    <span class="live-indicator"><i></i><span>EN LÍNEA</span></span>
-                    <span class="identity__avatar" id="officeInitials">GE</span>
-                    <span><strong id="officeUserName">Gerencia</strong><small id="officeUserRole">Consulta</small></span>
-                    <button id="officeLogoutButton" type="button">Cerrar sesión</button>
-                </div>
-            </header>
+            <x-office.navigation domain="administracion" office="panel" context="ADMINISTRACIÓN & GERENCIA" icon="◆" />
 
             <section class="management-heading">
                 <div>

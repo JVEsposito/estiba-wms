@@ -18,7 +18,7 @@
                 <div class="office-logo" aria-hidden="true">❄</div>
                 <p class="eyebrow">ESTIBA WMS · OFICINA</p>
                 <h1 id="officeAccessTitle">Consulta la disponibilidad antes de preparar una carga.</h1>
-                <p>Despachadores pueden revisar ocupación y disponibilidad. Supervisores y administradores conservan sus herramientas de configuración.</p>
+                <p>Las áreas consultan ocupación y disponibilidad. La creación, estructura y desactivación de cámaras pertenecen exclusivamente a Administración.</p>
                 <div class="feature-row">
                     <span>Bandas verticales</span>
                     <span>Trazabilidad</span>
@@ -30,7 +30,7 @@
                 <div>
                     <p class="eyebrow">ACCESO DE OFICINA</p>
                     <h2>Ingresar a cámaras</h2>
-                    <p>Disponible para despachadores, supervisores y administradores.</p>
+                    <p>La consulta está disponible según el área; la configuración requiere perfil administrador.</p>
                 </div>
                 <label>
                     <span>Correo electrónico</span>
@@ -45,29 +45,10 @@
             </form>
         </section>
 
-        <main class="office-app is-hidden" id="officeApp">
-            <header class="office-topbar">
-                <div class="brand-lockup">
-                    <span class="office-logo office-logo--small" aria-hidden="true">❄</span>
-                    <span><strong>ESTIBA WMS</strong><small>OPERACIÓN DE OFICINA</small></span>
-                </div>
-                <nav aria-label="Módulos de oficina">
-                    <a class="is-hidden" id="officeManagementNav" href="/oficina/gerencia">Gerencia</a>
-                    <a class="is-hidden" id="officeRomanaNav" href="/oficina/romana">Romana</a>
-                    <a class="is-hidden" id="officeRawMaterialNav" href="/oficina/materia-prima">Materia prima</a>
-                    <a class="is-active" href="/oficina/camaras">Cámaras</a>
-                    <a id="officeLoadsNav" href="/oficina/cargas">Cargas</a>
-                    <a id="officeMaterialsNav" href="/oficina/materiales">Materiales</a>
-                    <a href="/oficina/validacion">Validación</a>
-                    <a class="is-hidden" id="officePrefrioNav" href="/oficina/prefrio">Prefrío</a>
-                    <a class="is-hidden" id="officeAccessesNav" href="/oficina/accesos">Accesos</a>
-                </nav>
-                <div class="identity">
-                    <span class="identity__avatar" id="officeInitials">SP</span>
-                    <span><strong id="officeUserName">Supervisor</strong><small id="officeUserRole">Supervisor</small></span>
-                    <button id="officeLogoutButton" type="button">Cerrar sesión</button>
-                </div>
-            </header>
+        <main class="office-app is-hidden" id="officeApp" data-camera-mode="{{ $cameraMode ?? 'operacion' }}">
+            
+            <x-office.navigation :domain="$navigationDomain ?? 'frigorifico'" :office="$navigationOffice ?? 'camaras'" context="CÁMARAS" icon="❄" />
+
 
             <div class="configuration-module-tabs is-hidden" id="configurationModuleTabs" role="tablist" aria-label="Configuración de infraestructura">
                 <button class="is-active" id="cameraModuleButton" type="button" role="tab" aria-selected="true" aria-controls="officeWorkspace">Cámaras</button>

@@ -98,7 +98,7 @@ class AlcanceOperacionalUsuario
 
     public function puedeCrearCamara(User $usuario, ContenidoCamara $contenido): bool
     {
-        return $this->puedeSupervisarCamara($usuario, $contenido);
+        return $this->puedeAdministrarCamaras($usuario);
     }
 
     public function puedeAdministrarCamaras(User $usuario): bool

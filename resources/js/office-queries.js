@@ -9,10 +9,6 @@ const elements = {
     initials: byId('officeInitials'),
     logout: byId('officeLogoutButton'),
     reload: byId('reloadButton'),
-    rawMaterialNav: byId('officeRawMaterialNav'),
-    romanaNav: byId('officeRomanaNav'),
-    managementNav: byId('officeManagementNav'),
-    camerasNav: byId('officeCamerasNav'),
     producerCount: byId('producerCount'),
     pendingCount: byId('pendingCount'),
     associatedCount: byId('associatedCount'),
@@ -142,10 +138,6 @@ function showApp() {
     elements.userName.textContent = name;
     elements.userRole.textContent = label(state.identity?.rol);
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-    elements.rawMaterialNav.classList.toggle('is-hidden', state.identity?.puede_consultar_materia_prima !== true);
-    elements.romanaNav.classList.toggle('is-hidden', state.identity?.puede_consultar_romana !== true);
-    elements.managementNav.classList.toggle('is-hidden', state.identity?.puede_consultar_panel_gerencial !== true);
-    elements.camerasNav.classList.toggle('is-hidden', state.identity?.ambito_camaras === 'ninguno');
     return true;
 }
 
