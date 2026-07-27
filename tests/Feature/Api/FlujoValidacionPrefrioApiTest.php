@@ -118,6 +118,7 @@ class FlujoValidacionPrefrioApiTest extends TestCase
         $origen = (string) Str::uuid();
         $categoria = (string) Str::uuid();
 
+        DB::table('temporadas')->update(['activa' => false]);
         DB::table('temporadas')->insert([
             'id' => $temporada,
             'codigo' => '2026-2027',
