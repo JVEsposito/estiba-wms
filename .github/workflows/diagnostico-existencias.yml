@@ -1,0 +1,50 @@
+name: Diagnóstico existencias
+
+on:
+  pull_request:
+
+jobs:
+  existencias:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CACHE_STORE: array
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, zip
+          coverage: none
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Ejecutar pruebas aisladas
+        id: pruebas
+        shell: bash
+        run: |
+          set +e
+          php artisan test tests/Feature/Api/ExistenciasApiTest.php tests/Unit/GeneradorLibroXlsxTest.php --log-junit resultados-existencias.xml
+          codigo=$?
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publicar resultado
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-existencias
+          path: resultados-existencias.xml
+          if-no-files-found: error
+
+      - name: Propagar resultado
+        run: exit "${{ steps.pruebas.outputs.codigo }}"
