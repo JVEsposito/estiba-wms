@@ -5,6 +5,7 @@ namespace App\Services\Materiales;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoReservaMaterial;
 use App\Enums\TipoMovimientoInventarioMaterial;
+use App\Models\ConsumoTransformacionMaterial;
 use App\Models\CorreccionItemFolioMaterial;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
@@ -76,11 +77,41 @@ class ServicioCorreccionItemMaterial
                 throw new DomainException('El nuevo ítem debe utilizar la misma unidad de medida.');
             }
 
+            if ((float) $material->cantidad_reservada > 0) {
+                throw new DomainException(
+                    'El folio posee cantidad reservada y no puede corregirse.',
+                );
+            }
+
             if ($material->reservas()
                 ->where('estado', EstadoReservaMaterial::Activa->value)
                 ->lockForUpdate()
                 ->exists()) {
-                throw new DomainException('El ítem posee reservas activas y no puede corregirse.');
+                throw new DomainException('El ítem posee reservas activas de despacho y no puede corregirse.');
+            }
+
+            if ($material->reservasTransformacion()
+                ->where('estado', EstadoReservaMaterial::Activa->value)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new DomainException(
+                    'El ítem posee reservas activas de transformación y no puede corregirse.',
+                );
+            }
+
+            if (ConsumoTransformacionMaterial::query()
+                ->where('folio_id', $material->folio_id)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new DomainException(
+                    'El folio ya registra consumos de transformación y no puede corregirse.',
+                );
+            }
+
+            if ($material->lote_transformacion_origen_id !== null) {
+                throw new DomainException(
+                    'Un producto generado por transformación no puede cambiar de ítem.',
+                );
             }
 
             if ($material->retiros()->lockForUpdate()->exists()) {

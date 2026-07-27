@@ -9,6 +9,7 @@ use App\Models\ClienteMaterial;
 use App\Models\CorreccionItemFolioMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
+use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\MovimientoInventarioMaterial;
@@ -274,10 +275,10 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('meta.total', 0);
     }
 
-    public function test_ubica_material_solo_en_su_tipo_de_camara_y_crea_kardex_de_ingreso(): void
+    public function test_ubicacion_material_exige_folio_preexistente_y_no_permite_altas_manuales(): void
     {
         [$administrador] = $this->crearAdministrador();
-        [$operador, $dispositivo, $tokenTablet] = $this->crearOperador();
+        [, , $tokenTablet] = $this->crearOperador();
         [, , $tokenFrio] = $this->crearCamareroFrio();
         $item = $this->crearItem($administrador);
         [$camaraMaterial, $posicionMaterial] = $this->crearCamara('CAM-01', ContenidoCamara::Materiales);
@@ -294,10 +295,9 @@ class MaterialesApiTest extends TestCase
                 0,
                 25,
             ))
-            ->assertUnprocessable()
-            ->assertJsonPath('codigo', 'regla_de_negocio');
+            ->assertUnprocessable();
 
-        $folioId = $this->conToken($tokenTablet)
+        $this->conToken($tokenTablet)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicionMaterial,
                 $sesionMaterial,
@@ -306,26 +306,48 @@ class MaterialesApiTest extends TestCase
                 0,
                 25.5,
             ))
-            ->assertOk()
-            ->assertJsonPath('data.folio.tipo_bulto', 'material')
-            ->json('data.folio.id');
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El folio de material no existe. Debe nacer desde Recepción, Transformación o una migración controlada antes de ubicarlo.',
+            );
 
+        $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-RECHAZADO']);
+        $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-0001']);
+
+        $folioId = $this->crearFolioMaterialPendiente(
+            $item,
+            'FGE0000001',
+            25.5,
+            now()->toAtomString(),
+        );
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $posicionMaterial,
+                $sesionMaterial,
+                $item,
+                'FGE0000001',
+                0,
+                25.5,
+            ))
+            ->assertOk()
+            ->assertJsonPath('data.folio.id', $folioId)
+            ->assertJsonPath('data.folio.tipo_bulto', 'material');
+
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folioId,
+            'posicion_id' => $posicionMaterial->id,
+        ]);
         $this->assertDatabaseHas('folios_materiales', [
             'folio_id' => $folioId,
             'item_material_id' => $item->id,
-            'cantidad_inicial' => 25.500,
             'cantidad_actual' => 25.500,
-            'unidad_medida' => 'rollos',
-            'lote' => 'L-2026-07',
         ]);
         $this->assertDatabaseHas('movimientos_inventario_materiales', [
             'folio_id' => $folioId,
-            'tipo' => 'ingreso',
+            'tipo' => 'ingreso_recepcion',
             'cantidad' => 25.500,
-            'user_id' => $operador->id,
-            'dispositivo_id' => $dispositivo->id,
         ]);
-        $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-RECHAZADO']);
     }
 
     public function test_reserva_fifo_y_permite_retiros_parciales_hasta_liberar_el_folio(): void
@@ -475,6 +497,115 @@ class MaterialesApiTest extends TestCase
         ]);
         $this->assertSame('4.000', FolioMaterial::findOrFail($folio2)->cantidad_actual);
         $this->assertSame(3, $camara->refresh()->version_plano);
+    }
+
+    public function test_despacho_excluye_folios_bloqueados_de_la_reserva_fifo(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicionUno, $posicionDos] = $this->crearCamara(
+            'MAT-BLOQ-DES',
+            ContenidoCamara::Materiales,
+            2,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioBloqueado = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicionUno,
+            $sesion,
+            $item,
+            'FGE1000001',
+            0,
+            10,
+            now()->subDay()->toAtomString(),
+        );
+        $folioDisponible = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicionDos,
+            $sesion,
+            $item,
+            'FGE1000002',
+            1,
+            10,
+            now()->toAtomString(),
+        );
+        FolioMaterial::findOrFail($folioBloqueado)->update([
+            'motivo_bloqueo' => 'Material retenido por calidad.',
+        ]);
+        Folio::findOrFail($folioBloqueado)->update([
+            'estado_operacional' => 'bloqueado',
+        ]);
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'items' => [[
+                    'item_material_id' => $item->id,
+                    'cantidad' => 5,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folioDisponible);
+
+        $this->assertDatabaseMissing('reservas_materiales', [
+            'folio_id' => $folioBloqueado,
+            'estado' => 'activa',
+        ]);
+        $this->assertSame('0.000', FolioMaterial::findOrFail($folioBloqueado)->cantidad_reservada);
+        $this->assertSame('5.000', FolioMaterial::findOrFail($folioDisponible)->cantidad_reservada);
+    }
+
+    public function test_retiro_revalida_el_bloqueo_dentro_de_la_transaccion(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-RETIRO-BLOQ', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'FGE2000001',
+            0,
+            10,
+            now()->toAtomString(),
+        );
+        $despachoId = $this->crearDespacho($tokenOficina, $item, $destino, 5);
+        $this->assertSame('5.000', FolioMaterial::findOrFail($folioId)->cantidad_reservada);
+
+        // Simula un estado legado o concurrente que cambió después de reservar.
+        FolioMaterial::findOrFail($folioId)->update([
+            'motivo_bloqueo' => 'Bloqueo aplicado después de la reserva.',
+        ]);
+        Folio::findOrFail($folioId)->update([
+            'estado_operacional' => 'bloqueado',
+        ]);
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
+                'operacion_id' => (string) Str::uuid(),
+                'retiros' => [[
+                    'folio_id' => $folioId,
+                    'cantidad' => 1,
+                    'sesion_estiba_id' => $sesion,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El folio se encuentra bloqueado o no está disponible para retiro.',
+            );
+
+        $material = FolioMaterial::findOrFail($folioId);
+        $this->assertSame('10.000', $material->cantidad_actual);
+        $this->assertSame('5.000', $material->cantidad_reservada);
+        $this->assertDatabaseCount('retiros_materiales', 0);
     }
 
     public function test_inventario_refleja_el_stock_disponible_despues_de_reservar(): void
@@ -757,6 +888,12 @@ class MaterialesApiTest extends TestCase
             'actualizado_por_user_id' => $administrador->id,
         ]);
 
+        $this->crearFolioMaterialPendiente(
+            $itemOtroCliente,
+            'BULTO-OTRO-CLIENTE',
+            2,
+            now()->toAtomString(),
+        );
         $this->conToken($tokenTablet)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicion,
@@ -994,6 +1131,8 @@ class MaterialesApiTest extends TestCase
         float $cantidad,
         string $fecha,
     ): string {
+        $this->crearFolioMaterialPendiente($item, $numeroFolio, $cantidad, $fecha);
+
         return $this->conToken($token)
             ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
                 $posicion,
@@ -1006,6 +1145,55 @@ class MaterialesApiTest extends TestCase
             ))
             ->assertOk()
             ->json('data.folio.id');
+    }
+
+    private function crearFolioMaterialPendiente(
+        ItemMaterial $item,
+        string $numeroFolio,
+        float $cantidad,
+        string $fecha,
+    ): string {
+        $existente = Folio::query()->where('numero_folio', $numeroFolio)->first();
+
+        if ($existente) {
+            return $existente->id;
+        }
+
+        $item->loadMissing('cliente.temporada');
+        $folio = Folio::create([
+            'temporada_id' => $item->cliente?->temporada?->temporada_id,
+            'numero_folio' => $numeroFolio,
+            'tipo_bulto' => 'material',
+            'estado_operacional' => 'pendiente_ubicacion',
+            'fecha_ingreso' => $fecha,
+            'activo' => true,
+            'origen_sistema' => 'recepcion_materiales',
+            'estado_integracion' => 'no_vinculado',
+        ]);
+        FolioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'categoria_operacional' => $item->categoria_operacional?->value,
+            'cantidad_inicial' => $cantidad,
+            'cantidad_actual' => $cantidad,
+            'cantidad_reservada' => 0,
+            'unidad_medida' => $item->unidad_medida,
+            'lote' => 'L-2026-07',
+            'proveedor' => 'Proveedor de prueba',
+        ]);
+        MovimientoInventarioMaterial::create([
+            'folio_id' => $folio->id,
+            'item_material_id' => $item->id,
+            'tipo' => 'ingreso_recepcion',
+            'cantidad' => $cantidad,
+            'cantidad_anterior' => 0,
+            'cantidad_resultante' => $cantidad,
+            'user_id' => $item->creado_por_user_id,
+            'motivo' => 'Nacimiento controlado del folio de prueba.',
+            'ocurrido_at' => $fecha,
+        ]);
+
+        return $folio->id;
     }
 
     private function payloadUbicacion(

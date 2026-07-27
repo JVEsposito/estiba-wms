@@ -190,6 +190,29 @@ class TransformacionMaterialApiTest extends TestCase
             ->cantidad_reservada);
         $this->assertSame($administrador->id, $planificada['creado_por']['id']);
 
+        $itemAlternativo = $this->crearItem(
+            ClienteMaterial::findOrFail($entradaPrincipal->cliente_material_id),
+            $administrador,
+            'CAJA-DES-CORR',
+            'Caja desarmada alternativa',
+            CategoriaOperacionalMaterial::MaterialMp,
+        );
+        $folioPrincipalId = Folio::query()
+            ->where('numero_folio', $folioPrincipal)
+            ->value('id');
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/inventario/{$folioPrincipalId}/corregir-item", [
+                'operacion_id' => (string) Str::uuid(),
+                'item_material_id' => $itemAlternativo->id,
+                'motivo' => 'Intento de corrección con reserva de transformación activa.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioPrincipalId,
+            'item_material_id' => $entradaPrincipal->id,
+        ]);
+
         $operacionCancelacion = (string) Str::uuid();
         $this->conToken($tokenOficina)
             ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cancelar", [
