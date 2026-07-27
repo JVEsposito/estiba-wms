@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -50,6 +50,9 @@ type CandidateGroup = {
 const LOADABLE_PROCESS_STATES = new Set(['borrador', 'cargando']);
 
 export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorkspaceProps) {
+  const loadingFolio = useRef(false);
+  const previousView = useRef<WorkspaceView>('pendientes');
+  const synchronizing = useRef(false);
   const userId = auth.usuario.id;
   const deviceId = auth.dispositivo.id;
   const canOperate = auth.usuario.capacidades.puede_operar_prefrio === true;
@@ -142,15 +145,25 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
   }, [selectedProcessId, freePositions.length]);
 
   useEffect(() => {
-    const timer = setInterval(() => void synchronize(false), 30000);
+    const previous = previousView.current;
+    previousView.current = activeView;
+    if (previous === 'tuneles' && activeView === 'pendientes') {
+      void synchronize(false);
+    }
+  }, [activeView]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (activeView === 'pendientes') void synchronize(false);
+    }, 30000);
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void synchronize(false);
+      if (state === 'active' && activeView === 'pendientes') void synchronize(false);
     });
     return () => {
       clearInterval(timer);
       subscription.remove();
     };
-  }, [baseUrl, auth.token]);
+  }, [activeView, baseUrl, auth.token]);
 
   async function initialize() {
     setBusy(true);
@@ -175,7 +188,9 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       if (showNotice) setError('La PDA está sin conexión. Se muestra la última bandeja sincronizada.');
       return;
     }
+    if (synchronizing.current) return;
 
+    synchronizing.current = true;
     try {
       const [nextTunnels, nextProcesses, nextFolios] = await Promise.all([
         listPrefrioTunnels(baseUrl, auth.token),
@@ -202,6 +217,8 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       }
       if (reason instanceof ApiError && reason.status === 0) setOnline(false);
       setError(messageFrom(reason));
+    } finally {
+      synchronizing.current = false;
     }
   }
 
@@ -220,6 +237,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
   }
 
   async function loadSelectedFolio() {
+    if (loadingFolio.current || busy) return;
     if (!selectedFolio || !selectedProcess || !selectedPositionId) {
       setError('Selecciona un proceso activo y una posición libre.');
       return;
@@ -241,6 +259,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       return;
     }
 
+    loadingFolio.current = true;
     setBusy(true);
     setError('');
     setNotice('');
@@ -279,6 +298,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       setError(messageFrom(reason));
       await synchronize(false);
     } finally {
+      loadingFolio.current = false;
       setBusy(false);
     }
   }
@@ -360,6 +380,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       </ScrollView>
 
       <CandidateModal
+        busy={busy}
         canOperate={canOperate}
         folio={selectedFolio}
         freePositions={freePositions}
@@ -379,7 +400,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       />
 
       {busy ? (
-        <View pointerEvents="none" style={styles.busyOverlay}>
+        <View style={styles.busyOverlay}>
           <ActivityIndicator color={colors.cyan} size="large" />
           <Text style={styles.busyText}>Actualizando Prefrío…</Text>
         </View>
@@ -425,6 +446,7 @@ function CandidateCard({ candidate, canOperate, onOpen }: { candidate: PrefrioFo
 }
 
 function CandidateModal({
+  busy,
   canOperate,
   folio,
   freePositions,
@@ -439,6 +461,7 @@ function CandidateModal({
   onTemperatureChange,
   onOpenTunnels,
 }: {
+  busy: boolean;
   canOperate: boolean;
   folio: PrefrioFolioCandidate | null;
   freePositions: PrefrioTunnelPosition[];
@@ -456,7 +479,7 @@ function CandidateModal({
   if (!folio) return null;
 
   return (
-    <Modal animationType="slide" transparent visible onRequestClose={onClose}>
+    <Modal animationType="slide" transparent visible onRequestClose={() => { if (!busy) onClose(); }}>
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
@@ -465,7 +488,7 @@ function CandidateModal({
                 <Text style={styles.eyebrow}>{thermalLabel(folio.condicion_termica)}</Text>
                 <Text style={styles.modalTitle}>{folio.numero_folio}</Text>
               </View>
-              <Pressable onPress={onClose}><Text style={styles.modalClose}>×</Text></Pressable>
+              <Pressable disabled={busy} onPress={onClose}><Text style={styles.modalClose}>×</Text></Pressable>
             </View>
 
             <View style={styles.detailGrid}>
@@ -483,7 +506,7 @@ function CandidateModal({
                 {loadableProcesses.length ? (
                   <View style={styles.optionGrid}>
                     {loadableProcesses.map((process) => (
-                      <Pressable key={process.id} onPress={() => onProcessChange(process.id)} style={[styles.optionCard, process.id === selectedProcessId && styles.optionCardSelected]}>
+                      <Pressable disabled={busy} key={process.id} onPress={() => onProcessChange(process.id)} style={[styles.optionCard, process.id === selectedProcessId && styles.optionCardSelected, busy && styles.disabled]}>
                         <Text style={styles.optionTitle}>{process.codigo}</Text>
                         <Text style={styles.optionDetail}>{process.tunel.codigo} · {process.folios.filter((item) => !['retirado', 'cancelado'].includes(item.estado)).length}/{process.tunel.capacidad_posiciones}</Text>
                       </Pressable>
@@ -493,7 +516,7 @@ function CandidateModal({
                   <View style={styles.emptyProcess}>
                     <Text style={styles.emptyTitle}>No existe un proceso cargable</Text>
                     <Text style={styles.subtitle}>Crea o abre un proceso en la vista de Túneles antes de asignar este folio.</Text>
-                    <Pressable onPress={onOpenTunnels} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Abrir Túneles</Text></Pressable>
+                    <Pressable disabled={busy} onPress={onOpenTunnels} style={[styles.secondaryButton, busy && styles.disabled]}><Text style={styles.secondaryButtonText}>Abrir Túneles</Text></Pressable>
                   </View>
                 )}
 
@@ -502,7 +525,7 @@ function CandidateModal({
                     <Text style={styles.modalSectionTitle}>Posición libre</Text>
                     <View style={styles.positionGrid}>
                       {freePositions.map((position) => (
-                        <Pressable key={position.id} onPress={() => onPositionChange(position.id)} style={[styles.position, position.id === selectedPositionId && styles.positionSelected]}>
+                        <Pressable disabled={busy} key={position.id} onPress={() => onPositionChange(position.id)} style={[styles.position, position.id === selectedPositionId && styles.positionSelected, busy && styles.disabled]}>
                           <Text style={styles.positionText}>{position.etiqueta}</Text>
                         </Pressable>
                       ))}
@@ -510,6 +533,7 @@ function CandidateModal({
                     </View>
                     <Text style={styles.inputLabel}>Temperatura inicial opcional</Text>
                     <TextInput
+                      editable={!busy}
                       keyboardType="decimal-pad"
                       onChangeText={onTemperatureChange}
                       placeholder="Ej.: 8,5"
@@ -525,10 +549,10 @@ function CandidateModal({
             )}
 
             <View style={styles.modalActions}>
-              <Pressable onPress={onClose} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>Cerrar</Text></Pressable>
+              <Pressable disabled={busy} onPress={onClose} style={[styles.secondaryButton, busy && styles.disabled]}><Text style={styles.secondaryButtonText}>Cerrar</Text></Pressable>
               {canOperate && loadableProcesses.length ? (
-                <Pressable disabled={!selectedPositionId} onPress={onConfirm} style={[styles.primaryButton, !selectedPositionId && styles.disabled]}>
-                  <Text style={styles.primaryButtonText}>Cargar al túnel</Text>
+                <Pressable disabled={busy || !selectedPositionId} onPress={onConfirm} style={[styles.primaryButton, (busy || !selectedPositionId) && styles.disabled]}>
+                  <Text style={styles.primaryButtonText}>{busy ? 'Cargando…' : 'Cargar al túnel'}</Text>
                 </Pressable>
               ) : null}
             </View>
