@@ -24,6 +24,20 @@ jobs:
         shell: bash
         run: |
           set +e
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/aplicar_edicion_borradores_recepcion.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''"""             onBack={() => setSelected(null)}
+               onConfirm={() => requestConfirm(selected)}
+          """'''
+          new = '''"""            onBack={() => setSelected(null)}
+              onConfirm={() => requestConfirm(selected)}
+          """'''
+          if old not in text:
+              raise RuntimeError('No se encontró el patrón del botón editar en el aplicador.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           python3 tools/aplicar_edicion_borradores_recepcion.py > /tmp/aplicador.log 2>&1
           codigo=$?
           echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
