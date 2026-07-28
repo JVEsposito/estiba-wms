@@ -197,7 +197,12 @@ class ServicioConsultaSag
             }
         }
 
-        if (! str_contains(mb_strtolower($utf8), 'código sag')) {
+        $encabezadoReconocido = collect($xpath->query('//th') ?: [])
+            ->contains(fn ($celda): bool => str_contains(
+                mb_strtolower($this->texto($celda)),
+                'código sag',
+            ));
+        if (! $encabezadoReconocido) {
             throw new ServicioSagNoDisponible(
                 'SAG entregó una respuesta con un formato no reconocido. No se modificaron productores.',
             );
