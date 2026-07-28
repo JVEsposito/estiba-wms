@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import {
   AuthSession,
   CameraPlan,
@@ -106,9 +108,17 @@ export function RefrigeratedLoadOperation({
 
   useEffect(() => {
     if (busy || incidentVisible) return;
-    const timer = setInterval(() => void pollLoads(), 12000);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void pollLoads();
+    }, OPERATIONAL_POLL_INTERVAL_MS);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void pollLoads();
+    });
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
   }, [busy, incidentVisible, selectedLoadId, selectedRouteId]);
 
   async function pollLoads() {

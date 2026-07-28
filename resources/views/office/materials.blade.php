@@ -80,7 +80,7 @@
                     <button class="secondary-button" id="reloadMaterialsButton" type="button">↻ Actualizar</button>
                 </header>
 
-                <div class="materials-metrics">
+                <div class="materials-metrics" data-materials-view="resumen">
                     <article><span>TEMPORADA ACTIVA</span><strong id="materialsSeasonActive">—</strong></article>
                     <article><span>CLIENTES ACTIVOS</span><strong id="materialsClientCount">0</strong></article>
                     <article><span>ÍTEMS ACTIVOS</span><strong id="materialsItemCount">0</strong></article>

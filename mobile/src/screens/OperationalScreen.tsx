@@ -27,6 +27,7 @@ import { PositionMap } from '../components/PositionMap';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { RecentMovements } from '../components/RecentMovements';
 import { RefrigeratedLoadOperation } from '../components/RefrigeratedLoadOperation';
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import {
   AuthSession,
   CameraPlan,
@@ -113,8 +114,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     if (activeModule !== 'camaras' || !selectedCameraId || busy || locateVisible || moveVisible || materialDispatchVisible) return;
 
     const timer = setInterval(() => {
-      void refreshCurrent({ quiet: true });
-    }, 30000);
+      if (AppState.currentState === 'active') void refreshCurrent({ quiet: true });
+    }, OPERATIONAL_POLL_INTERVAL_MS);
 
     return () => clearInterval(timer);
   }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
@@ -139,7 +140,9 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     if (!canUseMaterials || activeModule !== 'camaras') return;
 
     void refreshMaterialDispatches();
-    const timer = setInterval(() => void refreshMaterialDispatches(), 12000);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void refreshMaterialDispatches();
+    }, OPERATIONAL_POLL_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') void refreshMaterialDispatches();
     });
@@ -154,7 +157,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setBusy(true);
     setError('');
     try {
-      const [loadedCameras, loadedConditions, loadedMaterialCatalog, loadedMaterialDispatches] = await Promise.all([
+      const [loadedCameras, loadedConditions, loadedMaterialCatalog] = await Promise.all([
         api.listCameras(auth.token),
         capabilities.puede_operar_productos
           ? optionalModule(() => api.listConditions(auth.token), [])
@@ -165,14 +168,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             { temporada: null, clientes: [], items: [], destinos: [] },
           )
           : Promise.resolve({ temporada: null, clientes: [], items: [], destinos: [] }),
-        canUseMaterials
-          ? optionalModule(() => api.listMaterialDispatches(auth.token), [])
-          : Promise.resolve([]),
       ]);
       setCameras(loadedCameras);
       setConditions(loadedConditions);
       setMaterialCatalog(loadedMaterialCatalog);
-      setMaterialDispatches(loadedMaterialDispatches);
       setError('');
       setConnectionState('connected');
       if (loadedCameras[0]) {

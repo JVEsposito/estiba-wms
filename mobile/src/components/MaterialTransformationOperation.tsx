@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { AuthSession } from '../domain/estiba';
 import { MaterialLabelPrintPanel } from './MaterialLabelPrintPanel';
 import {
@@ -90,7 +91,9 @@ export function MaterialTransformationOperation({
 
   useEffect(() => {
     void refresh(false);
-    const timer = setInterval(() => void refresh(true), 15000);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void refresh(true);
+    }, OPERATIONAL_POLL_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void refresh(true);
     });

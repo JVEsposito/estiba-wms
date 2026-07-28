@@ -40,6 +40,9 @@ const state = {
     seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
+const operationalRefreshIntervalMs = 30000;
+const mainDataSections = new Set(['resumen', 'catalogos', 'inventario', 'despachos']);
+const operationalDataSections = new Set(['resumen', 'inventario', 'despachos']);
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
 function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
@@ -85,6 +88,18 @@ function showApp() {
         'is-hidden',
         state.identity?.puede_gestionar_despachos_materiales !== true,
     );
+}
+
+function activeMaterialsSection() {
+    return elements.app?.dataset.materialsSection || 'resumen';
+}
+
+function mainDataIsRequired() {
+    return mainDataSections.has(activeMaterialsSection());
+}
+
+function operationalDataIsRequired() {
+    return operationalDataSections.has(activeMaterialsSection());
 }
 
 function selectedSeason() { return state.seasons.find((season) => season.id === state.selectedSeasonId) || null; }
@@ -314,26 +329,63 @@ function renderImportPreview() {
 function renderAll() { renderSeasons(); renderClients(); renderProviders(); renderItems(); renderDestinations(); renderDispatches(); renderInventory(); renderMetrics(); renderImportHistory(); }
 
 async function loadAll() {
-    const catalogAdmin = state.identity?.puede_administrar_catalogos_materiales === true;
+    const section = activeMaterialsSection();
+    if (!mainDataSections.has(section)) return;
+
+    const catalogAdmin = state.identity?.puede_administrar_catalogos_materiales === true
+        && section === 'catalogos';
+    const needsDispatches = section === 'resumen' || section === 'despachos';
+    const needsInventory = operationalDataSections.has(section);
     const [catalog, dispatches, inventory] = await Promise.all([
-        catalogAdmin ? Promise.all([api('/api/administracion/materiales/temporadas'), api('/api/administracion/materiales/clientes'), api('/api/administracion/materiales/items'), api('/api/administracion/materiales/destinos'), api('/api/administracion/materiales/importaciones'), api('/api/administracion/materiales/proveedores')]) : api('/api/materiales/catalogo'),
-        api('/api/materiales/despachos'), api('/api/materiales/inventario'),
+        catalogAdmin
+            ? Promise.all([
+                api('/api/administracion/materiales/temporadas'),
+                api('/api/administracion/materiales/clientes'),
+                api('/api/administracion/materiales/items'),
+                api('/api/administracion/materiales/destinos'),
+                api('/api/administracion/materiales/importaciones'),
+                api('/api/administracion/materiales/proveedores'),
+            ])
+            : api('/api/materiales/catalogo'),
+        needsDispatches ? api('/api/materiales/despachos') : Promise.resolve(null),
+        needsInventory ? api('/api/materiales/inventario') : Promise.resolve(null),
     ]);
-    if (catalogAdmin) { state.seasons = catalog[0].data; state.clients = catalog[1].data; state.items = catalog[2].data; state.destinations = catalog[3].data; state.imports = catalog[4].data; state.providers = catalog[5].data; } else { state.seasons = catalog.temporada ? [catalog.temporada] : []; state.clients = catalog.clientes; state.items = catalog.items; state.destinations = catalog.destinos; state.imports = []; state.providers = []; }
+    if (catalogAdmin) {
+        state.seasons = catalog[0].data;
+        state.clients = catalog[1].data;
+        state.items = catalog[2].data;
+        state.destinations = catalog[3].data;
+        state.imports = catalog[4].data;
+        state.providers = catalog[5].data;
+    } else {
+        state.seasons = catalog.temporada ? [catalog.temporada] : [];
+        state.clients = catalog.clientes;
+        state.items = catalog.items;
+        state.destinations = catalog.destinos;
+        state.imports = [];
+        state.providers = [];
+    }
     if (!state.seasons.some((season) => season.id === state.selectedSeasonId)) state.selectedSeasonId = state.seasons.find((season) => season.activa)?.id || state.seasons[0]?.id || null;
-    state.dispatches = dispatches.data; state.inventory = inventory.data; state.inventorySummary = inventory.resumen_clientes || [];
-    state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    if (dispatches) state.dispatches = dispatches.data;
+    if (inventory) {
+        state.inventory = inventory.data;
+        state.inventorySummary = inventory.resumen_clientes || [];
+        state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
     renderAll();
 }
 
 async function refreshOperationalData({ required = false } = {}) {
+    const section = activeMaterialsSection();
+    if (!operationalDataSections.has(section)) return false;
     if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) {
         if (required) throw new ApiError('No fue posible verificar el stock disponible con la sesión actual.', 403);
         return false;
     }
 
+    const needsDispatches = section === 'resumen' || section === 'despachos';
     const operation = state.operationalRefreshPromise || Promise.all([
-        api('/api/materiales/despachos'),
+        needsDispatches ? api('/api/materiales/despachos') : Promise.resolve(null),
         api('/api/materiales/inventario'),
     ]);
     const ownsOperation = state.operationalRefreshPromise === null;
@@ -341,11 +393,14 @@ async function refreshOperationalData({ required = false } = {}) {
 
     try {
         const [dispatches, inventory] = await operation;
-        state.dispatches = dispatches.data;
+        if (dispatches) state.dispatches = dispatches.data;
         state.inventory = inventory.data;
         state.inventorySummary = inventory.resumen_clientes || [];
         state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        renderDispatches(); renderInventory(); renderMetrics(); refreshDispatchLines();
+        if (needsDispatches) renderDispatches();
+        if (section === 'inventario') renderInventory();
+        if (section === 'resumen') renderMetrics();
+        if (section === 'despachos') refreshDispatchLines();
         return true;
     } catch (error) {
         if (error.status !== 401) console.warn('No fue posible actualizar el stock de materiales.', error);
@@ -616,11 +671,28 @@ elements.correctionForm.addEventListener('submit', async (event) => {
         closeCorrectionDialog(); await loadAll(); toast('Ítem corregido y auditado correctamente.');
     } catch (error) { elements.correctionError.textContent = error.message; } finally { setBusy(false); }
 });
-elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando materiales…'); try { await loadAll(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
+elements.reload.addEventListener('click', async () => {
+    if (!mainDataIsRequired()) return;
+    setBusy(true, 'Actualizando materiales…');
+    try { await loadAll(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+});
 window.addEventListener('estiba:materials-updated', () => void refreshOperationalData());
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 
-async function boot() { addDispatchLine(); if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) return; showApp(); setBusy(true, 'Cargando materiales…'); try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); } }
-window.setInterval(() => { if (document.visibilityState === 'visible') void refreshOperationalData(); }, 12000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refreshOperationalData(); });
+async function boot() {
+    if (activeMaterialsSection() === 'despachos') addDispatchLine();
+    if (!state.token || state.identity?.puede_consultar_despachos_materiales !== true) return;
+    showApp();
+    if (!mainDataIsRequired()) return;
+    setBusy(true, 'Cargando materiales…');
+    try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); }
+}
+if (operationalDataIsRequired()) {
+    window.setInterval(() => {
+        if (document.visibilityState === 'visible') void refreshOperationalData();
+    }, operationalRefreshIntervalMs);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') void refreshOperationalData();
+    });
+}
 void boot();

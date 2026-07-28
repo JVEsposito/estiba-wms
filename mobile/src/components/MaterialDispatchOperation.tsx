@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { AuthSession, MaterialDispatch } from '../domain/estiba';
 import { EstibaApi } from '../services/estibaApi';
 import { colors } from '../theme/colors';
@@ -68,7 +69,9 @@ export function MaterialDispatchOperation({
 
   useEffect(() => {
     void refresh(false);
-    const timer = setInterval(() => void refresh(true), 12000);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void refresh(true);
+    }, OPERATIONAL_POLL_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void refresh(true);
     });
