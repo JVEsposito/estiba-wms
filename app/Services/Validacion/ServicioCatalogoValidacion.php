@@ -175,6 +175,13 @@ class ServicioCatalogoValidacion
             throw new DomainException('El artículo y el origen deben pertenecer a la misma temporada.');
         }
 
+        if ($articulo->cliente_validacion_id !== null
+            && $articulo->cliente_validacion_id !== $origen->cliente_validacion_id) {
+            throw new DomainException(
+                'El envase del artículo no está habilitado para el cliente del origen.',
+            );
+        }
+
         $atributos = [
             'temporada_id' => $datos['temporada_id'],
             'articulo_validacion_id' => $articulo->id,

@@ -69,6 +69,7 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
         ]);
         $servicio->guardarEnvase([
             'especie_validacion_id' => $especie->id,
+            'cliente_validacion_id' => $cliente->id,
             'nombre' => '5 KG',
             'activo' => true,
         ]);
@@ -141,6 +142,7 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
         ]);
         $servicio->guardarEnvase([
             'especie_validacion_id' => $especie->id,
+            'cliente_validacion_id' => $cliente->id,
             'nombre' => '5 KG',
             'activo' => true,
         ]);
@@ -162,5 +164,78 @@ class OperacionCatalogoJerarquicoValidacionTest extends TestCase
                 ->variedad,
         );
         $this->assertSame(1, CsgValidacion::query()->sole()->variedades()->count());
+    }
+
+    public function test_un_envase_solo_proyecta_combinaciones_para_su_cliente(): void
+    {
+        $temporada = Temporada::create([
+            'codigo' => '2028',
+            'nombre' => 'Temporada 2028',
+            'activa' => true,
+        ]);
+        $servicio = app(ServicioCatalogoJerarquicoValidacion::class);
+
+        $clienteA = ClienteValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cliente A',
+            'activo' => true,
+        ]);
+        $clienteB = ClienteValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cliente B',
+            'activo' => true,
+        ]);
+        foreach ([$clienteA, $clienteB] as $cliente) {
+            MarcaValidacion::create([
+                'cliente_validacion_id' => $cliente->id,
+                'nombre' => "Marca {$cliente->nombre}",
+                'activo' => true,
+            ]);
+        }
+
+        $especie = $servicio->guardarEspecie([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cereza',
+            'activo' => true,
+        ]);
+        $variedad = $servicio->guardarVariedad([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => 'Santina',
+            'activo' => true,
+        ]);
+        $servicio->guardarCalibre([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => 'XL',
+            'activo' => true,
+        ]);
+        foreach ([$clienteA, $clienteB] as $cliente) {
+            $servicio->guardarEnvase([
+                'especie_validacion_id' => $especie->id,
+                'cliente_validacion_id' => $cliente->id,
+                'nombre' => '5 KG',
+                'activo' => true,
+            ]);
+        }
+        $servicio->guardarCsg([
+            'temporada_id' => $temporada->id,
+            'codigo' => 'CSG-CLIENTES',
+            'variedad_ids' => [$variedad->id],
+            'activo' => true,
+        ]);
+
+        $this->assertSame(2, ArticuloValidacion::query()->where('activo', true)->count());
+        $this->assertSame(2, OrigenValidacion::query()->where('activo', true)->count());
+        $combinaciones = CombinacionValidacion::query()
+            ->where('activo', true)
+            ->with(['articulo.envaseCatalogo', 'origen'])
+            ->get();
+        $this->assertCount(2, $combinaciones);
+
+        foreach ($combinaciones as $combinacion) {
+            $this->assertSame(
+                $combinacion->articulo->envaseCatalogo->cliente_validacion_id,
+                $combinacion->origen->cliente_validacion_id,
+            );
+        }
     }
 }

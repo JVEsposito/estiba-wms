@@ -43,7 +43,9 @@ class ServicioCatalogoJerarquicoValidacion
                 ->with([
                     'variedades' => fn ($query) => $query->orderBy('nombre'),
                     'calibres' => fn ($query) => $query->orderBy('nombre'),
-                    'envases' => fn ($query) => $query->orderBy('nombre'),
+                    'envases' => fn ($query) => $query
+                        ->with('cliente:id,nombre,codigo_externo')
+                        ->orderBy('nombre'),
                 ])
                 ->orderBy('nombre')
                 ->get(),
@@ -149,12 +151,40 @@ class ServicioCatalogoJerarquicoValidacion
     /** @param array<string, mixed> $datos */
     public function guardarEnvase(array $datos, ?EnvaseValidacion $modelo = null): EnvaseValidacion
     {
-        return $this->guardarHijoEspecie(
-            $datos,
-            $modelo ?? new EnvaseValidacion,
-            EnvaseValidacion::class,
-            'Ese envase ya existe para la especie.',
+        $especie = EspecieValidacion::query()->findOrFail($datos['especie_validacion_id']);
+        $cliente = ClienteValidacion::query()->findOrFail($datos['cliente_validacion_id']);
+
+        if ($especie->temporada_id !== $cliente->temporada_id) {
+            throw new DomainException(
+                'El cliente y la especie del envase deben pertenecer a la misma temporada.',
+            );
+        }
+
+        if ($modelo?->exists
+            && $modelo->especie()->value('temporada_id') !== $especie->temporada_id) {
+            throw new DomainException('No se puede mover un envase a otra temporada.');
+        }
+
+        $nombre = $this->texto($datos['nombre']);
+        $this->asegurarUnico(
+            EnvaseValidacion::query()
+                ->where('especie_validacion_id', $especie->id)
+                ->where('cliente_validacion_id', $cliente->id)
+                ->where('nombre', $nombre),
+            $modelo,
+            'Ese envase ya existe para el cliente y la especie.',
         );
+
+        /** @var EnvaseValidacion $envase */
+        $envase = $this->guardar($modelo ?? new EnvaseValidacion, [
+            'especie_validacion_id' => $especie->id,
+            'cliente_validacion_id' => $cliente->id,
+            'nombre' => $nombre,
+            'codigo_externo' => $this->codigo($datos['codigo_externo'] ?? null),
+            'activo' => (bool) ($datos['activo'] ?? true),
+        ], $especie->temporada_id);
+
+        return $envase->load('cliente:id,nombre,codigo_externo');
     }
 
     /** @param array<string, mixed> $datos */

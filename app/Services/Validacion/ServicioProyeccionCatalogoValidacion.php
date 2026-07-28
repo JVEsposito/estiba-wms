@@ -71,6 +71,7 @@ class ServicioProyeccionCatalogoValidacion
                         foreach ($especie->envases as $envase) {
                             $articulo = ArticuloValidacion::query()->firstOrNew([
                                 'temporada_id' => $temporada->id,
+                                'cliente_validacion_id' => $envase->cliente_validacion_id,
                                 'especie' => $especie->nombre,
                                 'variedad' => $variedad->nombre,
                                 'calibre' => $calibre->nombre,
@@ -90,6 +91,7 @@ class ServicioProyeccionCatalogoValidacion
                             $articulos[] = [
                                 'modelo' => $articulo,
                                 'variedad_id' => $variedad->id,
+                                'cliente_id' => $envase->cliente_validacion_id,
                             ];
                         }
                     }
@@ -120,6 +122,7 @@ class ServicioProyeccionCatalogoValidacion
                         $origenes[] = [
                             'modelo' => $origen,
                             'variedades' => $csg->variedades->pluck('id')->all(),
+                            'cliente_id' => $cliente->id,
                         ];
                     }
                 }
@@ -127,6 +130,11 @@ class ServicioProyeccionCatalogoValidacion
 
             foreach ($articulos as $articulo) {
                 foreach ($origenes as $origen) {
+                    if ($articulo['cliente_id'] !== null
+                        && $articulo['cliente_id'] !== $origen['cliente_id']) {
+                        continue;
+                    }
+
                     if (! in_array($articulo['variedad_id'], $origen['variedades'], true)) {
                         continue;
                     }

@@ -111,6 +111,7 @@ function render() {
 
     const clientOptions = '<option value="">Selecciona un cliente</option>' + state.clients.map((item) => option(item.id, `${item.codigo_externo || 'SIN-CÓDIGO'} · ${item.nombre}`)).join('');
     byId('brandForm').elements.cliente_validacion_id.innerHTML = clientOptions;
+    byId('packageForm').elements.cliente_validacion_id.innerHTML = clientOptions;
 
     const speciesOptions = '<option value="">Selecciona una especie</option>' + state.species.map((item) => option(item.id, item.nombre)).join('');
     for (const formId of ['varietyForm', 'caliberForm', 'packageForm']) byId(formId).elements.especie_validacion_id.innerHTML = speciesOptions;
@@ -153,7 +154,15 @@ function render() {
 function renderChildren(type, countId, listId, relation) {
     const items = state.species.flatMap((species) => (species[relation] || []).map((item) => ({ ...item, speciesId: species.id, species: species.nombre })));
     byId(countId).textContent = String(items.length);
-    byId(listId).innerHTML = items.map((item) => row(item.nombre, `Especie: ${item.species}`, type, item)).join('') || '<p class="empty-validation">Sin registros.</p>';
+    byId(listId).innerHTML = items.map((item) => {
+        const clientLabel = item.cliente
+            ? `${item.cliente.codigo_externo || 'SIN-CÓDIGO'} · ${item.cliente.nombre}`
+            : 'Sin cliente asignado';
+        const client = type === 'package'
+            ? ` · Cliente: ${clientLabel}`
+            : '';
+        return row(item.nombre, `Especie: ${item.species}${client}`, type, item);
+    }).join('') || '<p class="empty-validation">Sin registros.</p>';
 }
 
 function resetForm(form) {
