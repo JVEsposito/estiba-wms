@@ -255,6 +255,60 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertDatabaseCount('eventos_recepciones_materiales', 3);
     }
 
+    public function test_permite_el_mismo_item_en_lineas_separadas_y_genera_folios_independientes(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $payload = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 60, 'lote_proveedor' => 'BULTO-ALTO']],
+        );
+        $payload['numero_guia_despacho'] = 'GD-ITEM-REPETIDO';
+        $payload['detalles'][] = [
+            'item_material_id' => $item->id,
+            'cantidad_documental' => 40,
+            'cantidad_contada' => 40,
+            'cantidad_aceptada' => 40,
+            'cantidad_recibida' => 40,
+            'cantidad_rechazada' => 0,
+            'observacion' => 'Bulto de menor altura.',
+            'bultos' => [[
+                'cantidad' => 40,
+                'lote_proveedor' => 'BULTO-BAJO',
+            ]],
+        ];
+
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $payload)
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.detalles')
+            ->assertJsonPath('data.detalles.0.item.id', $item->id)
+            ->assertJsonPath('data.detalles.1.item.id', $item->id)
+            ->assertJsonPath('data.detalles.0.bultos.0.cantidad', '60.000')
+            ->assertJsonPath('data.detalles.1.bultos.0.cantidad', '40.000')
+            ->json('data');
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001')
+            ->assertJsonPath('data.detalles.1.bultos.0.folio.numero_folio', 'FGE0000002');
+
+        $this->assertSame(2, DB::table('detalles_recepciones_materiales')
+            ->where('recepcion_material_id', $recepcion['id'])
+            ->where('item_material_id', $item->id)
+            ->whereNull('deleted_at')
+            ->count());
+        $this->assertSame(2, FolioMaterial::query()
+            ->where('item_material_id', $item->id)
+            ->whereNotNull('bulto_recepcion_material_id')
+            ->count());
+    }
+
     public function test_anulacion_intacta_compensa_saldos_y_es_idempotente(): void
     {
         [, $tokenOficina, $cliente, $proveedor, $item] = $this->prepararCatalogo();
