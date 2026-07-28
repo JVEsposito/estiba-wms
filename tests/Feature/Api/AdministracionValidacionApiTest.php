@@ -164,6 +164,7 @@ class AdministracionValidacionApiTest extends TestCase
     public function test_importador_previsualiza_y_confirma_csv_sin_desactivar_ausencias(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Temporada::query()->update(['activa' => false]);
         $temporada = Temporada::create([
             'codigo' => '2026-2027',
             'nombre' => 'Temporada 2026-2027',
