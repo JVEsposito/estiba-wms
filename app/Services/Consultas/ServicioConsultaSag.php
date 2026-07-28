@@ -140,7 +140,7 @@ class ServicioConsultaSag
 
         foreach ($xpath->query('//tr[td]') ?: [] as $fila) {
             $celdas = $xpath->query('./td', $fila);
-            if (! $celdas || $celdas->length < 4) {
+            if (! $celdas || $celdas->length < 3) {
                 continue;
             }
 
