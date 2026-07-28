@@ -18,6 +18,7 @@ use App\Models\RetiroMaterial;
 use App\Models\User;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -273,6 +274,52 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data')
             ->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_listado_despachos_carga_relaciones_sin_consultas_por_cada_registro(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-PERF-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-PERF-0001',
+            0,
+            100,
+            now()->toAtomString(),
+        );
+        $this->crearDespacho($tokenOficina, $item, $destino, 1);
+
+        $consultasConUno = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonCount(1, 'data');
+        });
+
+        foreach (range(1, 5) as $indice) {
+            $this->crearDespacho($tokenOficina, $item, $destino, 1);
+        }
+
+        $consultasConSeis = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonCount(6, 'data');
+        });
+
+        $this->assertLessThanOrEqual(
+            $consultasConUno + 2,
+            $consultasConSeis,
+            'El listado de despachos agregó consultas por cada registro cargado.',
+        );
     }
 
     public function test_ubicacion_material_exige_folio_preexistente_y_no_permite_altas_manuales(): void
@@ -1233,5 +1280,20 @@ class MaterialesApiTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
+    }
+
+    private function contarConsultas(callable $accion): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $accion();
+
+            return count(DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 }
