@@ -194,10 +194,10 @@
                     <div class="access-profiles-layout">
                         <form class="admin-form access-profile-form" id="accessProfileForm" novalidate>
                             <input name="id" type="hidden">
-                            <div class="admin-form__grid">
+                            <div class="admin-form__grid admin-form__grid--access-profile">
                                 <label class="field"><span>Código *</span><input name="codigo" maxlength="80" placeholder="SUPERVISOR_RECEPCION" required></label>
-                                <label class="field field--wide"><span>Nombre *</span><input name="nombre" maxlength="150" placeholder="Supervisor de recepción" required></label>
-                                <label class="field field--wide"><span>Descripción</span><input name="descripcion" maxlength="500" placeholder="Responsabilidades y alcance del perfil"></label>
+                                <label class="field"><span>Nombre *</span><input name="nombre" maxlength="150" placeholder="Supervisor de recepción" required></label>
+                                <label class="field"><span>Descripción</span><input name="descripcion" maxlength="500" placeholder="Responsabilidades y alcance del perfil"></label>
                                 <label class="field"><span>Nivel operacional base *</span><select name="rol_base" required></select></label>
                             </div>
                             <p class="admin-form__hint">El nivel base define qué acciones puede ejecutar. Los módulos determinan cuáles de esas oficinas verá y podrá utilizar.</p>
