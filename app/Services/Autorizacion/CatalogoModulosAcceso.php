@@ -17,10 +17,6 @@ class CatalogoModulosAcceso
 
     public const TABLET_PREFRIO = 'prefrio';
 
-    /**
-     * Reservada para una futura implementación de las operaciones de inventario,
-     * despacho y transformación de Materiales en PDA/tablet.
-     */
     public const TABLET_OPERACION_MATERIALES = 'operacion_materiales';
 
     /**
@@ -164,8 +160,14 @@ class CatalogoModulosAcceso
             [
                 'clave' => 'materiales',
                 'nombre' => 'Materiales',
-                'descripcion' => 'Operación móvil actualmente disponible para Materiales.',
+                'descripcion' => 'Recepción y operación móvil de las cámaras de Materiales.',
                 'modulos' => [
+                    $this->moduloTablet(
+                        self::TABLET_OPERACION_MATERIALES,
+                        'Cámara y operación de materiales',
+                        'Cámaras, posiciones y operaciones habilitadas de inventario de materiales.',
+                        ['materiales.inventario'],
+                    ),
                     $this->moduloTablet(
                         self::TABLET_RECEPCION_MATERIALES,
                         'Recepción de materiales',

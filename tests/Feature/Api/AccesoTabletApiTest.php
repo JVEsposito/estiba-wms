@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
+use App\Models\Camara;
 use App\Models\CondicionSag;
 use App\Models\Dispositivo;
 use App\Models\PerfilAcceso;
@@ -89,7 +91,7 @@ class AccesoTabletApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 1);
     }
 
-    public function test_materiales_publica_solo_recepcion_como_modulo_tablet(): void
+    public function test_materiales_publica_camara_y_recepcion_como_modulos_tablet_independientes(): void
     {
         $usuario = User::factory()->create([
             'email' => 'materiales@example.com',
@@ -107,15 +109,26 @@ class AccesoTabletApiTest extends TestCase
             'codigo_dispositivo' => $dispositivo->codigo,
         ])
             ->assertOk()
-            ->assertJsonCount(1, 'usuario.modulos_tablet')
-            ->assertJsonPath('usuario.modulos_tablet.0', 'recepcion_materiales')
-            ->assertJsonPath('usuario.capacidades.modulos_tablet.0', 'recepcion_materiales')
+            ->assertJsonCount(2, 'usuario.modulos_tablet')
+            ->assertJsonPath(
+                'usuario.modulos_tablet.0',
+                CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+            )
+            ->assertJsonPath(
+                'usuario.modulos_tablet.1',
+                CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+            )
+            ->assertJsonPath('usuario.capacidades.puede_operar_materiales', true)
             ->assertJsonPath('usuario.capacidades.puede_consultar_recepciones_materiales', true)
-            ->assertJsonPath('usuario.capacidades.puede_consultar_despachos_materiales', false)
-            ->assertJsonPath('usuario.capacidades.puede_consultar_transformaciones_materiales', false)
-            ->assertJsonPath('usuario.ambito_camaras', 'ninguno');
+            ->assertJsonPath('usuario.capacidades.puede_consultar_despachos_materiales', true)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_transformaciones_materiales', true)
+            ->assertJsonPath('usuario.ambito_camaras', 'materiales');
 
         $token = $respuesta->json('token');
+
+        $this->withToken($token)
+            ->getJson('/api/camaras')
+            ->assertOk();
 
         $this->withToken($token)
             ->getJson('/api/materiales/recepciones')
@@ -123,11 +136,11 @@ class AccesoTabletApiTest extends TestCase
 
         $this->withToken($token)
             ->getJson('/api/materiales/despachos')
-            ->assertForbidden();
+            ->assertOk();
 
         $this->withToken($token)
             ->getJson('/api/materiales/transformaciones/ordenes')
-            ->assertForbidden();
+            ->assertOk();
     }
 
     public function test_un_perfil_solo_de_oficina_no_puede_iniciar_turno_en_tablet(): void
@@ -189,7 +202,7 @@ class AccesoTabletApiTest extends TestCase
             'nombre' => 'Tablet recepción materiales',
         ]);
 
-        $this->postJson('/api/acceso-tablet', [
+        $respuesta = $this->postJson('/api/acceso-tablet', [
             'email' => $usuario->email,
             'password' => 'clave-segura',
             'codigo_dispositivo' => $dispositivo->codigo,
@@ -199,7 +212,90 @@ class AccesoTabletApiTest extends TestCase
                 'usuario.modulos_tablet.0',
                 CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
             )
-            ->assertJsonCount(1, 'usuario.modulos_tablet');
+            ->assertJsonCount(1, 'usuario.modulos_tablet')
+            ->assertJsonPath('usuario.capacidades.puede_operar_materiales', false)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_recepciones_materiales', true)
+            ->assertJsonPath('usuario.ambito_camaras', 'ninguno');
+
+        $this->withToken($respuesta->json('token'))
+            ->getJson('/api/camaras')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_un_perfil_puede_operar_camara_materiales_sin_habilitar_recepcion(): void
+    {
+        $camara = Camara::create([
+            'codigo' => 'CAM-MAT-PDA',
+            'nombre' => 'Cámara materiales PDA',
+            'contenido' => ContenidoCamara::Materiales,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $perfil = PerfilAcceso::create([
+            'codigo' => 'MAT-CAMARA-PDA',
+            'nombre' => 'Cámara materiales PDA',
+            'rol_base' => RolUsuario::CamareroMateriales,
+            'modulos' => ['materiales.inventario'],
+            'modulos_tablet' => [
+                CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+            ],
+            'activo' => true,
+        ]);
+        $usuario = User::factory()->create([
+            'email' => 'camara-materiales@example.com',
+            'password' => Hash::make('clave-segura'),
+            'rol' => RolUsuario::CamareroMateriales,
+            'perfil_acceso_id' => $perfil->id,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-04',
+            'nombre' => 'Tablet cámara materiales',
+        ]);
+
+        $respuesta = $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])
+            ->assertOk()
+            ->assertJsonCount(1, 'usuario.modulos_tablet')
+            ->assertJsonPath(
+                'usuario.modulos_tablet.0',
+                CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+            )
+            ->assertJsonPath('usuario.capacidades.puede_operar_materiales', true)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_recepciones_materiales', false)
+            ->assertJsonPath('usuario.ambito_camaras', 'materiales');
+
+        $this->withToken($respuesta->json('token'))
+            ->getJson('/api/camaras')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $camara->id)
+            ->assertJsonPath('data.0.contenido', ContenidoCamara::Materiales->value);
+
+        $this->withToken($respuesta->json('token'))
+            ->getJson('/api/materiales/recepciones')
+            ->assertForbidden();
+    }
+
+    public function test_el_perfil_inicial_de_materiales_recupera_la_operacion_de_camaras(): void
+    {
+        $perfil = PerfilAcceso::query()
+            ->where('codigo', 'CAMARERO_MATERIALES')
+            ->where('predeterminado', true)
+            ->firstOrFail();
+
+        $this->assertContains(
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+            $perfil->modulos_tablet,
+        );
+        $this->assertContains(
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+            $perfil->modulos_tablet,
+        );
     }
 
     public function test_cerrar_turno_revoca_el_token_actual(): void
