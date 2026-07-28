@@ -1,5 +1,46 @@
 <!DOCTYPE html>
 <html lang="es">
+    @php
+        $activeMaterialsSection = $materialsSection ?? 'resumen';
+        $materialsSectionMeta = [
+            'resumen' => [
+                'eyebrow' => 'CONTROL DE MATERIALES',
+                'title' => 'Resumen operacional',
+                'description' => 'Selecciona el proceso que necesitas sin recorrer una página continua.',
+            ],
+            'catalogos' => [
+                'eyebrow' => 'CONFIGURACIÓN',
+                'title' => 'Catálogos de materiales',
+                'description' => 'Administra proveedores, ítems y destinos asociados a la temporada global.',
+            ],
+            'recepcion' => [
+                'eyebrow' => 'RECEPCIÓN',
+                'title' => 'Etiquetas de materiales',
+                'description' => 'Selecciona una recepción u orden y genera sus etiquetas PDF o ZPL.',
+            ],
+            'inventario' => [
+                'eyebrow' => 'INVENTARIO',
+                'title' => 'Existencias por folio y cliente',
+                'description' => 'Consulta cantidades, ubicación, reservas y bloqueos del inventario físico.',
+            ],
+            'despachos' => [
+                'eyebrow' => 'DESPACHOS INTERNOS',
+                'title' => 'Solicitudes de materiales',
+                'description' => 'Prepara solicitudes, reserva existencia y controla sus estados.',
+            ],
+            'recetas' => [
+                'eyebrow' => 'TRANSFORMACIÓN',
+                'title' => 'Recetas de materiales',
+                'description' => 'Define los componentes que producen materiales preparados para línea.',
+            ],
+            'ordenes' => [
+                'eyebrow' => 'PROGRAMACIÓN',
+                'title' => 'Órdenes de transformación',
+                'description' => 'Planifica, reserva y sigue la ejecución de cada orden.',
+            ],
+        ];
+        $activeMaterialsMeta = $materialsSectionMeta[$activeMaterialsSection] ?? $materialsSectionMeta['resumen'];
+    @endphp
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,14 +69,14 @@
             </form>
         </section>
 
-        <main class="office-app is-hidden" id="officeApp">
+        <main class="office-app is-hidden" id="officeApp" data-materials-section="{{ $activeMaterialsSection }}">
             
             <x-office.navigation domain="materiales" :office="$navigationOffice ?? 'recepcion'" context="MATERIALES" icon="▦" />
 
 
             <section class="materials-workspace">
                 <header class="materials-heading panel">
-                    <div><p class="eyebrow">CONTROL DE MATERIALES</p><h1>Inventario y despachos internos</h1><p>Las cantidades reservadas no se ofrecen a otra orden; FIFO es una sugerencia y nunca un bloqueo.</p></div>
+                    <div><p class="eyebrow">{{ $activeMaterialsMeta['eyebrow'] }}</p><h1>{{ $activeMaterialsMeta['title'] }}</h1><p>{{ $activeMaterialsMeta['description'] }}</p></div>
                     <button class="secondary-button" id="reloadMaterialsButton" type="button">↻ Actualizar</button>
                 </header>
 
@@ -48,7 +89,45 @@
                     <article><span>DESTINOS ACTIVOS</span><strong id="materialsDestinationCount">0</strong></article>
                 </div>
 
-                <div class="materials-admin-grid" id="materialsAdminCatalogs">
+                <section class="materials-module-overview" id="materialsModuleOverview" data-materials-view="resumen">
+                    <a class="materials-module-card" href="/oficina/materiales/catalogos" data-navigation-permissions="puede_administrar_catalogos_materiales">
+                        <span aria-hidden="true">≡</span>
+                        <div><p class="eyebrow">CONFIGURACIÓN</p><h2>Catálogos</h2><p>Proveedores, ítems, destinos y asociaciones por cliente.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/recepcion" data-navigation-permissions="puede_imprimir_etiquetas_materiales">
+                        <span aria-hidden="true">▣</span>
+                        <div><p class="eyebrow">RECEPCIÓN</p><h2>Etiquetas</h2><p>Folios por recepción u orden, disponibles en PDF y ZPL.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
+                        <span aria-hidden="true">▦</span>
+                        <div><p class="eyebrow">EXISTENCIA</p><h2>Inventario</h2><p>Saldo por cliente, folio, ítem, estado y ubicación.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/despachos" data-navigation-permissions="puede_consultar_despachos_materiales">
+                        <span aria-hidden="true">↗</span>
+                        <div><p class="eyebrow">OPERACIÓN</p><h2>Despachos</h2><p>Solicitudes internas, reservas y seguimiento de entrega.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/recetas" data-navigation-permissions="puede_consultar_transformaciones_materiales">
+                        <span aria-hidden="true">◇</span>
+                        <div><p class="eyebrow">TRANSFORMACIÓN</p><h2>Recetas</h2><p>Componentes, factores, merma y versiones activas.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/ordenes" data-navigation-permissions="puede_consultar_transformaciones_materiales">
+                        <span aria-hidden="true">✓</span>
+                        <div><p class="eyebrow">PROGRAMACIÓN</p><h2>Órdenes</h2><p>Planificación, reservas FIFO y ejecución en PDA.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/existencias" data-navigation-permissions="puede_consultar_despachos_materiales">
+                        <span aria-hidden="true">⇩</span>
+                        <div><p class="eyebrow">RESPALDOS</p><h2>Exportaciones</h2><p>Cortes XLSX y conexiones autoactualizables para Excel.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                </section>
+
+                <div class="materials-admin-grid" id="materialsAdminCatalogs" data-materials-view="catalogos">
                     <section class="panel materials-panel">
                         <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Ciclo operacional</h2></div><span id="seasonsSummary">0 registradas</span></div>
                         <label class="materials-season-selector"><span>Temporada seleccionada</span><select id="materialSeasonSelector"></select></label>
@@ -126,7 +205,7 @@
                     </section>
                 </div>
 
-                <section class="panel materials-panel material-label-workspace" id="materialLabelWorkspace">
+                <section class="panel materials-panel material-label-workspace" id="materialLabelWorkspace" data-materials-view="recepcion">
                     <div class="materials-panel__heading">
                         <div><p class="eyebrow">ETIQUETAS DE RECEPCIÓN</p><h2>Descarga PDF y ZPL</h2><span id="materialLabelSummary">Selecciona una recepción confirmada</span></div>
                         <button class="secondary-button" id="reloadMaterialLabels" type="button">↻ Actualizar recepciones</button>
@@ -158,7 +237,7 @@
                 </section>
 
                 <div class="materials-operation-grid" id="materialsOperationGrid">
-                    <section class="panel materials-panel">
+                    <section class="panel materials-panel" id="materialDispatchWorkspace" data-materials-view="despachos">
                         <div class="materials-panel__heading"><div><p class="eyebrow">SOLICITUD</p><h2>Nuevo despacho de materiales</h2></div><span id="materialsStockSync" aria-live="polite">Consultando stock disponible…</span></div>
                         <form class="materials-form" id="dispatchMaterialForm" novalidate>
                             <label><span>Destino *</span><select name="destino_material_id" id="dispatchDestination" required></select></label>
@@ -171,7 +250,7 @@
                         <div class="dispatch-list" id="dispatchMaterialList"></div>
                     </section>
 
-                    <section class="panel materials-panel materials-inventory-panel">
+                    <section class="panel materials-panel materials-inventory-panel" id="materialInventoryWorkspace" data-materials-view="inventario">
                         <div class="materials-panel__heading"><div><p class="eyebrow">EXISTENCIA POR CLIENTE</p><h2>Folios en cámaras</h2><span id="materialsInventorySummary">Sin existencias</span></div><div class="materials-panel__tools"><select id="materialsInventoryClient" aria-label="Filtrar inventario por cliente"><option value="">Todos los clientes</option></select><input id="materialsInventorySearch" type="search" placeholder="Buscar folio o ítem"></div></div>
                         <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Estado</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
                     </section>

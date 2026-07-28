@@ -14,6 +14,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertSee('Romana')
             ->assertSee('Digitación de Lotes')
             ->assertSee('Cuenta Envases')
+            ->assertSee('Despacho Envases')
             ->assertDontSee('Cargas &amp; Despachos', false);
     }
 
@@ -23,8 +24,10 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertOk()
             ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('Validación')
+            ->assertSee('Catálogos PT')
             ->assertSee('Prefrío')
             ->assertSee('Cargas &amp; Despachos', false)
+            ->assertSee('data-navigation-permissions="ambito_camaras_productos"', false)
             ->assertDontSee('Configuración de cámaras');
     }
 
@@ -40,14 +43,54 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertRedirect('/oficina/frigorifico/camaras');
     }
 
+    public function test_catalogo_pt_y_despacho_de_envases_tienen_seleccion_independiente(): void
+    {
+        $this->get('/oficina/validacion/catalogo')
+            ->assertOk()
+            ->assertSee('data-active-office="catalogo-validacion"', false);
+
+        $this->get('/oficina/envases/despachos')
+            ->assertOk()
+            ->assertSee('data-active-office="despacho-envases"', false);
+    }
+
     public function test_consultas_es_un_macromodulo_independiente(): void
     {
         $this->get('/oficina/consultas')
             ->assertOk()
             ->assertSee('data-active-domain="consultas"', false)
+            ->assertSee('data-queries-section="busqueda"', false)
             ->assertSee('Búsqueda Operacional')
             ->assertSee('Productores SAG / CSG')
             ->assertSee('Productores Verificados')
             ->assertDontSee('Digitación de Lotes');
+
+        $this->get('/oficina/consultas/sag')
+            ->assertOk()
+            ->assertSee('data-active-office="sag"', false)
+            ->assertSee('data-queries-section="sag"', false);
+
+        $this->get('/oficina/consultas/productores')
+            ->assertOk()
+            ->assertSee('data-active-office="productores"', false)
+            ->assertSee('data-queries-section="productores"', false);
+    }
+
+    public function test_cada_macromodulo_publica_sus_destinos_y_no_un_enlace_fijo_inaccesible(): void
+    {
+        $this->get('/oficina/cargas')
+            ->assertOk()
+            ->assertSee('data-navigation-targets=', false)
+            ->assertSee('&quot;href&quot;:&quot;/oficina/romana&quot;', false)
+            ->assertSee('&quot;permissions&quot;:[&quot;puede_consultar_romana&quot;]', false)
+            ->assertSee('&quot;href&quot;:&quot;/oficina/materiales&quot;', false)
+            ->assertDontSee('puede_consultar_materia_prima,puede_consultar_cargas', false);
+
+        $script = file_get_contents(resource_path('js/office-navigation.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('firstAccessibleTarget', $script);
+        $this->assertStringContainsString('ambito_camaras_productos', $script);
+        $this->assertStringContainsString('window.location.replace', $script);
     }
 }

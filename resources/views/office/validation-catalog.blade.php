@@ -13,7 +13,7 @@
     <body>
         <main class="office-app" id="catalogApp">
             
-            <x-office.navigation domain="frigorifico" office="validacion" context="FRIGORÍFICO · PT" icon="✓" />
+            <x-office.navigation domain="frigorifico" office="catalogo-validacion" context="FRIGORÍFICO · PT" icon="✓" />
 
 
             <section class="catalog-workspace">

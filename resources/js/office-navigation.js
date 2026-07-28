@@ -22,41 +22,98 @@ function can(identity, permission) {
     if (identity.rol === 'administrador') return true;
 
     const values = capabilities(identity);
-    if (permission === 'ambito_camaras') {
-        return Boolean(values.puede_administrar_camaras)
-            || (values.ambito_camaras && values.ambito_camaras !== 'ninguno');
-    }
-    if (permission === 'puede_consultar_existencias') {
-        return Boolean(
-            values.puede_consultar_despachos_materiales
-            || values.puede_consultar_materia_prima
-            || values.puede_consultar_cargas
-            || values.puede_consultar_panel_gerencial,
-        );
+    if (permission === 'ambito_camaras_productos') {
+        return ['productos', 'ambos'].includes(values.ambito_camaras);
     }
 
     return values[permission] === true;
+}
+
+function permissionsFrom(value) {
+    return String(value || '')
+        .split(',')
+        .map((permission) => permission.trim())
+        .filter(Boolean);
+}
+
+function hasAnyPermission(identity, permissions) {
+    return permissions.some((permission) => can(identity, permission));
+}
+
+function setVisibility(element, visible) {
+    element.classList.toggle('is-hidden', !visible);
+    element.setAttribute('aria-hidden', String(!visible));
+    if (visible) element.removeAttribute('tabindex');
+    else element.setAttribute('tabindex', '-1');
+}
+
+function domainTargets(link) {
+    try {
+        const targets = JSON.parse(link.dataset.navigationTargets || '[]');
+
+        return Array.isArray(targets) ? targets : [];
+    } catch {
+        return [];
+    }
+}
+
+function firstAccessibleTarget(identity, targets) {
+    return targets.find((target) => hasAnyPermission(identity, target.permissions || [])) || null;
+}
+
+function redirectFromUnavailableOffice(identity) {
+    const header = document.querySelector('.office-domain-topbar');
+    const activeOffice = header?.dataset.activeOffice;
+    const activeDomain = header?.dataset.activeDomain;
+    if (!activeOffice || !activeDomain) return;
+
+    const activeLink = document.querySelector(
+        `[data-office-domain="${CSS.escape(activeDomain)}"][data-office-key="${CSS.escape(activeOffice)}"]`,
+    );
+    if (activeLink && !activeLink.classList.contains('is-hidden')) return;
+
+    const activeDomainLink = document.querySelector(
+        `[data-domain-key="${CSS.escape(activeDomain)}"]`,
+    );
+    const activeTarget = activeDomainLink
+        ? firstAccessibleTarget(identity, domainTargets(activeDomainLink))
+        : null;
+    const fallback = activeTarget || [...document.querySelectorAll('[data-domain-key]')]
+        .map((link) => firstAccessibleTarget(identity, domainTargets(link)))
+        .find(Boolean);
+    if (!fallback) return;
+
+    const destination = new URL(fallback.href, window.location.origin);
+    const current = new URL(window.location.href);
+    if (destination.pathname === current.pathname && destination.hash === current.hash) return;
+    window.location.replace(destination.href);
 }
 
 function refreshNavigation() {
     const identity = readIdentity();
     const hasSession = Boolean(localStorage.getItem(tokenKey) && identity);
 
-    document.querySelectorAll('[data-navigation-permission]').forEach((link) => {
-        link.classList.toggle('is-hidden', !hasSession || !can(identity, link.dataset.navigationPermission));
+    document.querySelectorAll('[data-office-key]').forEach((link) => {
+        const permissions = permissionsFrom(link.dataset.navigationPermissions);
+        setVisibility(link, hasSession && hasAnyPermission(identity, permissions));
     });
 
-    document.querySelectorAll('[data-navigation-permissions]').forEach((link) => {
-        const permissions = String(link.dataset.navigationPermissions || '')
-            .split(',')
-            .map((value) => value.trim())
-            .filter(Boolean);
-        const visible = hasSession && permissions.some((permission) => can(identity, permission));
-        link.classList.toggle('is-hidden', !visible);
+    document.querySelectorAll('[data-navigation-permissions]:not([data-office-key])').forEach((element) => {
+        const permissions = permissionsFrom(element.dataset.navigationPermissions);
+        setVisibility(element, hasSession && hasAnyPermission(identity, permissions));
+    });
+
+    document.querySelectorAll('[data-domain-key]').forEach((link) => {
+        const target = hasSession
+            ? firstAccessibleTarget(identity, domainTargets(link))
+            : null;
+        setVisibility(link, Boolean(target));
+        if (target) link.href = target.href;
     });
 
     const activeDomain = document.querySelector('.office-domain-topbar')?.dataset.activeDomain;
     if (hasSession && activeDomain) localStorage.setItem(lastDomainKey, activeDomain);
+    if (hasSession) redirectFromUnavailableOffice(identity);
 }
 
 function scrollToOfficeTarget() {
@@ -97,4 +154,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.addEventListener('storage', refreshNavigation);
+window.addEventListener('estiba:office-session', refreshNavigation);
 window.EstibaOfficeNavigation = { refresh: refreshNavigation };

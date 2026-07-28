@@ -168,7 +168,7 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 }
 .office-domain-navigation {
     display: grid !important;
-    grid-template-columns: repeat(4, minmax(145px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
     width: 100%;
     gap: 3px !important;
     padding: 4px !important;
@@ -239,7 +239,7 @@ input, select { width: 100%; min-height: 52px; border: 1px solid var(--line); bo
 }
 @media (max-width: 900px) {
     .office-domain-topbar { position: static; grid-template-columns: 1fr auto; }
-    .office-domain-navigation { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; grid-template-columns: repeat(4, minmax(170px, 1fr)); }
+    .office-domain-navigation { grid-column: 1 / -1; grid-row: 2; overflow-x: auto; grid-template-columns: repeat(5, minmax(170px, 1fr)); }
     .office-subnavigation { align-items: stretch; flex-direction: column; gap: 8px; padding: 10px 14px; }
     .office-subnavigation__heading { min-width: 0; }
 }
