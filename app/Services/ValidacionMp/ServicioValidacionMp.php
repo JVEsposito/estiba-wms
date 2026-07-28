@@ -204,10 +204,17 @@ class ServicioValidacionMp
     {
         $secuencia = $validacion->segmentos()->count() + 1;
         $csg = ! empty($segmento['csg_validacion_id'])
-            ? CsgValidacion::query()->whereKey($segmento['csg_validacion_id'])->where('temporada_id', $recepcion->temporada_id)->first()
+            ? CsgValidacion::query()
+                ->whereKey($segmento['csg_validacion_id'])
+                ->where('temporada_id', $recepcion->temporada_id)
+                ->where('activo', true)
+                ->disponibleParaCliente($recepcion->cliente_id)
+                ->first()
             : null;
         if (! empty($segmento['csg_validacion_id']) && ! $csg) {
-            throw ValidationException::withMessages(['segmentos' => 'El CSG no pertenece a la temporada heredada de Romana.']);
+            throw ValidationException::withMessages([
+                'segmentos' => 'El CSG no está activo para la temporada y el cliente heredados de Romana.',
+            ]);
         }
         $variedad = ! empty($segmento['variedad_validacion_id'])
             ? VariedadValidacion::query()->whereKey($segmento['variedad_validacion_id'])

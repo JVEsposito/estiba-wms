@@ -153,8 +153,16 @@ function species(producer) {
 
 function associationForm(producer) {
     if (state.identity?.puede_asociar_productores_csg !== true) return '';
-    const options = state.catalogs.clientes.map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</option>`).join('');
-    return `<form class="producer-association" data-associate-producer="${escapeHtml(producer.id)}"><select name="cliente_id" aria-label="Cliente"><option value="">Seleccionar cliente…</option>${options}</select><button type="submit">Asociar</button></form>`;
+    const selected = new Set((producer.clientes || []).map((client) => client.id));
+    const options = state.catalogs.clientes.map((client) => `
+        <label>
+            <input type="checkbox" name="cliente_ids" value="${escapeHtml(client.id)}" ${selected.has(client.id) ? 'checked' : ''}>
+            <span>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</span>
+        </label>`).join('');
+    return `<form class="producer-association" data-associate-producer="${escapeHtml(producer.id)}">
+        <fieldset><legend>Clientes habilitados</legend>${options}</fieldset>
+        <button type="submit">Guardar clientes</button>
+    </form>`;
 }
 
 function producerCard(producer, includeAssociation = true) {
@@ -274,7 +282,7 @@ elements.sagSearch.addEventListener('submit', async (event) => {
     setBusy(true, 'Consultando registro público SAG…');
     try {
         const payload = await api('/api/consultas/sag', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.sagSearch))) });
-        elements.sagResult.innerHTML = payload.data.length ? payload.data.map((producer) => `<div class="sag-producer">${producerCard(producer, false)}</div>`).join('') : `<div class="query-empty">${escapeHtml(payload.message)}</div>`;
+        elements.sagResult.innerHTML = payload.data.length ? payload.data.map((producer) => `<div class="sag-producer">${producerCard(producer)}</div>`).join('') : `<div class="query-empty">${escapeHtml(payload.message)}</div>`;
         await loadBase();
         toast(payload.message);
     } catch (error) {
@@ -298,13 +306,14 @@ document.addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-associate-producer]');
     if (!form) return;
     event.preventDefault();
-    const clientId = form.elements.cliente_id.value;
-    if (!clientId) { toast('Selecciona un cliente.', true); return; }
-    setBusy(true, 'Asociando productor…');
+    const clientIds = [...form.querySelectorAll('input[name="cliente_ids"]:checked')]
+        .map((input) => input.value);
+    if (!clientIds.length) { toast('Selecciona al menos un cliente.', true); return; }
+    setBusy(true, 'Guardando clientes del CSG…');
     try {
-        await api(`/api/consultas/productores/${form.dataset.associateProducer}/clientes`, { method: 'POST', body: JSON.stringify({ cliente_id: clientId }) });
+        await api(`/api/consultas/productores/${form.dataset.associateProducer}/clientes`, { method: 'POST', body: JSON.stringify({ cliente_ids: clientIds }) });
         await loadBase();
-        toast('Productor asociado al cliente.');
+        toast(`CSG habilitado para ${clientIds.length} cliente(s).`);
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
 

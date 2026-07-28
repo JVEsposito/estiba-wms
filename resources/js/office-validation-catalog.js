@@ -136,7 +136,18 @@ function render() {
     renderChildren('package', 'packageCount', 'packageList', 'envases');
 
     byId('csgCount').textContent = String(state.csg.length);
-    byId('csgList').innerHTML = state.csg.map((item) => row(item.codigo, `${item.predio || 'Sin predio'} · ${item.variedades?.length || 0} variedades autorizadas`, 'csg', item)).join('') || '<p class="empty-validation">Sin CSG.</p>';
+    byId('csgList').innerHTML = state.csg.map((item) => {
+        const clients = item.productor?.clientes?.map((client) => client.nombre).join(', ');
+        const scope = item.productor_csg_id
+            ? (clients || 'Sin clientes asociados')
+            : 'Disponible para todos los clientes';
+        return row(
+            item.codigo,
+            `${item.predio || 'Sin predio'} · ${item.variedades?.length || 0} variedades autorizadas · ${scope}`,
+            'csg',
+            item,
+        );
+    }).join('') || '<p class="empty-validation">Sin CSG.</p>';
 }
 
 function renderChildren(type, countId, listId, relation) {

@@ -120,6 +120,7 @@ class ServicioCopiaCatalogoValidacion
 
             foreach ($origen->csg as $csg) {
                 $csgNuevo = CsgValidacion::create([
+                    'productor_csg_id' => $csg->productor_csg_id,
                     'temporada_id' => $destino->id,
                     'codigo' => $csg->codigo,
                     'predio' => $csg->predio,

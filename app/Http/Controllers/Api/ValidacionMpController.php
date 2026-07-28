@@ -68,7 +68,19 @@ class ValidacionMpController extends Controller
 
         return response()->json([
             'temporada' => ['id' => $recepcion->temporada_id, 'codigo' => $recepcion->temporada_codigo_snapshot, 'nombre' => $recepcion->temporada_nombre_snapshot],
-            'csg' => CsgValidacion::query()->where('temporada_id', $recepcion->temporada_id)->where('activo', true)->orderBy('codigo')->get(['id', 'codigo', 'predio']),
+            'csg' => CsgValidacion::query()
+                ->where('temporada_id', $recepcion->temporada_id)
+                ->where('activo', true)
+                ->disponibleParaCliente($recepcion->cliente_id)
+                ->with('variedades:id')
+                ->orderBy('codigo')
+                ->get()
+                ->map(fn (CsgValidacion $csg): array => [
+                    'id' => $csg->id,
+                    'codigo' => $csg->codigo,
+                    'predio' => $csg->predio,
+                    'variedad_ids' => $csg->variedades->pluck('id')->values(),
+                ]),
             'variedades' => VariedadValidacion::query()->where('activo', true)
                 ->whereHas('especie', fn (Builder $especie) => $especie->where('temporada_id', $recepcion->temporada_id))
                 ->with('especie:id,nombre')->orderBy('nombre')->get()->map(fn (VariedadValidacion $variedad): array => [
