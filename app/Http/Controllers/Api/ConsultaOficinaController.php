@@ -9,12 +9,11 @@ use App\Models\Cliente;
 use App\Models\ConsultaSag;
 use App\Models\LoteMateriaPrima;
 use App\Models\ProductorCsg;
+use App\Services\Consultas\ServicioAsociacionProductorCsg;
 use App\Services\Consultas\ServicioConsultaOperacional;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ConsultaOficinaController extends Controller
@@ -139,38 +138,12 @@ class ConsultaOficinaController extends Controller
     public function asociar(
         AsociarProductorCsgRequest $request,
         ProductorCsg $productorCsg,
+        ServicioAsociacionProductorCsg $servicio,
     ): ProductorCsgResource {
         $datos = $request->validated();
-        $usuarioId = $request->user()->id;
 
-        DB::transaction(function () use ($datos, $productorCsg, $usuarioId): void {
-            $existente = DB::table('clientes_productores_csg')
-                ->where('cliente_id', $datos['cliente_id'])
-                ->where('productor_csg_id', $productorCsg->id)
-                ->first();
-
-            if ($existente) {
-                DB::table('clientes_productores_csg')->where('id', $existente->id)->update([
-                    'activo' => true,
-                    'actualizado_por_user_id' => $usuarioId,
-                    'updated_at' => now(),
-                ]);
-
-                return;
-            }
-
-            DB::table('clientes_productores_csg')->insert([
-                'id' => (string) Str::uuid(),
-                'cliente_id' => $datos['cliente_id'],
-                'productor_csg_id' => $productorCsg->id,
-                'activo' => true,
-                'asociado_por_user_id' => $usuarioId,
-                'actualizado_por_user_id' => $usuarioId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        });
-
-        return new ProductorCsgResource($productorCsg->fresh()->load('clientes'));
+        return new ProductorCsgResource(
+            $servicio->sincronizar($productorCsg, $datos['cliente_ids'], $request->user()),
+        );
     }
 }

@@ -346,8 +346,13 @@ function renderLots() {
 
 function fillBaseCatalogs() {
     const form = elements.lotForm.elements;
+    const clientId = state.selectedSegment?.recepcion?.cliente?.id;
+    const availableCsg = state.catalogs.csg.filter((item) => (
+        item.disponible_todos_clientes
+        || item.cliente_ids?.includes(clientId)
+    ));
     form.csg_validacion_id.innerHTML = '<option value="">Seleccionar CSG</option>'
-        + state.catalogs.csg.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.predio)}</option>`).join('');
+        + availableCsg.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.codigo)} · ${escapeHtml(item.predio)}</option>`).join('');
     form.especie_validacion_id.innerHTML = '<option value="">Seleccionar especie</option>'
         + state.catalogs.especies.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
     form.tipo_producto.innerHTML = state.catalogs.tipos_producto

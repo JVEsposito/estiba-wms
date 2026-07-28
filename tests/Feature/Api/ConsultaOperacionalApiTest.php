@@ -4,12 +4,16 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
+use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
+use App\Models\MarcaValidacion;
+use App\Models\OrigenValidacion;
 use App\Models\ProductorCsg;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Clientes\ServicioCliente;
 use App\Services\Consultas\ServicioConsultaSag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -241,6 +245,109 @@ class ConsultaOperacionalApiTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_crea_el_csg_y_sincroniza_sus_clientes_sin_duplicar_el_maestro(): void
+    {
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        Temporada::query()->update(['activa' => false]);
+        $temporada = Temporada::create([
+            'codigo' => 'TEMP-CSG-CLIENTES',
+            'nombre' => 'Temporada CSG por cliente',
+            'activa' => true,
+        ]);
+        $clientes = collect([
+            Cliente::create(['codigo' => 'CLI-01', 'nombre' => 'Cliente Uno', 'activo' => true]),
+            Cliente::create(['codigo' => 'CLI-02', 'nombre' => 'Cliente Dos', 'activo' => true]),
+            Cliente::create(['codigo' => 'CLI-03', 'nombre' => 'Cliente Tres', 'activo' => true]),
+        ]);
+        foreach ($clientes as $cliente) {
+            app(ServicioCliente::class)->asegurarProyeccionesActivas($cliente, $supervisor->id);
+            $clienteTemporada = ClienteValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('cliente_id', $cliente->id)
+                ->firstOrFail();
+            MarcaValidacion::create([
+                'cliente_validacion_id' => $clienteTemporada->id,
+                'nombre' => 'Marca '.$cliente->codigo,
+                'activo' => true,
+            ]);
+        }
+        Http::fake([
+            ServicioConsultaSag::URL => Http::response($this->respuestaSag(), 200),
+        ]);
+
+        $productorId = $this->actingAs($supervisor, 'sanctum')
+            ->postJson('/api/consultas/sag', [
+                'tipo' => 'codigo_sag',
+                'valor' => '105410',
+            ])
+            ->assertOk()
+            ->json('data.0.id');
+
+        $productor = ProductorCsg::query()->findOrFail($productorId);
+        $csg = CsgValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('codigo', '105410')
+            ->firstOrFail();
+        $this->assertSame($productor->id, $csg->productor_csg_id);
+        $this->assertSame('Los Cerezos', $csg->predio);
+        $this->assertTrue($csg->activo);
+        $this->assertSame(3, $csg->variedades()->count());
+
+        $this->postJson("/api/consultas/productores/{$productor->id}/clientes", [
+            'cliente_ids' => [$clientes[0]->id, $clientes[1]->id],
+        ])
+            ->assertOk()
+            ->assertJsonCount(2, 'data.clientes');
+
+        $this->assertDatabaseCount('productores_csg', 1);
+        $this->assertDatabaseCount('csg_validacion', 1);
+        $this->assertDatabaseCount('csg_variedades_validacion', 3);
+        $this->assertSame(
+            2,
+            $productor->clientes()->wherePivot('activo', true)->count(),
+        );
+        $this->assertTrue(
+            CsgValidacion::query()->disponibleParaCliente($clientes[0]->id)->exists(),
+        );
+        $this->assertFalse(
+            CsgValidacion::query()->disponibleParaCliente($clientes[2]->id)->exists(),
+        );
+        $this->assertSame(
+            2,
+            OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('csg_validacion_id', $csg->id)
+                ->where('activo', true)
+                ->count(),
+        );
+
+        $this->postJson("/api/consultas/productores/{$productor->id}/clientes", [
+            'cliente_ids' => [$clientes[1]->id],
+        ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.clientes')
+            ->assertJsonPath('data.clientes.0.id', $clientes[1]->id);
+
+        $this->assertDatabaseHas('clientes_productores_csg', [
+            'productor_csg_id' => $productor->id,
+            'cliente_id' => $clientes[0]->id,
+            'activo' => false,
+        ]);
+        $this->assertDatabaseHas('clientes_productores_csg', [
+            'productor_csg_id' => $productor->id,
+            'cliente_id' => $clientes[1]->id,
+            'activo' => true,
+        ]);
+        $this->assertSame(
+            1,
+            OrigenValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('csg_validacion_id', $csg->id)
+                ->where('activo', true)
+                ->count(),
+        );
+    }
+
     public function test_consulta_sag_acepta_la_respuesta_real_de_tres_columnas(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
@@ -271,6 +378,13 @@ class ConsultaOperacionalApiTest extends TestCase
             'razon_social' => 'Agricola Las Vegas SPA',
             'estado_sag' => 'activo',
             'tipo_codigo' => 'CSG',
+        ]);
+        $productor = ProductorCsg::query()->where('codigo', '123225')->firstOrFail();
+        $this->assertDatabaseHas('csg_validacion', [
+            'productor_csg_id' => $productor->id,
+            'codigo' => '123225',
+            'predio' => 'Fundo Santa Elena de Los Niches',
+            'activo' => true,
         ]);
         $this->assertDatabaseHas('consultas_sag', [
             'tipo_busqueda' => 'codigo_sag',

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,6 +35,17 @@ class CsgValidacion extends Model
             'csg_validacion_id',
             'variedad_validacion_id',
         )->withTimestamps();
+    }
+
+    public function scopeDisponibleParaCliente(Builder $consulta, string $clienteId): Builder
+    {
+        return $consulta->where(function (Builder $alcance) use ($clienteId): void {
+            $alcance->whereNull('productor_csg_id')
+                ->orWhereHas('productor.clientes', function (Builder $clientes) use ($clienteId): void {
+                    $clientes->where('clientes.id', $clienteId)
+                        ->where('clientes_productores_csg.activo', true);
+                });
+        });
     }
 
     protected function casts(): array

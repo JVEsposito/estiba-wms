@@ -86,6 +86,24 @@ class MateriaPrimaController extends Controller
             ->whereIn('especie_validacion_id', $especies->pluck('id'))
             ->orderBy('nombre')
             ->get(['id', 'especie_validacion_id', 'nombre']);
+        $csg = CsgValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('activo', true)
+            ->with([
+                'variedades:id',
+                'productor.clientes' => fn ($consulta) => $consulta
+                    ->where('clientes_productores_csg.activo', true),
+            ])
+            ->orderBy('codigo')
+            ->get()
+            ->map(fn (CsgValidacion $item): array => [
+                'id' => $item->id,
+                'codigo' => $item->codigo,
+                'predio' => $item->predio,
+                'disponible_todos_clientes' => ! $item->productor_csg_id,
+                'cliente_ids' => $item->productor?->clientes->pluck('id')->values() ?? [],
+                'variedad_ids' => $item->variedades->pluck('id')->values(),
+            ]);
 
         return response()->json([
             'temporada' => [
@@ -93,11 +111,7 @@ class MateriaPrimaController extends Controller
                 'codigo' => $temporada->codigo,
                 'nombre' => $temporada->nombre,
             ],
-            'csg' => CsgValidacion::query()
-                ->where('temporada_id', $temporada->id)
-                ->where('activo', true)
-                ->orderBy('codigo')
-                ->get(['id', 'codigo', 'predio']),
+            'csg' => $csg,
             'especies' => $especies->map(fn (EspecieValidacion $especie): array => [
                 'id' => $especie->id,
                 'nombre' => $especie->nombre,

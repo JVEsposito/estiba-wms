@@ -49,7 +49,11 @@ class ServicioCatalogoJerarquicoValidacion
                 ->get(),
             'csg' => CsgValidacion::query()
                 ->where('temporada_id', $temporada->id)
-                ->with(['variedades:id,especie_validacion_id,nombre,activo'])
+                ->with([
+                    'variedades:id,especie_validacion_id,nombre,activo',
+                    'productor.clientes' => fn ($consulta) => $consulta
+                        ->where('clientes_productores_csg.activo', true),
+                ])
                 ->orderBy('codigo')
                 ->get(),
             'proyeccion' => $this->proyector->conteos($temporada),

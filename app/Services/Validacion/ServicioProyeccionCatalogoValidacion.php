@@ -3,7 +3,9 @@
 namespace App\Services\Validacion;
 
 use App\Models\ArticuloValidacion;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
+use App\Models\CsgValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +46,8 @@ class ServicioProyeccionCatalogoValidacion
                 'especies.calibres',
                 'especies.envases',
                 'csg.variedades:id',
+                'csg.productor.clientes' => fn ($consulta) => $consulta
+                    ->where('clientes_productores_csg.activo', true),
             ]);
 
             ArticuloValidacion::query()
@@ -96,6 +100,9 @@ class ServicioProyeccionCatalogoValidacion
             foreach ($temporada->clientes as $cliente) {
                 foreach ($cliente->marcas as $marca) {
                     foreach ($temporada->csg as $csg) {
+                        if (! $this->disponibleParaCliente($csg, $cliente)) {
+                            continue;
+                        }
                         $origen = OrigenValidacion::query()->firstOrNew([
                             'temporada_id' => $temporada->id,
                             'cliente' => $cliente->nombre,
@@ -135,5 +142,18 @@ class ServicioProyeccionCatalogoValidacion
                 }
             }
         }, attempts: 3);
+    }
+
+    private function disponibleParaCliente(
+        CsgValidacion $csg,
+        ClienteValidacion $cliente,
+    ): bool {
+        if (! $csg->productor_csg_id) {
+            return true;
+        }
+
+        return $csg->productor?->clientes->contains(
+            fn ($clienteGlobal): bool => $clienteGlobal->id === $cliente->cliente_id,
+        ) === true;
     }
 }

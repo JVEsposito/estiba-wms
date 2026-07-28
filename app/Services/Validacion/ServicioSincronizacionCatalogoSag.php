@@ -18,22 +18,33 @@ class ServicioSincronizacionCatalogoSag
 
     /**
      * @param  array<int, array{especie: string, variedad: string, texto: string}>  $pares
-     * @return array{temporada_id: ?string, especies_creadas: int, variedades_creadas: int, variedades_vinculadas: int}
+     * @return array{
+     *     temporada_id: ?string,
+     *     csg_creados: int,
+     *     csg_actualizados: int,
+     *     especies_creadas: int,
+     *     variedades_creadas: int,
+     *     variedades_vinculadas: int,
+     *     catalogo_actualizado: bool
+     * }
      */
-    public function sincronizar(ProductorCsg $productor, array $pares): array
+    public function sincronizar(
+        ProductorCsg $productor,
+        array $pares,
+        bool $proyectar = true,
+    ): array
     {
         $resultado = [
             'temporada_id' => null,
+            'csg_creados' => 0,
+            'csg_actualizados' => 0,
             'especies_creadas' => 0,
             'variedades_creadas' => 0,
             'variedades_vinculadas' => 0,
+            'catalogo_actualizado' => false,
         ];
 
-        if ($pares === []) {
-            return $resultado;
-        }
-
-        return DB::transaction(function () use ($productor, $pares, $resultado): array {
+        return DB::transaction(function () use ($productor, $pares, $proyectar, $resultado): array {
             $temporada = Temporada::query()
                 ->where('activa', true)
                 ->lockForUpdate()
@@ -85,19 +96,39 @@ class ServicioSincronizacionCatalogoSag
                 ->where('temporada_id', $temporada->id)
                 ->whereRaw('UPPER(codigo) = ?', [mb_strtoupper($productor->codigo)])
                 ->first();
-            if ($csg) {
-                if (! $csg->productor_csg_id) {
-                    $csg->update(['productor_csg_id' => $productor->id]);
-                }
-
-                $cambios = $csg->variedades()->syncWithoutDetaching(array_values(array_unique($variedadIds)));
-                $resultado['variedades_vinculadas'] = count($cambios['attached']);
-                $catalogoCambio = $catalogoCambio || $resultado['variedades_vinculadas'] > 0;
+            $csgNuevo = ! $csg;
+            $csg ??= new CsgValidacion;
+            $csg->fill([
+                'productor_csg_id' => $productor->id,
+                'temporada_id' => $temporada->id,
+                'codigo' => mb_strtoupper($productor->codigo),
+                'predio' => filled($productor->predio) ? $productor->predio : null,
+                'activo' => $csgNuevo
+                    ? mb_strtolower($productor->estado_sag) === 'activo'
+                    : $csg->activo,
+            ]);
+            $csgCambio = $csgNuevo || $csg->isDirty();
+            $csg->save();
+            if ($csgNuevo) {
+                $resultado['csg_creados']++;
+            } elseif ($csgCambio) {
+                $resultado['csg_actualizados']++;
             }
+
+            $cambios = $csg->variedades()->syncWithoutDetaching(
+                array_values(array_unique($variedadIds)),
+            );
+            $resultado['variedades_vinculadas'] = count($cambios['attached']);
+            $catalogoCambio = $catalogoCambio
+                || $csgCambio
+                || $resultado['variedades_vinculadas'] > 0;
+            $resultado['catalogo_actualizado'] = $catalogoCambio;
 
             if ($catalogoCambio) {
                 $temporada->increment('version_catalogo');
-                $this->proyector->reconstruir($temporada->refresh());
+                if ($proyectar) {
+                    $this->proyector->reconstruir($temporada->refresh());
+                }
             }
 
             return $resultado;

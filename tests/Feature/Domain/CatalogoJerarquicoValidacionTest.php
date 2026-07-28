@@ -9,7 +9,9 @@ use App\Models\CsgValidacion;
 use App\Models\EnvaseValidacion;
 use App\Models\EspecieValidacion;
 use App\Models\MarcaValidacion;
+use App\Models\ProductorCsg;
 use App\Models\Temporada;
+use App\Models\User;
 use App\Models\VariedadValidacion;
 use App\Services\Validacion\ServicioCopiaCatalogoValidacion;
 use DomainException;
@@ -80,7 +82,21 @@ class CatalogoJerarquicoValidacionTest extends TestCase
             'activo' => true,
         ]);
 
+        $usuario = User::factory()->create();
+        $productor = ProductorCsg::create([
+            'codigo' => 'CSG-001',
+            'razon_social' => 'Productor SAG',
+            'predio' => 'Predio Norte',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+            'fuente_url' => 'https://sag.example.test',
+            'primera_verificacion_at' => now(),
+            'ultima_verificacion_at' => now(),
+            'ultima_consulta_user_id' => $usuario->id,
+            'respuesta_hash' => hash('sha256', 'CSG-001'),
+        ]);
         $csg = CsgValidacion::create([
+            'productor_csg_id' => $productor->id,
             'temporada_id' => $origen->id,
             'codigo' => 'CSG-001',
             'predio' => 'Predio Norte',
@@ -126,6 +142,7 @@ class CatalogoJerarquicoValidacionTest extends TestCase
             ->where('temporada_id', $destino->id)
             ->where('codigo', 'CSG-001')
             ->firstOrFail();
+        $this->assertSame($productor->id, $csgCopiado->productor_csg_id);
         $this->assertSame(['Santina'], $csgCopiado->variedades()->pluck('nombre')->all());
     }
 

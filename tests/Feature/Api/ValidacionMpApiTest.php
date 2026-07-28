@@ -7,18 +7,92 @@ use App\Models\Cliente;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
 use App\Models\MovimientoEnvase;
+use App\Models\ProductorCsg;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Models\VariedadValidacion;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ValidacionMpApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_solo_ofrece_y_acepta_csg_habilitados_para_el_cliente_de_romana(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $clienteAutorizado = $this->cliente();
+        $clienteRecepcion = Cliente::create([
+            'codigo' => 'CLI-OTRO',
+            'nombre' => 'Otro cliente',
+            'activo' => true,
+        ]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $productor = ProductorCsg::create([
+            'codigo' => 'CSG-CLIENTE-01',
+            'razon_social' => 'Productor cliente autorizado',
+            'predio' => 'Predio autorizado',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+            'fuente_url' => 'https://sag.example.test',
+            'primera_verificacion_at' => now(),
+            'ultima_verificacion_at' => now(),
+            'ultima_consulta_user_id' => $operador->id,
+            'respuesta_hash' => hash('sha256', 'csg-cliente-01'),
+        ]);
+        $csg = CsgValidacion::create([
+            'productor_csg_id' => $productor->id,
+            'temporada_id' => $temporada->id,
+            'codigo' => $productor->codigo,
+            'predio' => $productor->predio,
+            'activo' => true,
+        ]);
+        DB::table('clientes_productores_csg')->insert([
+            'id' => (string) Str::uuid(),
+            'cliente_id' => $clienteAutorizado->id,
+            'productor_csg_id' => $productor->id,
+            'activo' => true,
+            'asociado_por_user_id' => $operador->id,
+            'actualizado_por_user_id' => $operador->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $this->recepcion($temporada, $clienteRecepcion))
+            ->assertCreated()
+            ->json('data');
+
+        $this->actingAs($validador, 'sanctum')
+            ->getJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/catalogos')
+            ->assertOk()
+            ->assertJsonCount(0, 'csg');
+        $validacion = $this->postJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/tomar', [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk()->json('data');
+
+        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [
+            'operacion_id' => (string) Str::uuid(),
+            'envases' => [
+                ['tipo_envase' => 'bins', 'cantidad_validada' => 48],
+                ['tipo_envase' => 'totes', 'cantidad_validada' => 10],
+            ],
+            'tarjas_verificadas' => true,
+            'requiere_segregacion' => true,
+            'segmentos' => [[
+                'motivos' => ['csg'],
+                'csg_validacion_id' => $csg->id,
+                'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 48],
+                    ['tipo_envase' => 'totes', 'cantidad' => 10],
+                ],
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['segmentos']);
+    }
 
     public function test_toma_recepcion_por_correlativo_y_confirma_diferencias_y_segregacion_sin_crear_folios(): void
     {

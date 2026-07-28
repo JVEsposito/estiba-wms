@@ -532,6 +532,7 @@ class ServicioLoteMateriaPrima
             ->whereKey($datos['csg_validacion_id'])
             ->where('temporada_id', $recepcion->temporada_id)
             ->where('activo', true)
+            ->disponibleParaCliente($recepcion->cliente_id)
             ->first();
         $especie = EspecieValidacion::query()
             ->whereKey($datos['especie_validacion_id'])
