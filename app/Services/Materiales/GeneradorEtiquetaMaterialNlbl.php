@@ -385,7 +385,7 @@ XML;
 
             $cabecera = pack(
                 'VvvvvvVVVvv',
-                0x04034b50,
+                0x04034B50,
                 20,
                 1,
                 99,
@@ -402,7 +402,7 @@ XML;
 
             $central .= pack(
                 'VvvvvvvVVVvvvvvVV',
-                0x02014b50,
+                0x02014B50,
                 20,
                 20,
                 1,
@@ -427,7 +427,7 @@ XML;
 
         $fin = pack(
             'VvvvvVVv',
-            0x06054b50,
+            0x06054B50,
             0,
             0,
             $cantidad,
