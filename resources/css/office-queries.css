@@ -59,6 +59,12 @@
 .dossier-lots { width: 100%; border-collapse: collapse; font-size: .72rem; }
 .dossier-lots th, .dossier-lots td { border-bottom: 1px solid var(--line); padding: 9px 7px; text-align: left; }
 .dossier-lots th { color: var(--muted); font-size: .62rem; text-transform: uppercase; }
+[data-queries-section] [data-queries-view] { display: none !important; }
+[data-queries-section="busqueda"] [data-queries-view="busqueda"],
+[data-queries-section="sag"] [data-queries-view="sag"],
+[data-queries-section="productores"] [data-queries-view="productores"] { display: block !important; }
+[data-queries-section="busqueda"] .queries-grid,
+[data-queries-section="sag"] .queries-grid { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 1250px) {
     .producer-list { grid-template-columns: repeat(2, 1fr); }
     .queries-grid { grid-template-columns: 1fr; }

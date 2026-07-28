@@ -1,5 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
+    @php
+        $activeQueriesSection = $queriesSection ?? 'busqueda';
+        $queriesSectionMeta = [
+            'busqueda' => [
+                'title' => 'Búsqueda operacional',
+                'description' => 'Encuentra folios, lotes, recepciones y productores en la base interna.',
+            ],
+            'sag' => [
+                'title' => 'Consulta SAG / CSG',
+                'description' => 'Verifica productores en el registro público y conserva el resultado trazable.',
+            ],
+            'productores' => [
+                'title' => 'Productores verificados',
+                'description' => 'Revisa productores consultados, asociaciones a clientes y antecedentes de temporada.',
+            ],
+        ];
+        $activeQueriesMeta = $queriesSectionMeta[$activeQueriesSection] ?? $queriesSectionMeta['busqueda'];
+    @endphp
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,11 +46,11 @@
             </form>
         </section>
 
-        <main class="office-app queries-app is-hidden" id="officeApp">
-            <x-office.navigation domain="consultas" office="busqueda" context="CONSULTAS Y TRAZABILIDAD" icon="⌕" />
+        <main class="office-app queries-app is-hidden" id="officeApp" data-queries-section="{{ $activeQueriesSection }}">
+            <x-office.navigation domain="consultas" :office="$navigationOffice ?? 'busqueda'" context="CONSULTAS Y TRAZABILIDAD" icon="⌕" />
 
             <section class="queries-heading">
-                <div><p class="eyebrow">OFICINA DE CONSULTAS</p><h1>Trazabilidad operacional</h1><p>Busca información interna o verifica productores directamente en el registro público del SAG.</p></div>
+                <div><p class="eyebrow">OFICINA DE CONSULTAS</p><h1>{{ $activeQueriesMeta['title'] }}</h1><p>{{ $activeQueriesMeta['description'] }}</p></div>
                 <button class="secondary-button queries-refresh" id="reloadButton" type="button">↻ Actualizar</button>
             </section>
 
@@ -44,7 +62,7 @@
             </section>
 
             <section class="queries-grid">
-                <article class="query-panel query-panel--search">
+                <article class="query-panel query-panel--search" data-queries-view="busqueda">
                     <header><p class="eyebrow">BASE OPERACIONAL</p><h2>Buscar en Estiba WMS</h2><p>Folios, lotes, productores y recepciones de todas las temporadas.</p></header>
                     <form class="query-search-form" id="globalSearchForm">
                         <input name="q" minlength="2" maxlength="100" placeholder="Folio, lote, CSG, GGN, guía, patente, RUT…" required>
@@ -60,7 +78,7 @@
                     <div class="search-results" id="searchResults"><div class="query-empty">Escribe al menos dos caracteres para iniciar una búsqueda.</div></div>
                 </article>
 
-                <article class="query-panel query-panel--sag">
+                <article class="query-panel query-panel--sag" data-queries-view="sag">
                     <header><p class="eyebrow">REGISTRO EXTERNO</p><h2>Consultar productor SAG</h2><p>Un resultado CSG válido se guarda automáticamente como pendiente de asociación a cliente.</p></header>
                     <form class="sag-search-form" id="sagSearchForm">
                         <label><span>Buscar por</span><select name="tipo"><option value="codigo_sag">Código SAG / CSG</option><option value="rut">RUT del productor</option></select></label>
@@ -72,7 +90,7 @@
                 </article>
             </section>
 
-            <section class="query-panel producers-panel">
+            <section class="query-panel producers-panel" data-queries-view="productores">
                 <header class="producers-heading">
                     <div><p class="eyebrow">BASE DE PRODUCTORES</p><h2>Productores CSG verificados</h2><p>Los CSG nuevos permanecen pendientes hasta que un responsable los asocie a un cliente.</p></div>
                     <form id="producerFilters"><input name="buscar" placeholder="Buscar CSG, RUT, razón social o predio"><select name="estado"><option value="">Todos</option><option value="pendiente_cliente">Pendientes de cliente</option><option value="asociado">Asociados</option></select><button class="secondary-button" type="submit">Filtrar</button></form>

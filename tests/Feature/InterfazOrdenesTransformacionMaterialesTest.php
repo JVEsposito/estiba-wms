@@ -19,6 +19,8 @@ class InterfazOrdenesTransformacionMaterialesTest extends TestCase
         $this->assertStringContainsString('Órdenes de transformación', $script);
         $this->assertStringContainsString('puede_consultar_transformaciones_materiales', $script);
         $this->assertStringContainsString('puede_gestionar_transformaciones_materiales', $script);
+        $this->assertStringContainsString("section.dataset.materialsView = 'ordenes'", $script);
+        $this->assertStringContainsString('orderSectionIsActive()', $script);
         $this->assertStringContainsString(
             '/api/materiales/transformaciones/ordenes?per_page=100',
             $script,

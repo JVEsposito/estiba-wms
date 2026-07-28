@@ -33,6 +33,10 @@ function labelIdentity() {
     }
 }
 
+function labelSectionIsActive() {
+    return document.getElementById('officeApp')?.dataset.materialsSection === 'recepcion';
+}
+
 function labelEscape(value) {
     return String(value ?? '')
         .replaceAll('&', '&amp;')
@@ -170,8 +174,10 @@ async function selectSourceRecord(id) {
 
 async function loadLabels() {
     const identity = labelIdentity();
-    const enabled = identity?.puede_imprimir_etiquetas_materiales === true
-        || identity?.capacidades?.puede_imprimir_etiquetas_materiales === true;
+    const enabled = labelSectionIsActive() && (
+        identity?.puede_imprimir_etiquetas_materiales === true
+        || identity?.capacidades?.puede_imprimir_etiquetas_materiales === true
+    );
     labelElements.workspace.classList.toggle('is-hidden', !enabled);
     if (!enabled || !labelToken() || labelState.loading) return;
     labelState.loading = true;
@@ -192,6 +198,19 @@ async function loadLabels() {
         labelState.history = [];
         renderFolios();
         renderHistory();
+
+        const parameters = new URLSearchParams(window.location.search);
+        const requestedSource = parameters.get('origen');
+        const requestedId = parameters.get('id');
+        if (['recepcion', 'transformacion'].includes(requestedSource) && requestedId) {
+            labelState.source = requestedSource;
+            labelElements.source.value = requestedSource;
+            renderSourceOptions();
+            if ([...labelElements.reception.options].some((option) => option.value === requestedId)) {
+                labelElements.reception.value = requestedId;
+                await selectSourceRecord(requestedId);
+            }
+        }
     } catch (error) {
         labelElements.error.textContent = error.message;
     } finally {

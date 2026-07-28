@@ -56,6 +56,10 @@ function canAdminRecipes() {
     return ['administrador', 'supervisor_materiales'].includes(recipeState.identity?.rol);
 }
 
+function recipeSectionIsActive() {
+    return document.getElementById('officeApp')?.dataset.materialsSection === 'recetas';
+}
+
 function recipeErrorMessage(data, fallback) {
     return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
 }
@@ -137,6 +141,7 @@ function injectRecipePanel() {
     const section = document.createElement('section');
     section.className = 'panel materials-panel materials-recipes-panel is-hidden';
     section.id = 'materialsRecipesPanel';
+    section.dataset.materialsView = 'recetas';
     section.innerHTML = `
         <div class="materials-panel__heading">
             <div>
@@ -448,7 +453,7 @@ function renderRecipes() {
 async function loadRecipesOffice(showErrors = false) {
     recipeState.token = localStorage.getItem(recipeTokenKey);
     recipeState.identity = recipeReadJson(recipeIdentityKey);
-    if (!recipeState.token || !canConsultRecipes()) {
+    if (!recipeSectionIsActive() || !recipeState.token || !canConsultRecipes()) {
         recipeElements.panel?.classList.add('is-hidden');
         return;
     }
@@ -484,6 +489,7 @@ function bootMaterialRecipes() {
     injectRecipeStyles();
     injectRecipePanel();
     if (!recipeElements.panel) return;
+    if (!recipeSectionIsActive()) return;
 
     document.getElementById('reloadMaterialsButton')?.addEventListener('click', () => loadRecipesOffice(false));
     window.setInterval(() => {
