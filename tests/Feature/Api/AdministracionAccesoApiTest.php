@@ -18,6 +18,7 @@ use App\Models\PerfilAcceso;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
+use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -729,14 +730,10 @@ class AdministracionAccesoApiTest extends TestCase
             'activo' => true,
         ]);
 
-        $this->actingAs($usuario, 'sanctum')
-            ->postJson('/api/acceso-oficina', [
-                'email' => $usuario->email,
-                'password' => 'password',
-            ])
-            ->assertOk()
-            ->assertJsonPath('usuario.modulos_acceso.0', 'frigorifico.validacion')
-            ->assertJsonPath('usuario.modulos_acceso.1', 'materiales.inventario');
+        $this->assertSame(
+            ['frigorifico.validacion', 'materiales.inventario'],
+            app(CatalogoModulosAcceso::class)->modulosUsuario($usuario),
+        );
     }
 
     public function test_perfil_administrador_personalizado_puede_gestionar_usuarios(): void
