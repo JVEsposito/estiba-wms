@@ -21,6 +21,13 @@ class InterfazOficinaCatalogoValidacionTest extends TestCase
             ->assertSee('CSG')
             ->assertSee('Registros activos generados')
             ->assertSeeInOrder([
+                'id="packageForm"',
+                'Envase *',
+                'Código externo',
+                'Cliente *',
+                'name="cliente_validacion_id"',
+            ], false)
+            ->assertSeeInOrder([
                 'id="speciesForm"',
                 'maxlength="100"',
                 'id="varietyForm"',

@@ -31,6 +31,11 @@ class ClienteValidacion extends Model
         return $this->hasMany(MarcaValidacion::class);
     }
 
+    public function envases(): HasMany
+    {
+        return $this->hasMany(EnvaseValidacion::class);
+    }
+
     protected function casts(): array
     {
         return ['activo' => 'boolean'];

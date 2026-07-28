@@ -62,6 +62,7 @@ class CatalogoJerarquicoValidacionTest extends TestCase
         ]);
         EnvaseValidacion::create([
             'especie_validacion_id' => $cereza->id,
+            'cliente_validacion_id' => $cliente->id,
             'nombre' => '5 KG',
             'activo' => true,
         ]);
@@ -136,6 +137,19 @@ class CatalogoJerarquicoValidacionTest extends TestCase
                 ->where('nombre', '5 KG')
                 ->count(),
             'El mismo envase debe poder existir como hijo de especies diferentes.',
+        );
+        $clienteCopiado = ClienteValidacion::query()
+            ->where('temporada_id', $destino->id)
+            ->sole();
+        $this->assertSame(
+            $clienteCopiado->id,
+            EnvaseValidacion::query()
+                ->whereIn('especie_validacion_id', $especiesCopiadas)
+                ->where('nombre', '5 KG')
+                ->whereNotNull('cliente_validacion_id')
+                ->sole()
+                ->cliente_validacion_id,
+            'Al migrar la temporada se debe asociar el envase al cliente equivalente del destino.',
         );
 
         $csgCopiado = CsgValidacion::query()

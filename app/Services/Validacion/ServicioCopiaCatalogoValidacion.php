@@ -48,6 +48,7 @@ class ServicioCopiaCatalogoValidacion
                 'csg.variedades',
             ]);
 
+            $clientes = [];
             foreach ($origen->clientes as $cliente) {
                 $clienteNuevo = ClienteValidacion::query()->updateOrCreate(
                     [
@@ -60,6 +61,7 @@ class ServicioCopiaCatalogoValidacion
                         'activo' => $cliente->cliente?->activo ?? $cliente->activo,
                     ],
                 );
+                $clientes[$cliente->id] = $clienteNuevo->id;
 
                 foreach ($cliente->marcas as $marca) {
                     MarcaValidacion::create([
@@ -111,6 +113,9 @@ class ServicioCopiaCatalogoValidacion
                 foreach ($especie->envases as $envase) {
                     EnvaseValidacion::create([
                         'especie_validacion_id' => $especieNueva->id,
+                        'cliente_validacion_id' => $envase->cliente_validacion_id !== null
+                            ? ($clientes[$envase->cliente_validacion_id] ?? null)
+                            : null,
                         'nombre' => $envase->nombre,
                         'codigo_externo' => $envase->codigo_externo,
                         'activo' => $envase->activo,

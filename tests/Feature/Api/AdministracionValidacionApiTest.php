@@ -5,8 +5,11 @@ namespace Tests\Feature\Api;
 use App\Enums\RolUsuario;
 use App\Models\ArticuloValidacion;
 use App\Models\CategoriaValidacion;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\Dispositivo;
+use App\Models\EnvaseValidacion;
+use App\Models\EspecieValidacion;
 use App\Models\ImportacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
@@ -159,6 +162,52 @@ class AdministracionValidacionApiTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.nombre', 'Mercado nacional');
+    }
+
+    public function test_crea_un_envase_asociado_a_un_cliente_de_la_temporada(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = Temporada::create([
+            'codigo' => 'ENV-2026',
+            'nombre' => 'Temporada envases',
+            'activa' => true,
+        ]);
+        $cliente = ClienteValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Disfruta',
+            'codigo_externo' => 'DIS',
+            'activo' => true,
+        ]);
+        $especie = EspecieValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cereza',
+            'activo' => true,
+        ]);
+        $datos = [
+            'especie_validacion_id' => $especie->id,
+            'nombre' => 'CC2.5GM',
+            'codigo_externo' => 'CC25',
+            'activo' => true,
+        ];
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/validacion/envases', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('cliente_validacion_id');
+
+        $envaseId = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/validacion/envases', [
+                ...$datos,
+                'cliente_validacion_id' => $cliente->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.cliente.id', $cliente->id)
+            ->json('data.id');
+
+        $this->assertSame(
+            $cliente->id,
+            EnvaseValidacion::query()->findOrFail($envaseId)->cliente_validacion_id,
+        );
     }
 
     public function test_importador_previsualiza_y_confirma_csv_sin_desactivar_ausencias(): void

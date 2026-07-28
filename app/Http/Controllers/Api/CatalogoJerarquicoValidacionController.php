@@ -107,7 +107,7 @@ class CatalogoJerarquicoValidacionController extends Controller
 
     public function storeEnvase(Request $request, ServicioCatalogoJerarquicoValidacion $servicio): JsonResponse
     {
-        return $this->creado($servicio->guardarEnvase($this->datosHijoEspecie($request, 100)));
+        return $this->creado($servicio->guardarEnvase($this->datosEnvase($request)));
     }
 
     public function updateEnvase(
@@ -116,7 +116,7 @@ class CatalogoJerarquicoValidacionController extends Controller
         ServicioCatalogoJerarquicoValidacion $servicio,
     ): JsonResponse {
         return response()->json(['data' => $servicio->guardarEnvase(
-            $this->datosHijoEspecie($request, 100),
+            $this->datosEnvase($request),
             $envaseValidacion,
         )]);
     }
@@ -162,6 +162,28 @@ class CatalogoJerarquicoValidacionController extends Controller
             'especies_validacion',
             $maximoNombre,
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function datosEnvase(Request $request): array
+    {
+        return $request->validate([
+            'especie_validacion_id' => [
+                'required',
+                'uuid',
+                'exists:especies_validacion,id',
+            ],
+            'cliente_validacion_id' => [
+                'required',
+                'uuid',
+                'exists:clientes_validacion,id',
+            ],
+            'nombre' => ['required', 'string', 'max:100'],
+            'codigo_externo' => ['nullable', 'string', 'max:100'],
+            'activo' => ['required', 'boolean'],
+        ], [
+            'cliente_validacion_id.required' => 'Selecciona el cliente propietario del envase.',
+        ]);
     }
 
     /** @return array<string, mixed> */

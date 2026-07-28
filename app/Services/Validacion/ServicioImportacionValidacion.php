@@ -202,9 +202,15 @@ class ServicioImportacionValidacion
                     $creados,
                     $actualizados,
                 );
-                $envase = $this->persistir(
+                $cliente = ClienteValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->where('cliente_id', $fila['cliente_id'])
+                    ->where('activo', true)
+                    ->firstOrFail();
+                $this->persistir(
                     EnvaseValidacion::query()->firstOrNew([
                         'especie_validacion_id' => $especie->id,
+                        'cliente_validacion_id' => $cliente->id,
                         'nombre' => $fila['envase'],
                     ]),
                     ['activo' => true],
@@ -212,12 +218,6 @@ class ServicioImportacionValidacion
                     $creados,
                     $actualizados,
                 );
-
-                $cliente = ClienteValidacion::query()
-                    ->where('temporada_id', $temporada->id)
-                    ->where('cliente_id', $fila['cliente_id'])
-                    ->where('activo', true)
-                    ->firstOrFail();
                 $marca = $this->persistir(
                     MarcaValidacion::query()->firstOrNew([
                         'cliente_validacion_id' => $cliente->id,
@@ -265,8 +265,13 @@ class ServicioImportacionValidacion
                 ->count();
 
             foreach ($importacion->filas as $fila) {
+                $cliente = ClienteValidacion::query()
+                    ->where('temporada_id', $temporada->id)
+                    ->where('cliente_id', $fila['cliente_id'])
+                    ->firstOrFail();
                 $articulo = ArticuloValidacion::query()->where([
                     'temporada_id' => $temporada->id,
+                    'cliente_validacion_id' => $cliente->id,
                     'especie' => $fila['especie'],
                     'variedad' => $fila['variedad'],
                     'calibre' => $fila['calibre'],
@@ -390,6 +395,7 @@ class ServicioImportacionValidacion
     private function calcularResumen(Temporada $temporada, array $filas, array $errores): array
     {
         $articulos = collect($filas)->unique(fn (array $fila): string => mb_strtolower(implode('|', [
+            $fila['cliente_id'],
             $fila['especie'],
             $fila['variedad'],
             $fila['calibre'],
@@ -402,8 +408,14 @@ class ServicioImportacionValidacion
         ])));
 
         $articulosNuevos = $articulos->filter(function (array $fila) use ($temporada): bool {
+            $clienteId = ClienteValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->where('cliente_id', $fila['cliente_id'])
+                ->value('id');
+
             return ! ArticuloValidacion::query()->where([
                 'temporada_id' => $temporada->id,
+                'cliente_validacion_id' => $clienteId,
                 'especie' => $fila['especie'],
                 'variedad' => $fila['variedad'],
                 'calibre' => $fila['calibre'],
