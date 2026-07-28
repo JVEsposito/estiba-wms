@@ -5,9 +5,11 @@ namespace Tests\Feature\Api;
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
+use App\Models\EspecieValidacion;
 use App\Models\ProductorCsg;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Models\VariedadValidacion;
 use App\Services\Consultas\ServicioConsultaSag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -57,6 +59,22 @@ class ConsultaOperacionalApiTest extends TestCase
         ], $productor->especies);
         $this->assertSame($productor->id, $catalogo->fresh()->productor_csg_id);
         $this->assertFalse($catalogo->fresh()->activo);
+        $this->assertDatabaseHas('especies_validacion', [
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cereza',
+            'activo' => true,
+        ]);
+        $this->assertSame(
+            ['Bing', 'Lapins', 'Rainier'],
+            VariedadValidacion::query()
+                ->whereHas('especie', fn ($query) => $query
+                    ->where('temporada_id', $temporada->id)
+                    ->where('nombre', 'Cereza'))
+                ->orderBy('nombre')
+                ->pluck('nombre')
+                ->all(),
+        );
+        $this->assertSame(3, $catalogo->fresh()->variedades()->count());
         $this->assertDatabaseCount('productores_csg', 1);
         $this->assertDatabaseHas('consultas_sag', [
             'tipo_busqueda' => 'codigo_sag',
@@ -77,6 +95,75 @@ class ConsultaOperacionalApiTest extends TestCase
             && $request['searchRutCodigo'] === 'Codigo SAG'
             && $request['tipo_part'] === '2'
             && $request['cod_sag'] === '105410');
+    }
+
+    public function test_consulta_sag_respeta_utf8_separa_listas_y_sincroniza_el_master_sin_duplicar(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $temporada = Temporada::create([
+            'codigo' => 'TEMP-CEREZAS',
+            'nombre' => 'Temporada cerezas',
+            'activa' => true,
+        ]);
+        $especieExistente = EspecieValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => 'Cereza',
+            'activo' => false,
+        ]);
+        $lapinsExistente = VariedadValidacion::create([
+            'especie_validacion_id' => $especieExistente->id,
+            'nombre' => 'Lapins',
+            'activo' => false,
+        ]);
+        $catalogo = CsgValidacion::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => '3129422',
+            'predio' => 'Pendiente de verificación',
+            'activo' => false,
+        ]);
+        Http::fake([
+            ServicioConsultaSag::URL => Http::response($this->respuestaSagUtf8ConLista(), 200),
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/consultas/sag', [
+                'tipo' => 'codigo_sag',
+                'valor' => '3129422',
+            ])
+            ->assertOk()
+            ->assertJsonPath('cantidad', 1)
+            ->assertJsonPath('data.0.razon_social', 'SIRZO BALTAZAR CARO LIZANA')
+            ->assertJsonPath(
+                'data.0.direccion',
+                'Dirección:PARCELA N 1 STA GABRIELA DE LOS LINGUES, SAN FERNANDO, DEL LIBERTADOR GRAL. BERNARDO O HIGGINS',
+            )
+            ->assertJsonPath('data.0.especies.0', 'CEREZA - LAPINS')
+            ->assertJsonPath('data.0.especies.1', 'CEREZA - SANTINA')
+            ->assertJsonPath('data.0.especies_variedades.0.especie', 'CEREZA')
+            ->assertJsonPath('data.0.especies_variedades.0.variedad', 'LAPINS')
+            ->assertJsonPath('data.0.especies_variedades.1.variedad', 'SANTINA');
+
+        $especie = EspecieValidacion::query()->sole();
+        $this->assertSame($temporada->id, $especie->temporada_id);
+        $this->assertSame('Cereza', $especie->nombre);
+        $this->assertFalse($especie->activo);
+        $this->assertSame(
+            ['Lapins', 'Santina'],
+            $especie->variedades()->orderBy('nombre')->pluck('nombre')->all(),
+        );
+        $this->assertFalse($lapinsExistente->fresh()->activo);
+        $this->assertFalse($catalogo->fresh()->activo);
+        $this->assertSame(2, $catalogo->fresh()->variedades()->count());
+
+        $this->postJson('/api/consultas/sag', [
+            'tipo' => 'codigo_sag',
+            'valor' => '3129422',
+        ])->assertOk();
+
+        $this->assertDatabaseCount('especies_validacion', 1);
+        $this->assertDatabaseCount('variedades_validacion', 2);
+        $this->assertDatabaseCount('csg_variedades_validacion', 2);
+        $this->assertDatabaseCount('productores_csg', 1);
     }
 
     public function test_respeta_permisos_de_consulta_y_asociacion_a_cliente(): void
@@ -253,6 +340,32 @@ class ConsultaOperacionalApiTest extends TestCase
         HTML;
 
         return mb_convert_encoding($html, 'Windows-1252', 'UTF-8');
+    }
+
+    private function respuestaSagUtf8ConLista(): string
+    {
+        return <<<'HTML'
+        <!doctype html>
+        <html><body>
+        <table>
+            <thead><tr><th>Código SAG</th><th>Predio / Establecimiento</th><th>Razón Social</th><th>Especies</th></tr></thead>
+            <tbody><tr>
+                <td>3129422 (ACTIVO) (CSG)</td>
+                <td>
+                    <strong>SIRZO BALTAZAR CARO LIZANA</strong><br>
+                    Dirección:PARCELA N 1 STA GABRIELA DE LOS LINGUES, SAN FERNANDO, DEL LIBERTADOR GRAL. BERNARDO O HIGGINS
+                </td>
+                <td>SIRZO BALTAZAR CARO LIZANA</td>
+                <td>
+                    <ul>
+                        <li>CEREZA - LAPINS</li>
+                        <li>CEREZA - SANTINA</li>
+                    </ul>
+                </td>
+            </tr></tbody>
+        </table>
+        </body></html>
+        HTML;
     }
 
     private function respuestaSagConAyudaEmergente(): string

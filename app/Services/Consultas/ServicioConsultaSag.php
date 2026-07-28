@@ -7,6 +7,7 @@ use App\Models\ConsultaSag;
 use App\Models\CsgValidacion;
 use App\Models\ProductorCsg;
 use App\Models\User;
+use App\Services\Validacion\ServicioSincronizacionCatalogoSag;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -20,6 +21,10 @@ use Throwable;
 class ServicioConsultaSag
 {
     public const URL = 'https://sra.sag.gob.cl/SRA_COMUNES/SRA_ContComunExt.asp?opcMenu=BusCodSAG';
+
+    public function __construct(
+        private readonly ServicioSincronizacionCatalogoSag $sincronizadorCatalogo,
+    ) {}
 
     /** @return Collection<int, ProductorCsg> */
     public function consultar(string $tipo, string $valor, User $usuario): Collection
@@ -97,6 +102,11 @@ class ServicioConsultaSag
                         ->whereNull('productor_csg_id')
                         ->update(['productor_csg_id' => $productor->id]);
 
+                    $this->sincronizadorCatalogo->sincronizar(
+                        $productor,
+                        $resultado['especies_variedades'],
+                    );
+
                     return $productor;
                 });
             });
@@ -129,7 +139,7 @@ class ServicioConsultaSag
     /** @return Collection<int, array<string, mixed>> */
     private function extraerResultados(string $html): Collection
     {
-        $utf8 = mb_convert_encoding($html, 'UTF-8', 'Windows-1252');
+        $utf8 = $this->convertirAUtf8($html);
         $documento = new DOMDocument;
         $estadoLibxml = libxml_use_internal_errors(true);
         $documento->loadHTML('<?xml encoding="UTF-8">'.$utf8);
@@ -166,8 +176,11 @@ class ServicioConsultaSag
             $especies = $this->lineas($celdas->item(3))
                 ->map(fn (string $linea): string => ltrim($linea, "- \t\n\r\0\x0B"))
                 ->filter()
-                ->values()
-                ->all();
+                ->values();
+            $especiesVariedades = $especies
+                ->map(fn (string $linea): ?array => $this->separarEspecieVariedad($linea))
+                ->filter()
+                ->values();
             $resultado = [
                 'codigo' => mb_strtoupper(trim($coincidencia[1])),
                 'razon_social' => $this->texto($celdas->item(2)),
@@ -175,7 +188,8 @@ class ServicioConsultaSag
                 'direccion' => $origen->skip(1)->implode(', ') ?: null,
                 'estado_sag' => mb_strtolower(trim($coincidencia[2])),
                 'tipo_codigo' => $tipoCodigo,
-                'especies' => $especies,
+                'especies' => $especies->all(),
+                'especies_variedades' => $especiesVariedades->all(),
             ];
 
             if ($resultado['codigo'] !== '' && $resultado['razon_social'] !== '') {
@@ -199,15 +213,57 @@ class ServicioConsultaSag
             return collect();
         }
 
+        $items = $celda->getElementsByTagName('li');
+        if ($items->length > 0) {
+            return collect($items)
+                ->map(fn ($item): string => $this->normalizarTexto($item->textContent))
+                ->filter()
+                ->values();
+        }
+
         $texto = '';
         foreach ($celda->childNodes as $nodo) {
             $texto .= $nodo->nodeName === 'br' ? "\n" : $nodo->textContent;
         }
 
-        return collect(preg_split('/[\r\n]+/', $texto) ?: [])
+        return collect(preg_split('/[\r\n•]+/u', $texto) ?: [])
             ->map(fn (string $linea): string => $this->normalizarTexto($linea))
             ->filter()
             ->values();
+    }
+
+    /**
+     * @return array{especie: string, variedad: string, texto: string}|null
+     */
+    private function separarEspecieVariedad(string $linea): ?array
+    {
+        $partes = preg_split('/\s+-\s+/u', $linea, 2);
+        if (! $partes || count($partes) !== 2) {
+            return null;
+        }
+
+        $especie = $this->normalizarTexto($partes[0]);
+        $variedad = $this->normalizarTexto($partes[1]);
+        if ($especie === '' || $variedad === '') {
+            return null;
+        }
+
+        return [
+            'especie' => $especie,
+            'variedad' => $variedad,
+            'texto' => "{$especie} - {$variedad}",
+        ];
+    }
+
+    private function convertirAUtf8(string $html): string
+    {
+        $contenido = str_starts_with($html, "\xEF\xBB\xBF")
+            ? substr($html, 3)
+            : $html;
+
+        return mb_check_encoding($contenido, 'UTF-8')
+            ? $contenido
+            : mb_convert_encoding($contenido, 'UTF-8', 'Windows-1252');
     }
 
     private function texto(?DOMElement $celda): string
