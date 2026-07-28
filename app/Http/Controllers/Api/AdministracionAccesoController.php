@@ -8,6 +8,7 @@ use App\Http\Requests\ActualizarUsuarioAdministracionRequest;
 use App\Http\Requests\CrearDispositivoAdministracionRequest;
 use App\Http\Requests\CrearUsuarioAdministracionRequest;
 use App\Models\Dispositivo;
+use App\Models\PerfilAcceso;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
@@ -28,6 +29,7 @@ class AdministracionAccesoController extends Controller
 
         return response()->json([
             'usuarios' => User::query()
+                ->with('perfilAcceso')
                 ->orderBy('name')
                 ->orderBy('email')
                 ->get()
@@ -42,11 +44,14 @@ class AdministracionAccesoController extends Controller
     public function crearUsuario(CrearUsuarioAdministracionRequest $request): JsonResponse
     {
         $datos = $request->validated();
+        $perfil = $this->resolverPerfil($datos);
+        $rol = $perfil?->rol_base ?? RolUsuario::from($datos['rol']);
         $usuario = User::create([
             'name' => $datos['nombre'],
             'email' => $datos['email'],
             'password' => $datos['password'],
-            'rol' => $datos['rol'],
+            'rol' => $rol,
+            'perfil_acceso_id' => $perfil?->id,
             'activo' => (bool) ($datos['activo'] ?? true),
         ]);
 
@@ -64,11 +69,13 @@ class AdministracionAccesoController extends Controller
         $actor = $request->user();
 
         $resultado = DB::transaction(function () use ($datos, $usuario, $actor): array {
-            $usuario = User::query()->lockForUpdate()->findOrFail($usuario->id);
+            $usuario = User::query()->with('perfilAcceso')->lockForUpdate()->findOrFail($usuario->id);
+            $perfil = $this->resolverPerfil($datos);
+            $rolDestino = $perfil?->rol_base ?? RolUsuario::from($datos['rol']);
             $eraAdministradorActivo = $usuario->activo
                 && $usuario->rol === RolUsuario::Administrador;
             $seguiraAdministradorActivo = (bool) $datos['activo']
-                && RolUsuario::from($datos['rol']) === RolUsuario::Administrador;
+                && $rolDestino === RolUsuario::Administrador;
 
             if ($eraAdministradorActivo && ! $seguiraAdministradorActivo) {
                 $administradoresActivos = User::query()
@@ -94,12 +101,14 @@ class AdministracionAccesoController extends Controller
             $rolAnterior = $usuario->rol;
             $emailAnterior = $usuario->email;
             $activoAnterior = $usuario->activo;
+            $perfilAnterior = $usuario->perfil_acceso_id;
             $cambiaPassword = filled($datos['password'] ?? null);
 
             $usuario->fill([
                 'name' => $datos['nombre'],
                 'email' => $datos['email'],
-                'rol' => $datos['rol'],
+                'rol' => $rolDestino,
+                'perfil_acceso_id' => $perfil?->id,
                 'activo' => (bool) $datos['activo'],
             ]);
             if ($cambiaPassword) {
@@ -109,6 +118,7 @@ class AdministracionAccesoController extends Controller
 
             $cambioSeguridad = $cambiaPassword
                 || $rolAnterior !== $usuario->rol
+                || $perfilAnterior !== $usuario->perfil_acceso_id
                 || $emailAnterior !== $usuario->email
                 || $activoAnterior !== $usuario->activo;
 
@@ -152,6 +162,11 @@ class AdministracionAccesoController extends Controller
             'nombre' => $usuario->name,
             'email' => $usuario->email,
             'rol' => $usuario->rol->value,
+            'perfil' => $usuario->perfilAcceso ? [
+                'id' => $usuario->perfilAcceso->id,
+                'codigo' => $usuario->perfilAcceso->codigo,
+                'nombre' => $usuario->perfilAcceso->nombre,
+            ] : null,
             'activo' => $usuario->activo,
             'permisos' => $this->alcance->capacidadesApi($usuario),
             'creado_at' => $usuario->created_at?->toAtomString(),
@@ -173,5 +188,35 @@ class AdministracionAccesoController extends Controller
             'ultimo_acceso_at' => $dispositivo->ultimo_acceso_at?->toAtomString(),
             'creado_at' => $dispositivo->created_at?->toAtomString(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     */
+    private function resolverPerfil(array $datos): ?PerfilAcceso
+    {
+        if (! filled($datos['perfil_acceso_id'] ?? null)) {
+            if (! filled($datos['rol'] ?? null)) {
+                return null;
+            }
+
+            $perfil = PerfilAcceso::query()
+                ->where('rol_base', $datos['rol'])
+                ->where('predeterminado', true)
+                ->first();
+
+            if (! $perfil?->activo) {
+                throw new DomainException(
+                    'El perfil inicial correspondiente al rol seleccionado no está disponible.',
+                );
+            }
+
+            return $perfil;
+        }
+
+        return PerfilAcceso::query()
+            ->whereKey($datos['perfil_acceso_id'])
+            ->where('activo', true)
+            ->firstOrFail();
     }
 }

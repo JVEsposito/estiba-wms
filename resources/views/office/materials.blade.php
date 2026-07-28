@@ -90,37 +90,37 @@
                 </div>
 
                 <section class="materials-module-overview" id="materialsModuleOverview" data-materials-view="resumen">
-                    <a class="materials-module-card" href="/oficina/materiales/catalogos" data-navigation-permissions="puede_administrar_catalogos_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/catalogos" data-navigation-module="materiales.catalogos" data-navigation-permissions="puede_administrar_catalogos_materiales">
                         <span aria-hidden="true">≡</span>
                         <div><p class="eyebrow">CONFIGURACIÓN</p><h2>Catálogos</h2><p>Proveedores, ítems, destinos y asociaciones por cliente.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/materiales/recepcion" data-navigation-permissions="puede_imprimir_etiquetas_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/recepcion" data-navigation-module="materiales.etiquetas" data-navigation-permissions="puede_imprimir_etiquetas_materiales">
                         <span aria-hidden="true">▣</span>
                         <div><p class="eyebrow">RECEPCIÓN</p><h2>Etiquetas</h2><p>Folios por recepción u orden, disponibles en PDF y ZPL.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-module="materiales.inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
                         <span aria-hidden="true">▦</span>
                         <div><p class="eyebrow">EXISTENCIA</p><h2>Inventario</h2><p>Saldo por cliente, folio, ítem, estado y ubicación.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/materiales/despachos" data-navigation-permissions="puede_consultar_despachos_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/despachos" data-navigation-module="materiales.despachos" data-navigation-permissions="puede_consultar_despachos_materiales">
                         <span aria-hidden="true">↗</span>
                         <div><p class="eyebrow">OPERACIÓN</p><h2>Despachos</h2><p>Solicitudes internas, reservas y seguimiento de entrega.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/materiales/recetas" data-navigation-permissions="puede_consultar_transformaciones_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/recetas" data-navigation-module="materiales.recetas" data-navigation-permissions="puede_consultar_transformaciones_materiales">
                         <span aria-hidden="true">◇</span>
                         <div><p class="eyebrow">TRANSFORMACIÓN</p><h2>Recetas</h2><p>Componentes, factores, merma y versiones activas.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/materiales/ordenes" data-navigation-permissions="puede_consultar_transformaciones_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/ordenes" data-navigation-module="materiales.ordenes" data-navigation-permissions="puede_consultar_transformaciones_materiales">
                         <span aria-hidden="true">✓</span>
                         <div><p class="eyebrow">PROGRAMACIÓN</p><h2>Órdenes</h2><p>Planificación, reservas FIFO y ejecución en PDA.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/existencias" data-navigation-permissions="puede_consultar_despachos_materiales">
+                    <a class="materials-module-card" href="/oficina/existencias" data-navigation-module="materiales.exportaciones" data-navigation-permissions="puede_consultar_despachos_materiales">
                         <span aria-hidden="true">⇩</span>
                         <div><p class="eyebrow">RESPALDOS</p><h2>Exportaciones</h2><p>Cortes XLSX y conexiones autoactualizables para Excel.</p></div>
                         <strong aria-hidden="true">→</strong>

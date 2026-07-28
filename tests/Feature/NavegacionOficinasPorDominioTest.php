@@ -82,6 +82,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertOk()
             ->assertSee('data-navigation-targets=', false)
             ->assertSee('&quot;href&quot;:&quot;/oficina/romana&quot;', false)
+            ->assertSee('&quot;module&quot;:&quot;materia-prima.romana&quot;', false)
             ->assertSee('&quot;permissions&quot;:[&quot;puede_consultar_romana&quot;]', false)
             ->assertSee('&quot;href&quot;:&quot;/oficina/materiales&quot;', false)
             ->assertDontSee('puede_consultar_materia_prima,puede_consultar_cargas', false);
@@ -90,6 +91,8 @@ class NavegacionOficinasPorDominioTest extends TestCase
 
         $this->assertIsString($script);
         $this->assertStringContainsString('firstAccessibleTarget', $script);
+        $this->assertStringContainsString('hasModule', $script);
+        $this->assertStringContainsString('navigationModule', $script);
         $this->assertStringContainsString('ambito_camaras_productos', $script);
         $this->assertStringContainsString('window.location.replace', $script);
     }

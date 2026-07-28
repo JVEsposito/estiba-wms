@@ -29,7 +29,13 @@ class ActualizarUsuarioAdministracionRequest extends FormRequest
                 'max:255',
                 Rule::unique('users', 'email')->ignore($usuario),
             ],
-            'rol' => ['required', Rule::enum(RolUsuario::class)],
+            'rol' => ['nullable', 'required_without:perfil_acceso_id', Rule::enum(RolUsuario::class)],
+            'perfil_acceso_id' => [
+                'nullable',
+                'required_without:rol',
+                'uuid',
+                Rule::exists('perfiles_acceso', 'id')->where('activo', true),
+            ],
             'activo' => ['required', 'boolean'],
             'password' => [
                 'bail',
@@ -57,6 +63,8 @@ class ActualizarUsuarioAdministracionRequest extends FormRequest
             'email.unique' => 'Ese correo electrónico ya está registrado.',
             'rol.required' => 'Selecciona un rol.',
             'rol.enum' => 'El rol seleccionado no es válido.',
+            'perfil_acceso_id.required_without' => 'Selecciona un perfil de acceso.',
+            'perfil_acceso_id.exists' => 'El perfil seleccionado no existe o se encuentra inactivo.',
             'activo.required' => 'Indica si el usuario queda activo o inactivo.',
             'activo.boolean' => 'El estado del usuario no es válido.',
             'password.string' => 'La contraseña debe ser texto.',

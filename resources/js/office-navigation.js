@@ -36,6 +36,14 @@ function permissionsFrom(value) {
         .filter(Boolean);
 }
 
+function hasModule(identity, module) {
+    if (!module) return true;
+    const modules = capabilities(identity).modulos_acceso;
+    if (!Array.isArray(modules)) return true;
+
+    return modules.includes(module);
+}
+
 function hasAnyPermission(identity, permissions) {
     return permissions.some((permission) => can(identity, permission));
 }
@@ -58,7 +66,10 @@ function domainTargets(link) {
 }
 
 function firstAccessibleTarget(identity, targets) {
-    return targets.find((target) => hasAnyPermission(identity, target.permissions || [])) || null;
+    return targets.find((target) => (
+        hasModule(identity, target.module)
+        && hasAnyPermission(identity, target.permissions || [])
+    )) || null;
 }
 
 function redirectFromUnavailableOffice(identity) {
@@ -92,15 +103,29 @@ function redirectFromUnavailableOffice(identity) {
 function refreshNavigation() {
     const identity = readIdentity();
     const hasSession = Boolean(localStorage.getItem(tokenKey) && identity);
+    const profileName = identity?.perfil_acceso?.nombre
+        || identity?.capacidades?.perfil_acceso?.nombre;
+    const roleLabel = document.getElementById('officeUserRole');
+    if (hasSession && profileName && roleLabel) roleLabel.textContent = profileName;
 
     document.querySelectorAll('[data-office-key]').forEach((link) => {
         const permissions = permissionsFrom(link.dataset.navigationPermissions);
-        setVisibility(link, hasSession && hasAnyPermission(identity, permissions));
+        setVisibility(
+            link,
+            hasSession
+                && hasModule(identity, link.dataset.navigationModule)
+                && hasAnyPermission(identity, permissions),
+        );
     });
 
     document.querySelectorAll('[data-navigation-permissions]:not([data-office-key])').forEach((element) => {
         const permissions = permissionsFrom(element.dataset.navigationPermissions);
-        setVisibility(element, hasSession && hasAnyPermission(identity, permissions));
+        setVisibility(
+            element,
+            hasSession
+                && hasModule(identity, element.dataset.navigationModule)
+                && hasAnyPermission(identity, permissions),
+        );
     });
 
     document.querySelectorAll('[data-domain-key]').forEach((link) => {

@@ -9,7 +9,7 @@
         <title>Estiba WMS · Administración de accesos</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-user-management.js', 'resources/js/office-label-profiles.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-access-profiles.js', 'resources/js/office-user-management.js', 'resources/js/office-label-profiles.js'])
         @endif
     </head>
     <body>
@@ -185,6 +185,40 @@
                     </div>
                 </section>
 
+                <section class="admin-panel panel access-profiles-panel" aria-labelledby="accessProfilesTitle">
+                    <div class="admin-panel__heading">
+                        <div><p class="eyebrow">PERFILES Y PERMISOS</p><h2 id="accessProfilesTitle">Perfiles de acceso</h2></div>
+                        <span id="accessProfilesSummary">0 configurados</span>
+                    </div>
+
+                    <div class="access-profiles-layout">
+                        <form class="admin-form access-profile-form" id="accessProfileForm" novalidate>
+                            <input name="id" type="hidden">
+                            <div class="admin-form__grid">
+                                <label class="field"><span>Código *</span><input name="codigo" maxlength="80" placeholder="SUPERVISOR_RECEPCION" required></label>
+                                <label class="field field--wide"><span>Nombre *</span><input name="nombre" maxlength="150" placeholder="Supervisor de recepción" required></label>
+                                <label class="field field--wide"><span>Descripción</span><input name="descripcion" maxlength="500" placeholder="Responsabilidades y alcance del perfil"></label>
+                                <label class="field"><span>Nivel operacional base *</span><select name="rol_base" required></select></label>
+                            </div>
+                            <p class="admin-form__hint">El nivel base define qué acciones puede ejecutar. Los módulos determinan cuáles de esas oficinas verá y podrá utilizar.</p>
+                            <div class="access-module-selector" id="accessModuleSelector"></div>
+                            <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo y disponible para asignar</span></label>
+                            <p class="form-error" id="accessProfileError" role="alert"></p>
+                            <div class="admin-form__actions">
+                                <button class="secondary-button is-hidden" id="cancelAccessProfileEdit" type="button">Nuevo perfil</button>
+                                <button class="primary-button" type="submit">Guardar perfil <span>→</span></button>
+                            </div>
+                        </form>
+
+                        <div class="admin-table-scroll">
+                            <table class="admin-table access-profiles-table">
+                                <thead><tr><th>Perfil</th><th>Nivel base</th><th>Módulos</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                <tbody id="accessProfilesTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
                 <div class="admin-grid">
                     <section class="admin-panel panel" aria-labelledby="usersTitle">
                         <div class="admin-panel__heading">
@@ -196,7 +230,7 @@
                             <div class="admin-form__grid">
                                 <label class="field field--wide"><span>Nombre completo *</span><input name="nombre" maxlength="255" placeholder="Ej. Camilo González" required></label>
                                 <label class="field field--wide"><span>Correo electrónico *</span><input name="email" type="email" maxlength="255" autocomplete="off" placeholder="camilo@empresa.cl" required></label>
-                                <label class="field"><span>Rol *</span><select name="rol" required><option value="camarero_frio">Camarero de frío</option><option value="camarero_materiales">Camarero de materiales</option><option value="operador_prefrio">Operador de prefrío</option><option value="operador_romana">Operador de romana</option><option value="digitador_materia_prima">Digitador de materia prima</option><option value="supervisor_frio">Supervisor de frío</option><option value="supervisor_materiales">Supervisor de materiales</option><option value="despachador">Despachador</option><option value="validador">Validador de pallets</option><option value="validador_mp">Validador MP</option><option value="consulta">Solo consulta</option><option value="administrador">Administrador</option></select></label>
+                                <label class="field"><span>Perfil de acceso *</span><select name="perfil_acceso_id" required><option value="">Cargando perfiles…</option></select></label>
                                 <label class="field"><span>Contraseña temporal *</span><input name="password" type="password" minlength="10" maxlength="255" autocomplete="new-password" placeholder="Mínimo 10 caracteres" required></label>
                                 <label class="field"><span>Confirmar contraseña *</span><input name="password_confirmation" type="password" minlength="10" maxlength="255" autocomplete="new-password" required></label>
                             </div>
@@ -207,7 +241,7 @@
 
                         <div class="admin-table-scroll">
                             <table class="admin-table">
-                                <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th></tr></thead>
+                                <thead><tr><th>Usuario</th><th>Perfil</th><th>Estado</th></tr></thead>
                                 <tbody id="usersTableBody"></tbody>
                             </table>
                         </div>

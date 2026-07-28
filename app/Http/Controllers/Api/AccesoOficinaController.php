@@ -53,6 +53,8 @@ class AccesoOficinaController extends Controller
                 'nombre' => $usuario->name,
                 'email' => $usuario->email,
                 'rol' => $usuario->rol->value,
+                'perfil_acceso' => $capacidades['perfil_acceso'],
+                'modulos_acceso' => $capacidades['modulos_acceso'],
                 'ambito_camaras' => $alcance->ambitoCamaras($usuario),
                 'capacidades' => $capacidades,
                 'puede_configurar_camaras' => $usuario->can('crear-camaras-productos')

@@ -34,6 +34,12 @@ class AccesoTabletController extends Controller
             ]);
         }
 
+        if ($alcance->capacidadesApi($usuario)['modulos_acceso'] === []) {
+            throw ValidationException::withMessages([
+                'email' => 'El perfil del usuario se encuentra inactivo o no posee módulos habilitados.',
+            ]);
+        }
+
         $dispositivo = Dispositivo::query()
             ->where('codigo', $datos['codigo_dispositivo'])
             ->where('activo', true)
@@ -57,6 +63,7 @@ class AccesoTabletController extends Controller
                 "tablet-{$dispositivo->codigo}",
             );
         });
+        $capacidades = $alcance->capacidadesApi($usuario);
 
         return response()->json([
             'token' => $nuevoToken->plainTextToken,
@@ -66,8 +73,10 @@ class AccesoTabletController extends Controller
                 'nombre' => $usuario->name,
                 'email' => $usuario->email,
                 'rol' => $usuario->rol->value,
+                'perfil_acceso' => $capacidades['perfil_acceso'],
+                'modulos_acceso' => $capacidades['modulos_acceso'],
                 'ambito_camaras' => $alcance->ambitoCamaras($usuario),
-                'capacidades' => $alcance->capacidadesApi($usuario),
+                'capacidades' => $capacidades,
             ],
             'dispositivo' => [
                 'id' => $dispositivo->id,

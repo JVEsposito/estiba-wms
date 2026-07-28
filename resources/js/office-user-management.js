@@ -5,22 +5,15 @@ if (form && tableBody) {
     const tokenKey = 'estiba_wms_office_token';
     const identityKey = 'estiba_wms_office_identity';
     let users = [];
+    let profiles = [];
     let decorating = false;
 
-    const rolePermissions = {
-        administrador: 'Acceso total a configuración, cámaras, cargas, materiales, validación, prefrío, romana, envases y gerencia.',
-        supervisor_frio: 'Supervisión de cámaras de frío, cargas, validación, prefrío, romana y panel gerencial.',
-        supervisor_materiales: 'Supervisión de cámaras, recepciones, inventario, kardex, despachos y cuenta de envases de Materiales.',
-        despachador: 'Gestión de cargas, despachos de materiales, Romana y guías de envases según el flujo operacional.',
-        operador_prefrio: 'Consulta y operación de túneles y procesos de prefrío.',
-        operador_romana: 'Operación de Romana y gestión operacional de cuenta y guías de envases.',
-        digitador_materia_prima: 'Digitación, lotización, hidrocooler y asignación a cámaras de materia prima.',
-        camarero_frio: 'Operación de cámaras de producto y ejecución física de movimientos y despachos.',
-        camarero_materiales: 'Operación de cámaras de materiales y retiro de reservas autorizadas.',
-        validador: 'Validación de pallets desde PDA o tablet.',
-        validador_mp: 'Validación de materia prima recibida.',
-        consulta: 'Consulta de módulos autorizados sin facultades operacionales.',
-    };
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
 
     function readIdentity() {
         try {
@@ -76,20 +69,25 @@ if (form && tableBody) {
             cancel.addEventListener('click', resetForm);
         }
 
-        form.elements.rol?.addEventListener('change', updatePermissionsHint);
+        form.elements.perfil_acceso_id?.addEventListener('change', updatePermissionsHint);
         updatePermissionsHint();
     }
 
     function updatePermissionsHint() {
-        const role = form.elements.rol?.value || '';
+        const profile = profiles.find((candidate) => candidate.id === form.elements.perfil_acceso_id?.value);
         const hint = document.getElementById('userPermissionsHint');
-        if (hint) hint.textContent = `Permisos del rol: ${rolePermissions[role] || 'Sin permisos operacionales definidos.'}`;
+        if (hint) {
+            hint.textContent = profile
+                ? `Perfil: ${profile.nombre} · nivel ${profile.rol_base_nombre} · ${profile.modulos.length} módulos.`
+                : 'Selecciona el perfil que definirá los módulos y el nivel operacional del usuario.';
+        }
     }
 
     function resetForm() {
         form.reset();
         form.elements.id.value = '';
         form.elements.activo.checked = true;
+        form.elements.perfil_acceso_id.value = profiles.find((profile) => profile.activo)?.id || '';
         form.elements.password.required = true;
         form.elements.password_confirmation.required = true;
         form.elements.password.previousElementSibling.textContent = 'Contraseña temporal *';
@@ -104,7 +102,7 @@ if (form && tableBody) {
         form.elements.id.value = user.id;
         form.elements.nombre.value = user.nombre;
         form.elements.email.value = user.email;
-        form.elements.rol.value = user.rol;
+        form.elements.perfil_acceso_id.value = user.perfil?.id || '';
         form.elements.activo.checked = user.activo;
         form.elements.password.value = '';
         form.elements.password_confirmation.value = '';
@@ -129,6 +127,29 @@ if (form && tableBody) {
         } catch {
             // La pantalla principal administra el error de sesión o conectividad.
         }
+    }
+
+    async function refreshProfiles() {
+        if (!localStorage.getItem(tokenKey)) return;
+        try {
+            const response = await api('/api/administracion/perfiles-acceso');
+            setProfiles(response.data || []);
+        } catch {
+            // La pantalla principal administra el error de sesión o conectividad.
+        }
+    }
+
+    function setProfiles(items) {
+        profiles = items;
+        const selected = form.elements.perfil_acceso_id.value;
+        form.elements.perfil_acceso_id.innerHTML = profiles
+            .filter((profile) => profile.activo || profile.id === selected)
+            .map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.codigo)} · ${escapeHtml(profile.nombre)}</option>`)
+            .join('');
+        form.elements.perfil_acceso_id.value = profiles.some((profile) => profile.id === selected)
+            ? selected
+            : profiles.find((profile) => profile.activo)?.id || '';
+        updatePermissionsHint();
     }
 
     function decorateRows() {
@@ -219,6 +240,7 @@ if (form && tableBody) {
                         nombre: response.usuario.nombre,
                         email: response.usuario.email,
                         rol: response.usuario.rol,
+                        perfil_acceso: response.usuario.perfil,
                         activo: response.usuario.activo,
                     }));
                 }
@@ -232,5 +254,9 @@ if (form && tableBody) {
     }, { capture: true });
 
     ensureFields();
-    void refreshUsers();
+    window.addEventListener('estiba:access-profiles', (event) => {
+        setProfiles(event.detail?.profiles || []);
+        void refreshUsers();
+    });
+    void Promise.all([refreshProfiles(), refreshUsers()]);
 }

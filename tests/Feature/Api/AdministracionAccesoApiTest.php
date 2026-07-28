@@ -14,6 +14,7 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
+use App\Models\PerfilAcceso;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
@@ -582,5 +583,163 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonPath('usuario.puede_administrar_accesos', true)
             ->assertJsonPath('usuario.puede_gestionar_andenes', true)
             ->assertJsonPath('usuario.capacidades.puede_gestionar_andenes', true);
+    }
+
+    public function test_administrador_crea_perfil_por_modulos_y_lo_asigna_a_un_usuario(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $respuestaCatalogo = $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/administracion/perfiles-acceso')
+            ->assertOk()
+            ->assertJsonFragment(['nombre' => 'Gerencia y Administración'])
+            ->assertJsonFragment(['clave' => 'materiales.ordenes']);
+
+        $this->assertCount(count(RolUsuario::cases()), $respuestaCatalogo->json('data'));
+
+        $perfil = $this->postJson('/api/administracion/perfiles-acceso', [
+            'codigo' => ' consulta_recepcion ',
+            'nombre' => ' Consulta de recepción ',
+            'descripcion' => 'Observación acotada de recepción',
+            'rol_base' => RolUsuario::Consulta->value,
+            'modulos' => [
+                'gerencia.panel',
+                'materia-prima.romana',
+            ],
+            'activo' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.codigo', 'CONSULTA_RECEPCION')
+            ->assertJsonPath('data.modulos.0', 'gerencia.panel')
+            ->json('data');
+
+        $this->postJson('/api/administracion/usuarios', [
+            'nombre' => 'Gerencia Recepción',
+            'email' => 'gerencia.recepcion@empresa.cl',
+            'perfil_acceso_id' => $perfil['id'],
+            'password' => 'Temporal2026',
+            'password_confirmation' => 'Temporal2026',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('usuario.rol', RolUsuario::Consulta->value)
+            ->assertJsonPath('usuario.perfil.id', $perfil['id']);
+
+        $this->postJson('/api/acceso-oficina', [
+            'email' => 'gerencia.recepcion@empresa.cl',
+            'password' => 'Temporal2026',
+        ])
+            ->assertOk()
+            ->assertJsonPath('usuario.modulos_acceso.0', 'gerencia.panel')
+            ->assertJsonPath('usuario.modulos_acceso.1', 'materia-prima.romana')
+            ->assertJsonPath('usuario.puede_consultar_panel_gerencial', true)
+            ->assertJsonPath('usuario.puede_consultar_romana', true)
+            ->assertJsonPath('usuario.puede_consultar_cargas', false)
+            ->assertJsonPath('usuario.puede_consultar_despachos_materiales', false);
+    }
+
+    public function test_editar_un_perfil_revoca_sesiones_y_el_administrador_esta_protegido(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $perfil = PerfilAcceso::create([
+            'codigo' => 'CONSULTA_OPERACIONAL',
+            'nombre' => 'Consulta operacional',
+            'rol_base' => RolUsuario::Consulta,
+            'modulos' => ['gerencia.panel', 'materia-prima.romana'],
+            'activo' => true,
+            'protegido' => false,
+        ]);
+        $usuario = User::factory()->create([
+            'rol' => RolUsuario::Consulta,
+            'perfil_acceso_id' => $perfil->id,
+            'activo' => true,
+        ]);
+        $usuario->createToken('sesion-anterior');
+
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/administracion/perfiles-acceso/{$perfil->id}", [
+                'codigo' => 'CONSULTA_OPERACIONAL',
+                'nombre' => 'Consulta operacional actualizada',
+                'descripcion' => null,
+                'rol_base' => RolUsuario::Consulta->value,
+                'modulos' => ['gerencia.panel'],
+                'activo' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.modulos.0', 'gerencia.panel')
+            ->assertJsonPath('sesiones_revocadas', true);
+
+        $this->assertCount(0, $usuario->tokens()->get());
+
+        $administradorPerfil = PerfilAcceso::query()
+            ->where('protegido', true)
+            ->firstOrFail();
+        $this->putJson("/api/administracion/perfiles-acceso/{$administradorPerfil->id}", [
+            'codigo' => $administradorPerfil->codigo,
+            'nombre' => 'Administrador modificado',
+            'descripcion' => null,
+            'rol_base' => RolUsuario::Consulta->value,
+            'modulos' => ['gerencia.panel'],
+            'activo' => true,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El perfil Administrador está protegido. Puedes modificar todos los demás perfiles.',
+            );
+    }
+
+    public function test_un_perfil_no_puede_habilitar_modulos_fuera_de_su_nivel_base(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/perfiles-acceso', [
+                'codigo' => 'VALIDADOR_EXCESIVO',
+                'nombre' => 'Validador excesivo',
+                'rol_base' => RolUsuario::Validador->value,
+                'modulos' => ['frigorifico.validacion', 'materiales.inventario'],
+                'activo' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('modulos.1');
+    }
+
+    public function test_no_crea_usuario_legacy_si_su_perfil_inicial_esta_inactivo(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        PerfilAcceso::query()
+            ->where('rol_base', RolUsuario::Consulta->value)
+            ->where('predeterminado', true)
+            ->update(['activo' => false]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/usuarios', [
+                'nombre' => 'Consulta sin perfil',
+                'email' => 'consulta.sin.perfil@empresa.cl',
+                'rol' => RolUsuario::Consulta->value,
+                'password' => 'Temporal2026',
+                'password_confirmation' => 'Temporal2026',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El perfil inicial correspondiente al rol seleccionado no está disponible.',
+            );
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'consulta.sin.perfil@empresa.cl',
+        ]);
     }
 }
