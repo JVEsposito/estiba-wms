@@ -23,6 +23,7 @@ class ProductorCsgResource extends JsonResource
             'estado_sag' => $this->estado_sag,
             'tipo_codigo' => $this->tipo_codigo,
             'especies' => $this->especies ?? [],
+            'especies_variedades' => $this->especies_variedades ?? [],
             'estado_asociacion' => $this->estado_asociacion,
             'primera_verificacion_at' => $this->primera_verificacion_at?->toIso8601String(),
             'ultima_verificacion_at' => $this->ultima_verificacion_at?->toIso8601String(),

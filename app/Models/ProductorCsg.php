@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'estado_sag',
     'tipo_codigo',
     'especies',
+    'especies_variedades',
     'fuente_url',
     'primera_verificacion_at',
     'ultima_verificacion_at',
@@ -67,6 +68,7 @@ class ProductorCsg extends Model
     {
         return [
             'especies' => 'array',
+            'especies_variedades' => 'array',
             'datos_fuente' => 'array',
             'primera_verificacion_at' => 'datetime',
             'ultima_verificacion_at' => 'datetime',
