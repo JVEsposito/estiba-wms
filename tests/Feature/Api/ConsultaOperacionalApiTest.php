@@ -98,7 +98,7 @@ class ConsultaOperacionalApiTest extends TestCase
             && $request['cod_sag'] === '105410');
     }
 
-    public function test_consulta_sag_respeta_utf8_separa_listas_y_sincroniza_el_master_sin_duplicar(): void
+    public function test_consulta_sag_repara_codificacion_mixta_separa_listas_y_sincroniza_sin_duplicar(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         Temporada::query()->update(['activa' => false]);
@@ -123,8 +123,23 @@ class ConsultaOperacionalApiTest extends TestCase
             'predio' => 'Pendiente de verificación',
             'activo' => false,
         ]);
+        ProductorCsg::create([
+            'codigo' => '3129422',
+            'razon_social' => 'SIRZO BALTAZAR CARO LIZANA',
+            'predio' => 'PARCELA N 1 STA GABRIELA DE LOS LINGUES',
+            'direccion' => 'DirecciÃ³n histÃ³rica',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+            'especies' => [],
+            'fuente_url' => ServicioConsultaSag::URL,
+            'primera_verificacion_at' => now()->subDay(),
+            'ultima_verificacion_at' => now()->subDay(),
+            'ultima_consulta_user_id' => $administrador->id,
+            'respuesta_hash' => hash('sha256', 'respuesta-anterior'),
+            'datos_fuente' => [],
+        ]);
         Http::fake([
-            ServicioConsultaSag::URL => Http::response($this->respuestaSagUtf8ConLista(), 200),
+            ServicioConsultaSag::URL => Http::response($this->respuestaSagCodificacionMixtaConLista(), 200),
         ]);
 
         $this->actingAs($administrador, 'sanctum')
@@ -158,6 +173,14 @@ class ConsultaOperacionalApiTest extends TestCase
         $this->assertFalse($lapinsExistente->fresh()->activo);
         $this->assertFalse($catalogo->fresh()->activo);
         $this->assertSame(2, $catalogo->fresh()->variedades()->count());
+        $this->assertDatabaseMissing('productores_csg', [
+            'codigo' => '3129422',
+            'direccion' => 'DirecciÃ³n histÃ³rica',
+        ]);
+        $this->assertDatabaseHas('productores_csg', [
+            'codigo' => '3129422',
+            'direccion' => 'Dirección:PARCELA N 1 STA GABRIELA DE LOS LINGUES, SAN FERNANDO, DEL LIBERTADOR GRAL. BERNARDO O HIGGINS',
+        ]);
 
         $this->postJson('/api/consultas/sag', [
             'tipo' => 'codigo_sag',
@@ -346,11 +369,12 @@ class ConsultaOperacionalApiTest extends TestCase
         return mb_convert_encoding($html, 'Windows-1252', 'UTF-8');
     }
 
-    private function respuestaSagUtf8ConLista(): string
+    private function respuestaSagCodificacionMixtaConLista(): string
     {
-        return <<<'HTML'
+        $html = <<<'HTML'
         <!doctype html>
         <html><body>
+        <!-- MARCADOR_ISO -->
         <table>
             <thead><tr><th>Código SAG</th><th>Predio / Establecimiento</th><th>Razón Social</th><th>Especies</th></tr></thead>
             <tbody><tr>
@@ -370,6 +394,12 @@ class ConsultaOperacionalApiTest extends TestCase
         </table>
         </body></html>
         HTML;
+
+        return str_replace(
+            'MARCADOR_ISO',
+            mb_convert_encoding('ñ', 'Windows-1252', 'UTF-8'),
+            $html,
+        );
     }
 
     private function respuestaSagConAyudaEmergente(): string

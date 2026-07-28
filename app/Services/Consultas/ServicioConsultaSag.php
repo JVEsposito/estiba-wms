@@ -197,7 +197,12 @@ class ServicioConsultaSag
             }
         }
 
-        if (! str_contains(mb_strtolower($utf8), 'código sag')) {
+        $encabezadoReconocido = collect($xpath->query('//th') ?: [])
+            ->contains(fn ($celda): bool => str_contains(
+                mb_strtolower($this->texto($celda)),
+                'código sag',
+            ));
+        if (! $encabezadoReconocido) {
             throw new ServicioSagNoDisponible(
                 'SAG entregó una respuesta con un formato no reconocido. No se modificaron productores.',
             );
@@ -273,7 +278,37 @@ class ServicioConsultaSag
 
     private function normalizarTexto(string $texto): string
     {
-        return trim(preg_replace('/\s+/u', ' ', html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? $texto);
+        $decodificado = html_entity_decode($texto, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $reparado = $this->repararMojibake($decodificado);
+
+        return trim(preg_replace('/\s+/u', ' ', $reparado) ?? $reparado);
+    }
+
+    private function repararMojibake(string $texto): string
+    {
+        for ($intento = 0; $intento < 2; $intento++) {
+            $puntajeActual = $this->puntajeMojibake($texto);
+            if ($puntajeActual === 0) {
+                break;
+            }
+
+            $candidato = mb_convert_encoding($texto, 'Windows-1252', 'UTF-8');
+            if (
+                ! mb_check_encoding($candidato, 'UTF-8')
+                || $this->puntajeMojibake($candidato) >= $puntajeActual
+            ) {
+                break;
+            }
+
+            $texto = $candidato;
+        }
+
+        return $texto;
+    }
+
+    private function puntajeMojibake(string $texto): int
+    {
+        return preg_match_all('/(?:Ã.|Â.|â..|ðŸ..|�)/u', $texto) ?: 0;
     }
 
     private function auditar(
