@@ -23,7 +23,8 @@ El módulo incorpora:
 - generación de folios de salida con el correlativo global del cliente;
 - cálculo de merma por lote y genealogía de entradas y salidas;
 - cierre de orden con liberación del saldo reservado no consumido;
-- etiquetas PDF/ZPL desde oficina y envío ZPL directo desde PDA;
+- etiquetas PDF o `.nlbl` editables en ZebraDesigner 3/NiceLabel desde oficina,
+  con Code 128 o QR, y envío ZPL/BPL-Z directo desde PDA;
 - reversa compensatoria y supervisada del último lote cerrado.
 
 Quedan para entregas posteriores:

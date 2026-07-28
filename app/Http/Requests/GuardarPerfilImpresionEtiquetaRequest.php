@@ -30,7 +30,7 @@ class GuardarPerfilImpresionEtiquetaRequest extends FormRequest
             'nombre' => ['required', 'string', 'min:3', 'max:120'],
             'fabricante' => ['required', 'string', 'max:40'],
             'modelo' => ['nullable', 'string', 'max:80'],
-            'lenguaje' => ['required', Rule::in(['zpl'])],
+            'lenguaje' => ['required', Rule::in(['zpl', 'bpl-z'])],
             'dpi' => ['required', 'integer', Rule::in([203, 300, 600])],
             'ancho_mm' => ['required', 'numeric', 'between:30,200', 'decimal:0,2'],
             'alto_mm' => ['required', 'numeric', 'between:20,150', 'decimal:0,2'],

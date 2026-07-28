@@ -601,6 +601,7 @@ class RecepcionMaterialApiTest extends TestCase
         $perfil = PerfilImpresionEtiqueta::query()
             ->where('predeterminado', true)
             ->firstOrFail();
+        $perfil->update(['orientacion' => 'vertical']);
         $operacion = (string) Str::uuid();
         $payload = [
             'operacion_id' => $operacion,
@@ -620,6 +621,8 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertOk()
             ->assertHeader('content-type', 'application/zpl')
             ->assertSee('^XA', escape: false)
+            ->assertSee('^PW400', escape: false)
+            ->assertSee('^LL799', escape: false)
             ->assertSee('FGE0000001', escape: false);
         $trabajoId = $zpl->headers->get('X-Estiba-Print-Job');
 
@@ -637,6 +640,11 @@ class RecepcionMaterialApiTest extends TestCase
             'folio_id' => $folio['id'],
             'numero_folio_snapshot' => 'FGE0000001',
             'es_reimpresion' => false,
+        ]);
+        $this->assertDatabaseHas('trabajos_impresion_materiales', [
+            'id' => $trabajoId,
+            'formato' => 'zpl',
+            'simbologia' => 'code128',
         ]);
 
         $reimpresion = [
@@ -678,6 +686,80 @@ class RecepcionMaterialApiTest extends TestCase
             ->assertJsonPath('data.0.motivo_reimpresion', 'Etiqueta dañada durante la instalación.');
     }
 
+    public function test_genera_nlbl_nativo_con_qr_para_zebra_y_nicelabel(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 5, 'lote_proveedor' => 'LOTE-NLBL-01']],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folio = $confirmada['detalles'][0]['bultos'][0]['folio'];
+        $perfil = PerfilImpresionEtiqueta::query()
+            ->where('codigo', 'ZEB-ZT231-203')
+            ->firstOrFail();
+
+        $respuesta = $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'nlbl',
+                    'simbologia' => 'qr',
+                    'canal' => 'oficina_descarga',
+                    'folio_ids' => [$folio['id']],
+                    'copias' => 1,
+                ],
+                ['Accept' => 'application/octet-stream'],
+            )
+            ->assertOk()
+            ->assertHeader('content-type', 'application/octet-stream')
+            ->assertHeader(
+                'content-disposition',
+                'attachment; filename="etiquetas-GD-REC-001.nlbl"',
+            );
+
+        $this->assertStringStartsWith("PK\x03\x04", $respuesta->getContent());
+        $this->assertStringContainsString('Formats/FGE0000001', $respuesta->getContent());
+        $this->assertStringContainsString('Etiquetas Estiba WMS.slnx', $respuesta->getContent());
+        $this->assertDatabaseHas('trabajos_impresion_materiales', [
+            'id' => $respuesta->headers->get('X-Estiba-Print-Job'),
+            'formato' => 'nlbl',
+            'simbologia' => 'qr',
+        ]);
+
+        $this->conToken($token)
+            ->post(
+                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'perfil_id' => $perfil->id,
+                    'formato' => 'zpl',
+                    'simbologia' => 'qr',
+                    'canal' => 'oficina_descarga',
+                    'folio_ids' => [$folio['id']],
+                    'copias' => 1,
+                    'motivo_reimpresion' => 'Validación del flujo directo con código QR.',
+                ],
+                ['Accept' => 'application/zpl'],
+            )
+            ->assertOk()
+            ->assertSee('^BQN,2,', escape: false)
+            ->assertSee('FGE0000001', escape: false);
+    }
+
     public function test_administra_perfiles_globales_y_un_usuario_de_consulta_no_puede_imprimir(): void
     {
         [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
@@ -687,7 +769,7 @@ class RecepcionMaterialApiTest extends TestCase
                 'nombre' => 'Bixolon 80 × 40 mm',
                 'fabricante' => 'Bixolon',
                 'modelo' => 'XD5-40d',
-                'lenguaje' => 'zpl',
+                'lenguaje' => 'bpl-z',
                 'dpi' => 300,
                 'ancho_mm' => 80,
                 'alto_mm' => 40,
@@ -701,6 +783,7 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertDatabaseHas('perfiles_impresion_etiquetas', [
             'id' => $perfil['id'],
             'fabricante' => 'Bixolon',
+            'lenguaje' => 'bpl-z',
             'dpi' => 300,
         ]);
         $this->assertSame(1, PerfilImpresionEtiqueta::query()

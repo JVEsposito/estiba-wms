@@ -208,6 +208,7 @@ class ImpresionEtiquetaMaterialController extends Controller
             'orden_transformacion_material_id' => $trabajo->orden_transformacion_material_id,
             'lote_transformacion_material_id' => $trabajo->lote_transformacion_material_id,
             'formato' => $trabajo->formato,
+            'simbologia' => $trabajo->simbologia,
             'canal' => $trabajo->canal,
             'estado' => $trabajo->estado,
             'copias' => $trabajo->copias,

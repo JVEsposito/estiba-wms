@@ -118,6 +118,11 @@ profileElements.table?.addEventListener('click', (event) => {
 });
 
 profileElements.cancel?.addEventListener('click', resetProfileForm);
+profileElements.form?.elements.fabricante?.addEventListener('change', (event) => {
+    profileElements.form.elements.lenguaje.value = event.target.value === 'Bixolon'
+        ? 'bpl-z'
+        : 'zpl';
+});
 profileElements.reload?.addEventListener('click', () => void loadProfiles());
 window.addEventListener('estiba:office-session', (event) => {
     if (event.detail?.authenticated) void loadProfiles();

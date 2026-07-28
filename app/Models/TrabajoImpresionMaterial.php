@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'lote_transformacion_material_id',
     'perfil_impresion_etiqueta_id',
     'formato',
+    'simbologia',
     'canal',
     'estado',
     'copias',
