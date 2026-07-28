@@ -6,67 +6,61 @@
 ])
 
 @php
-    $domains = [
+    $offices = [
         'materia-prima' => [
-            'label' => 'Materia Prima',
-            'icon' => '◫',
-            'href' => '/oficina/materia-prima',
-            'permissions' => 'puede_consultar_romana,puede_consultar_materia_prima,puede_consultar_cuenta_envases',
+            ['key' => 'romana', 'label' => 'Romana', 'href' => '/oficina/romana', 'permissions' => ['puede_consultar_romana']],
+            ['key' => 'digitacion', 'label' => 'Digitación de Lotes', 'href' => '/oficina/materia-prima', 'permissions' => ['puede_consultar_materia_prima']],
+            ['key' => 'envases', 'label' => 'Cuenta Envases', 'href' => '/oficina/envases/cuenta-corriente', 'permissions' => ['puede_consultar_cuenta_envases']],
+            ['key' => 'despacho-envases', 'label' => 'Despacho Envases', 'href' => '/oficina/envases/despachos', 'permissions' => ['puede_gestionar_despacho_envases']],
         ],
         'frigorifico' => [
-            'label' => 'Frigorífico (PT)',
-            'icon' => '❄',
-            'href' => '/oficina/validacion',
-            'permissions' => 'puede_consultar_validaciones_pallet,puede_consultar_prefrio,puede_consultar_cargas,ambito_camaras',
+            ['key' => 'validacion', 'label' => 'Validación', 'href' => '/oficina/validacion', 'permissions' => ['puede_consultar_validaciones_pallet']],
+            ['key' => 'catalogo-validacion', 'label' => 'Catálogos PT', 'href' => '/oficina/validacion/catalogo', 'permissions' => ['puede_administrar_catalogos_validacion']],
+            ['key' => 'prefrio', 'label' => 'Prefrío', 'href' => '/oficina/prefrio', 'permissions' => ['puede_consultar_prefrio']],
+            ['key' => 'camaras', 'label' => 'Cámaras', 'href' => '/oficina/frigorifico/camaras', 'permissions' => ['ambito_camaras_productos']],
+            ['key' => 'cargas', 'label' => 'Cargas & Despachos', 'href' => '/oficina/cargas', 'permissions' => ['puede_consultar_cargas']],
         ],
         'materiales' => [
-            'label' => 'Materiales',
-            'icon' => '▦',
-            'href' => '/oficina/materiales',
-            'permissions' => 'puede_consultar_recepciones_materiales,puede_consultar_despachos_materiales,puede_consultar_transformaciones_materiales,puede_consultar_materia_prima,puede_consultar_cargas',
+            ['key' => 'resumen', 'label' => 'Resumen', 'href' => '/oficina/materiales', 'permissions' => ['puede_consultar_despachos_materiales']],
+            ['key' => 'catalogos', 'label' => 'Catálogos', 'href' => '/oficina/materiales/catalogos', 'permissions' => ['puede_administrar_catalogos_materiales']],
+            ['key' => 'recepcion', 'label' => 'Etiquetas', 'href' => '/oficina/materiales/recepcion', 'permissions' => ['puede_imprimir_etiquetas_materiales']],
+            ['key' => 'inventario', 'label' => 'Inventario', 'href' => '/oficina/materiales/inventario', 'permissions' => ['puede_consultar_despachos_materiales']],
+            ['key' => 'despachos', 'label' => 'Despachos', 'href' => '/oficina/materiales/despachos', 'permissions' => ['puede_consultar_despachos_materiales']],
+            ['key' => 'recetas', 'label' => 'Recetas', 'href' => '/oficina/materiales/recetas', 'permissions' => ['puede_consultar_transformaciones_materiales']],
+            ['key' => 'ordenes', 'label' => 'Órdenes', 'href' => '/oficina/materiales/ordenes', 'permissions' => ['puede_consultar_transformaciones_materiales']],
+            ['key' => 'existencias', 'label' => 'Exportaciones', 'href' => '/oficina/existencias', 'permissions' => ['puede_consultar_despachos_materiales']],
         ],
         'administracion' => [
-            'label' => 'Administración & Gerencia',
-            'icon' => '⚙',
-            'href' => '/oficina/gerencia',
-            'permissions' => 'puede_consultar_panel_gerencial,puede_administrar_accesos,puede_administrar_camaras',
+            ['key' => 'panel', 'label' => 'Panel Gerencial', 'href' => '/oficina/gerencia', 'permissions' => ['puede_consultar_panel_gerencial']],
+            ['key' => 'accesos', 'label' => 'Accesos & Temporadas', 'href' => '/oficina/accesos', 'permissions' => ['puede_administrar_accesos']],
+            ['key' => 'configuracion-camaras', 'label' => 'Configuración de cámaras', 'href' => '/oficina/administracion/camaras', 'permissions' => ['puede_administrar_camaras']],
         ],
         'consultas' => [
-            'label' => 'Consultas',
-            'icon' => '⌕',
-            'href' => '/oficina/consultas',
-            'permissions' => 'puede_consultar_oficina_consultas',
+            ['key' => 'busqueda', 'label' => 'Búsqueda Operacional', 'href' => '/oficina/consultas', 'permissions' => ['puede_consultar_oficina_consultas']],
+            ['key' => 'sag', 'label' => 'Productores SAG / CSG', 'href' => '/oficina/consultas/sag', 'permissions' => ['puede_consultar_sag']],
+            ['key' => 'productores', 'label' => 'Productores Verificados', 'href' => '/oficina/consultas/productores', 'permissions' => ['puede_consultar_oficina_consultas']],
         ],
     ];
 
-    $offices = [
-        'materia-prima' => [
-            ['key' => 'romana', 'label' => 'Romana', 'href' => '/oficina/romana', 'permission' => 'puede_consultar_romana'],
-            ['key' => 'digitacion', 'label' => 'Digitación de Lotes', 'href' => '/oficina/materia-prima', 'permission' => 'puede_consultar_materia_prima'],
-            ['key' => 'envases', 'label' => 'Cuenta Envases', 'href' => '/oficina/envases/cuenta-corriente', 'permission' => 'puede_consultar_cuenta_envases'],
-        ],
-        'frigorifico' => [
-            ['key' => 'validacion', 'label' => 'Validación', 'href' => '/oficina/validacion', 'permission' => 'puede_consultar_validaciones_pallet'],
-            ['key' => 'prefrio', 'label' => 'Prefrío', 'href' => '/oficina/prefrio', 'permission' => 'puede_consultar_prefrio'],
-            ['key' => 'camaras', 'label' => 'Cámaras', 'href' => '/oficina/frigorifico/camaras', 'permission' => 'ambito_camaras'],
-            ['key' => 'cargas', 'label' => 'Cargas & Despachos', 'href' => '/oficina/cargas', 'permission' => 'puede_consultar_cargas'],
-        ],
-        'materiales' => [
-            ['key' => 'recepcion', 'label' => 'Recepción', 'href' => '/oficina/materiales/recepcion#materialLabelWorkspace', 'permission' => 'puede_consultar_recepciones_materiales'],
-            ['key' => 'existencias', 'label' => 'Existencias', 'href' => '/oficina/existencias', 'permission' => 'puede_consultar_existencias'],
-            ['key' => 'transformacion', 'label' => 'Transformación', 'href' => '/oficina/materiales/transformacion#materialsRecipesPanel', 'permission' => 'puede_consultar_transformaciones_materiales'],
-        ],
-        'administracion' => [
-            ['key' => 'panel', 'label' => 'Panel Gerencial', 'href' => '/oficina/gerencia', 'permission' => 'puede_consultar_panel_gerencial'],
-            ['key' => 'accesos', 'label' => 'Accesos & Temporadas', 'href' => '/oficina/accesos', 'permission' => 'puede_administrar_accesos'],
-            ['key' => 'configuracion-camaras', 'label' => 'Configuración de cámaras', 'href' => '/oficina/administracion/camaras', 'permission' => 'puede_administrar_camaras'],
-        ],
-        'consultas' => [
-            ['key' => 'busqueda', 'label' => 'Búsqueda Operacional', 'href' => '/oficina/consultas#globalSearchForm', 'permission' => 'puede_consultar_oficina_consultas'],
-            ['key' => 'sag', 'label' => 'Productores SAG / CSG', 'href' => '/oficina/consultas#sagSearchForm', 'permission' => 'puede_consultar_sag'],
-            ['key' => 'productores', 'label' => 'Productores Verificados', 'href' => '/oficina/consultas#producerList', 'permission' => 'puede_consultar_oficina_consultas'],
-        ],
+    $domains = [
+        'materia-prima' => ['label' => 'Materia Prima', 'icon' => '◫'],
+        'frigorifico' => ['label' => 'Frigorífico (PT)', 'icon' => '❄'],
+        'materiales' => ['label' => 'Materiales', 'icon' => '▦'],
+        'administracion' => ['label' => 'Gerencia & Administración', 'icon' => '⚙'],
+        'consultas' => ['label' => 'Consultas', 'icon' => '⌕'],
     ];
+
+    foreach ($domains as $domainKey => &$definition) {
+        $definition['targets'] = array_map(
+            fn (array $officeDefinition): array => [
+                'href' => $officeDefinition['href'],
+                'permissions' => $officeDefinition['permissions'],
+            ],
+            $offices[$domainKey] ?? [],
+        );
+        $definition['href'] = $definition['targets'][0]['href'] ?? '/';
+    }
+    unset($definition);
 
     $activeDomain = $domains[$domain] ?? $domains['materia-prima'];
     $activeOffices = $offices[$domain] ?? [];
@@ -83,7 +77,7 @@
             <a
                 class="office-domain-link {{ $domain === $domainKey ? 'is-active' : '' }}"
                 data-domain-key="{{ $domainKey }}"
-                data-navigation-permissions="{{ $definition['permissions'] }}"
+                data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                 href="{{ $definition['href'] }}"
             >
                 <span aria-hidden="true">{{ $definition['icon'] }}</span>
@@ -120,7 +114,8 @@
             <a
                 class="{{ $office === $definition['key'] ? 'is-active' : '' }}"
                 data-office-key="{{ $definition['key'] }}"
-                data-navigation-permission="{{ $definition['permission'] }}"
+                data-office-domain="{{ $domain }}"
+                data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
                 href="{{ $definition['href'] }}"
             >{{ $definition['label'] }}</a>
         @endforeach

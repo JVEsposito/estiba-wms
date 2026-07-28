@@ -113,6 +113,10 @@ function canManageOrders() {
     return ['administrador', 'supervisor_materiales'].includes(orderState.identity?.rol);
 }
 
+function orderSectionIsActive() {
+    return document.getElementById('officeApp')?.dataset.materialsSection === 'ordenes';
+}
+
 function orderErrorMessage(data, fallback) {
     return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
 }
@@ -220,6 +224,7 @@ function injectOrderPanel() {
     const section = document.createElement('section');
     section.className = 'panel materials-panel materials-orders-panel is-hidden';
     section.id = 'materialsTransformationOrdersPanel';
+    section.dataset.materialsView = 'ordenes';
     section.innerHTML = `
         <div class="materials-panel__heading">
             <div>
@@ -691,6 +696,14 @@ async function cancelOrder(order) {
 }
 
 function openOrderLabels(orderId) {
+    if (!document.getElementById('officeApp')?.matches('[data-materials-section="recepcion"]')) {
+        const destination = new URL('/oficina/materiales/recepcion', window.location.origin);
+        destination.searchParams.set('origen', 'transformacion');
+        destination.searchParams.set('id', orderId);
+        window.location.assign(destination.href);
+        return;
+    }
+
     const workspace = document.getElementById('materialLabelWorkspace');
     const source = document.getElementById('materialLabelSource');
     const origin = document.getElementById('materialLabelReception');
@@ -727,7 +740,7 @@ function handleOrderAction(event) {
 async function loadOrdersOffice(showErrors = false) {
     orderState.token = localStorage.getItem(orderTokenKey);
     orderState.identity = orderReadJson(orderIdentityKey);
-    if (!orderState.token || !canConsultOrders()) {
+    if (!orderSectionIsActive() || !orderState.token || !canConsultOrders()) {
         orderElements.panel?.classList.add('is-hidden');
         return;
     }
@@ -762,6 +775,7 @@ function bootMaterialOrders() {
     injectOrderStyles();
     injectOrderPanel();
     if (!orderElements.panel) return;
+    if (!orderSectionIsActive()) return;
 
     document.getElementById('reloadMaterialsButton')
         ?.addEventListener('click', () => loadOrdersOffice(false));

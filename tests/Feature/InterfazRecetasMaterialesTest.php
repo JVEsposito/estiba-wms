@@ -17,6 +17,8 @@ class InterfazRecetasMaterialesTest extends TestCase
         $this->assertStringContainsString('/versiones', $script);
         $this->assertStringContainsString('puede_consultar_transformaciones_materiales', $script);
         $this->assertStringContainsString('puede_administrar_recetas_materiales', $script);
+        $this->assertStringContainsString("section.dataset.materialsView = 'recetas'", $script);
+        $this->assertStringContainsString('recipeSectionIsActive()', $script);
         $this->assertStringContainsString("['insumo', 'material_mp']", $script);
         $this->assertStringContainsString("item.categoria_operacional === 'material_pt'", $script);
         $this->assertStringContainsString('Selecciona exactamente un componente principal.', $script);
