@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\RolUsuario;
+use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +28,7 @@ return new class extends Migration
             $table->index(['rol_base', 'activo']);
         });
 
-        $catalogo = app(\App\Services\Autorizacion\CatalogoModulosAcceso::class);
+        $catalogo = app(CatalogoModulosAcceso::class);
         $nombres = [
             'administrador' => 'Administrador',
             'supervisor_frio' => 'Supervisor de frío',
@@ -44,7 +46,7 @@ return new class extends Migration
         $ahora = now();
         $ids = [];
 
-        foreach (\App\Enums\RolUsuario::cases() as $rol) {
+        foreach (RolUsuario::cases() as $rol) {
             $id = (string) Str::uuid();
             $ids[$rol->value] = $id;
             DB::table('perfiles_acceso')->insert([
@@ -56,7 +58,7 @@ return new class extends Migration
                 'modulos' => json_encode($catalogo->modulosPredeterminados($rol), JSON_THROW_ON_ERROR),
                 'activo' => true,
                 'predeterminado' => true,
-                'protegido' => $rol === \App\Enums\RolUsuario::Administrador,
+                'protegido' => $rol === RolUsuario::Administrador,
                 'created_at' => $ahora,
                 'updated_at' => $ahora,
             ]);
