@@ -72,7 +72,7 @@ class EliminacionCatalogoValidacionApiTest extends TestCase
             'codigo' => 'CSG-001',
             'activo' => true,
         ]);
-        $versionInicial = $temporada->version_catalogo;
+        $versionInicial = $temporada->refresh()->version_catalogo;
 
         $this->actingAs($administrador, 'sanctum');
         foreach ([
