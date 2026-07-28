@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { AuthSession, LoginPayload } from './src/domain/estiba';
+import { AuthSession, LoginPayload, TabletModule } from './src/domain/estiba';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
@@ -16,7 +16,7 @@ import { applyAvailableUpdate } from './src/services/appUpdates';
 import { createEstibaApi } from './src/services/estibaApi';
 import { colors } from './src/theme/colors';
 
-type MobileModule = 'operacion' | 'recepcion_materiales' | 'validacion' | 'validacion_mp' | 'prefrio';
+type MobileModule = Exclude<TabletModule, 'operacion_materiales'>;
 
 export default function App() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -141,20 +141,15 @@ export default function App() {
 }
 
 function availableModules(auth: AuthSession): MobileModule[] {
-  const capabilities = auth.usuario.capacidades;
-  const modules: MobileModule[] = [];
-  const canOperate = capabilities.puede_operar_productos
-    || capabilities.puede_operar_materiales
-    || capabilities.puede_consultar_cargas
-    || capabilities.puede_consultar_despachos_materiales;
+  const supported: MobileModule[] = [
+    'operacion',
+    'recepcion_materiales',
+    'validacion',
+    'validacion_mp',
+    'prefrio',
+  ];
 
-  if (canOperate) modules.push('operacion');
-  if (capabilities.puede_consultar_recepciones_materiales) modules.push('recepcion_materiales');
-  if (capabilities.puede_validar_pallets) modules.push('validacion');
-  if (capabilities.puede_validar_mp) modules.push('validacion_mp');
-  if (capabilities.puede_consultar_prefrio) modules.push('prefrio');
-
-  return modules;
+  return supported.filter((module) => auth.usuario.modulos_tablet?.includes(module));
 }
 
 function defaultModule(auth: AuthSession): MobileModule | null {

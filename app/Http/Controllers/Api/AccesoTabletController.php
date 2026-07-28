@@ -8,6 +8,7 @@ use App\Models\Dispositivo;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class AccesoTabletController extends Controller
     public function store(
         AccesoTabletRequest $request,
         AlcanceOperacionalUsuario $alcance,
+        CatalogoModulosAcceso $catalogoModulos,
     ): JsonResponse {
         $datos = $request->validated();
         $usuario = User::query()
@@ -34,9 +36,11 @@ class AccesoTabletController extends Controller
             ]);
         }
 
-        if ($alcance->capacidadesApi($usuario)['modulos_acceso'] === []) {
+        $modulosTablet = $catalogoModulos->modulosTabletUsuario($usuario);
+
+        if ($modulosTablet === []) {
             throw ValidationException::withMessages([
-                'email' => 'El perfil del usuario se encuentra inactivo o no posee módulos habilitados.',
+                'email' => 'El perfil del usuario se encuentra inactivo o no posee módulos tablet habilitados.',
             ]);
         }
 
@@ -51,7 +55,7 @@ class AccesoTabletController extends Controller
             ]);
         }
 
-        $nuevoToken = DB::transaction(function () use ($usuario, $dispositivo) {
+        $nuevoToken = DB::transaction(function () use ($usuario, $dispositivo, $modulosTablet) {
             $usuario->tokens()
                 ->where('dispositivo_id', $dispositivo->id)
                 ->delete();
@@ -61,8 +65,13 @@ class AccesoTabletController extends Controller
             return $usuario->crearTokenParaDispositivo(
                 $dispositivo,
                 "tablet-{$dispositivo->codigo}",
+                array_map(
+                    CatalogoModulosAcceso::habilidadTablet(...),
+                    $modulosTablet,
+                ),
             );
         });
+        $usuario->withAccessToken($nuevoToken->accessToken);
         $capacidades = $alcance->capacidadesApi($usuario);
 
         return response()->json([
@@ -75,6 +84,7 @@ class AccesoTabletController extends Controller
                 'rol' => $usuario->rol->value,
                 'perfil_acceso' => $capacidades['perfil_acceso'],
                 'modulos_acceso' => $capacidades['modulos_acceso'],
+                'modulos_tablet' => $modulosTablet,
                 'ambito_camaras' => $alcance->ambitoCamaras($usuario),
                 'capacidades' => $capacidades,
             ],

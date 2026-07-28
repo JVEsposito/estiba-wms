@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\RolUsuario;
 use App\Models\CondicionSag;
 use App\Models\Dispositivo;
+use App\Models\PerfilAcceso;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -85,6 +86,82 @@ class AccesoTabletApiTest extends TestCase
         auth()->forgetGuards();
         $this->withToken($segundoToken)->getJson('/api/user')->assertOk();
         $this->assertDatabaseCount('personal_access_tokens', 1);
+    }
+
+    public function test_materiales_publica_solo_recepcion_como_modulo_tablet(): void
+    {
+        $usuario = User::factory()->create([
+            'email' => 'materiales@example.com',
+            'password' => Hash::make('clave-segura'),
+            'rol' => RolUsuario::CamareroMateriales,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-01',
+            'nombre' => 'Tablet materiales',
+        ]);
+
+        $respuesta = $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])
+            ->assertOk()
+            ->assertJsonCount(1, 'usuario.modulos_tablet')
+            ->assertJsonPath('usuario.modulos_tablet.0', 'recepcion_materiales')
+            ->assertJsonPath('usuario.capacidades.modulos_tablet.0', 'recepcion_materiales')
+            ->assertJsonPath('usuario.capacidades.puede_consultar_recepciones_materiales', true)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_despachos_materiales', false)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_transformaciones_materiales', false)
+            ->assertJsonPath('usuario.ambito_camaras', 'ninguno');
+
+        $token = $respuesta->json('token');
+
+        $this->withToken($token)
+            ->getJson('/api/materiales/recepciones')
+            ->assertOk();
+
+        $this->withToken($token)
+            ->getJson('/api/materiales/despachos')
+            ->assertForbidden();
+
+        $this->withToken($token)
+            ->getJson('/api/materiales/transformaciones/ordenes')
+            ->assertForbidden();
+    }
+
+    public function test_un_perfil_solo_de_oficina_no_puede_iniciar_turno_en_tablet(): void
+    {
+        $perfil = PerfilAcceso::create([
+            'codigo' => 'MAT-OFICINA',
+            'nombre' => 'Materiales solo oficina',
+            'rol_base' => RolUsuario::CamareroMateriales,
+            'modulos' => ['materiales.inventario'],
+            'activo' => true,
+        ]);
+        $usuario = User::factory()->create([
+            'email' => 'materiales-oficina@example.com',
+            'password' => Hash::make('clave-segura'),
+            'rol' => RolUsuario::CamareroMateriales,
+            'perfil_acceso_id' => $perfil->id,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-02',
+            'nombre' => 'Tablet materiales 02',
+        ]);
+
+        $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email')
+            ->assertJsonPath(
+                'errors.email.0',
+                'El perfil del usuario se encuentra inactivo o no posee módulos tablet habilitados.',
+            );
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_cerrar_turno_revoca_el_token_actual(): void

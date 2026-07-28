@@ -5,6 +5,7 @@ namespace App\Services\Autorizacion;
 use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\Camara;
+use App\Models\PersonalAccessToken;
 use App\Models\User;
 
 class AlcanceOperacionalUsuario
@@ -39,7 +40,13 @@ class AlcanceOperacionalUsuario
 
         return array_values(array_filter(
             $contenidos,
-            fn (ContenidoCamara $contenido): bool => $this->catalogoModulos->usuarioTieneModulo(
+            fn (ContenidoCamara $contenido): bool => (
+                $contenido !== ContenidoCamara::Materiales
+                || $this->permiteModuloTablet(
+                    $usuario,
+                    CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+                )
+            ) && $this->catalogoModulos->usuarioTieneModulo(
                 $usuario,
                 match ($contenido) {
                     ContenidoCamara::Productos => 'frigorifico.camaras',
@@ -86,6 +93,9 @@ class AlcanceOperacionalUsuario
                 $usuario,
                 [RolUsuario::Administrador, RolUsuario::SupervisorMateriales, RolUsuario::CamareroMateriales],
                 'materiales.inventario',
+            ) && $this->permiteModuloTablet(
+                $usuario,
+                CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
             ),
             ContenidoCamara::MateriaPrima => false,
         };
@@ -115,6 +125,9 @@ class AlcanceOperacionalUsuario
                 $usuario,
                 [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
                 'materiales.inventario',
+            ) && $this->permiteModuloTablet(
+                $usuario,
+                CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
             ),
             ContenidoCamara::MateriaPrima => false,
         };
@@ -234,7 +247,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarDespachosMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::Despachador,
@@ -243,7 +259,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarDespachosMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -262,7 +281,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarRecepcionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -273,7 +295,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarRecepcionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -282,7 +307,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeAnularRecepcionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
             'materiales.etiquetas',
@@ -291,7 +319,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeImprimirEtiquetasMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales, RolUsuario::CamareroMateriales],
             'materiales.etiquetas',
@@ -300,7 +331,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarTransformacionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -311,7 +345,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeGestionarTransformacionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
             'materiales.ordenes',
@@ -320,7 +357,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeOperarTransformacionesMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -334,7 +374,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeAdministrarRecetasMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
             'materiales.recetas',
@@ -343,7 +386,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeRetirarMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo($usuario, [
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorMateriales,
             RolUsuario::CamareroMateriales,
@@ -357,7 +403,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarKardexMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
             'materiales.inventario',
@@ -366,7 +415,10 @@ class AlcanceOperacionalUsuario
 
     public function puedeCorregirItemsEstibadosMateriales(User $usuario): bool
     {
-        return $this->rolActivoEnModulo(
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
             'materiales.inventario',
@@ -607,6 +659,7 @@ class AlcanceOperacionalUsuario
     {
         return [
             'modulos_acceso' => $this->catalogoModulos->modulosUsuario($usuario),
+            'modulos_tablet' => $this->catalogoModulos->modulosTabletUsuario($usuario),
             'perfil_acceso' => $usuario->perfilAcceso ? [
                 'id' => $usuario->perfilAcceso->id,
                 'codigo' => $usuario->perfilAcceso->codigo,
@@ -677,5 +730,16 @@ class AlcanceOperacionalUsuario
         return $usuario->activo
             && in_array($usuario->rol, $roles, true)
             && $this->catalogoModulos->usuarioTieneModulo($usuario, $modulos);
+    }
+
+    private function permiteModuloTablet(User $usuario, string $modulo): bool
+    {
+        $token = $usuario->currentAccessToken();
+
+        if (! $token instanceof PersonalAccessToken || $token->dispositivo_id === null) {
+            return true;
+        }
+
+        return $token->can(CatalogoModulosAcceso::habilidadTablet($modulo));
     }
 }

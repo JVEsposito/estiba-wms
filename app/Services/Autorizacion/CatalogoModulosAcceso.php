@@ -7,6 +7,22 @@ use App\Models\User;
 
 class CatalogoModulosAcceso
 {
+    public const TABLET_OPERACION_FRIGORIFICO = 'operacion';
+
+    public const TABLET_RECEPCION_MATERIALES = 'recepcion_materiales';
+
+    public const TABLET_VALIDACION_PT = 'validacion';
+
+    public const TABLET_VALIDACION_MP = 'validacion_mp';
+
+    public const TABLET_PREFRIO = 'prefrio';
+
+    /**
+     * Reservada para una futura implementación de las operaciones de inventario,
+     * despacho y transformación de Materiales en PDA/tablet.
+     */
+    public const TABLET_OPERACION_MATERIALES = 'operacion_materiales';
+
     /**
      * @return array<int, array{
      *     clave: string,
@@ -89,6 +105,56 @@ class CatalogoModulosAcceso
             ->flatMap(fn (array $macromodulo): array => array_column($macromodulo['modulos'], 'clave'))
             ->values()
             ->all();
+    }
+
+    /**
+     * Los módulos de oficina y tablet se publican por separado. Esto evita que
+     * una capacidad web habilite accidentalmente una pantalla móvil todavía no
+     * implementada.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function modulosTablet(): array
+    {
+        return [
+            self::TABLET_OPERACION_FRIGORIFICO => [
+                'frigorifico.camaras',
+                'frigorifico.cargas',
+            ],
+            self::TABLET_RECEPCION_MATERIALES => [
+                'materiales.etiquetas',
+            ],
+            self::TABLET_VALIDACION_PT => [
+                'frigorifico.validacion',
+            ],
+            self::TABLET_VALIDACION_MP => [
+                'materia-prima.validacion-mp',
+            ],
+            self::TABLET_PREFRIO => [
+                'frigorifico.prefrio',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function modulosTabletUsuario(User $usuario): array
+    {
+        $modulosOficina = $this->modulosUsuario($usuario);
+
+        return collect($this->modulosTablet())
+            ->filter(
+                fn (array $requeridos): bool => array_intersect($requeridos, $modulosOficina) !== [],
+            )
+            ->keys()
+            ->values()
+            ->all();
+    }
+
+    public static function habilidadTablet(string $modulo): string
+    {
+        return "tablet:{$modulo}";
     }
 
     /**
