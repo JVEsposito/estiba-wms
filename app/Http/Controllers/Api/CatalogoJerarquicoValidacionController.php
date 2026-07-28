@@ -12,8 +12,8 @@ use App\Models\MarcaValidacion;
 use App\Models\Temporada;
 use App\Models\VariedadValidacion;
 use App\Services\Validacion\ServicioCatalogoJerarquicoValidacion;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
