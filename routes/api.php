@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
+use App\Http\Controllers\Api\PerfilAccesoController;
 use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
@@ -310,6 +311,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('can:administrar-accesos')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
+        Route::get('/administracion/perfiles-acceso', [PerfilAccesoController::class, 'index']);
+        Route::post('/administracion/perfiles-acceso', [PerfilAccesoController::class, 'store']);
+        Route::put('/administracion/perfiles-acceso/{perfilAcceso}', [PerfilAccesoController::class, 'update']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::put('/administracion/usuarios/{usuario}', [AdministracionAccesoController::class, 'actualizarUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);

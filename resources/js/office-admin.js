@@ -210,7 +210,7 @@ function renderUsers() {
     elements.usersTableBody.innerHTML = state.users.map((user) => `
         <tr>
             <td><strong>${escapeHtml(user.nombre)}</strong><small>${escapeHtml(user.email)}</small></td>
-            <td><span class="role-badge">${escapeHtml(statusText(user.rol))}</span></td>
+            <td><span class="role-badge">${escapeHtml(user.perfil?.nombre || statusText(user.rol))}</span><small>${escapeHtml(statusText(user.rol))}</small></td>
             <td>${statusBadge(user.activo)}</td>
         </tr>
     `).join('');
@@ -585,6 +585,10 @@ elements.reload.addEventListener('click', async () => {
     } finally {
         setBusy(false);
     }
+});
+
+window.addEventListener('estiba:access-profile-saved', () => {
+    void loadAccesses();
 });
 
 elements.logout.addEventListener('click', async () => {
