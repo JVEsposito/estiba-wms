@@ -166,6 +166,34 @@ class ConsultaOperacionalApiTest extends TestCase
         ]);
     }
 
+    public function test_consulta_sag_ignora_la_ayuda_emergente_entre_estado_y_tipo_codigo(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Http::fake([
+            ServicioConsultaSag::URL => Http::response($this->respuestaSagConAyudaEmergente(), 200),
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/consultas/sag', [
+                'tipo' => 'codigo_sag',
+                'valor' => '123225',
+            ])
+            ->assertOk()
+            ->assertJsonPath('cantidad', 1)
+            ->assertJsonPath('data.0.codigo', '123225')
+            ->assertJsonPath('data.0.estado_sag', 'activo')
+            ->assertJsonPath('data.0.tipo_codigo', 'CSG')
+            ->assertJsonPath('data.0.razon_social', 'Agricola Las Vegas SPA')
+            ->assertJsonPath('data.0.predio', 'Fundo Santa Elena de Los Niches')
+            ->assertJsonPath('data.0.especies.0', 'KIWI - HAYWARD');
+
+        $this->assertDatabaseHas('consultas_sag', [
+            'valor_normalizado' => '123225',
+            'estado' => 'exitosa',
+            'cantidad_resultados' => 1,
+        ]);
+    }
+
     public function test_falla_del_servicio_sag_no_modifica_productores_y_queda_auditada(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
@@ -219,6 +247,37 @@ class ConsultaOperacionalApiTest extends TestCase
                 <td>123225 (ACTIVO) (CSG)</td>
                 <td><strong>Fundo Santa Elena de Los Niches</strong><br>Dirección:Fundo santa Elena de los Niches Lote B, CURICO, DEL MAULE</td>
                 <td>Agricola Las Vegas SPA</td>
+            </tr></tbody>
+        </table>
+        </body></html>
+        HTML;
+
+        return mb_convert_encoding($html, 'Windows-1252', 'UTF-8');
+    }
+
+    private function respuestaSagConAyudaEmergente(): string
+    {
+        $html = <<<'HTML'
+        <!doctype html>
+        <html><body>
+        <table>
+            <thead><tr><th>Código SAG</th><th>Predio / Establecimiento</th><th>Razón Social</th><th>Especies</th></tr></thead>
+            <tbody><tr>
+                <td>
+                    123225<br>(ACTIVO)
+                    <div id="photo_container">
+                        <a href="#">
+                            <span>
+                                <p><b>INACTIVO:</b> Recuerde activar su Código.</p>
+                                <p><b>BLOQUEADO:</b> Envíe documentación para desbloquearlo.</p>
+                            </span>
+                        </a>
+                    </div>
+                    <br>(CSG)
+                </td>
+                <td><strong>Fundo Santa Elena de Los Niches</strong><br>Dirección:Fundo santa Elena de los Niches Lote B, CURICO, DEL MAULE</td>
+                <td><strong>Agricola Las Vegas SPA</strong></td>
+                <td><li>KIWI - HAYWARD</li></td>
             </tr></tbody>
         </table>
         </body></html>

@@ -146,14 +146,18 @@ class ServicioConsultaSag
 
             $identificacion = $this->texto($celdas->item(0));
             if (! preg_match(
-                '/^([A-Z0-9.-]+)\s*\(([^)]+)\)\s*\(([^)]+)\)/iu',
+                '/^([A-Z0-9.-]+)\s*\(([^)]+)\)/iu',
                 $identificacion,
                 $coincidencia,
+            ) || ! preg_match(
+                '/\(\s*(CSG)\s*\)/iu',
+                $identificacion,
+                $coincidenciaTipo,
             )) {
                 continue;
             }
 
-            $tipoCodigo = mb_strtoupper(trim($coincidencia[3]));
+            $tipoCodigo = mb_strtoupper(trim($coincidenciaTipo[1]));
             if ($tipoCodigo !== 'CSG') {
                 continue;
             }
