@@ -21,13 +21,14 @@
                     <div><p class="eyebrow">CONFIGURACIÓN MAESTRA</p><h1>Catálogo jerárquico</h1><p>Los elementos se crean individualmente. La proyección para la PDA se actualiza automáticamente al guardar.</p></div>
                     <div class="validation-heading__actions">
                         <label><span>Temporada</span><select id="catalogSeasonSelector"></select></label>
+                        <button class="secondary-button" id="catalogToggleInactive" type="button">Mostrar eliminados</button>
                         <button class="secondary-button" id="catalogReload" type="button">↻ Actualizar</button>
                     </div>
                 </header>
 
                 <section class="panel catalog-season-panel">
                     <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Catálogo de la temporada seleccionada</h2></div><span>Solo lectura del ciclo global</span></div>
-                    <p class="validation-help">Las temporadas se crean y activan en la oficina Accesos. Validación mantiene únicamente el catálogo asociado a la temporada seleccionada.</p>
+                    <p class="validation-help">Las temporadas se crean y activan en la oficina Accesos. Al eliminar un elemento se retira del catálogo operativo y de la PDA, pero se conserva su trazabilidad histórica.</p>
                 </section>
 
                 <section aria-labelledby="catalogProjectionTitle">
