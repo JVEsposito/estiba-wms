@@ -161,16 +161,16 @@
                             <label class="field"><span>Código *</span><input name="codigo" maxlength="60" placeholder="ZEBRA-100X50-203" required></label>
                             <label class="field"><span>Nombre *</span><input name="nombre" maxlength="120" placeholder="Zebra 100 × 50 mm" required></label>
                             <label class="field"><span>Fabricante *</span><select name="fabricante" required><option value="Zebra">Zebra</option><option value="Bixolon">Bixolon</option><option value="Genérico">Genérico / compatible</option></select></label>
-                            <label class="field"><span>Modelo</span><input name="modelo" maxlength="80" placeholder="ZD421, XD5-40d…"></label>
+                            <label class="field"><span>Modelo</span><input name="modelo" maxlength="80" placeholder="ZT231, SLP-TX400…"></label>
                             <label class="field"><span>DPI *</span><select name="dpi" required><option value="203">203 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></label>
-                            <label class="field"><span>Lenguaje *</span><select name="lenguaje" required><option value="zpl">ZPL / compatible</option></select></label>
+                            <label class="field"><span>Lenguaje de impresión *</span><select name="lenguaje" required><option value="zpl">ZPL II · Zebra</option><option value="bpl-z">BPL-Z · BIXOLON</option></select></label>
                             <label class="field"><span>Ancho (mm) *</span><input name="ancho_mm" type="number" min="30" max="200" step="0.01" value="100" required></label>
                             <label class="field"><span>Alto (mm) *</span><input name="alto_mm" type="number" min="20" max="150" step="0.01" value="50" required></label>
                             <label class="field"><span>Orientación *</span><select name="orientacion" required><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></label>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo</span></label>
                             <label class="admin-check"><input name="predeterminado" type="checkbox"><span>Usar como predeterminado</span></label>
                         </div>
-                        <p class="admin-form__hint">El perfil define tamaño físico, resolución y lenguaje. La IP se configura en cada PDA/tablet, no en este maestro.</p>
+                        <p class="admin-form__hint">El perfil define equipo, tamaño, resolución y orientación. Las descargas editables se generan en .nlbl para ZebraDesigner 3 y NiceLabel; la IP se configura en cada PDA/tablet.</p>
                         <p class="form-error" id="labelProfileError" role="alert"></p>
                         <div class="admin-form__actions">
                             <button class="secondary-button is-hidden" id="cancelLabelProfileEdit" type="button">Nuevo perfil</button>

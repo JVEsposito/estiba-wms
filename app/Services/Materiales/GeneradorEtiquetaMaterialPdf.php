@@ -27,8 +27,9 @@ class GeneradorEtiquetaMaterialPdf
      */
     public function generar(array $etiquetas, array $perfil, int $copias = 1): string
     {
-        $ancho = $this->puntos((float) $perfil['ancho_mm']);
-        $alto = $this->puntos((float) $perfil['alto_mm']);
+        [$anchoMm, $altoMm] = $this->dimensiones($perfil);
+        $ancho = $this->puntos($anchoMm);
+        $alto = $this->puntos($altoMm);
         $paginas = [];
 
         foreach ($etiquetas as $etiqueta) {
@@ -236,6 +237,17 @@ class GeneradorEtiquetaMaterialPdf
     private function puntos(float $milimetros): float
     {
         return ($milimetros / 25.4) * 72;
+    }
+
+    /** @param array<string, mixed> $perfil */
+    private function dimensiones(array $perfil): array
+    {
+        $ancho = (float) $perfil['ancho_mm'];
+        $alto = (float) $perfil['alto_mm'];
+
+        return ($perfil['orientacion'] ?? 'horizontal') === 'vertical'
+            ? [min($ancho, $alto), max($ancho, $alto)]
+            : [max($ancho, $alto), min($ancho, $alto)];
     }
 
     private function recortar(string $texto, int $maximo): string

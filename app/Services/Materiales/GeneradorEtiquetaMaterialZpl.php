@@ -8,11 +8,16 @@ class GeneradorEtiquetaMaterialZpl
      * @param  array<int, array<string, mixed>>  $etiquetas
      * @param  array<string, mixed>  $perfil
      */
-    public function generar(array $etiquetas, array $perfil, int $copias = 1): string
-    {
+    public function generar(
+        array $etiquetas,
+        array $perfil,
+        int $copias = 1,
+        string $simbologia = 'code128',
+    ): string {
         $dpi = (int) $perfil['dpi'];
-        $ancho = $this->puntos((float) $perfil['ancho_mm'], $dpi);
-        $alto = $this->puntos((float) $perfil['alto_mm'], $dpi);
+        [$anchoMm, $altoMm] = $this->dimensiones($perfil);
+        $ancho = $this->puntos($anchoMm, $dpi);
+        $alto = $this->puntos($altoMm, $dpi);
         $margen = max(12, (int) round($ancho * 0.035));
         $contenido = '';
 
@@ -33,18 +38,38 @@ class GeneradorEtiquetaMaterialZpl
 
                 $barcodeY = max(48, (int) round($alto * 0.20));
                 $barcodeHeight = max(38, (int) round($alto * 0.24));
-                $moduleWidth = $dpi >= 300 ? 3 : 2;
-                $contenido .= sprintf(
-                    "^BY%d,2,%d^FO%d,%d^BCN,%d,Y,N,N^FH\\^FD%s^FS\n",
-                    $moduleWidth,
-                    $barcodeHeight,
-                    $margen,
-                    $barcodeY,
-                    $barcodeHeight,
-                    $this->campo((string) $etiqueta['numero_folio']),
-                );
-
-                $lineY = $barcodeY + $barcodeHeight + max(38, (int) round($alto * 0.10));
+                if ($simbologia === 'qr') {
+                    $magnificacion = max(2, min(10, (int) floor($barcodeHeight / 25)));
+                    $contenido .= sprintf(
+                        "^FO%d,%d^BQN,2,%d^FH\\^FDLA,%s^FS\n",
+                        $margen,
+                        $barcodeY,
+                        $magnificacion,
+                        $this->campo((string) $etiqueta['numero_folio']),
+                    );
+                    $contenido .= $this->texto(
+                        $margen,
+                        $barcodeY + ($magnificacion * 23) + 8,
+                        max(17, (int) round($alto * 0.05)),
+                        max(14, (int) round($alto * 0.04)),
+                        (string) $etiqueta['numero_folio'],
+                    );
+                    $lineY = $barcodeY + ($magnificacion * 23)
+                        + max(40, (int) round($alto * 0.12));
+                } else {
+                    $moduleWidth = $dpi >= 300 ? 3 : 2;
+                    $contenido .= sprintf(
+                        "^BY%d,2,%d^FO%d,%d^BCN,%d,Y,N,N^FH\\^FD%s^FS\n",
+                        $moduleWidth,
+                        $barcodeHeight,
+                        $margen,
+                        $barcodeY,
+                        $barcodeHeight,
+                        $this->campo((string) $etiqueta['numero_folio']),
+                    );
+                    $lineY = $barcodeY + $barcodeHeight
+                        + max(38, (int) round($alto * 0.10));
+                }
                 $fontHeight = max(17, (int) round($alto * 0.055));
                 $lineHeight = max(22, (int) round($alto * 0.072));
                 $lineas = [
@@ -81,6 +106,17 @@ class GeneradorEtiquetaMaterialZpl
     private function puntos(float $milimetros, int $dpi): int
     {
         return max(1, (int) round(($milimetros / 25.4) * $dpi));
+    }
+
+    /** @param array<string, mixed> $perfil */
+    private function dimensiones(array $perfil): array
+    {
+        $ancho = (float) $perfil['ancho_mm'];
+        $alto = (float) $perfil['alto_mm'];
+
+        return ($perfil['orientacion'] ?? 'horizontal') === 'vertical'
+            ? [min($ancho, $alto), max($ancho, $alto)]
+            : [max($ancho, $alto), min($ancho, $alto)];
     }
 
     /**

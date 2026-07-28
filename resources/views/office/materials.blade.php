@@ -16,7 +16,7 @@
             'recepcion' => [
                 'eyebrow' => 'RECEPCIÓN',
                 'title' => 'Etiquetas de materiales',
-                'description' => 'Selecciona una recepción u orden y genera sus etiquetas PDF o ZPL.',
+                'description' => 'Selecciona una recepción u orden y genera sus etiquetas PDF o NiceLabel/ZebraDesigner.',
             ],
             'inventario' => [
                 'eyebrow' => 'INVENTARIO',
@@ -97,7 +97,7 @@
                     </a>
                     <a class="materials-module-card" href="/oficina/materiales/recepcion" data-navigation-module="materiales.etiquetas" data-navigation-permissions="puede_imprimir_etiquetas_materiales">
                         <span aria-hidden="true">▣</span>
-                        <div><p class="eyebrow">RECEPCIÓN</p><h2>Etiquetas</h2><p>Folios por recepción u orden, disponibles en PDF y ZPL.</p></div>
+                        <div><p class="eyebrow">RECEPCIÓN</p><h2>Etiquetas</h2><p>Folios por recepción u orden, disponibles en PDF y .nlbl editable.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
                     <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-module="materiales.inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
@@ -207,7 +207,7 @@
 
                 <section class="panel materials-panel material-label-workspace" id="materialLabelWorkspace" data-materials-view="recepcion">
                     <div class="materials-panel__heading">
-                        <div><p class="eyebrow">ETIQUETAS DE RECEPCIÓN</p><h2>Descarga PDF y ZPL</h2><span id="materialLabelSummary">Selecciona una recepción confirmada</span></div>
+                        <div><p class="eyebrow">ETIQUETAS DE RECEPCIÓN</p><h2>Descarga PDF y NiceLabel</h2><span id="materialLabelSummary">Selecciona una recepción confirmada</span></div>
                         <button class="secondary-button" id="reloadMaterialLabels" type="button">↻ Actualizar recepciones</button>
                     </div>
                     <form class="materials-form material-label-form" id="materialLabelForm" novalidate>
@@ -215,7 +215,8 @@
                             <label><span>Origen de folios *</span><select id="materialLabelSource"><option value="recepcion">Recepciones confirmadas</option><option value="transformacion">Órdenes de transformación</option></select></label>
                             <label><span>Documento / proceso *</span><select name="origen_id" id="materialLabelReception" required><option value="">Seleccionar origen</option></select></label>
                             <label><span>Perfil de impresora *</span><select name="perfil_id" id="materialLabelProfile" required><option value="">Seleccionar perfil</option></select></label>
-                            <label><span>Formato *</span><select name="formato" required><option value="pdf">PDF · imprimir desde oficina</option><option value="zpl">ZPL · enviar a impresora compatible</option></select></label>
+                            <label><span>Formato *</span><select name="formato" required><option value="nlbl">NLBL · ZebraDesigner 3 / NiceLabel</option><option value="pdf">PDF · vista previa Code 128</option></select></label>
+                            <label><span>Código del folio *</span><select name="simbologia" required><option value="code128">Código de barras Code 128</option><option value="qr">Código QR</option></select></label>
                             <label><span>Copias por folio *</span><input name="copias" type="number" min="1" max="20" value="1" required></label>
                             <label class="materials-wide"><span>Motivo de reimpresión</span><textarea name="motivo_reimpresion" minlength="5" maxlength="1000" rows="2" placeholder="Será obligatorio si uno de los folios ya fue generado anteriormente."></textarea></label>
                         </div>

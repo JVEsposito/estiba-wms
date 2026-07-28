@@ -23,7 +23,8 @@ class GenerarEtiquetasMaterialRequest extends FormRequest
                 'uuid',
                 Rule::exists('perfiles_impresion_etiquetas', 'id')->where('activo', true),
             ],
-            'formato' => ['required', Rule::in(['pdf', 'zpl'])],
+            'formato' => ['required', Rule::in(['pdf', 'nlbl', 'zpl'])],
+            'simbologia' => ['required', Rule::in(['code128', 'qr'])],
             'canal' => ['required', Rule::in(['oficina_descarga', 'pda_directa'])],
             'folio_ids' => ['required', 'array', 'min:1', 'max:500'],
             'folio_ids.*' => ['required', 'uuid', 'distinct', 'exists:folios,id'],
@@ -43,6 +44,13 @@ class GenerarEtiquetasMaterialRequest extends FormRequest
                     'La impresión directa desde PDA requiere formato ZPL.',
                 );
             }
+            if ($this->input('formato') === 'pdf'
+                && $this->input('simbologia') !== 'code128') {
+                $validator->errors()->add(
+                    'simbologia',
+                    'La vista PDF utiliza Code 128. Para QR selecciona NiceLabel/ZebraDesigner.',
+                );
+            }
         }];
     }
 
@@ -50,6 +58,7 @@ class GenerarEtiquetasMaterialRequest extends FormRequest
     {
         $this->merge([
             'formato' => mb_strtolower(trim((string) $this->input('formato'))),
+            'simbologia' => mb_strtolower(trim((string) $this->input('simbologia', 'code128'))),
             'canal' => mb_strtolower(trim((string) $this->input('canal', 'oficina_descarga'))),
             'copias' => $this->input('copias', 1),
             'motivo_reimpresion' => $this->filled('motivo_reimpresion')

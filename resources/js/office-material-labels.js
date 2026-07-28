@@ -147,7 +147,7 @@ function renderFolios() {
 function renderHistory() {
     labelElements.history.innerHTML = labelState.history.map((job) => `
         <article class="material-row">
-            <div><strong>${labelEscape(job.formato.toUpperCase())} · ${job.folios.length} folios × ${job.copias} copias</strong><small>${new Date(job.solicitado_at).toLocaleString('es-CL')} · ${labelEscape(job.solicitado_por)} · ${labelEscape(job.perfil?.nombre)}</small>${job.motivo_reimpresion ? `<small>Motivo: ${labelEscape(job.motivo_reimpresion)}</small>` : ''}</div>
+            <div><strong>${labelEscape(job.formato.toUpperCase())} · ${labelEscape((job.simbologia || 'code128').toUpperCase())} · ${job.folios.length} folios × ${job.copias} copias</strong><small>${new Date(job.solicitado_at).toLocaleString('es-CL')} · ${labelEscape(job.solicitado_por)} · ${labelEscape(job.perfil?.nombre)}</small>${job.motivo_reimpresion ? `<small>Motivo: ${labelEscape(job.motivo_reimpresion)}</small>` : ''}</div>
             <span class="material-import-action">${labelEscape(job.estado)}</span>
         </article>
     `).join('') || '<p class="empty-state">Aún no se han generado etiquetas para este origen.</p>';
@@ -256,6 +256,7 @@ labelElements.form?.addEventListener('submit', async (event) => {
         operacion_id: labelUuid(),
         perfil_id: form.get('perfil_id'),
         formato: form.get('formato'),
+        simbologia: form.get('simbologia'),
         canal: 'oficina_descarga',
         folio_ids: folioIds,
         copias: Number(form.get('copias')),
@@ -268,7 +269,9 @@ labelElements.form?.addEventListener('submit', async (event) => {
         const response = await fetch(`${prefix}/${encodeURIComponent(labelState.selected.id)}/etiquetas`, {
             method: 'POST',
             headers: {
-                Accept: payload.formato === 'pdf' ? 'application/pdf' : 'application/zpl',
+                Accept: payload.formato === 'pdf'
+                    ? 'application/pdf'
+                    : 'application/octet-stream',
                 Authorization: `Bearer ${labelToken()}`,
                 'Content-Type': 'application/json',
             },
@@ -295,6 +298,14 @@ labelElements.form?.addEventListener('submit', async (event) => {
 });
 
 labelElements.reload?.addEventListener('click', () => void loadLabels());
+labelElements.form?.elements.formato?.addEventListener('change', (event) => {
+    const qr = labelElements.form.elements.simbologia.querySelector('option[value="qr"]');
+    const pdf = event.target.value === 'pdf';
+    qr.disabled = pdf;
+    if (pdf && labelElements.form.elements.simbologia.value === 'qr') {
+        labelElements.form.elements.simbologia.value = 'code128';
+    }
+});
 window.addEventListener('estiba:office-session', (event) => {
     if (event.detail?.authenticated) void loadLabels();
     else labelElements.workspace.classList.add('is-hidden');

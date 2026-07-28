@@ -21,6 +21,7 @@ class ServicioImpresionEtiquetaMaterial
 {
     public function __construct(
         private readonly GeneradorEtiquetaMaterialPdf $pdf,
+        private readonly GeneradorEtiquetaMaterialNlbl $nlbl,
         private readonly GeneradorEtiquetaMaterialZpl $zpl,
     ) {}
 
@@ -39,6 +40,7 @@ class ServicioImpresionEtiquetaMaterial
             'recepcion_material_id' => $recepcion->id,
             'perfil_id' => $datos['perfil_id'],
             'formato' => $datos['formato'],
+            'simbologia' => $datos['simbologia'],
             'canal' => $datos['canal'],
             'folio_ids' => collect($datos['folio_ids'])->sort()->values()->all(),
             'copias' => (int) $datos['copias'],
@@ -105,6 +107,7 @@ class ServicioImpresionEtiquetaMaterial
             'orden_transformacion_material_id' => $orden->id,
             'perfil_id' => $datos['perfil_id'],
             'formato' => $datos['formato'],
+            'simbologia' => $datos['simbologia'],
             'canal' => $datos['canal'],
             'folio_ids' => collect($datos['folio_ids'])->sort()->values()->all(),
             'copias' => (int) $datos['copias'],
@@ -221,6 +224,7 @@ class ServicioImpresionEtiquetaMaterial
                     'perfil' => $perfilSnapshot,
                     'etiquetas' => $contenidoSnapshot,
                     'copias' => $payload['copias'],
+                    'simbologia' => $payload['simbologia'],
                 ]);
                 $trabajo = TrabajoImpresionMaterial::create([
                     'operacion_id' => $datos['operacion_id'],
@@ -231,6 +235,7 @@ class ServicioImpresionEtiquetaMaterial
                     'lote_transformacion_material_id' => $contexto['lote_transformacion_material_id'],
                     'perfil_impresion_etiqueta_id' => $perfil->id,
                     'formato' => $datos['formato'],
+                    'simbologia' => $datos['simbologia'],
                     'canal' => $datos['canal'],
                     'estado' => 'generado',
                     'copias' => $payload['copias'],
@@ -269,7 +274,11 @@ class ServicioImpresionEtiquetaMaterial
         }
 
         $contenido = $this->renderizar($trabajo);
-        $extension = $trabajo->formato === 'pdf' ? 'pdf' : 'zpl';
+        $extension = match ($trabajo->formato) {
+            'pdf' => 'pdf',
+            'nlbl' => 'nlbl',
+            default => 'zpl',
+        };
         $referencia = $trabajo->origen === 'transformacion'
             ? 'transformacion-'.mb_substr((string) $trabajo->orden_transformacion_material_id, 0, 8)
             : $this->referenciaRecepcion($trabajo);
@@ -277,26 +286,36 @@ class ServicioImpresionEtiquetaMaterial
         return [
             'trabajo' => $trabajo,
             'contenido' => $contenido,
-            'mime' => $trabajo->formato === 'pdf'
-                ? 'application/pdf'
-                : 'application/zpl',
+            'mime' => match ($trabajo->formato) {
+                'pdf' => 'application/pdf',
+                'nlbl' => 'application/octet-stream',
+                default => 'application/zpl',
+            },
             'nombre' => "etiquetas-{$referencia}.{$extension}",
         ];
     }
 
     public function renderizar(TrabajoImpresionMaterial $trabajo): string
     {
-        return $trabajo->formato === 'pdf'
-            ? $this->pdf->generar(
+        return match ($trabajo->formato) {
+            'pdf' => $this->pdf->generar(
                 $trabajo->contenido_snapshot,
                 $trabajo->perfil_snapshot,
                 $trabajo->copias,
-            )
-            : $this->zpl->generar(
+            ),
+            'nlbl' => $this->nlbl->generar(
                 $trabajo->contenido_snapshot,
                 $trabajo->perfil_snapshot,
                 $trabajo->copias,
-            );
+                $trabajo->simbologia,
+            ),
+            default => $this->zpl->generar(
+                $trabajo->contenido_snapshot,
+                $trabajo->perfil_snapshot,
+                $trabajo->copias,
+                $trabajo->simbologia,
+            ),
+        };
     }
 
     /** @return array<string, mixed> */
