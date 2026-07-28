@@ -127,6 +127,45 @@ class ConsultaOperacionalApiTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_consulta_sag_acepta_la_respuesta_real_de_tres_columnas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Http::fake([
+            ServicioConsultaSag::URL => Http::response($this->respuestaSagTresColumnas(), 200),
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/consultas/sag', [
+                'tipo' => 'codigo_sag',
+                'valor' => '123225',
+            ])
+            ->assertOk()
+            ->assertJsonPath('cantidad', 1)
+            ->assertJsonPath('data.0.codigo', '123225')
+            ->assertJsonPath('data.0.estado_sag', 'activo')
+            ->assertJsonPath('data.0.tipo_codigo', 'CSG')
+            ->assertJsonPath('data.0.razon_social', 'Agricola Las Vegas SPA')
+            ->assertJsonPath('data.0.predio', 'Fundo Santa Elena de Los Niches')
+            ->assertJsonPath(
+                'data.0.direccion',
+                'Dirección:Fundo santa Elena de los Niches Lote B, CURICO, DEL MAULE',
+            )
+            ->assertJsonPath('data.0.especies', []);
+
+        $this->assertDatabaseHas('productores_csg', [
+            'codigo' => '123225',
+            'razon_social' => 'Agricola Las Vegas SPA',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+        ]);
+        $this->assertDatabaseHas('consultas_sag', [
+            'tipo_busqueda' => 'codigo_sag',
+            'valor_normalizado' => '123225',
+            'estado' => 'exitosa',
+            'cantidad_resultados' => 1,
+        ]);
+    }
+
     public function test_falla_del_servicio_sag_no_modifica_productores_y_queda_auditada(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
@@ -161,6 +200,25 @@ class ConsultaOperacionalApiTest extends TestCase
                 <td><strong>Los Cerezos</strong><br>LOTE B, PARCELA 25 STA LUISA, REQUINOA</td>
                 <td>SOCIEDAD AGRÍCOLA LOS CEREZOS SPA</td>
                 <td>CEREZA - BING<br>CEREZA - LAPINS<br>CEREZA - RAINIER</td>
+            </tr></tbody>
+        </table>
+        </body></html>
+        HTML;
+
+        return mb_convert_encoding($html, 'Windows-1252', 'UTF-8');
+    }
+
+    private function respuestaSagTresColumnas(): string
+    {
+        $html = <<<'HTML'
+        <!doctype html>
+        <html><body>
+        <table>
+            <thead><tr><th>Código SAG</th><th>Predio / Establecimiento</th><th>Razón Social</th></tr></thead>
+            <tbody><tr>
+                <td>123225 (ACTIVO) (CSG)</td>
+                <td><strong>Fundo Santa Elena de Los Niches</strong><br>Dirección:Fundo santa Elena de los Niches Lote B, CURICO, DEL MAULE</td>
+                <td>Agricola Las Vegas SPA</td>
             </tr></tbody>
         </table>
         </body></html>
