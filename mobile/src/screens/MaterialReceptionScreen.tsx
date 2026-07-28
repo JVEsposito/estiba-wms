@@ -47,6 +47,7 @@ type Form = {
   detalles: ReceptionDraftDetail[];
 };
 type Option = { id: string; label: string; description?: string };
+const MAX_PACKAGES_PER_DETAIL = 500;
 
 const EMPTY_CATALOG: MaterialReceptionCatalog = {
   temporada: null,
@@ -176,15 +177,14 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     }));
   }
 
-  function updatePackage(detailId: string, packageId: string, patch: Partial<ReceptionDraftPackage>) {
+  function updateAllPackages(detailId: string, patch: Partial<ReceptionDraftPackage>) {
     setForm((current) => ({
       ...current,
       detalles: current.detalles.map((detail) => detail.local_id === detailId
         ? {
           ...detail,
-          bultos: detail.bultos.map((itemPackage) => itemPackage.local_id === packageId
-            ? { ...itemPackage, ...patch }
-            : itemPackage),
+          bultos: (detail.bultos.length ? detail.bultos : [emptyPackage()])
+            .map((itemPackage) => ({ ...itemPackage, ...patch })),
         }
         : detail),
     }));
@@ -203,22 +203,19 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     }));
   }
 
-  function addPackage(detailId: string) {
-    setForm((current) => ({
-      ...current,
-      detalles: current.detalles.map((detail) => detail.local_id === detailId
-        ? { ...detail, bultos: [...detail.bultos, emptyPackage()] }
-        : detail),
-    }));
-  }
+  function calculatePackages(detail: ReceptionDraftDetail, showIncompleteError = true) {
+    if (!detail.cantidad_contada.trim() || !detail.cantidad_por_bulto.trim()) {
+      if (showIncompleteError) setError('Ingresa la cantidad total recibida y la cantidad por bulto.');
+      return;
+    }
 
-  function removePackage(detailId: string, packageId: string) {
-    setForm((current) => ({
-      ...current,
-      detalles: current.detalles.map((detail) => detail.local_id === detailId
-        ? { ...detail, bultos: detail.bultos.filter((itemPackage) => itemPackage.local_id !== packageId) }
-        : detail),
-    }));
+    try {
+      const bultos = distributePackages(detail);
+      updateDetail(detail.local_id, { bultos });
+      setError('');
+    } catch (reason) {
+      if (showIncompleteError) setError(errorMessage(reason));
+    }
   }
 
   async function submit(confirmImmediately: boolean) {
@@ -507,7 +504,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                     onChange={changeSupplier}
                   />
                   <Field label="N.º guía despacho" value={form.numero_guia_despacho} onChange={(value) => setForm({ ...form, numero_guia_despacho: value })} placeholder="GD-12345" />
-                  <Field label="Fecha documento" value={form.fecha_documento} onChange={(value) => setForm({ ...form, fecha_documento: value })} placeholder="AAAA-MM-DD" />
+                  <DateField label="Fecha documento" value={form.fecha_documento} onChange={(value) => setForm({ ...form, fecha_documento: value })} />
                   <Field label="Orden de compra" value={form.orden_compra} onChange={(value) => setForm({ ...form, orden_compra: value })} placeholder="Opcional" />
                   <Field label="Patente" value={form.patente} onChange={(value) => setForm({ ...form, patente: value.toUpperCase() })} placeholder="Opcional" />
                   <Field label="Transportista" value={form.transportista} onChange={(value) => setForm({ ...form, transportista: value })} placeholder="Opcional" />
@@ -538,44 +535,78 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                             onChange={(value) => updateDetail(detail.local_id, { item_material_id: value })}
                           />
                           <Field label="Cantidad documental" value={detail.cantidad_documental} onChange={(value) => updateDetail(detail.local_id, { cantidad_documental: decimal(value) })} placeholder="0" numeric />
-                          <Field label="Cantidad contada" value={detail.cantidad_contada} onChange={(value) => updateDetail(detail.local_id, { cantidad_contada: decimal(value) })} placeholder="0" numeric />
+                          <Field
+                            label="Cantidad total recibida"
+                            value={detail.cantidad_contada}
+                            onChange={(value) => updateDetail(detail.local_id, { cantidad_contada: decimal(value) })}
+                            onEndEditing={() => calculatePackages(detail, false)}
+                            placeholder="Ej. 500"
+                            numeric
+                          />
+                          <Field
+                            label={`Cantidad por bulto${item ? ` (${item.unidad_medida})` : ''}`}
+                            value={detail.cantidad_por_bulto}
+                            onChange={(value) => updateDetail(detail.local_id, { cantidad_por_bulto: decimal(value) })}
+                            onEndEditing={() => calculatePackages(detail, false)}
+                            placeholder="Ej. 60"
+                            numeric
+                          />
+                          <Readonly label="Bultos calculados" value={packageDistributionLabel(detail)} />
                           <Readonly label="Cantidad aceptada" value={format(sumPackages(detail.bultos))} />
                           <Readonly label="Cantidad rechazada" value={format(rejectedQuantity(detail))} />
                           <Field label="Observación del ítem" value={detail.observacion} onChange={(value) => updateDetail(detail.local_id, { observacion: value })} placeholder="Opcional" multiline />
                         </View>
 
-                        <Text style={styles.subheading}>Bultos que generarán folio</Text>
-                        <View style={styles.stackSmall}>
-                          {detail.bultos.map((itemPackage, packageIndex) => (
-                            <View key={itemPackage.local_id} style={styles.packageCard}>
-                              <View style={styles.between}>
-                                <Text style={styles.cardTitle}>Bulto {packageIndex + 1}</Text>
-                                <Button label="Quitar" onPress={() => removePackage(detail.local_id, itemPackage.local_id)} danger small />
-                              </View>
-                              <View style={[styles.grid, compact && styles.column]}>
-                                <Field label={`Cantidad${item ? ` (${item.unidad_medida})` : ''}`} value={itemPackage.cantidad} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { cantidad: decimal(value) })} placeholder="0" numeric />
-                                <Field label="Lote proveedor" value={itemPackage.lote_proveedor} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { lote_proveedor: value })} placeholder="Opcional" />
-                                <Field label="Fecha fabricación" value={itemPackage.fecha_fabricacion} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { fecha_fabricacion: value })} placeholder="AAAA-MM-DD" />
-                                <Field label="Fecha vencimiento" value={itemPackage.fecha_vencimiento} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { fecha_vencimiento: value })} placeholder="AAAA-MM-DD" />
-                              </View>
-                              <Pressable
-                                onPress={() => updatePackage(detail.local_id, itemPackage.local_id, {
-                                  bloqueado: !itemPackage.bloqueado,
-                                  motivo_bloqueo: itemPackage.bloqueado ? '' : itemPackage.motivo_bloqueo,
-                                })}
-                                style={[styles.toggle, itemPackage.bloqueado && styles.toggleBlocked]}
-                              >
-                                <Text style={[styles.toggleText, itemPackage.bloqueado && styles.redText]}>
-                                  {itemPackage.bloqueado ? 'Bulto bloqueado' : 'Bulto sin bloqueo'}
-                                </Text>
-                              </Pressable>
-                              {itemPackage.bloqueado ? (
-                                <Field label="Motivo del bloqueo" value={itemPackage.motivo_bloqueo} onChange={(value) => updatePackage(detail.local_id, itemPackage.local_id, { motivo_bloqueo: value })} placeholder="Obligatorio" multiline />
-                              ) : null}
+                        <View style={styles.packageCard}>
+                          <View style={styles.between}>
+                            <View style={styles.headerCopy}>
+                              <Text style={styles.subheading}>Distribución automática</Text>
+                              <Text style={styles.cardTitle}>{packageDistributionLabel(detail)}</Text>
+                              <Text style={styles.muted}>Cada bulto generará un folio individual al confirmar la recepción.</Text>
                             </View>
-                          ))}
+                            <Button label="Calcular bultos" onPress={() => calculatePackages(detail)} secondary small />
+                          </View>
+                          <View style={[styles.grid, compact && styles.column]}>
+                            <Field
+                              label="Lote proveedor · todos los bultos"
+                              value={packageTemplate(detail).lote_proveedor}
+                              onChange={(value) => updateAllPackages(detail.local_id, { lote_proveedor: value })}
+                              placeholder="Opcional"
+                            />
+                            <DateField
+                              label="Fecha fabricación · todos"
+                              value={packageTemplate(detail).fecha_fabricacion}
+                              onChange={(value) => updateAllPackages(detail.local_id, { fecha_fabricacion: value })}
+                              optional
+                            />
+                            <DateField
+                              label="Fecha vencimiento · todos"
+                              value={packageTemplate(detail).fecha_vencimiento}
+                              onChange={(value) => updateAllPackages(detail.local_id, { fecha_vencimiento: value })}
+                              optional
+                            />
+                          </View>
+                          <Pressable
+                            onPress={() => updateAllPackages(detail.local_id, {
+                              bloqueado: !packageTemplate(detail).bloqueado,
+                              motivo_bloqueo: packageTemplate(detail).bloqueado ? '' : packageTemplate(detail).motivo_bloqueo,
+                            })}
+                            style={[styles.toggle, packageTemplate(detail).bloqueado && styles.toggleBlocked]}
+                          >
+                            <Text style={[styles.toggleText, packageTemplate(detail).bloqueado && styles.redText]}>
+                              {packageTemplate(detail).bloqueado ? 'Todos los bultos bloqueados' : 'Bultos sin bloqueo'}
+                            </Text>
+                          </Pressable>
+                          {packageTemplate(detail).bloqueado ? (
+                            <Field
+                              label="Motivo del bloqueo · todos los bultos"
+                              value={packageTemplate(detail).motivo_bloqueo}
+                              onChange={(value) => updateAllPackages(detail.local_id, { motivo_bloqueo: value })}
+                              placeholder="Obligatorio"
+                              multiline
+                            />
+                          ) : null}
                         </View>
-                        <Button label="+ Agregar bulto" onPress={() => addPackage(detail.local_id)} secondary small />
                       </View>
                     );
                   })}
@@ -633,7 +664,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
                   <View style={styles.headerCopy}>
                     <Text style={styles.linkText}>Guía {reception.numero_guia_despacho}</Text>
                     <Text style={styles.cardTitle}>{reception.cliente?.nombre ?? 'Cliente sin datos'}</Text>
-                    <Text style={styles.muted}>{reception.proveedor?.nombre ?? 'Proveedor sin datos'} · {reception.fecha_documento ?? 'Sin fecha'}</Text>
+                    <Text style={styles.muted}>{reception.proveedor?.nombre ?? 'Proveedor sin datos'} · {formatDateCL(reception.fecha_documento)}</Text>
                   </View>
                   <Badge state={reception.estado} />
                 </Pressable>
@@ -715,7 +746,7 @@ function ReceptionDetail({
         <View style={styles.summaryGrid}>
           <Summary label="Cliente" value={reception.cliente?.nombre ?? '—'} />
           <Summary label="Proveedor" value={reception.proveedor?.nombre ?? '—'} />
-          <Summary label="Fecha" value={reception.fecha_documento ?? '—'} />
+          <Summary label="Fecha" value={formatDateCL(reception.fecha_documento)} />
           <Summary label="Orden de compra" value={reception.orden_compra ?? '—'} />
           <Summary label="Patente" value={reception.patente ?? '—'} />
           <Summary label="Transportista" value={reception.transportista ?? '—'} />
@@ -742,7 +773,7 @@ function ReceptionDetail({
             <View key={itemPackage.id} style={styles.packageResult}>
               <View style={styles.headerCopy}>
                 <Text style={styles.cardTitle}>Bulto {packageIndex + 1} · {itemPackage.cantidad} {detail.unidad_medida}</Text>
-                <Text style={styles.muted}>Lote {itemPackage.lote_proveedor ?? '—'} · Vence {itemPackage.fecha_vencimiento ?? '—'}</Text>
+                <Text style={styles.muted}>Lote {itemPackage.lote_proveedor ?? '—'} · Vence {formatDateCL(itemPackage.fecha_vencimiento)}</Text>
                 {itemPackage.bloqueado ? <Text style={styles.redText}>BLOQUEADO · {itemPackage.motivo_bloqueo}</Text> : null}
               </View>
               {itemPackage.folio ? (
@@ -828,10 +859,11 @@ function Choice({ label, value, placeholder, options, onChange, disabled = false
   );
 }
 
-function Field({ label, value, onChange, placeholder, multiline = false, numeric = false }: {
+function Field({ label, value, onChange, onEndEditing, placeholder, multiline = false, numeric = false }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onEndEditing?: () => void;
   placeholder: string;
   multiline?: boolean;
   numeric?: boolean;
@@ -842,12 +874,121 @@ function Field({ label, value, onChange, placeholder, multiline = false, numeric
       <TextInput
         value={value}
         onChangeText={onChange}
+        onEndEditing={onEndEditing}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         keyboardType={numeric ? 'decimal-pad' : 'default'}
         multiline={multiline}
         style={[styles.input, multiline && styles.multiline]}
       />
+    </View>
+  );
+}
+
+function DateField({ label, value, onChange, optional = false }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  optional?: boolean;
+}) {
+  const initialDate = parseIsoDate(value) ?? new Date();
+  const [visible, setVisible] = useState(false);
+  const [month, setMonth] = useState(() => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1));
+
+  function open() {
+    const selected = parseIsoDate(value) ?? new Date();
+    setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    setVisible(true);
+  }
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <Pressable onPress={open} style={[styles.input, styles.choice]}>
+        <Text style={value ? styles.inputText : styles.placeholder}>
+          {value ? formatDateCL(value) : 'Seleccionar fecha'}
+        </Text>
+        <Text style={styles.linkText}>▣</Text>
+      </Pressable>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.calendarCard}>
+            <View style={styles.between}>
+              <Button
+                label="‹"
+                onPress={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                secondary
+                small
+              />
+              <Text style={styles.calendarTitle}>
+                {month.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}
+              </Text>
+              <Button
+                label="›"
+                onPress={() => setMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                secondary
+                small
+              />
+            </View>
+            <View style={styles.calendarGrid}>
+              {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, index) => (
+                <View key={`${day}-${index}`} style={styles.calendarCell}>
+                  <Text style={styles.calendarDayName}>{day}</Text>
+                </View>
+              ))}
+              {calendarDays(month).map((date, index) => {
+                if (!date) return <View key={`empty-${index}`} style={styles.calendarCell} />;
+
+                const iso = dateToIso(date);
+                const selected = iso === value;
+                const today = iso === localDate();
+                return (
+                  <Pressable
+                    key={iso}
+                    onPress={() => {
+                      onChange(iso);
+                      setVisible(false);
+                    }}
+                    style={[
+                      styles.calendarCell,
+                      styles.calendarDate,
+                      today && styles.calendarToday,
+                      selected && styles.calendarSelected,
+                    ]}
+                  >
+                    <Text style={[styles.calendarDateText, selected && styles.buttonText]}>{date.getDate()}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.between}>
+              <View style={styles.row}>
+                <Button
+                  label="Hoy"
+                  onPress={() => {
+                    onChange(localDate());
+                    setVisible(false);
+                  }}
+                  secondary
+                  small
+                />
+                {optional ? (
+                  <Button
+                    label="Limpiar"
+                    onPress={() => {
+                      onChange('');
+                      setVisible(false);
+                    }}
+                    danger
+                    small
+                  />
+                ) : null}
+              </View>
+              <Button label="Cerrar" onPress={() => setVisible(false)} secondary small />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -910,8 +1051,7 @@ function Empty({ title }: { title: string }) {
 
 function localDate() {
   const date = new Date();
-  const localTime = date.getTime() - date.getTimezoneOffset() * 60_000;
-  return new Date(localTime).toISOString().slice(0, 10);
+  return dateToIso(date);
 }
 
 function formFromReception(reception: MaterialReception): Form {
@@ -929,6 +1069,7 @@ function formFromReception(reception: MaterialReception): Form {
       item_material_id: detail.item?.id ?? '',
       cantidad_documental: detail.cantidad_documental,
       cantidad_contada: detail.cantidad_contada,
+      cantidad_por_bulto: inferPackageCapacity(detail.bultos),
       observacion: detail.observacion ?? '',
       bultos: detail.bultos.map((itemPackage) => ({
         local_id: Crypto.randomUUID(),
@@ -963,6 +1104,7 @@ function emptyDetail(): ReceptionDraftDetail {
     item_material_id: '',
     cantidad_documental: '',
     cantidad_contada: '',
+    cantidad_por_bulto: '',
     observacion: '',
     bultos: [emptyPackage()],
   };
@@ -994,7 +1136,7 @@ function buildPayload(form: Form, operationId: string): CreateMaterialReceptionP
 
     const documentary = positive(detail.cantidad_documental, `Cantidad documental del ítem ${detailIndex + 1}`);
     const counted = positive(detail.cantidad_contada, `Cantidad contada del ítem ${detailIndex + 1}`);
-    const packages = detail.bultos.map((itemPackage, packageIndex) => {
+    const packages = distributePackages(detail).map((itemPackage, packageIndex) => {
       const quantity = positive(itemPackage.cantidad, `Cantidad del bulto ${packageIndex + 1}`);
       validateDate(itemPackage.fecha_fabricacion, 'fecha de fabricación');
       validateDate(itemPackage.fecha_vencimiento, 'fecha de vencimiento');
@@ -1050,6 +1192,58 @@ function sumPackages(packages: ReceptionDraftPackage[]) {
   }, 0));
 }
 
+function packageTemplate(detail: ReceptionDraftDetail): ReceptionDraftPackage {
+  return detail.bultos[0] ?? emptyPackage();
+}
+
+function inferPackageCapacity(packages: Array<{ cantidad: string }>) {
+  return packages.find((itemPackage) => Number(itemPackage.cantidad) > 0)?.cantidad ?? '';
+}
+
+function distributePackages(detail: ReceptionDraftDetail): ReceptionDraftPackage[] {
+  const total = positive(detail.cantidad_contada, 'La cantidad total recibida');
+  const capacity = positive(detail.cantidad_por_bulto, 'La cantidad por bulto');
+  const totalUnits = Math.round(total * 1000);
+  const capacityUnits = Math.round(capacity * 1000);
+  const packageCount = Math.ceil(totalUnits / capacityUnits);
+
+  if (packageCount > MAX_PACKAGES_PER_DETAIL) {
+    throw new Error(`La distribución genera ${packageCount} bultos. El máximo permitido por ítem es ${MAX_PACKAGES_PER_DETAIL}.`);
+  }
+
+  const template = packageTemplate(detail);
+  let remaining = totalUnits;
+
+  return Array.from({ length: packageCount }, (_, index) => {
+    const units = Math.min(capacityUnits, remaining);
+    const previousPackage = detail.bultos[index] ?? template;
+    remaining -= units;
+
+    return {
+      ...previousPackage,
+      local_id: previousPackage.local_id ?? Crypto.randomUUID(),
+      cantidad: numberInput(units / 1000),
+    };
+  });
+}
+
+function packageDistributionLabel(detail: ReceptionDraftDetail) {
+  const quantities = detail.bultos
+    .map((itemPackage) => Number(itemPackage.cantidad.replace(',', '.')))
+    .filter((quantity) => Number.isFinite(quantity) && quantity > 0)
+    .map(round);
+
+  if (!quantities.length) return 'Pendiente de calcular';
+
+  const groups = new Map<number, number>();
+  quantities.forEach((quantity) => groups.set(quantity, (groups.get(quantity) ?? 0) + 1));
+  const distribution = [...groups.entries()]
+    .map(([quantity, count]) => `${count} × ${format(quantity)}`)
+    .join(' + ');
+
+  return `${quantities.length} ${quantities.length === 1 ? 'bulto' : 'bultos'} · ${distribution}`;
+}
+
 function rejectedQuantity(detail: ReceptionDraftDetail) {
   const counted = Number(detail.cantidad_contada.replace(',', '.'));
   if (!Number.isFinite(counted)) return 0;
@@ -1064,8 +1258,8 @@ function positive(value: string, label: string) {
 }
 
 function validateDate(value: string, label: string) {
-  if (value.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-    throw new Error(`La ${label} debe usar el formato AAAA-MM-DD.`);
+  if (value.trim() && !parseIsoDate(value.trim())) {
+    throw new Error(`La ${label} no es válida.`);
   }
 }
 
@@ -1081,8 +1275,56 @@ function round(value: number) {
   return Math.round(value * 1000) / 1000;
 }
 
+function numberInput(value: number) {
+  return String(round(value));
+}
+
 function format(value: number) {
   return value.toLocaleString('es-CL', { maximumFractionDigits: 3 });
+}
+
+function parseIsoDate(value: string | null | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+
+  return date;
+}
+
+function dateToIso(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateCL(value: string | null | undefined) {
+  const date = parseIsoDate(value);
+  if (!date) return '—';
+
+  return date.toLocaleDateString('es-CL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function calendarDays(month: Date): Array<Date | null> {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDay = new Date(year, monthIndex, 1);
+  const leadingEmpty = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const days: Array<Date | null> = Array.from({ length: leadingEmpty }, () => null);
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    days.push(new Date(year, monthIndex, day));
+  }
+  while (days.length % 7 !== 0) days.push(null);
+
+  return days;
 }
 
 function stateLabel(state: HistoryFilter) {
@@ -1162,6 +1404,15 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center', padding: 34, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.72)' },
   modalCard: { width: '100%', maxWidth: 720, maxHeight: '82%', padding: 15, gap: 10, borderRadius: 15, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.panel },
+  calendarCard: { width: '100%', maxWidth: 420, padding: 15, gap: 14, borderRadius: 15, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.panel },
+  calendarTitle: { color: colors.text, fontSize: 15, fontWeight: '900', textTransform: 'capitalize' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarCell: { width: '14.2857%', minHeight: 38, alignItems: 'center', justifyContent: 'center' },
+  calendarDayName: { color: colors.muted, fontSize: 9, fontWeight: '900' },
+  calendarDate: { borderRadius: 8, borderWidth: 1, borderColor: 'transparent' },
+  calendarToday: { borderColor: colors.cyanDark },
+  calendarSelected: { backgroundColor: colors.cyan, borderColor: colors.cyan },
+  calendarDateText: { color: colors.text, fontSize: 12, fontWeight: '800' },
   search: { minHeight: 43, borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep, color: colors.text, paddingHorizontal: 11 },
   option: { padding: 11, marginBottom: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.backgroundDeep },
   optionActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
