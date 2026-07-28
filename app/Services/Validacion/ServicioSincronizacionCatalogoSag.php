@@ -96,7 +96,7 @@ class ServicioSincronizacionCatalogoSag
                 ->where('temporada_id', $temporada->id)
                 ->whereRaw('UPPER(codigo) = ?', [mb_strtoupper($productor->codigo)])
                 ->first();
-            $csgNuevo = ! $csg;
+            $csgNuevo = $csg === null;
             $csg ??= new CsgValidacion;
             $csg->fill([
                 'productor_csg_id' => $productor->id,
