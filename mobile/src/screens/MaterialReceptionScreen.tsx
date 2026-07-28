@@ -218,7 +218,7 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
     }
   }
 
-  async function submit(confirmImmediately: boolean) {
+  async function submit(confirmImmediately: boolean, repeatedItemsConfirmed = false) {
     let payload: CreateMaterialReceptionPayload;
     try {
       payload = buildPayload(form, operationId);
@@ -230,6 +230,29 @@ export function MaterialReceptionScreen({ auth, baseUrl, onLogout }: Props) {
       }
     } catch (reason) {
       setError(errorMessage(reason));
+      return;
+    }
+
+    const repeatedItems = findRepeatedItems(form.detalles);
+    if (repeatedItems.length > 0 && !repeatedItemsConfirmed) {
+      const summary = repeatedItems.map(({ itemId, lines }) => {
+        const item = catalog.items.find((candidate) => candidate.id === itemId);
+        const label = item ? `${item.codigo} · ${item.nombre}` : 'Ítem seleccionado';
+
+        return `• ${label}: líneas ${lines.join(', ')}`;
+      }).join('\n');
+
+      Alert.alert(
+        'Ítem ingresado más de una vez',
+        `${summary}\n\nLas líneas se mantendrán separadas y sus bultos generarán folios independientes. ¿Es correcto?`,
+        [
+          { text: 'Revisar', style: 'cancel' },
+          {
+            text: 'Sí, continuar',
+            onPress: () => void submit(confirmImmediately, true),
+          },
+        ],
+      );
       return;
     }
 
@@ -1128,11 +1151,8 @@ function buildPayload(form: Form, operationId: string): CreateMaterialReceptionP
   if (!form.numero_guia_despacho.trim()) throw new Error('Ingresa el número de guía.');
   validateDate(form.fecha_documento, 'fecha del documento');
 
-  const usedItems = new Set<string>();
   const details = form.detalles.map((detail, detailIndex) => {
     if (!detail.item_material_id) throw new Error(`Selecciona el ítem ${detailIndex + 1}.`);
-    if (usedItems.has(detail.item_material_id)) throw new Error('Un ítem repetido debe agruparse en una sola línea.');
-    usedItems.add(detail.item_material_id);
 
     const documentary = positive(detail.cantidad_documental, `Cantidad documental del ítem ${detailIndex + 1}`);
     const counted = positive(detail.cantidad_contada, `Cantidad contada del ítem ${detailIndex + 1}`);
@@ -1183,6 +1203,22 @@ function buildPayload(form: Form, operationId: string): CreateMaterialReceptionP
     observacion: optional(form.observacion),
     detalles: details,
   };
+}
+
+function findRepeatedItems(details: ReceptionDraftDetail[]) {
+  const linesByItem = new Map<string, number[]>();
+
+  details.forEach((detail, index) => {
+    if (!detail.item_material_id) return;
+
+    const lines = linesByItem.get(detail.item_material_id) ?? [];
+    lines.push(index + 1);
+    linesByItem.set(detail.item_material_id, lines);
+  });
+
+  return [...linesByItem.entries()]
+    .filter(([, lines]) => lines.length > 1)
+    .map(([itemId, lines]) => ({ itemId, lines }));
 }
 
 function sumPackages(packages: ReceptionDraftPackage[]) {
