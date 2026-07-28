@@ -32,11 +32,12 @@ class PerfilAccesoController extends Controller
                 ->map(fn (PerfilAcceso $perfil): array => $this->perfil($perfil)),
             'catalogo' => $this->catalogo->macromodulos(),
             'roles_base' => collect(RolUsuario::cases())
-                ->reject(fn (RolUsuario $rol): bool => $rol === RolUsuario::Administrador)
+                ->sortBy(fn (RolUsuario $rol): int => $rol === RolUsuario::Administrador ? 1 : 0)
                 ->map(fn (RolUsuario $rol): array => [
                     'clave' => $rol->value,
                     'nombre' => $this->nombreRol($rol),
-                    'modulos_disponibles' => $this->catalogo->modulosPredeterminados($rol),
+                    'modulos_disponibles' => $this->catalogo->claves(),
+                    'modulos_sugeridos' => $this->catalogo->modulosPredeterminados($rol),
                 ])
                 ->values(),
         ]);

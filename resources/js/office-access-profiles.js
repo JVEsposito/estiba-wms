@@ -49,13 +49,15 @@ if (profileForm && profileTable) {
     }
 
     function applyRoleAvailability(selectDefaults = false) {
-        const available = new Set(selectedRole()?.modulos_disponibles || []);
+        const role = selectedRole();
+        const available = new Set(role?.modulos_disponibles || []);
+        const defaults = new Set(role?.modulos_sugeridos || []);
         profileForm.querySelectorAll('[name="modulos[]"]').forEach((input) => {
             const enabled = available.has(input.value);
             input.disabled = !enabled;
             input.closest('.access-module-option')?.classList.toggle('is-disabled', !enabled);
             if (!enabled) input.checked = false;
-            else if (selectDefaults) input.checked = true;
+            else if (selectDefaults) input.checked = defaults.has(input.value);
         });
         profileForm.querySelectorAll('[data-access-macro]').forEach(updateMacroState);
     }

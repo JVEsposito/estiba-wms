@@ -200,7 +200,7 @@
                                 <label class="field"><span>Descripción</span><input name="descripcion" maxlength="500" placeholder="Responsabilidades y alcance del perfil"></label>
                                 <label class="field"><span>Nivel operacional base *</span><select name="rol_base" required></select></label>
                             </div>
-                            <p class="admin-form__hint">El nivel base define qué acciones puede ejecutar. Los módulos determinan cuáles de esas oficinas verá y podrá utilizar.</p>
+                            <p class="admin-form__hint">Todas las oficinas son asignables. El nivel base define qué acciones puede ejecutar; para administrar usuarios y permisos, utiliza nivel Administrador y habilita «Accesos y temporadas».</p>
                             <div class="access-module-selector" id="accessModuleSelector"></div>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo y disponible para asignar</span></label>
                             <p class="form-error" id="accessProfileError" role="alert"></p>
@@ -234,7 +234,7 @@
                                 <label class="field"><span>Contraseña temporal *</span><input name="password" type="password" minlength="10" maxlength="255" autocomplete="new-password" placeholder="Mínimo 10 caracteres" required></label>
                                 <label class="field"><span>Confirmar contraseña *</span><input name="password_confirmation" type="password" minlength="10" maxlength="255" autocomplete="new-password" required></label>
                             </div>
-                            <p class="admin-form__hint">Mínimo 10 caracteres; debe contener al menos una letra y un número. Al editar, déjala vacía para conservar la contraseña actual.</p>
+                            <p class="admin-form__hint">Mínimo 10 caracteres; debe contener al menos una letra y un número. Al editar, déjala vacía para conservar la contraseña actual. Para retirar un acceso, desactiva el usuario: sus sesiones se cierran y su trazabilidad se conserva.</p>
                             <p class="form-error" id="createUserError" role="alert"></p>
                             <div class="admin-form__actions"><button class="primary-button" type="submit">Crear usuario <span>→</span></button></div>
                         </form>

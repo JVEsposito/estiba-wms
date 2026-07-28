@@ -18,6 +18,7 @@ use App\Models\PerfilAcceso;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
+use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -596,9 +597,18 @@ class AdministracionAccesoApiTest extends TestCase
             ->getJson('/api/administracion/perfiles-acceso')
             ->assertOk()
             ->assertJsonFragment(['nombre' => 'Gerencia y Administración'])
-            ->assertJsonFragment(['clave' => 'materiales.ordenes']);
+            ->assertJsonFragment(['clave' => 'materiales.ordenes'])
+            ->assertJsonFragment([
+                'clave' => RolUsuario::Administrador->value,
+                'nombre' => 'Administrador',
+            ]);
 
         $this->assertCount(count(RolUsuario::cases()), $respuestaCatalogo->json('data'));
+        $this->assertCount(count(RolUsuario::cases()), $respuestaCatalogo->json('roles_base'));
+        foreach ($respuestaCatalogo->json('roles_base') as $rolBase) {
+            $this->assertContains('administracion.accesos', $rolBase['modulos_disponibles']);
+            $this->assertContains('materiales.inventario', $rolBase['modulos_disponibles']);
+        }
 
         $perfil = $this->postJson('/api/administracion/perfiles-acceso', [
             'codigo' => ' consulta_recepcion ',
@@ -694,23 +704,77 @@ class AdministracionAccesoApiTest extends TestCase
             );
     }
 
-    public function test_un_perfil_no_puede_habilitar_modulos_fuera_de_su_nivel_base(): void
+    public function test_administrador_puede_combinar_cualquier_modulo_en_un_perfil(): void
     {
         $administrador = User::factory()->create([
             'rol' => RolUsuario::Administrador,
             'activo' => true,
         ]);
 
-        $this->actingAs($administrador, 'sanctum')
+        $perfil = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/perfiles-acceso', [
-                'codigo' => 'VALIDADOR_EXCESIVO',
-                'nombre' => 'Validador excesivo',
+                'codigo' => 'VALIDADOR_MULTIAREA',
+                'nombre' => 'Validador multiarea',
                 'rol_base' => RolUsuario::Validador->value,
                 'modulos' => ['frigorifico.validacion', 'materiales.inventario'],
                 'activo' => true,
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('modulos.1');
+            ->assertCreated()
+            ->assertJsonPath('data.modulos.0', 'frigorifico.validacion')
+            ->assertJsonPath('data.modulos.1', 'materiales.inventario')
+            ->json('data');
+
+        $usuario = User::factory()->create([
+            'rol' => RolUsuario::Validador,
+            'perfil_acceso_id' => $perfil['id'],
+            'activo' => true,
+        ]);
+
+        $this->assertSame(
+            ['frigorifico.validacion', 'materiales.inventario'],
+            app(CatalogoModulosAcceso::class)->modulosUsuario($usuario),
+        );
+    }
+
+    public function test_perfil_administrador_personalizado_puede_gestionar_usuarios(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $perfil = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/perfiles-acceso', [
+                'codigo' => 'ADMIN_ACCESOS',
+                'nombre' => 'Administrador de accesos',
+                'rol_base' => RolUsuario::Administrador->value,
+                'modulos' => ['administracion.accesos'],
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.rol_base', RolUsuario::Administrador->value)
+            ->assertJsonPath('data.modulos.0', 'administracion.accesos')
+            ->json('data');
+
+        $administradorDelegado = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'perfil_acceso_id' => $perfil['id'],
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administradorDelegado, 'sanctum')
+            ->getJson('/api/administracion/accesos')
+            ->assertOk();
+
+        $this->postJson('/api/administracion/usuarios', [
+            'nombre' => 'Usuario administrado',
+            'email' => 'usuario.administrado@empresa.cl',
+            'rol' => RolUsuario::Consulta->value,
+            'password' => 'Temporal2026',
+            'password_confirmation' => 'Temporal2026',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('usuario.email', 'usuario.administrado@empresa.cl');
     }
 
     public function test_no_crea_usuario_legacy_si_su_perfil_inicial_esta_inactivo(): void

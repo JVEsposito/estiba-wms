@@ -21,10 +21,7 @@ class GuardarPerfilAccesoRequest extends FormRequest
     public function rules(): array
     {
         $perfil = $this->route('perfilAcceso');
-        $rol = RolUsuario::tryFrom((string) $this->input('rol_base'));
-        $modulosPermitidos = $rol
-            ? app(CatalogoModulosAcceso::class)->modulosPredeterminados($rol)
-            : app(CatalogoModulosAcceso::class)->claves();
+        $modulosPermitidos = app(CatalogoModulosAcceso::class)->claves();
 
         return [
             'codigo' => [
@@ -39,7 +36,6 @@ class GuardarPerfilAccesoRequest extends FormRequest
             'rol_base' => [
                 'required',
                 Rule::enum(RolUsuario::class),
-                Rule::notIn([RolUsuario::Administrador->value]),
             ],
             'modulos' => ['required', 'array', 'min:1'],
             'modulos.*' => ['required', 'string', 'distinct', Rule::in($modulosPermitidos)],
@@ -59,10 +55,9 @@ class GuardarPerfilAccesoRequest extends FormRequest
             'nombre.required' => 'Ingresa el nombre del perfil.',
             'rol_base.required' => 'Selecciona el nivel operacional base.',
             'rol_base.enum' => 'El nivel operacional seleccionado no es válido.',
-            'rol_base.not_in' => 'El perfil Administrador es único y no puede duplicarse.',
             'modulos.required' => 'Selecciona al menos un módulo.',
             'modulos.min' => 'Selecciona al menos un módulo.',
-            'modulos.*.in' => 'Uno de los módulos no está disponible para el nivel operacional seleccionado.',
+            'modulos.*.in' => 'Uno de los módulos seleccionados no existe en el catálogo de accesos.',
             'activo.required' => 'Indica si el perfil se encuentra activo.',
         ];
     }

@@ -279,9 +279,7 @@ class CatalogoModulosAcceso
             return [];
         }
 
-        $permitidos = $this->modulosPredeterminados($usuario->rol);
-
-        return array_values(array_intersect($perfil->modulos, $permitidos));
+        return array_values(array_intersect($perfil->modulos, $this->claves()));
     }
 
     public function usuarioTieneModulo(User $usuario, string|array $modulos): bool
