@@ -23,6 +23,7 @@ class ConsultaOperacionalApiTest extends TestCase
     public function test_consulta_sag_guarda_actualiza_y_vincula_el_productor_sin_habilitarlo(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Temporada::query()->update(['activa' => false]);
         $temporada = Temporada::create([
             'codigo' => 'TEMP-CONSULTAS',
             'nombre' => 'Temporada consultas',
@@ -100,6 +101,7 @@ class ConsultaOperacionalApiTest extends TestCase
     public function test_consulta_sag_respeta_utf8_separa_listas_y_sincroniza_el_master_sin_duplicar(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        Temporada::query()->update(['activa' => false]);
         $temporada = Temporada::create([
             'codigo' => 'TEMP-CEREZAS',
             'nombre' => 'Temporada cerezas',
@@ -143,7 +145,9 @@ class ConsultaOperacionalApiTest extends TestCase
             ->assertJsonPath('data.0.especies_variedades.0.variedad', 'LAPINS')
             ->assertJsonPath('data.0.especies_variedades.1.variedad', 'SANTINA');
 
-        $especie = EspecieValidacion::query()->sole();
+        $especie = EspecieValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->sole();
         $this->assertSame($temporada->id, $especie->temporada_id);
         $this->assertSame('Cereza', $especie->nombre);
         $this->assertFalse($especie->activo);
