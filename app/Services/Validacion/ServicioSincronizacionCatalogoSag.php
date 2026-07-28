@@ -32,8 +32,7 @@ class ServicioSincronizacionCatalogoSag
         ProductorCsg $productor,
         array $pares,
         bool $proyectar = true,
-    ): array
-    {
+    ): array {
         $resultado = [
             'temporada_id' => null,
             'csg_creados' => 0,
