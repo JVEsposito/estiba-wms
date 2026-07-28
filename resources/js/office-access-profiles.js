@@ -6,6 +6,7 @@ if (profileForm && profileTable) {
     const state = {
         profiles: [],
         macros: [],
+        tabletMacros: [],
         roles: [],
     };
 
@@ -39,13 +40,35 @@ if (profileForm && profileTable) {
             .map((input) => input.value);
     }
 
-    function updateMacroState(fieldset) {
-        const macro = fieldset.querySelector('[data-macro-toggle]');
-        const modules = [...fieldset.querySelectorAll('[name="modulos[]"]:not(:disabled)')];
+    function selectedTabletModules() {
+        return [...profileForm.querySelectorAll('[name="modulos_tablet[]"]:checked')]
+            .map((input) => input.value);
+    }
+
+    function updateMacroState(fieldset, moduleName = 'modulos[]') {
+        const macro = fieldset.querySelector('[data-macro-toggle], [data-tablet-macro-toggle]');
+        const modules = [...fieldset.querySelectorAll(`[name="${moduleName}"]:not(:disabled)`)];
         const selected = modules.filter((input) => input.checked);
         macro.checked = modules.length > 0 && selected.length === modules.length;
         macro.indeterminate = selected.length > 0 && selected.length < modules.length;
         macro.disabled = modules.length === 0;
+    }
+
+    function applyTabletAvailability(selectDefaults = false) {
+        const role = selectedRole();
+        const officeModules = new Set(selectedModules());
+        const defaults = new Set(role?.modulos_tablet_sugeridos || []);
+        profileForm.querySelectorAll('[name="modulos_tablet[]"]').forEach((input) => {
+            const related = (input.dataset.officeModules || '').split(' ').filter(Boolean);
+            const enabled = related.some((officeModule) => officeModules.has(officeModule));
+            input.disabled = !enabled;
+            input.closest('.access-module-option')?.classList.toggle('is-disabled', !enabled);
+            if (!enabled) input.checked = false;
+            else if (selectDefaults) input.checked = defaults.has(input.value);
+        });
+        profileForm.querySelectorAll('[data-access-tablet-macro]').forEach((fieldset) => {
+            updateMacroState(fieldset, 'modulos_tablet[]');
+        });
     }
 
     function applyRoleAvailability(selectDefaults = false) {
@@ -60,10 +83,12 @@ if (profileForm && profileTable) {
             else if (selectDefaults) input.checked = defaults.has(input.value);
         });
         profileForm.querySelectorAll('[data-access-macro]').forEach(updateMacroState);
+        applyTabletAvailability(selectDefaults);
     }
 
     function renderSelector() {
         const container = document.getElementById('accessModuleSelector');
+        const tabletContainer = document.getElementById('accessTabletModuleSelector');
         container.innerHTML = state.macros.map((macro) => `
             <fieldset class="access-module-group" data-access-macro="${escapeHtml(macro.clave)}">
                 <legend>
@@ -90,10 +115,53 @@ if (profileForm && profileTable) {
                     module.checked = input.checked;
                 });
                 updateMacroState(fieldset);
+                applyTabletAvailability(false);
             });
         });
         container.querySelectorAll('[name="modulos[]"]').forEach((input) => {
-            input.addEventListener('change', () => updateMacroState(input.closest('[data-access-macro]')));
+            input.addEventListener('change', () => {
+                updateMacroState(input.closest('[data-access-macro]'));
+                applyTabletAvailability(false);
+            });
+        });
+
+        tabletContainer.innerHTML = state.tabletMacros.map((macro) => `
+            <fieldset class="access-module-group" data-access-tablet-macro="${escapeHtml(macro.clave)}">
+                <legend>
+                    <label>
+                        <input data-tablet-macro-toggle type="checkbox">
+                        <span><strong>${escapeHtml(macro.nombre)}</strong><small>${escapeHtml(macro.descripcion)}</small></span>
+                    </label>
+                </legend>
+                <div class="access-module-options">
+                    ${macro.modulos.map((module) => `
+                        <label class="access-module-option">
+                            <input
+                                name="modulos_tablet[]"
+                                type="checkbox"
+                                value="${escapeHtml(module.clave)}"
+                                data-office-modules="${escapeHtml((module.modulos_oficina_relacionados || []).join(' '))}"
+                            >
+                            <span><strong>${escapeHtml(module.nombre)}</strong><small>${escapeHtml(module.descripcion)}</small></span>
+                        </label>
+                    `).join('')}
+                </div>
+            </fieldset>
+        `).join('');
+
+        tabletContainer.querySelectorAll('[data-tablet-macro-toggle]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const fieldset = input.closest('[data-access-tablet-macro]');
+                fieldset.querySelectorAll('[name="modulos_tablet[]"]:not(:disabled)').forEach((module) => {
+                    module.checked = input.checked;
+                });
+                updateMacroState(fieldset, 'modulos_tablet[]');
+            });
+        });
+        tabletContainer.querySelectorAll('[name="modulos_tablet[]"]').forEach((input) => {
+            input.addEventListener('change', () => {
+                updateMacroState(input.closest('[data-access-tablet-macro]'), 'modulos_tablet[]');
+            });
         });
     }
 
@@ -104,7 +172,7 @@ if (profileForm && profileTable) {
             <tr>
                 <td><strong>${escapeHtml(profile.codigo)} · ${escapeHtml(profile.nombre)}</strong><small>${profile.predeterminado ? 'Perfil inicial · ' : ''}${escapeHtml(profile.descripcion || 'Sin descripción')}</small></td>
                 <td><span class="role-badge">${escapeHtml(profile.rol_base_nombre)}</span></td>
-                <td><strong>${profile.modulos.length}</strong><small>módulos habilitados</small></td>
+                <td><strong>${profile.modulos.length} PC · ${(profile.modulos_tablet || []).length} PDA</strong><small>oficinas y módulos móviles</small></td>
                 <td>${profile.usuarios_count}</td>
                 <td><span class="access-status access-status--${profile.activo ? 'active' : 'inactive'}">${profile.activo ? 'Activo' : 'Inactivo'}</span></td>
                 <td>${profile.protegido
@@ -140,6 +208,14 @@ if (profileForm && profileTable) {
             input.checked = selected.has(input.value);
         });
         profileForm.querySelectorAll('[data-access-macro]').forEach(updateMacroState);
+        applyTabletAvailability(false);
+        const selectedTablet = new Set(profile.modulos_tablet || []);
+        profileForm.querySelectorAll('[name="modulos_tablet[]"]:not(:disabled)').forEach((input) => {
+            input.checked = selectedTablet.has(input.value);
+        });
+        profileForm.querySelectorAll('[data-access-tablet-macro]').forEach((fieldset) => {
+            updateMacroState(fieldset, 'modulos_tablet[]');
+        });
         document.getElementById('cancelAccessProfileEdit').classList.remove('is-hidden');
         profileForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
         profileForm.elements.nombre.focus();
@@ -150,6 +226,7 @@ if (profileForm && profileTable) {
         const response = await api('/api/administracion/perfiles-acceso');
         state.profiles = response.data || [];
         state.macros = response.catalogo || [];
+        state.tabletMacros = response.catalogo_tablet || [];
         state.roles = response.roles_base || [];
         profileForm.elements.rol_base.innerHTML = state.roles.map((role) =>
             `<option value="${escapeHtml(role.clave)}">${escapeHtml(role.nombre)}</option>`,
@@ -186,6 +263,7 @@ if (profileForm && profileTable) {
             descripcion: profileForm.elements.descripcion.value,
             rol_base: profileForm.elements.rol_base.value,
             modulos: selectedModules(),
+            modulos_tablet: selectedTabletModules(),
             activo: profileForm.elements.activo.checked,
         };
         if (!payload.modulos.length) {

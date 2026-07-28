@@ -31,6 +31,7 @@ class PerfilAccesoController extends Controller
                 ->get()
                 ->map(fn (PerfilAcceso $perfil): array => $this->perfil($perfil)),
             'catalogo' => $this->catalogo->macromodulos(),
+            'catalogo_tablet' => $this->catalogo->macromodulosTablet(),
             'roles_base' => collect(RolUsuario::cases())
                 ->sortBy(fn (RolUsuario $rol): int => $rol === RolUsuario::Administrador ? 1 : 0)
                 ->map(fn (RolUsuario $rol): array => [
@@ -38,6 +39,7 @@ class PerfilAccesoController extends Controller
                     'nombre' => $this->nombreRol($rol),
                     'modulos_disponibles' => $this->catalogo->claves(),
                     'modulos_sugeridos' => $this->catalogo->modulosPredeterminados($rol),
+                    'modulos_tablet_sugeridos' => $this->catalogo->modulosTabletPredeterminados($rol),
                 ])
                 ->values(),
         ]);
@@ -81,6 +83,7 @@ class PerfilAccesoController extends Controller
             $perfil = PerfilAcceso::query()->lockForUpdate()->findOrFail($perfilAcceso->id);
             $seguridadCambio = $perfil->rol_base->value !== $datos['rol_base']
                 || $perfil->modulos !== $datos['modulos']
+                || $perfil->modulos_tablet !== $datos['modulos_tablet']
                 || $perfil->activo !== (bool) $datos['activo'];
 
             $perfil->fill([
@@ -121,6 +124,7 @@ class PerfilAccesoController extends Controller
             'rol_base' => $perfil->rol_base->value,
             'rol_base_nombre' => $this->nombreRol($perfil->rol_base),
             'modulos' => $perfil->modulos,
+            'modulos_tablet' => $perfil->modulos_tablet ?? [],
             'activo' => $perfil->activo,
             'predeterminado' => $perfil->predeterminado,
             'protegido' => $perfil->protegido,

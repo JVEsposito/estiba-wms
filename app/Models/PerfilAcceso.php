@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'descripcion',
     'rol_base',
     'modulos',
+    'modulos_tablet',
     'activo',
     'predeterminado',
     'protegido',
@@ -40,6 +41,7 @@ class PerfilAcceso extends Model
         return [
             'rol_base' => RolUsuario::class,
             'modulos' => 'array',
+            'modulos_tablet' => 'array',
             'activo' => 'boolean',
             'predeterminado' => 'boolean',
             'protegido' => 'boolean',

@@ -599,6 +599,10 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonFragment(['nombre' => 'Gerencia y Administración'])
             ->assertJsonFragment(['clave' => 'materiales.ordenes'])
             ->assertJsonFragment([
+                'clave' => CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+                'nombre' => 'Recepción de materiales',
+            ])
+            ->assertJsonFragment([
                 'clave' => RolUsuario::Administrador->value,
                 'nombre' => 'Administrador',
             ]);
@@ -619,11 +623,13 @@ class AdministracionAccesoApiTest extends TestCase
                 'gerencia.panel',
                 'materia-prima.romana',
             ],
+            'modulos_tablet' => [],
             'activo' => true,
         ])
             ->assertCreated()
             ->assertJsonPath('data.codigo', 'CONSULTA_RECEPCION')
             ->assertJsonPath('data.modulos.0', 'gerencia.panel')
+            ->assertJsonPath('data.modulos_tablet', [])
             ->json('data');
 
         $this->postJson('/api/administracion/usuarios', [
@@ -661,6 +667,7 @@ class AdministracionAccesoApiTest extends TestCase
             'nombre' => 'Consulta operacional',
             'rol_base' => RolUsuario::Consulta,
             'modulos' => ['gerencia.panel', 'materia-prima.romana'],
+            'modulos_tablet' => [],
             'activo' => true,
             'protegido' => false,
         ]);
@@ -678,6 +685,7 @@ class AdministracionAccesoApiTest extends TestCase
                 'descripcion' => null,
                 'rol_base' => RolUsuario::Consulta->value,
                 'modulos' => ['gerencia.panel'],
+                'modulos_tablet' => [],
                 'activo' => true,
             ])
             ->assertOk()
@@ -695,6 +703,7 @@ class AdministracionAccesoApiTest extends TestCase
             'descripcion' => null,
             'rol_base' => RolUsuario::Consulta->value,
             'modulos' => ['gerencia.panel'],
+            'modulos_tablet' => [],
             'activo' => true,
         ])
             ->assertUnprocessable()
@@ -717,11 +726,18 @@ class AdministracionAccesoApiTest extends TestCase
                 'nombre' => 'Validador multiarea',
                 'rol_base' => RolUsuario::Validador->value,
                 'modulos' => ['frigorifico.validacion', 'materiales.inventario'],
+                'modulos_tablet' => [
+                    CatalogoModulosAcceso::TABLET_VALIDACION_PT,
+                ],
                 'activo' => true,
             ])
             ->assertCreated()
             ->assertJsonPath('data.modulos.0', 'frigorifico.validacion')
             ->assertJsonPath('data.modulos.1', 'materiales.inventario')
+            ->assertJsonPath(
+                'data.modulos_tablet.0',
+                CatalogoModulosAcceso::TABLET_VALIDACION_PT,
+            )
             ->json('data');
 
         $usuario = User::factory()->create([
@@ -734,6 +750,31 @@ class AdministracionAccesoApiTest extends TestCase
             ['frigorifico.validacion', 'materiales.inventario'],
             app(CatalogoModulosAcceso::class)->modulosUsuario($usuario),
         );
+    }
+
+    public function test_no_permite_habilitar_un_modulo_tablet_sin_su_oficina_relacionada(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/perfiles-acceso', [
+                'codigo' => 'PDA_INCOMPATIBLE',
+                'nombre' => 'PDA incompatible',
+                'rol_base' => RolUsuario::CamareroMateriales->value,
+                'modulos' => ['materiales.inventario'],
+                'modulos_tablet' => [
+                    CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+                ],
+                'activo' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'errors.modulos_tablet.0',
+                'Cada módulo PDA/tablet necesita al menos una de sus oficinas relacionadas habilitada.',
+            );
     }
 
     public function test_perfil_administrador_personalizado_puede_gestionar_usuarios(): void
@@ -749,6 +790,7 @@ class AdministracionAccesoApiTest extends TestCase
                 'nombre' => 'Administrador de accesos',
                 'rol_base' => RolUsuario::Administrador->value,
                 'modulos' => ['administracion.accesos'],
+                'modulos_tablet' => [],
                 'activo' => true,
             ])
             ->assertCreated()

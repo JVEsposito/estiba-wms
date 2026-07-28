@@ -7,6 +7,7 @@ use App\Models\CondicionSag;
 use App\Models\Dispositivo;
 use App\Models\PerfilAcceso;
 use App\Models\User;
+use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -136,6 +137,7 @@ class AccesoTabletApiTest extends TestCase
             'nombre' => 'Materiales solo oficina',
             'rol_base' => RolUsuario::CamareroMateriales,
             'modulos' => ['materiales.inventario'],
+            'modulos_tablet' => [],
             'activo' => true,
         ]);
         $usuario = User::factory()->create([
@@ -162,6 +164,42 @@ class AccesoTabletApiTest extends TestCase
             );
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_un_perfil_publica_solo_los_modulos_tablet_seleccionados(): void
+    {
+        $perfil = PerfilAcceso::create([
+            'codigo' => 'MAT-RECEPCION-PDA',
+            'nombre' => 'Recepción materiales PDA',
+            'rol_base' => RolUsuario::CamareroMateriales,
+            'modulos' => ['materiales.etiquetas', 'materiales.inventario'],
+            'modulos_tablet' => [
+                CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+            ],
+            'activo' => true,
+        ]);
+        $usuario = User::factory()->create([
+            'email' => 'recepcion-materiales@example.com',
+            'password' => Hash::make('clave-segura'),
+            'rol' => RolUsuario::CamareroMateriales,
+            'perfil_acceso_id' => $perfil->id,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-MAT-03',
+            'nombre' => 'Tablet recepción materiales',
+        ]);
+
+        $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])
+            ->assertOk()
+            ->assertJsonPath(
+                'usuario.modulos_tablet.0',
+                CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+            )
+            ->assertJsonCount(1, 'usuario.modulos_tablet');
     }
 
     public function test_cerrar_turno_revoca_el_token_actual(): void

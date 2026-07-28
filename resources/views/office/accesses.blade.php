@@ -200,8 +200,18 @@
                                 <label class="field"><span>Descripción</span><input name="descripcion" maxlength="500" placeholder="Responsabilidades y alcance del perfil"></label>
                                 <label class="field"><span>Nivel operacional base *</span><select name="rol_base" required></select></label>
                             </div>
-                            <p class="admin-form__hint">Todas las oficinas son asignables. El nivel base define qué acciones puede ejecutar; para administrar usuarios y permisos, utiliza nivel Administrador y habilita «Accesos y temporadas».</p>
+                            <p class="admin-form__hint">Configura por separado las oficinas PC y los módulos PDA/tablet. El nivel base define qué acciones puede ejecutar; para administrar usuarios y permisos, utiliza nivel Administrador y habilita «Accesos y temporadas».</p>
+                            <div class="access-permission-heading">
+                                <div><p class="eyebrow">OFICINAS PC</p><h3>Oficinas y módulos web</h3></div>
+                                <span>Definen la navegación disponible al ingresar desde un computador.</span>
+                            </div>
                             <div class="access-module-selector" id="accessModuleSelector"></div>
+                            <div class="access-permission-heading">
+                                <div><p class="eyebrow">PDA / TABLET</p><h3>Módulos operacionales móviles</h3></div>
+                                <span>Selecciona explícitamente qué espacios móviles puede abrir este perfil.</span>
+                            </div>
+                            <div class="access-module-selector access-module-selector--tablet" id="accessTabletModuleSelector"></div>
+                            <p class="admin-form__hint">Solo se muestran módulos móviles implementados. Cada módulo PDA/tablet requiere al menos una de sus oficinas relacionadas.</p>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo y disponible para asignar</span></label>
                             <p class="form-error" id="accessProfileError" role="alert"></p>
                             <div class="admin-form__actions">
@@ -212,7 +222,7 @@
 
                         <div class="admin-table-scroll">
                             <table class="admin-table access-profiles-table">
-                                <thead><tr><th>Perfil</th><th>Nivel base</th><th>Módulos</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                <thead><tr><th>Perfil</th><th>Nivel base</th><th>Permisos</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead>
                                 <tbody id="accessProfilesTableBody"></tbody>
                             </table>
                         </div>
