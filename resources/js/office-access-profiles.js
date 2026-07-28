@@ -65,8 +65,10 @@ if (profileForm && profileTable) {
         container.innerHTML = state.macros.map((macro) => `
             <fieldset class="access-module-group" data-access-macro="${escapeHtml(macro.clave)}">
                 <legend>
-                    <label><input data-macro-toggle type="checkbox"><span>${escapeHtml(macro.nombre)}</span></label>
-                    <small>${escapeHtml(macro.descripcion)}</small>
+                    <label>
+                        <input data-macro-toggle type="checkbox">
+                        <span><strong>${escapeHtml(macro.nombre)}</strong><small>${escapeHtml(macro.descripcion)}</small></span>
+                    </label>
                 </legend>
                 <div class="access-module-options">
                     ${macro.modulos.map((module) => `
