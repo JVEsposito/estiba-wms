@@ -40,7 +40,7 @@ class GuardarPerfilAccesoRequest extends FormRequest
             ],
             'modulos' => ['required', 'array', 'min:1'],
             'modulos.*' => ['required', 'string', 'distinct', Rule::in($catalogo->claves())],
-            'modulos_tablet' => ['required', 'array'],
+            'modulos_tablet' => ['present', 'array'],
             'modulos_tablet.*' => [
                 'required',
                 'string',
@@ -94,7 +94,7 @@ class GuardarPerfilAccesoRequest extends FormRequest
             'modulos.required' => 'Selecciona al menos un módulo.',
             'modulos.min' => 'Selecciona al menos un módulo.',
             'modulos.*.in' => 'Uno de los módulos seleccionados no existe en el catálogo de accesos.',
-            'modulos_tablet.required' => 'Indica los módulos PDA/tablet del perfil, aunque no habilites ninguno.',
+            'modulos_tablet.present' => 'Indica los módulos PDA/tablet del perfil, aunque no habilites ninguno.',
             'modulos_tablet.*.in' => 'Uno de los módulos PDA/tablet seleccionados no existe o todavía no está implementado.',
             'activo.required' => 'Indica si el perfil se encuentra activo.',
         ];
