@@ -7,16 +7,26 @@ export type MovementType =
   | 'retiro'
   | 'reversion';
 
+export type TabletModule =
+  | 'operacion'
+  | 'recepcion_materiales'
+  | 'validacion'
+  | 'validacion_mp'
+  | 'prefrio'
+  | 'operacion_materiales';
+
 export type UserIdentity = {
   id: string;
   nombre: string;
   email: string;
   rol: string;
   ambito_camaras: 'productos' | 'materiales' | 'materia_prima' | 'ambos' | 'ninguno';
+  modulos_tablet?: TabletModule[];
   capacidades: UserCapabilities;
 };
 
 export type UserCapabilities = {
+  modulos_tablet?: TabletModule[];
   ambito_camaras: 'productos' | 'materiales' | 'materia_prima' | 'ambos' | 'ninguno';
   puede_supervisar: boolean;
   puede_operar_productos: boolean;
