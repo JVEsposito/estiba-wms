@@ -603,6 +603,10 @@ class AdministracionAccesoApiTest extends TestCase
                 'nombre' => 'Recepción de materiales',
             ])
             ->assertJsonFragment([
+                'clave' => CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
+                'nombre' => 'Cámara y operación de materiales',
+            ])
+            ->assertJsonFragment([
                 'clave' => RolUsuario::Administrador->value,
                 'nombre' => 'Administrador',
             ]);

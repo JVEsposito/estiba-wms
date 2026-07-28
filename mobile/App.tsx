@@ -16,7 +16,7 @@ import { applyAvailableUpdate } from './src/services/appUpdates';
 import { createEstibaApi } from './src/services/estibaApi';
 import { colors } from './src/theme/colors';
 
-type MobileModule = Exclude<TabletModule, 'operacion_materiales'>;
+type MobileModule = TabletModule;
 
 export default function App() {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -143,6 +143,7 @@ export default function App() {
 function availableModules(auth: AuthSession): MobileModule[] {
   const supported: MobileModule[] = [
     'operacion',
+    'operacion_materiales',
     'recepcion_materiales',
     'validacion',
     'validacion_mp',
@@ -164,9 +165,11 @@ function moduleLabel(module: MobileModule) {
       ? 'Validación MP'
       : module === 'prefrio'
         ? 'Prefrío'
-        : module === 'recepcion_materiales'
-          ? 'Recepción de materiales'
-          : 'Operación frigorífico';
+        : module === 'operacion_materiales'
+          ? 'Cámara y operación de materiales'
+          : module === 'recepcion_materiales'
+            ? 'Recepción de materiales'
+            : 'Operación frigorífico';
 }
 
 function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModule[]; onSelect: (module: MobileModule) => void; userName: string }) {
@@ -197,6 +200,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorCardCopy}>Consultar folios pendientes, cargarlos a túneles y operar procesos térmicos.</Text>
           </Pressable>
         ) : null}
+        {modules.includes('operacion_materiales') ? (
+          <Pressable onPress={() => onSelect('operacion_materiales')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>▦</Text>
+            <Text style={styles.selectorCardTitle}>Cámara de materiales</Text>
+            <Text style={styles.selectorCardCopy}>Consultar y operar cámaras, posiciones y movimientos de materiales.</Text>
+          </Pressable>
+        ) : null}
         {modules.includes('recepcion_materiales') ? (
           <Pressable onPress={() => onSelect('recepcion_materiales')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>▦</Text>
@@ -208,7 +218,7 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
           <Pressable onPress={() => onSelect('operacion')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>❄</Text>
             <Text style={styles.selectorCardTitle}>Operación frigorífico</Text>
-            <Text style={styles.selectorCardCopy}>Cámaras, materiales, cargas y despachos.</Text>
+            <Text style={styles.selectorCardCopy}>Cámaras de producto terminado, cargas y despachos.</Text>
           </Pressable>
         ) : null}
       </View>
