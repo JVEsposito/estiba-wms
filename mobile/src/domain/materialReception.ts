@@ -197,6 +197,7 @@ export type ReceptionDraftDetail = {
   item_material_id: string;
   cantidad_documental: string;
   cantidad_contada: string;
+  cantidad_por_bulto: string;
   observacion: string;
   bultos: ReceptionDraftPackage[];
 };
