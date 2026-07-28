@@ -108,41 +108,105 @@ class CatalogoModulosAcceso
     }
 
     /**
-     * Los módulos de oficina y tablet se publican por separado. Esto evita que
-     * una capacidad web habilite accidentalmente una pantalla móvil todavía no
-     * implementada.
-     *
-     * @return array<string, array<int, string>>
+     * @return array<int, array{
+     *     clave: string,
+     *     nombre: string,
+     *     descripcion: string,
+     *     modulos: array<int, array{
+     *         clave: string,
+     *         nombre: string,
+     *         descripcion: string,
+     *         modulos_oficina_relacionados: array<int, string>
+     *     }>
+     * }>
      */
-    public function modulosTablet(): array
+    public function macromodulosTablet(): array
     {
         return [
-            self::TABLET_OPERACION_FRIGORIFICO => [
-                'frigorifico.camaras',
-                'frigorifico.cargas',
+            [
+                'clave' => 'materia-prima',
+                'nombre' => 'Materia Prima',
+                'descripcion' => 'Espacios de trabajo móviles para la recepción de fruta.',
+                'modulos' => [
+                    $this->moduloTablet(
+                        self::TABLET_VALIDACION_MP,
+                        'Validación MP',
+                        'Validar cantidades, revisar tarjas y preparar segregaciones.',
+                        ['materia-prima.validacion-mp'],
+                    ),
+                ],
             ],
-            self::TABLET_RECEPCION_MATERIALES => [
-                'materiales.etiquetas',
+            [
+                'clave' => 'frigorifico',
+                'nombre' => 'Frigorífico (PT)',
+                'descripcion' => 'Operación móvil de producto terminado.',
+                'modulos' => [
+                    $this->moduloTablet(
+                        self::TABLET_OPERACION_FRIGORIFICO,
+                        'Operación frigorífico',
+                        'Cámaras, movimientos, cargas y despachos de producto terminado.',
+                        ['frigorifico.camaras', 'frigorifico.cargas'],
+                    ),
+                    $this->moduloTablet(
+                        self::TABLET_VALIDACION_PT,
+                        'Validación PT',
+                        'Validación y observación de pallets.',
+                        ['frigorifico.validacion'],
+                    ),
+                    $this->moduloTablet(
+                        self::TABLET_PREFRIO,
+                        'Prefrío',
+                        'Ingreso, seguimiento y cierre de procesos de prefrío.',
+                        ['frigorifico.prefrio'],
+                    ),
+                ],
             ],
-            self::TABLET_VALIDACION_PT => [
-                'frigorifico.validacion',
-            ],
-            self::TABLET_VALIDACION_MP => [
-                'materia-prima.validacion-mp',
-            ],
-            self::TABLET_PREFRIO => [
-                'frigorifico.prefrio',
+            [
+                'clave' => 'materiales',
+                'nombre' => 'Materiales',
+                'descripcion' => 'Operación móvil actualmente disponible para Materiales.',
+                'modulos' => [
+                    $this->moduloTablet(
+                        self::TABLET_RECEPCION_MATERIALES,
+                        'Recepción de materiales',
+                        'Recepciones, generación de folios e impresión de etiquetas.',
+                        ['materiales.etiquetas'],
+                    ),
+                ],
             ],
         ];
     }
 
     /**
+     * Relación de compatibilidad entre cada espacio móvil implementado y las
+     * oficinas que contienen sus permisos operacionales.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function modulosTablet(): array
+    {
+        return collect($this->macromodulosTablet())
+            ->flatMap(fn (array $macromodulo): array => $macromodulo['modulos'])
+            ->mapWithKeys(fn (array $modulo): array => [
+                $modulo['clave'] => $modulo['modulos_oficina_relacionados'],
+            ])
+            ->all();
+    }
+
+    /**
      * @return array<int, string>
      */
-    public function modulosTabletUsuario(User $usuario): array
+    public function clavesTablet(): array
     {
-        $modulosOficina = $this->modulosUsuario($usuario);
+        return array_keys($this->modulosTablet());
+    }
 
+    /**
+     * @param  array<int, string>  $modulosOficina
+     * @return array<int, string>
+     */
+    public function modulosTabletCompatiblesCon(array $modulosOficina): array
+    {
         return collect($this->modulosTablet())
             ->filter(
                 fn (array $requeridos): bool => array_intersect($requeridos, $modulosOficina) !== [],
@@ -150,6 +214,40 @@ class CatalogoModulosAcceso
             ->keys()
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function modulosTabletPredeterminados(RolUsuario $rol): array
+    {
+        return $this->modulosTabletCompatiblesCon($this->modulosPredeterminados($rol));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function modulosTabletUsuario(User $usuario): array
+    {
+        if (! $usuario->activo) {
+            return [];
+        }
+
+        if (! $usuario->perfil_acceso_id) {
+            return $this->modulosTabletPredeterminados($usuario->rol);
+        }
+
+        $usuario->loadMissing('perfilAcceso');
+        $perfil = $usuario->perfilAcceso;
+
+        if (! $perfil || ! $perfil->activo) {
+            return [];
+        }
+
+        return array_values(array_intersect(
+            $perfil->modulos_tablet ?? [],
+            $this->clavesTablet(),
+        ));
     }
 
     public static function habilidadTablet(string $modulo): string
@@ -295,5 +393,28 @@ class CatalogoModulosAcceso
     private function modulo(string $clave, string $nombre, string $descripcion): array
     {
         return compact('clave', 'nombre', 'descripcion');
+    }
+
+    /**
+     * @param  array<int, string>  $modulosOficinaRelacionados
+     * @return array{
+     *     clave: string,
+     *     nombre: string,
+     *     descripcion: string,
+     *     modulos_oficina_relacionados: array<int, string>
+     * }
+     */
+    private function moduloTablet(
+        string $clave,
+        string $nombre,
+        string $descripcion,
+        array $modulosOficinaRelacionados,
+    ): array {
+        return [
+            'clave' => $clave,
+            'nombre' => $nombre,
+            'descripcion' => $descripcion,
+            'modulos_oficina_relacionados' => $modulosOficinaRelacionados,
+        ];
     }
 }

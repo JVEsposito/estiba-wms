@@ -78,7 +78,7 @@ if (form && tableBody) {
         const hint = document.getElementById('userPermissionsHint');
         if (hint) {
             hint.textContent = profile
-                ? `Perfil: ${profile.nombre} · nivel ${profile.rol_base_nombre} · ${profile.modulos.length} módulos.`
+                ? `Perfil: ${profile.nombre} · nivel ${profile.rol_base_nombre} · ${profile.modulos.length} oficinas PC · ${(profile.modulos_tablet || []).length} módulos PDA/tablet.`
                 : 'Selecciona el perfil que definirá los módulos y el nivel operacional del usuario.';
         }
     }

@@ -335,6 +335,32 @@
     margin: 12px 0;
 }
 
+.access-permission-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 17px;
+}
+
+.access-permission-heading h3 {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: .95rem;
+}
+
+.access-permission-heading > span {
+    max-width: 490px;
+    color: var(--muted);
+    font-size: .65rem;
+    line-height: 1.45;
+    text-align: right;
+}
+
+.access-module-selector--tablet {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .access-module-group {
     min-width: 0;
     margin: 0;
@@ -448,6 +474,15 @@
     .admin-form__grid--access-profile,
     .access-module-selector {
         grid-template-columns: 1fr;
+    }
+
+    .access-permission-heading {
+        display: grid;
+        align-items: start;
+    }
+
+    .access-permission-heading > span {
+        text-align: left;
     }
 }
 

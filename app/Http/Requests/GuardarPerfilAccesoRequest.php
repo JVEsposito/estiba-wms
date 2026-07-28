@@ -7,6 +7,7 @@ use App\Services\Autorizacion\CatalogoModulosAcceso;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class GuardarPerfilAccesoRequest extends FormRequest
 {
@@ -21,7 +22,7 @@ class GuardarPerfilAccesoRequest extends FormRequest
     public function rules(): array
     {
         $perfil = $this->route('perfilAcceso');
-        $modulosPermitidos = app(CatalogoModulosAcceso::class)->claves();
+        $catalogo = app(CatalogoModulosAcceso::class);
 
         return [
             'codigo' => [
@@ -38,9 +39,44 @@ class GuardarPerfilAccesoRequest extends FormRequest
                 Rule::enum(RolUsuario::class),
             ],
             'modulos' => ['required', 'array', 'min:1'],
-            'modulos.*' => ['required', 'string', 'distinct', Rule::in($modulosPermitidos)],
+            'modulos.*' => ['required', 'string', 'distinct', Rule::in($catalogo->claves())],
+            'modulos_tablet' => ['present', 'array'],
+            'modulos_tablet.*' => [
+                'required',
+                'string',
+                'distinct',
+                Rule::in($catalogo->clavesTablet()),
+            ],
             'activo' => ['required', 'boolean'],
         ];
+    }
+
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $catalogo = app(CatalogoModulosAcceso::class);
+            $compatibles = $catalogo->modulosTabletCompatiblesCon(
+                (array) $this->input('modulos', []),
+            );
+            $incompatibles = array_diff(
+                (array) $this->input('modulos_tablet', []),
+                $compatibles,
+            );
+
+            if ($incompatibles !== []) {
+                $validator->errors()->add(
+                    'modulos_tablet',
+                    'Cada módulo PDA/tablet necesita al menos una de sus oficinas relacionadas habilitada.',
+                );
+            }
+        }];
     }
 
     /**
@@ -58,6 +94,8 @@ class GuardarPerfilAccesoRequest extends FormRequest
             'modulos.required' => 'Selecciona al menos un módulo.',
             'modulos.min' => 'Selecciona al menos un módulo.',
             'modulos.*.in' => 'Uno de los módulos seleccionados no existe en el catálogo de accesos.',
+            'modulos_tablet.present' => 'Indica los módulos PDA/tablet del perfil, aunque no habilites ninguno.',
+            'modulos_tablet.*.in' => 'Uno de los módulos PDA/tablet seleccionados no existe o todavía no está implementado.',
             'activo.required' => 'Indica si el perfil se encuentra activo.',
         ];
     }
@@ -72,6 +110,10 @@ class GuardarPerfilAccesoRequest extends FormRequest
                 : null,
             'modulos' => array_values(array_unique(array_filter(
                 (array) $this->input('modulos', []),
+                fn (mixed $modulo): bool => is_string($modulo) && $modulo !== '',
+            ))),
+            'modulos_tablet' => array_values(array_unique(array_filter(
+                (array) $this->input('modulos_tablet', []),
                 fn (mixed $modulo): bool => is_string($modulo) && $modulo !== '',
             ))),
         ]);
