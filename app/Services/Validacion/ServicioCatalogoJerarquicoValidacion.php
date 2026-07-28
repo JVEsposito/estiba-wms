@@ -235,6 +235,40 @@ class ServicioCatalogoJerarquicoValidacion
         }, attempts: 3);
     }
 
+    public function eliminar(Model $modelo): Model
+    {
+        $temporadaId = match ($modelo::class) {
+            MarcaValidacion::class => $modelo->cliente()->value('temporada_id'),
+            VariedadValidacion::class,
+            CalibreValidacion::class,
+            EnvaseValidacion::class => $modelo->especie()->value('temporada_id'),
+            CategoriaValidacion::class,
+            EspecieValidacion::class,
+            CsgValidacion::class => $modelo->getAttribute('temporada_id'),
+            default => throw new DomainException('Ese tipo de elemento no pertenece al catálogo jerárquico.'),
+        };
+
+        if (! is_string($temporadaId) || $temporadaId === '') {
+            throw new DomainException('No fue posible determinar la temporada del elemento.');
+        }
+
+        return DB::transaction(function () use ($modelo, $temporadaId): Model {
+            $bloqueado = $modelo->newQuery()
+                ->lockForUpdate()
+                ->findOrFail($modelo->getKey());
+
+            if (! (bool) $bloqueado->getAttribute('activo')) {
+                return $bloqueado->refresh();
+            }
+
+            $bloqueado->forceFill(['activo' => false])->save();
+            Temporada::query()->whereKey($temporadaId)->increment('version_catalogo');
+            $this->proyector->reconstruir(Temporada::query()->findOrFail($temporadaId));
+
+            return $bloqueado->refresh();
+        }, attempts: 3);
+    }
+
     /**
      * @param  array<string, mixed>  $datos
      * @param  class-string<Model>  $clase

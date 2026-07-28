@@ -98,6 +98,22 @@
 .catalog-card .validation-row button {
     white-space: nowrap;
 }
+
+.catalog-card .validation-row__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+}
+.catalog-delete-button {
+    color: #ff969b !important;
+    border-color: rgba(237, 114, 120, .45) !important;
+    background: rgba(237, 114, 120, .09) !important;
+}
+.catalog-status-removed {
+    color: #ff969b;
+    font-weight: 900;
+}
 @media (max-width: 1180px) {
     .catalog-inline-form {
         grid-template-columns: repeat(2, minmax(0, 1fr));

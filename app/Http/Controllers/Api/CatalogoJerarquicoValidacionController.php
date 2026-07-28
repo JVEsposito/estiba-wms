@@ -12,6 +12,7 @@ use App\Models\MarcaValidacion;
 use App\Models\Temporada;
 use App\Models\VariedadValidacion;
 use App\Services\Validacion\ServicioCatalogoJerarquicoValidacion;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -135,6 +136,63 @@ class CatalogoJerarquicoValidacionController extends Controller
             $this->datosCsg($request),
             $csgValidacion,
         )]);
+    }
+
+    public function destroyMarca(
+        MarcaValidacion $marcaValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($marcaValidacion));
+    }
+
+    public function destroyEspecie(
+        EspecieValidacion $especieValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($especieValidacion));
+    }
+
+    public function destroyCategoria(
+        CategoriaValidacion $categoriaValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($categoriaValidacion));
+    }
+
+    public function destroyVariedad(
+        VariedadValidacion $variedadValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($variedadValidacion));
+    }
+
+    public function destroyCalibre(
+        CalibreValidacion $calibreValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($calibreValidacion));
+    }
+
+    public function destroyEnvase(
+        EnvaseValidacion $envaseValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($envaseValidacion));
+    }
+
+    public function destroyCsg(
+        CsgValidacion $csgValidacion,
+        ServicioCatalogoJerarquicoValidacion $servicio,
+    ): JsonResponse {
+        return $this->eliminado($servicio->eliminar($csgValidacion));
+    }
+
+    private function eliminado(Model $modelo): JsonResponse
+    {
+        return response()->json([
+            'data' => $modelo,
+            'message' => 'Elemento eliminado del catálogo operativo.',
+        ]);
     }
 
     private function creado($modelo): JsonResponse

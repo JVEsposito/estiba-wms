@@ -10,21 +10,23 @@ const state = {
     species: [],
     csg: [],
     projection: { articulos: 0, origenes: 0, combinaciones: 0 },
+    showInactive: false,
 };
 const elements = {
     user: byId('catalogUserName'), initials: byId('catalogInitials'), logout: byId('catalogLogout'),
     selector: byId('catalogSeasonSelector'), reload: byId('catalogReload'),
+    toggleInactive: byId('catalogToggleInactive'),
     loading: byId('catalogLoading'), loadingText: byId('catalogLoadingText'), toasts: byId('catalogToasts'),
 };
 
 const entityConfig = {
-    brand: { form: 'brandForm', error: 'brandError', path: 'marcas', list: 'brandList' },
-    category: { form: 'categoryForm', error: 'categoryError', path: 'categorias', list: 'categoryList' },
-    species: { form: 'speciesForm', error: 'speciesError', path: 'especies', list: 'speciesList' },
-    variety: { form: 'varietyForm', error: 'varietyError', path: 'variedades', list: 'varietyList' },
-    caliber: { form: 'caliberForm', error: 'caliberError', path: 'calibres', list: 'caliberList' },
-    package: { form: 'packageForm', error: 'packageError', path: 'envases', list: 'packageList' },
-    csg: { form: 'csgForm', error: 'csgError', path: 'csg', list: 'csgList' },
+    brand: { form: 'brandForm', error: 'brandError', path: 'marcas', list: 'brandList', label: 'marca' },
+    category: { form: 'categoryForm', error: 'categoryError', path: 'categorias', list: 'categoryList', label: 'categoría' },
+    species: { form: 'speciesForm', error: 'speciesError', path: 'especies', list: 'speciesList', label: 'especie' },
+    variety: { form: 'varietyForm', error: 'varietyError', path: 'variedades', list: 'varietyList', label: 'variedad' },
+    caliber: { form: 'caliberForm', error: 'caliberError', path: 'calibres', list: 'caliberList', label: 'calibre' },
+    package: { form: 'packageForm', error: 'packageError', path: 'envases', list: 'packageList', label: 'envase' },
+    csg: { form: 'csgForm', error: 'csgError', path: 'csg', list: 'csgList', label: 'CSG' },
 };
 
 class ApiError extends Error {
@@ -95,13 +97,19 @@ async function load(seasonId = null) {
 }
 
 function option(value, label) { return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`; }
+function active(items) { return items.filter((item) => item.activo); }
+function visible(items) { return state.showInactive ? items : active(items); }
 function activeClass(item) { return item.activo ? '' : ' is-inactive'; }
 function editButton(type, id) { return `<button data-edit-type="${type}" data-edit-id="${id}" type="button">Editar</button>`; }
+function deleteButton(type, id) { return `<button class="catalog-delete-button" data-delete-type="${type}" data-delete-id="${id}" type="button">Eliminar</button>`; }
 function row(title, detail, type, item) {
-    return `<article class="validation-row${activeClass(item)}"><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div>${editButton(type, item.id)}</article>`;
+    const status = item.activo ? '' : ' · ELIMINADO';
+    const actions = `${editButton(type, item.id)}${item.activo ? deleteButton(type, item.id) : ''}`;
+    return `<article class="validation-row${activeClass(item)}"><div><strong>${escapeHtml(title)}<span class="catalog-status-removed">${status}</span></strong><small>${escapeHtml(detail)}</small></div><div class="validation-row__actions">${actions}</div></article>`;
 }
 
 function render() {
+    elements.toggleInactive.textContent = state.showInactive ? 'Ocultar eliminados' : 'Mostrar eliminados';
     byId('projectionArticleCount').textContent = state.projection.articulos || 0;
     byId('projectionOriginCount').textContent = state.projection.origenes || 0;
     byId('projectionCombinationCount').textContent = state.projection.combinaciones || 0;
@@ -109,35 +117,39 @@ function render() {
     elements.selector.innerHTML = state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}${season.activa ? ' (activa)' : ''}`)).join('') || '<option value="">Sin temporadas</option>';
     elements.selector.value = state.season?.id || '';
 
-    const clientOptions = '<option value="">Selecciona un cliente</option>' + state.clients.map((item) => option(item.id, `${item.codigo_externo || 'SIN-CÓDIGO'} · ${item.nombre}`)).join('');
+    const clientOptions = '<option value="">Selecciona un cliente</option>' + active(state.clients).map((item) => option(item.id, `${item.codigo_externo || 'SIN-CÓDIGO'} · ${item.nombre}`)).join('');
     byId('brandForm').elements.cliente_validacion_id.innerHTML = clientOptions;
     byId('packageForm').elements.cliente_validacion_id.innerHTML = clientOptions;
 
-    const speciesOptions = '<option value="">Selecciona una especie</option>' + state.species.map((item) => option(item.id, item.nombre)).join('');
+    const speciesOptions = '<option value="">Selecciona una especie</option>' + active(state.species).map((item) => option(item.id, item.nombre)).join('');
     for (const formId of ['varietyForm', 'caliberForm', 'packageForm']) byId(formId).elements.especie_validacion_id.innerHTML = speciesOptions;
 
-    const varieties = state.species.flatMap((species) => (species.variedades || []).map((item) => ({ ...item, species: species.nombre })));
+    const varieties = active(state.species).flatMap((species) => active(species.variedades || []).map((item) => ({ ...item, species: species.nombre })));
     byId('csgVarietyOptions').innerHTML = varieties.map((item) => `<label><input name="variedad_ids" type="checkbox" value="${item.id}"><span>${escapeHtml(item.species)} · ${escapeHtml(item.nombre)}</span></label>`).join('') || '<p class="empty-validation">Crea variedades antes de registrar un CSG.</p>';
 
-    byId('clientCount').textContent = String(state.clients.length);
-    byId('clientList').innerHTML = state.clients.map((item) => `<article class="validation-row${activeClass(item)}"><div><strong>${escapeHtml(item.codigo_externo || 'SIN-CÓDIGO')} · ${escapeHtml(item.nombre)}</strong><small>Administrado en Accesos</small></div></article>`).join('') || '<p class="empty-validation">Sin clientes. Crea o activa el cliente en Accesos.</p>';
+    const clients = visible(state.clients);
+    byId('clientCount').textContent = String(clients.length);
+    byId('clientList').innerHTML = clients.map((item) => `<article class="validation-row${activeClass(item)}"><div><strong>${escapeHtml(item.codigo_externo || 'SIN-CÓDIGO')} · ${escapeHtml(item.nombre)}</strong><small>Administrado en Accesos</small></div></article>`).join('') || '<p class="empty-validation">Sin clientes. Crea o activa el cliente en Accesos.</p>';
 
-    const brands = state.clients.flatMap((client) => (client.marcas || []).map((item) => ({ ...item, clientId: client.id, client: client.nombre })));
+    const brands = clients.flatMap((client) => visible(client.marcas || []).map((item) => ({ ...item, clientId: client.id, client: client.nombre })));
     byId('brandCount').textContent = String(brands.length);
     byId('brandList').innerHTML = brands.map((item) => row(item.nombre, `Cliente: ${item.client}`, 'brand', item)).join('') || '<p class="empty-validation">Sin marcas.</p>';
 
-    byId('categoryCount').textContent = String(state.categories.length);
-    byId('categoryList').innerHTML = state.categories.map((item) => row(item.nombre, item.codigo_externo || 'Disponible para todas las especies y marcas', 'category', item)).join('') || '<p class="empty-validation">Sin categorías.</p>';
+    const categories = visible(state.categories);
+    byId('categoryCount').textContent = String(categories.length);
+    byId('categoryList').innerHTML = categories.map((item) => row(item.nombre, item.codigo_externo || 'Disponible para todas las especies y marcas', 'category', item)).join('') || '<p class="empty-validation">Sin categorías.</p>';
 
-    byId('speciesCount').textContent = String(state.species.length);
-    byId('speciesList').innerHTML = state.species.map((item) => row(item.nombre, `${item.variedades?.length || 0} variedades · ${item.calibres?.length || 0} calibres · ${item.envases?.length || 0} envases`, 'species', item)).join('') || '<p class="empty-validation">Sin especies.</p>';
+    const species = visible(state.species);
+    byId('speciesCount').textContent = String(species.length);
+    byId('speciesList').innerHTML = species.map((item) => row(item.nombre, `${item.variedades?.length || 0} variedades · ${item.calibres?.length || 0} calibres · ${item.envases?.length || 0} envases`, 'species', item)).join('') || '<p class="empty-validation">Sin especies.</p>';
 
     renderChildren('variety', 'varietyCount', 'varietyList', 'variedades');
     renderChildren('caliber', 'caliberCount', 'caliberList', 'calibres');
     renderChildren('package', 'packageCount', 'packageList', 'envases');
 
-    byId('csgCount').textContent = String(state.csg.length);
-    byId('csgList').innerHTML = state.csg.map((item) => {
+    const csg = visible(state.csg);
+    byId('csgCount').textContent = String(csg.length);
+    byId('csgList').innerHTML = csg.map((item) => {
         const clients = item.productor?.clientes?.map((client) => client.nombre).join(', ');
         const scope = item.productor_csg_id
             ? (clients || 'Sin clientes asociados')
@@ -152,7 +164,7 @@ function render() {
 }
 
 function renderChildren(type, countId, listId, relation) {
-    const items = state.species.flatMap((species) => (species[relation] || []).map((item) => ({ ...item, speciesId: species.id, species: species.nombre })));
+    const items = visible(state.species).flatMap((species) => visible(species[relation] || []).map((item) => ({ ...item, speciesId: species.id, species: species.nombre })));
     byId(countId).textContent = String(items.length);
     byId(listId).innerHTML = items.map((item) => {
         const clientLabel = item.cliente
@@ -230,18 +242,47 @@ async function save(type) {
     }
 }
 
+
+async function remove(type, id) {
+    const config = entityConfig[type];
+    const item = itemFor(type, id);
+    if (!config || !item || !item.activo) return;
+
+    const name = item.nombre || item.codigo || 'este elemento';
+    if (!window.confirm(`¿Eliminar ${config.label} "${name}" del catálogo operativo? Se conservará su historial.`)) return;
+
+    setBusy(true, 'Eliminando del catálogo…');
+    try {
+        await api(`/api/administracion/validacion/${config.path}/${id}`, { method: 'DELETE' });
+        const form = byId(config.form);
+        if (form.elements.id.value === id) resetForm(form);
+        await load(state.season?.id);
+        toast('Elemento retirado del catálogo operativo y de la PDA.');
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+}
+
 for (const [type, config] of Object.entries(entityConfig)) {
     byId(config.form).addEventListener('submit', (event) => { event.preventDefault(); void save(type); });
 }
 document.addEventListener('click', (event) => {
     const editTarget = event.target.closest('[data-edit-type]');
     if (editTarget) edit(editTarget.dataset.editType, editTarget.dataset.editId);
+    const deleteTarget = event.target.closest('[data-delete-type]');
+    if (deleteTarget) void remove(deleteTarget.dataset.deleteType, deleteTarget.dataset.deleteId);
     const resetTarget = event.target.closest('[data-reset-form]');
     if (resetTarget) resetForm(byId(resetTarget.dataset.resetForm));
 });
 
 elements.selector.addEventListener('change', () => void load(elements.selector.value));
 elements.reload.addEventListener('click', () => void load(state.season?.id));
+elements.toggleInactive.addEventListener('click', () => {
+    state.showInactive = !state.showInactive;
+    render();
+});
 elements.logout.addEventListener('click', async () => {
     try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch { /* limpia igualmente */ }
     leave();
