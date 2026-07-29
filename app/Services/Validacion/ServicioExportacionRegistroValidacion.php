@@ -4,10 +4,10 @@ namespace App\Services\Validacion;
 
 use App\Enums\ResultadoValidacionPallet;
 use App\Models\ValidacionPallet;
+use DomainException;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
-use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use RuntimeException;
