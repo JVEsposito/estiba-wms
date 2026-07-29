@@ -22,6 +22,8 @@ class ReinicioOperacional extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
 
+    protected $table = 'reinicios_operacionales';
+
     public function temporada(): BelongsTo
     {
         return $this->belongsTo(Temporada::class);
