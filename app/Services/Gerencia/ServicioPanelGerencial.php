@@ -19,6 +19,7 @@ use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -380,7 +381,7 @@ class ServicioPanelGerencial
                     ->where('activa', true),
             ])
             ->with([
-                'procesoActivo' => fn (Builder $consulta): Builder => $consulta
+                'procesoActivo' => fn (HasOne $consulta): HasOne => $consulta
                     ->withCount([
                         'folios as folios_activos_count' => fn (Builder $folios): Builder => $folios
                             ->whereNull('retirado_at'),
