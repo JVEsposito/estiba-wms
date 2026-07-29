@@ -36,7 +36,7 @@ class RecepcionMaterialController extends Controller
             ->whereHas('temporadaGlobal', fn ($consulta) => $consulta->where('activa', true))
             ->first();
 
-        if (! $temporada || ! $temporada->temporadaGlobal) {
+        if (!$temporada || !$temporada->temporadaGlobal) {
             return response()->json([
                 'temporada' => null,
                 'clientes' => [],
@@ -157,7 +157,7 @@ class RecepcionMaterialController extends Controller
             ->when($request->query('guia'), fn ($query, $guia) => $query
                 ->where('numero_guia_despacho', 'like', '%'.trim((string) $guia).'%'));
 
-        if (! $usuario->can('anular-recepciones-materiales')) {
+        if (!$usuario->can('anular-recepciones-materiales')) {
             if ($usuario->can('gestionar-recepciones-materiales')) {
                 $consulta->where(function ($query) use ($usuario): void {
                     $query->where('estado', EstadoRecepcionMaterial::Confirmada->value)
