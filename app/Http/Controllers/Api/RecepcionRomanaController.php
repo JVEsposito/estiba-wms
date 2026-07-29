@@ -10,13 +10,16 @@ use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarRecepcionRomanaRequest;
+use App\Http\Requests\AnularPesajeEnvasesRomanaRequest;
 use App\Http\Requests\CerrarRecepcionRomanaRequest;
 use App\Http\Requests\ConfirmarIngresoRomanaRequest;
 use App\Http\Requests\ConsultarRecepcionesRomanaRequest;
 use App\Http\Requests\CorregirRecepcionRomanaRequest;
 use App\Http\Requests\CrearRecepcionRomanaRequest;
+use App\Http\Requests\RegistrarPesajeEnvasesRomanaRequest;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
+use App\Models\PesajeEnvaseRecepcionRomana;
 use App\Models\RecepcionRomana;
 use App\Models\Temporada;
 use App\Services\Romana\GeneradorAvisoReciboPdf;
@@ -60,6 +63,10 @@ class RecepcionRomanaController extends Controller
             ),
             'tipos_recepcion' => [
                 ['codigo' => TipoRecepcionRomana::FrutaConEnvases->value, 'nombre' => 'Fruta con envases'],
+                [
+                    'codigo' => TipoRecepcionRomana::FrutaPesajeEnvases->value,
+                    'nombre' => 'Fruta con pesaje acumulativo de envases',
+                ],
                 ['codigo' => TipoRecepcionRomana::SoloEnvases->value, 'nombre' => 'Solo envases'],
             ],
             'conceptos_envases' => [
@@ -106,6 +113,7 @@ class RecepcionRomanaController extends Controller
 
         $resumen = [
             'en_bascula_ingreso' => (clone $base)->where('estado', EstadoRecepcionRomana::EnBasculaIngreso)->count(),
+            'en_pesaje_envases' => (clone $base)->where('estado', EstadoRecepcionRomana::EnPesajeEnvases)->count(),
             'en_bascula_salida' => (clone $base)->where('estado', EstadoRecepcionRomana::EnBasculaSalida)->count(),
             'cerradas' => (clone $base)->where('estado', EstadoRecepcionRomana::Cerrado)->count(),
             'peso_neto' => round((float) (clone $base)->where('estado', EstadoRecepcionRomana::Cerrado)->sum('peso_neto'), 2),
@@ -149,6 +157,9 @@ class RecepcionRomanaController extends Controller
             'ingresoConfirmadoPor',
             'cerradoPor',
             'detallesEnvases',
+            'pesajesEnvases' => fn ($consulta) => $consulta
+                ->with(['registradoPor', 'anuladoPor'])
+                ->orderBy('secuencia'),
             'validacionTomadaPor',
             'eventos' => fn ($consulta) => $consulta->with('usuario')->orderBy('ocurrido_at'),
         ]);
@@ -205,6 +216,36 @@ class RecepcionRomanaController extends Controller
         return response()->json(['data' => $this->recepcion($recepcion, true)]);
     }
 
+    public function registrarPesajeEnvases(
+        RegistrarPesajeEnvasesRomanaRequest $request,
+        RecepcionRomana $recepcion,
+        ServicioRecepcionRomana $servicio,
+    ): JsonResponse {
+        $recepcion = $servicio->registrarPesajeEnvases(
+            $recepcion,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->recepcion($recepcion, true)]);
+    }
+
+    public function anularPesajeEnvases(
+        AnularPesajeEnvasesRomanaRequest $request,
+        RecepcionRomana $recepcion,
+        PesajeEnvaseRecepcionRomana $pesaje,
+        ServicioRecepcionRomana $servicio,
+    ): JsonResponse {
+        $recepcion = $servicio->anularPesajeEnvases(
+            $recepcion,
+            $pesaje,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->recepcion($recepcion, true)]);
+    }
+
     public function avisoRecibo(
         RecepcionRomana $recepcion,
         GeneradorAvisoReciboPdf $generador,
@@ -223,6 +264,22 @@ class RecepcionRomanaController extends Controller
     /** @return array<string, mixed> */
     private function recepcion(RecepcionRomana $recepcion, bool $conEventos = false): array
     {
+        $esPesajeEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases;
+        $cantidadDeclaradaPesaje = $esPesajeEnvases
+            ? (int) ($recepcion->detallesEnvases
+                ->first(fn ($detalle): bool => $detalle->tipo_envase === $recepcion->tipo_envase_pesaje)
+                ?->cantidad_declarada ?? 0)
+            : null;
+        $cantidadPesada = $esPesajeEnvases ? (int) $recepcion->cantidad_envases_pesados : null;
+        $cantidadPendiente = $esPesajeEnvases
+            ? max(0, (int) $cantidadDeclaradaPesaje - (int) $cantidadPesada)
+            : null;
+        $pesajeCompleto = $esPesajeEnvases
+            && $cantidadDeclaradaPesaje > 0
+            && $cantidadPesada === $cantidadDeclaradaPesaje;
+        $puedeEditar = $recepcion->estado->esEditable()
+            && (! $esPesajeEnvases || $cantidadPesada === 0);
+
         $datos = [
             'id' => $recepcion->id,
             'numero_recepcion' => $recepcion->numero_recepcion,
@@ -265,6 +322,19 @@ class RecepcionRomanaController extends Controller
             'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
                 ? (float) $recepcion->peso_neto_por_envase
                 : null,
+            'pesaje_envases' => $esPesajeEnvases ? [
+                'tipo_envase' => $recepcion->tipo_envase_pesaje?->value,
+                'tara_unitaria' => $recepcion->tara_unitaria_envase !== null
+                    ? (float) $recepcion->tara_unitaria_envase
+                    : null,
+                'cantidad_declarada' => $cantidadDeclaradaPesaje,
+                'cantidad_pesada' => $cantidadPesada,
+                'cantidad_pendiente' => $cantidadPendiente,
+                'completo' => $pesajeCompleto,
+                'cantidad_lecturas_activas' => $recepcion->relationLoaded('pesajesEnvases')
+                    ? $recepcion->pesajesEnvases->whereNull('anulado_at')->count()
+                    : null,
+            ] : null,
             'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
             'ingreso_confirmado_at' => $recepcion->ingreso_confirmado_at?->toAtomString(),
             'salida_at' => $recepcion->salida_at?->toAtomString(),
@@ -273,10 +343,13 @@ class RecepcionRomanaController extends Controller
             'observacion' => $recepcion->observacion,
             'observacion_cierre' => $recepcion->observacion_cierre,
             'version' => $recepcion->version,
-            'puede_editar' => $recepcion->estado->esEditable(),
-            'correccion_administrativa_disponible' => $recepcion->estado_validacion_mp === EstadoValidacionMp::Pendiente,
+            'puede_editar' => $puedeEditar,
+            'correccion_administrativa_disponible' => $recepcion->estado_validacion_mp === EstadoValidacionMp::Pendiente
+                && (! $esPesajeEnvases || $cantidadPesada === 0),
             'puede_confirmar_ingreso' => $recepcion->estado === EstadoRecepcionRomana::EnBasculaIngreso,
-            'puede_cerrar' => $recepcion->estado === EstadoRecepcionRomana::EnBasculaSalida,
+            'puede_registrar_pesaje' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases,
+            'puede_cerrar' => $recepcion->estado === EstadoRecepcionRomana::EnBasculaSalida
+                || ($recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases && $pesajeCompleto),
             'aviso_recibo_disponible' => $recepcion->estado === EstadoRecepcionRomana::Cerrado,
             'creado_por' => $this->usuario($recepcion->creadoPor),
             'ingreso_confirmado_por' => $this->usuario($recepcion->ingresoConfirmadoPor),
@@ -285,6 +358,30 @@ class RecepcionRomanaController extends Controller
         ];
 
         if ($conEventos) {
+            $datos['lecturas_pesaje_envases'] = $recepcion->relationLoaded('pesajesEnvases')
+                ? $recepcion->pesajesEnvases
+                    ->map(fn (PesajeEnvaseRecepcionRomana $pesaje): array => [
+                        'id' => $pesaje->id,
+                        'secuencia' => $pesaje->secuencia,
+                        'tipo_envase' => $pesaje->tipo_envase->value,
+                        'cantidad_envases' => $pesaje->cantidad_envases,
+                        'peso_bruto' => (float) $pesaje->peso_bruto,
+                        'tara_unitaria' => (float) $pesaje->tara_unitaria_envase,
+                        'peso_tara' => (float) $pesaje->peso_tara,
+                        'peso_neto' => (float) $pesaje->peso_neto,
+                        'peso_neto_por_envase' => round(
+                            (float) $pesaje->peso_neto / $pesaje->cantidad_envases,
+                            3,
+                        ),
+                        'observacion' => $pesaje->observacion,
+                        'pesado_at' => $pesaje->pesado_at?->toAtomString(),
+                        'registrado_por' => $this->usuario($pesaje->registradoPor),
+                        'anulado' => $pesaje->anulado_at !== null,
+                        'anulado_at' => $pesaje->anulado_at?->toAtomString(),
+                        'anulado_por' => $this->usuario($pesaje->anuladoPor),
+                        'motivo_anulacion' => $pesaje->motivo_anulacion,
+                    ])->values()
+                : collect();
             $datos['eventos'] = $recepcion->eventos
                 ->map(fn (EventoRecepcionRomana $evento): array => [
                     'id' => $evento->id,

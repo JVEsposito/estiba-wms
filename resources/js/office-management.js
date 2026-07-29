@@ -286,7 +286,7 @@ function renderDashboard(data) {
     elements.weighbridgeNetWeight.textContent = formatWeight(weighbridge.peso_neto_hoy);
     elements.weighbridgeClosed.textContent = formatInteger(weighbridge.cerradas_hoy);
     elements.weighbridgePending.textContent = formatInteger(weighbridge.pendientes_destare);
-    elements.weighbridgeDetail.textContent = `${formatInteger(weighbridge.en_bascula_ingreso)} en ingreso · ${formatInteger(weighbridge.envases_hoy)} envases · ${formatInteger(weighbridge.clientes_hoy)} clientes hoy`;
+    elements.weighbridgeDetail.textContent = `${formatInteger(weighbridge.en_bascula_ingreso)} en ingreso · ${formatInteger(weighbridge.en_pesaje_envases)} en pesaje acumulativo · ${formatInteger(weighbridge.envases_hoy)} envases · ${formatInteger(weighbridge.clientes_hoy)} clientes hoy`;
 
     renderCameraChart(data.camaras.detalle);
     renderProductChart(products);

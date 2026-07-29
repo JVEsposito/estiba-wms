@@ -360,6 +360,82 @@ class ValidacionMpApiTest extends TestCase
         $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [])->assertNotFound();
     }
 
+    public function test_pesaje_acumulativo_mantiene_la_recepcion_visible_y_bloquea_confirmacion_hasta_cerrar_romana(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = $this->cliente();
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $datos = $this->recepcion($temporada, $cliente);
+        $datos['tipo_recepcion'] = 'fruta_pesaje_envases';
+        $datos['envases'] = [['tipo_envase' => 'bins', 'cantidad' => 2]];
+        $datos['tipo_envase_pesaje'] = 'bins';
+        $datos['tara_unitaria_envase'] = 50;
+        unset($datos['peso_bruto']);
+
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data');
+
+        $this->actingAs($validador, 'sanctum')
+            ->getJson('/api/validacion-mp/pendientes')
+            ->assertOk()
+            ->assertJsonPath('data.0.numero_recepcion', $recepcion['numero_recepcion'])
+            ->assertJsonPath('data.0.estado_romana', 'en_pesaje_envases')
+            ->assertJsonPath('data.0.pesaje_envases.cantidad_pesada', 0);
+        $validacion = $this->postJson(
+            "/api/validacion-mp/recepciones/{$recepcion['id']}/tomar",
+            ['operacion_id' => (string) Str::uuid()],
+        )->assertOk()->json('data');
+        $confirmacion = [
+            'operacion_id' => (string) Str::uuid(),
+            'envases' => [['tipo_envase' => 'bins', 'cantidad_validada' => 2]],
+            'tarjas_verificadas' => true,
+            'requiere_segregacion' => false,
+        ];
+        $this->postJson(
+            "/api/validacion-mp/validaciones/{$validacion['id']}/confirmar",
+            $confirmacion,
+        )
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'Romana debe completar y cerrar el pesaje acumulativo antes de confirmar Validación MP.',
+            );
+
+        $this->actingAs($operador, 'sanctum')
+            ->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+                'operacion_id' => (string) Str::uuid(),
+                'cantidad_envases' => 2,
+                'peso_bruto' => 900,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.peso_tara', 100)
+            ->assertJsonPath('data.peso_neto', 800);
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+
+        $confirmacion['operacion_id'] = (string) Str::uuid();
+        $this->actingAs($validador, 'sanctum')
+            ->postJson(
+                "/api/validacion-mp/validaciones/{$validacion['id']}/confirmar",
+                $confirmacion,
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'validada')
+            ->assertJsonPath('data.tarjas_verificadas', true);
+        $this->assertDatabaseHas('movimientos_envases', [
+            'recepcion_romana_id' => $recepcion['id'],
+            'tipo_movimiento' => 'recepcion_fruta',
+            'tipo_envase' => 'bins',
+            'cantidad' => 2,
+            'signo_cuenta' => 1,
+            'propiedad' => 'cliente',
+        ]);
+    }
+
     private function cliente(): Cliente
     {
         return Cliente::create(['codigo' => 'CLI-MP', 'nombre' => 'Cliente MP', 'activo' => true]);

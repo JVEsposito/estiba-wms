@@ -1,11 +1,12 @@
 export type ContainerType = 'bins' | 'totes' | 'esponjas';
-export type ReceptionType = 'fruta_con_envases' | 'solo_envases';
+export type ReceptionType = 'fruta_con_envases' | 'fruta_pesaje_envases' | 'solo_envases';
 export type MpValidationState = 'pendiente' | 'en_curso' | 'validada';
 export type SegregationReason = 'csg' | 'cuartel' | 'variedad';
 
 export type MpReception = {
   id: string;
   numero_recepcion: string;
+  estado_romana: 'en_bascula_ingreso' | 'en_pesaje_envases' | 'en_bascula_salida' | 'cerrado';
   estado_validacion_mp: MpValidationState;
   tipo_recepcion: ReceptionType;
   concepto_envases: 'compra' | 'arriendo' | null;
@@ -15,6 +16,14 @@ export type MpReception = {
   patente_camion: string;
   conductor: { rut: string; nombre: string };
   ingreso_at: string;
+  pesaje_envases: {
+    tipo_envase: ContainerType;
+    tara_unitaria: number;
+    cantidad_declarada: number;
+    cantidad_pesada: number;
+    peso_neto: number;
+    peso_neto_por_envase: number | null;
+  } | null;
   envases: Array<{
     tipo_envase: ContainerType;
     cantidad_declarada: number;

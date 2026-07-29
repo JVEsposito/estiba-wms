@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\TipoEnvaseRomana;
+use App\Enums\TipoRecepcionRomana;
+use App\Models\RecepcionRomana;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,9 +18,20 @@ class CerrarRecepcionRomanaRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $recepcion = $this->route('recepcion');
+        $esPesajeEnvases = $recepcion instanceof RecepcionRomana
+            && $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases;
+
         return [
             'operacion_id' => ['required', 'uuid'],
-            'peso_tara' => ['required', 'numeric', 'min:1', 'max:200000', 'decimal:0,2'],
+            'peso_tara' => [
+                'nullable',
+                Rule::requiredIf(! $esPesajeEnvases),
+                'numeric',
+                'min:1',
+                'max:200000',
+                'decimal:0,2',
+            ],
             'tipo_envase_calculo_neto' => ['nullable', Rule::enum(TipoEnvaseRomana::class)],
             'observacion' => ['nullable', 'string', 'max:2000'],
         ];

@@ -445,6 +445,7 @@ class ServicioPanelGerencial
         $porEstado = RecepcionRomana::query()
             ->whereIn('estado', [
                 EstadoRecepcionRomana::EnBasculaIngreso->value,
+                EstadoRecepcionRomana::EnPesajeEnvases->value,
                 EstadoRecepcionRomana::EnBasculaSalida->value,
             ])
             ->groupBy('estado')
@@ -480,6 +481,10 @@ class ServicioPanelGerencial
         return [
             'en_bascula_ingreso' => (int) $porEstado->get(
                 EstadoRecepcionRomana::EnBasculaIngreso->value,
+                0,
+            ),
+            'en_pesaje_envases' => (int) $porEstado->get(
+                EstadoRecepcionRomana::EnPesajeEnvases->value,
                 0,
             ),
             'pendientes_destare' => (int) $porEstado->get(
@@ -576,6 +581,13 @@ class ServicioPanelGerencial
                 'nivel' => 'advertencia',
                 'titulo' => 'Camiones pendientes de destare',
                 'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan el pesaje de salida en romana.",
+            ]);
+        }
+        if ($romana['en_pesaje_envases'] > 0) {
+            $alertas->push([
+                'nivel' => 'informativa',
+                'titulo' => 'Pesajes acumulativos abiertos',
+                'detalle' => "{$romana['en_pesaje_envases']} recepción(es) aún están completando tandas de envases.",
             ]);
         }
 

@@ -230,6 +230,9 @@ class ServicioReinicioOperacional
             ],
             'materia_prima' => [
                 'recepciones_romana' => (clone $recepciones)->count(),
+                'pesajes_envases_romana' => DB::table('pesajes_envases_recepcion_romana')
+                    ->whereIn('recepcion_romana_id', clone $recepciones)
+                    ->count(),
                 'validaciones_mp' => (clone $validacionesMp)->count(),
                 'segmentos' => (clone $segmentos)->count(),
                 'lotes' => (clone $lotes)->count(),
@@ -426,6 +429,9 @@ class ServicioReinicioOperacional
             ->where('temporada_id', $temporada->id)
             ->delete();
 
+        $eliminados['pesajes_envases_romana'] = DB::table('pesajes_envases_recepcion_romana')
+            ->whereIn('recepcion_romana_id', clone $recepciones)
+            ->delete();
         $eliminados['detalles_envases_romana'] = DB::table('detalles_envases_recepcion_romana')
             ->whereIn('recepcion_romana_id', clone $recepciones)
             ->delete();

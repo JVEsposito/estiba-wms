@@ -74,6 +74,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/recepciones', [RecepcionRomanaController::class, 'store']);
         Route::put('/recepciones/{recepcion}', [RecepcionRomanaController::class, 'update']);
         Route::post('/recepciones/{recepcion}/confirmar-ingreso', [RecepcionRomanaController::class, 'confirmarIngreso']);
+        Route::post('/recepciones/{recepcion}/pesajes-envases', [RecepcionRomanaController::class, 'registrarPesajeEnvases']);
+        Route::post(
+            '/recepciones/{recepcion}/pesajes-envases/{pesaje}/anular',
+            [RecepcionRomanaController::class, 'anularPesajeEnvases'],
+        );
         Route::post('/recepciones/{recepcion}/cerrar', [RecepcionRomanaController::class, 'cerrar']);
     });
     Route::put('/romana/recepciones/{recepcion}/corregir', [RecepcionRomanaController::class, 'corregir'])

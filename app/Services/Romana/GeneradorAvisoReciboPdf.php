@@ -3,6 +3,7 @@
 namespace App\Services\Romana;
 
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Models\RecepcionRomana;
 use DomainException;
 
@@ -13,19 +14,32 @@ class GeneradorAvisoReciboPdf
         if ($recepcion->estado !== EstadoRecepcionRomana::Cerrado) {
             throw new DomainException('El Aviso de Recibo solo está disponible para recepciones cerradas.');
         }
-        $recepcion->loadMissing('detallesEnvases');
+        $recepcion->loadMissing('detallesEnvases', 'pesajesEnvases');
+        $esPesajeEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases;
         $envases = $recepcion->detallesEnvases
             ->map(fn ($detalle): string => $detalle->cantidad_declarada.' '.ucfirst($detalle->tipo_envase->value))
             ->implode(' · ');
+        if ($esPesajeEnvases) {
+            $lecturas = $recepcion->pesajesEnvases->whereNull('anulado_at')->count();
+            $envases .= sprintf(
+                ' · tara/u %s kg · %d/%d pesados · %d tanda(s)',
+                $this->peso($recepcion->tara_unitaria_envase),
+                $recepcion->cantidad_envases_pesados,
+                $recepcion->cantidad_envases_declarados,
+                $lecturas,
+            );
+        }
 
         $lineas = [
             ['N° recepción', $recepcion->numero_recepcion],
             ['Ingreso', $recepcion->ingreso_at?->format('d-m-Y H:i')],
-            ['Salida / destare', $recepcion->salida_at?->format('d-m-Y H:i')],
+            [$esPesajeEnvases ? 'Cierre de pesaje' : 'Salida / destare', $recepcion->salida_at?->format('d-m-Y H:i')],
             ['Temporada', $recepcion->temporada_nombre_snapshot.' · '.$recepcion->temporada_codigo_snapshot],
             ['Cliente', $recepcion->cliente_nombre_snapshot],
             ['Código cliente', $recepcion->cliente_codigo_snapshot ?: 'Sin código externo'],
-            ['Tipo recepción', str_replace('_', ' ', ucfirst($recepcion->tipo_recepcion->value))],
+            ['Tipo recepción', $esPesajeEnvases
+                ? 'Fruta con pesaje acumulativo de envases'
+                : str_replace('_', ' ', ucfirst($recepcion->tipo_recepcion->value))],
             ['Servicio / concepto', ucfirst($recepcion->concepto_envases?->value ?? $recepcion->tipo_servicio->value)],
             ['Guía de despacho', $recepcion->numero_guia_despacho],
             ['Envases declarados', $envases],
@@ -33,9 +47,12 @@ class GeneradorAvisoReciboPdf
             ['Patente carro', $recepcion->patente_carro ?: 'No informada'],
             ['Conductor', $recepcion->nombre_conductor],
             ['RUT conductor', $recepcion->rut_conductor],
-            ['Peso bruto', $this->peso($recepcion->peso_bruto).' kg'],
-            ['Peso tara', $this->peso($recepcion->peso_tara).' kg'],
-            ['PESO NETO', $this->peso($recepcion->peso_neto).' kg'],
+            [$esPesajeEnvases ? 'Bruto acumulado' : 'Peso bruto', $this->peso($recepcion->peso_bruto).' kg'],
+            [$esPesajeEnvases ? 'Tara acumulada' : 'Peso tara', $this->peso($recepcion->peso_tara).' kg'],
+            [$esPesajeEnvases ? 'PESO NETO / PROMEDIO' : 'PESO NETO', $esPesajeEnvases
+                ? $this->peso($recepcion->peso_neto).' kg · '
+                    .$this->peso($recepcion->peso_neto_por_envase).' kg/envase'
+                : $this->peso($recepcion->peso_neto).' kg'],
         ];
 
         $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
@@ -73,7 +90,7 @@ class GeneradorAvisoReciboPdf
 
     private function peso(mixed $valor): string
     {
-        return number_format((float) $valor, 2, ',', '.');
+        return number_format((float) $valor, 3, ',', '.');
     }
 
     private function texto(

@@ -9,6 +9,7 @@ use App\Enums\TipoServicioRomana;
 use App\Rules\RutChileno;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class CrearRecepcionRomanaRequest extends FormRequest
 {
@@ -20,6 +21,8 @@ class CrearRecepcionRomanaRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $esPesajeEnvases = $this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaPesajeEnvases->value;
+
         return [
             'operacion_id' => ['required', 'uuid'],
             'temporada_id' => ['required', 'uuid', Rule::exists('temporadas', 'id')->where('activa', true)],
@@ -32,18 +35,38 @@ class CrearRecepcionRomanaRequest extends FormRequest
             ],
             'tipo_servicio' => [
                 'nullable',
-                Rule::requiredIf($this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaConEnvases->value),
+                Rule::requiredIf($this->input('tipo_recepcion') !== TipoRecepcionRomana::SoloEnvases->value),
                 Rule::enum(TipoServicioRomana::class),
             ],
             'envases' => ['required', 'array', 'min:1', 'max:3'],
             'envases.*.tipo_envase' => ['required', 'distinct', Rule::enum(TipoEnvaseRomana::class)],
             'envases.*.cantidad' => ['required', 'integer', 'min:1', 'max:100000'],
+            'tipo_envase_pesaje' => [
+                'nullable',
+                Rule::requiredIf($esPesajeEnvases),
+                Rule::enum(TipoEnvaseRomana::class),
+            ],
+            'tara_unitaria_envase' => [
+                'nullable',
+                Rule::requiredIf($esPesajeEnvases),
+                'numeric',
+                'min:0.001',
+                'max:1000',
+                'decimal:0,3',
+            ],
             'numero_guia_despacho' => ['required', 'string', 'max:80'],
             'patente_camion' => ['required', 'regex:/^[A-Z0-9]{5,8}$/'],
             'patente_carro' => ['nullable', 'regex:/^[A-Z0-9]{5,8}$/'],
             'rut_conductor' => ['required', new RutChileno],
             'nombre_conductor' => ['required', 'string', 'max:150'],
-            'peso_bruto' => ['required', 'numeric', 'min:1', 'max:200000', 'decimal:0,2'],
+            'peso_bruto' => [
+                'nullable',
+                Rule::requiredIf(! $esPesajeEnvases),
+                'numeric',
+                'min:1',
+                'max:200000',
+                'decimal:0,2',
+            ],
             'observacion' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -56,12 +79,15 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'temporada_id.exists' => 'La temporada seleccionada no es la temporada global activa.',
             'cliente_id.required' => 'Selecciona el cliente del servicio.',
             'cliente_id.exists' => 'El cliente seleccionado no está activo.',
-            'tipo_recepcion.required' => 'Selecciona si ingresa fruta con envases o solo envases.',
+            'tipo_recepcion.required' => 'Selecciona el tipo de recepción.',
             'concepto_envases.required' => 'Indica si los envases ingresan por compra o arriendo.',
             'tipo_servicio.required' => 'Selecciona el servicio contratado para la fruta.',
             'envases.required' => 'Registra al menos un tipo de envase declarado en la guía.',
             'envases.*.tipo_envase.distinct' => 'Cada tipo de envase puede declararse solo una vez.',
             'envases.*.cantidad.min' => 'La guía debe declarar al menos una unidad por tipo de envase.',
+            'tipo_envase_pesaje.required' => 'Selecciona el tipo de envase que se pesará.',
+            'tara_unitaria_envase.required' => 'Configura la tara unitaria del envase.',
+            'tara_unitaria_envase.min' => 'La tara unitaria debe ser mayor que cero.',
             'numero_guia_despacho.required' => 'Ingresa el número de guía de despacho.',
             'patente_camion.required' => 'Ingresa la patente del camión.',
             'patente_camion.regex' => 'Ingresa una patente de camión válida, sin puntos ni guiones.',
@@ -70,6 +96,36 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'peso_bruto.required' => 'Ingresa el peso bruto capturado por la romana.',
             'peso_bruto.max' => 'El peso bruto supera el máximo operacional de 200.000 kg.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($this->input('tipo_recepcion') !== TipoRecepcionRomana::FrutaPesajeEnvases->value) {
+                return;
+            }
+
+            $envases = collect($this->input('envases', []));
+            if ($envases->count() !== 1) {
+                $validator->errors()->add(
+                    'envases',
+                    'El pesaje acumulativo debe declarar un único tipo de envase.',
+                );
+
+                return;
+            }
+
+            $primerEnvase = $envases->first();
+            $tipoDeclarado = is_array($primerEnvase)
+                ? ($primerEnvase['tipo_envase'] ?? null)
+                : null;
+            if ($tipoDeclarado !== $this->input('tipo_envase_pesaje')) {
+                $validator->errors()->add(
+                    'tipo_envase_pesaje',
+                    'El envase seleccionado debe coincidir con el declarado en la guía.',
+                );
+            }
+        });
     }
 
     protected function prepareForValidation(): void
@@ -82,6 +138,12 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'tipo_servicio' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
                 ? 'almacenaje'
                 : $this->input('tipo_servicio'),
+            'tipo_envase_pesaje' => $tipoRecepcion === TipoRecepcionRomana::FrutaPesajeEnvases->value
+                ? $this->input('tipo_envase_pesaje')
+                : null,
+            'tara_unitaria_envase' => $tipoRecepcion === TipoRecepcionRomana::FrutaPesajeEnvases->value
+                ? $this->input('tara_unitaria_envase')
+                : null,
             'numero_guia_despacho' => mb_strtoupper(trim((string) $this->input('numero_guia_despacho'))),
             'patente_camion' => $this->normalizarPatente($this->input('patente_camion')),
             'patente_carro' => $this->normalizarPatente($this->input('patente_carro')),

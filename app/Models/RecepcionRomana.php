@@ -39,6 +39,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'peso_tara',
     'peso_neto',
     'tipo_envase_calculo_neto',
+    'tipo_envase_pesaje',
+    'tara_unitaria_envase',
+    'cantidad_envases_pesados',
     'cantidad_envase_calculo_neto',
     'peso_neto_por_envase',
     'estado',
@@ -80,6 +83,11 @@ class RecepcionRomana extends Model
     public function detallesEnvases(): HasMany
     {
         return $this->hasMany(DetalleEnvaseRecepcionRomana::class, 'recepcion_romana_id');
+    }
+
+    public function pesajesEnvases(): HasMany
+    {
+        return $this->hasMany(PesajeEnvaseRecepcionRomana::class, 'recepcion_romana_id');
     }
 
     public function movimientosEnvases(): HasMany
@@ -127,9 +135,12 @@ class RecepcionRomana extends Model
             'estado' => EstadoRecepcionRomana::class,
             'estado_validacion_mp' => EstadoValidacionMp::class,
             'cantidad_envases_declarados' => 'integer',
-            'peso_bruto' => 'decimal:2',
-            'peso_tara' => 'decimal:2',
-            'peso_neto' => 'decimal:2',
+            'peso_bruto' => 'decimal:3',
+            'peso_tara' => 'decimal:3',
+            'peso_neto' => 'decimal:3',
+            'tipo_envase_pesaje' => TipoEnvaseRomana::class,
+            'tara_unitaria_envase' => 'decimal:3',
+            'cantidad_envases_pesados' => 'integer',
             'cantidad_envase_calculo_neto' => 'integer',
             'peso_neto_por_envase' => 'decimal:3',
             'ingreso_at' => 'datetime',

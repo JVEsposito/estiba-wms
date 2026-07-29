@@ -46,7 +46,7 @@ Romana puede recibir cualquier cliente operacional activo. Al crear la recepció
 
 ## Correlativo
 
-El número de recepción se asigna al crear el expediente, dentro de la misma transacción que registra el peso bruto.
+El número de recepción se asigna al crear el expediente, dentro de la misma transacción que registra el peso bruto tradicional o la configuración inicial del pesaje acumulativo.
 
 Formato:
 
@@ -69,6 +69,7 @@ Asignar el correlativo desde el inicio permite que Validación MP busque, pistol
 | Estado | Significado | Acciones permitidas |
 |---|---|---|
 | `en_bascula_ingreso` | Se registró el bruto y los antecedentes pueden revisarse. | Editar datos permitidos o confirmar ingreso. |
+| `en_pesaje_envases` | La recepción pesa todos los envases declarados en una o más tandas. | Registrar o anular tandas; editar la configuración solo mientras no existan lecturas activas; cerrar al completar el total exacto. |
 | `en_bascula_salida` | El ingreso fue confirmado y el camión debe volver vacío. | Registrar tara y cerrar; corrección administrativa mientras Validación MP siga pendiente. |
 | `cerrado` | Se capturó la tara y se calculó el peso neto. | Consultar, descargar PDF o corregir administrativamente mientras Validación MP siga pendiente. |
 
@@ -96,6 +97,10 @@ La recepción registra:
 - peso neto;
 - tipo y cantidad de envases elegidos para el cálculo individual;
 - peso neto calculado por envase;
+- tipo de envase sometido a pesaje acumulativo;
+- tara unitaria configurada para ese envase;
+- cantidad pesada y pendiente;
+- lecturas de cada tanda con cantidad, bruto, tara total y neto;
 - observaciones de ingreso y cierre;
 - versión;
 - usuarios responsables;
@@ -107,7 +112,20 @@ Los envases se almacenan como líneas independientes, entre ellas:
 - totes;
 - esponjas.
 
-La recepción puede corresponder a fruta con envases o a una operación exclusiva de envases por compra o arriendo.
+La recepción puede corresponder a:
+
+- fruta con pesaje tradicional del camión;
+- fruta con pesaje acumulativo de todos los envases;
+- una operación exclusiva de envases por compra o arriendo.
+
+En el pesaje acumulativo se declara un solo tipo de envase y su cantidad total. Por ejemplo, una guía con 60 bins puede registrarse en lecturas de 1, 3 o cualquier número que no supere el saldo pendiente. Cada lectura calcula:
+
+```text
+tara total de la tanda = tara unitaria × cantidad pesada
+peso neto de la tanda = peso bruto de la tanda - tara total de la tanda
+```
+
+Los acumulados de bruto, tara y neto se recalculan utilizando únicamente lecturas vigentes. Una lectura errónea puede anularse con motivo antes del cierre. No se permite cerrar con menos o más envases que los declarados.
 
 La guía no puede repetirse para el mismo cliente dentro de la misma temporada. El RUT se normaliza y valida con módulo 11. La tara debe ser positiva y menor al bruto.
 
@@ -127,6 +145,18 @@ crear recepción y asignar REC-*
 
 Crear o cerrar Romana no genera automáticamente inventario frigorífico.
 
+Flujo alternativo de pesaje acumulativo:
+
+```text
+crear recepción y asignar REC-*
+→ seleccionar envase, total declarado y tara unitaria
+→ registrar tandas de 1, 3 o N envases
+→ acumular bruto, tara y neto
+→ completar exactamente el total declarado
+→ cerrar
+→ emitir Aviso de Recibo
+```
+
 ## Validación MP
 
 Las recepciones elegibles se publican al rol `validador_mp` mediante una bandeja operacional.
@@ -143,6 +173,8 @@ Validación MP:
 
 Los segmentos resultantes permanecen `pendiente_lote` hasta que la oficina de Materia prima distribuya sus envases y confirme uno o varios lotes.
 
+Una recepción con pesaje acumulativo aparece desde su creación en la bandeja de Validación MP y puede ser tomada. Su confirmación queda bloqueada hasta que Romana pese el total declarado y cierre la recepción.
+
 ## Cuenta corriente de envases
 
 Los envases declarados y luego confirmados alimentan el dominio de Envases mediante movimientos auditables.
@@ -158,6 +190,8 @@ ingreso_registrado
 ingreso_actualizado
 correccion_administrativa
 ingreso_confirmado
+pesaje_envases_registrado
+pesaje_envases_anulado
 recepcion_cerrada
 ```
 
@@ -183,6 +217,7 @@ Una recepción cerrada expone un PDF con:
 - envases declarados;
 - camión, carro y conductor;
 - bruto, tara y peso neto;
+- para pesaje acumulativo: tara unitaria, total pesado, cantidad de tandas y neto promedio por envase;
 - observaciones;
 - espacios de firma.
 
@@ -193,6 +228,7 @@ El endpoint rechaza recepciones abiertas.
 `/oficina/gerencia` muestra:
 
 - camiones en ingreso;
+- recepciones con pesaje acumulativo abierto;
 - camiones pendientes de destare;
 - recepciones cerradas del día;
 - clientes recibidos;
@@ -218,6 +254,8 @@ GET /api/romana/recepciones/{id}/aviso-recibo
 POST /api/romana/recepciones
 PUT /api/romana/recepciones/{id}
 POST /api/romana/recepciones/{id}/confirmar-ingreso
+POST /api/romana/recepciones/{id}/pesajes-envases
+POST /api/romana/recepciones/{id}/pesajes-envases/{pesaje}/anular
 POST /api/romana/recepciones/{id}/cerrar
 PUT /api/romana/recepciones/{id}/corregir
 ```

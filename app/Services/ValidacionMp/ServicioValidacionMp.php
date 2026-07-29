@@ -3,6 +3,7 @@
 namespace App\Services\ValidacionMp;
 
 use App\Enums\ConceptoEnvasesRomana;
+use App\Enums\EstadoRecepcionRomana;
 use App\Enums\EstadoRevisionMovimientoEnvase;
 use App\Enums\EstadoValidacionMp;
 use App\Enums\MotivoSegregacionMp;
@@ -84,6 +85,12 @@ class ServicioValidacionMp
                 }
                 throw new ConflictoOperacion('La recepción ya fue validada y sus cantidades son inmutables.');
             }
+            if ($recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases
+                && $recepcion->estado !== EstadoRecepcionRomana::Cerrado) {
+                throw new ConflictoOperacion(
+                    'Romana debe completar y cerrar el pesaje acumulativo antes de confirmar Validación MP.',
+                );
+            }
 
             $cantidades = collect($datos['envases'])->keyBy('tipo_envase');
             $tiposDeclarados = $recepcion->detallesEnvases
@@ -97,7 +104,7 @@ class ServicioValidacionMp
                 ]);
             }
 
-            $esFruta = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaConEnvases;
+            $esFruta = $recepcion->tipo_recepcion->contieneFruta();
             if ($esFruta && ($datos['tarjas_verificadas'] ?? false) !== true) {
                 throw ValidationException::withMessages(['tarjas_verificadas' => 'Confirma el chequeo visual de las tarjas de campo.']);
             }
@@ -257,7 +264,12 @@ class ServicioValidacionMp
         mixed $validadoAt,
     ): void {
         [$tipo, $signoCuenta, $propiedad] = match ($recepcion->tipo_recepcion) {
-            TipoRecepcionRomana::FrutaConEnvases => [TipoMovimientoEnvase::RecepcionFruta, 1, PropiedadEnvase::Cliente],
+            TipoRecepcionRomana::FrutaConEnvases,
+            TipoRecepcionRomana::FrutaPesajeEnvases => [
+                TipoMovimientoEnvase::RecepcionFruta,
+                1,
+                PropiedadEnvase::Cliente,
+            ],
             TipoRecepcionRomana::SoloEnvases => $recepcion->concepto_envases === ConceptoEnvasesRomana::Arriendo
                 ? [TipoMovimientoEnvase::RecepcionArriendo, 1, PropiedadEnvase::Arrendada]
                 : [TipoMovimientoEnvase::RecepcionCompra, 0, PropiedadEnvase::Propia],

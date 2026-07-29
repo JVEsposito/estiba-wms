@@ -5,9 +5,11 @@ namespace App\Services\Romana;
 use App\Enums\EstadoRecepcionRomana;
 use App\Enums\EstadoValidacionMp;
 use App\Enums\TipoEventoRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\Cliente;
 use App\Models\EventoRecepcionRomana;
+use App\Models\PesajeEnvaseRecepcionRomana;
 use App\Models\RecepcionRomana;
 use App\Models\Temporada;
 use App\Models\User;
@@ -42,6 +44,7 @@ class ServicioRecepcionRomana
             $ahora = CarbonImmutable::now();
             $numero = $this->siguienteNumero($ahora);
             $envasePrincipal = $payload['envases'][0];
+            $esPesajeEnvases = $payload['tipo_recepcion'] === TipoRecepcionRomana::FrutaPesajeEnvases->value;
             $recepcion = RecepcionRomana::create([
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
@@ -62,11 +65,24 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
-                'peso_bruto' => $payload['peso_bruto'],
-                'estado' => EstadoRecepcionRomana::EnBasculaIngreso,
+                'peso_bruto' => $esPesajeEnvases ? 0 : $payload['peso_bruto'],
+                'peso_tara' => $esPesajeEnvases ? 0 : null,
+                'peso_neto' => $esPesajeEnvases ? 0 : null,
+                'tipo_envase_calculo_neto' => $esPesajeEnvases
+                    ? $payload['tipo_envase_pesaje']
+                    : null,
+                'tipo_envase_pesaje' => $payload['tipo_envase_pesaje'],
+                'tara_unitaria_envase' => $payload['tara_unitaria_envase'],
+                'cantidad_envases_pesados' => 0,
+                'cantidad_envase_calculo_neto' => $esPesajeEnvases ? 0 : null,
+                'estado' => $esPesajeEnvases
+                    ? EstadoRecepcionRomana::EnPesajeEnvases
+                    : EstadoRecepcionRomana::EnBasculaIngreso,
                 'estado_validacion_mp' => EstadoValidacionMp::Pendiente,
                 'ingreso_at' => $ahora,
+                'ingreso_confirmado_at' => $esPesajeEnvases ? $ahora : null,
                 'creado_por_user_id' => $usuario->id,
+                'ingreso_confirmado_por_user_id' => $esPesajeEnvases ? $usuario->id : null,
                 'observacion' => $payload['observacion'],
             ]);
             $this->sincronizarEnvases($recepcion, $payload['envases']);
@@ -77,15 +93,17 @@ class ServicioRecepcionRomana
                 $hash,
                 TipoEventoRomana::IngresoRegistrado,
                 null,
-                EstadoRecepcionRomana::EnBasculaIngreso,
+                $recepcion->estado,
                 $usuario,
                 $ahora,
                 [
-                    'peso_bruto' => (float) $recepcion->peso_bruto,
+                    'peso_bruto' => $esPesajeEnvases ? null : (float) $recepcion->peso_bruto,
                     'numero_recepcion' => $numero,
                     'numero_guia_despacho' => $recepcion->numero_guia_despacho,
                     'temporada_id' => $recepcion->temporada_id,
                     'envases' => $payload['envases'],
+                    'tipo_envase_pesaje' => $payload['tipo_envase_pesaje'],
+                    'tara_unitaria_envase' => $payload['tara_unitaria_envase'],
                 ],
             );
             $this->notificaciones->notificarRecepcionRomanaCreada($recepcion);
@@ -115,6 +133,13 @@ class ServicioRecepcionRomana
             if (! $recepcion->estado->esEditable()) {
                 throw new ConflictoOperacion('La recepción ya confirmó su ingreso y sus antecedentes no pueden editarse.');
             }
+            $this->asegurarTipoPesajeInmutable($recepcion, $payload);
+            if ($recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                && $recepcion->pesajesEnvases()->whereNull('anulado_at')->exists()) {
+                throw new ConflictoOperacion(
+                    'La recepción ya posee lecturas. Anula los pesajes antes de modificar sus antecedentes.',
+                );
+            }
 
             $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
@@ -142,7 +167,29 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
-                'peso_bruto' => $payload['peso_bruto'],
+                'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $payload['peso_bruto'],
+                'peso_tara' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $recepcion->peso_tara,
+                'peso_neto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $recepcion->peso_neto,
+                'tipo_envase_calculo_neto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? $payload['tipo_envase_pesaje']
+                    : $recepcion->tipo_envase_calculo_neto,
+                'tipo_envase_pesaje' => $payload['tipo_envase_pesaje'],
+                'tara_unitaria_envase' => $payload['tara_unitaria_envase'],
+                'cantidad_envases_pesados' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $recepcion->cantidad_envases_pesados,
+                'cantidad_envase_calculo_neto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $recepcion->cantidad_envase_calculo_neto,
+                'peso_neto_por_envase' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? null
+                    : $recepcion->peso_neto_por_envase,
                 'observacion' => $payload['observacion'],
                 'version' => $recepcion->version + 1,
             ]);
@@ -152,8 +199,8 @@ class ServicioRecepcionRomana
                 (string) $datos['operacion_id'],
                 $hash,
                 TipoEventoRomana::IngresoActualizado,
-                EstadoRecepcionRomana::EnBasculaIngreso,
-                EstadoRecepcionRomana::EnBasculaIngreso,
+                $recepcion->estado,
+                $recepcion->estado,
                 $usuario,
                 CarbonImmutable::now(),
                 ['version' => $recepcion->version],
@@ -210,6 +257,12 @@ class ServicioRecepcionRomana
                     'La recepción cambió desde que abriste el expediente. Actualiza antes de corregir.',
                 );
             }
+            $this->asegurarTipoPesajeInmutable($recepcion, $payload);
+            if ($recepcion->pesajesEnvases()->whereNull('anulado_at')->exists()) {
+                throw new ConflictoOperacion(
+                    'Las recepciones con lecturas deben corregirse anulando el pesaje equivocado antes del cierre.',
+                );
+            }
 
             $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
@@ -240,7 +293,14 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
-                'peso_bruto' => $payload['peso_bruto'],
+                'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? 0
+                    : $payload['peso_bruto'],
+                'tipo_envase_calculo_neto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
+                    ? $payload['tipo_envase_pesaje']
+                    : $recepcion->tipo_envase_calculo_neto,
+                'tipo_envase_pesaje' => $payload['tipo_envase_pesaje'],
+                'tara_unitaria_envase' => $payload['tara_unitaria_envase'],
                 'observacion' => $payload['observacion'],
                 'version' => $recepcion->version + 1,
             ];
@@ -319,8 +379,230 @@ class ServicioRecepcionRomana
     }
 
     /** @param array<string, mixed> $datos */
+    public function registrarPesajeEnvases(
+        RecepcionRomana $recepcion,
+        array $datos,
+        User $usuario,
+    ): RecepcionRomana {
+        $payload = [
+            'recepcion_id' => $recepcion->id,
+            'cantidad_envases' => (int) $datos['cantidad_envases'],
+            'peso_bruto' => round((float) $datos['peso_bruto'], 3),
+            'observacion' => $datos['observacion'] ?? null,
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($recepcion, $datos, $usuario, $payload, $hash): RecepcionRomana {
+            $recepcion = RecepcionRomana::query()
+                ->with('detallesEnvases')
+                ->lockForUpdate()
+                ->findOrFail($recepcion->id);
+            $existente = PesajeEnvaseRecepcionRomana::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            if ($existente) {
+                if ($existente->recepcion_romana_id !== $recepcion->id) {
+                    throw new ConflictoOperacion(
+                        'El identificador de operación ya fue utilizado en otra recepción.',
+                    );
+                }
+                $this->asegurarMismoPayload($existente->payload_hash, $hash);
+                $evento = EventoRecepcionRomana::query()
+                    ->where('operacion_id', $datos['operacion_id'])
+                    ->first();
+                if (! $evento) {
+                    throw new ConflictoOperacion(
+                        'La lectura existente no posee su evento de trazabilidad asociado.',
+                    );
+                }
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $recepcion,
+                    $hash,
+                    TipoEventoRomana::PesajeEnvasesRegistrado,
+                );
+
+                return $this->cargar($recepcion);
+            }
+            if (EventoRecepcionRomana::query()->where('operacion_id', $datos['operacion_id'])->exists()) {
+                throw new ConflictoOperacion(
+                    'El identificador de operación ya fue utilizado en otra acción de Romana.',
+                );
+            }
+
+            $this->asegurarRecepcionEnPesajeEnvases($recepcion);
+            $cantidadDeclarada = $this->cantidadDeclaradaParaPesaje($recepcion);
+            $cantidadPesada = (int) $recepcion->pesajesEnvases()
+                ->whereNull('anulado_at')
+                ->sum('cantidad_envases');
+            $cantidad = $payload['cantidad_envases'];
+            if ($cantidadPesada + $cantidad > $cantidadDeclarada) {
+                throw new ConflictoOperacion(sprintf(
+                    'La lectura supera los %d envases pendientes de pesaje.',
+                    max(0, $cantidadDeclarada - $cantidadPesada),
+                ));
+            }
+
+            $taraUnitaria = (float) $recepcion->tara_unitaria_envase;
+            $pesoTara = round($taraUnitaria * $cantidad, 3);
+            if ($payload['peso_bruto'] <= $pesoTara) {
+                throw new ConflictoOperacion(
+                    'El peso bruto del grupo debe ser mayor que la tara total de sus envases.',
+                );
+            }
+            $secuencia = ((int) $recepcion->pesajesEnvases()->max('secuencia')) + 1;
+            $ahora = CarbonImmutable::now();
+            $pesaje = PesajeEnvaseRecepcionRomana::create([
+                'operacion_id' => $datos['operacion_id'],
+                'payload_hash' => $hash,
+                'recepcion_romana_id' => $recepcion->id,
+                'secuencia' => $secuencia,
+                'tipo_envase' => $recepcion->tipo_envase_pesaje,
+                'cantidad_envases' => $cantidad,
+                'peso_bruto' => $payload['peso_bruto'],
+                'tara_unitaria_envase' => $taraUnitaria,
+                'peso_tara' => $pesoTara,
+                'peso_neto' => round($payload['peso_bruto'] - $pesoTara, 3),
+                'observacion' => $payload['observacion'],
+                'registrado_por_user_id' => $usuario->id,
+                'pesado_at' => $ahora,
+            ]);
+            $resumen = $this->resumenPesajesEnvases($recepcion);
+            $recepcion->update([
+                ...$resumen,
+                'version' => $recepcion->version + 1,
+            ]);
+            $this->registrarEvento(
+                $recepcion,
+                (string) $datos['operacion_id'],
+                $hash,
+                TipoEventoRomana::PesajeEnvasesRegistrado,
+                EstadoRecepcionRomana::EnPesajeEnvases,
+                EstadoRecepcionRomana::EnPesajeEnvases,
+                $usuario,
+                $ahora,
+                [
+                    'pesaje_id' => $pesaje->id,
+                    'secuencia' => $secuencia,
+                    'cantidad_envases' => $cantidad,
+                    'peso_bruto' => (float) $pesaje->peso_bruto,
+                    'peso_tara' => (float) $pesaje->peso_tara,
+                    'peso_neto' => (float) $pesaje->peso_neto,
+                    'cantidad_envases_pesados' => $resumen['cantidad_envases_pesados'],
+                    'cantidad_envases_declarados' => $cantidadDeclarada,
+                    'peso_neto_por_envase' => $resumen['peso_neto_por_envase'],
+                ],
+            );
+
+            return $this->cargar($recepcion);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function anularPesajeEnvases(
+        RecepcionRomana $recepcion,
+        PesajeEnvaseRecepcionRomana $pesaje,
+        array $datos,
+        User $usuario,
+    ): RecepcionRomana {
+        $payload = [
+            'recepcion_id' => $recepcion->id,
+            'pesaje_id' => $pesaje->id,
+            'motivo' => $datos['motivo'],
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($recepcion, $pesaje, $datos, $usuario, $payload, $hash): RecepcionRomana {
+            $recepcion = RecepcionRomana::query()
+                ->with('detallesEnvases')
+                ->lockForUpdate()
+                ->findOrFail($recepcion->id);
+            $pesaje = PesajeEnvaseRecepcionRomana::query()
+                ->lockForUpdate()
+                ->findOrFail($pesaje->id);
+            $existente = PesajeEnvaseRecepcionRomana::query()
+                ->where('operacion_anulacion_id', $datos['operacion_id'])
+                ->first();
+            if ($existente) {
+                if ($existente->id !== $pesaje->id) {
+                    throw new ConflictoOperacion(
+                        'El identificador de operación ya fue utilizado en otro pesaje.',
+                    );
+                }
+                $this->asegurarMismoPayload((string) $existente->payload_anulacion_hash, $hash);
+                $evento = EventoRecepcionRomana::query()
+                    ->where('operacion_id', $datos['operacion_id'])
+                    ->first();
+                if (! $evento) {
+                    throw new ConflictoOperacion(
+                        'La anulación existente no posee su evento de trazabilidad asociado.',
+                    );
+                }
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $recepcion,
+                    $hash,
+                    TipoEventoRomana::PesajeEnvasesAnulado,
+                );
+
+                return $this->cargar($recepcion);
+            }
+            if (EventoRecepcionRomana::query()->where('operacion_id', $datos['operacion_id'])->exists()) {
+                throw new ConflictoOperacion(
+                    'El identificador de operación ya fue utilizado en otra acción de Romana.',
+                );
+            }
+
+            $this->asegurarRecepcionEnPesajeEnvases($recepcion);
+            if ($pesaje->recepcion_romana_id !== $recepcion->id) {
+                throw new ConflictoOperacion('La lectura no pertenece a esta recepción.');
+            }
+            if ($pesaje->anulado_at !== null) {
+                throw new ConflictoOperacion('La lectura ya se encuentra anulada.');
+            }
+
+            $ahora = CarbonImmutable::now();
+            $pesaje->update([
+                'operacion_anulacion_id' => $datos['operacion_id'],
+                'payload_anulacion_hash' => $hash,
+                'anulado_at' => $ahora,
+                'anulado_por_user_id' => $usuario->id,
+                'motivo_anulacion' => $payload['motivo'],
+            ]);
+            $resumen = $this->resumenPesajesEnvases($recepcion);
+            $recepcion->update([
+                ...$resumen,
+                'version' => $recepcion->version + 1,
+            ]);
+            $this->registrarEvento(
+                $recepcion,
+                (string) $datos['operacion_id'],
+                $hash,
+                TipoEventoRomana::PesajeEnvasesAnulado,
+                EstadoRecepcionRomana::EnPesajeEnvases,
+                EstadoRecepcionRomana::EnPesajeEnvases,
+                $usuario,
+                $ahora,
+                [
+                    'pesaje_id' => $pesaje->id,
+                    'secuencia' => $pesaje->secuencia,
+                    'motivo' => $payload['motivo'],
+                    'cantidad_envases_pesados' => $resumen['cantidad_envases_pesados'],
+                    'peso_neto_por_envase' => $resumen['peso_neto_por_envase'],
+                ],
+            );
+
+            return $this->cargar($recepcion);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
     public function cerrar(RecepcionRomana $recepcion, array $datos, User $usuario): RecepcionRomana
     {
+        if ($recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases) {
+            return $this->cerrarPesajeEnvases($recepcion, $datos, $usuario);
+        }
+
         $payload = [
             'accion' => 'cerrar',
             'recepcion_id' => $recepcion->id,
@@ -406,6 +688,83 @@ class ServicioRecepcionRomana
         });
     }
 
+    /** @param array<string, mixed> $datos */
+    private function cerrarPesajeEnvases(
+        RecepcionRomana $recepcion,
+        array $datos,
+        User $usuario,
+    ): RecepcionRomana {
+        $payload = [
+            'accion' => 'cerrar_pesaje_envases',
+            'recepcion_id' => $recepcion->id,
+            'observacion' => $datos['observacion'] ?? null,
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($recepcion, $datos, $usuario, $payload, $hash): RecepcionRomana {
+            $recepcion = RecepcionRomana::query()
+                ->with('detallesEnvases')
+                ->lockForUpdate()
+                ->findOrFail($recepcion->id);
+            $evento = EventoRecepcionRomana::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            if ($evento) {
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $recepcion,
+                    $hash,
+                    TipoEventoRomana::RecepcionCerrada,
+                );
+
+                return $this->cargar($recepcion);
+            }
+
+            $this->asegurarRecepcionEnPesajeEnvases($recepcion);
+            $cantidadDeclarada = $this->cantidadDeclaradaParaPesaje($recepcion);
+            $resumen = $this->resumenPesajesEnvases($recepcion);
+            if ($resumen['cantidad_envases_pesados'] !== $cantidadDeclarada) {
+                throw new ConflictoOperacion(sprintf(
+                    'Faltan %d envases por pesar antes de cerrar la recepción.',
+                    max(0, $cantidadDeclarada - $resumen['cantidad_envases_pesados']),
+                ));
+            }
+
+            $ahora = CarbonImmutable::now();
+            $recepcion->update([
+                ...$resumen,
+                'estado' => EstadoRecepcionRomana::Cerrado,
+                'salida_at' => $ahora,
+                'cerrado_por_user_id' => $usuario->id,
+                'observacion_cierre' => $payload['observacion'],
+                'version' => $recepcion->version + 1,
+            ]);
+            $this->registrarEvento(
+                $recepcion,
+                (string) $datos['operacion_id'],
+                $hash,
+                TipoEventoRomana::RecepcionCerrada,
+                EstadoRecepcionRomana::EnPesajeEnvases,
+                EstadoRecepcionRomana::Cerrado,
+                $usuario,
+                $ahora,
+                [
+                    'numero_recepcion' => $recepcion->numero_recepcion,
+                    'tipo_envase_pesaje' => $recepcion->tipo_envase_pesaje->value,
+                    'tara_unitaria_envase' => (float) $recepcion->tara_unitaria_envase,
+                    'cantidad_envases_pesados' => $resumen['cantidad_envases_pesados'],
+                    'peso_bruto' => $resumen['peso_bruto'],
+                    'peso_tara' => $resumen['peso_tara'],
+                    'peso_neto' => $resumen['peso_neto'],
+                    'peso_neto_por_envase' => $resumen['peso_neto_por_envase'],
+                    'observacion_cierre' => $payload['observacion'],
+                ],
+            );
+
+            return $this->cargar($recepcion);
+        }, attempts: 3);
+    }
+
     /**
      * @param  array<string, mixed>  $datos
      * @return array<string, mixed>
@@ -433,8 +792,88 @@ class ServicioRecepcionRomana
             'patente_carro' => $datos['patente_carro'] ?? null,
             'rut_conductor' => $datos['rut_conductor'],
             'nombre_conductor' => $datos['nombre_conductor'],
-            'peso_bruto' => round((float) $datos['peso_bruto'], 2),
+            'peso_bruto' => isset($datos['peso_bruto'])
+                ? round((float) $datos['peso_bruto'], 3)
+                : null,
+            'tipo_envase_pesaje' => $datos['tipo_envase_pesaje'] ?? null,
+            'tara_unitaria_envase' => isset($datos['tara_unitaria_envase'])
+                ? round((float) $datos['tara_unitaria_envase'], 3)
+                : null,
             'observacion' => $datos['observacion'] ?? null,
+        ];
+    }
+
+    private function asegurarRecepcionEnPesajeEnvases(RecepcionRomana $recepcion): void
+    {
+        if ($recepcion->tipo_recepcion !== TipoRecepcionRomana::FrutaPesajeEnvases
+            || $recepcion->estado !== EstadoRecepcionRomana::EnPesajeEnvases) {
+            throw new ConflictoOperacion(
+                'La recepción no se encuentra disponible para registrar pesajes de envases.',
+            );
+        }
+        if ($recepcion->tipo_envase_pesaje === null
+            || (float) $recepcion->tara_unitaria_envase <= 0) {
+            throw new ConflictoOperacion(
+                'La recepción no posee un envase y una tara unitaria configurados.',
+            );
+        }
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function asegurarTipoPesajeInmutable(
+        RecepcionRomana $recepcion,
+        array $payload,
+    ): void {
+        $tipoNuevo = TipoRecepcionRomana::from((string) $payload['tipo_recepcion']);
+        if ($recepcion->tipo_recepcion !== $tipoNuevo
+            && ($recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases
+                || $tipoNuevo === TipoRecepcionRomana::FrutaPesajeEnvases)) {
+            throw new ConflictoOperacion(
+                'El flujo de pesaje acumulativo debe definirse al crear la recepción y no puede convertirse posteriormente.',
+            );
+        }
+    }
+
+    private function cantidadDeclaradaParaPesaje(RecepcionRomana $recepcion): int
+    {
+        $tipo = $recepcion->tipo_envase_pesaje?->value;
+        $detalle = $recepcion->detallesEnvases->first(
+            fn ($linea): bool => $linea->tipo_envase->value === $tipo,
+        );
+        if (! $detalle || $detalle->cantidad_declarada < 1) {
+            throw new ConflictoOperacion(
+                'El envase configurado para pesaje no está declarado en la recepción.',
+            );
+        }
+
+        return (int) $detalle->cantidad_declarada;
+    }
+
+    /** @return array<string, float|int|string|null> */
+    private function resumenPesajesEnvases(RecepcionRomana $recepcion): array
+    {
+        $totales = $recepcion->pesajesEnvases()
+            ->whereNull('anulado_at')
+            ->selectRaw('COALESCE(SUM(cantidad_envases), 0) as cantidad_envases')
+            ->selectRaw('COALESCE(SUM(peso_bruto), 0) as peso_bruto')
+            ->selectRaw('COALESCE(SUM(peso_tara), 0) as peso_tara')
+            ->selectRaw('COALESCE(SUM(peso_neto), 0) as peso_neto')
+            ->first();
+        $cantidad = (int) ($totales?->cantidad_envases ?? 0);
+        $pesoBruto = round((float) ($totales?->peso_bruto ?? 0), 3);
+        $pesoTara = round((float) ($totales?->peso_tara ?? 0), 3);
+        $pesoNeto = round((float) ($totales?->peso_neto ?? 0), 3);
+
+        return [
+            'cantidad_envases_pesados' => $cantidad,
+            'peso_bruto' => $pesoBruto,
+            'peso_tara' => $pesoTara,
+            'peso_neto' => $pesoNeto,
+            'tipo_envase_calculo_neto' => $recepcion->tipo_envase_pesaje?->value,
+            'cantidad_envase_calculo_neto' => $cantidad,
+            'peso_neto_por_envase' => $cantidad > 0
+                ? round($pesoNeto / $cantidad, 3)
+                : null,
         ];
     }
 
@@ -511,6 +950,11 @@ class ServicioRecepcionRomana
             'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
                 ? (float) $recepcion->peso_neto_por_envase
                 : null,
+            'tipo_envase_pesaje' => $recepcion->tipo_envase_pesaje?->value,
+            'tara_unitaria_envase' => $recepcion->tara_unitaria_envase !== null
+                ? (float) $recepcion->tara_unitaria_envase
+                : null,
+            'cantidad_envases_pesados' => $recepcion->cantidad_envases_pesados,
             'observacion' => $recepcion->observacion,
         ];
     }
@@ -664,6 +1108,9 @@ class ServicioRecepcionRomana
             'cerradoPor',
             'validacionTomadaPor',
             'detallesEnvases',
+            'pesajesEnvases' => fn ($consulta) => $consulta
+                ->with(['registradoPor', 'anuladoPor'])
+                ->orderBy('secuencia'),
             'eventos' => fn ($consulta) => $consulta->with('usuario')->orderBy('ocurrido_at'),
         ]);
     }
