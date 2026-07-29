@@ -14,8 +14,11 @@ use App\Observers\EventoCargaObserver;
 use App\Observers\InvalidarPanelGerencialObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\Sanctum;
 
@@ -38,6 +41,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        RateLimiter::for(
+            'existencias-cortes',
+            fn (Request $request): Limit => Limit::perMinute(3)->by(
+                'existencias:cortes:usuario:'.($request->user()?->id ?? $request->ip()),
+            ),
+        );
+        RateLimiter::for('existencias-consultas', function (Request $request): array {
+            $token = trim((string) $request->query('token', ''));
+            $identificador = $token !== '' ? hash('sha256', $token) : 'sin-token';
+
+            return [
+                Limit::perMinute(6)->by('existencias:consultas:token:'.$identificador),
+                Limit::perMinute(30)->by('existencias:consultas:ip:'.$request->ip()),
+            ];
+        });
+
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         EventoCarga::observe(EventoCargaObserver::class);
         UbicacionActual::observe(UbicacionActualObserver::class);

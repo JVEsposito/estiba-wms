@@ -10,6 +10,21 @@ class GeneradorLibroXlsxTest extends TestCase
 {
     public function test_genera_un_libro_valido_con_numeros_y_fechas_nativas(): void
     {
+        $filas = (function (): \Generator {
+            yield [
+                'folio' => 'PAL-001',
+                'cantidad' => 12.5,
+                'fecha' => '2026-07-27',
+                'fecha_hora' => '2026-07-27T10:30:00-04:00',
+            ];
+            yield [
+                'folio' => 'PAL-002',
+                'cantidad' => 8,
+                'fecha' => '2026-07-28',
+                'fecha_hora' => '2026-07-28T11:45:00-04:00',
+            ];
+        })();
+
         $ruta = app(GeneradorLibroXlsx::class)->generar(
             'Existencia de prueba',
             [
@@ -18,12 +33,7 @@ class GeneradorLibroXlsxTest extends TestCase
                 ['clave' => 'fecha', 'titulo' => 'Fecha', 'tipo' => 'fecha'],
                 ['clave' => 'fecha_hora', 'titulo' => 'Fecha hora', 'tipo' => 'fecha_hora'],
             ],
-            [[
-                'folio' => 'PAL-001',
-                'cantidad' => 12.5,
-                'fecha' => '2026-07-27',
-                'fecha_hora' => '2026-07-27T10:30:00-04:00',
-            ]],
+            $filas,
             [
                 'fecha_corte' => '2026-07-27T10:30:00-04:00',
                 'usuario' => 'Prueba',
@@ -47,7 +57,8 @@ class GeneradorLibroXlsxTest extends TestCase
         $this->assertStringContainsString('<c r="B7" s="4"><v>12.5</v></c>', $hoja);
         $this->assertMatchesRegularExpression('/<c r="C7" s="5"><v>[0-9.]+<\/v><\/c>/', $hoja);
         $this->assertMatchesRegularExpression('/<c r="D7" s="6"><v>[0-9.]+<\/v><\/c>/', $hoja);
-        $this->assertStringContainsString('<autoFilter ref="A6:D7"/>', $hoja);
+        $this->assertStringContainsString('<c r="A8" t="inlineStr" s="3"><is><t xml:space="preserve">PAL-002</t></is></c>', $hoja);
+        $this->assertStringContainsString('<autoFilter ref="A6:D8"/>', $hoja);
         $zip->close();
         @unlink($ruta);
     }

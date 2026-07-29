@@ -12,9 +12,10 @@ use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\LoteMateriaPrima;
+use App\Models\Temporada;
 use App\Models\User;
 use DomainException;
-use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 
 class ServicioExistencias
 {
@@ -161,8 +162,8 @@ class ServicioExistencias
             ?? throw new DomainException('El tipo de existencia solicitado no existe.');
     }
 
-    /** @return Collection<int, array<string, mixed>> */
-    public function filas(string $tipo): Collection
+    /** @return LazyCollection<int, array<string, mixed>> */
+    public function filas(string $tipo): LazyCollection
     {
         return match ($tipo) {
             self::PRODUCTO_TERMINADO => $this->productoTerminado(),
@@ -172,8 +173,15 @@ class ServicioExistencias
         };
     }
 
-    /** @return Collection<int, array<string, mixed>> */
-    private function productoTerminado(): Collection
+    public function temporadaActiva(): ?string
+    {
+        return Temporada::query()
+            ->where('activa', true)
+            ->value('codigo');
+    }
+
+    /** @return LazyCollection<int, array<string, mixed>> */
+    private function productoTerminado(): LazyCollection
     {
         return Folio::query()
             ->with([
@@ -187,7 +195,8 @@ class ServicioExistencias
             ->whereDoesntHave('material')
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('numero_folio')
-            ->get()
+            ->orderBy('id')
+            ->lazy(200)
             ->map(function (Folio $folio): array {
                 $datos = $folio->datos_externos ?? [];
                 $ubicacion = $folio->ubicacionActual;
@@ -258,8 +267,8 @@ class ServicioExistencias
             });
     }
 
-    /** @return Collection<int, array<string, mixed>> */
-    private function materiales(): Collection
+    /** @return LazyCollection<int, array<string, mixed>> */
+    private function materiales(): LazyCollection
     {
         return FolioMaterial::query()
             ->with([
@@ -271,7 +280,8 @@ class ServicioExistencias
             ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
             ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('item_material_id')
-            ->get()
+            ->orderBy('folio_id')
+            ->lazy(200)
             ->map(function (FolioMaterial $material): array {
                 $folio = $material->folio;
                 $posicion = $folio->ubicacionActual?->posicion;
@@ -313,8 +323,8 @@ class ServicioExistencias
             });
     }
 
-    /** @return Collection<int, array<string, mixed>> */
-    private function materiaPrima(): Collection
+    /** @return LazyCollection<int, array<string, mixed>> */
+    private function materiaPrima(): LazyCollection
     {
         return LoteMateriaPrima::query()
             ->with([
@@ -327,7 +337,8 @@ class ServicioExistencias
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->where('estado', '!=', 'anulado')
             ->orderBy('numero_lote')
-            ->get()
+            ->orderBy('id')
+            ->lazy(200)
             ->map(function (LoteMateriaPrima $lote): array {
                 $hidrocooler = $lote->hidrocooler;
                 $asignacion = $lote->asignacionCamara;

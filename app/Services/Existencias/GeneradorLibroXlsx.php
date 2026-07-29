@@ -22,43 +22,64 @@ class GeneradorLibroXlsx
         iterable $filas,
         array $metadatos,
     ): string {
-        $rutaTemporal = tempnam(sys_get_temp_dir(), 'estiba-xlsx-');
-        if ($rutaTemporal === false) {
-            throw new RuntimeException('No fue posible crear el archivo temporal de Excel.');
-        }
-
-        @unlink($rutaTemporal);
-        $rutaTemporal .= '.xlsx';
-
-        $zip = new ZipArchive;
-        if ($zip->open($rutaTemporal, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new RuntimeException('No fue posible construir el archivo de Excel.');
-        }
-
-        $filasNormalizadas = is_array($filas) ? $filas : iterator_to_array($filas);
+        $rutaTemporal = $this->rutaTemporal('estiba-xlsx-', '.xlsx');
+        $rutaFilas = $this->rutaTemporal('estiba-xlsx-filas-');
+        $rutaHoja = $this->rutaTemporal('estiba-xlsx-hoja-');
         $ultimaColumna = $this->nombreColumna(count($columnas));
         $filaEncabezados = 6;
-        $ultimaFila = $filaEncabezados + count($filasNormalizadas);
+        $zip = null;
 
-        $zip->addFromString('[Content_Types].xml', $this->contentTypes());
-        $zip->addFromString('_rels/.rels', $this->rootRelationships());
-        $zip->addFromString('docProps/app.xml', $this->appProperties());
-        $zip->addFromString('docProps/core.xml', $this->coreProperties($titulo));
-        $zip->addFromString('xl/workbook.xml', $this->workbook());
-        $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
-        $zip->addFromString('xl/styles.xml', $this->styles());
-        $zip->addFromString('xl/worksheets/sheet1.xml', $this->worksheet(
-            $titulo,
-            $columnas,
-            $filasNormalizadas,
-            $metadatos,
-            $ultimaColumna,
-            $filaEncabezados,
-            $ultimaFila,
-        ));
-        $zip->close();
+        try {
+            $ultimaFila = $this->escribirFilas(
+                $rutaFilas,
+                $titulo,
+                $columnas,
+                $filas,
+                $metadatos,
+                $filaEncabezados,
+            );
+            $this->construirHoja(
+                $rutaHoja,
+                $rutaFilas,
+                $titulo,
+                $columnas,
+                $ultimaColumna,
+                $filaEncabezados,
+                $ultimaFila,
+            );
 
-        return $rutaTemporal;
+            $zip = new ZipArchive;
+            if ($zip->open($rutaTemporal, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+                throw new RuntimeException('No fue posible construir el archivo de Excel.');
+            }
+
+            $zip->addFromString('[Content_Types].xml', $this->contentTypes());
+            $zip->addFromString('_rels/.rels', $this->rootRelationships());
+            $zip->addFromString('docProps/app.xml', $this->appProperties());
+            $zip->addFromString('docProps/core.xml', $this->coreProperties($titulo));
+            $zip->addFromString('xl/workbook.xml', $this->workbook());
+            $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
+            $zip->addFromString('xl/styles.xml', $this->styles());
+            if (! $zip->addFile($rutaHoja, 'xl/worksheets/sheet1.xml')) {
+                throw new RuntimeException('No fue posible agregar la hoja al archivo de Excel.');
+            }
+            if (! $zip->close()) {
+                throw new RuntimeException('No fue posible finalizar el archivo de Excel.');
+            }
+            $zip = null;
+
+            return $rutaTemporal;
+        } catch (Throwable $excepcion) {
+            if ($zip instanceof ZipArchive) {
+                $zip->close();
+            }
+            @unlink($rutaTemporal);
+
+            throw $excepcion;
+        } finally {
+            @unlink($rutaFilas);
+            @unlink($rutaHoja);
+        }
     }
 
     private function contentTypes(): string
@@ -185,76 +206,122 @@ XML;
 XML;
     }
 
+    private function rutaTemporal(string $prefijo, string $extension = ''): string
+    {
+        $ruta = tempnam(sys_get_temp_dir(), $prefijo);
+        if ($ruta === false) {
+            throw new RuntimeException('No fue posible crear un archivo temporal para Excel.');
+        }
+
+        if ($extension === '') {
+            return $ruta;
+        }
+
+        @unlink($ruta);
+
+        return $ruta.$extension;
+    }
+
     /**
      * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
-     * @param  array<int, array<string, mixed>>  $filas
+     * @param  iterable<int, array<string, mixed>>  $filas
      * @param  array<string, string|null>  $metadatos
      */
-    private function worksheet(
+    private function escribirFilas(
+        string $rutaFilas,
         string $titulo,
         array $columnas,
-        array $filas,
+        iterable $filas,
         array $metadatos,
+        int $filaEncabezados,
+    ): int {
+        $archivo = fopen($rutaFilas, 'wb');
+        if ($archivo === false) {
+            throw new RuntimeException('No fue posible preparar las filas del archivo de Excel.');
+        }
+
+        try {
+            $this->escribir($archivo, $this->fila(1, [
+                $this->celdaTexto('A1', $titulo, 1),
+            ], 28));
+            $this->escribir($archivo, $this->fila(2, [
+                $this->celdaTexto('A2', 'Fecha de corte'),
+                $this->celdaTexto('B2', $metadatos['fecha_corte'] ?? null),
+            ]));
+            $this->escribir($archivo, $this->fila(3, [
+                $this->celdaTexto('A3', 'Generado por'),
+                $this->celdaTexto('B3', $metadatos['usuario'] ?? null),
+            ]));
+            $this->escribir($archivo, $this->fila(4, [
+                $this->celdaTexto('A4', 'Temporada'),
+                $this->celdaTexto('B4', $metadatos['temporada'] ?? 'Temporada activa'),
+            ]));
+
+            $encabezados = [];
+            foreach ($columnas as $indice => $columna) {
+                $encabezados[] = $this->celdaTexto(
+                    $this->nombreColumna($indice + 1).$filaEncabezados,
+                    $columna['titulo'],
+                    2,
+                );
+            }
+            $this->escribir($archivo, $this->fila($filaEncabezados, $encabezados, 32));
+
+            $numeroFila = $filaEncabezados;
+            foreach ($filas as $fila) {
+                $numeroFila++;
+                $celdas = [];
+                foreach ($columnas as $indiceColumna => $columna) {
+                    $referencia = $this->nombreColumna($indiceColumna + 1).$numeroFila;
+                    $valor = $fila[$columna['clave']] ?? null;
+                    $tipo = $columna['tipo'] ?? 'texto';
+                    if ($tipo === 'numero' && is_numeric($valor)) {
+                        $celdas[] = $this->celdaNumero($referencia, (float) $valor, 4);
+                    } elseif (in_array($tipo, ['fecha', 'fecha_hora'], true) && $valor !== null && $valor !== '') {
+                        $celdas[] = $this->celdaFecha($referencia, $valor, $tipo);
+                    } else {
+                        $celdas[] = $this->celdaTexto($referencia, $valor, 3);
+                    }
+                }
+                $this->escribir($archivo, $this->fila($numeroFila, $celdas));
+            }
+
+            return $numeroFila;
+        } finally {
+            fclose($archivo);
+        }
+    }
+
+    /**
+     * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
+     */
+    private function construirHoja(
+        string $rutaHoja,
+        string $rutaFilas,
+        string $titulo,
+        array $columnas,
         string $ultimaColumna,
         int $filaEncabezados,
         int $ultimaFila,
-    ): string {
-        $columnasXml = '';
-        foreach ($columnas as $indice => $columna) {
-            $numero = $indice + 1;
-            $ancho = max(10, min(60, (int) ($columna['ancho'] ?? 18)));
-            $columnasXml .= "<col min=\"{$numero}\" max=\"{$numero}\" width=\"{$ancho}\" customWidth=\"1\"/>";
-        }
-
-        $filasXml = '';
-        $filasXml .= $this->fila(1, [
-            $this->celdaTexto('A1', $titulo, 1),
-        ], 28);
-        $filasXml .= $this->fila(2, [
-            $this->celdaTexto('A2', 'Fecha de corte'),
-            $this->celdaTexto('B2', $metadatos['fecha_corte'] ?? null),
-        ]);
-        $filasXml .= $this->fila(3, [
-            $this->celdaTexto('A3', 'Generado por'),
-            $this->celdaTexto('B3', $metadatos['usuario'] ?? null),
-        ]);
-        $filasXml .= $this->fila(4, [
-            $this->celdaTexto('A4', 'Temporada'),
-            $this->celdaTexto('B4', $metadatos['temporada'] ?? 'Temporada activa'),
-        ]);
-
-        $encabezados = [];
-        foreach ($columnas as $indice => $columna) {
-            $encabezados[] = $this->celdaTexto(
-                $this->nombreColumna($indice + 1).$filaEncabezados,
-                $columna['titulo'],
-                2,
-            );
-        }
-        $filasXml .= $this->fila($filaEncabezados, $encabezados, 32);
-
-        foreach ($filas as $indiceFila => $fila) {
-            $numeroFila = $filaEncabezados + $indiceFila + 1;
-            $celdas = [];
-            foreach ($columnas as $indiceColumna => $columna) {
-                $referencia = $this->nombreColumna($indiceColumna + 1).$numeroFila;
-                $valor = $fila[$columna['clave']] ?? null;
-                $tipo = $columna['tipo'] ?? 'texto';
-                if ($tipo === 'numero' && is_numeric($valor)) {
-                    $celdas[] = $this->celdaNumero($referencia, (float) $valor, 4);
-                } elseif (in_array($tipo, ['fecha', 'fecha_hora'], true) && $valor !== null && $valor !== '') {
-                    $celdas[] = $this->celdaFecha($referencia, $valor, $tipo);
-                } else {
-                    $celdas[] = $this->celdaTexto($referencia, $valor, 3);
-                }
-            }
-            $filasXml .= $this->fila($numeroFila, $celdas);
-        }
-
+    ): void {
         $filtroFinal = max($filaEncabezados, $ultimaFila);
         $tituloEscapado = $this->escapar($titulo);
+        $columnasXml = $this->columnasXml($columnas);
+        $hoja = fopen($rutaHoja, 'wb');
+        $filas = fopen($rutaFilas, 'rb');
+        if ($hoja === false || $filas === false) {
+            if (is_resource($hoja)) {
+                fclose($hoja);
+            }
+            if (is_resource($filas)) {
+                fclose($filas);
+            }
 
-        return <<<XML
+            throw new RuntimeException('No fue posible ensamblar la hoja del archivo de Excel.');
+        }
+
+        try {
+            $this->escribir($hoja, <<<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
     <sheetPr><tabColor rgb="FFC9AA68"/></sheetPr>
@@ -267,13 +334,54 @@ XML;
     </sheetViews>
     <sheetFormatPr defaultRowHeight="15"/>
     <cols>{$columnasXml}</cols>
-    <sheetData>{$filasXml}</sheetData>
+    <sheetData>
+XML);
+            if (stream_copy_to_stream($filas, $hoja) === false) {
+                throw new RuntimeException('No fue posible copiar las filas al archivo de Excel.');
+            }
+            $this->escribir($hoja, <<<XML
+</sheetData>
     <autoFilter ref="A{$filaEncabezados}:{$ultimaColumna}{$filtroFinal}"/>
     <pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>
     <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
     <headerFooter><oddHeader>&amp;C{$tituloEscapado}</oddHeader><oddFooter>&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter>
 </worksheet>
-XML;
+XML
+            );
+        } finally {
+            fclose($filas);
+            fclose($hoja);
+        }
+    }
+
+    /**
+     * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
+     */
+    private function columnasXml(array $columnas): string
+    {
+        $xml = '';
+        foreach ($columnas as $indice => $columna) {
+            $numero = $indice + 1;
+            $ancho = max(10, min(60, (int) ($columna['ancho'] ?? 18)));
+            $xml .= "<col min=\"{$numero}\" max=\"{$numero}\" width=\"{$ancho}\" customWidth=\"1\"/>";
+        }
+
+        return $xml;
+    }
+
+    /** @param resource $archivo */
+    private function escribir($archivo, string $contenido): void
+    {
+        $longitud = strlen($contenido);
+        $desplazamiento = 0;
+
+        while ($desplazamiento < $longitud) {
+            $escritos = fwrite($archivo, substr($contenido, $desplazamiento));
+            if ($escritos === false || $escritos === 0) {
+                throw new RuntimeException('No fue posible escribir el archivo temporal de Excel.');
+            }
+            $desplazamiento += $escritos;
+        }
     }
 
     /** @param array<int, string> $celdas */
