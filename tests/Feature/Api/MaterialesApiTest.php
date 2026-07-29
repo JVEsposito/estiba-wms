@@ -7,6 +7,7 @@ use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\ClienteMaterial;
 use App\Models\CorreccionItemFolioMaterial;
+use App\Models\DespachoMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -319,6 +320,78 @@ class MaterialesApiTest extends TestCase
             $consultasConUno + 2,
             $consultasConSeis,
             'El listado de despachos agregó consultas por cada registro cargado.',
+        );
+    }
+
+    public function test_correlativo_despacho_parte_del_historial_y_no_recorre_la_tabla_al_crear(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        $temporadaId = DB::table('temporadas')->where('activa', true)->value('id');
+
+        foreach ([
+            'MAT-DES-000007',
+            'MAT-DES-000120',
+            'CODIGO-EXTERNO',
+        ] as $indice => $codigo) {
+            DespachoMaterial::create([
+                'temporada_id' => $temporadaId,
+                'codigo' => $codigo,
+                'operacion_id' => (string) Str::uuid(),
+                'payload_hash' => hash('sha256', "despacho-historico-{$indice}"),
+                'origen' => 'oficina',
+                'estado' => 'pendiente',
+                'destino_material_id' => $destino->id,
+                'destino_nombre' => $destino->nombre,
+                'destino_centro_costo' => $destino->centro_costo,
+                'creado_por_user_id' => $administrador->id,
+            ]);
+        }
+
+        DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->delete();
+        $migracion = require database_path(
+            'migrations/2026_07_28_230000_agregar_secuencia_despachos_materiales.php',
+        );
+        $migracion->up();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->conToken($tokenOficina)
+                ->postJson('/api/materiales/despachos', [
+                    'operacion_id' => (string) Str::uuid(),
+                    'destino_material_id' => $destino->id,
+                    'items' => [[
+                        'item_material_id' => $item->id,
+                        'cantidad' => 1,
+                    ]],
+                ])
+                ->assertCreated()
+                ->assertJsonPath('data.codigo', 'MAT-DES-000121');
+
+            $consultas = collect(DB::getQueryLog())
+                ->pluck('query')
+                ->map(fn (string $consulta): string => strtolower($consulta));
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertDatabaseHas('secuencias_documentos', [
+            'clave' => 'despachos_materiales',
+            'ultimo_numero' => 121,
+        ]);
+        $this->assertFalse(
+            $consultas->contains(fn (string $consulta): bool => str_contains(
+                $consulta,
+                'despachos_materiales',
+            ) && str_contains($consulta, 'order by')
+                && str_contains($consulta, 'codigo')),
+            'Crear un despacho no debe recorrer ni bloquear el historial de códigos.',
         );
     }
 
