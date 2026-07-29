@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
+use App\Http\Controllers\Api\ReinicioOperacionalController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TransformacionMaterialController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -337,6 +338,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
         Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
         Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
+        Route::get('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'preview']);
+        Route::post('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'store']);
         Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
         Route::post('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'store']);
         Route::put('/administracion/etiquetas/materiales/perfiles/{perfilImpresionEtiqueta}', [PerfilImpresionEtiquetaController::class, 'update']);

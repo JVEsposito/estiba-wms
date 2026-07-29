@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\RolUsuario;
 use App\Events\EventoCargaRegistrado;
 use App\Listeners\CrearNotificacionesOperacionales;
 use App\Models\EventoCarga;
@@ -107,6 +108,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::define(
             'administrar-accesos',
             fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
+        );
+        Gate::define(
+            'reiniciar-datos-operacionales',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
         );
         Gate::define(
             'gestionar-cargas',

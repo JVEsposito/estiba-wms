@@ -83,6 +83,156 @@
     cursor: pointer;
 }
 
+.admin-season-actions .admin-season-reset {
+    border-color: rgba(255, 100, 110, .5);
+    color: #ffb3ba;
+}
+
+.admin-reset-dialog {
+    width: min(760px, calc(100vw - 30px));
+    max-height: calc(100vh - 30px);
+    border: 1px solid rgba(255, 100, 110, .4);
+    border-radius: 18px;
+    background: #0a1c26;
+    color: var(--text);
+    padding: 0;
+}
+
+.admin-reset-dialog::backdrop {
+    background: rgba(1, 7, 10, .84);
+    backdrop-filter: blur(5px);
+}
+
+.admin-reset-dialog__shell {
+    display: grid;
+    gap: 15px;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    padding: 22px;
+}
+
+.admin-reset-dialog header,
+.admin-reset-dialog footer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.admin-reset-dialog h2 {
+    margin: 0;
+    font-size: 1.45rem;
+}
+
+.admin-reset-dialog header p:last-child {
+    margin: 6px 0 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.admin-reset-dialog__close {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--deep);
+    color: var(--text);
+    font-size: 1.25rem;
+}
+
+.admin-reset-scope,
+.admin-reset-preview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.admin-reset-scope article,
+.admin-reset-preview article {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--deep);
+    padding: 12px;
+}
+
+.admin-reset-scope strong,
+.admin-reset-preview span,
+.admin-reset-preview small {
+    display: block;
+}
+
+.admin-reset-scope p,
+.admin-reset-preview p {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: .68rem;
+    line-height: 1.45;
+}
+
+.admin-reset-preview span {
+    color: var(--muted);
+    font-size: .62rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.admin-reset-preview strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 1.5rem;
+}
+
+.admin-reset-preview small {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: .62rem;
+    line-height: 1.4;
+}
+
+.admin-reset-dialog .field {
+    display: grid;
+    gap: 6px;
+}
+
+.admin-reset-dialog .field span {
+    color: var(--muted);
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.admin-reset-dialog input,
+.admin-reset-dialog textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--deep);
+    color: var(--text);
+    padding: 10px 12px;
+    font: inherit;
+}
+
+.admin-reset-dialog code {
+    color: #ffb3ba;
+}
+
+.admin-reset-check {
+    min-height: 42px;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: rgba(3, 11, 16, .35);
+    padding: 9px 11px;
+}
+
+.admin-reset-dialog footer {
+    align-items: center;
+    justify-content: flex-end;
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+}
+
 .admin-migration-form {
     border-top: 1px solid var(--line);
     border-bottom: 0;

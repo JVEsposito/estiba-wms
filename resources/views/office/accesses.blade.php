@@ -284,6 +284,40 @@
             </section>
         </main>
 
+        <dialog class="admin-reset-dialog" id="operationalResetDialog" aria-labelledby="operationalResetTitle">
+            <form class="admin-reset-dialog__shell" id="operationalResetForm" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">REINICIO CONTROLADO</p>
+                        <h2 id="operationalResetTitle">Vaciar datos de prueba PT + MP</h2>
+                        <p id="operationalResetDescription">La temporada activa se mantiene; solo se elimina su operación de Frigorífico y Materia Prima.</p>
+                    </div>
+                    <button class="admin-reset-dialog__close" id="closeOperationalReset" type="button" aria-label="Cerrar">×</button>
+                </header>
+
+                <div class="admin-reset-scope">
+                    <article><strong>Se elimina</strong><p>Romana, folios PT, validaciones, cargas, prefrío, lotes, hidrocooler, asignaciones y movimientos/guías de envases.</p></article>
+                    <article><strong>Se conserva</strong><p>Temporada, catálogos, usuarios, configuración física y todos los catálogos y datos operacionales de Bodega.</p></article>
+                </div>
+
+                <div class="admin-reset-preview" id="operationalResetPreview">
+                    <p>Calculando registros de la temporada activa…</p>
+                </div>
+
+                <label class="field"><span>Motivo del reinicio *</span><textarea name="motivo" minlength="10" maxlength="1000" rows="3" placeholder="Ej. Finalizó la etapa de pruebas integrales previa a la puesta en marcha." required></textarea></label>
+                <label class="field"><span>Contraseña del administrador *</span><input name="password" type="password" maxlength="255" autocomplete="current-password" required></label>
+                <label class="field"><span>Escribe exactamente <code id="operationalResetPhrase">REINICIAR TEMPORADA</code></span><input name="confirmacion" autocomplete="off" required></label>
+                <label class="admin-check admin-reset-check"><input name="confirmar_exclusion_bodega" type="checkbox" required><span>Confirmo que Bodega queda excluida y debe conservar todos sus datos.</span></label>
+                <label class="admin-check admin-reset-check"><input name="confirmar_preservar_configuracion" type="checkbox" required><span>Confirmo que temporada, catálogos y configuración deben conservarse.</span></label>
+
+                <p class="form-error" id="operationalResetError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" id="cancelOperationalReset" type="button">Cancelar</button>
+                    <button class="danger-button" id="confirmOperationalReset" type="submit">Reiniciar PT + MP</button>
+                </footer>
+            </form>
+        </dialog>
+
         <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>
     </body>
