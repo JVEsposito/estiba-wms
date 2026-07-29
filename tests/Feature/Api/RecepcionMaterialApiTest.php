@@ -734,11 +734,17 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertStringStartsWith("PK\x03\x04", $respuesta->getContent());
         $this->assertStringContainsString('Formats/FGE0000001', $respuesta->getContent());
         $this->assertStringContainsString('Etiquetas Estiba WMS.slnx', $respuesta->getContent());
+        $trabajoId = $respuesta->headers->get('X-Estiba-Print-Job');
         $this->assertDatabaseHas('trabajos_impresion_materiales', [
-            'id' => $respuesta->headers->get('X-Estiba-Print-Job'),
+            'id' => $trabajoId,
             'formato' => 'nlbl',
             'simbologia' => 'qr',
         ]);
+        $this->assertSame(
+            Folio::findOrFail($folio['id'])->fecha_ingreso->format('d/m/Y H:i'),
+            TrabajoImpresionMaterial::findOrFail($trabajoId)
+                ->contenido_snapshot[0]['fecha_recepcion'],
+        );
 
         $this->conToken($token)
             ->post(
