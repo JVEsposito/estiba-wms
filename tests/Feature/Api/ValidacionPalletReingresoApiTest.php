@@ -167,6 +167,8 @@ class ValidacionPalletReingresoApiTest extends TestCase
             'numero_folio' => $folio,
             'tipo_bulto' => 'pallet',
             'cantidad_cajas' => 120,
+            'linea_proceso' => 1,
+            'turno' => 'A',
             ...$catalogo,
             'resultado' => 'aprobado',
             'motivo' => null,

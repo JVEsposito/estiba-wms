@@ -2,13 +2,12 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class ConsultarValidacionesPalletRequest extends FormRequest
+class ExportarRegistroValidacionPalletRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,43 +20,33 @@ class ConsultarValidacionesPalletRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
+            'temporada_id' => ['required', 'uuid', 'exists:temporadas,id'],
+            'fecha' => ['required', 'date_format:Y-m-d'],
             'folio' => ['nullable', 'string', 'max:50'],
             'resultado' => ['nullable', Rule::enum(ResultadoValidacionPallet::class)],
-            'estado' => ['nullable', Rule::enum(EstadoValidacionPallet::class)],
-            'fecha' => ['nullable', 'date_format:Y-m-d'],
             'linea_proceso' => ['nullable', 'integer', Rule::in([1, 2, 3])],
             'turno' => ['nullable', 'string', Rule::in(['A', 'B'])],
             'user_id' => ['nullable', 'integer', 'exists:users,id'],
-            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
-            'page' => ['nullable', 'integer', 'min:1'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        if ($this->filled('folio')) {
-            $this->merge([
-                'folio' => mb_strtoupper(trim((string) $this->input('folio'))),
-            ]);
-        }
-
-        if ($this->filled('turno')) {
-            $this->merge([
-                'turno' => mb_strtoupper(trim((string) $this->input('turno'))),
-            ]);
-        }
+        $this->merge([
+            'folio' => $this->filled('folio')
+                ? mb_strtoupper(trim((string) $this->input('folio')))
+                : null,
+            'turno' => $this->filled('turno')
+                ? mb_strtoupper(trim((string) $this->input('turno')))
+                : null,
+        ]);
     }
 
     /**
-     * @return array{CarbonImmutable, CarbonImmutable}|null
+     * @return array{CarbonImmutable, CarbonImmutable}
      */
-    public function rangoFechaUtc(): ?array
+    public function rangoFechaUtc(): array
     {
-        if (! $this->filled('fecha')) {
-            return null;
-        }
-
         $inicio = CarbonImmutable::createFromFormat(
             '!Y-m-d',
             (string) $this->input('fecha'),

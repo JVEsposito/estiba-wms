@@ -143,6 +143,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:validar-pallets');
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
+        Route::get('/validacion/registro/opciones', [ValidacionPalletController::class, 'opciones']);
+        Route::get('/validacion/registro/rrpp-01', [ValidacionPalletController::class, 'exportar']);
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
     });
     Route::middleware('can:validar-mp')->prefix('validacion-mp')->group(function () {

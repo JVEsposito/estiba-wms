@@ -17,6 +17,8 @@ class InterfazOficinaValidacionTest extends TestCase
             ->assertDontSee('Nueva temporada')
             ->assertSee('Combinaciones artículo–origen habilitadas')
             ->assertSee('validationHistoryBody', false)
+            ->assertSee('Descargar RRPP-01')
+            ->assertSee('validationUserFilter', false)
             ->assertSee('importPreview', false)
             ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('/oficina/frigorifico/camaras', false)

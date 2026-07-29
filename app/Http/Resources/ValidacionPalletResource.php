@@ -19,6 +19,8 @@ class ValidacionPalletResource extends JsonResource
             'numero_intento' => $this->numero_intento,
             'tipo_bulto' => $this->tipo_bulto,
             'cantidad_cajas' => $this->cantidad_cajas,
+            'linea_proceso' => $this->linea_proceso,
+            'turno' => $this->turno,
             'temporada_id' => $this->temporada_id,
             'articulo_validacion_id' => $this->articulo_validacion_id,
             'origen_validacion_id' => $this->origen_validacion_id,

@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+use ZipArchive;
 
 class ValidacionPalletApiTest extends TestCase
 {
@@ -28,6 +29,8 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.numero_folio', 'PAL-0001')
             ->assertJsonPath('data.resultado', 'aprobado')
             ->assertJsonPath('data.estado', 'aceptada')
+            ->assertJsonPath('data.linea_proceso', 1)
+            ->assertJsonPath('data.turno', 'A')
             ->assertJsonPath('data.catalogo.categoria.nombre', 'Exportación')
             ->assertJsonPath('data.folio.estado_operacional', 'pendiente_prefrio')
             ->json('data.id');
@@ -221,6 +224,93 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonMissingPath('data.0.payload_hash');
     }
 
+    public function test_exige_contexto_de_jornada_para_registrar_la_validacion(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-JORNADA-01');
+        $payload = $this->payload($catalogo, 'PAL-SIN-JORNADA');
+        unset($payload['linea_proceso'], $payload['turno']);
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['linea_proceso', 'turno']);
+    }
+
+    public function test_filtra_por_jornada_y_exporta_el_registro_rrpp_01_en_hora_local(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-RRPP-01');
+        $payload = [
+            ...$this->payload($catalogo, 'PAL-RRPP-0001'),
+            'linea_proceso' => 2,
+            'turno' => 'b',
+            'generado_dispositivo_at' => '2026-07-29T23:30:00-04:00',
+        ];
+
+        $encargado = $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.linea_proceso', 2)
+            ->assertJsonPath('data.turno', 'B')
+            ->json('data.usuario.nombre');
+
+        $this->conToken($token)
+            ->getJson('/api/validacion/pallets?fecha=2026-07-29&linea_proceso=2&turno=B&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.numero_folio', 'PAL-RRPP-0001');
+
+        $this->conToken($token)
+            ->getJson('/api/validacion/pallets?fecha=2026-07-30&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->conToken($token)
+            ->getJson("/api/validacion/registro/opciones?temporada_id={$catalogo['temporada_id']}")
+            ->assertOk()
+            ->assertJsonPath('temporada.id', $catalogo['temporada_id'])
+            ->assertJsonCount(1, 'validadores')
+            ->assertJsonPath('validadores.0.nombre', $encargado);
+
+        $respuesta = $this->conToken($token)->get(
+            '/api/validacion/registro/rrpp-01?'.http_build_query([
+                'temporada_id' => $catalogo['temporada_id'],
+                'fecha' => '2026-07-29',
+                'linea_proceso' => 2,
+                'turno' => 'B',
+            ]),
+        );
+
+        $respuesta
+            ->assertOk()
+            ->assertDownload('RRPP-01_2026-07-29.xlsx')
+            ->assertHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($respuesta->baseResponse->getFile()->getPathname()) === true);
+        $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $this->assertIsString($hoja);
+        $this->assertSame('29-07-2026', $this->valorCelda($hoja, 'C5'));
+        $this->assertSame($encargado, $this->valorCelda($hoja, 'C6'));
+        $this->assertSame('B', $this->valorCelda($hoja, 'C7'));
+        $this->assertSame('2', $this->valorCelda($hoja, 'C8'));
+        $this->assertSame('PAL-RRPP-0001', $this->valorCelda($hoja, 'B11'));
+        $this->assertSame('ATLAS', $this->valorCelda($hoja, 'C11'));
+        $this->assertSame('5 kg', $this->valorCelda($hoja, 'D11'));
+        $this->assertSame('Cereza', $this->valorCelda($hoja, 'E11'));
+        $this->assertSame('Santina', $this->valorCelda($hoja, 'F11'));
+        $this->assertSame('105410', $this->valorCelda($hoja, 'G11'));
+        $this->assertSame('2J', $this->valorCelda($hoja, 'H11'));
+        $this->assertSame('120', $this->valorCelda($hoja, 'I11'));
+        $this->assertSame('X', $this->valorCelda($hoja, 'J11'));
+        $this->assertSame('', $this->valorCelda($hoja, 'K11'));
+        $this->assertSame('SUM(I11:I30)', $this->formulaCelda($hoja, 'I31'));
+        $this->assertSame('120', $this->valorCelda($hoja, 'I31'));
+        $zip->close();
+    }
+
     public function test_historial_separa_temporadas_y_por_defecto_muestra_solo_la_activa(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-TEMP-01');
@@ -364,6 +454,8 @@ class ValidacionPalletApiTest extends TestCase
             'numero_folio' => $folio,
             'tipo_bulto' => 'pallet',
             'cantidad_cajas' => 120,
+            'linea_proceso' => 1,
+            'turno' => 'A',
             ...$catalogo,
             'resultado' => 'aprobado',
             'motivo' => null,
@@ -377,5 +469,30 @@ class ValidacionPalletApiTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
+    }
+
+    private function valorCelda(string $xml, string $referencia): string
+    {
+        $documento = new \DOMDocument;
+        $this->assertTrue($documento->loadXML($xml));
+        $xpath = new \DOMXPath($documento);
+        $xpath->registerNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $celda = $xpath->query("//m:c[@r='{$referencia}']")->item(0);
+        $this->assertNotNull($celda);
+        $inline = $xpath->query('m:is/m:t', $celda)->item(0);
+
+        return $inline?->textContent ?? $xpath->query('m:v', $celda)->item(0)?->textContent ?? '';
+    }
+
+    private function formulaCelda(string $xml, string $referencia): string
+    {
+        $documento = new \DOMDocument;
+        $this->assertTrue($documento->loadXML($xml));
+        $xpath = new \DOMXPath($documento);
+        $xpath->registerNamespace('m', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $celda = $xpath->query("//m:c[@r='{$referencia}']")->item(0);
+        $this->assertNotNull($celda);
+
+        return $xpath->query('m:f', $celda)->item(0)?->textContent ?? '';
     }
 }

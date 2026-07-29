@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   RegisterValidationPayload,
   ValidationCatalog,
+  ValidationWorkContext,
   ValidationOutboxItem,
   ValidationOutboxStatus,
 } from '../domain/validation';
@@ -13,6 +14,37 @@ function catalogKey(userId: string, deviceId: string) {
 
 function outboxKey(userId: string, deviceId: string) {
   return `estiba_validation_outbox:${userId}:${deviceId}`;
+}
+
+function workContextKey(userId: string, deviceId: string) {
+  return `estiba_validation_work_context:${userId}:${deviceId}`;
+}
+
+export async function loadValidationWorkContext(
+  userId: string,
+  deviceId: string,
+): Promise<ValidationWorkContext | null> {
+  const raw = await AsyncStorage.getItem(workContextKey(userId, deviceId));
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as ValidationWorkContext;
+    if (![1, 2, 3].includes(parsed.linea_proceso) || !['A', 'B'].includes(parsed.turno)) {
+      throw new Error('Contexto de jornada inválido.');
+    }
+    return parsed;
+  } catch {
+    await AsyncStorage.removeItem(workContextKey(userId, deviceId));
+    return null;
+  }
+}
+
+export async function saveValidationWorkContext(
+  userId: string,
+  deviceId: string,
+  context: ValidationWorkContext,
+) {
+  await AsyncStorage.setItem(workContextKey(userId, deviceId), JSON.stringify(context));
 }
 
 export async function loadCachedValidationCatalog(

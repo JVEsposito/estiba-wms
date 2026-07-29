@@ -3,7 +3,7 @@ const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'), managementNav: byId('officeManagementNav'), romanaNav: byId('officeRomanaNav'),
-    reload: byId('reloadValidationButton'), hierarchyCatalogLink: byId('hierarchyCatalogLink'), seasonSelector: byId('seasonSelector'), admin: byId('validationAdmin'), filters: byId('validationFilters'), history: byId('validationHistoryBody'),
+    reload: byId('reloadValidationButton'), hierarchyCatalogLink: byId('hierarchyCatalogLink'), seasonSelector: byId('seasonSelector'), admin: byId('validationAdmin'), filters: byId('validationFilters'), history: byId('validationHistoryBody'), userFilter: byId('validationUserFilter'), exportRegister: byId('exportValidationRegisterButton'),
     catalogVersion: byId('catalogVersion'), articleCount: byId('activeArticleCount'), originCount: byId('activeOriginCount'), combinationCount: byId('activeCombinationCount'), observedCount: byId('observedCount'),
     seasonList: byId('seasonList'), seasonStatus: byId('seasonStatus'), seasonAccessLink: byId('seasonAccessLink'),
     articleForm: byId('articleForm'), articleError: byId('articleError'), articleCancel: byId('cancelArticleEdit'), articleList: byId('articleList'), articleSummary: byId('articleSummary'),
@@ -15,7 +15,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), seasons: [], season: null,
-    articles: [], origins: [], combinations: [], imports: [], history: [], preview: null,
+    filterSeasons: [], filterSeason: null, validators: [], articles: [], origins: [], combinations: [], imports: [], history: [], preview: null,
 };
 
 class ApiError extends Error {
@@ -44,6 +44,26 @@ async function api(path, options = {}) {
     return data;
 }
 
+async function download(path) {
+    const headers = new Headers({ Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    let response;
+    try { response = await fetch(path, { headers }); } catch { throw new ApiError('No fue posible conectar con Laravel.', 0); }
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) clearSession();
+        throw new ApiError(errorMessage(data, 'No fue posible generar el registro RRPP-01.'), response.status, data);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] || 'RRPP-01.xlsx';
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove();
+    URL.revokeObjectURL(url);
+}
+
 function showApp() {
     elements.access.classList.add('is-hidden'); elements.app.classList.remove('is-hidden');
     const name = state.identity?.nombre || 'Usuario'; elements.userName.textContent = name; elements.userRole.textContent = statusText(state.identity?.rol);
@@ -60,7 +80,23 @@ function showApp() {
     elements.seasonAccessLink.classList.toggle('is-hidden', state.identity?.puede_administrar_accesos !== true);
 }
 
-async function loadHistory(seasonId = state.season?.id || null) {
+async function loadFilterOptions(seasonId = null) {
+    const suffix = seasonId ? `?temporada_id=${encodeURIComponent(seasonId)}` : '';
+    const response = await api(`/api/validacion/registro/opciones${suffix}`);
+    state.filterSeasons = response.temporadas || [];
+    state.filterSeason = response.temporada || null;
+    state.validators = response.validadores || [];
+    renderFilterOptions();
+}
+
+function renderFilterOptions() {
+    const currentUser = elements.userFilter.value;
+    elements.seasonSelector.innerHTML = state.filterSeasons.map((season) => `<option value="${season.id}"${season.id === state.filterSeason?.id ? ' selected' : ''}>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}${season.activa ? ' (activa)' : ''}</option>`).join('') || '<option value="">Sin temporadas</option>';
+    elements.userFilter.innerHTML = `<option value="">Todos los encargados</option>${state.validators.map((user) => `<option value="${user.id}">${escapeHtml(user.nombre)}</option>`).join('')}`;
+    if ([...elements.userFilter.options].some((option) => option.value === currentUser)) elements.userFilter.value = currentUser;
+}
+
+async function loadHistory(seasonId = state.filterSeason?.id || null) {
     const params = new URLSearchParams();
     const values = Object.fromEntries(new FormData(elements.filters));
     for (const [key, value] of Object.entries(values)) if (String(value).trim()) params.set(key, String(value).trim());
@@ -81,8 +117,9 @@ async function loadAdministration(seasonId = null) {
 }
 
 async function loadAll(seasonId = null) {
-    await loadAdministration(seasonId);
-    await loadHistory(state.season?.id || seasonId);
+    await loadFilterOptions(seasonId);
+    await loadAdministration(state.filterSeason?.id || seasonId);
+    await loadHistory(state.filterSeason?.id || seasonId);
 }
 
 function renderMetrics() {
@@ -98,13 +135,12 @@ function renderHistory() {
         const article = item.catalogo?.articulo || {}; const origin = item.catalogo?.origen || {};
         const resultClass = item.estado === 'conflicto' ? 'conflicto' : item.resultado;
         const category = item.catalogo?.categoria || {};
-        return `<tr><td><strong>${escapeHtml(item.numero_folio)}</strong><small>Intento ${item.numero_intento} · ${escapeHtml(statusText(item.tipo_bulto))}</small></td><td><strong>${escapeHtml(article.especie || 'Sin artículo')} · ${escapeHtml(article.variedad || '')}</strong><small>${escapeHtml(category.nombre || 'Sin categoría')} · ${escapeHtml(article.calibre || '')} · ${escapeHtml(article.envase || '')}</small></td><td><strong>${escapeHtml(origin.cliente || 'Sin origen')}</strong><small>${escapeHtml(origin.marca || '')} · CSG ${escapeHtml(origin.csg || '—')}</small></td><td><span class="validation-result validation-result--${escapeHtml(resultClass)}">${escapeHtml(item.estado === 'conflicto' ? 'Conflicto' : item.resultado)}</span>${item.motivo ? `<small>${escapeHtml(statusText(item.motivo))}</small>` : ''}</td><td><strong>${escapeHtml(item.usuario?.nombre || '—')}</strong><small>${escapeHtml(item.dispositivo?.codigo || '')}</small></td><td>${escapeHtml(formatDate(item.recibido_servidor_at))}</td></tr>`;
+        return `<tr><td><strong>${escapeHtml(item.numero_folio)}</strong><small>Intento ${item.numero_intento} · ${escapeHtml(statusText(item.tipo_bulto))}</small></td><td><strong>${escapeHtml(article.especie || 'Sin artículo')} · ${escapeHtml(article.variedad || '')}</strong><small>${escapeHtml(category.nombre || 'Sin categoría')} · ${escapeHtml(article.calibre || '')} · ${escapeHtml(article.envase || '')}</small></td><td><strong>${escapeHtml(origin.cliente || 'Sin origen')}</strong><small>${escapeHtml(origin.marca || '')} · CSG ${escapeHtml(origin.csg || '—')}</small></td><td><span class="validation-result validation-result--${escapeHtml(resultClass)}">${escapeHtml(item.estado === 'conflicto' ? 'Conflicto' : item.resultado)}</span>${item.motivo ? `<small>${escapeHtml(statusText(item.motivo))}</small>` : ''}</td><td><strong>${escapeHtml(item.usuario?.nombre || '—')}</strong><small>${escapeHtml(item.dispositivo?.codigo || '')}</small></td><td>${escapeHtml(formatDate(item.generado_dispositivo_at))}<small>${item.linea_proceso && item.turno ? `Línea ${escapeHtml(item.linea_proceso)} · Turno ${escapeHtml(item.turno)}` : 'Sin jornada histórica'}</small></td></tr>`;
     }).join('') || '<tr><td class="empty-validation" colspan="6">No existen validaciones coincidentes.</td></tr>';
     renderMetrics();
 }
 
 function renderAdministration() {
-    elements.seasonSelector.innerHTML = state.seasons.map((season) => `<option value="${season.id}"${season.id === state.season?.id ? ' selected' : ''}>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}${season.activa ? ' (activa)' : ''}</option>`).join('') || '<option value="">Sin temporadas</option>';
     elements.seasonStatus.textContent = state.season ? `${state.season.activa ? 'Activa' : 'Inactiva'} · versión ${state.season.version_catalogo}` : 'Sin temporada';
     elements.seasonList.innerHTML = state.seasons.map((season) => `<article class="validation-row${season.activa ? '' : ' is-inactive'}"><div><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>${escapeHtml(dateInput(season.fecha_inicio) || 'Sin inicio')} → ${escapeHtml(dateInput(season.fecha_fin) || 'Sin término')} · versión ${season.version_catalogo}${season.activa ? ' · activa global' : ''}</small></div></article>`).join('') || '<p class="empty-validation">No existen temporadas. Debes crearla en Accesos.</p>';
     elements.articleSummary.textContent = `${state.articles.length} registrados`;
@@ -156,8 +192,21 @@ async function confirmImport(id) {
 elements.login.addEventListener('submit', async (event) => { event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…'); try { const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.login))) }); if (payload.usuario.puede_consultar_validaciones_pallet !== true) throw new ApiError('Tu perfil no puede consultar validaciones.', 403); persist(payload); showApp(); await loadAll(); } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); } });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
 elements.reload.addEventListener('click', () => { setBusy(true, 'Actualizando validación…'); void loadAll(state.season?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
-elements.filters.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Consultando historial…'); void loadHistory(state.season?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.filters.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Consultando historial…'); void loadHistory(state.filterSeason?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 elements.seasonSelector.addEventListener('change', () => { setBusy(true, 'Cambiando temporada…'); void loadAll(elements.seasonSelector.value || null).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.exportRegister.addEventListener('click', () => {
+    const values = Object.fromEntries(new FormData(elements.filters));
+    if (!values.fecha) { toast('Selecciona la fecha del registro RRPP-01.', true); return; }
+    if (!state.filterSeason?.id) { toast('No existe una temporada seleccionada.', true); return; }
+    const params = new URLSearchParams({ temporada_id: state.filterSeason.id, fecha: String(values.fecha) });
+    for (const key of ['folio', 'resultado', 'linea_proceso', 'turno', 'user_id']) {
+        if (String(values[key] || '').trim()) params.set(key, String(values[key]).trim());
+    }
+    setBusy(true, 'Generando registro RRPP-01…');
+    void download(`/api/validacion/registro/rrpp-01?${params}`)
+        .catch((error) => toast(error.message, true))
+        .finally(() => setBusy(false));
+});
 
 elements.articleForm.addEventListener('submit', (event) => { event.preventDefault(); void saveJson(elements.articleForm, elements.articleError, '/api/administracion/validacion/articulos', 'artículo'); });
 elements.originForm.addEventListener('submit', (event) => { event.preventDefault(); void saveJson(elements.originForm, elements.originError, '/api/administracion/validacion/origenes', 'origen'); });

@@ -149,6 +149,10 @@ class ServicioValidacionPallet
                     'nombre' => $categoria->nombre,
                     'codigo_externo' => $categoria->codigo_externo,
                 ],
+                'jornada' => [
+                    'linea_proceso' => (int) $datos['linea_proceso'],
+                    'turno' => $datos['turno'],
+                ],
                 'combinacion' => [
                     'id' => $combinacion->id,
                     'codigo_externo' => $combinacion->codigo_externo,
@@ -163,6 +167,8 @@ class ServicioValidacionPallet
                 'numero_intento' => $numeroIntento,
                 'tipo_bulto' => $datos['tipo_bulto'],
                 'cantidad_cajas' => $datos['cantidad_cajas'],
+                'linea_proceso' => $datos['linea_proceso'],
+                'turno' => $datos['turno'],
                 'temporada_id' => $temporada->id,
                 'articulo_validacion_id' => $articulo->id,
                 'origen_validacion_id' => $origen->id,
@@ -225,6 +231,8 @@ class ServicioValidacionPallet
             'numero_folio' => mb_strtoupper(trim((string) $datos['numero_folio'])),
             'tipo_bulto' => $datos['tipo_bulto'],
             'cantidad_cajas' => (int) $datos['cantidad_cajas'],
+            'linea_proceso' => (int) $datos['linea_proceso'],
+            'turno' => $datos['turno'],
             'temporada_id' => $datos['temporada_id'],
             'catalogo_version' => (int) $datos['catalogo_version'],
             'articulo_validacion_id' => $datos['articulo_validacion_id'],

@@ -19,8 +19,10 @@ import {
   RegisterValidationPayload,
   ValidationAttempt,
   ValidationCatalog,
+  ValidationLine,
   ValidationOutboxItem,
   ValidationResult,
+  ValidationShift,
 } from '../domain/validation';
 import { ApiError } from '../services/apiError';
 import {
@@ -33,10 +35,12 @@ import {
   enqueueValidation,
   loadCachedValidationCatalog,
   loadValidationOutbox,
+  loadValidationWorkContext,
   markValidationOutboxItem,
   removeValidationFromOutbox,
   retryValidationOutboxItem,
   saveValidationCatalog,
+  saveValidationWorkContext,
 } from '../services/validationOfflineStore';
 import { colors } from '../theme/colors';
 
@@ -74,6 +78,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const [error, setError] = useState('');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [folio, setFolio] = useState('');
+  const [line, setLine] = useState<ValidationLine | null>(null);
+  const [shift, setShift] = useState<ValidationShift | null>(null);
   const [folioReview, setFolioReview] = useState<FolioReview | null>(null);
   const [boxes, setBoxes] = useState('');
   const [packageType, setPackageType] = useState<'pallet' | 'saldo'>('pallet');
@@ -179,12 +185,17 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     setBusy(true);
     setError('');
     try {
-      const [cached, queued] = await Promise.all([
+      const [cached, queued, savedContext] = await Promise.all([
         loadCachedValidationCatalog(userId, deviceId),
         loadValidationOutbox(userId, deviceId),
+        loadValidationWorkContext(userId, deviceId),
       ]);
       if (cached) setCatalog(cached);
       setOutbox(queued);
+      if (savedContext) {
+        setLine(savedContext.linea_proceso);
+        setShift(savedContext.turno);
+      }
       await synchronize();
     } catch (reason) {
       setError(messageFrom(reason));
@@ -379,6 +390,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
   function validateForm() {
     if (!catalog) return 'No existe un catálogo sincronizado en esta PDA.';
+    if (!line || !shift) return 'Selecciona la línea de proceso y el turno antes de validar.';
     if (!folio.trim()) return 'Escanea o ingresa el folio.';
     if (terminalDecision) return 'El folio ya posee una decisión final y no admite una nueva validación.';
     if (!Number.isInteger(Number(boxes)) || Number(boxes) < 1) return 'Ingresa una cantidad válida de cajas.';
@@ -398,13 +410,15 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       setError(problem);
       return;
     }
-    if (!catalog || !selectedArticle || !selectedOrigin || !selectedCategory) return;
+    if (!catalog || !selectedArticle || !selectedOrigin || !selectedCategory || !line || !shift) return;
 
     const payload: RegisterValidationPayload = {
       operacion_id: Crypto.randomUUID(),
       numero_folio: normalizeFolio(folio),
       tipo_bulto: packageType,
       cantidad_cajas: Number(boxes),
+      linea_proceso: line,
+      turno: shift,
       temporada_id: catalog.temporada.id,
       catalogo_version: catalog.temporada.version_catalogo,
       articulo_validacion_id: selectedArticle.id,
@@ -473,6 +487,17 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     });
   }
 
+  async function updateWorkContext(nextLine: ValidationLine | null, nextShift: ValidationShift | null) {
+    setLine(nextLine);
+    setShift(nextShift);
+    if (nextLine && nextShift) {
+      await saveValidationWorkContext(userId, deviceId, {
+        linea_proceso: nextLine,
+        turno: nextShift,
+      });
+    }
+  }
+
   function logout() {
     if (outbox.some((item) => item.status === 'pendiente')) {
       Alert.alert(
@@ -505,7 +530,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
         <View style={[styles.statusStrip, compact && styles.statusStripCompact]}>
           <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
-          <Text style={styles.statusText}>{outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
+          <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
         </View>
 
         {error ? <Pressable onPress={() => setError('')} style={styles.errorBanner}><Text style={styles.errorBannerText}>{error}</Text><Text style={styles.close}>×</Text></Pressable> : null}
@@ -515,6 +540,27 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
           <View style={[styles.formPanel, compact && styles.panelCompact]}>
             <Text style={styles.sectionEyebrow}>CAPTURA RÁPIDA</Text>
             <Text style={styles.sectionTitle}>Escanea y valida</Text>
+
+            <View style={styles.workContext}>
+              <View style={styles.workContextHeader}>
+                <View><Text style={styles.sectionEyebrow}>CONTEXTO DE JORNADA</Text><Text style={styles.workContextTitle}>Selecciona dónde estás validando</Text></View>
+                <Text style={styles.workContextHint}>Se conserva para los siguientes pallets</Text>
+              </View>
+              <View style={[styles.workContextGrid, compact && styles.workContextGridCompact]}>
+                <View style={styles.workContextGroup}>
+                  <Text style={styles.label}>Línea de proceso *</Text>
+                  <View style={styles.contextOptions}>
+                    {([1, 2, 3] as ValidationLine[]).map((value) => <Pressable key={value} onPress={() => void updateWorkContext(value, shift)} style={[styles.contextButton, line === value && styles.contextButtonActive]}><Text style={[styles.contextButtonText, line === value && styles.contextButtonTextActive]}>{value}</Text></Pressable>)}
+                  </View>
+                </View>
+                <View style={styles.workContextGroup}>
+                  <Text style={styles.label}>Turno *</Text>
+                  <View style={styles.contextOptions}>
+                    {(['A', 'B'] as ValidationShift[]).map((value) => <Pressable key={value} onPress={() => void updateWorkContext(line, value)} style={[styles.contextButton, shift === value && styles.contextButtonActive]}><Text style={[styles.contextButtonText, shift === value && styles.contextButtonTextActive]}>{value}</Text></Pressable>)}
+                  </View>
+                </View>
+              </View>
+            </View>
 
             <Text style={styles.label}>Folio *</Text>
             <View style={[styles.folioRow, compact && styles.folioRowCompact]}>
@@ -583,7 +629,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
           <View style={[styles.sidePanel, compact && styles.panelCompact]}>
             <View style={styles.sideHeader}><View><Text style={styles.sectionEyebrow}>BANDEJA LOCAL</Text><Text style={styles.sideTitle}>{outbox.length} operaciones</Text></View><Pressable onPress={() => void synchronize()} style={styles.syncButton}><Text style={styles.syncButtonText}>↻ Sincronizar</Text></Pressable></View>
-            {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>{statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
+            {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>Línea {item.payload.linea_proceso} · Turno {item.payload.turno} · {statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
 
             <Text style={[styles.sectionEyebrow, styles.recentEyebrow]}>ÚLTIMAS CONFIRMADAS</Text>
             {recent.slice(0, 6).map((item) => <Pressable key={item.id} onPress={() => { setFolio(item.numero_folio); void inspectFolio(item.numero_folio); }} style={styles.recentItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></Pressable>)}
@@ -698,6 +744,18 @@ const styles = StyleSheet.create({
   panelCompact: { width: '100%', flexGrow: 0, flexBasis: 'auto', padding: 14 },
   sectionEyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   sectionTitle: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: 4, marginBottom: 17 },
+  workContext: { marginBottom: 18, padding: 14, borderRadius: 13, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.selected },
+  workContextHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  workContextTitle: { color: colors.text, fontSize: 14, fontWeight: '900', marginTop: 3 },
+  workContextHint: { maxWidth: 210, color: colors.muted, fontSize: 10, fontWeight: '700', textAlign: 'right' },
+  workContextGrid: { flexDirection: 'row', gap: 14 },
+  workContextGridCompact: { flexDirection: 'column', gap: 10 },
+  workContextGroup: { flex: 1 },
+  contextOptions: { flexDirection: 'row', gap: 8 },
+  contextButton: { flex: 1, minHeight: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  contextButtonActive: { borderColor: colors.cyan, backgroundColor: colors.cyan },
+  contextButtonText: { color: colors.muted, fontSize: 14, fontWeight: '900' },
+  contextButtonTextActive: { color: colors.backgroundDeep },
   label: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: .7, textTransform: 'uppercase', marginBottom: 6 },
   folioRow: { flexDirection: 'row', alignItems: 'stretch', gap: 9 },
   folioRowCompact: { flexDirection: 'column' },

@@ -29,6 +29,8 @@ class FlujoValidacionPrefrioApiTest extends TestCase
                 'numero_folio' => 'PAL-VALIDADO-PF-001',
                 'tipo_bulto' => 'pallet',
                 'cantidad_cajas' => 120,
+                'linea_proceso' => 1,
+                'turno' => 'A',
                 ...$catalogo,
                 'resultado' => 'aprobado',
                 'motivo' => null,
