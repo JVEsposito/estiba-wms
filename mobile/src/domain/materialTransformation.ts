@@ -122,6 +122,15 @@ export type MaterialTransformationOrder = {
   updated_at: string;
 };
 
+export type MaterialTransformationOrderSummary = Omit<
+  MaterialTransformationOrder,
+  'receta_snapshot' | 'reservas' | 'lotes'
+> & {
+  reservas_count: number;
+  lotes_count: number;
+  tiene_salidas: boolean;
+};
+
 export type StartMaterialTransformationPayload = {
   operacion_id: string;
   version_conocida: number;

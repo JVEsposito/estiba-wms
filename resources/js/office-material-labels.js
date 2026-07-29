@@ -189,8 +189,7 @@ async function loadLabels() {
             labelApi('/api/materiales/recepciones/perfiles-impresion'),
         ]);
         labelState.receptions = receptions.data || [];
-        labelState.orders = (orders.data || []).filter((order) =>
-            (order.lotes || []).some((lot) => lot.estado === 'cerrado' && (lot.salidas || []).length));
+        labelState.orders = (orders.data || []).filter((order) => order.tiene_salidas === true);
         labelState.profiles = profiles.data || [];
         renderSourceOptions();
         renderProfileOptions();

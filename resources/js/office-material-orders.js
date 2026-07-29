@@ -12,6 +12,7 @@ const orderState = {
     creationOperation: null,
     planningOperations: new Map(),
     cancellationOperations: new Map(),
+    loadingDetails: new Set(),
 };
 
 const orderElements = {};
@@ -511,6 +512,30 @@ function orderAudit(order) {
     `).join('') || '<div>Sin eventos registrados.</div>';
 }
 
+function orderDetailContent(order) {
+    return `
+        ${orderRequirementTable(order)}
+        <h4>Lotes operacionales</h4>
+        ${orderLotsTable(order)}
+        <div class="materials-order-audit">${orderAudit(order)}</div>
+    `;
+}
+
+function orderReservationCount(order) {
+    return Number(order.reservas_count ?? order.reservas?.length ?? 0);
+}
+
+function orderLotCount(order) {
+    return Number(order.lotes_count ?? order.lotes?.length ?? 0);
+}
+
+function orderHasOutputs(order) {
+    if (typeof order.tiene_salidas === 'boolean') return order.tiene_salidas;
+    return (order.lotes || []).some(
+        (lot) => lot.estado === 'cerrado' && (lot.salidas || []).length,
+    );
+}
+
 function renderOrders() {
     const stateFilter = orderElements.stateFilter.value;
     const clientFilter = orderElements.clientFilter.value;
@@ -537,9 +562,7 @@ function renderOrders() {
         const activeSeason = order.temporada?.activa === true;
         const canPlan = canManageOrders() && order.estado === 'borrador' && activeSeason;
         const canCancel = canManageOrders() && ['borrador', 'planificada'].includes(order.estado);
-        const hasOutputs = (order.lotes || []).some(
-            (lot) => lot.estado === 'cerrado' && (lot.salidas || []).length,
-        );
+        const hasOutputs = orderHasOutputs(order);
         const cancelledDetail = order.estado === 'cancelada' && order.motivo_cancelacion
             ? `<p class="materials-help">Cancelada: ${orderEscape(order.motivo_cancelacion)}</p>`
             : '';
@@ -564,19 +587,18 @@ function renderOrders() {
                     <span>${orderEscape(order.linea || 'Sin línea')}</span>
                     <span>${orderEscape(order.turno || 'Sin turno')}</span>
                     <span>Versión operacional ${order.version}</span>
-                    <span>${(order.reservas || []).length} reservas</span>
-                    <span>${(order.lotes || []).length} lotes</span>
+                    <span>${orderReservationCount(order)} reservas</span>
+                    <span>${orderLotCount(order)} lotes</span>
                 </div>
                 ${order.observacion ? `<p class="materials-help">${orderEscape(order.observacion)}</p>` : ''}
                 ${cancelledDetail}
                 ${historicalWarning}
                 ${order.estado === 'planificada' ? '<p class="materials-help">Lista para iniciar desde la PDA/tablet de Materiales.</p>' : ''}
                 <details class="materials-order-details">
-                    <summary>Ver componentes, reservas FIFO, lotes y auditoría</summary>
-                    ${orderRequirementTable(order)}
-                    <h4>Lotes operacionales</h4>
-                    ${orderLotsTable(order)}
-                    <div class="materials-order-audit">${orderAudit(order)}</div>
+                    <summary data-load-material-order-detail="${orderEscape(order.id)}">Ver componentes, reservas FIFO, lotes y auditoría</summary>
+                    <div data-material-order-detail="${orderEscape(order.id)}">
+                        <p class="materials-order-empty">Abre el detalle para cargar la trazabilidad completa.</p>
+                    </div>
                 </details>
                 <div class="materials-order-actions">
                     ${canPlan ? `<button class="primary-button" data-plan-material-order="${orderEscape(order.id)}" type="button">Planificar y reservar FIFO</button>` : ''}
@@ -586,6 +608,27 @@ function renderOrders() {
             </article>
         `;
     }).join('') || '<p class="materials-order-empty">No existen órdenes para los filtros seleccionados.</p>';
+}
+
+async function loadOrderDetail(order) {
+    const container = orderElements.list.querySelector(
+        `[data-material-order-detail="${order.id}"]`,
+    );
+    if (!container || order._detailLoaded || orderState.loadingDetails.has(order.id)) return;
+
+    orderState.loadingDetails.add(order.id);
+    container.innerHTML = '<p class="materials-order-empty">Cargando detalle…</p>';
+    try {
+        const response = await orderApi(
+            `/api/materiales/transformaciones/ordenes/${encodeURIComponent(order.id)}`,
+        );
+        Object.assign(order, response.data || {}, { _detailLoaded: true });
+        container.innerHTML = orderDetailContent(order);
+    } catch (error) {
+        container.innerHTML = `<p class="materials-order-empty">${orderEscape(error.message)}</p>`;
+    } finally {
+        orderState.loadingDetails.delete(order.id);
+    }
 }
 
 async function submitOrderForm(event) {
@@ -724,14 +767,17 @@ function openOrderLabels(orderId) {
 }
 
 function handleOrderAction(event) {
+    const detailSummary = event.target.closest('[data-load-material-order-detail]');
     const planButton = event.target.closest('[data-plan-material-order]');
     const cancelButton = event.target.closest('[data-cancel-material-order]');
     const labelButton = event.target.closest('[data-label-material-order]');
-    const orderId = planButton?.dataset.planMaterialOrder
+    const orderId = detailSummary?.dataset.loadMaterialOrderDetail
+        || planButton?.dataset.planMaterialOrder
         || cancelButton?.dataset.cancelMaterialOrder
         || labelButton?.dataset.labelMaterialOrder;
     const order = orderState.orders.find((candidate) => candidate.id === orderId);
     if (!order) return;
+    if (detailSummary) void loadOrderDetail(order);
     if (planButton) void planOrder(order);
     if (cancelButton) void cancelOrder(order);
     if (labelButton) openOrderLabels(order.id);

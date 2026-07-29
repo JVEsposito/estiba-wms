@@ -32,6 +32,7 @@ import {
   CloseMaterialTransformationLotPayload,
   CloseMaterialTransformationOrderPayload,
   MaterialTransformationOrder,
+  MaterialTransformationOrderSummary,
   OpenMaterialTransformationLotPayload,
   ReverseMaterialTransformationLotPayload,
   StartMaterialTransformationPayload,
@@ -70,7 +71,8 @@ export interface EstibaApi {
   getMaterialDispatch(token: string, dispatchId: string): Promise<MaterialDispatch>;
   createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
   withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
-  listMaterialTransformations(token: string): Promise<MaterialTransformationOrder[]>;
+  listMaterialTransformations(token: string): Promise<MaterialTransformationOrderSummary[]>;
+  getMaterialTransformation(token: string, orderId: string): Promise<MaterialTransformationOrder>;
   startMaterialTransformation(token: string, orderId: string, payload: StartMaterialTransformationPayload): Promise<MaterialTransformationOrder>;
   openMaterialTransformationLot(token: string, orderId: string, payload: OpenMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
   closeMaterialTransformationLot(token: string, lotId: string, payload: CloseMaterialTransformationLotPayload): Promise<MaterialTransformationOrder>;
@@ -253,8 +255,15 @@ class HttpEstibaApi implements EstibaApi {
   }
 
   async listMaterialTransformations(token: string) {
-    return (await this.request<ApiList<MaterialTransformationOrder>>(
+    return (await this.request<ApiList<MaterialTransformationOrderSummary>>(
       '/api/materiales/transformaciones/ordenes?per_page=100',
+      token,
+    )).data;
+  }
+
+  async getMaterialTransformation(token: string, orderId: string) {
+    return (await this.request<ApiItem<MaterialTransformationOrder>>(
+      `/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}`,
       token,
     )).data;
   }
@@ -502,6 +511,7 @@ function createUnavailableApi(message: string): EstibaApi {
     createMaterialDispatch: unavailable,
     withdrawMaterial: unavailable,
     listMaterialTransformations: unavailable,
+    getMaterialTransformation: unavailable,
     startMaterialTransformation: unavailable,
     openMaterialTransformationLot: unavailable,
     closeMaterialTransformationLot: unavailable,

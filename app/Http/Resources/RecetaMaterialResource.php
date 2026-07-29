@@ -14,6 +14,7 @@ class RecetaMaterialResource extends JsonResource
             'id' => $this->id,
             'nombre' => $this->nombre,
             'activa' => $this->activa,
+            'versiones_count' => $this->whenCounted('versiones'),
             'temporada' => $this->whenLoaded('temporada', fn (): array => [
                 'id' => $this->temporada->id,
                 'codigo' => $this->temporada->codigo,

@@ -27,6 +27,7 @@ import {
   CloseMaterialTransformationLotPayload,
   CloseMaterialTransformationOrderPayload,
   MaterialTransformationOrder,
+  MaterialTransformationOrderSummary,
   OpenMaterialTransformationLotPayload,
   ReverseMaterialTransformationLotPayload,
   StartMaterialTransformationPayload,
@@ -324,8 +325,15 @@ export class DemoEstibaApi implements EstibaApi {
     throw new ApiError('El despacho de materiales no está disponible en modo demo.', 422);
   }
 
-  async listMaterialTransformations(): Promise<MaterialTransformationOrder[]> {
+  async listMaterialTransformations(): Promise<MaterialTransformationOrderSummary[]> {
     return [];
+  }
+
+  async getMaterialTransformation(
+    _token: string,
+    _orderId: string,
+  ): Promise<MaterialTransformationOrder> {
+    throw new ApiError('La transformación de materiales no está disponible en modo demo.', 422);
   }
 
   async startMaterialTransformation(

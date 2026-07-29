@@ -145,6 +145,13 @@ class TransformacionMaterialApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.versiones.0.numero_version', 2)
             ->assertJsonPath('data.versiones.1.estado', 'retirada');
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/transformaciones/recetas')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.versiones_count', 2)
+            ->assertJsonCount(1, 'data.0.versiones')
+            ->assertJsonPath('data.0.versiones.0.numero_version', 2);
 
         $operacionPlanificacion = (string) Str::uuid();
         $planificada = $this->conToken($tokenOficina)
@@ -380,6 +387,24 @@ class TransformacionMaterialApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.estado', 'borrador')
             ->json('data');
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/transformaciones/ordenes')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $orden['id'])
+            ->assertJsonPath('data.0.reservas_count', 0)
+            ->assertJsonPath('data.0.lotes_count', 0)
+            ->assertJsonPath('data.0.tiene_salidas', false)
+            ->assertJsonMissingPath('data.0.receta_snapshot')
+            ->assertJsonMissingPath('data.0.reservas')
+            ->assertJsonMissingPath('data.0.lotes')
+            ->assertJsonMissingPath('data.0.eventos');
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/transformaciones/ordenes/{$orden['id']}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.reservas')
+            ->assertJsonCount(0, 'data.lotes')
+            ->assertJsonCount(1, 'data.eventos');
 
         Temporada::query()->where('activa', true)->update(['activa' => false]);
         Temporada::create([
@@ -387,6 +412,14 @@ class TransformacionMaterialApiTest extends TestCase
             'nombre' => 'Temporada siguiente',
             'activa' => true,
         ]);
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/transformaciones/recetas')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/transformaciones/ordenes')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
 
         $this->conToken($tokenOficina)
             ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [

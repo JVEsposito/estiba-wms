@@ -19,6 +19,7 @@ import { MaterialLabelPrintPanel } from './MaterialLabelPrintPanel';
 import {
   MaterialTransformationLot,
   MaterialTransformationOrder,
+  MaterialTransformationOrderSummary,
   MaterialTransformationReservation,
   MaterialTransformationState,
 } from '../domain/materialTransformation';
@@ -53,7 +54,8 @@ export function MaterialTransformationOperation({
   const compact = width < 980;
   const canOperate = auth.usuario.capacidades.puede_operar_transformaciones_materiales === true;
   const canReverse = auth.usuario.capacidades.puede_revertir_transformaciones_materiales === true;
-  const [orders, setOrders] = useState<MaterialTransformationOrder[]>([]);
+  const [orders, setOrders] = useState<MaterialTransformationOrderSummary[]>([]);
+  const [selected, setSelected] = useState<MaterialTransformationOrder | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<QueueFilter>('activas');
   const [plannedQuantity, setPlannedQuantity] = useState('');
@@ -75,7 +77,7 @@ export function MaterialTransformationOperation({
     if (filter === 'historial') return order.estado === 'cerrada' || order.estado === 'cancelada';
     return true;
   }), [filter, orders]);
-  const selected = useMemo(
+  const selectedSummary = useMemo(
     () => filtered.find((order) => order.id === selectedId) ?? filtered[0] ?? null,
     [filtered, selectedId],
   );
@@ -103,6 +105,29 @@ export function MaterialTransformationOperation({
       subscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedSummary) {
+      setSelected(null);
+      return;
+    }
+    setSelected((current) => current?.id === selectedSummary.id ? current : null);
+    let cancelled = false;
+    void api.getMaterialTransformation(auth.token, selectedSummary.id)
+      .then((order) => {
+        if (!cancelled) {
+          setSelected(order);
+          setError('');
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) fail(reason, 'No fue posible cargar el detalle de la orden.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSummary?.id, selectedSummary?.updated_at]);
 
   useEffect(() => {
     setDraft({});
@@ -151,10 +176,19 @@ export function MaterialTransformationOperation({
   function applyOrder(order: MaterialTransformationOrder, message: string) {
     setOrders((current) => {
       const exists = current.some((candidate) => candidate.id === order.id);
+      const summary: MaterialTransformationOrderSummary = {
+        ...order,
+        reservas_count: order.reservas.length,
+        lotes_count: order.lotes.length,
+        tiene_salidas: order.lotes.some(
+          (lot) => lot.estado === 'cerrado' && lot.salidas.length > 0,
+        ),
+      };
       return exists
-        ? current.map((candidate) => candidate.id === order.id ? order : candidate)
-        : [order, ...current];
+        ? current.map((candidate) => candidate.id === order.id ? summary : candidate)
+        : [summary, ...current];
     });
+    setSelected(order);
     setSelectedId(order.id);
     setNotice(message);
     setError('');
@@ -414,7 +448,7 @@ export function MaterialTransformationOperation({
               <Pressable
                 key={order.id}
                 onPress={() => setSelectedId(order.id)}
-                style={[styles.queueItem, selected?.id === order.id && styles.queueItemSelected]}
+                style={[styles.queueItem, selectedSummary?.id === order.id && styles.queueItemSelected]}
               >
                 <View style={styles.rowBetween}>
                   <Text style={styles.queueCode}>OT · {order.id.slice(0, 8).toUpperCase()}</Text>
@@ -425,7 +459,7 @@ export function MaterialTransformationOperation({
                 </Text>
                 <Text style={styles.meta}>
                   {order.cliente.codigo} · {formatQuantity(order.cantidad_real_salida ?? '0')}/
-                  {formatQuantity(order.cantidad_planificada_salida)} {order.receta_snapshot.salida.unidad_medida}
+                  {formatQuantity(order.cantidad_planificada_salida)} {order.version_receta.receta.item_salida.unidad_medida}
                 </Text>
               </Pressable>
             ))}

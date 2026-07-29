@@ -424,6 +424,7 @@ function renderRecipes() {
         const canVersion = canAdminRecipes()
             && recipe.temporada?.activa === true
             && activeCatalogClientByGlobalId(recipe.cliente?.id) !== null;
+        const versionCount = Number(recipe.versiones_count ?? recipe.versiones?.length ?? 0);
         return `
             <article class="materials-recipe-card${recipe.activa ? '' : ' is-inactive'}">
                 <div class="materials-recipe-card__header">
@@ -435,7 +436,7 @@ function renderRecipes() {
                 </div>
                 <div class="materials-recipe-card__meta">
                     <span>Versión ${recipeEscape(version?.numero_version || '—')}</span>
-                    <span>Historial: ${(recipe.versiones || []).length} ${(recipe.versiones || []).length === 1 ? 'versión' : 'versiones'}</span>
+                    <span>Historial: ${versionCount} ${versionCount === 1 ? 'versión' : 'versiones'}</span>
                     <span>${recipeEscape(recipeStatus(version?.estado || 'sin_version'))}</span>
                     <span>Salida base: ${recipeQuantity(version?.cantidad_base_salida)} ${recipeEscape(version?.unidad_medida_salida || recipe.item_salida?.unidad_medida || '')}</span>
                     <span>Principal: ${recipeEscape(principal?.item?.codigo || 'No definido')}</span>
