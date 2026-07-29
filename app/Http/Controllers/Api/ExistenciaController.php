@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExistenciaController extends Controller
 {
@@ -57,7 +58,6 @@ class ExistenciaController extends Controller
 
         $definicion = $servicio->definicion($tipo);
         $filas = $servicio->filas($tipo);
-        $temporadas = $filas->pluck('temporada')->filter()->unique()->implode(', ');
         $ruta = $generador->generar(
             $definicion['titulo'],
             $this->columnasExcel($definicion['columnas']),
@@ -65,7 +65,7 @@ class ExistenciaController extends Controller
             [
                 'fecha_corte' => now()->toAtomString(),
                 'usuario' => $usuario->name,
-                'temporada' => $temporadas !== '' ? $temporadas : 'Temporada activa',
+                'temporada' => $servicio->temporadaActiva() ?? 'Temporada activa',
             ],
         );
         $archivo = $definicion['archivo'].'_'.now()->format('Y-m-d_Hi').'.xlsx';
@@ -121,7 +121,7 @@ class ExistenciaController extends Controller
         Request $request,
         string $tipo,
         ServicioExistencias $servicio,
-    ): Response {
+    ): StreamedResponse {
         $token = (string) $request->query('token', '');
         abort_if($token === '', Response::HTTP_UNAUTHORIZED, 'La conexión de Excel no posee un token válido.');
 
@@ -140,16 +140,21 @@ class ExistenciaController extends Controller
         );
 
         $definicion = $servicio->definicion($tipo);
-        $filas = $servicio->filas($tipo);
         $conexion->forceFill(['ultimo_uso_at' => now()])->save();
-        $html = $this->tablaHtml(
-            $definicion['titulo'],
-            $definicion['columnas'],
-            $filas->all(),
-            $conexion->usuario->name,
-        );
+        $fecha = now()->toAtomString();
 
-        return response($html, Response::HTTP_OK, [
+        return response()->stream(function () use ($servicio, $tipo, $definicion, $conexion, $fecha): void {
+            echo $this->tablaHtmlInicio(
+                $definicion['titulo'],
+                $definicion['columnas'],
+                $conexion->usuario->name,
+                $fecha,
+            );
+            foreach ($servicio->filas($tipo) as $fila) {
+                echo $this->filaHtml($definicion['columnas'], $fila);
+            }
+            echo $this->tablaHtmlFin();
+        }, Response::HTTP_OK, [
             'Content-Type' => 'text/html; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             'Pragma' => 'no-cache',
@@ -210,34 +215,19 @@ class ExistenciaController extends Controller
 
     /**
      * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
-     * @param  array<int, array<string, mixed>>  $filas
      */
-    private function tablaHtml(
+    private function tablaHtmlInicio(
         string $titulo,
         array $columnas,
-        array $filas,
         string $usuario,
+        string $fecha,
     ): string {
         $cabeceras = collect($columnas)
             ->map(fn (array $columna): string => '<th>'.e($columna['titulo']).'</th>')
             ->implode('');
-        $cuerpo = collect($filas)
-            ->map(function (array $fila) use ($columnas): string {
-                $celdas = collect($columnas)
-                    ->map(function (array $columna) use ($fila): string {
-                        $valor = $fila[$columna['clave']] ?? '';
-                        $clase = ($columna['tipo'] ?? 'texto') === 'numero' ? ' class="numero"' : '';
-
-                        return '<td'.$clase.'>'.e($valor === null ? '' : (string) $valor).'</td>';
-                    })
-                    ->implode('');
-
-                return '<tr>'.$celdas.'</tr>';
-            })
-            ->implode('');
         $tituloSeguro = e($titulo);
         $usuarioSeguro = e($usuario);
-        $fecha = e(now()->toAtomString());
+        $fechaSegura = e($fecha);
 
         return <<<HTML
 <!DOCTYPE html>
@@ -251,8 +241,31 @@ body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#111}h1{font-size
 </head>
 <body>
 <h1>{$tituloSeguro}</h1>
-<p>Actualizado: {$fecha} · Conexión de {$usuarioSeguro}</p>
-<table id="Existencia"><thead><tr>{$cabeceras}</tr></thead><tbody>{$cuerpo}</tbody></table>
+<p>Actualizado: {$fechaSegura} · Conexión de {$usuarioSeguro}</p>
+<table id="Existencia"><thead><tr>{$cabeceras}</tr></thead><tbody>
+HTML;
+    }
+
+    /**
+     * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
+     * @param  array<string, mixed>  $fila
+     */
+    private function filaHtml(array $columnas, array $fila): string
+    {
+        $celdas = '';
+        foreach ($columnas as $columna) {
+            $valor = $fila[$columna['clave']] ?? '';
+            $clase = ($columna['tipo'] ?? 'texto') === 'numero' ? ' class="numero"' : '';
+            $celdas .= '<td'.$clase.'>'.e($valor === null ? '' : (string) $valor).'</td>';
+        }
+
+        return '<tr>'.$celdas.'</tr>';
+    }
+
+    private function tablaHtmlFin(): string
+    {
+        return <<<'HTML'
+</tbody></table>
 </body>
 </html>
 HTML;

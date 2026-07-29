@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Services\Existencias\ServicioExistencias;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -106,9 +107,10 @@ class ExistenciasApiTest extends TestCase
             'cargado_por_user_id' => $administrador->id,
         ]);
 
-        $enPrefrio = app(ServicioExistencias::class)
-            ->filas(ServicioExistencias::PRODUCTO_TERMINADO)
-            ->firstWhere('folio', $folio->numero_folio);
+        $filas = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::PRODUCTO_TERMINADO);
+        $this->assertInstanceOf(LazyCollection::class, $filas);
+        $enPrefrio = $filas->firstWhere('folio', $folio->numero_folio);
 
         $this->assertSame('En Prefrío', $enPrefrio['etapa_actual']);
         $this->assertSame('TUN-EX-01 · PF-EX-000001', $enPrefrio['tunel_prefrio']);
@@ -151,10 +153,12 @@ class ExistenciasApiTest extends TestCase
         $tokenConsulta = $coincidencias[1];
         $conexion = ConexionExistencia::query()->firstOrFail();
 
-        $this->get('/api/existencias/materiales/consulta?token='.$tokenConsulta)
+        $respuestaConsulta = $this->get('/api/existencias/materiales/consulta?token='.$tokenConsulta)
             ->assertOk()
-            ->assertSee('Existencia de materiales')
-            ->assertSee('Cantidad disponible');
+            ->assertStreamed();
+        $contenidoConsulta = $respuestaConsulta->streamedContent();
+        $this->assertStringContainsString('Existencia de materiales', $contenidoConsulta);
+        $this->assertStringContainsString('Cantidad disponible', $contenidoConsulta);
 
         $this->withToken($tokenOficina)
             ->postJson("/api/existencias/conexiones/{$conexion->id}/revocar")
@@ -163,6 +167,43 @@ class ExistenciasApiTest extends TestCase
 
         $this->get('/api/existencias/materiales/consulta?token='.$tokenConsulta)
             ->assertGone();
+    }
+
+    public function test_limita_los_cortes_xlsx_por_usuario(): void
+    {
+        [, $token] = $this->acceso(RolUsuario::Administrador);
+
+        for ($intento = 1; $intento <= 3; $intento++) {
+            $this->withToken($token)
+                ->get('/api/existencias/materiales/corte')
+                ->assertOk()
+                ->assertDownload();
+        }
+
+        $this->withToken($token)
+            ->get('/api/existencias/materiales/corte')
+            ->assertTooManyRequests();
+    }
+
+    public function test_limita_la_actualizacion_excel_por_token_de_conexion(): void
+    {
+        [, $tokenOficina] = $this->acceso(RolUsuario::Administrador);
+        $respuesta = $this->withToken($tokenOficina)
+            ->post('/api/existencias/materiales/conexion-excel')
+            ->assertCreated();
+        preg_match('/token=([A-Za-z0-9]+)/', $respuesta->getContent(), $coincidencias);
+        $tokenConsulta = $coincidencias[1];
+        $url = '/api/existencias/materiales/consulta?token='.$tokenConsulta;
+
+        for ($intento = 1; $intento <= 6; $intento++) {
+            $this->get($url)
+                ->assertOk()
+                ->assertStreamed()
+                ->streamedContent();
+        }
+
+        $this->get($url)
+            ->assertTooManyRequests();
     }
 
     public function test_supervisor_materiales_solo_recibe_existencia_de_materiales(): void
