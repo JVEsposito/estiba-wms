@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { AuthSession, OperationalNotification } from '../domain/estiba';
 import { EstibaApi } from '../services/estibaApi';
 import { colors } from '../theme/colors';
@@ -40,7 +41,9 @@ export function NotificationCenter({
 
   useEffect(() => {
     void poll(false);
-    const timer = setInterval(() => void poll(true), 12000);
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void poll(true);
+    }, OPERATIONAL_POLL_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void poll(true);
     });
