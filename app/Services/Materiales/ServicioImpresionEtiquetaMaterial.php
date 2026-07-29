@@ -347,7 +347,7 @@ class ServicioImpresionEtiquetaMaterial
             'origen' => 'recepcion',
             'folio_id' => $material->folio_id,
             'numero_folio' => $material->folio?->numero_folio,
-            'fecha_recepcion' => $material->folio?->fecha_ingreso?->format('d/m/Y H:i'),
+            'fecha_recepcion' => $recepcion?->created_at?->format('d/m/Y H:i'),
             'cliente_codigo' => $cliente?->codigo,
             'cliente_nombre' => $cliente?->nombre,
             'item_codigo' => $material->item?->codigo,
