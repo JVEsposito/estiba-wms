@@ -34,6 +34,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 
 class ServicioDespachoMaterial
 {
@@ -87,10 +88,9 @@ class ServicioDespachoMaterial
                 throw new DomainException('El destino no existe o se encuentra inactivo.');
             }
 
-            DespachoMaterial::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
             $despacho = DespachoMaterial::create([
                 'temporada_id' => $temporada->id,
-                'codigo' => $this->siguienteCodigo(),
+                'codigo' => $this->siguienteCodigoBloqueado(),
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $payloadHash,
                 'origen' => $dispositivo
@@ -533,16 +533,25 @@ class ServicioDespachoMaterial
         ];
     }
 
-    private function siguienteCodigo(): string
+    private function siguienteCodigoBloqueado(): string
     {
-        $mayor = DespachoMaterial::query()
-            ->pluck('codigo')
-            ->map(fn (string $codigo): int => preg_match('/^MAT-DES-(\d+)$/', $codigo, $m)
-                ? (int) $m[1]
-                : 0)
-            ->max() ?? 0;
+        $ultimoNumero = DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->lockForUpdate()
+            ->value('ultimo_numero');
 
-        return sprintf('MAT-DES-%06d', $mayor + 1);
+        if ($ultimoNumero === null) {
+            throw new LogicException(
+                'No existe la secuencia configurada para los despachos de materiales.',
+            );
+        }
+
+        $siguienteNumero = ((int) $ultimoNumero) + 1;
+        DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->update(['ultimo_numero' => $siguienteNumero]);
+
+        return sprintf('MAT-DES-%06d', $siguienteNumero);
     }
 
     private function reservarFifo(DetalleDespachoMaterial $detalle): void
