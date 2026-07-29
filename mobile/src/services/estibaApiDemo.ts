@@ -309,6 +309,10 @@ export class DemoEstibaApi implements EstibaApi {
     return { items: [], unread: 0, syncedAt: new Date().toISOString() };
   }
 
+  async getOperationalNotificationSummary() {
+    return { unread: 0, syncedAt: new Date().toISOString() };
+  }
+
   async readOperationalNotification(): Promise<OperationalNotification> {
     throw new ApiError('No existen notificaciones en el modo de demostración.', 404);
   }
