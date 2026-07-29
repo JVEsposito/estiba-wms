@@ -281,19 +281,21 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     try {
       const [loadedCameras, loadedPlan, loadedMovements] = await Promise.all([
         api.listCameras(auth.token),
-        api.getPlan(auth.token, selectedCameraId),
+        api.refreshPlan(auth.token, selectedCameraId),
         api.listRecent(auth.token, selectedCameraId),
       ]);
 
       setCameras(loadedCameras);
-      setPlan(loadedPlan);
+      if (loadedPlan) setPlan(loadedPlan);
       setMovements(loadedMovements);
       setError('');
-      setSelectedPositionId((current) => (
-        current && loadedPlan.posiciones.some((position) => position.id === current)
-          ? current
-          : null
-      ));
+      if (loadedPlan) {
+        setSelectedPositionId((current) => (
+          current && loadedPlan.posiciones.some((position) => position.id === current)
+            ? current
+            : null
+        ));
+      }
       setConnectionState('connected');
       setLastSync(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
     } catch (reason) {

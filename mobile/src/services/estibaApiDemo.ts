@@ -405,6 +405,10 @@ export class DemoEstibaApi implements EstibaApi {
     return clone(syncOccupancy(plan));
   }
 
+  async refreshPlan(token: string, cameraId: string) {
+    return this.getPlan(token, cameraId);
+  }
+
   async listRecent(_token: string, cameraId: string) {
     return clone(this.movements.filter((movement) => (
       movement.origen?.camara.id === cameraId || movement.destino?.camara.id === cameraId

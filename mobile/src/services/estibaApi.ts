@@ -53,6 +53,7 @@ export interface EstibaApi {
   listCameras(token: string): Promise<CameraSummary[]>;
   listConditions(token: string): Promise<SagCondition[]>;
   getPlan(token: string, cameraId: string): Promise<CameraPlan>;
+  refreshPlan(token: string, cameraId: string): Promise<CameraPlan | null>;
   listRecent(token: string, cameraId: string): Promise<Movement[]>;
   openSession(token: string, cameraId: string): Promise<OpenedSession>;
   closeSession(token: string, sessionId: string): Promise<void>;
@@ -106,6 +107,7 @@ function validationMessage(data: unknown, fallback: string) {
 class HttpEstibaApi implements EstibaApi {
   readonly mode = 'connected' as const;
   readonly configurationError = null;
+  private readonly planEtags = new Map<string, string>();
 
   constructor(public readonly baseUrl: string) {}
 
@@ -162,12 +164,58 @@ class HttpEstibaApi implements EstibaApi {
   }
 
   async getPlan(token: string, cameraId: string) {
-    return (await this.request<ApiItem<CameraPlan>>(`/api/camaras/${cameraId}/plano`, token)).data;
+    return (await this.requestPlan(token, cameraId, false))!;
+  }
+
+  async refreshPlan(token: string, cameraId: string) {
+    return this.requestPlan(token, cameraId, true);
   }
 
   async listRecent(token: string, cameraId: string) {
     const path = `/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`;
     return (await this.request<ApiList<Movement>>(path, token)).data;
+  }
+
+  private async requestPlan(
+    token: string,
+    cameraId: string,
+    conditional: boolean,
+  ): Promise<CameraPlan | null> {
+    const path = `/api/camaras/${cameraId}/plano`;
+    const headers = new Headers({
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    });
+    const etag = conditional ? this.planEtags.get(cameraId) : null;
+    if (etag) headers.set('If-None-Match', etag);
+
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers });
+    } catch {
+      throw new ApiError(
+        `No fue posible conectar con ${this.baseUrl}. Revisa la IP, Laravel y el firewall.`,
+        0,
+      );
+    }
+
+    if (response.status === 304) return null;
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new ApiError(
+        validationMessage(data, 'La operación no pudo completarse.'),
+        response.status,
+        data,
+      );
+    }
+
+    const nextEtag = response.headers.get('ETag');
+    if (nextEtag) this.planEtags.set(cameraId, nextEtag);
+
+    return (data as ApiItem<CameraPlan>).data;
   }
 
   async openSession(token: string, cameraId: string) {
@@ -498,6 +546,7 @@ function createUnavailableApi(message: string): EstibaApi {
     listCameras: unavailable,
     listConditions: unavailable,
     getPlan: unavailable,
+    refreshPlan: unavailable,
     listRecent: unavailable,
     openSession: unavailable,
     closeSession: unavailable,

@@ -8,6 +8,7 @@ use App\Models\Dispositivo;
 use App\Models\Posicion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -98,6 +99,67 @@ class CamaraApiTest extends TestCase
             ->assertJsonPath('data.posiciones.0.folio.tipo_bulto', 'saldo')
             ->assertJsonPath('data.posiciones.0.folio.variedad', 'Santina')
             ->assertJsonPath('data.posiciones.0.folio.calibre', '2J');
+    }
+
+    public function test_el_plano_usa_etag_y_evade_la_consulta_pesada_cuando_no_cambia(): void
+    {
+        [, $token] = $this->crearIdentidad('TABLET-ETAG');
+        [, $tokenOtroOperador] = $this->crearIdentidad('TABLET-ETAG-02');
+        $camara = $this->crearCamara('CAM-ETAG');
+        $this->crearPosiciones($camara, 3);
+
+        $inicial = $this->withToken($token)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.version_plano', 0)
+            ->assertJsonPath('data.acceso.modo', 'disponible');
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+        $this->assertStringContainsString('private', (string) $inicial->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-cache', (string) $inicial->headers->get('Cache-Control'));
+
+        $this->withToken($token)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated();
+        $this->assertSame(0, $camara->refresh()->version_plano);
+
+        $conSesion = $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.acceso.modo', 'edicion')
+            ->assertJsonPath('data.acceso.sesion.es_propia', true);
+        $etagConSesion = $conSesion->headers->get('ETag');
+
+        $this->assertNotNull($etagConSesion);
+        $this->assertNotSame($etagInicial, $etagConSesion);
+
+        auth()->forgetGuards();
+        $otroOperador = $this->withToken($tokenOtroOperador)
+            ->withHeader('If-None-Match', $etagConSesion)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.acceso.modo', 'solo_lectura')
+            ->assertJsonPath('data.acceso.sesion.es_propia', false);
+        $this->assertNotSame($etagConSesion, $otroOperador->headers->get('ETag'));
+
+        auth()->forgetGuards();
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->withToken($token)
+            ->withHeader('If-None-Match', $etagConSesion)
+            ->get("/api/camaras/{$camara->id}/plano")
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagConSesion);
+
+        $consultoPosiciones = collect(DB::getQueryLog())
+            ->contains(fn (array $consulta): bool => preg_match(
+                '/from\s+[`"]?posiciones[`"]?/i',
+                $consulta['query'],
+            ) === 1);
+        $this->assertFalse($consultoPosiciones);
     }
 
     public function test_las_camaras_requieren_autenticacion(): void
