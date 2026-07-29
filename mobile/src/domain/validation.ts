@@ -1,5 +1,12 @@
 export type ValidationResult = 'aprobado' | 'observado' | 'rechazado';
 export type ValidationAttemptState = 'aceptada' | 'conflicto';
+export type ValidationLine = 1 | 2 | 3;
+export type ValidationShift = 'A' | 'B';
+
+export type ValidationWorkContext = {
+  linea_proceso: ValidationLine;
+  turno: ValidationShift;
+};
 
 export type ValidationSeason = {
   id: string;
@@ -65,6 +72,8 @@ export type RegisterValidationPayload = {
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo';
   cantidad_cajas: number;
+  linea_proceso: ValidationLine;
+  turno: ValidationShift;
   temporada_id: string;
   catalogo_version: number;
   articulo_validacion_id: string;
@@ -83,6 +92,8 @@ export type ValidationAttempt = {
   numero_intento: number;
   tipo_bulto: 'pallet' | 'saldo';
   cantidad_cajas: number;
+  linea_proceso: ValidationLine | null;
+  turno: ValidationShift | null;
   temporada_id: string;
   articulo_validacion_id: string;
   origen_validacion_id: string;

@@ -419,6 +419,8 @@ class AdministracionValidacionApiTest extends TestCase
                 'numero_folio' => 'PAL-NO-HABILITADO',
                 'tipo_bulto' => 'pallet',
                 'cantidad_cajas' => 120,
+                'linea_proceso' => 1,
+                'turno' => 'A',
                 'temporada_id' => $temporada->id,
                 'catalogo_version' => 1,
                 'articulo_validacion_id' => $articulo->id,

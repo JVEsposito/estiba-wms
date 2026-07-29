@@ -34,7 +34,8 @@
 .validation-combination-form { grid-template-columns: 2fr 2fr 1fr auto; align-items: end; }
 .validation-combination-form .validation-actions, .validation-combination-form .form-error { grid-column: 1 / -1; }
 .validation-combination-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 460px; }
-.validation-filters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.validation-filters { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 8px; width: min(100%, 960px); }
+.validation-filters button { min-height: 42px; }
 .validation-table-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 12px; }
 .validation-table { width: 100%; min-width: 960px; border-collapse: collapse; }
 .validation-table th, .validation-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
@@ -52,5 +53,5 @@
 .import-preview__metrics span { padding: 10px; border-radius: 9px; background: rgba(0, 0, 0, .2); text-align: center; }
 .import-errors { max-height: 170px; overflow: auto; margin: 10px 0; color: #ffb0b4; font-size: 12px; }
 .empty-validation { padding: 22px; color: var(--muted); text-align: center; }
-@media (max-width: 1180px) { .validation-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .validation-admin-grid, .validation-catalog-grid { grid-template-columns: 1fr; } .validation-combination-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .validation-workspace { width: min(100% - 20px, 1540px); } .validation-heading { align-items: stretch; flex-direction: column; } .validation-heading__actions { min-width: 0; } .validation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .validation-form__grid, .validation-combination-form, .validation-combination-list { grid-template-columns: 1fr; } .validation-panel__heading { flex-direction: column; } .validation-filters { justify-content: stretch; } .validation-filters > * { flex: 1 1 100%; } }
+@media (max-width: 1180px) { .validation-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } .validation-admin-grid, .validation-catalog-grid { grid-template-columns: 1fr; } .validation-combination-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .validation-filters { grid-template-columns: repeat(2, minmax(150px, 1fr)); width: 100%; } }
+@media (max-width: 760px) { .validation-workspace { width: min(100% - 20px, 1540px); } .validation-heading { align-items: stretch; flex-direction: column; } .validation-heading__actions { min-width: 0; } .validation-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .validation-form__grid, .validation-combination-form, .validation-combination-list { grid-template-columns: 1fr; } .validation-panel__heading { flex-direction: column; } .validation-filters { grid-template-columns: 1fr; } }

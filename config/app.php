@@ -67,6 +67,8 @@ return [
 
     'timezone' => 'UTC',
 
+    'operational_timezone' => env('APP_OPERATIONAL_TIMEZONE', 'America/Santiago'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

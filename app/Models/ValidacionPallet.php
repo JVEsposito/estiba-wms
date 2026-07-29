@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'id', 'operacion_id', 'payload_hash', 'numero_folio', 'numero_intento',
-    'tipo_bulto', 'cantidad_cajas', 'temporada_id', 'articulo_validacion_id',
+    'tipo_bulto', 'cantidad_cajas', 'linea_proceso', 'turno', 'temporada_id', 'articulo_validacion_id',
     'origen_validacion_id', 'categoria_validacion_id', 'resultado', 'estado', 'motivo', 'observacion',
     'catalogo_version_dispositivo', 'catalogo_version_servidor', 'snapshot',
     'user_id', 'dispositivo_id', 'folio_id', 'validacion_conflicto_id',
@@ -62,6 +62,7 @@ class ValidacionPallet extends Model
             'estado' => EstadoValidacionPallet::class,
             'motivo' => MotivoValidacionPallet::class,
             'snapshot' => 'array',
+            'linea_proceso' => 'integer',
             'generado_dispositivo_at' => 'datetime',
             'recibido_servidor_at' => 'datetime',
         ];

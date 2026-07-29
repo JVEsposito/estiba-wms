@@ -32,6 +32,8 @@ class RegistrarValidacionPalletRequest extends FormRequest
             'numero_folio' => ['required', 'string', 'max:50'],
             'tipo_bulto' => ['required', Rule::in([TipoBulto::Pallet->value, TipoBulto::Saldo->value])],
             'cantidad_cajas' => ['required', 'integer', 'min:1'],
+            'linea_proceso' => ['required', 'integer', Rule::in([1, 2, 3])],
+            'turno' => ['required', 'string', Rule::in(['A', 'B'])],
             'temporada_id' => ['required', 'uuid', 'exists:temporadas,id'],
             'catalogo_version' => ['required', 'integer', 'min:1'],
             'articulo_validacion_id' => ['required', 'uuid', 'exists:articulos_validacion,id'],
@@ -48,6 +50,7 @@ class RegistrarValidacionPalletRequest extends FormRequest
     {
         $this->merge([
             'numero_folio' => mb_strtoupper(trim((string) $this->input('numero_folio'))),
+            'turno' => mb_strtoupper(trim((string) $this->input('turno'))),
             'observacion' => filled($this->input('observacion'))
                 ? trim((string) $this->input('observacion'))
                 : null,

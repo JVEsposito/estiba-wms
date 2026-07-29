@@ -56,12 +56,18 @@
                         <div><p class="eyebrow">TRAZABILIDAD</p><h2>Validaciones recientes</h2></div>
                         <form class="validation-filters" id="validationFilters">
                             <input name="folio" maxlength="50" placeholder="Buscar folio">
+                            <input name="fecha" type="date" value="{{ now(config('app.operational_timezone'))->format('Y-m-d') }}" aria-label="Fecha de validación">
+                            <select name="linea_proceso"><option value="">Todas las líneas</option><option value="1">Línea 1</option><option value="2">Línea 2</option><option value="3">Línea 3</option></select>
+                            <select name="turno"><option value="">Todos los turnos</option><option value="A">Turno A</option><option value="B">Turno B</option></select>
+                            <select id="validationUserFilter" name="user_id"><option value="">Todos los encargados</option></select>
                             <select name="resultado"><option value="">Todos los resultados</option><option value="aprobado">Aprobado</option><option value="observado">Observado</option><option value="rechazado">Rechazado</option></select>
                             <select name="estado"><option value="">Todos los estados</option><option value="aceptada">Aceptada</option><option value="conflicto">Conflicto</option></select>
                             <button class="secondary-button" type="submit">Filtrar</button>
+                            <button class="primary-button" id="exportValidationRegisterButton" type="button">Descargar RRPP-01</button>
                         </form>
                     </div>
-                    <div class="validation-table-scroll"><table class="validation-table"><thead><tr><th>Folio</th><th>Artículo</th><th>Origen</th><th>Resultado</th><th>Validador</th><th>Fecha</th></tr></thead><tbody id="validationHistoryBody"></tbody></table></div>
+                    <p class="validation-help">El registro RRPP-01 utiliza la fecha real de terreno y agrupa automáticamente cada hoja por encargado, línea y turno. Los conflictos de sincronización no forman parte del registro oficial.</p>
+                    <div class="validation-table-scroll"><table class="validation-table"><thead><tr><th>Folio</th><th>Artículo</th><th>Origen</th><th>Resultado</th><th>Validador</th><th>Fecha y jornada</th></tr></thead><tbody id="validationHistoryBody"></tbody></table></div>
                 </section>
 
                 <div class="validation-admin is-hidden" id="validationAdmin">
