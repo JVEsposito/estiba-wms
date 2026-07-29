@@ -37,6 +37,28 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         );
     }
 
+    public function test_ajusta_el_folio_en_una_bixolon_50_por_100_vertical(): void
+    {
+        $formato = $this->generarFormato(
+            [
+                'fabricante' => 'Bixolon',
+                'modelo' => 'SLP-TX400',
+                'ancho_mm' => 100,
+                'alto_mm' => 50,
+                'orientacion' => 'vertical',
+            ],
+            'qr',
+        );
+
+        $this->assertTextosDentroDelArea($formato, 50000, 100000);
+        $this->assertStringContainsString('<Name>Código QR</Name>', $formato);
+        $this->assertContenidoCompleto($formato);
+        $this->assertMatchesRegularExpression(
+            '#<Name>Folio</Name>.*?<Name>Arial</Name><Height>10</Height>#s',
+            $formato,
+        );
+    }
+
     public function test_code128_incluye_todos_los_datos_en_una_bixolon_50_por_100(): void
     {
         $formato = $this->generarFormato(
