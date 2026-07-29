@@ -2,10 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ContenidoCamara;
-use App\Enums\EstadoCamara;
-use App\Enums\EstadoOperacionalFolio;
-use App\Enums\EstadoPosicion;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
@@ -13,16 +9,17 @@ use App\Http\Requests\RetirarDespachoMaterialRequest;
 use App\Http\Resources\DespachoMaterialResource;
 use App\Http\Resources\ResumenDespachoMaterialResource;
 use App\Models\DespachoMaterial;
-use App\Models\FolioMaterial;
 use App\Models\MovimientoInventarioMaterial;
 use App\Models\PersonalAccessToken;
 use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Materiales\ServicioConsultaInventarioMaterial;
 use App\Services\Materiales\ServicioDespachoMaterial;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 class DespachoMaterialController extends Controller
@@ -122,136 +119,38 @@ class DespachoMaterialController extends Controller
         return new DespachoMaterialResource($despacho);
     }
 
-    public function inventario(Request $request): JsonResponse
+    public function inventario(
+        Request $request,
+        ServicioConsultaInventarioMaterial $servicio,
+    ): JsonResponse
     {
         Gate::authorize('consultar-despachos-materiales');
-        $folios = FolioMaterial::query()
-            ->with([
-                'item.cliente.temporada',
-                'item.cliente.cliente',
-                'folio.ubicacionActual.posicion.camara',
-                'bultoRecepcion.detalle.recepcion.proveedor',
-            ])
-            ->when($request->query('cliente_id'), fn ($consulta, $clienteId) => $consulta
-                ->whereHas('item', fn ($items) => $items->where('cliente_material_id', $clienteId)))
-            ->whereHas('folio', fn ($consulta) => $consulta
-                ->where('activo', true)
-                ->where('temporada_id', '=', $this->consultaTemporadaActiva()))
-            ->where(function ($consulta): void {
-                $consulta
-                    ->whereDoesntHave('folio.ubicacionActual')
-                    ->orWhereHas('folio.ubicacionActual.posicion.camara', fn ($camaras) => $camaras
-                        ->where('contenido', ContenidoCamara::Materiales->value));
-            })
-            ->orderBy('item_material_id')
-            ->get()
-            ->map(function (FolioMaterial $material): array {
-                $folio = $material->folio;
-                $posicion = $folio->ubicacionActual?->posicion;
-                $ubicado = $posicion?->camara?->contenido === ContenidoCamara::Materiales;
-                $reservable = $ubicado
-                    && $posicion->estado === EstadoPosicion::Activa
-                    && $posicion->camara?->estado === EstadoCamara::Activa
-                    && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
-                    && $material->motivo_bloqueo === null;
-                $disponible = $reservable
-                    ? max(0, (float) $material->cantidad_actual - (float) $material->cantidad_reservada)
-                    : 0;
-                $recepcion = $material->bultoRecepcion?->detalle?->recepcion;
+        $filtros = $request->validate([
+            'vista' => ['nullable', Rule::in(['detalle', 'resumen'])],
+            'cliente_id' => ['nullable', 'uuid', 'exists:clientes_materiales,id'],
+            'q' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50, 100])],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $resumen = $servicio->resumen($filtros['cliente_id'] ?? null);
 
-                return [
-                    'folio_id' => $folio->id,
-                    'numero_folio' => $folio->numero_folio,
-                    'estado_operacional' => $folio->estado_operacional->value,
-                    'estado_ubicacion' => $ubicado ? 'ubicado' : 'pendiente_ubicacion',
-                    'reservable' => $reservable,
-                    'motivo_bloqueo' => $material->motivo_bloqueo,
-                    'item' => [
-                        'id' => $material->item->id,
-                        'cliente' => [
-                            'id' => $material->item->cliente->id,
-                            'cliente_global_id' => $material->item->cliente->cliente_id,
-                            'temporada' => [
-                                'id' => $material->item->cliente->temporada->id,
-                                'codigo' => $material->item->cliente->temporada->codigo,
-                                'nombre' => $material->item->cliente->temporada->nombre,
-                                'activa' => $material->item->cliente->temporada->activa,
-                            ],
-                            'codigo' => $material->item->cliente->codigo,
-                            'nombre' => $material->item->cliente->nombre,
-                            'activo' => $material->item->cliente->activo,
-                        ],
-                        'codigo' => $material->item->codigo,
-                        'nombre' => $material->item->nombre,
-                    ],
-                    'categoria_operacional' => $material->categoria_operacional?->value,
-                    'cantidad_inicial' => $material->cantidad_inicial,
-                    'cantidad_actual' => $material->cantidad_actual,
-                    'cantidad_reservada' => $material->cantidad_reservada,
-                    'cantidad_disponible' => number_format($disponible, 3, '.', ''),
-                    'unidad_medida' => $material->unidad_medida,
-                    'lote' => $material->lote,
-                    'fecha_ingreso' => $folio->fecha_ingreso?->toAtomString(),
-                    'camara' => $posicion?->camara ? [
-                        'id' => $posicion->camara->id,
-                        'codigo' => $posicion->camara->codigo,
-                        'nombre' => $posicion->camara->nombre,
-                    ] : null,
-                    'posicion' => $posicion ? [
-                        'id' => $posicion->id,
-                        'etiqueta' => $posicion->etiqueta,
-                    ] : null,
-                    'recepcion' => $recepcion ? [
-                        'id' => $recepcion->id,
-                        'numero_guia_despacho' => $recepcion->numero_guia_despacho,
-                        'proveedor' => $recepcion->proveedor?->nombre,
-                        'confirmado_at' => $recepcion->confirmado_at?->toAtomString(),
-                    ] : null,
-                ];
-            });
+        if (($filtros['vista'] ?? 'detalle') === 'resumen') {
+            return response()->json(['data' => [], ...$resumen]);
+        }
 
-        $resumenClientes = $folios
-            ->groupBy('item.cliente.id')
-            ->map(function ($existencias): array {
-                $primera = $existencias->first();
-                $cliente = $primera['item']['cliente'];
-                $saldos = $existencias
-                    ->groupBy('unidad_medida')
-                    ->map(fn ($grupo, $unidad): array => [
-                        'unidad_medida' => $unidad,
-                        'cantidad_actual' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
-                        'cantidad_pendiente_ubicacion' => number_format($grupo
-                            ->filter(fn (array $fila): bool => $fila['estado_ubicacion'] === 'pendiente_ubicacion'
-                                && $fila['estado_operacional'] !== EstadoOperacionalFolio::Bloqueado->value)
-                            ->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
-                        'cantidad_bloqueada' => number_format($grupo
-                            ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
-                            ->sum(fn ($fila) => (float) $fila['cantidad_actual']), 3, '.', ''),
-                        'cantidad_reservada' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_reservada']), 3, '.', ''),
-                        'cantidad_disponible' => number_format($grupo->sum(fn ($fila) => (float) $fila['cantidad_disponible']), 3, '.', ''),
-                    ])
-                    ->values();
-
-                return [
-                    'cliente' => $cliente,
-                    'folios' => $existencias->count(),
-                    'folios_pendientes_ubicacion' => $existencias
-                        ->filter(fn (array $fila): bool => $fila['estado_ubicacion'] === 'pendiente_ubicacion'
-                            && $fila['estado_operacional'] !== EstadoOperacionalFolio::Bloqueado->value)
-                        ->count(),
-                    'folios_bloqueados' => $existencias
-                        ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
-                        ->count(),
-                    'items' => $existencias->pluck('item.id')->unique()->count(),
-                    'posiciones' => $existencias->pluck('posicion.id')->filter()->unique()->count(),
-                    'saldos' => $saldos,
-                ];
-            })
-            ->values();
+        $paginacion = $servicio->detalle($filtros);
 
         return response()->json([
-            'data' => $folios,
-            'resumen_clientes' => $resumenClientes,
+            'data' => $paginacion->items(),
+            ...$resumen,
+            'meta' => [
+                'current_page' => $paginacion->currentPage(),
+                'last_page' => $paginacion->lastPage(),
+                'per_page' => $paginacion->perPage(),
+                'from' => $paginacion->firstItem(),
+                'to' => $paginacion->lastItem(),
+                'total' => $paginacion->total(),
+            ],
         ]);
     }
 

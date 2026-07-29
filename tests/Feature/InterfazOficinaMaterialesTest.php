@@ -89,6 +89,11 @@ class InterfazOficinaMaterialesTest extends TestCase
             "materialDispatchSummaryPath = '/api/materiales/despachos?vista=resumen'",
             $office,
         );
+        $this->assertStringContainsString(
+            "materialInventorySummaryPath = '/api/materiales/inventario?vista=resumen'",
+            $office,
+        );
+        $this->assertStringContainsString('loadInventoryPage(state.inventoryCurrentPage + 1)', $office);
 
         $this->assertIsString($mobilePolling);
         $this->assertStringContainsString('OPERATIONAL_POLL_INTERVAL_MS = 30_000', $mobilePolling);

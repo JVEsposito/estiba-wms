@@ -754,11 +754,11 @@ async function loadOrdersOffice(showErrors = false) {
         const [recipes, orders, inventory] = await Promise.all([
             orderApi('/api/materiales/transformaciones/recetas?per_page=100'),
             orderApi('/api/materiales/transformaciones/ordenes?per_page=100'),
-            orderApi('/api/materiales/inventario'),
+            orderApi('/api/materiales/inventario?vista=resumen'),
         ]);
         orderState.recipes = recipes.data || [];
         orderState.orders = orders.data || [];
-        orderState.inventory = inventory.data || [];
+        orderState.inventory = inventory.resumen_items || [];
         renderOrderSelectors();
         renderOrderMetrics();
         renderOrders();

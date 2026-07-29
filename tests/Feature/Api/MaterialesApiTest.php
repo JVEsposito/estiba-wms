@@ -857,6 +857,49 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.0.cantidad_disponible', '6.000');
     }
 
+    public function test_inventario_pagina_el_detalle_sin_recortar_sus_resumenes_globales(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $item = $this->crearItem($administrador);
+
+        foreach (range(1, 30) as $numero) {
+            $this->crearFolioMaterialPendiente(
+                $item,
+                sprintf('MAT-PAG-%02d', $numero),
+                2,
+                now()->addSeconds($numero)->toAtomString(),
+            );
+        }
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario?per_page=10&page=2')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.last_page', 3)
+            ->assertJsonPath('meta.total', 30)
+            ->assertJsonPath('resumen.folios', 30)
+            ->assertJsonPath('resumen_items.0.folios', 30)
+            ->assertJsonPath('resumen_items.0.cantidad_actual', '60.000')
+            ->assertJsonPath('resumen_clientes.0.folios', 30);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario?q=MAT-PAG-30&per_page=10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.numero_folio', 'MAT-PAG-30')
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('resumen.folios', 30);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario?vista=resumen')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('resumen.folios', 30)
+            ->assertJsonPath('resumen_items.0.cantidad_actual', '60.000')
+            ->assertJsonMissingPath('meta');
+    }
+
     public function test_fifo_es_solo_sugerencia_y_registra_la_excepcion(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();

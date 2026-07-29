@@ -19,6 +19,7 @@ const elements = {
     stockSync: byId('materialsStockSync'),
     addDispatchLine: byId('addDispatchLine'), dispatchList: byId('dispatchMaterialList'),
     inventorySearch: byId('materialsInventorySearch'), inventoryClient: byId('materialsInventoryClient'), inventorySummary: byId('materialsInventorySummary'), inventoryBody: byId('materialsInventoryBody'),
+    inventoryPageSize: byId('materialsInventoryPageSize'), inventoryPrevious: byId('materialsInventoryPrevious'), inventoryNext: byId('materialsInventoryNext'), inventoryPage: byId('materialsInventoryPage'),
     clientCount: byId('materialsClientCount'), itemCount: byId('materialsItemCount'), folioCount: byId('materialsFolioCount'),
     dispatchCount: byId('materialsDispatchCount'), destinationCount: byId('materialsDestinationCount'),
     seasonsSummary: byId('seasonsSummary'), clientsSummary: byId('clientsSummary'), itemsSummary: byId('itemsSummary'), destinationsSummary: byId('destinationsSummary'),
@@ -37,13 +38,16 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
-    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
+    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
 const operationalRefreshIntervalMs = 30000;
 const mainDataSections = new Set(['resumen', 'catalogos', 'inventario', 'despachos']);
 const operationalDataSections = new Set(['resumen', 'inventario', 'despachos']);
 const materialDispatchSummaryPath = '/api/materiales/despachos?vista=resumen';
+const materialInventorySummaryPath = '/api/materiales/inventario?vista=resumen';
+let inventorySearchTimer;
+let inventoryRequestSequence = 0;
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
 function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
@@ -117,9 +121,9 @@ function normalizedSearch(value) { return String(value || '').normalize('NFD').r
 function itemLabel(item) { return `${item.cliente?.temporada?.codigo || ''} · ${item.cliente?.codigo || ''} · ${item.codigo} · ${item.nombre}`; }
 function itemSearchText(item) { return normalizedSearch(`${itemLabel(item)} ${item.cliente?.nombre || ''} ${item.categoria || ''}`); }
 function availableStock(itemId) {
-    return Math.round(state.inventory
-        .filter((folio) => folio.item.id === itemId)
-        .reduce((total, folio) => total + Number(folio.cantidad_disponible || 0), 0) * 1000) / 1000;
+    return Math.round(state.inventoryItems
+        .filter((summary) => summary.item.id === itemId)
+        .reduce((total, summary) => total + Number(summary.cantidad_disponible || 0), 0) * 1000) / 1000;
 }
 function closeItemResults(except = null) {
     elements.dispatchLines.querySelectorAll('.material-item-results').forEach((results) => {
@@ -184,7 +188,7 @@ function refreshDispatchLines() {
         : 'Consultando stock disponible…';
 }
 function renderMetrics() {
-    elements.seasonActive.textContent = state.seasons.find((season) => season.activa)?.codigo || '—'; elements.clientCount.textContent = String(seasonClients().filter((client) => client.activo).length); elements.itemCount.textContent = String(seasonItems().filter((item) => item.activo && item.cliente?.activo !== false).length); elements.folioCount.textContent = String(state.inventory.length);
+    elements.seasonActive.textContent = state.seasons.find((season) => season.activa)?.codigo || '—'; elements.clientCount.textContent = String(seasonClients().filter((client) => client.activo).length); elements.itemCount.textContent = String(seasonItems().filter((item) => item.activo && item.cliente?.activo !== false).length); elements.folioCount.textContent = String(state.inventoryTotals.folios || 0);
     elements.dispatchCount.textContent = String(state.dispatches.filter((dispatch) => ['pendiente', 'parcial'].includes(dispatch.estado)).length);
     elements.destinationCount.textContent = String(activeDestinations().length);
 }
@@ -262,17 +266,17 @@ function renderDispatches() {
     }).join('') || '<p class="empty-state">No existen despachos de materiales.</p>';
 }
 function renderInventory() {
-    const query = elements.inventorySearch.value.trim().toLowerCase();
-    const clients = [...new Map(state.inventory.map((folio) => [folio.item.cliente.id, folio.item.cliente])).values()];
+    const clients = seasonClients().filter((client) => client.activo);
     const currentClient = elements.inventoryClient.value;
     elements.inventoryClient.innerHTML = '<option value="">Todos los clientes</option>' + clients.map((client) => `<option value="${client.id}">${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</option>`).join('');
     elements.inventoryClient.value = clients.some((client) => client.id === currentClient) ? currentClient : '';
     const activeClientId = elements.inventoryClient.value;
-    const rows = state.inventory.filter((folio) => (!activeClientId || folio.item.cliente.id === activeClientId) && `${folio.numero_folio} ${folio.item.cliente?.temporada?.codigo || ''} ${folio.item.cliente?.codigo || ''} ${folio.item.cliente?.nombre || ''} ${folio.item.codigo} ${folio.item.nombre} ${folio.camara?.codigo || ''} ${folio.posicion?.etiqueta || ''}`.toLowerCase().includes(query));
+    const rows = state.inventory;
     const selectedSummary = activeClientId ? state.inventorySummary.find((summary) => summary.cliente.id === activeClientId) : null;
-    elements.inventorySummary.textContent = selectedSummary
+    const query = elements.inventorySearch.value.trim();
+    elements.inventorySummary.textContent = selectedSummary && !query
         ? `${selectedSummary.folios} folios · ${selectedSummary.items} ítems · ${selectedSummary.posiciones} posiciones`
-        : `${rows.length} folios · ${clients.length} clientes`;
+        : `${Number(state.inventoryMeta?.total || 0)} folios coincidentes · ${Number(state.inventoryTotals.clientes || 0)} clientes`;
     const canCorrect = state.identity?.puede_corregir_items_estibados_materiales === true;
     const canManageBlock = state.identity?.puede_gestionar_bloqueos_materiales === true;
     elements.inventoryBody.innerHTML = rows.map((folio) => {
@@ -298,6 +302,11 @@ function renderInventory() {
 
         return `<tr><td><strong>${escapeHtml(folio.numero_folio)}</strong><small>${escapeHtml(folio.lote || 'Sin lote')}</small></td><td><strong>${escapeHtml(folio.item.cliente?.codigo || '—')} · ${escapeHtml(folio.item.cliente?.nombre || '—')}</strong><small>${escapeHtml(folio.item.cliente?.temporada?.codigo || '—')}</small></td><td><strong>${escapeHtml(folio.item.codigo)}</strong><small>${escapeHtml(folio.item.nombre)}</small></td><td>${quantity(folio.cantidad_actual)} ${escapeHtml(folio.unidad_medida)}</td><td>${quantity(folio.cantidad_reservada)}</td><td>${quantity(folio.cantidad_disponible)}</td><td>${status}</td><td><strong>${escapeHtml(folio.camara?.codigo || 'Sin cámara')}</strong><small>${escapeHtml(folio.posicion?.etiqueta || 'Sin posición')}</small></td><td>${actions || '—'}</td></tr>`;
     }).join('') || '<tr><td colspan="9">No existen folios coincidentes.</td></tr>';
+    const currentPage = Number(state.inventoryMeta?.current_page || 1);
+    const lastPage = Math.max(1, Number(state.inventoryMeta?.last_page || 1));
+    elements.inventoryPage.textContent = `Página ${currentPage} de ${lastPage}`;
+    elements.inventoryPrevious.disabled = currentPage <= 1;
+    elements.inventoryNext.disabled = currentPage >= lastPage;
 }
 function renderImportHistory() {
     elements.importHistory.innerHTML = state.imports.map((entry) => `<article class="material-row"><div><strong>${escapeHtml(entry.nombre_archivo)}</strong><small>${escapeHtml(entry.creado_por?.nombre || 'Usuario')} · ${escapeHtml(dateTime(entry.created_at))}</small></div><span class="material-import-action">${escapeHtml(statusText(entry.estado))}</span></article>`).join('') || '<p class="empty-state">Aún no existen importaciones.</p>';
@@ -329,6 +338,44 @@ function renderImportPreview() {
 }
 function renderAll() { renderSeasons(); renderClients(); renderProviders(); renderItems(); renderDestinations(); renderDispatches(); renderInventory(); renderMetrics(); renderImportHistory(); }
 
+function inventoryApiPath({ summary = false } = {}) {
+    if (summary) return materialInventorySummaryPath;
+    const query = new URLSearchParams({
+        per_page: elements.inventoryPageSize.value || '25',
+        page: String(state.inventoryCurrentPage),
+    });
+    const clientId = elements.inventoryClient.value;
+    const search = elements.inventorySearch.value.trim();
+    if (clientId) query.set('cliente_id', clientId);
+    if (search) query.set('q', search);
+    return `/api/materiales/inventario?${query}`;
+}
+
+function applyInventoryResponse(inventory) {
+    state.inventory = inventory.data || [];
+    state.inventorySummary = inventory.resumen_clientes || [];
+    state.inventoryItems = inventory.resumen_items || [];
+    state.inventoryTotals = inventory.resumen || {};
+    state.inventoryMeta = inventory.meta || null;
+    state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+async function loadInventoryPage(page = 1) {
+    if (activeMaterialsSection() !== 'inventario') return;
+    state.inventoryCurrentPage = Math.max(1, Number(page) || 1);
+    const requestSequence = ++inventoryRequestSequence;
+    const inventory = await api(inventoryApiPath());
+    if (requestSequence !== inventoryRequestSequence) return;
+
+    const lastPage = Math.max(1, Number(inventory.meta?.last_page || 1));
+    if (state.inventoryCurrentPage > lastPage) {
+        return loadInventoryPage(lastPage);
+    }
+
+    applyInventoryResponse(inventory);
+    renderInventory();
+}
+
 async function loadAll() {
     const section = activeMaterialsSection();
     if (!mainDataSections.has(section)) return;
@@ -349,7 +396,7 @@ async function loadAll() {
             ])
             : api('/api/materiales/catalogo'),
         needsDispatches ? api(materialDispatchSummaryPath) : Promise.resolve(null),
-        needsInventory ? api('/api/materiales/inventario') : Promise.resolve(null),
+        needsInventory ? api(inventoryApiPath({ summary: section !== 'inventario' })) : Promise.resolve(null),
     ]);
     if (catalogAdmin) {
         state.seasons = catalog[0].data;
@@ -369,9 +416,7 @@ async function loadAll() {
     if (!state.seasons.some((season) => season.id === state.selectedSeasonId)) state.selectedSeasonId = state.seasons.find((season) => season.activa)?.id || state.seasons[0]?.id || null;
     if (dispatches) state.dispatches = dispatches.data;
     if (inventory) {
-        state.inventory = inventory.data;
-        state.inventorySummary = inventory.resumen_clientes || [];
-        state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        applyInventoryResponse(inventory);
     }
     renderAll();
 }
@@ -387,7 +432,7 @@ async function refreshOperationalData({ required = false } = {}) {
     const needsDispatches = section === 'resumen' || section === 'despachos';
     const operation = state.operationalRefreshPromise || Promise.all([
         needsDispatches ? api(materialDispatchSummaryPath) : Promise.resolve(null),
-        api('/api/materiales/inventario'),
+        api(inventoryApiPath({ summary: section !== 'inventario' })),
     ]);
     const ownsOperation = state.operationalRefreshPromise === null;
     if (ownsOperation) state.operationalRefreshPromise = operation;
@@ -395,9 +440,7 @@ async function refreshOperationalData({ required = false } = {}) {
     try {
         const [dispatches, inventory] = await operation;
         if (dispatches) state.dispatches = dispatches.data;
-        state.inventory = inventory.data;
-        state.inventorySummary = inventory.resumen_clientes || [];
-        state.inventorySyncedAt = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        applyInventoryResponse(inventory);
         if (needsDispatches) renderDispatches();
         if (section === 'inventario') renderInventory();
         if (section === 'resumen') renderMetrics();
@@ -597,8 +640,24 @@ elements.dispatchList.addEventListener('click', async (event) => {
         setBusy(false);
     }
 });
-elements.inventorySearch.addEventListener('input', renderInventory);
-elements.inventoryClient.addEventListener('change', renderInventory);
+elements.inventorySearch.addEventListener('input', () => {
+    window.clearTimeout(inventorySearchTimer);
+    inventorySearchTimer = window.setTimeout(() => {
+        loadInventoryPage(1).catch((error) => toast(error.message, true));
+    }, 300);
+});
+elements.inventoryClient.addEventListener('change', () => {
+    loadInventoryPage(1).catch((error) => toast(error.message, true));
+});
+elements.inventoryPageSize.addEventListener('change', () => {
+    loadInventoryPage(1).catch((error) => toast(error.message, true));
+});
+elements.inventoryPrevious.addEventListener('click', () => {
+    loadInventoryPage(state.inventoryCurrentPage - 1).catch((error) => toast(error.message, true));
+});
+elements.inventoryNext.addEventListener('click', () => {
+    loadInventoryPage(state.inventoryCurrentPage + 1).catch((error) => toast(error.message, true));
+});
 elements.inventoryBody.addEventListener('click', async (event) => {
     const blockButton = event.target.closest('[data-block-material], [data-release-material]');
     if (blockButton && state.identity?.puede_gestionar_bloqueos_materiales === true) {
