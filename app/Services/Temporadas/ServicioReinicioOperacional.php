@@ -470,7 +470,6 @@ class ServicioReinicioOperacional
 
         foreach ([
             'folios_materiales' => 'folio_id',
-            'folios_materiales_liberados' => 'folio_id',
             'folios_trabajos_impresion_materiales' => 'folio_id',
             'migraciones_temporadas_folios' => 'folio_id',
             'correcciones_items_folios_materiales' => 'folio_id',
