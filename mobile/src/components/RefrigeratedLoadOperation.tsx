@@ -146,7 +146,11 @@ export function RefrigeratedLoadOperation({
         ?? null;
       setSelectedRouteId(selected?.asignacion_id ?? null);
       if (selected?.ubicacion) {
-        setCameraPlan(await api.getPlan(auth.token, selected.ubicacion.camara.id));
+        const cameraId = selected.ubicacion.camara.id;
+        const loadedPlan = cameraPlan?.id === cameraId
+          ? await api.refreshPlan(auth.token, cameraId)
+          : await api.getPlan(auth.token, cameraId);
+        if (loadedPlan) setCameraPlan(loadedPlan);
       } else {
         setCameraPlan(null);
       }

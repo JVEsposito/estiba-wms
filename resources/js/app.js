@@ -96,6 +96,7 @@ const state = {
     materialDispatches: [],
     selectedCameraId: null,
     plan: null,
+    planEtags: new Map(),
     selectedPosition: null,
     destinationPlan: null,
     moveDestination: null,
@@ -155,24 +156,32 @@ function validationMessage(data, fallback) {
 }
 
 async function api(path, options = {}) {
-    const headers = new Headers(options.headers || {});
+    const {
+        acceptNotModified = false,
+        onResponse = null,
+        ...requestOptions
+    } = options;
+    const headers = new Headers(requestOptions.headers || {});
     headers.set('Accept', 'application/json');
 
     if (state.token) {
         headers.set('Authorization', `Bearer ${state.token}`);
     }
 
-    if (options.body && !(options.body instanceof FormData)) {
+    if (requestOptions.body && !(requestOptions.body instanceof FormData)) {
         headers.set('Content-Type', 'application/json');
     }
 
     let response;
 
     try {
-        response = await fetch(path, { ...options, headers });
+        response = await fetch(path, { ...requestOptions, headers });
     } catch {
         throw new ApiError('No fue posible conectar con el servidor. Revisa la conexión de red.', 0);
     }
+
+    if (typeof onResponse === 'function') onResponse(response);
+    if (response.status === 304 && acceptNotModified) return null;
 
     const data = response.status === 204
         ? null
@@ -191,6 +200,23 @@ async function api(path, options = {}) {
     }
 
     return data;
+}
+
+async function loadPlan(cameraId, { conditional = false } = {}) {
+    const headers = new Headers();
+    const etag = conditional ? state.planEtags.get(cameraId) : null;
+    if (etag) headers.set('If-None-Match', etag);
+
+    const response = await api(`/api/camaras/${cameraId}/plano`, {
+        headers,
+        acceptNotModified: conditional,
+        onResponse: (httpResponse) => {
+            const nextEtag = httpResponse.headers.get('ETag');
+            if (nextEtag) state.planEtags.set(cameraId, nextEtag);
+        },
+    });
+
+    return response?.data ?? null;
 }
 
 async function apiWithPhysicalWarnings(path, payload) {
@@ -458,12 +484,12 @@ async function selectCamera(cameraId, showLoading = true) {
     renderCameras();
 
     const load = async () => {
-        const [planResponse, recentResponse] = await Promise.all([
-            api(`/api/camaras/${cameraId}/plano`),
+        const [loadedPlan, recentResponse] = await Promise.all([
+            loadPlan(cameraId),
             api(`/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`),
         ]);
 
-        state.plan = planResponse.data;
+        state.plan = loadedPlan;
         renderPlan();
         renderRecent(recentResponse.data || []);
         updateLastSync();
@@ -480,10 +506,19 @@ async function refreshCurrent({ quiet = false } = {}) {
     if (! state.selectedCameraId) return;
 
     const refresh = async () => {
-        await Promise.all([
-            reloadCameraList(),
-            selectCamera(state.selectedCameraId, false),
+        const cameraId = state.selectedCameraId;
+        const [cameraResponse, loadedPlan, recentResponse] = await Promise.all([
+            api('/api/camaras'),
+            loadPlan(cameraId, { conditional: true }),
+            api(`/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`),
         ]);
+
+        state.cameras = cameraResponse.data || [];
+        if (loadedPlan) state.plan = loadedPlan;
+        renderCameras();
+        renderPlan();
+        renderRecent(recentResponse.data || []);
+        updateLastSync();
     };
 
     if (quiet) {
@@ -1174,7 +1209,7 @@ async function loadDestinationPlan(cameraId) {
     try {
         state.destinationPlan = cameraId === state.plan.id
             ? state.plan
-            : (await api(`/api/camaras/${cameraId}/plano`)).data;
+            : await loadPlan(cameraId);
         renderDestinations();
     } catch (error) {
         elements.moveDestinationGrid.innerHTML = '<div class="recent-empty">No fue posible cargar el destino.</div>';
