@@ -16,8 +16,10 @@ use App\Models\DespachoMaterial;
 use App\Models\FolioMaterial;
 use App\Models\MovimientoInventarioMaterial;
 use App\Models\PersonalAccessToken;
+use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Materiales\ServicioDespachoMaterial;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -32,7 +34,7 @@ class DespachoMaterialController extends Controller
         Gate::authorize('consultar-despachos-materiales');
         $estados = array_filter(explode(',', (string) $request->query('estados', '')));
         $despachos = DespachoMaterial::query()
-            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
+            ->where('temporada_id', '=', $this->consultaTemporadaActiva())
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
             ->latest()
             ->limit(100)
@@ -132,14 +134,15 @@ class DespachoMaterialController extends Controller
             ])
             ->when($request->query('cliente_id'), fn ($consulta, $clienteId) => $consulta
                 ->whereHas('item', fn ($items) => $items->where('cliente_material_id', $clienteId)))
-            ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
+            ->whereHas('folio', fn ($consulta) => $consulta
+                ->where('activo', true)
+                ->where('temporada_id', '=', $this->consultaTemporadaActiva()))
             ->where(function ($consulta): void {
                 $consulta
                     ->whereDoesntHave('folio.ubicacionActual')
                     ->orWhereHas('folio.ubicacionActual.posicion.camara', fn ($camaras) => $camaras
                         ->where('contenido', ContenidoCamara::Materiales->value));
             })
-            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
             ->orderBy('item_material_id')
             ->get()
             ->map(function (FolioMaterial $material): array {
@@ -257,8 +260,8 @@ class DespachoMaterialController extends Controller
         Gate::authorize('consultar-kardex-materiales');
         $movimientos = MovimientoInventarioMaterial::query()
             ->with(['folioMaterial.folio:id,numero_folio', 'item.cliente.temporada'])
-            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta
-                ->where('activa', true))
+            ->whereHas('folioMaterial.folio', fn ($consulta) => $consulta
+                ->where('temporada_id', '=', $this->consultaTemporadaActiva()))
             ->when($request->query('folio_id'), fn ($consulta, $folio) => $consulta
                 ->where('folio_id', $folio))
             ->when($request->query('item_material_id'), fn ($consulta, $item) => $consulta
@@ -299,5 +302,13 @@ class DespachoMaterialController extends Controller
             ]);
 
         return response()->json(['data' => $movimientos]);
+    }
+
+    private function consultaTemporadaActiva(): Builder
+    {
+        return Temporada::query()
+            ->select('id')
+            ->where('activa', true)
+            ->limit(1);
     }
 }
