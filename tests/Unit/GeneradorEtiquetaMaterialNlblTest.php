@@ -24,6 +24,11 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $this->assertTextosDentroDelArea($formato, 100000, 50000);
         $this->assertStringContainsString('<Name>Código QR</Name>', $formato);
         $this->assertStringContainsString('<Name>BIXOLON SLP-TX400</Name>', $formato);
+        $this->assertContenidoCompleto($formato);
+        $this->assertMatchesRegularExpression(
+            '#<Name>Folio</Name>.*?<Name>Arial</Name><Height>14</Height>#s',
+            $formato,
+        );
     }
 
     public function test_mantiene_los_textos_dentro_de_una_etiqueta_bixolon_100_por_200_vertical(): void
@@ -57,13 +62,14 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
                 'cliente_codigo' => 'MC-001',
                 'cliente_nombre' => 'MACE',
                 'item_codigo' => 'MAT-PARR-PA01',
-                'item_nombre' => 'PARRILLA',
+                'item_nombre' => 'PARRILLA DE MADERA SECA PARA EXPORTACIÓN',
                 'cantidad' => '70.000',
                 'unidad_medida' => 'unidades',
                 'origen' => 'recepcion',
                 'numero_guia' => '4648',
                 'lote_proveedor' => '1',
-                'proveedor_nombre' => 'SOC. FORESTAL DE PRUEBA',
+                'proveedor_nombre' => 'SOCIEDAD FORESTAL Y TRANSPORTES DEL SUR LIMITADA',
+                'fecha_recepcion' => '29/07/2026 14:30',
                 'bloqueado' => false,
                 'motivo_bloqueo' => null,
             ],
@@ -75,6 +81,32 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $this->assertIsString($formato);
 
         return $formato;
+    }
+
+    private function assertContenidoCompleto(string $formato): void
+    {
+        foreach ([
+            'Folio: FGE0000001',
+            'MAT-PARR-PA01 · PARRILLA DE MADERA SECA PARA EXPORTACIÓN',
+            'Proveedor: SOCIEDAD FORESTAL Y TRANSPORTES DEL SUR LIMITADA',
+            'Fecha recepción: 29/07/2026 14:30',
+        ] as $contenido) {
+            $this->assertStringContainsString(
+                '<FixedContents Base64Encoded="true">'.base64_encode($contenido).'</FixedContents>',
+                $formato,
+            );
+        }
+
+        preg_match_all(
+            '#<FixedContents Base64Encoded="true">([^<]+)</FixedContents>#',
+            $formato,
+            $contenidos,
+        );
+        $decodificados = array_map(
+            fn (string $valor): string => (string) base64_decode($valor, true),
+            $contenidos[1],
+        );
+        $this->assertStringNotContainsString('…', implode("\n", $decodificados));
     }
 
     private function assertTextosDentroDelArea(
