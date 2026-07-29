@@ -270,6 +270,4 @@ class GeneradorEtiquetaMaterialPdf
             ? [min($ancho, $alto), max($ancho, $alto)]
             : [max($ancho, $alto), min($ancho, $alto)];
     }
-
-
 }
