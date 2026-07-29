@@ -428,6 +428,11 @@ export type OperationalNotificationFeed = {
   syncedAt: string;
 };
 
+export type OperationalNotificationSummary = {
+  unread: number;
+  syncedAt: string;
+};
+
 export type ReportLoadIncidentPayload = {
   operacion_id: string;
   tipo: 'caja_aplastada' | 'zuncho_roto' | 'pallet_mojado' | 'pallet_inestable'

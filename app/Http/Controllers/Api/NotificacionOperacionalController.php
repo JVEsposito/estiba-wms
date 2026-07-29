@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\NotificacionOperacionalResource;
 use App\Models\NotificacionOperacional;
 use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -41,6 +42,18 @@ class NotificacionOperacionalController extends Controller
                     'sincronizado_at' => now()->toAtomString(),
                 ],
             ]);
+    }
+
+    public function resumen(
+        Request $request,
+        ServicioNotificacionesOperacionales $servicio,
+    ): JsonResponse {
+        return response()->json([
+            'data' => [
+                'no_leidas' => $servicio->cantidadNoLeidas($request->user()),
+                'sincronizado_at' => now()->toAtomString(),
+            ],
+        ]);
     }
 
     public function marcarLeida(

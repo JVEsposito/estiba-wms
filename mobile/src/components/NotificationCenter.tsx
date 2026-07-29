@@ -37,15 +37,23 @@ export function NotificationCenter({
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
-  const pollInFlight = useRef(false);
+  const visibleRef = useRef(false);
+  const summaryInFlight = useRef(false);
+  const feedInFlight = useRef(false);
 
   useEffect(() => {
-    void poll(false);
+    void refreshSummary();
     const timer = setInterval(() => {
-      if (AppState.currentState === 'active') void poll(true);
+      if (AppState.currentState !== 'active') return;
+
+      if (visibleRef.current) void refreshFeed(true);
+      else void refreshSummary();
     }, OPERATIONAL_POLL_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void poll(true);
+      if (state !== 'active') return;
+
+      if (visibleRef.current) void refreshFeed(true);
+      else void refreshSummary();
     });
 
     return () => {
@@ -54,9 +62,24 @@ export function NotificationCenter({
     };
   }, []);
 
-  async function poll(quiet: boolean) {
-    if (pollInFlight.current) return;
-    pollInFlight.current = true;
+  async function refreshSummary() {
+    if (summaryInFlight.current) return;
+    summaryInFlight.current = true;
+    try {
+      const summary = await api.getOperationalNotificationSummary(auth.token);
+      setUnread(summary.unread);
+      setLastSync(summary.syncedAt);
+      onSuccess();
+    } catch (reason) {
+      onFailure(reason);
+    } finally {
+      summaryInFlight.current = false;
+    }
+  }
+
+  async function refreshFeed(quiet: boolean) {
+    if (feedInFlight.current) return;
+    feedInFlight.current = true;
     if (!quiet) setBusy(true);
     try {
       const feed = await api.listOperationalNotifications(auth.token);
@@ -67,9 +90,20 @@ export function NotificationCenter({
     } catch (reason) {
       onFailure(reason);
     } finally {
-      pollInFlight.current = false;
+      feedInFlight.current = false;
       if (!quiet) setBusy(false);
     }
+  }
+
+  function open() {
+    visibleRef.current = true;
+    setVisible(true);
+    void refreshFeed(false);
+  }
+
+  function close() {
+    visibleRef.current = false;
+    setVisible(false);
   }
 
   async function read(notification: OperationalNotification) {
@@ -107,7 +141,7 @@ export function NotificationCenter({
     <>
       <Pressable
         accessibilityLabel={`${unread} notificaciones sin leer`}
-        onPress={() => setVisible(true)}
+        onPress={open}
         style={styles.trigger}
       >
         <Text style={styles.bell}>●</Text>
@@ -117,7 +151,7 @@ export function NotificationCenter({
         )}
       </Pressable>
 
-      <Modal animationType="fade" onRequestClose={() => setVisible(false)} transparent visible={visible}>
+      <Modal animationType="fade" onRequestClose={close} transparent visible={visible}>
         <View style={styles.backdrop}>
           <View style={styles.modal}>
             <View style={styles.header}>
@@ -129,10 +163,10 @@ export function NotificationCenter({
                 </Text>
               </View>
               <View style={styles.headerActions}>
-                <Pressable onPress={() => void poll(false)} style={styles.secondaryButton}>
+                <Pressable onPress={() => void refreshFeed(false)} style={styles.secondaryButton}>
                   <Text style={styles.secondaryText}>Actualizar</Text>
                 </Pressable>
-                <Pressable onPress={() => setVisible(false)} style={styles.closeButton}>
+                <Pressable onPress={close} style={styles.closeButton}>
                   <Text style={styles.closeText}>×</Text>
                 </Pressable>
               </View>
@@ -160,7 +194,7 @@ export function NotificationCenter({
                       {notification.carga && onOpenLoads && (
                         <Pressable
                           onPress={() => {
-                            setVisible(false);
+                            close();
                             onOpenLoads();
                           }}
                           style={styles.loadLink}
@@ -172,7 +206,7 @@ export function NotificationCenter({
                         <Pressable
                           onPress={() => {
                             void read(notification);
-                            setVisible(false);
+                            close();
                             onOpenMaterialDispatches();
                           }}
                           style={styles.loadLink}

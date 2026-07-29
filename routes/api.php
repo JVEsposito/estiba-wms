@@ -200,6 +200,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
     Route::get('/notificaciones-operacionales', [NotificacionOperacionalController::class, 'index']);
+    Route::get('/notificaciones-operacionales/resumen', [NotificacionOperacionalController::class, 'resumen']);
     Route::post('/notificaciones-operacionales/{notificacionOperacional}/leer', [NotificacionOperacionalController::class, 'marcarLeida']);
     Route::post('/notificaciones-operacionales/{notificacionOperacional}/confirmar', [NotificacionOperacionalController::class, 'confirmar']);
 

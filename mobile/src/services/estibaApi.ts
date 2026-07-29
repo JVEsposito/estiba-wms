@@ -19,6 +19,7 @@ import {
   OpenedSession,
   OperationalNotification,
   OperationalNotificationFeed,
+  OperationalNotificationSummary,
   RefrigeratedLoad,
   ReportLoadIncidentPayload,
   SagCondition,
@@ -88,6 +89,7 @@ export interface EstibaApi {
   listDocks(token: string): Promise<Dock[]>;
   reportLoadIncident(token: string, assignmentId: string, payload: ReportLoadIncidentPayload): Promise<void>;
   sendLoadFolioToDock(token: string, assignmentId: string, payload: SendLoadFolioToDockPayload): Promise<RefrigeratedLoad>;
+  getOperationalNotificationSummary(token: string): Promise<OperationalNotificationSummary>;
   listOperationalNotifications(token: string): Promise<OperationalNotificationFeed>;
   readOperationalNotification(token: string, notificationId: string): Promise<OperationalNotification>;
   confirmOperationalNotification(token: string, notificationId: string): Promise<OperationalNotification>;
@@ -490,6 +492,18 @@ class HttpEstibaApi implements EstibaApi {
     };
   }
 
+  async getOperationalNotificationSummary(token: string): Promise<OperationalNotificationSummary> {
+    const response = await this.request<ApiItem<{
+      no_leidas: number;
+      sincronizado_at: string;
+    }>>('/api/notificaciones-operacionales/resumen', token);
+
+    return {
+      unread: response.data.no_leidas,
+      syncedAt: response.data.sincronizado_at,
+    };
+  }
+
   async readOperationalNotification(token: string, notificationId: string) {
     return (await this.request<ApiItem<OperationalNotification>>(
       `/api/notificaciones-operacionales/${notificationId}/leer`,
@@ -575,6 +589,7 @@ function createUnavailableApi(message: string): EstibaApi {
     listDocks: unavailable,
     reportLoadIncident: unavailable,
     sendLoadFolioToDock: unavailable,
+    getOperationalNotificationSummary: unavailable,
     listOperationalNotifications: unavailable,
     readOperationalNotification: unavailable,
     confirmOperationalNotification: unavailable,

@@ -23,6 +23,36 @@ class NotificacionesOperacionalesApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_resumen_expone_el_contador_sin_descargar_el_feed_completo(): void
+    {
+        $creador = $this->usuario(RolUsuario::Despachador);
+        $camarero = $this->usuario(RolUsuario::CamareroFrio);
+        $carga = $this->carga($creador);
+        $evento = $this->evento($carga, $creador, TipoEventoCarga::Publicada, [
+            'version' => 3,
+            'cantidad_folios' => 12,
+        ]);
+
+        app(CrearNotificacionesOperacionales::class)
+            ->handle(new EventoCargaRegistrado($evento));
+
+        $respuesta = $this->actingAs($camarero, 'sanctum')
+            ->getJson('/api/notificaciones-operacionales/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.no_leidas', 1)
+            ->assertJsonStructure(['data' => ['no_leidas', 'sincronizado_at']])
+            ->assertJsonMissingPath('data.0');
+
+        $this->assertIsString($respuesta->json('data.sincronizado_at'));
+
+        $notificacion = NotificacionOperacional::query()->firstOrFail();
+        $this->postJson("/api/notificaciones-operacionales/{$notificacion->id}/leer")
+            ->assertOk();
+        $this->getJson('/api/notificaciones-operacionales/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.no_leidas', 0);
+    }
+
     public function test_publicacion_es_visible_para_frio_y_lectura_es_individual_e_idempotente(): void
     {
         $creador = $this->usuario(RolUsuario::Despachador);
