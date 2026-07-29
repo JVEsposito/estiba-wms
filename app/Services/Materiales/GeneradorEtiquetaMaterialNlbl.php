@@ -62,12 +62,12 @@ class GeneradorEtiquetaMaterialNlbl
         $z = 1;
 
         $items[] = $this->texto(
-            $folio,
+            'Folio: '.$folio,
             $margen,
             max(1800, (int) round($alto * 0.035)),
             $ancho - ($margen * 2),
             max(6500, (int) round($alto * 0.13)),
-            max(16, min(28, (int) round($alto / 2600))),
+            max(14, min(22, (int) round($alto / 3500))),
             true,
             $z++,
             'Folio',
@@ -120,7 +120,7 @@ class GeneradorEtiquetaMaterialNlbl
                 break;
             }
             $items[] = $this->texto(
-                $this->recortar((string) $linea, max(24, (int) floor($detalleAncho / 2500))),
+                (string) $linea,
                 $margen,
                 $y,
                 $detalleAncho,
@@ -323,7 +323,7 @@ XML;
   <FixedContents Base64Encoded="true">{$base64}</FixedContents>
   <Contents Type="ExtendedDataValue"><FixedValue Type="StringContents"><StringValue Base64Encoded="true">{$base64}</StringValue></FixedValue></Contents>
   <BestFitMinimumFontSize>4</BestFitMinimumFontSize>
-  <BestFitMaximumFontSize>72</BestFitMaximumFontSize>
+  <BestFitMaximumFontSize>{$tamano}</BestFitMaximumFontSize>
   <TextBoxAlignment>0</TextBoxAlignment>
   <ZOrder>{$z}</ZOrder>
   <MergeName>{$nombreXml}</MergeName>
@@ -521,6 +521,7 @@ XML;
         return [
             'Guía: '.$etiqueta['numero_guia'].' · Lote: '.($etiqueta['lote_proveedor'] ?: '—'),
             'Proveedor: '.$etiqueta['proveedor_nombre'],
+            'Fecha recepción: '.(($etiqueta['fecha_recepcion'] ?? null) ?: '—'),
         ];
     }
 
@@ -559,14 +560,5 @@ XML;
     private function bom(): string
     {
         return "\xEF\xBB\xBF";
-    }
-
-    private function recortar(string $texto, int $maximo): string
-    {
-        if (mb_strlen($texto) <= $maximo) {
-            return $texto;
-        }
-
-        return rtrim(mb_substr($texto, 0, max(1, $maximo - 1))).'…';
     }
 }
