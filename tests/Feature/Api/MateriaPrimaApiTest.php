@@ -14,12 +14,72 @@ use App\Models\User;
 use App\Models\VariedadValidacion;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class MateriaPrimaApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_catalogos_usan_etag_y_omiten_relaciones_pesadas_si_no_cambian(): void
+    {
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $camara = Camara::create([
+            'codigo' => 'MP-ETAG',
+            'nombre' => 'Cámara ETag',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $inicial = $this->actingAs($digitador, 'sanctum')
+            ->getJson('/api/materia-prima/catalogos')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('temporada.id', $temporada->id)
+            ->assertJsonPath('camaras.0.id', $camara->id);
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+        $this->assertStringContainsString('private', (string) $inicial->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-cache', (string) $inicial->headers->get('Cache-Control'));
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->withHeader('If-None-Match', $etagInicial)
+            ->get('/api/materia-prima/catalogos')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $consultoCatalogosPesados = collect(DB::getQueryLog())
+            ->contains(fn (array $consulta): bool => preg_match(
+                '/from\s+[`"]?(especies_validacion|variedades_validacion|calibres_validacion|csg_validacion)[`"]?/i',
+                $consulta['query'],
+            ) === 1);
+        DB::disableQueryLog();
+        $this->assertFalse($consultoCatalogosPesados);
+
+        $temporada->increment('version_catalogo');
+        $catalogoActualizado = $this->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/materia-prima/catalogos')
+            ->assertOk();
+        $etagCatalogoActualizado = $catalogoActualizado->headers->get('ETag');
+        $this->assertNotSame($etagInicial, $etagCatalogoActualizado);
+
+        $camara->update(['nombre' => 'Cámara ETag actualizada']);
+        $camaraActualizada = $this->withHeader('If-None-Match', $etagCatalogoActualizado)
+            ->getJson('/api/materia-prima/catalogos')
+            ->assertOk()
+            ->assertJsonPath('camaras.0.nombre', 'Cámara ETag actualizada');
+        $this->assertNotSame(
+            $etagCatalogoActualizado,
+            $camaraActualizada->headers->get('ETag'),
+        );
+    }
 
     public function test_lotiza_un_segmento_en_varios_lotes_y_completa_hidrocooler_y_camara(): void
     {

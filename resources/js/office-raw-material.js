@@ -48,6 +48,7 @@ const state = {
     identity: readJson(keys.identity),
     summary: null,
     catalogs: null,
+    catalogEtag: null,
     segments: [],
     lots: [],
     editingLot: null,
@@ -189,6 +190,7 @@ function clearSession() {
     state.identity = null;
     state.summary = null;
     state.catalogs = null;
+    state.catalogEtag = null;
     state.segments = [];
     state.lots = [];
     localStorage.removeItem(keys.token);
@@ -220,6 +222,37 @@ async function api(path, options = {}) {
             data,
         );
     }
+    return data;
+}
+
+async function loadCatalogs() {
+    const headers = new Headers({ Accept: 'application/json' });
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    if (state.catalogEtag) headers.set('If-None-Match', state.catalogEtag);
+
+    let response;
+    try {
+        response = await fetch('/api/materia-prima/catalogos', { headers });
+    } catch {
+        throw new ApiError('No fue posible conectar con Laravel.', 0);
+    }
+
+    if (response.status === 304 && state.catalogs) {
+        return state.catalogs;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        if (response.status === 401) clearSession();
+        throw new ApiError(
+            errorMessage(data, 'No fue posible actualizar los catálogos de materia prima.'),
+            response.status,
+            data,
+        );
+    }
+
+    state.catalogEtag = response.headers.get('ETag');
+
     return data;
 }
 
@@ -672,7 +705,7 @@ async function loadLots() {
 async function loadAll({ notify = false } = {}) {
     const [summary, catalogs, segments, lots] = await Promise.all([
         api('/api/materia-prima/resumen'),
-        api('/api/materia-prima/catalogos'),
+        loadCatalogs(),
         api('/api/materia-prima/segmentos-pendientes'),
         api(`/api/materia-prima/lotes?${filtersQuery()}`),
     ]);

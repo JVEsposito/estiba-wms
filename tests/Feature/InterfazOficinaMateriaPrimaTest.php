@@ -23,4 +23,26 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
         $this->get('/oficina/materia-prima/envases')
             ->assertRedirect('/oficina/envases/cuenta-corriente');
     }
+
+    public function test_revalida_catalogos_sin_descargarlos_en_cada_refresco(): void
+    {
+        $interfaz = file_get_contents(base_path('resources/js/office-raw-material.js'));
+
+        $this->assertStringContainsString(
+            "headers.set('If-None-Match', state.catalogEtag)",
+            $interfaz,
+        );
+        $this->assertStringContainsString(
+            'response.status === 304 && state.catalogs',
+            $interfaz,
+        );
+        $this->assertStringContainsString(
+            "state.catalogEtag = response.headers.get('ETag')",
+            $interfaz,
+        );
+        $this->assertStringContainsString(
+            'loadCatalogs(),',
+            $interfaz,
+        );
+    }
 }

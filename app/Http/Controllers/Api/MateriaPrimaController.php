@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -67,10 +68,22 @@ class MateriaPrimaController extends Controller
         ]);
     }
 
-    public function catalogos(): JsonResponse
+    public function catalogos(Request $request): Response
     {
         Gate::authorize('consultar-materia-prima');
         $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $camaras = Camara::query()
+            ->where('contenido', ContenidoCamara::MateriaPrima->value)
+            ->where('estado', EstadoCamara::Activa->value)
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nombre', 'updated_at']);
+        $etag = $this->etagCatalogos($temporada, $camaras);
+        $respuestaCondicional = $this->configurarCacheCatalogos(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
         $especies = EspecieValidacion::query()
             ->where('temporada_id', $temporada->id)
             ->where('activo', true)
@@ -105,7 +118,7 @@ class MateriaPrimaController extends Controller
                 'variedad_ids' => $item->variedades->pluck('id')->values(),
             ]);
 
-        return response()->json([
+        return $this->configurarCacheCatalogos(response()->json([
             'temporada' => [
                 'id' => $temporada->id,
                 'codigo' => $temporada->codigo,
@@ -130,12 +143,14 @@ class MateriaPrimaController extends Controller
                 TipoEnvaseRomana::Totes->value,
                 TipoEnvaseRomana::Esponjas->value,
             ],
-            'camaras' => Camara::query()
-                ->where('contenido', ContenidoCamara::MateriaPrima->value)
-                ->where('estado', EstadoCamara::Activa->value)
-                ->orderBy('codigo')
-                ->get(['id', 'codigo', 'nombre']),
-        ]);
+            'camaras' => $camaras
+                ->map(fn (Camara $camara): array => [
+                    'id' => $camara->id,
+                    'codigo' => $camara->codigo,
+                    'nombre' => $camara->nombre,
+                ])
+                ->values(),
+        ]), $etag);
     }
 
     public function segmentosPendientes(): JsonResponse
@@ -380,5 +395,37 @@ class MateriaPrimaController extends Controller
         }
 
         return $relaciones;
+    }
+
+    private function etagCatalogos(Temporada $temporada, Collection $camaras): string
+    {
+        $huella = json_encode([
+            'temporada_id' => $temporada->id,
+            'version_catalogo' => $temporada->version_catalogo,
+            'tipos_producto' => array_column(TipoProductoMateriaPrima::cases(), 'value'),
+            'envases_primarios' => array_column(TipoEnvaseRomana::cases(), 'value'),
+            'camaras' => $camaras
+                ->map(fn (Camara $camara): array => [
+                    'id' => $camara->id,
+                    'codigo' => $camara->codigo,
+                    'nombre' => $camara->nombre,
+                    'actualizada_at' => $camara->updated_at?->toAtomString(),
+                ])
+                ->values()
+                ->all(),
+        ], JSON_THROW_ON_ERROR);
+
+        return 'materia-prima-catalogos-'.hash('sha256', $huella);
+    }
+
+    private function configurarCacheCatalogos(Response $respuesta, string $etag): Response
+    {
+        $respuesta->setEtag($etag);
+        $respuesta->setPrivate();
+        $respuesta->headers->addCacheControlDirective('no-cache');
+        $respuesta->setVary('Authorization');
+        $respuesta->headers->set('Access-Control-Expose-Headers', 'ETag');
+
+        return $respuesta;
     }
 }
