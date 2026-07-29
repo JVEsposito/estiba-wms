@@ -9,6 +9,7 @@ use DOMElement;
 use DOMXPath;
 use DomainException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use RuntimeException;
 use Throwable;
 use ZipArchive;
@@ -107,7 +108,7 @@ class ServicioExportacionRegistroValidacion
             if ($abierto) {
                 $zip->close();
             }
-            @unlink($ruta);
+            File::delete($ruta);
 
             throw $excepcion;
         }
@@ -472,7 +473,7 @@ class ServicioExportacionRegistroValidacion
             throw new RuntimeException('No fue posible crear el archivo temporal RRPP-01.');
         }
 
-        @unlink($base);
+        File::delete($base);
 
         return $base.'.xlsx';
     }

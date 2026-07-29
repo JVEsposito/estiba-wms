@@ -14,6 +14,7 @@ use App\Models\ValidacionPallet;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Validacion\ServicioExportacionRegistroValidacion;
 use App\Services\Validacion\ServicioValidacionPallet;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -146,7 +147,7 @@ class ValidacionPalletController extends Controller
     /**
      * @param  Builder<ValidacionPallet>  $consulta
      * @param  array<string, mixed>  $filtros
-     * @param  array{0:\Carbon\CarbonImmutable,1:\Carbon\CarbonImmutable}|null  $rangoFecha
+     * @param  array{0:CarbonImmutable,1:CarbonImmutable}|null  $rangoFecha
      * @return Builder<ValidacionPallet>
      */
     private function aplicarFiltros(Builder $consulta, array $filtros, ?array $rangoFecha): Builder
