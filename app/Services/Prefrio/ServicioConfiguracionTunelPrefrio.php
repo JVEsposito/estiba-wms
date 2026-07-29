@@ -10,6 +10,7 @@ use App\Models\PosicionTunelPrefrio;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Secuencias\ServicioSecuenciaDocumento;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,20 +19,12 @@ class ServicioConfiguracionTunelPrefrio
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ServicioSecuenciaDocumento $secuencias,
     ) {}
 
     public function siguienteCodigo(): string
     {
-        $mayor = TunelPrefrio::query()
-            ->pluck('codigo')
-            ->map(function (string $codigo): int {
-                return preg_match('/^TUN-(\d+)$/', $codigo, $coincidencias)
-                    ? (int) $coincidencias[1]
-                    : 0;
-            })
-            ->max() ?? 0;
-
-        return sprintf('TUN-%02d', $mayor + 1);
+        return $this->codigo($this->secuencias->consultarSiguiente('tuneles_prefrio'));
     }
 
     /**
@@ -44,10 +37,11 @@ class ServicioConfiguracionTunelPrefrio
         }
 
         return DB::transaction(function () use ($datos, $usuario): TunelPrefrio {
-            TunelPrefrio::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
             $capacidad = (int) $datos['capacidad_posiciones'];
             $tunel = TunelPrefrio::create([
-                'codigo' => $this->siguienteCodigo(),
+                'codigo' => $this->codigo(
+                    $this->secuencias->reservarSiguiente('tuneles_prefrio'),
+                ),
                 'nombre' => Str::of($datos['nombre'])->squish()->toString(),
                 'capacidad_posiciones' => $capacidad,
                 'setpoint_habitual' => $datos['setpoint_habitual'] ?? null,
@@ -64,6 +58,11 @@ class ServicioConfiguracionTunelPrefrio
 
             return $this->cargar($tunel);
         }, attempts: 3);
+    }
+
+    private function codigo(int $numero): string
+    {
+        return sprintf('TUN-%02d', $numero);
     }
 
     /**

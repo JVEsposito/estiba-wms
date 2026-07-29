@@ -21,6 +21,7 @@ use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -33,6 +34,13 @@ class PrefrioApiTest extends TestCase
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         [, $tokenOperador] = $this->acceso(RolUsuario::OperadorPrefrio, 'PF-OP-CONF');
 
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/administracion/prefrio/tuneles/siguiente-codigo')
+            ->assertOk()
+            ->assertJsonPath('data.codigo', 'TUN-01');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
         $tunelId = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/prefrio/tuneles', [
                 'nombre' => 'Túnel California grande',
@@ -46,6 +54,11 @@ class PrefrioApiTest extends TestCase
             ->assertJsonCount(40, 'data.posiciones')
             ->assertJsonPath('data.posiciones.39.etiqueta', 'TUN-01-P40')
             ->json('data.id');
+        $consultas = collect(DB::getQueryLog())
+            ->pluck('query')
+            ->map(fn (string $consulta): string => strtolower($consulta));
+        DB::disableQueryLog();
+        DB::flushQueryLog();
 
         $this->assertDatabaseHas('tuneles_prefrio', [
             'id' => $tunelId,
@@ -53,6 +66,18 @@ class PrefrioApiTest extends TestCase
             'estado_administrativo' => 'activo',
             'estado_tecnico' => 'operativo',
         ]);
+        $this->assertDatabaseHas('secuencias_documentos', [
+            'clave' => 'tuneles_prefrio',
+            'ultimo_numero' => 1,
+        ]);
+        $this->assertFalse(
+            $consultas->contains(fn (string $consulta): bool => str_contains(
+                $consulta,
+                'tuneles_prefrio',
+            ) && str_contains($consulta, 'order by')
+                && str_contains($consulta, 'codigo')),
+            'Crear un túnel no debe recorrer ni bloquear el catálogo de códigos.',
+        );
 
         $this->conToken($tokenOperador)
             ->postJson('/api/administracion/prefrio/tuneles', [

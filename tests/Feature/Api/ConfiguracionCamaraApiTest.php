@@ -8,6 +8,7 @@ use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ConfiguracionCamaraApiTest extends TestCase
@@ -77,11 +78,21 @@ class ConfiguracionCamaraApiTest extends TestCase
     public function test_administrador_crea_codigo_correlativo_y_posiciones_en_una_transaccion(): void
     {
         Camara::create(['codigo' => 'CAM-01', 'nombre' => 'Cámara existente']);
+        DB::table('secuencias_documentos')
+            ->where('clave', 'camaras')
+            ->update(['ultimo_numero' => 1]);
         $administrador = User::factory()->create([
             'rol' => RolUsuario::Administrador,
             'activo' => true,
         ]);
 
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/configuracion/camaras/siguiente-codigo')
+            ->assertOk()
+            ->assertJsonPath('data.codigo', 'CAM-02');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
         $respuesta = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/configuracion/camaras', [
                 'nombre' => 'Cámara de tránsito norte',
@@ -93,6 +104,11 @@ class ConfiguracionCamaraApiTest extends TestCase
                     ['banda' => 2, 'posicion' => 3, 'nivel' => 2],
                 ],
             ]);
+        $consultas = collect(DB::getQueryLog())
+            ->pluck('query')
+            ->map(fn (string $consulta): string => strtolower($consulta));
+        DB::disableQueryLog();
+        DB::flushQueryLog();
 
         $respuesta
             ->assertCreated()
@@ -122,6 +138,18 @@ class ConfiguracionCamaraApiTest extends TestCase
             'nivel' => 2,
             'estado' => EstadoPosicion::FueraDeServicio->value,
         ]);
+        $this->assertDatabaseHas('secuencias_documentos', [
+            'clave' => 'camaras',
+            'ultimo_numero' => 2,
+        ]);
+        $this->assertFalse(
+            $consultas->contains(fn (string $consulta): bool => str_contains(
+                $consulta,
+                'camaras',
+            ) && str_contains($consulta, 'order by')
+                && str_contains($consulta, 'codigo')),
+            'Crear una cámara no debe recorrer ni bloquear el catálogo de códigos.',
+        );
     }
 
     public function test_supervisor_y_operador_no_pueden_configurar_camaras(): void

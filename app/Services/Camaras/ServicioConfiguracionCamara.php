@@ -10,6 +10,7 @@ use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Secuencias\ServicioSecuenciaDocumento;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -19,20 +20,12 @@ class ServicioConfiguracionCamara
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ServicioSecuenciaDocumento $secuencias,
     ) {}
 
     public function siguienteCodigo(): string
     {
-        $mayor = Camara::query()
-            ->pluck('codigo')
-            ->map(function (string $codigo): int {
-                return preg_match('/^CAM-(\d+)$/', $codigo, $coincidencias)
-                    ? (int) $coincidencias[1]
-                    : 0;
-            })
-            ->max() ?? 0;
-
-        return sprintf('CAM-%02d', $mayor + 1);
+        return $this->codigo($this->secuencias->consultarSiguiente('camaras'));
     }
 
     /**
@@ -49,10 +42,10 @@ class ServicioConfiguracionCamara
         }
 
         return DB::transaction(function () use ($datos, $usuario): Camara {
-            Camara::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
-
             $camara = Camara::create([
-                'codigo' => $this->siguienteCodigo(),
+                'codigo' => $this->codigo(
+                    $this->secuencias->reservarSiguiente('camaras'),
+                ),
                 'nombre' => trim($datos['nombre']),
                 'tipo' => $datos['tipo'],
                 'contenido' => $datos['contenido'],
@@ -107,6 +100,11 @@ class ServicioConfiguracionCamara
                 ->loadMax('posiciones', 'posicion')
                 ->loadMax('posiciones', 'nivel');
         }, attempts: 3);
+    }
+
+    private function codigo(int $numero): string
+    {
+        return sprintf('CAM-%02d', $numero);
     }
 
     /**
