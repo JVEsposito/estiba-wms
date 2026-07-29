@@ -304,6 +304,8 @@ XML;
         $peso = $negrita ? 700 : 400;
         $id = $this->uuid("texto|{$nombre}|{$valor}|{$x}|{$y}");
         $nombreXml = $this->xml($nombre);
+        $centroX = $x + intdiv($ancho, 2);
+        $centroY = $y + intdiv($alto, 2);
 
         return <<<XML
 <Item Type="TextDocumentItem">
@@ -317,7 +319,7 @@ XML;
   <Color>FF000000</Color>
   <SampleValue Type="StringContents"><StringValue Base64Encoded="true">{$base64}</StringValue></SampleValue>
   <PrintAsGraphics>False</PrintAsGraphics>
-  <Geometry Type="RectGeometry"><Width>{$ancho}</Width><Height>{$alto}</Height><Left>{$x}</Left><Top>{$y}</Top><AnchoringPoint>4</AnchoringPoint></Geometry>
+  <Geometry Type="RectGeometry"><Width>{$ancho}</Width><Height>{$alto}</Height><Left>{$centroX}</Left><Top>{$centroY}</Top><AnchoringPoint>4</AnchoringPoint></Geometry>
   <FixedContents Base64Encoded="true">{$base64}</FixedContents>
   <Contents Type="ExtendedDataValue"><FixedValue Type="StringContents"><StringValue Base64Encoded="true">{$base64}</StringValue></FixedValue></Contents>
   <BestFitMinimumFontSize>4</BestFitMinimumFontSize>
