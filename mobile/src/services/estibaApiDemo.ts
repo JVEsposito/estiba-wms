@@ -13,6 +13,7 @@ import {
   Movement,
   MaterialCatalog,
   MaterialDispatch,
+  MaterialDispatchSummary,
   MovePayload,
   OpenedSession,
   OperationalNotification,
@@ -265,6 +266,17 @@ export class DemoEstibaApi implements EstibaApi {
     _states?: MaterialDispatch['estado'][],
   ): Promise<MaterialDispatch[]> {
     return [];
+  }
+
+  async listMaterialDispatchSummaries(
+    _token: string,
+    _states?: MaterialDispatch['estado'][],
+  ): Promise<MaterialDispatchSummary[]> {
+    return [];
+  }
+
+  async getMaterialDispatch(_token: string, _dispatchId: string): Promise<MaterialDispatch> {
+    throw new ApiError('No existen despachos de materiales en modo demo.', 404);
   }
 
   async listRefrigeratedLoads(_token: string): Promise<RefrigeratedLoad[]> {

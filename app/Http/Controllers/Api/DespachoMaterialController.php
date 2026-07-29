@@ -11,6 +11,7 @@ use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
 use App\Http\Requests\RetirarDespachoMaterialRequest;
 use App\Http\Resources\DespachoMaterialResource;
+use App\Http\Resources\ResumenDespachoMaterialResource;
 use App\Models\DespachoMaterial;
 use App\Models\FolioMaterial;
 use App\Models\MovimientoInventarioMaterial;
@@ -35,10 +36,22 @@ class DespachoMaterialController extends Controller
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
             ->latest()
             ->limit(100)
-            ->get()
-            ->map(fn (DespachoMaterial $despacho) => $servicio->cargar($despacho));
+            ->get();
+        $vista = $request->query('vista');
 
-        return response()->json(['data' => DespachoMaterialResource::collection($despachos)]);
+        if ($vista === 'resumen') {
+            $servicio->cargarColeccionResumen($despachos);
+        } elseif ($vista === 'operacion') {
+            $servicio->cargarColeccionOperacion($despachos);
+        } else {
+            $servicio->cargarColeccion($despachos);
+        }
+
+        return response()->json([
+            'data' => $vista === 'resumen'
+                ? ResumenDespachoMaterialResource::collection($despachos)
+                : DespachoMaterialResource::collection($despachos),
+        ]);
     }
 
     public function store(

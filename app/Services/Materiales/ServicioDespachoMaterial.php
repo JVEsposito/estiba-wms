@@ -29,10 +29,12 @@ use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
 use App\Services\Temporadas\ServicioTemporadaActiva;
 use DomainException;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 
 class ServicioDespachoMaterial
 {
@@ -86,10 +88,9 @@ class ServicioDespachoMaterial
                 throw new DomainException('El destino no existe o se encuentra inactivo.');
             }
 
-            DespachoMaterial::query()->orderBy('codigo')->lockForUpdate()->get(['id']);
             $despacho = DespachoMaterial::create([
                 'temporada_id' => $temporada->id,
-                'codigo' => $this->siguienteCodigo(),
+                'codigo' => $this->siguienteCodigoBloqueado(),
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $payloadHash,
                 'origen' => $dispositivo
@@ -457,7 +458,63 @@ class ServicioDespachoMaterial
 
     public function cargar(DespachoMaterial $despacho): DespachoMaterial
     {
-        return $despacho->load([
+        return $despacho->load($this->relacionesCarga());
+    }
+
+    /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccion(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load($this->relacionesCarga());
+
+        return $despachos;
+    }
+
+    /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccionResumen(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load([
+            'temporada:id,codigo,nombre,activa',
+            'detalles' => fn ($consulta) => $consulta->withSum(
+                ['reservas as cantidad_reservada_resumen' => fn ($reservas) => $reservas
+                    ->where('estado', EstadoReservaMaterial::Activa->value)],
+                'cantidad',
+            ),
+            'detalles.item.cliente.temporada',
+        ]);
+
+        return $despachos;
+    }
+
+    /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccionOperacion(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load([
+            'temporada:id,codigo,nombre,activa',
+            'detalles.item.cliente.temporada',
+            'detalles.reservas' => fn ($consulta) => $consulta
+                ->where('estado', EstadoReservaMaterial::Activa->value)
+                ->orderBy('orden_fifo'),
+            'detalles.reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
+        ]);
+
+        return $despachos;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function relacionesCarga(): array
+    {
+        return [
             'temporada:id,codigo,nombre,activa',
             'creadoPor:id,name',
             'dispositivo:id,codigo,nombre',
@@ -473,19 +530,28 @@ class ServicioDespachoMaterial
             'detalles.retiros.posicion:id,camara_id,etiqueta',
             'detalles.retiros.usuario:id,name',
             'detalles.retiros.dispositivo:id,codigo,nombre',
-        ]);
+        ];
     }
 
-    private function siguienteCodigo(): string
+    private function siguienteCodigoBloqueado(): string
     {
-        $mayor = DespachoMaterial::query()
-            ->pluck('codigo')
-            ->map(fn (string $codigo): int => preg_match('/^MAT-DES-(\d+)$/', $codigo, $m)
-                ? (int) $m[1]
-                : 0)
-            ->max() ?? 0;
+        $ultimoNumero = DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->lockForUpdate()
+            ->value('ultimo_numero');
 
-        return sprintf('MAT-DES-%06d', $mayor + 1);
+        if ($ultimoNumero === null) {
+            throw new LogicException(
+                'No existe la secuencia configurada para los despachos de materiales.',
+            );
+        }
+
+        $siguienteNumero = ((int) $ultimoNumero) + 1;
+        DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->update(['ultimo_numero' => $siguienteNumero]);
+
+        return sprintf('MAT-DES-%06d', $siguienteNumero);
     }
 
     private function reservarFifo(DetalleDespachoMaterial $detalle): void

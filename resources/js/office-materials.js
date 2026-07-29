@@ -43,6 +43,7 @@ const state = {
 const operationalRefreshIntervalMs = 30000;
 const mainDataSections = new Set(['resumen', 'catalogos', 'inventario', 'despachos']);
 const operationalDataSections = new Set(['resumen', 'inventario', 'despachos']);
+const materialDispatchSummaryPath = '/api/materiales/despachos?vista=resumen';
 
 class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
 function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
@@ -347,7 +348,7 @@ async function loadAll() {
                 api('/api/administracion/materiales/proveedores'),
             ])
             : api('/api/materiales/catalogo'),
-        needsDispatches ? api('/api/materiales/despachos') : Promise.resolve(null),
+        needsDispatches ? api(materialDispatchSummaryPath) : Promise.resolve(null),
         needsInventory ? api('/api/materiales/inventario') : Promise.resolve(null),
     ]);
     if (catalogAdmin) {
@@ -385,7 +386,7 @@ async function refreshOperationalData({ required = false } = {}) {
 
     const needsDispatches = section === 'resumen' || section === 'despachos';
     const operation = state.operationalRefreshPromise || Promise.all([
-        needsDispatches ? api('/api/materiales/despachos') : Promise.resolve(null),
+        needsDispatches ? api(materialDispatchSummaryPath) : Promise.resolve(null),
         api('/api/materiales/inventario'),
     ]);
     const ownsOperation = state.operationalRefreshPromise === null;

@@ -70,6 +70,9 @@ class InterfazOficinaMaterialesTest extends TestCase
         $office = file_get_contents(resource_path('js/office-materials.js'));
         $mobilePolling = file_get_contents(base_path('mobile/src/config/polling.ts'));
         $operationalScreen = file_get_contents(base_path('mobile/src/screens/OperationalScreen.tsx'));
+        $materialDispatchOperation = file_get_contents(
+            base_path('mobile/src/components/MaterialDispatchOperation.tsx'),
+        );
 
         $this->assertIsString($office);
         $this->assertStringContainsString(
@@ -82,10 +85,23 @@ class InterfazOficinaMaterialesTest extends TestCase
         );
         $this->assertStringContainsString('operationalRefreshIntervalMs = 30000', $office);
         $this->assertStringContainsString('if (!mainDataSections.has(section)) return;', $office);
+        $this->assertStringContainsString(
+            "materialDispatchSummaryPath = '/api/materiales/despachos?vista=resumen'",
+            $office,
+        );
 
         $this->assertIsString($mobilePolling);
         $this->assertStringContainsString('OPERATIONAL_POLL_INTERVAL_MS = 30_000', $mobilePolling);
         $this->assertIsString($operationalScreen);
         $this->assertStringContainsString('AppState.currentState', $operationalScreen);
+        $this->assertIsString($materialDispatchOperation);
+        $this->assertStringContainsString(
+            'api.listMaterialDispatchSummaries(auth.token, ALL_STATES)',
+            $materialDispatchOperation,
+        );
+        $this->assertStringContainsString(
+            'api.getMaterialDispatch(auth.token, selectedSummary.id)',
+            $materialDispatchOperation,
+        );
     }
 }

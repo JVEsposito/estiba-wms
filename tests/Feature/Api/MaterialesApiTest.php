@@ -7,6 +7,7 @@ use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\ClienteMaterial;
 use App\Models\CorreccionItemFolioMaterial;
+use App\Models\DespachoMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -18,6 +19,7 @@ use App\Models\RetiroMaterial;
 use App\Models\User;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -273,6 +275,195 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data')
             ->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_listado_despachos_carga_relaciones_sin_consultas_por_cada_registro(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-PERF-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-PERF-0001',
+            0,
+            100,
+            now()->toAtomString(),
+        );
+        $this->crearDespacho($tokenOficina, $item, $destino, 1);
+
+        $consultasConUno = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonCount(1, 'data');
+        });
+
+        foreach (range(1, 5) as $indice) {
+            $this->crearDespacho($tokenOficina, $item, $destino, 1);
+        }
+
+        $consultasConSeis = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonCount(6, 'data');
+        });
+
+        $this->assertLessThanOrEqual(
+            $consultasConUno + 2,
+            $consultasConSeis,
+            'El listado de despachos agregó consultas por cada registro cargado.',
+        );
+    }
+
+    public function test_correlativo_despacho_parte_del_historial_y_no_recorre_la_tabla_al_crear(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        $temporadaId = DB::table('temporadas')->where('activa', true)->value('id');
+
+        foreach ([
+            'MAT-DES-000007',
+            'MAT-DES-000120',
+            'CODIGO-EXTERNO',
+        ] as $indice => $codigo) {
+            DespachoMaterial::create([
+                'temporada_id' => $temporadaId,
+                'codigo' => $codigo,
+                'operacion_id' => (string) Str::uuid(),
+                'payload_hash' => hash('sha256', "despacho-historico-{$indice}"),
+                'origen' => 'oficina',
+                'estado' => 'pendiente',
+                'destino_material_id' => $destino->id,
+                'destino_nombre' => $destino->nombre,
+                'destino_centro_costo' => $destino->centro_costo,
+                'creado_por_user_id' => $administrador->id,
+            ]);
+        }
+
+        DB::table('secuencias_documentos')
+            ->where('clave', 'despachos_materiales')
+            ->delete();
+        $migracion = require database_path(
+            'migrations/2026_07_28_230000_agregar_secuencia_despachos_materiales.php',
+        );
+        $migracion->up();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->conToken($tokenOficina)
+                ->postJson('/api/materiales/despachos', [
+                    'operacion_id' => (string) Str::uuid(),
+                    'destino_material_id' => $destino->id,
+                    'items' => [[
+                        'item_material_id' => $item->id,
+                        'cantidad' => 1,
+                    ]],
+                ])
+                ->assertCreated()
+                ->assertJsonPath('data.codigo', 'MAT-DES-000121');
+
+            $consultas = collect(DB::getQueryLog())
+                ->pluck('query')
+                ->map(fn (string $consulta): string => strtolower($consulta));
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertDatabaseHas('secuencias_documentos', [
+            'clave' => 'despachos_materiales',
+            'ultimo_numero' => 121,
+        ]);
+        $this->assertFalse(
+            $consultas->contains(fn (string $consulta): bool => str_contains(
+                $consulta,
+                'despachos_materiales',
+            ) && str_contains($consulta, 'order by')
+                && str_contains($consulta, 'codigo')),
+            'Crear un despacho no debe recorrer ni bloquear el historial de códigos.',
+        );
+    }
+
+    public function test_listado_resumido_omite_trazabilidad_y_carga_detalle_bajo_demanda(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-RESUMEN-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-RESUMEN-0001',
+            0,
+            20,
+            now()->toAtomString(),
+        );
+        $despachoId = $this->crearDespacho($tokenOficina, $item, $destino, 5);
+
+        $consultasResumen = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos?vista=resumen')
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.items.0.cantidad_reservada', '5.000')
+                ->assertJsonMissingPath('data.0.items.0.sugerencias_fifo')
+                ->assertJsonMissingPath('data.0.items.0.retiros');
+        });
+
+        $consultasOperacion = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos?vista=operacion')
+                ->assertOk()
+                ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.numero_folio', 'MAT-RESUMEN-0001')
+                ->assertJsonPath('data.0.items.0.retiros', [])
+                ->assertJsonMissingPath('data.0.creado_por');
+        });
+
+        $consultasCompletas = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.numero_folio', 'MAT-RESUMEN-0001');
+        });
+
+        $this->assertLessThan(
+            $consultasCompletas,
+            $consultasResumen,
+            'El resumen debe ejecutar menos consultas que el listado con trazabilidad completa.',
+        );
+        $this->assertLessThan(
+            $consultasCompletas,
+            $consultasOperacion,
+            'La vista operacional debe ejecutar menos consultas que la trazabilidad completa.',
+        );
+        $this->assertLessThan(
+            $consultasOperacion,
+            $consultasResumen,
+            'El resumen debe ser más liviano que la vista operacional con FIFO.',
+        );
+
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/despachos/{$despachoId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folioId)
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.cantidad', '5.000')
+            ->assertJsonPath('data.items.0.retiros', []);
     }
 
     public function test_ubicacion_material_exige_folio_preexistente_y_no_permite_altas_manuales(): void
@@ -1233,5 +1424,20 @@ class MaterialesApiTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
+    }
+
+    private function contarConsultas(callable $accion): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $accion();
+
+            return count(DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
     }
 }
