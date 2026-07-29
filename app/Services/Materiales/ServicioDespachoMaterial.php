@@ -473,6 +473,43 @@ class ServicioDespachoMaterial
     }
 
     /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccionResumen(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load([
+            'temporada:id,codigo,nombre,activa',
+            'detalles' => fn ($consulta) => $consulta->withSum(
+                ['reservas as cantidad_reservada_resumen' => fn ($reservas) => $reservas
+                    ->where('estado', EstadoReservaMaterial::Activa->value)],
+                'cantidad',
+            ),
+            'detalles.item.cliente.temporada',
+        ]);
+
+        return $despachos;
+    }
+
+    /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccionOperacion(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load([
+            'temporada:id,codigo,nombre,activa',
+            'detalles.item.cliente.temporada',
+            'detalles.reservas' => fn ($consulta) => $consulta
+                ->where('estado', EstadoReservaMaterial::Activa->value)
+                ->orderBy('orden_fifo'),
+            'detalles.reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
+        ]);
+
+        return $despachos;
+    }
+
+    /**
      * @return array<int, mixed>
      */
     private function relacionesCarga(): array
