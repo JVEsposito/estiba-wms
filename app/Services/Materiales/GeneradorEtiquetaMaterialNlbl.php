@@ -89,8 +89,8 @@ class GeneradorEtiquetaMaterialNlbl
             $detalleAncho = max(16000, $ancho - ($margen * 3) - $lado);
             $detalleY = max(9500, (int) round($alto * 0.22));
         } else {
-            $barcodeY = max(9000, (int) round($alto * 0.21));
-            $barcodeAlto = max(12000, (int) round($alto * 0.25));
+            $barcodeY = max(8500, (int) round($alto * 0.17));
+            $barcodeAlto = max(9000, (int) round($alto * 0.18));
             $items[] = $this->code128(
                 $folio,
                 $margen,
@@ -100,7 +100,7 @@ class GeneradorEtiquetaMaterialNlbl
                 $z++,
             );
             $detalleAncho = $ancho - ($margen * 2);
-            $detalleY = $barcodeY + $barcodeAlto + max(6500, (int) round($alto * 0.12));
+            $detalleY = $barcodeY + $barcodeAlto + max(5000, (int) round($alto * 0.08));
         }
 
         $lineas = [
@@ -113,7 +113,12 @@ class GeneradorEtiquetaMaterialNlbl
             $lineas[] = 'BLOQUEADO: '.($etiqueta['motivo_bloqueo'] ?: 'Sin motivo');
         }
 
-        $altoLinea = max(4200, (int) round($alto * 0.082));
+        $altoLineaBase = max(4200, (int) round($alto * 0.082));
+        $altoDisponible = max(1, $alto - 1200 - $detalleY);
+        $altoLinea = min(
+            $altoLineaBase,
+            max(3200, (int) floor($altoDisponible / max(1, count($lineas)))),
+        );
         $tamanoBase = max(7, min(12, (int) round($alto / 6200)));
         foreach ($lineas as $indice => $linea) {
             $y = $detalleY + ($indice * $altoLinea);
