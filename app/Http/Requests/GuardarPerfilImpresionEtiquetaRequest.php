@@ -33,10 +33,19 @@ class GuardarPerfilImpresionEtiquetaRequest extends FormRequest
             'lenguaje' => ['required', Rule::in(['zpl', 'bpl-z'])],
             'dpi' => ['required', 'integer', Rule::in([203, 300, 600])],
             'ancho_mm' => ['required', 'numeric', 'between:30,200', 'decimal:0,2'],
-            'alto_mm' => ['required', 'numeric', 'between:20,150', 'decimal:0,2'],
+            'alto_mm' => ['required', 'numeric', 'between:20,200', 'decimal:0,2'],
             'orientacion' => ['required', Rule::in(['horizontal', 'vertical'])],
             'predeterminado' => ['required', 'boolean'],
             'activo' => ['required', 'boolean'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'ancho_mm.between' => 'El ancho debe estar entre :min y :max mm.',
+            'alto_mm.between' => 'El alto debe estar entre :min y :max mm.',
         ];
     }
 
