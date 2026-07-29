@@ -154,17 +154,36 @@ class TransformacionMaterialApiTest extends TestCase
             ->assertJsonPath('data.0.versiones.0.numero_version', 2);
 
         $operacionPlanificacion = (string) Str::uuid();
-        $planificada = $this->conToken($tokenOficina)
-            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
-                'operacion_id' => $operacionPlanificacion,
-                'version_conocida' => 1,
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.estado', 'planificada')
-            ->assertJsonPath('data.version', 2)
-            ->assertJsonCount(2, 'data.reservas')
-            ->assertJsonPath('data.eventos.1.tipo', 'planificada')
-            ->json('data');
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $planificada = $this->conToken($tokenOficina)
+                ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
+                    'operacion_id' => $operacionPlanificacion,
+                    'version_conocida' => 1,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.estado', 'planificada')
+                ->assertJsonPath('data.version', 2)
+                ->assertJsonCount(2, 'data.reservas')
+                ->assertJsonPath('data.eventos.1.tipo', 'planificada')
+                ->json('data');
+            $consultasFifo = collect(DB::getQueryLog())
+                ->filter(fn (array $consulta): bool => str_contains($consulta['query'], 'folios_materiales')
+                    && str_contains($consulta['query'], 'cantidad_actual')
+                    && str_contains($consulta['query'], 'cantidad_reservada')
+                    && str_contains($consulta['query'], 'fecha_ingreso'))
+                ->values();
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertCount(2, $consultasFifo);
+        $this->assertTrue($consultasFifo->every(
+            fn (array $consulta): bool => str_contains(strtolower($consulta['query']), 'limit 1'),
+        ));
 
         $this->conToken($tokenOficina)
             ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [

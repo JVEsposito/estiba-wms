@@ -702,6 +702,83 @@ class MaterialesApiTest extends TestCase
         $this->assertSame(3, $camara->refresh()->version_plano);
     }
 
+    public function test_reserva_fifo_bloquea_solo_los_folios_que_necesita(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicionUno, $posicionDos, $posicionTres] = $this->crearCamara(
+            'MAT-FIFO-ACOTADO',
+            ContenidoCamara::Materiales,
+            3,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioNecesario = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicionUno,
+            $sesion,
+            $item,
+            'FGE3000001',
+            0,
+            10,
+            now()->subDays(2)->toAtomString(),
+        );
+        $folioSiguiente = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicionDos,
+            $sesion,
+            $item,
+            'FGE3000002',
+            1,
+            10,
+            now()->subDay()->toAtomString(),
+        );
+        $folioPosterior = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicionTres,
+            $sesion,
+            $item,
+            'FGE3000003',
+            2,
+            10,
+            now()->toAtomString(),
+        );
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            $this->conToken($tokenOficina)
+                ->postJson('/api/materiales/despachos', [
+                    'operacion_id' => (string) Str::uuid(),
+                    'destino_material_id' => $destino->id,
+                    'items' => [[
+                        'item_material_id' => $item->id,
+                        'cantidad' => 5,
+                    ]],
+                ])
+                ->assertCreated()
+                ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folioNecesario)
+                ->assertJsonCount(1, 'data.items.0.sugerencias_fifo');
+            $consultasFifo = collect(DB::getQueryLog())
+                ->filter(fn (array $consulta): bool => str_contains($consulta['query'], 'folios_materiales')
+                    && str_contains($consulta['query'], 'cantidad_actual')
+                    && str_contains($consulta['query'], 'cantidad_reservada')
+                    && str_contains($consulta['query'], 'fecha_ingreso'))
+                ->values();
+        } finally {
+            DB::disableQueryLog();
+            DB::flushQueryLog();
+        }
+
+        $this->assertCount(1, $consultasFifo);
+        $this->assertStringContainsString('limit 1', strtolower($consultasFifo->first()['query']));
+        $this->assertSame('5.000', FolioMaterial::findOrFail($folioNecesario)->cantidad_reservada);
+        $this->assertSame('0.000', FolioMaterial::findOrFail($folioSiguiente)->cantidad_reservada);
+        $this->assertSame('0.000', FolioMaterial::findOrFail($folioPosterior)->cantidad_reservada);
+    }
+
     public function test_despacho_excluye_folios_bloqueados_de_la_reserva_fifo(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
