@@ -87,7 +87,8 @@ class CerrarRecepcionRomanaRequest extends FormRequest
             }
 
             $declarados = $recepcion->detallesEnvases()
-                ->pluck('tipo_envase')
+                ->get(['tipo_envase'])
+                ->map(fn ($detalle): string => $detalle->tipo_envase->value)
                 ->sort()
                 ->values()
                 ->all();
