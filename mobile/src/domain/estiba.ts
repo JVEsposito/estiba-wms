@@ -281,6 +281,15 @@ export type MaterialDispatch = {
   created_at: string;
 };
 
+export type MaterialDispatchSummary = Omit<
+  MaterialDispatch,
+  'cancelacion' | 'creado_por' | 'dispositivo' | 'items'
+> & {
+  items: Array<Omit<MaterialDispatchItem, 'retiros' | 'sugerencias_fifo'>>;
+  cancelado_at?: string | null;
+  updated_at: string;
+};
+
 export type Dock = {
   id: string;
   codigo: string;

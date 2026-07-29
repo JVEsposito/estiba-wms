@@ -14,6 +14,7 @@ import {
   Movement,
   MaterialCatalog,
   MaterialDispatch,
+  MaterialDispatchSummary,
   MovePayload,
   OpenedSession,
   OperationalNotification,
@@ -62,6 +63,11 @@ export interface EstibaApi {
     token: string,
     states?: MaterialDispatch['estado'][],
   ): Promise<MaterialDispatch[]>;
+  listMaterialDispatchSummaries(
+    token: string,
+    states?: MaterialDispatch['estado'][],
+  ): Promise<MaterialDispatchSummary[]>;
+  getMaterialDispatch(token: string, dispatchId: string): Promise<MaterialDispatch>;
   createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch>;
   withdrawMaterial(token: string, dispatchId: string, payload: WithdrawMaterialPayload): Promise<MaterialDispatch>;
   listMaterialTransformations(token: string): Promise<MaterialTransformationOrder[]>;
@@ -206,10 +212,29 @@ class HttpEstibaApi implements EstibaApi {
   ) {
     const stateFilter = encodeURIComponent(states.join(','));
     const response = await this.request<ApiList<MaterialDispatch>>(
-      `/api/materiales/despachos?estados=${stateFilter}`,
+      `/api/materiales/despachos?estados=${stateFilter}&vista=operacion`,
       token,
     );
     return response.data;
+  }
+
+  async listMaterialDispatchSummaries(
+    token: string,
+    states: MaterialDispatch['estado'][] = ['pendiente', 'parcial'],
+  ) {
+    const stateFilter = encodeURIComponent(states.join(','));
+    const response = await this.request<ApiList<MaterialDispatchSummary>>(
+      `/api/materiales/despachos?estados=${stateFilter}&vista=resumen`,
+      token,
+    );
+    return response.data;
+  }
+
+  async getMaterialDispatch(token: string, dispatchId: string) {
+    return (await this.request<ApiItem<MaterialDispatch>>(
+      `/api/materiales/despachos/${dispatchId}`,
+      token,
+    )).data;
   }
 
   async createMaterialDispatch(token: string, payload: CreateMaterialDispatchPayload) {
@@ -472,6 +497,8 @@ function createUnavailableApi(message: string): EstibaApi {
     move: unavailable,
     getMaterialCatalog: unavailable,
     listMaterialDispatches: unavailable,
+    listMaterialDispatchSummaries: unavailable,
+    getMaterialDispatch: unavailable,
     createMaterialDispatch: unavailable,
     withdrawMaterial: unavailable,
     listMaterialTransformations: unavailable,

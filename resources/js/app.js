@@ -363,7 +363,7 @@ async function loadApplication() {
             api('/api/camaras'),
             api('/api/condiciones-sag'),
             api('/api/materiales/catalogo'),
-            api('/api/materiales/despachos?estados=pendiente,parcial'),
+            api('/api/materiales/despachos?estados=pendiente,parcial&vista=operacion'),
         ]);
 
         state.cameras = cameraResponse.data || [];
@@ -1139,7 +1139,7 @@ async function dispatchMaterial(form) {
 async function refreshMaterialData() {
     const [catalog, dispatchResponse] = await Promise.all([
         api('/api/materiales/catalogo'),
-        api('/api/materiales/despachos?estados=pendiente,parcial'),
+        api('/api/materiales/despachos?estados=pendiente,parcial&vista=operacion'),
     ]);
     state.materialCatalog = catalog || { items: [], destinos: [] };
     state.materialDispatches = dispatchResponse.data || [];

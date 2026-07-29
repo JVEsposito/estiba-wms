@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
-import { AuthSession, MaterialDispatch } from '../domain/estiba';
+import { AuthSession, MaterialDispatch, MaterialDispatchSummary } from '../domain/estiba';
 import { EstibaApi } from '../services/estibaApi';
 import { colors } from '../theme/colors';
 
@@ -39,8 +39,12 @@ export function MaterialDispatchOperation({
 }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < 930;
-  const [dispatches, setDispatches] = useState<MaterialDispatch[]>([]);
+  const [dispatches, setDispatches] = useState<MaterialDispatchSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<MaterialDispatch | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [detailRevision, setDetailRevision] = useState(0);
   const [filter, setFilter] = useState<QueueFilter>('activas');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -52,12 +56,13 @@ export function MaterialDispatchOperation({
     if (filter === 'completadas') return dispatch.estado === 'completado' || dispatch.estado === 'cancelado';
     return true;
   }), [dispatches, filter]);
-  const selected = useMemo(
+  const selectedSummary = useMemo(
     () => filtered.find((dispatch) => dispatch.id === selectedId)
       ?? filtered[0]
       ?? null,
     [filtered, selectedId],
   );
+  const selected = selectedDetail?.id === selectedSummary?.id ? selectedDetail : null;
   const activeCount = dispatches.filter(
     (dispatch) => dispatch.estado === 'pendiente' || dispatch.estado === 'parcial',
   ).length;
@@ -82,12 +87,50 @@ export function MaterialDispatchOperation({
     };
   }, []);
 
+  useEffect(() => {
+    if (!selectedSummary) {
+      setSelectedDetail(null);
+      setDetailError('');
+      setDetailBusy(false);
+      return;
+    }
+
+    let active = true;
+    setSelectedDetail((current) => current?.id === selectedSummary.id ? current : null);
+    setDetailError('');
+    setDetailBusy(true);
+    void api.getMaterialDispatch(auth.token, selectedSummary.id)
+      .then((loaded) => {
+        if (active) setSelectedDetail(loaded);
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setDetailError(reason instanceof Error
+          ? reason.message
+          : 'No fue posible cargar el detalle del despacho.');
+        onConnectionFailure(reason);
+      })
+      .finally(() => {
+        if (active) setDetailBusy(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    api,
+    auth.token,
+    detailRevision,
+    selectedSummary?.id,
+    selectedSummary?.updated_at,
+  ]);
+
   async function refresh(quiet: boolean) {
     if (pollInFlight.current) return;
     pollInFlight.current = true;
     if (!quiet) setBusy(true);
     try {
-      const loaded = await api.listMaterialDispatches(auth.token, ALL_STATES);
+      const loaded = await api.listMaterialDispatchSummaries(auth.token, ALL_STATES);
       setDispatches(loaded);
       setSelectedId((current) => loaded.some((dispatch) => dispatch.id === current)
         ? current
@@ -96,6 +139,7 @@ export function MaterialDispatchOperation({
           ?? null);
       setError('');
       setLastSync(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }));
+      setDetailRevision((current) => current + 1);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No fue posible cargar los despachos.');
       onConnectionFailure(reason);
@@ -142,7 +186,7 @@ export function MaterialDispatchOperation({
               <Pressable
                 key={dispatch.id}
                 onPress={() => setSelectedId(dispatch.id)}
-                style={[styles.queueItem, selected?.id === dispatch.id && styles.queueItemSelected]}
+                style={[styles.queueItem, selectedSummary?.id === dispatch.id && styles.queueItemSelected]}
               >
                 <View style={styles.queueTop}>
                   <Text style={styles.queueCode}>{dispatch.codigo}</Text>
@@ -273,6 +317,24 @@ export function MaterialDispatchOperation({
                 </View>
               ) : null}
             </>
+          ) : selectedSummary ? (
+            <View style={styles.emptyDetail}>
+              {detailBusy ? <ActivityIndicator color={colors.cyan} size="large" /> : null}
+              <Text style={styles.emptyTitle}>
+                {detailError ? 'No fue posible abrir la orden' : 'Cargando detalle…'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {detailError || `${selectedSummary.codigo} · ${selectedSummary.destino.nombre}`}
+              </Text>
+              {detailError ? (
+                <Pressable
+                  onPress={() => setDetailRevision((current) => current + 1)}
+                  style={styles.refreshButton}
+                >
+                  <Text style={styles.refreshText}>Reintentar</Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : (
             <View style={styles.emptyDetail}>
               <Text style={styles.emptyTitle}>Sin despachos de materiales</Text>

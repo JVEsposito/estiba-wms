@@ -322,6 +322,77 @@ class MaterialesApiTest extends TestCase
         );
     }
 
+    public function test_listado_resumido_omite_trazabilidad_y_carga_detalle_bajo_demanda(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('MAT-RESUMEN-01', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-RESUMEN-0001',
+            0,
+            20,
+            now()->toAtomString(),
+        );
+        $despachoId = $this->crearDespacho($tokenOficina, $item, $destino, 5);
+
+        $consultasResumen = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos?vista=resumen')
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.items.0.cantidad_reservada', '5.000')
+                ->assertJsonMissingPath('data.0.items.0.sugerencias_fifo')
+                ->assertJsonMissingPath('data.0.items.0.retiros');
+        });
+
+        $consultasOperacion = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos?vista=operacion')
+                ->assertOk()
+                ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.numero_folio', 'MAT-RESUMEN-0001')
+                ->assertJsonPath('data.0.items.0.retiros', [])
+                ->assertJsonMissingPath('data.0.creado_por');
+        });
+
+        $consultasCompletas = $this->contarConsultas(function () use ($tokenOficina): void {
+            $this->conToken($tokenOficina)
+                ->getJson('/api/materiales/despachos')
+                ->assertOk()
+                ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.numero_folio', 'MAT-RESUMEN-0001');
+        });
+
+        $this->assertLessThan(
+            $consultasCompletas,
+            $consultasResumen,
+            'El resumen debe ejecutar menos consultas que el listado con trazabilidad completa.',
+        );
+        $this->assertLessThan(
+            $consultasCompletas,
+            $consultasOperacion,
+            'La vista operacional debe ejecutar menos consultas que la trazabilidad completa.',
+        );
+        $this->assertLessThan(
+            $consultasOperacion,
+            $consultasResumen,
+            'El resumen debe ser más liviano que la vista operacional con FIFO.',
+        );
+
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/despachos/{$despachoId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folioId)
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.cantidad', '5.000')
+            ->assertJsonPath('data.items.0.retiros', []);
+    }
+
     public function test_ubicacion_material_exige_folio_preexistente_y_no_permite_altas_manuales(): void
     {
         [$administrador] = $this->crearAdministrador();
