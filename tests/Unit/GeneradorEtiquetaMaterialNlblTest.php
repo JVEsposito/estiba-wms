@@ -3,6 +3,8 @@
 namespace Tests\Unit;
 
 use App\Services\Materiales\GeneradorEtiquetaMaterialNlbl;
+use App\Services\Materiales\GeneradorEtiquetaMaterialPdf;
+use App\Services\Materiales\GeneradorEtiquetaMaterialZpl;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
@@ -35,6 +37,26 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         );
     }
 
+    public function test_code128_incluye_todos_los_datos_en_una_bixolon_50_por_100(): void
+    {
+        $formato = $this->generarFormato(
+            [
+                'fabricante' => 'Bixolon',
+                'modelo' => 'SLP-TX400',
+                'ancho_mm' => 50,
+                'alto_mm' => 100,
+                'orientacion' => 'horizontal',
+            ],
+            'code128',
+        );
+
+        $this->assertTextosDentroDelArea($formato, 100000, 50000);
+        $this->assertStringContainsString('<Name>Código Code 128</Name>', $formato);
+        $this->assertContenidoCompleto($formato);
+        preg_match_all('#<Name>Detalle \\d+</Name>#', $formato, $detalles);
+        $this->assertCount(6, $detalles[0]);
+    }
+
     public function test_mantiene_los_textos_dentro_de_una_etiqueta_bixolon_100_por_200_vertical(): void
     {
         $formato = $this->generarFormato(
@@ -51,6 +73,44 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $this->assertTextosDentroDelArea($formato, 100000, 200000);
         $this->assertStringContainsString('<Name>Código Code 128</Name>', $formato);
         $this->assertStringContainsString('<Name>BIXOLON SLP-TX400</Name>', $formato);
+        $this->assertContenidoCompleto($formato);
+    }
+
+    public function test_pdf_y_zpl_incluyen_los_mismos_datos_completos(): void
+    {
+        $etiqueta = $this->etiqueta();
+        $perfil = [
+            'fabricante' => 'Zebra',
+            'modelo' => 'ZT231',
+            'dpi' => 203,
+            'ancho_mm' => 100,
+            'alto_mm' => 200,
+            'orientacion' => 'vertical',
+        ];
+        $contenidos = [
+            'MCCJ01 · CAJA PLÁSTICA 30X50X150',
+            'Proveedor: MULTIFRUTA S.A',
+            'Fecha recepción: 29/07/2026 13:14',
+        ];
+
+        $pdf = (new GeneradorEtiquetaMaterialPdf)->generar([$etiqueta], $perfil);
+        foreach ($contenidos as $esperado) {
+            $esperadoPdf = iconv('UTF-8', 'Windows-1252//TRANSLIT', $esperado)
+                ?: $esperado;
+            $this->assertStringContainsString($esperadoPdf, $pdf);
+        }
+
+        foreach (['qr', 'code128'] as $simbologia) {
+            $zpl = (new GeneradorEtiquetaMaterialZpl)->generar(
+                [$etiqueta],
+                $perfil,
+                simbologia: $simbologia,
+            );
+            foreach ($contenidos as $esperado) {
+                $this->assertStringContainsString($esperado, $zpl);
+            }
+            $this->assertStringNotContainsString('…', $zpl);
+        }
     }
 
     /**
@@ -61,22 +121,7 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $metodo = new ReflectionMethod(GeneradorEtiquetaMaterialNlbl::class, 'formato');
         $formato = $metodo->invoke(
             new GeneradorEtiquetaMaterialNlbl,
-            [
-                'numero_folio' => 'FGE0000001',
-                'cliente_codigo' => 'MC-001',
-                'cliente_nombre' => 'MACE',
-                'item_codigo' => 'MCCJ01',
-                'item_nombre' => 'CAJA PLÁSTICA 30X50X150',
-                'cantidad' => '680.000',
-                'unidad_medida' => 'unidad',
-                'origen' => 'recepcion',
-                'numero_guia' => '147092',
-                'lote_proveedor' => null,
-                'proveedor_nombre' => 'MULTIFRUTA S.A',
-                'fecha_recepcion' => '29/07/2026 13:14',
-                'bloqueado' => false,
-                'motivo_bloqueo' => null,
-            ],
+            $this->etiqueta(),
             $perfil,
             $simbologia,
             'Etiqueta de prueba',
@@ -85,6 +130,27 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $this->assertIsString($formato);
 
         return $formato;
+    }
+
+    /** @return array<string, mixed> */
+    private function etiqueta(): array
+    {
+        return [
+            'numero_folio' => 'FGE0000001',
+            'cliente_codigo' => 'MC-001',
+            'cliente_nombre' => 'MACE',
+            'item_codigo' => 'MCCJ01',
+            'item_nombre' => 'CAJA PLÁSTICA 30X50X150',
+            'cantidad' => '680.000',
+            'unidad_medida' => 'unidad',
+            'origen' => 'recepcion',
+            'numero_guia' => '147092',
+            'lote_proveedor' => null,
+            'proveedor_nombre' => 'MULTIFRUTA S.A',
+            'fecha_recepcion' => '29/07/2026 13:14',
+            'bloqueado' => false,
+            'motivo_bloqueo' => null,
+        ];
     }
 
     private function assertContenidoCompleto(string $formato): void

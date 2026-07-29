@@ -76,7 +76,6 @@ class GeneradorEtiquetaMaterialPdf
         $tamano = max(6, min(10, $alto * 0.035));
         $salto = max(8, $tamano * 1.35);
         $y = $barcodeY - max(22, $alto * 0.13);
-        $maximo = max(22, (int) floor(($ancho - ($margen * 2)) / ($tamano * 0.52)));
         $lineas = [
             $etiqueta['cliente_codigo'].' · '.$etiqueta['cliente_nombre'],
             $etiqueta['item_codigo'].' · '.$etiqueta['item_nombre'],
@@ -91,12 +90,20 @@ class GeneradorEtiquetaMaterialPdf
             if ($y < 5) {
                 break;
             }
+            $texto = (string) $linea;
+            $negrita = $indice < 3
+                || ($etiqueta['bloqueado'] && $indice === count($lineas) - 1);
             $contenido .= $this->texto(
                 $margen,
                 $y,
-                $tamano,
-                $this->recortar((string) $linea, $maximo),
-                $indice < 3 || ($etiqueta['bloqueado'] && $indice === count($lineas) - 1),
+                $this->tamanoDetalle(
+                    $texto,
+                    $ancho - ($margen * 2),
+                    $tamano,
+                    $negrita,
+                ),
+                $texto,
+                $negrita,
             );
             $y -= $salto;
         }
@@ -165,7 +172,21 @@ class GeneradorEtiquetaMaterialPdf
         return [
             'Guía: '.$etiqueta['numero_guia'].' · Lote: '.($etiqueta['lote_proveedor'] ?: '—'),
             'Proveedor: '.$etiqueta['proveedor_nombre'],
+            'Fecha recepción: '.(($etiqueta['fecha_recepcion'] ?? null) ?: '—'),
         ];
+    }
+
+    private function tamanoDetalle(
+        string $texto,
+        float $ancho,
+        float $maximo,
+        bool $negrita,
+    ): float {
+        $caracteres = max(1, mb_strlen($texto));
+        $factor = $negrita ? 0.62 : 0.55;
+        $calculado = $ancho / ($caracteres * $factor);
+
+        return max(4, min($maximo, floor($calculado)));
     }
 
     private function texto(
@@ -248,14 +269,5 @@ class GeneradorEtiquetaMaterialPdf
         return ($perfil['orientacion'] ?? 'horizontal') === 'vertical'
             ? [min($ancho, $alto), max($ancho, $alto)]
             : [max($ancho, $alto), min($ancho, $alto)];
-    }
-
-    private function recortar(string $texto, int $maximo): string
-    {
-        if (mb_strlen($texto) <= $maximo) {
-            return $texto;
-        }
-
-        return rtrim(mb_substr($texto, 0, max(1, $maximo - 1))).'…';
     }
 }

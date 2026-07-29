@@ -71,7 +71,7 @@ class GeneradorEtiquetaMaterialZpl
                         + max(38, (int) round($alto * 0.10));
                 }
                 $fontHeight = max(17, (int) round($alto * 0.055));
-                $lineHeight = max(22, (int) round($alto * 0.072));
+                $lineHeightBase = max(22, (int) round($alto * 0.072));
                 $lineas = [
                     $etiqueta['cliente_codigo'].' · '.$etiqueta['cliente_nombre'],
                     $etiqueta['item_codigo'].' · '.$etiqueta['item_nombre'],
@@ -82,17 +82,32 @@ class GeneradorEtiquetaMaterialZpl
                     $lineas[] = 'BLOQUEADO: '.($etiqueta['motivo_bloqueo'] ?: 'Sin motivo');
                 }
 
+                $lineHeight = $lineHeightBase;
+                if (count($lineas) > 1) {
+                    $altoDisponible = max(1, $alto - 5 - $lineY - $fontHeight);
+                    $lineHeight = min(
+                        $lineHeightBase,
+                        max($fontHeight, (int) floor($altoDisponible / (count($lineas) - 1))),
+                    );
+                }
+
                 foreach ($lineas as $indice => $linea) {
                     $y = $lineY + ($indice * $lineHeight);
                     if ($y + $fontHeight >= $alto - 5) {
                         break;
                     }
+                    $texto = (string) $linea;
+                    [$altoTexto, $anchoTexto] = $this->tamanoDetalle(
+                        $texto,
+                        $ancho - ($margen * 2),
+                        $fontHeight,
+                    );
                     $contenido .= $this->texto(
                         $margen,
                         $y,
-                        $fontHeight,
-                        max(14, (int) round($fontHeight * 0.82)),
-                        $this->recortar((string) $linea, max(20, (int) floor($ancho / ($fontHeight * 0.62)))),
+                        $altoTexto,
+                        $anchoTexto,
+                        $texto,
                     );
                 }
 
@@ -136,7 +151,26 @@ class GeneradorEtiquetaMaterialZpl
         return [
             'Guía: '.$etiqueta['numero_guia'].' · Lote: '.($etiqueta['lote_proveedor'] ?: '—'),
             'Proveedor: '.$etiqueta['proveedor_nombre'],
+            'Fecha recepción: '.(($etiqueta['fecha_recepcion'] ?? null) ?: '—'),
         ];
+    }
+
+    /** @return array{int, int} */
+    private function tamanoDetalle(
+        string $texto,
+        int $ancho,
+        int $altoMaximo,
+    ): array {
+        $caracteres = max(1, mb_strlen($texto));
+        $anchoBase = max(14, (int) round($altoMaximo * 0.82));
+        $anchoCalculado = (int) floor($ancho / ($caracteres * 0.72));
+        $anchoFuente = max(8, min($anchoBase, $anchoCalculado));
+        $altoFuente = max(
+            10,
+            min($altoMaximo, (int) round($anchoFuente / 0.82)),
+        );
+
+        return [$altoFuente, $anchoFuente];
     }
 
     private function texto(
@@ -165,14 +199,5 @@ class GeneradorEtiquetaMaterialZpl
             ['\\5C', '\\5E', '\\7E', ' ', ' '],
             $valor,
         );
-    }
-
-    private function recortar(string $texto, int $maximo): string
-    {
-        if (mb_strlen($texto) <= $maximo) {
-            return $texto;
-        }
-
-        return rtrim(mb_substr($texto, 0, max(1, $maximo - 1))).'…';
     }
 }
