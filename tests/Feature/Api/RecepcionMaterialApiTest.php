@@ -726,20 +726,20 @@ class RecepcionMaterialApiTest extends TestCase
             Carbon::parse('2026-07-30 16:45:00'),
             fn () => $this->conToken($token)
                 ->post(
-                "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
-                [
-                    'operacion_id' => (string) Str::uuid(),
-                    'perfil_id' => $perfil->id,
-                    'formato' => 'nlbl',
-                    'simbologia' => 'qr',
-                    'canal' => 'oficina_descarga',
-                    'folio_ids' => [$folio['id']],
-                    'copias' => 1,
-                ],
-                ['Accept' => 'application/octet-stream'],
-            )
-            ->assertOk()
-            ->assertHeader('content-type', 'application/octet-stream')
+                    "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
+                    [
+                        'operacion_id' => (string) Str::uuid(),
+                        'perfil_id' => $perfil->id,
+                        'formato' => 'nlbl',
+                        'simbologia' => 'qr',
+                        'canal' => 'oficina_descarga',
+                        'folio_ids' => [$folio['id']],
+                        'copias' => 1,
+                    ],
+                    ['Accept' => 'application/octet-stream'],
+                )
+                ->assertOk()
+                ->assertHeader('content-type', 'application/octet-stream')
                 ->assertHeader(
                     'content-disposition',
                     'attachment; filename="etiquetas-GD-REC-001.nlbl"',
