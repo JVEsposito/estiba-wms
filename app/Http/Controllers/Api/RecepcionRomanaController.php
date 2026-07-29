@@ -305,6 +305,9 @@ class RecepcionRomanaController extends Controller
                 'tipo_envase' => $detalle->tipo_envase->value,
                 'cantidad_declarada' => $detalle->cantidad_declarada,
                 'cantidad_validada' => $detalle->cantidad_validada,
+                'tara_unitaria_salida' => $detalle->tara_unitaria_salida !== null
+                    ? (float) $detalle->tara_unitaria_salida
+                    : null,
                 'diferencia' => $detalle->cantidad_validada === null
                     ? null
                     : $detalle->cantidad_validada - $detalle->cantidad_declarada,
@@ -314,9 +317,19 @@ class RecepcionRomanaController extends Controller
             'patente_carro' => $recepcion->patente_carro,
             'rut_conductor' => $recepcion->rut_conductor,
             'nombre_conductor' => $recepcion->nombre_conductor,
-            'peso_bruto' => (float) $recepcion->peso_bruto,
+            'peso_bruto' => $recepcion->peso_bruto !== null ? (float) $recepcion->peso_bruto : null,
             'peso_tara' => $recepcion->peso_tara !== null ? (float) $recepcion->peso_tara : null,
             'peso_neto' => $recepcion->peso_neto !== null ? (float) $recepcion->peso_neto : null,
+            'salida_sin_envases' => $recepcion->salida_sin_envases,
+            'peso_tara_envases' => $recepcion->peso_tara_envases !== null
+                ? (float) $recepcion->peso_tara_envases
+                : null,
+            'peso_tara_total' => $recepcion->peso_tara !== null
+                ? round(
+                    (float) $recepcion->peso_tara + (float) ($recepcion->peso_tara_envases ?? 0),
+                    3,
+                )
+                : null,
             'tipo_envase_calculo_neto' => $recepcion->tipo_envase_calculo_neto,
             'cantidad_envase_calculo_neto' => $recepcion->cantidad_envase_calculo_neto,
             'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null

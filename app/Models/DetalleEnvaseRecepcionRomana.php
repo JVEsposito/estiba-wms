@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'tipo_envase',
     'cantidad_declarada',
     'cantidad_validada',
+    'tara_unitaria_salida',
 ])]
 class DetalleEnvaseRecepcionRomana extends Model
 {
@@ -31,6 +32,7 @@ class DetalleEnvaseRecepcionRomana extends Model
             'tipo_envase' => TipoEnvaseRomana::class,
             'cantidad_declarada' => 'integer',
             'cantidad_validada' => 'integer',
+            'tara_unitaria_salida' => 'decimal:3',
         ];
     }
 }

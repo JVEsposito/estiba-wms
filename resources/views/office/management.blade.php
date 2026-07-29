@@ -97,7 +97,7 @@
                     <div class="management-kpi__top"><span>RECEPCIÓN ROMANA</span><i aria-hidden="true">⚖</i></div>
                     <strong id="weighbridgeNetWeightKpi">—</strong>
                     <p>kg netos recibidos hoy</p>
-                    <div class="kpi-split"><span><b id="weighbridgeClosedKpi">—</b> cerradas hoy</span><span><b id="weighbridgePendingKpi">—</b> pendientes destare</span></div>
+                    <div class="kpi-split"><span><b id="weighbridgeClosedKpi">—</b> cerradas hoy</span><span><b id="weighbridgePendingKpi">—</b> pendientes de cierre</span></div>
                     <small id="weighbridgeDetail">—</small>
                 </article>
             </section>

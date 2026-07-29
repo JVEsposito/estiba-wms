@@ -22,6 +22,7 @@ class CrearRecepcionRomanaRequest extends FormRequest
     public function rules(): array
     {
         $esPesajeEnvases = $this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaPesajeEnvases->value;
+        $requierePesoBruto = $this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaConEnvases->value;
 
         return [
             'operacion_id' => ['required', 'uuid'],
@@ -61,7 +62,7 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'nombre_conductor' => ['required', 'string', 'max:150'],
             'peso_bruto' => [
                 'nullable',
-                Rule::requiredIf(! $esPesajeEnvases),
+                Rule::requiredIf($requierePesoBruto),
                 'numeric',
                 'min:1',
                 'max:200000',
@@ -144,6 +145,10 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'tara_unitaria_envase' => $tipoRecepcion === TipoRecepcionRomana::FrutaPesajeEnvases->value
                 ? $this->input('tara_unitaria_envase')
                 : null,
+            'peso_bruto' => ($tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
+                || $tipoRecepcion === TipoRecepcionRomana::FrutaPesajeEnvases->value)
+                    ? null
+                    : $this->input('peso_bruto'),
             'numero_guia_despacho' => mb_strtoupper(trim((string) $this->input('numero_guia_despacho'))),
             'patente_camion' => $this->normalizarPatente($this->input('patente_camion')),
             'patente_carro' => $this->normalizarPatente($this->input('patente_carro')),

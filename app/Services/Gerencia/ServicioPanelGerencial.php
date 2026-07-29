@@ -579,8 +579,8 @@ class ServicioPanelGerencial
         if ($romana['pendientes_destare'] > 0) {
             $alertas->push([
                 'nivel' => 'advertencia',
-                'titulo' => 'Camiones pendientes de destare',
-                'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan el pesaje de salida en romana.",
+                'titulo' => 'Recepciones pendientes de cierre',
+                'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan destare o cierre documental en Romana.",
             ]);
         }
         if ($romana['en_pesaje_envases'] > 0) {
