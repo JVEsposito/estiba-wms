@@ -232,7 +232,7 @@ class MaterialesApiTest extends TestCase
         $this->assertDatabaseMissing('folios', ['numero_folio' => 'MAT-TEMPORADA-ANTERIOR']);
     }
 
-    public function test_despachos_y_kardex_no_mezclan_temporadas_anteriores(): void
+    public function test_inventario_despachos_y_kardex_no_mezclan_temporadas_anteriores(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
         [, , $tokenTablet] = $this->crearOperador();
@@ -264,6 +264,12 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data')
             ->assertJsonMissing(['id' => $despachoId]);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonCount(0, 'resumen_clientes');
 
         $this->conToken($tokenOficina)
             ->getJson('/api/materiales/kardex')

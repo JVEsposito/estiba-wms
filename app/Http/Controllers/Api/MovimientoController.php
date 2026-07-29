@@ -14,12 +14,14 @@ use App\Models\Folio;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
+use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
@@ -175,7 +177,8 @@ class MovimientoController extends Controller
         }
 
         $movimientos = Movimiento::query()
-            ->whereHas('folio.temporada', fn ($consulta) => $consulta->where('activa', true))
+            ->whereHas('folio', fn ($consulta) => $consulta
+                ->where('temporada_id', '=', $this->consultaTemporadaActiva()))
             ->where(function ($consulta) use ($contenidos) {
                 $consulta
                     ->whereHas('camaraOrigen', fn ($camara) => $camara
@@ -202,6 +205,14 @@ class MovimientoController extends Controller
     private function cargarRelaciones(Movimiento $movimiento): Movimiento
     {
         return $movimiento->load($this->relacionesMovimiento());
+    }
+
+    private function consultaTemporadaActiva(): Builder
+    {
+        return Temporada::query()
+            ->select('id')
+            ->where('activa', true)
+            ->limit(1);
     }
 
     /**
