@@ -19,6 +19,7 @@ use App\Services\Clientes\ServicioCliente;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
@@ -239,6 +240,7 @@ class DatabaseSeeder extends Seeder
                 'cantidad_niveles' => 2,
             ],
         );
+        $this->sincronizarSecuenciaCamara($codigo);
 
         foreach (range(1, 3) as $banda) {
             foreach (range(1, 4) as $posicion) {
@@ -255,5 +257,24 @@ class DatabaseSeeder extends Seeder
                 }
             }
         }
+    }
+
+    private function sincronizarSecuenciaCamara(string $codigo): void
+    {
+        if (! preg_match('/^CAM-(\d+)$/', $codigo, $coincidencias)) {
+            return;
+        }
+
+        $ultimoConfigurado = DB::table('secuencias_documentos')
+            ->where('clave', 'camaras')
+            ->value('ultimo_numero');
+
+        DB::table('secuencias_documentos')->updateOrInsert(
+            ['clave' => 'camaras'],
+            ['ultimo_numero' => max(
+                (int) $ultimoConfigurado,
+                (int) $coincidencias[1],
+            )],
+        );
     }
 }
