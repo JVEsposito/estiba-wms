@@ -29,6 +29,7 @@ use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Notificaciones\ServicioNotificacionesOperacionales;
 use App\Services\Temporadas\ServicioTemporadaActiva;
 use DomainException;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -457,7 +458,26 @@ class ServicioDespachoMaterial
 
     public function cargar(DespachoMaterial $despacho): DespachoMaterial
     {
-        return $despacho->load([
+        return $despacho->load($this->relacionesCarga());
+    }
+
+    /**
+     * @param  EloquentCollection<int, DespachoMaterial>  $despachos
+     * @return EloquentCollection<int, DespachoMaterial>
+     */
+    public function cargarColeccion(EloquentCollection $despachos): EloquentCollection
+    {
+        $despachos->load($this->relacionesCarga());
+
+        return $despachos;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function relacionesCarga(): array
+    {
+        return [
             'temporada:id,codigo,nombre,activa',
             'creadoPor:id,name',
             'dispositivo:id,codigo,nombre',
@@ -473,7 +493,7 @@ class ServicioDespachoMaterial
             'detalles.retiros.posicion:id,camara_id,etiqueta',
             'detalles.retiros.usuario:id,name',
             'detalles.retiros.dispositivo:id,codigo,nombre',
-        ]);
+        ];
     }
 
     private function siguienteCodigo(): string

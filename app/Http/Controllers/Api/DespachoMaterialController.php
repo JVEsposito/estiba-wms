@@ -35,8 +35,8 @@ class DespachoMaterialController extends Controller
             ->when($estados !== [], fn ($consulta) => $consulta->whereIn('estado', $estados))
             ->latest()
             ->limit(100)
-            ->get()
-            ->map(fn (DespachoMaterial $despacho) => $servicio->cargar($despacho));
+            ->get();
+        $servicio->cargarColeccion($despachos);
 
         return response()->json(['data' => DespachoMaterialResource::collection($despachos)]);
     }
