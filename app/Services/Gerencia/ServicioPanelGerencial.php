@@ -17,17 +17,57 @@ use App\Models\ProcesoPrefrio;
 use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ServicioPanelGerencial
 {
+    public const CLAVE_CACHE = 'gerencia:panel:resumen:v1';
+
+    private const CLAVE_BLOQUEO = 'gerencia:panel:resumen:bloqueo';
+
     /**
      * @return array<string, mixed>
      */
     public function obtener(): array
+    {
+        $instantanea = Cache::get(self::CLAVE_CACHE);
+
+        if (is_array($instantanea)) {
+            return $instantanea;
+        }
+
+        try {
+            return Cache::lock(self::CLAVE_BLOQUEO, 15)->block(
+                5,
+                fn (): array => Cache::remember(
+                    self::CLAVE_CACHE,
+                    $this->segundosCache(),
+                    fn (): array => $this->construir(),
+                ),
+            );
+        } catch (LockTimeoutException) {
+            return Cache::remember(
+                self::CLAVE_CACHE,
+                $this->segundosCache(),
+                fn (): array => $this->construir(),
+            );
+        }
+    }
+
+    public function invalidar(): void
+    {
+        Cache::forget(self::CLAVE_CACHE);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function construir(): array
     {
         $camaras = $this->camaras();
         $productos = $this->productos();
@@ -341,8 +381,11 @@ class ServicioPanelGerencial
                     ->where('activa', true),
             ])
             ->with([
-                'procesoActivo.folios' => fn (HasMany $consulta): HasMany => $consulta
-                    ->whereNull('retirado_at'),
+                'procesoActivo' => fn (HasOne $consulta): HasOne => $consulta
+                    ->withCount([
+                        'folios as folios_activos_count' => fn (Builder $folios): Builder => $folios
+                            ->whereNull('retirado_at'),
+                    ]),
             ])
             ->orderBy('codigo')
             ->get()
@@ -351,7 +394,7 @@ class ServicioPanelGerencial
                     && $tunel->estado_tecnico === EstadoTecnicoTunelPrefrio::Operativo;
                 $capacidad = $operativo ? (int) $tunel->posiciones_activas_count : 0;
                 $ocupadas = $operativo
-                    ? min($capacidad, (int) ($tunel->procesoActivo?->folios->count() ?? 0))
+                    ? min($capacidad, (int) ($tunel->procesoActivo?->folios_activos_count ?? 0))
                     : 0;
 
                 return [
@@ -397,35 +440,56 @@ class ServicioPanelGerencial
     private function romana(): array
     {
         $hoy = CarbonImmutable::today();
-        $cerradasHoy = RecepcionRomana::query()
+        $inicio = $hoy->subDays(6)->startOfDay();
+        $termino = $hoy->addDay()->startOfDay();
+        $porEstado = RecepcionRomana::query()
+            ->whereIn('estado', [
+                EstadoRecepcionRomana::EnBasculaIngreso->value,
+                EstadoRecepcionRomana::EnBasculaSalida->value,
+            ])
+            ->groupBy('estado')
+            ->select('estado')
+            ->selectRaw('COUNT(*) as total')
+            ->pluck('total', 'estado');
+        $porDia = RecepcionRomana::query()
             ->where('estado', EstadoRecepcionRomana::Cerrado->value)
-            ->whereDate('salida_at', $hoy->toDateString());
+            ->where('salida_at', '>=', $inicio)
+            ->where('salida_at', '<', $termino)
+            ->groupByRaw('DATE(salida_at)')
+            ->selectRaw('DATE(salida_at) as fecha')
+            ->selectRaw('COUNT(*) as recepciones')
+            ->selectRaw('COALESCE(SUM(peso_neto), 0) as peso_neto')
+            ->selectRaw('COALESCE(SUM(cantidad_envases_declarados), 0) as envases')
+            ->selectRaw('COUNT(DISTINCT cliente_id) as clientes')
+            ->get()
+            ->keyBy('fecha');
         $tendencia = collect(range(6, 0))
-            ->map(function (int $dias) use ($hoy): array {
+            ->map(function (int $dias) use ($hoy, $porDia): array {
                 $fecha = $hoy->subDays($dias);
-                $cerradas = RecepcionRomana::query()
-                    ->where('estado', EstadoRecepcionRomana::Cerrado->value)
-                    ->whereDate('salida_at', $fecha->toDateString());
+                $fila = $porDia->get($fecha->toDateString());
 
                 return [
                     'fecha' => $fecha->toDateString(),
                     'etiqueta' => $fecha->locale('es')->isoFormat('ddd D'),
-                    'recepciones' => (clone $cerradas)->count(),
-                    'peso_neto' => round((float) (clone $cerradas)->sum('peso_neto'), 2),
+                    'recepciones' => (int) ($fila?->recepciones ?? 0),
+                    'peso_neto' => round((float) ($fila?->peso_neto ?? 0), 2),
                 ];
             });
+        $filaHoy = $porDia->get($hoy->toDateString());
 
         return [
-            'en_bascula_ingreso' => RecepcionRomana::query()
-                ->where('estado', EstadoRecepcionRomana::EnBasculaIngreso->value)
-                ->count(),
-            'pendientes_destare' => RecepcionRomana::query()
-                ->where('estado', EstadoRecepcionRomana::EnBasculaSalida->value)
-                ->count(),
-            'cerradas_hoy' => (clone $cerradasHoy)->count(),
-            'peso_neto_hoy' => round((float) (clone $cerradasHoy)->sum('peso_neto'), 2),
-            'envases_hoy' => (int) (clone $cerradasHoy)->sum('cantidad_envases_declarados'),
-            'clientes_hoy' => (clone $cerradasHoy)->distinct()->count('cliente_id'),
+            'en_bascula_ingreso' => (int) $porEstado->get(
+                EstadoRecepcionRomana::EnBasculaIngreso->value,
+                0,
+            ),
+            'pendientes_destare' => (int) $porEstado->get(
+                EstadoRecepcionRomana::EnBasculaSalida->value,
+                0,
+            ),
+            'cerradas_hoy' => (int) ($filaHoy?->recepciones ?? 0),
+            'peso_neto_hoy' => round((float) ($filaHoy?->peso_neto ?? 0), 2),
+            'envases_hoy' => (int) ($filaHoy?->envases ?? 0),
+            'clientes_hoy' => (int) ($filaHoy?->clientes ?? 0),
             'tendencia_diaria' => $tendencia->all(),
         ];
     }
@@ -521,5 +585,10 @@ class ServicioPanelGerencial
     private function porcentaje(int|float $parte, int|float $total): float
     {
         return $total > 0 ? round(($parte / $total) * 100, 1) : 0.0;
+    }
+
+    private function segundosCache(): int
+    {
+        return max(1, (int) config('gerencia.cache_segundos', 60));
     }
 }

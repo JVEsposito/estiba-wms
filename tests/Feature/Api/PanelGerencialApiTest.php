@@ -18,11 +18,18 @@ use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
+use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
 use App\Models\User;
+use App\Observers\InvalidarPanelGerencialObserver;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
+use App\Services\Gerencia\ServicioPanelGerencial;
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -98,6 +105,60 @@ class PanelGerencialApiTest extends TestCase
         $this->actingAs($operador, 'sanctum')
             ->getJson('/api/gerencia/resumen')
             ->assertForbidden();
+    }
+
+    public function test_reutiliza_la_instantanea_y_la_invalida_ante_cambios_operacionales(): void
+    {
+        Cache::forget(ServicioPanelGerencial::CLAVE_CACHE);
+        $this->travelTo(CarbonImmutable::parse('2026-07-29 09:00:00'));
+        $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $primera = $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.productos.total_activos', 0)
+            ->json('data');
+        $consultasPrimera = count(DB::getQueryLog());
+
+        $this->travel(10)->seconds();
+        DB::flushQueryLog();
+        $segunda = $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen')
+            ->assertOk()
+            ->json('data');
+        $consultasSegunda = count(DB::getQueryLog());
+
+        $this->assertSame($primera['generado_at'], $segunda['generado_at']);
+        $this->assertTrue(Cache::has(ServicioPanelGerencial::CLAVE_CACHE));
+        $this->assertGreaterThan(0, $consultasPrimera);
+        $this->assertLessThan($consultasPrimera, $consultasSegunda);
+
+        $folio = Folio::create([
+            'numero_folio' => 'PROD-CACHE-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::Disponible,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $observador = app(InvalidarPanelGerencialObserver::class);
+        $this->assertInstanceOf(ShouldHandleEventsAfterCommit::class, $observador);
+        $observador->saved($folio);
+        $this->assertFalse(Cache::has(ServicioPanelGerencial::CLAVE_CACHE));
+
+        $this->travel(1)->second();
+        $tercera = $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.productos.total_activos', 1)
+            ->json('data');
+
+        $this->assertNotSame($primera['generado_at'], $tercera['generado_at']);
+        $this->assertContains(
+            RecepcionRomana::class,
+            InvalidarPanelGerencialObserver::modelosObservados(),
+        );
     }
 
     public function test_el_acceso_de_oficina_expone_la_capacidad_gerencial(): void

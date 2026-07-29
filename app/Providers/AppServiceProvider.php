@@ -10,6 +10,7 @@ use App\Models\PersonalAccessToken;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Observers\EventoCargaObserver;
+use App\Observers\InvalidarPanelGerencialObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Support\Facades\Event;
@@ -39,6 +40,9 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         EventoCarga::observe(EventoCargaObserver::class);
         UbicacionActual::observe(UbicacionActualObserver::class);
+        foreach (InvalidarPanelGerencialObserver::modelosObservados() as $modelo) {
+            $modelo::observe(InvalidarPanelGerencialObserver::class);
+        }
         Event::listen(EventoCargaRegistrado::class, CrearNotificacionesOperacionales::class);
 
         $alcance = app(AlcanceOperacionalUsuario::class);
