@@ -31,6 +31,10 @@ Route::view('/oficina/materiales/recepcion', 'office.materials', [
     'navigationOffice' => 'recepcion',
     'materialsSection' => 'recepcion',
 ]);
+Route::view('/oficina/materiales/recepciones', 'office.materials', [
+    'navigationOffice' => 'recepciones',
+    'materialsSection' => 'recepciones',
+]);
 Route::view('/oficina/materiales/inventario', 'office.materials', [
     'navigationOffice' => 'inventario',
     'materialsSection' => 'inventario',

@@ -6,6 +6,7 @@ enum TipoEventoRecepcionMaterial: string
 {
     case Creada = 'creada';
     case Actualizada = 'actualizada';
+    case CorregidaAdministrativamente = 'corregida_administrativamente';
     case Confirmada = 'confirmada';
     case Anulada = 'anulada';
 }

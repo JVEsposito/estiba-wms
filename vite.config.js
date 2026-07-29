@@ -23,6 +23,7 @@ export default defineConfig({
                 'resources/js/office-material-recipes.js',
                 'resources/js/office-material-orders.js',
                 'resources/js/office-material-labels.js',
+                'resources/js/office-material-receptions.js',
                 'resources/css/office-validation.css',
                 'resources/js/office-validation.js',
                 'resources/css/office-validation-catalog.css',

@@ -18,6 +18,11 @@
                 'title' => 'Etiquetas de materiales',
                 'description' => 'Selecciona una recepción u orden y genera sus etiquetas PDF o NiceLabel/ZebraDesigner.',
             ],
+            'recepciones' => [
+                'eyebrow' => 'RECEPCIÓN',
+                'title' => 'Recepciones de materiales',
+                'description' => 'Registra, consulta y controla los ingresos de materiales por guía y folio.',
+            ],
             'inventario' => [
                 'eyebrow' => 'INVENTARIO',
                 'title' => 'Existencias por folio y cliente',
@@ -48,7 +53,7 @@
         <meta name="color-scheme" content="dark">
         <title>Estiba WMS · Materiales</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-orders.js', 'resources/js/office-material-labels.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-orders.js', 'resources/js/office-material-labels.js', 'resources/js/office-material-receptions.js'])
         @endif
     </head>
     <body>
@@ -98,6 +103,11 @@
                     <a class="materials-module-card" href="/oficina/materiales/recepcion" data-navigation-module="materiales.etiquetas" data-navigation-permissions="puede_imprimir_etiquetas_materiales">
                         <span aria-hidden="true">▣</span>
                         <div><p class="eyebrow">RECEPCIÓN</p><h2>Etiquetas</h2><p>Folios por recepción u orden, disponibles en PDF y .nlbl editable.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/recepciones" data-navigation-module="materiales.etiquetas" data-navigation-permissions="puede_consultar_recepciones_materiales">
+                        <span aria-hidden="true">↓</span>
+                        <div><p class="eyebrow">INGRESO</p><h2>Recepciones</h2><p>Guías, proveedores, bultos y folios de materiales recibidos.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
                     <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-module="materiales.inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
@@ -204,6 +214,104 @@
                         <div class="materials-list" id="destinationsMaterialList"></div>
                     </section>
                 </div>
+
+                <section class="panel materials-panel material-receptions-workspace" id="materialReceptionsWorkspace" data-materials-view="recepciones">
+                    <div class="materials-panel__heading">
+                        <div>
+                            <p class="eyebrow">INGRESO DE MATERIALES</p>
+                            <h2>Recepciones y folios</h2>
+                            <span id="materialReceptionsSummary">Cargando recepciones…</span>
+                        </div>
+                        <div class="materials-panel__tools">
+                            <button class="secondary-button" id="reloadMaterialReceptions" type="button">↻ Actualizar</button>
+                            <button class="primary-button is-hidden" id="newMaterialReception" type="button">+ Nueva recepción</button>
+                        </div>
+                    </div>
+
+                    <div class="material-receptions-metrics">
+                        <article><span>BORRADORES</span><strong id="materialReceptionDraftCount">0</strong></article>
+                        <article><span>CONFIRMADAS</span><strong id="materialReceptionConfirmedCount">0</strong></article>
+                        <article><span>ANULADAS</span><strong id="materialReceptionCancelledCount">0</strong></article>
+                        <article><span>FOLIOS VISIBLES</span><strong id="materialReceptionFolioCount">0</strong></article>
+                    </div>
+
+                    <form class="material-receptions-filters" id="materialReceptionsFilters">
+                        <label><span>Buscar guía</span><input name="guia" maxlength="50" placeholder="Número de guía"></label>
+                        <label><span>Estado</span><select name="estado"><option value="">Todos</option><option value="borrador">Borrador</option><option value="confirmada">Confirmada</option><option value="anulada">Anulada</option></select></label>
+                        <button class="secondary-button" type="submit">Buscar</button>
+                    </form>
+
+                    <p class="form-error" id="materialReceptionsError" role="alert"></p>
+                    <div class="material-receptions-table-wrap">
+                        <table class="materials-table material-receptions-table">
+                            <thead><tr><th>Guía</th><th>Cliente / proveedor</th><th>Fecha</th><th>Estado</th><th>Ítems / folios</th><th>Acciones</th></tr></thead>
+                            <tbody id="materialReceptionsList"></tbody>
+                        </table>
+                    </div>
+                    <div class="materials-pagination">
+                        <span id="materialReceptionsPageSummary">Página 1</span>
+                        <div><button id="materialReceptionsPrevious" type="button">← Anterior</button><button id="materialReceptionsNext" type="button">Siguiente →</button></div>
+                    </div>
+
+                    <dialog class="materials-import material-reception-dialog" id="materialReceptionDialog">
+                        <form class="material-reception-form" id="materialReceptionForm" novalidate>
+                            <header class="materials-import__header">
+                                <div><p class="eyebrow" id="materialReceptionDialogEyebrow">NUEVA RECEPCIÓN</p><h2 id="materialReceptionDialogTitle">Registrar recepción</h2><p id="materialReceptionDialogHelp">Los folios se asignan automáticamente al confirmar.</p></div>
+                                <button id="closeMaterialReceptionDialog" type="button" aria-label="Cerrar">×</button>
+                            </header>
+                            <div class="material-reception-form__body">
+                                <div class="materials-form__grid">
+                                    <label><span>Cliente *</span><select name="cliente_id" required></select></label>
+                                    <label><span>Proveedor *</span><select name="proveedor_material_id" required></select></label>
+                                    <label><span>Número guía de despacho *</span><input name="numero_guia_despacho" maxlength="50" required></label>
+                                    <label><span>Fecha del documento</span><input name="fecha_documento" type="date"></label>
+                                    <label><span>Orden de compra</span><input name="orden_compra" maxlength="80"></label>
+                                    <label><span>Patente</span><input name="patente" maxlength="20"></label>
+                                    <label><span>Transportista</span><input name="transportista" maxlength="150"></label>
+                                    <label class="materials-wide"><span>Observación</span><textarea name="observacion" maxlength="2000" rows="2"></textarea></label>
+                                </div>
+
+                                <div class="material-reception-lines-heading">
+                                    <div><h3>Productos recibidos</h3><p>Indica la cantidad aceptada y cuántas unidades contiene cada bulto; el último se calcula con el diferencial.</p></div>
+                                    <button class="secondary-button" id="addMaterialReceptionLine" type="button">+ Agregar producto</button>
+                                </div>
+                                <div class="material-reception-lines" id="materialReceptionLines"></div>
+
+                                <label class="material-admin-reason is-hidden" id="materialReceptionCorrectionReason">
+                                    <span>Motivo de la corrección administrativa *</span>
+                                    <textarea name="motivo_correccion" minlength="5" maxlength="1000" rows="2" placeholder="Explica qué dato se corrige y por qué."></textarea>
+                                </label>
+                                <aside class="material-reception-warning is-hidden" id="materialReceptionConfirmedWarning">
+                                    La recepción está confirmada. Solo se corregirá si sus folios no tienen movimientos posteriores. Las etiquetas impresas anteriormente deben destruirse.
+                                </aside>
+                                <p class="form-error" id="materialReceptionFormError" role="alert"></p>
+                            </div>
+                            <footer class="material-reception-form__footer">
+                                <button class="secondary-button" id="cancelMaterialReception" type="button">Cancelar</button>
+                                <button class="secondary-button" id="saveMaterialReceptionDraft" type="submit" value="draft">Guardar borrador</button>
+                                <button class="primary-button" id="saveAndConfirmMaterialReception" type="submit" value="confirm">Guardar y confirmar</button>
+                            </footer>
+                        </form>
+                    </dialog>
+
+                    <dialog class="materials-import material-reception-delete-dialog" id="materialReceptionDeleteDialog">
+                        <form id="materialReceptionDeleteForm" novalidate>
+                            <header class="materials-import__header">
+                                <div><p class="eyebrow">ACCIÓN EXCLUSIVA DEL ADMINISTRADOR</p><h2>Eliminar recepción</h2><p id="materialReceptionDeleteSummary">Esta acción elimina la recepción y libera sus folios.</p></div>
+                                <button id="closeMaterialReceptionDeleteDialog" type="button" aria-label="Cerrar">×</button>
+                            </header>
+                            <div class="material-reception-delete-body">
+                                <aside class="material-reception-warning">El historial operativo se eliminará, pero quedará una auditoría independiente. Si existen etiquetas físicas impresas, deben destruirse antes de reutilizar el folio.</aside>
+                                <label><span>Motivo de eliminación *</span><textarea name="motivo" minlength="5" maxlength="1000" rows="3" required></textarea></label>
+                                <p class="form-error" id="materialReceptionDeleteError" role="alert"></p>
+                            </div>
+                            <footer class="material-reception-form__footer">
+                                <button class="secondary-button" id="cancelMaterialReceptionDelete" type="button">Cancelar</button>
+                                <button class="danger-button" type="submit">Eliminar y liberar folios</button>
+                            </footer>
+                        </form>
+                    </dialog>
+                </section>
 
                 <section class="panel materials-panel material-label-workspace" id="materialLabelWorkspace" data-materials-view="recepcion">
                     <div class="materials-panel__heading">

@@ -42,6 +42,7 @@ class RecepcionMaterialResource extends JsonResource
             'estado' => $this->estado->value,
             'version' => $this->version,
             'observacion' => $this->observacion,
+            'detalles_count' => $this->whenCounted('detalles'),
             'detalles' => $this->whenLoaded('detalles', fn () => $this->detalles
                 ->map(fn (DetalleRecepcionMaterial $detalle): array => [
                     'id' => $detalle->id,

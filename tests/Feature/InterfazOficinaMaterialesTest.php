@@ -23,6 +23,7 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertOk()
             ->assertSee('data-materials-section="resumen"', false)
             ->assertSee('Catálogos')
+            ->assertSee('Recepciones')
             ->assertSee('Etiquetas')
             ->assertSee('Inventario')
             ->assertSee('Despachos')
@@ -32,6 +33,7 @@ class InterfazOficinaMaterialesTest extends TestCase
 
         $routes = [
             '/oficina/materiales/catalogos' => 'catalogos',
+            '/oficina/materiales/recepciones' => 'recepciones',
             '/oficina/materiales/recepcion' => 'recepcion',
             '/oficina/materiales/inventario' => 'inventario',
             '/oficina/materiales/despachos' => 'despachos',
@@ -56,9 +58,29 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertOk()
             ->assertSee('id="materialsModuleOverview" data-materials-view="resumen"', false)
             ->assertSee('id="materialsAdminCatalogs" data-materials-view="catalogos"', false)
+            ->assertSee('id="materialReceptionsWorkspace" data-materials-view="recepciones"', false)
             ->assertSee('id="materialLabelWorkspace" data-materials-view="recepcion"', false)
             ->assertSee('id="materialDispatchWorkspace" data-materials-view="despachos"', false)
             ->assertSee('id="materialInventoryWorkspace" data-materials-view="inventario"', false);
+    }
+
+    public function test_recepciones_de_materiales_expone_administracion_y_carga_masiva_de_bultos(): void
+    {
+        $this->get('/oficina/materiales/recepciones')
+            ->assertOk()
+            ->assertSee('Recepciones y folios')
+            ->assertSee('Motivo de la corrección administrativa')
+            ->assertSee('Eliminar y liberar folios')
+            ->assertSee('Unidades por bulto')
+            ->assertSee('type="date"', false);
+
+        $script = file_get_contents(resource_path('js/office-material-receptions.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('puede_administrar_recepciones_materiales', $script);
+        $this->assertStringContainsString('/administrar', $script);
+        $this->assertStringContainsString("method: 'DELETE'", $script);
+        $this->assertStringContainsString('Math.ceil(accepted / packageSize)', $script);
     }
 
     public function test_materiales_solo_actualiza_datos_de_la_seccion_visible(): void
