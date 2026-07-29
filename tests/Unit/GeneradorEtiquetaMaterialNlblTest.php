@@ -29,6 +29,10 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
             '#<Name>Folio</Name>.*?<Name>Arial</Name><Height>14</Height>#s',
             $formato,
         );
+        $this->assertMatchesRegularExpression(
+            '#<Name>Detalle 2</Name>.*?<Name>Arial</Name><Height>6</Height>#s',
+            $formato,
+        );
     }
 
     public function test_mantiene_los_textos_dentro_de_una_etiqueta_bixolon_100_por_200_vertical(): void
@@ -61,15 +65,15 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
                 'numero_folio' => 'FGE0000001',
                 'cliente_codigo' => 'MC-001',
                 'cliente_nombre' => 'MACE',
-                'item_codigo' => 'MAT-PARR-PA01',
-                'item_nombre' => 'PARRILLA DE MADERA SECA PARA EXPORTACIÓN',
-                'cantidad' => '70.000',
-                'unidad_medida' => 'unidades',
+                'item_codigo' => 'MCCJ01',
+                'item_nombre' => 'CAJA PLÁSTICA 30X50X150',
+                'cantidad' => '680.000',
+                'unidad_medida' => 'unidad',
                 'origen' => 'recepcion',
-                'numero_guia' => '4648',
-                'lote_proveedor' => '1',
-                'proveedor_nombre' => 'SOCIEDAD FORESTAL Y TRANSPORTES DEL SUR LIMITADA',
-                'fecha_recepcion' => '29/07/2026 14:30',
+                'numero_guia' => '147092',
+                'lote_proveedor' => null,
+                'proveedor_nombre' => 'MULTIFRUTA S.A',
+                'fecha_recepcion' => '29/07/2026 13:14',
                 'bloqueado' => false,
                 'motivo_bloqueo' => null,
             ],
@@ -87,9 +91,9 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
     {
         foreach ([
             'Folio: FGE0000001',
-            'MAT-PARR-PA01 · PARRILLA DE MADERA SECA PARA EXPORTACIÓN',
-            'Proveedor: SOCIEDAD FORESTAL Y TRANSPORTES DEL SUR LIMITADA',
-            'Fecha recepción: 29/07/2026 14:30',
+            'MCCJ01 · CAJA PLÁSTICA 30X50X150',
+            'Proveedor: MULTIFRUTA S.A',
+            'Fecha recepción: 29/07/2026 13:14',
         ] as $contenido) {
             $this->assertStringContainsString(
                 '<FixedContents Base64Encoded="true">'.base64_encode($contenido).'</FixedContents>',

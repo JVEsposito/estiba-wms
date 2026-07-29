@@ -114,19 +114,27 @@ class GeneradorEtiquetaMaterialNlbl
         }
 
         $altoLinea = max(4200, (int) round($alto * 0.082));
+        $tamanoBase = max(7, min(12, (int) round($alto / 6200)));
         foreach ($lineas as $indice => $linea) {
             $y = $detalleY + ($indice * $altoLinea);
             if ($y + $altoLinea > $alto - 1200) {
                 break;
             }
+            $negrita = $indice < 3
+                || ($etiqueta['bloqueado'] && $indice === count($lineas) - 1);
             $items[] = $this->texto(
                 (string) $linea,
                 $margen,
                 $y,
                 $detalleAncho,
                 $altoLinea,
-                max(7, min(12, (int) round($alto / 6200))),
-                $indice < 3 || ($etiqueta['bloqueado'] && $indice === count($lineas) - 1),
+                $this->tamanoDetalle(
+                    (string) $linea,
+                    $detalleAncho,
+                    $tamanoBase,
+                    $negrita,
+                ),
+                $negrita,
                 $z++,
                 'Detalle '.($indice + 1),
             );
@@ -523,6 +531,22 @@ XML;
             'Proveedor: '.$etiqueta['proveedor_nombre'],
             'Fecha recepción: '.(($etiqueta['fecha_recepcion'] ?? null) ?: '—'),
         ];
+    }
+
+    private function tamanoDetalle(
+        string $texto,
+        int $ancho,
+        int $maximo,
+        bool $negrita,
+    ): int {
+        $caracteres = max(1, mb_strlen($texto));
+        $anchoUtil = max(1, $ancho - 2000);
+        $micrometrosPorPunto = $negrita ? 320 : 260;
+        $calculado = (int) floor(
+            $anchoUtil / ($caracteres * $micrometrosPorPunto),
+        );
+
+        return max(4, min($maximo, $calculado));
     }
 
     private function nombreFormato(string $folio, int $copia, int $copias): string
