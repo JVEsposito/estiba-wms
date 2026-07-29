@@ -71,12 +71,12 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertSee('Recepciones y folios')
             ->assertSee('Motivo de la corrección administrativa')
             ->assertSee('Eliminar y liberar folios')
-            ->assertSee('Unidades por bulto')
             ->assertSee('type="date"', false);
 
         $script = file_get_contents(resource_path('js/office-material-receptions.js'));
 
         $this->assertIsString($script);
+        $this->assertStringContainsString('Unidades por bulto', $script);
         $this->assertStringContainsString('puede_administrar_recepciones_materiales', $script);
         $this->assertStringContainsString('/administrar', $script);
         $this->assertStringContainsString("method: 'DELETE'", $script);
