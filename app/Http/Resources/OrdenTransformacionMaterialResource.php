@@ -21,7 +21,18 @@ class OrdenTransformacionMaterialResource extends JsonResource
             'fecha_operacional' => $this->fecha_operacional?->toDateString(),
             'observacion' => $this->observacion,
             'motivo_cancelacion' => $this->motivo_cancelacion,
-            'receta_snapshot' => $this->snapshot_receta,
+            'receta_snapshot' => $this->when(
+                $this->relationLoaded('reservas')
+                    && $this->relationLoaded('lotes')
+                    && $this->relationLoaded('eventos'),
+                fn (): ?array => $this->snapshot_receta,
+            ),
+            'reservas_count' => $this->whenCounted('reservas'),
+            'lotes_count' => $this->whenCounted('lotes'),
+            'tiene_salidas' => $this->when(
+                array_key_exists('tiene_salidas', $this->resource->getAttributes()),
+                fn (): bool => (bool) $this->tiene_salidas,
+            ),
             'temporada' => $this->whenLoaded('temporada', fn (): array => [
                 'id' => $this->temporada->id,
                 'codigo' => $this->temporada->codigo,

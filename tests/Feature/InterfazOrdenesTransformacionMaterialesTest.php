@@ -39,6 +39,13 @@ class InterfazOrdenesTransformacionMaterialesTest extends TestCase
         );
         $this->assertStringContainsString('/planificar', $script);
         $this->assertStringContainsString('/cancelar', $script);
+        $this->assertStringContainsString(
+            '/api/materiales/transformaciones/ordenes/${encodeURIComponent(order.id)}',
+            $script,
+        );
+        $this->assertStringContainsString('data-load-material-order-detail', $script);
+        $this->assertStringContainsString('order.reservas_count', $script);
+        $this->assertStringContainsString('order.lotes_count', $script);
         $this->assertStringContainsString('version_conocida', $script);
         $this->assertStringContainsString('Planificar y reservar FIFO', $script);
         $this->assertStringContainsString('Lista para iniciar desde la PDA/tablet', $script);

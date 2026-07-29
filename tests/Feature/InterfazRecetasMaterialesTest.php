@@ -22,5 +22,6 @@ class InterfazRecetasMaterialesTest extends TestCase
         $this->assertStringContainsString("['insumo', 'material_mp']", $script);
         $this->assertStringContainsString("item.categoria_operacional === 'material_pt'", $script);
         $this->assertStringContainsString('Selecciona exactamente un componente principal.', $script);
+        $this->assertStringContainsString('recipe.versiones_count', $script);
     }
 }

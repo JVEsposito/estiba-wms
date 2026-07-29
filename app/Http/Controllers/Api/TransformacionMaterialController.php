@@ -20,8 +20,10 @@ use App\Models\LoteTransformacionMaterial;
 use App\Models\OrdenTransformacionMaterial;
 use App\Models\PersonalAccessToken;
 use App\Models\RecetaMaterial;
+use App\Models\Temporada;
 use App\Services\Materiales\ServicioTransformacionMaterial;
 use App\Services\Materiales\ServicioVersionRecetaMaterial;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -34,12 +36,16 @@ class TransformacionMaterialController extends Controller
     {
         Gate::authorize('consultar-transformaciones-materiales');
         $recetas = RecetaMaterial::query()
+            ->where('temporada_id', '=', $this->consultaTemporadaActiva())
+            ->withCount('versiones')
             ->with([
                 'temporada:id,codigo,nombre,activa',
                 'cliente:id,codigo,nombre,codigo_folio_materiales,activo',
                 'itemSalida',
-                'versiones' => fn ($consulta) => $consulta->orderByDesc('numero_version'),
-                'versiones.detalles.itemEntrada',
+                'versiones' => fn ($consulta) => $consulta
+                    ->with('detalles.itemEntrada')
+                    ->orderByDesc('numero_version')
+                    ->limit(1),
                 'creadoPor:id,name',
                 'actualizadoPor:id,name',
             ])
@@ -80,22 +86,17 @@ class TransformacionMaterialController extends Controller
     {
         Gate::authorize('consultar-transformaciones-materiales');
         $ordenes = OrdenTransformacionMaterial::query()
+            ->where('temporada_id', '=', $this->consultaTemporadaActiva())
+            ->withCount(['reservas', 'lotes'])
+            ->withExists([
+                'lotes as tiene_salidas' => fn ($consulta) => $consulta
+                    ->where('estado', 'cerrado')
+                    ->whereHas('salidas'),
+            ])
             ->with([
                 'temporada:id,codigo,nombre,activa',
                 'cliente:id,codigo,nombre,codigo_folio_materiales,activo',
                 'versionReceta.receta.itemSalida',
-                'reservas' => fn ($consulta) => $consulta
-                    ->orderBy('item_material_id')
-                    ->orderBy('orden_fifo'),
-                'reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
-                'lotes' => fn ($consulta) => $consulta->orderBy('numero_lote'),
-                'lotes.consumos.folioMaterial.folio',
-                'lotes.consumos.item',
-                'lotes.salidas.folioMaterial.folio',
-                'lotes.salidas.item',
-                'lotes.reversadoPor:id,name',
-                'eventos' => fn ($consulta) => $consulta->orderBy('ocurrido_at'),
-                'eventos.usuario:id,name',
                 'creadoPor:id,name',
             ])
             ->when($request->query('estado'), fn ($consulta, $estado) => $consulta
@@ -240,5 +241,13 @@ class TransformacionMaterialController extends Controller
             ->whereKey($token->dispositivo_id)
             ->where('activo', true)
             ->first();
+    }
+
+    private function consultaTemporadaActiva(): Builder
+    {
+        return Temporada::query()
+            ->select('id')
+            ->where('activa', true)
+            ->limit(1);
     }
 }
