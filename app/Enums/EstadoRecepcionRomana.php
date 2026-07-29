@@ -6,10 +6,14 @@ enum EstadoRecepcionRomana: string
 {
     case EnBasculaIngreso = 'en_bascula_ingreso';
     case EnBasculaSalida = 'en_bascula_salida';
+    case EnPesajeEnvases = 'en_pesaje_envases';
     case Cerrado = 'cerrado';
 
     public function esEditable(): bool
     {
-        return $this === self::EnBasculaIngreso;
+        return in_array($this, [
+            self::EnBasculaIngreso,
+            self::EnPesajeEnvases,
+        ], true);
     }
 }

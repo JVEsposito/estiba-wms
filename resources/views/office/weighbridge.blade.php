@@ -44,6 +44,7 @@
 
                 <div class="weighbridge-kpis">
                     <article><span>EN ROMANA · INGRESO</span><strong id="entryCount">0</strong><small>Pendientes de confirmar bruto</small></article>
+                    <article><span>PESAJE DE ENVASES</span><strong id="containerWeighingCount">0</strong><small>Recepciones con pesaje acumulativo abierto</small></article>
                     <article><span>PENDIENTES DE DESTARE</span><strong id="exitCount">0</strong><small>Camiones que deben volver vacíos</small></article>
                     <article><span>RECEPCIONES CERRADAS</span><strong id="closedCount">0</strong><small>Según los filtros aplicados</small></article>
                     <article class="weighbridge-kpi--weight"><span>PESO NETO RECEPCIONADO</span><strong id="netWeight">0 kg</strong><small>Bruto menos tara documentada</small></article>
@@ -55,7 +56,7 @@
                         <form class="weighbridge-filters" id="receptionFilters">
                             <input name="buscar" maxlength="100" placeholder="Recepción, guía, patente, cliente">
                             <select name="temporada_id"><option value="">Todas las temporadas</option></select>
-                            <select name="estado"><option value="">Todos los estados</option><option value="en_bascula_ingreso">En báscula ingreso</option><option value="en_bascula_salida">Pendiente de destare</option><option value="cerrado">Cerrado</option></select>
+                            <select name="estado"><option value="">Todos los estados</option><option value="en_bascula_ingreso">En báscula ingreso</option><option value="en_pesaje_envases">Pesaje acumulativo</option><option value="en_bascula_salida">Pendiente de destare</option><option value="cerrado">Cerrado</option></select>
                             <input name="desde" type="date" aria-label="Desde">
                             <input name="hasta" type="date" aria-label="Hasta">
                             <button class="secondary-button" type="submit">Filtrar</button>
@@ -76,6 +77,7 @@
                         <div class="detail-actions">
                             <button class="secondary-button is-hidden" id="editReceptionButton" type="button">Editar ingreso</button>
                             <button class="primary-button is-hidden" id="confirmEntryButton" type="button">Confirmar ingreso</button>
+                            <button class="primary-button is-hidden" id="addContainerWeighingButton" type="button">+ Registrar tanda</button>
                             <button class="primary-button is-hidden" id="closeReceptionButton" type="button">Registrar destare y cerrar</button>
                             <button class="secondary-button is-hidden" id="downloadReceiptButton" type="button">↓ Aviso de Recibo PDF</button>
                             <button class="secondary-button" id="closeDetailButton" type="button">Cerrar detalle</button>
@@ -83,6 +85,10 @@
                     </div>
                     <div class="reception-detail__grid" id="detailFacts"></div>
                     <div class="reception-detail__bottom"><section><p class="eyebrow">TRAZABILIDAD</p><h3>Línea de tiempo</h3><div class="weighbridge-timeline" id="detailTimeline"></div></section><section><p class="eyebrow">CONTROL DE PESO</p><h3>Balance del pesaje</h3><div class="weight-balance" id="weightBalance"></div></section></div>
+                    <section class="container-weighing-panel is-hidden" id="containerWeighingPanel">
+                        <div class="weighbridge-panel-heading"><div><p class="eyebrow">PESAJE ACUMULATIVO</p><h3>Lecturas por tanda</h3></div><strong id="containerWeighingProgress">0 / 0</strong></div>
+                        <div class="container-weighing-list" id="containerWeighingList"></div>
+                    </section>
                 </section>
             </section>
         </main>
@@ -98,12 +104,13 @@
                     <label class="field is-hidden" id="containerConceptField"><span>Concepto de envases *</span><select name="concepto_envases"></select></label>
                     <label class="field" id="serviceField"><span>Servicio de fruta *</span><select name="tipo_servicio" required></select></label>
                     <label class="field"><span>Guía de despacho *</span><input name="numero_guia_despacho" maxlength="80" required></label>
-                    <fieldset class="field field--span-2 container-lines"><legend>Envases declarados en la guía *</legend><label><span>Bins</span><input name="cantidad_bins" type="number" min="0" max="100000" value="0"></label><label><span>Totes</span><input name="cantidad_totes" type="number" min="0" max="100000" value="0"></label><label><span>Esponjas</span><input name="cantidad_esponjas" type="number" min="0" max="100000" value="0"></label><small>Registra uno, dos o los tres tipos. Cada uno mantiene su propia trazabilidad.</small></fieldset>
+                    <fieldset class="field field--span-2 container-lines" id="standardContainerLines"><legend>Envases declarados en la guía *</legend><label><span>Bins</span><input name="cantidad_bins" type="number" min="0" max="100000" value="0"></label><label><span>Totes</span><input name="cantidad_totes" type="number" min="0" max="100000" value="0"></label><label><span>Esponjas</span><input name="cantidad_esponjas" type="number" min="0" max="100000" value="0"></label><small>Registra uno, dos o los tres tipos. Cada uno mantiene su propia trazabilidad.</small></fieldset>
+                    <fieldset class="field field--span-2 container-weighing-config is-hidden" id="containerWeighingFields"><legend>Configuración del pesaje acumulativo *</legend><label><span>Tipo de envase</span><select name="tipo_envase_pesaje"><option value="bins">Bins</option><option value="totes">Totes</option><option value="esponjas">Esponjas</option></select></label><label><span>Total a pesar</span><input name="cantidad_envases_pesaje" type="number" min="1" max="100000" value="1"></label><label class="weight-field"><span>Tara por envase</span><div><input name="tara_unitaria_envase" type="number" min="0.001" max="1000" step="0.001" inputmode="decimal"><b>kg</b></div></label><small>Después podrás pesar los envases en tandas de 1, 3 o cualquier cantidad pendiente hasta completar el total.</small></fieldset>
                     <label class="field"><span>Patente camión *</span><input name="patente_camion" maxlength="10" autocomplete="off" placeholder="ABCD12" required></label>
                     <label class="field"><span>Patente carro</span><input name="patente_carro" maxlength="10" autocomplete="off" placeholder="Opcional"></label>
                     <label class="field"><span>RUT conductor *</span><input name="rut_conductor" maxlength="12" placeholder="12.345.678-5" required></label>
                     <label class="field field--span-2"><span>Nombre conductor *</span><input name="nombre_conductor" maxlength="150" required></label>
-                    <label class="field weight-field"><span>Peso bruto *</span><div><input name="peso_bruto" type="number" min="1" max="200000" step="0.01" inputmode="decimal" required><b>kg</b></div><small>Lectura del camión cargado sobre la romana.</small></label>
+                    <label class="field weight-field" id="grossWeightField"><span>Peso bruto *</span><div><input name="peso_bruto" type="number" min="1" max="200000" step="0.01" inputmode="decimal" required><b>kg</b></div><small>Lectura del camión cargado sobre la romana.</small></label>
                     <label class="field field--span-2"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
                     <label class="field weight-field is-hidden" id="administrativeTareField"><span>Peso tara corregido *</span><div><input name="peso_tara" type="number" min="1" max="200000" step="0.01" inputmode="decimal"><b>kg</b></div><small>Disponible únicamente para una recepción ya cerrada.</small></label>
                     <label class="field is-hidden" id="administrativeNetContainerField"><span>Envase para cálculo neto individual *</span><select name="tipo_envase_calculo_neto"></select></label>
@@ -111,6 +118,19 @@
                 </div>
                 <p class="form-error" id="receptionFormError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" id="saveReceptionButton" value="default" type="submit">Guardar pesaje de ingreso</button></div>
+            </form>
+        </dialog>
+
+        <dialog class="weighbridge-dialog" id="containerWeighingDialog">
+            <form method="dialog" class="weighbridge-dialog__shell weighbridge-dialog__shell--compact" id="containerWeighingForm" novalidate>
+                <div class="weighbridge-dialog__heading"><div><p class="eyebrow">LECTURA DE ROMANA</p><h2>Registrar tanda de envases</h2><p id="containerWeighingDescription">Ingresa cuántos envases están sobre la báscula y su peso bruto conjunto.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
+                <label class="field"><span>Cantidad de envases en esta tanda *</span><input name="cantidad_envases" type="number" min="1" max="100000" required></label>
+                <label class="field weight-field"><span>Peso bruto de la tanda *</span><div><input name="peso_bruto" type="number" min="0.001" max="200000" step="0.001" inputmode="decimal" required><b>kg</b></div></label>
+                <label class="field"><span>Observación</span><textarea name="observacion" maxlength="1000"></textarea></label>
+                <div class="net-preview"><span>TARA TOTAL</span><strong id="containerWeighingTarePreview">—</strong></div>
+                <div class="net-preview"><span>PESO NETO DE LA TANDA</span><strong id="containerWeighingNetPreview">—</strong></div>
+                <p class="form-error" id="containerWeighingFormError" role="alert"></p>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Guardar lectura</button></div>
             </form>
         </dialog>
 

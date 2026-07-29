@@ -13,6 +13,10 @@ class InterfazOficinaRomanaTest extends TestCase
             ->assertSee('Control de Romana')
             ->assertSee('Registrar ingreso')
             ->assertSee('PENDIENTES DE DESTARE')
+            ->assertSee('PESAJE DE ENVASES')
+            ->assertSee('Configuración del pesaje acumulativo')
+            ->assertSee('Registrar tanda de envases')
+            ->assertSee('Tara por envase')
             ->assertSee('Peso bruto')
             ->assertSee('Peso tara')
             ->assertSee('Aviso de Recibo PDF')
@@ -22,6 +26,7 @@ class InterfazOficinaRomanaTest extends TestCase
             ->assertSee('administrativeTareField', false)
             ->assertSee('receptionForm', false)
             ->assertSee('tareForm', false)
+            ->assertSee('containerWeighingForm', false)
             ->assertSee('/oficina/gerencia', false)
             ->assertSee('/oficina/prefrio', false);
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoValidacionMp;
 use App\Enums\MotivoSegregacionMp;
 use App\Enums\TipoEnvaseRomana;
+use App\Enums\TipoRecepcionRomana;
 use App\Http\Controllers\Controller;
 use App\Models\CsgValidacion;
 use App\Models\RecepcionRomana;
@@ -141,6 +142,7 @@ class ValidacionMpController extends Controller
         return [
             'id' => $recepcion->id,
             'numero_recepcion' => $recepcion->numero_recepcion,
+            'estado_romana' => $recepcion->estado->value,
             'estado_validacion_mp' => $recepcion->estado_validacion_mp->value,
             'tipo_recepcion' => $recepcion->tipo_recepcion->value,
             'concepto_envases' => $recepcion->concepto_envases?->value,
@@ -150,6 +152,18 @@ class ValidacionMpController extends Controller
             'patente_camion' => $recepcion->patente_camion,
             'conductor' => ['rut' => $recepcion->rut_conductor, 'nombre' => $recepcion->nombre_conductor],
             'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
+            'pesaje_envases' => $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases ? [
+                'tipo_envase' => $recepcion->tipo_envase_pesaje?->value,
+                'tara_unitaria' => $recepcion->tara_unitaria_envase !== null
+                    ? (float) $recepcion->tara_unitaria_envase
+                    : null,
+                'cantidad_declarada' => $recepcion->cantidad_envases_declarados,
+                'cantidad_pesada' => $recepcion->cantidad_envases_pesados,
+                'peso_neto' => $recepcion->peso_neto !== null ? (float) $recepcion->peso_neto : null,
+                'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
+                    ? (float) $recepcion->peso_neto_por_envase
+                    : null,
+            ] : null,
             'envases' => $recepcion->detallesEnvases->map(fn ($detalle): array => [
                 'tipo_envase' => $detalle->tipo_envase->value,
                 'cantidad_declarada' => $detalle->cantidad_declarada,

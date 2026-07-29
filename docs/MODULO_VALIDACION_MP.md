@@ -111,6 +111,10 @@ En el alcance actual:
 
 Permite conteo, revisión y segregación de materia prima.
 
+### Fruta con pesaje acumulativo de envases
+
+Conserva el mismo flujo de fruta, tarjas y segregación. Romana configura el tipo de envase y su tara unitaria, y pesa la cantidad completa en una o más tandas. La recepción es visible y puede ser tomada desde su creación, pero Validación MP no puede confirmarla hasta que Romana complete el total declarado y cierre el pesaje.
+
 ### Solo envases
 
 Permite confirmar cantidades reales sin crear segmentos de fruta. Puede corresponder, entre otros, a una compra o arriendo.
@@ -169,6 +173,8 @@ Una recepción puede estar:
 - pendiente, tomada o confirmada en Validación MP.
 
 Cerrar Romana no equivale a confirmar Validación MP.
+
+La única dependencia de cierre es el tipo `fruta_pesaje_envases`: Validación MP puede preparar la revisión mientras el pesaje sigue abierto, pero su confirmación exige el estado `cerrado` para no consolidar cantidades antes de conocer el neto definitivo.
 
 ## API
 

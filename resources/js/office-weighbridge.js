@@ -4,13 +4,15 @@ const elements = {
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     managementNav: byId('officeManagementNav'), rawMaterialNav: byId('officeRawMaterialNav'), containerAccountsNav: byId('officeContainerAccountsNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
     reload: byId('reloadButton'), newReception: byId('newReceptionButton'), filters: byId('receptionFilters'), tableBody: byId('receptionTableBody'),
-    entryCount: byId('entryCount'), exitCount: byId('exitCount'), closedCount: byId('closedCount'), netWeight: byId('netWeight'),
+    entryCount: byId('entryCount'), containerWeighingCount: byId('containerWeighingCount'), exitCount: byId('exitCount'), closedCount: byId('closedCount'), netWeight: byId('netWeight'),
     paginationSummary: byId('paginationSummary'), previousPage: byId('previousPageButton'), nextPage: byId('nextPageButton'),
     detail: byId('receptionDetail'), detailTitle: byId('detailTitle'), detailSubtitle: byId('detailSubtitle'), detailFacts: byId('detailFacts'), detailTimeline: byId('detailTimeline'), weightBalance: byId('weightBalance'),
-    editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
+    editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), addContainerWeighing: byId('addContainerWeighingButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
+    containerWeighingPanel: byId('containerWeighingPanel'), containerWeighingProgress: byId('containerWeighingProgress'), containerWeighingList: byId('containerWeighingList'),
     receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionFormError: byId('receptionFormError'), saveReception: byId('saveReceptionButton'),
-    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'), administrativeCorrectionField: byId('administrativeCorrectionField'), administrativeTareField: byId('administrativeTareField'), administrativeNetContainerField: byId('administrativeNetContainerField'),
+    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'), standardContainerLines: byId('standardContainerLines'), containerWeighingFields: byId('containerWeighingFields'), grossWeightField: byId('grossWeightField'), administrativeCorrectionField: byId('administrativeCorrectionField'), administrativeTareField: byId('administrativeTareField'), administrativeNetContainerField: byId('administrativeNetContainerField'),
     tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), netWeightPreview: byId('netWeightPreview'), netPerContainerPreview: byId('netPerContainerPreview'),
+    containerWeighingDialog: byId('containerWeighingDialog'), containerWeighingForm: byId('containerWeighingForm'), containerWeighingDescription: byId('containerWeighingDescription'), containerWeighingFormError: byId('containerWeighingFormError'), containerWeighingTarePreview: byId('containerWeighingTarePreview'), containerWeighingNetPreview: byId('containerWeighingNetPreview'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 
@@ -47,18 +49,18 @@ function formatDate(value, fallback = 'Pendiente') {
 }
 function formatWeight(value, fallback = '—') {
     if (value === null || value === undefined || value === '') return fallback;
-    return `${new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))} kg`;
+    return `${new Intl.NumberFormat('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 3 }).format(Number(value))} kg`;
 }
 function label(value) {
     const labels = {
-        en_bascula_ingreso: 'En báscula ingreso', en_bascula_salida: 'Pendiente de destare', cerrado: 'Cerrado',
-        ingreso_registrado: 'Pesaje de ingreso registrado', ingreso_actualizado: 'Antecedentes de ingreso actualizados', correccion_administrativa: 'Corrección administrativa', ingreso_confirmado: 'Ingreso confirmado', recepcion_cerrada: 'Destare y recepción cerrados',
-        almacenaje: 'Almacenaje', proceso: 'Proceso', prefrio: 'Pre-frío', bins: 'Bins', totes: 'Totes', esponjas: 'Esponjas', fruta_con_envases: 'Fruta con envases', solo_envases: 'Solo envases', compra: 'Compra', arriendo: 'Arriendo', pendiente: 'Pendiente', en_curso: 'En curso', validada: 'Validada',
+        en_bascula_ingreso: 'En báscula ingreso', en_pesaje_envases: 'Pesaje acumulativo', en_bascula_salida: 'Pendiente de destare', cerrado: 'Cerrado',
+        ingreso_registrado: 'Ingreso registrado', ingreso_actualizado: 'Antecedentes de ingreso actualizados', correccion_administrativa: 'Corrección administrativa', ingreso_confirmado: 'Ingreso confirmado', pesaje_envases_registrado: 'Tanda de envases pesada', pesaje_envases_anulado: 'Tanda de pesaje anulada', recepcion_cerrada: 'Recepción cerrada',
+        almacenaje: 'Almacenaje', proceso: 'Proceso', prefrio: 'Pre-frío', bins: 'Bins', totes: 'Totes', esponjas: 'Esponjas', fruta_con_envases: 'Fruta con envases', fruta_pesaje_envases: 'Fruta con pesaje acumulativo', solo_envases: 'Solo envases', compra: 'Compra', arriendo: 'Arriendo', pendiente: 'Pendiente', en_curso: 'En curso', validada: 'Validada',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (character) => character.toUpperCase());
 }
 function stateBadge(status) {
-    const style = status === 'cerrado' ? 'closed' : status === 'en_bascula_salida' ? 'exit' : 'entry';
+    const style = status === 'cerrado' ? 'closed' : ['en_bascula_salida', 'en_pesaje_envases'].includes(status) ? 'exit' : 'entry';
     return `<span class="state-badge state-badge--${style}">${escapeHtml(label(status))}</span>`;
 }
 function setBusy(active, message = 'Procesando…') {
@@ -135,6 +137,7 @@ function filterQuery() {
 function renderList(payload) {
     state.receptions = payload.data; state.meta = payload.meta;
     elements.entryCount.textContent = String(payload.resumen.en_bascula_ingreso);
+    elements.containerWeighingCount.textContent = String(payload.resumen.en_pesaje_envases);
     elements.exitCount.textContent = String(payload.resumen.en_bascula_salida);
     elements.closedCount.textContent = String(payload.resumen.cerradas);
     elements.netWeight.textContent = formatWeight(payload.resumen.peso_neto);
@@ -153,7 +156,7 @@ function renderList(payload) {
             <td><strong>${escapeHtml(reception.cliente.nombre)}</strong><small>Guía ${escapeHtml(reception.numero_guia_despacho)}</small></td>
             <td><strong>${escapeHtml(reception.patente_camion)}</strong><small>${escapeHtml(reception.nombre_conductor)}</small></td>
             <td><strong>${escapeHtml(envasesLabel(reception))}</strong><small>${escapeHtml(label(reception.tipo_recepcion))}</small></td>
-            <td class="weight-cell"><strong>${escapeHtml(formatWeight(reception.peso_neto, formatWeight(reception.peso_bruto)))}</strong><small>${reception.peso_neto === null ? 'Peso bruto' : 'Peso neto'}</small></td>
+            <td class="weight-cell"><strong>${escapeHtml(reception.pesaje_envases ? formatWeight(reception.peso_neto) : formatWeight(reception.peso_neto, formatWeight(reception.peso_bruto)))}</strong><small>${reception.pesaje_envases ? `${reception.pesaje_envases.cantidad_pesada}/${reception.pesaje_envases.cantidad_declarada} pesados` : reception.peso_neto === null ? 'Peso bruto' : 'Peso neto'}</small></td>
             <td>${stateBadge(reception.estado)}</td>
         </tr>`).join('');
 }
@@ -171,18 +174,45 @@ async function loadReceptions({ silent = false } = {}) {
 
 function fact(title, value, weight = false) { return `<article class="detail-fact${weight ? ' detail-fact--weight' : ''}"><span>${escapeHtml(title)}</span><strong>${escapeHtml(value ?? '—')}</strong></article>`; }
 function envasesLabel(reception) { return (reception.envases || []).map((item) => `${item.cantidad_declarada} ${label(item.tipo_envase)}`).join(' · ') || 'Sin envases'; }
+function renderContainerWeighings(reception, canOperate) {
+    const weighing = reception.pesaje_envases;
+    elements.containerWeighingPanel.classList.toggle('is-hidden', !weighing);
+    if (!weighing) {
+        elements.containerWeighingList.innerHTML = '';
+        return;
+    }
+    elements.containerWeighingProgress.textContent = `${weighing.cantidad_pesada} / ${weighing.cantidad_declarada} ${label(weighing.tipo_envase)} · faltan ${weighing.cantidad_pendiente}`;
+    const readings = reception.lecturas_pesaje_envases || [];
+    elements.containerWeighingList.innerHTML = readings.length ? readings.map((reading) => `
+        <article class="container-weighing-row${reading.anulado ? ' container-weighing-row--annulled' : ''}">
+            <div><span>TANDA</span><strong>#${reading.secuencia}</strong></div>
+            <div><span>ENVASES</span><strong>${reading.cantidad_envases} ${escapeHtml(label(reading.tipo_envase))}</strong></div>
+            <div><span>BRUTO</span><strong>${escapeHtml(formatWeight(reading.peso_bruto))}</strong></div>
+            <div><span>TARA</span><strong>${escapeHtml(formatWeight(reading.peso_tara))}</strong></div>
+            <div><span>NETO</span><strong>${escapeHtml(formatWeight(reading.peso_neto))}</strong></div>
+            <div><span>${reading.anulado ? 'ANULADO' : 'REGISTRADO'}</span><strong>${escapeHtml(formatDate(reading.anulado_at || reading.pesado_at))}</strong>${reading.motivo_anulacion ? `<small>${escapeHtml(reading.motivo_anulacion)}</small>` : ''}</div>
+            ${canOperate && !reading.anulado && reception.puede_registrar_pesaje ? `<button type="button" data-annul-weighing-id="${escapeHtml(reading.id)}">Anular</button>` : '<span></span>'}
+        </article>`).join('') : '<p class="weighbridge-empty">Aún no se registran tandas. Puedes comenzar con 1, 3 o cualquier cantidad pendiente.</p>';
+}
 function renderDetail(reception) {
     state.selected = reception;
     elements.detail.classList.remove('is-hidden');
     elements.detailTitle.textContent = reception.numero_recepcion || `Ingreso · ${reception.patente_camion}`;
     elements.detailSubtitle.innerHTML = `${stateBadge(reception.estado)} · Guía ${escapeHtml(reception.numero_guia_despacho)} · ${escapeHtml(reception.cliente.nombre)}`;
+    const weighingFacts = reception.pesaje_envases ? [
+        fact('ENVASE PESADO', label(reception.pesaje_envases.tipo_envase)),
+        fact('TARA UNITARIA', formatWeight(reception.pesaje_envases.tara_unitaria), true),
+        fact('AVANCE', `${reception.pesaje_envases.cantidad_pesada} / ${reception.pesaje_envases.cantidad_declarada}`),
+        fact('PENDIENTES', String(reception.pesaje_envases.cantidad_pendiente)),
+    ] : [];
     elements.detailFacts.innerHTML = [
-        fact('INGRESO', formatDate(reception.ingreso_at)), fact('SALIDA / DESTARE', formatDate(reception.salida_at)), fact('TEMPORADA GLOBAL', `${reception.temporada.nombre} · ${reception.temporada.codigo}`), fact('CLIENTE', reception.cliente.nombre), fact('TIPO RECEPCIÓN', label(reception.tipo_recepcion)), fact('SERVICIO / CONCEPTO', reception.tipo_recepcion === 'solo_envases' ? label(reception.concepto_envases) : label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
+        fact('INGRESO', formatDate(reception.ingreso_at)), fact(reception.pesaje_envases ? 'CIERRE DE PESAJE' : 'SALIDA / DESTARE', formatDate(reception.salida_at)), fact('TEMPORADA GLOBAL', `${reception.temporada.nombre} · ${reception.temporada.codigo}`), fact('CLIENTE', reception.cliente.nombre), fact('TIPO RECEPCIÓN', label(reception.tipo_recepcion)), fact('SERVICIO / CONCEPTO', reception.tipo_recepcion === 'solo_envases' ? label(reception.concepto_envases) : label(reception.tipo_servicio)), fact('GUÍA', reception.numero_guia_despacho),
         fact('CAMIÓN', reception.patente_camion), fact('CARRO', reception.patente_carro || 'No informado'), fact('CONDUCTOR', reception.nombre_conductor), fact('RUT', reception.rut_conductor), fact('ENVASES DECLARADOS', envasesLabel(reception)), fact('VALIDACIÓN MP', label(reception.estado_validacion_mp)),
-        fact('PESO BRUTO', formatWeight(reception.peso_bruto), true), fact('TARA', formatWeight(reception.peso_tara), true), fact('PESO NETO', formatWeight(reception.peso_neto), true), fact('VERSIÓN', String(reception.version)), fact('OBS. INGRESO', reception.observacion || 'Sin observaciones'), fact('OBS. CIERRE', reception.observacion_cierre || 'Sin observaciones'),
+        ...weighingFacts,
+        fact(reception.pesaje_envases ? 'BRUTO ACUMULADO' : 'PESO BRUTO', formatWeight(reception.peso_bruto), true), fact(reception.pesaje_envases ? 'TARA ACUMULADA' : 'TARA', formatWeight(reception.peso_tara), true), fact('PESO NETO', formatWeight(reception.peso_neto), true), fact('VERSIÓN', String(reception.version)), fact('OBS. INGRESO', reception.observacion || 'Sin observaciones'), fact('OBS. CIERRE', reception.observacion_cierre || 'Sin observaciones'),
     ].join('');
     elements.detailTimeline.innerHTML = (reception.eventos || []).map((event) => `<article class="timeline-item"><i></i><div><strong>${escapeHtml(label(event.tipo))}</strong><small>${escapeHtml(event.usuario?.nombre || 'Sistema')} · ${escapeHtml(event.estado_anterior ? `${label(event.estado_anterior)} → ${label(event.estado_nuevo)}` : label(event.estado_nuevo))}</small>${event.datos?.motivo ? `<small>Motivo: ${escapeHtml(event.datos.motivo)}</small>` : ''}</div><time>${escapeHtml(formatDate(event.ocurrido_at))}</time></article>`).join('');
-    elements.weightBalance.innerHTML = `<div><span>Bruto</span><strong>${escapeHtml(formatWeight(reception.peso_bruto))}</strong></div><div><span>Tara</span><strong>${escapeHtml(formatWeight(reception.peso_tara))}</strong></div><div class="net-row"><span>Neto legal</span><strong>${escapeHtml(formatWeight(reception.peso_neto))}</strong></div>`;
+    elements.weightBalance.innerHTML = `<div><span>Bruto${reception.pesaje_envases ? ' acumulado' : ''}</span><strong>${escapeHtml(formatWeight(reception.peso_bruto))}</strong></div><div><span>Tara${reception.pesaje_envases ? ' acumulada' : ''}</span><strong>${escapeHtml(formatWeight(reception.peso_tara))}</strong></div>${reception.pesaje_envases ? `<div><span>Neto promedio por envase</span><strong>${escapeHtml(formatWeight(reception.peso_neto_por_envase))}</strong></div>` : ''}<div class="net-row"><span>Neto legal</span><strong>${escapeHtml(formatWeight(reception.peso_neto))}</strong></div>`;
     const canOperate = state.identity?.puede_operar_romana === true;
     const canCorrect = state.identity?.puede_corregir_recepciones_romana === true
         && reception.correccion_administrativa_disponible
@@ -190,8 +220,11 @@ function renderDetail(reception) {
     elements.editReception.textContent = canCorrect ? 'Corregir recepción' : 'Editar ingreso';
     elements.editReception.classList.toggle('is-hidden', (!canOperate || !reception.puede_editar) && !canCorrect);
     elements.confirmEntry.classList.toggle('is-hidden', !canOperate || !reception.puede_confirmar_ingreso);
+    elements.addContainerWeighing.classList.toggle('is-hidden', !canOperate || !reception.puede_registrar_pesaje);
+    elements.closeReception.textContent = reception.pesaje_envases ? 'Cerrar pesaje acumulativo' : 'Registrar destare y cerrar';
     elements.closeReception.classList.toggle('is-hidden', !canOperate || !reception.puede_cerrar);
     elements.downloadReceipt.classList.toggle('is-hidden', !reception.aviso_recibo_disponible);
+    renderContainerWeighings(reception, canOperate);
     elements.detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -257,6 +290,11 @@ function openEditReception() {
     form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_recepcion.value = reception.tipo_recepcion; form.concepto_envases.value = reception.concepto_envases || ''; form.tipo_servicio.value = reception.tipo_servicio;
     form.numero_guia_despacho.value = reception.numero_guia_despacho;
     ['bins', 'totes', 'esponjas'].forEach((tipo) => { const item = reception.envases.find((envase) => envase.tipo_envase === tipo); form[`cantidad_${tipo}`].value = item?.cantidad_declarada || 0; });
+    if (reception.pesaje_envases) {
+        form.tipo_envase_pesaje.value = reception.pesaje_envases.tipo_envase;
+        form.cantidad_envases_pesaje.value = reception.pesaje_envases.cantidad_declarada;
+        form.tara_unitaria_envase.value = reception.pesaje_envases.tara_unitaria;
+    }
     form.patente_camion.value = reception.patente_camion; form.patente_carro.value = reception.patente_carro || ''; form.rut_conductor.value = reception.rut_conductor; form.nombre_conductor.value = reception.nombre_conductor;
     form.peso_bruto.value = reception.peso_bruto; form.observacion.value = reception.observacion || '';
     if (canCorrect && reception.estado === 'cerrado') {
@@ -286,8 +324,17 @@ elements.receptionForm.addEventListener('submit', async (event) => {
     if (event.submitter?.value === 'cancel') return;
     event.preventDefault(); elements.receptionFormError.textContent = '';
     const data = Object.fromEntries(new FormData(elements.receptionForm)); const id = data.recepcion_id; delete data.recepcion_id; data.operacion_id = operationUuid();
-    data.envases = ['bins', 'totes', 'esponjas'].map((tipo) => ({ tipo_envase: tipo, cantidad: Number(data[`cantidad_${tipo}`] || 0) })).filter((item) => item.cantidad > 0);
+    const cumulativeWeighing = data.tipo_recepcion === 'fruta_pesaje_envases';
+    data.envases = cumulativeWeighing
+        ? [{ tipo_envase: data.tipo_envase_pesaje, cantidad: Number(data.cantidad_envases_pesaje || 0) }]
+        : ['bins', 'totes', 'esponjas'].map((tipo) => ({ tipo_envase: tipo, cantidad: Number(data[`cantidad_${tipo}`] || 0) })).filter((item) => item.cantidad > 0);
     ['bins', 'totes', 'esponjas'].forEach((tipo) => delete data[`cantidad_${tipo}`]);
+    delete data.cantidad_envases_pesaje;
+    if (cumulativeWeighing) delete data.peso_bruto;
+    else {
+        delete data.tipo_envase_pesaje;
+        delete data.tara_unitaria_envase;
+    }
     const administrativeCorrection = Boolean(id && state.administrativeCorrection);
     if (administrativeCorrection) data.version_conocida = state.selected?.version;
     else delete data.motivo_correccion;
@@ -313,8 +360,89 @@ elements.confirmEntry.addEventListener('click', async () => {
     finally { setBusy(false); }
 });
 
-elements.closeReception.addEventListener('click', () => {
+elements.addContainerWeighing.addEventListener('click', () => {
+    const weighing = state.selected?.pesaje_envases;
+    if (!weighing || !state.selected?.puede_registrar_pesaje || weighing.cantidad_pendiente < 1) return;
+    elements.containerWeighingForm.reset();
+    elements.containerWeighingFormError.textContent = '';
+    elements.containerWeighingTarePreview.textContent = '—';
+    elements.containerWeighingNetPreview.textContent = '—';
+    const quantity = elements.containerWeighingForm.elements.cantidad_envases;
+    quantity.max = String(weighing.cantidad_pendiente);
+    quantity.value = String(Math.min(3, weighing.cantidad_pendiente));
+    elements.containerWeighingDescription.textContent = `${weighing.cantidad_pesada}/${weighing.cantidad_declarada} ${label(weighing.tipo_envase)} pesados · faltan ${weighing.cantidad_pendiente} · tara ${formatWeight(weighing.tara_unitaria)} por unidad.`;
+    elements.containerWeighingDialog.showModal();
+    quantity.focus();
+    updateContainerWeighingPreviews();
+});
+
+function updateContainerWeighingPreviews() {
+    const weighing = state.selected?.pesaje_envases;
+    const quantity = Number(elements.containerWeighingForm.elements.cantidad_envases.value || 0);
+    const gross = Number(elements.containerWeighingForm.elements.peso_bruto.value || 0);
+    const tare = Number(weighing?.tara_unitaria || 0) * quantity;
+    elements.containerWeighingTarePreview.textContent = quantity > 0 ? formatWeight(tare) : '—';
+    elements.containerWeighingNetPreview.textContent = gross > tare ? formatWeight(gross - tare) : '—';
+}
+elements.containerWeighingForm.elements.cantidad_envases.addEventListener('input', updateContainerWeighingPreviews);
+elements.containerWeighingForm.elements.peso_bruto.addEventListener('input', updateContainerWeighingPreviews);
+elements.containerWeighingForm.addEventListener('submit', async (event) => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    if (!state.selected) return;
+    elements.containerWeighingFormError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.containerWeighingForm));
+    data.operacion_id = operationUuid();
+    setBusy(true, 'Registrando tanda y recalculando el peso neto…');
+    try {
+        const payload = await api(`/api/romana/recepciones/${state.selected.id}/pesajes-envases`, { method: 'POST', body: JSON.stringify(data) });
+        elements.containerWeighingDialog.close();
+        await loadReceptions({ silent: true });
+        renderDetail(payload.data);
+        toast(`Tanda registrada: ${data.cantidad_envases} envase(s).`);
+    } catch (error) { elements.containerWeighingFormError.textContent = error.message; }
+    finally { setBusy(false); }
+});
+
+elements.containerWeighingList.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-annul-weighing-id]');
+    if (!button || !state.selected) return;
+    const reason = window.prompt('Indica el motivo de la anulación de esta tanda:');
+    if (reason === null) return;
+    if (reason.trim().length < 5) {
+        toast('El motivo debe contener al menos 5 caracteres.', true);
+        return;
+    }
+    setBusy(true, 'Anulando lectura y recalculando acumulados…');
+    try {
+        const payload = await api(`/api/romana/recepciones/${state.selected.id}/pesajes-envases/${button.dataset.annulWeighingId}/anular`, {
+            method: 'POST',
+            body: JSON.stringify({ operacion_id: operationUuid(), motivo: reason.trim() }),
+        });
+        await loadReceptions({ silent: true });
+        renderDetail(payload.data);
+        toast('Lectura anulada con trazabilidad.');
+    } catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
+});
+
+elements.closeReception.addEventListener('click', async () => {
     if (!state.selected?.puede_cerrar) return;
+    if (state.selected.pesaje_envases) {
+        if (!window.confirm(`¿Cerrar el pesaje de ${state.selected.pesaje_envases.cantidad_declarada} ${label(state.selected.pesaje_envases.tipo_envase)}? Después del cierre no se podrán agregar ni anular tandas.`)) return;
+        setBusy(true, 'Cerrando pesaje acumulativo…');
+        try {
+            const payload = await api(`/api/romana/recepciones/${state.selected.id}/cerrar`, {
+                method: 'POST',
+                body: JSON.stringify({ operacion_id: operationUuid() }),
+            });
+            await loadReceptions({ silent: true });
+            renderDetail(payload.data);
+            toast(`${payload.data.numero_recepcion} cerrada con el total pesado.`);
+        } catch (error) { toast(error.message, true); }
+        finally { setBusy(false); }
+        return;
+    }
     elements.tareForm.reset(); elements.tareFormError.textContent = ''; elements.netWeightPreview.textContent = '—'; elements.netPerContainerPreview.textContent = '—';
     const containerSelect = elements.tareForm.elements.tipo_envase_calculo_neto;
     containerSelect.innerHTML = state.selected.envases.map((item) => `<option value="${escapeHtml(item.tipo_envase)}">${escapeHtml(label(item.tipo_envase))} · ${item.cantidad_declarada} declarados</option>`).join('');
@@ -358,7 +486,22 @@ elements.previousPage.addEventListener('click', async () => { if (state.page <= 
 elements.nextPage.addEventListener('click', async () => { if (state.meta && state.page >= state.meta.ultima_pagina) return; state.page++; await loadReceptions({ silent: true }); });
 elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando Romana…'); try { await Promise.all([loadCatalogs(), loadReceptions({ silent: true })]); toast('Romana actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
 elements.newReception.addEventListener('click', openNewReception); elements.editReception.addEventListener('click', openEditReception); elements.closeDetail.addEventListener('click', closeDetail);
-function toggleReceptionType() { const soloEnvases = elements.receptionForm.elements.tipo_recepcion.value === 'solo_envases'; elements.serviceField.classList.toggle('is-hidden', soloEnvases); elements.containerConceptField.classList.toggle('is-hidden', !soloEnvases); elements.receptionForm.elements.tipo_servicio.required = !soloEnvases; elements.receptionForm.elements.concepto_envases.required = soloEnvases; }
+function toggleReceptionType() {
+    const form = elements.receptionForm.elements;
+    const soloEnvases = form.tipo_recepcion.value === 'solo_envases';
+    const cumulativeWeighing = form.tipo_recepcion.value === 'fruta_pesaje_envases';
+    elements.serviceField.classList.toggle('is-hidden', soloEnvases);
+    elements.containerConceptField.classList.toggle('is-hidden', !soloEnvases);
+    elements.standardContainerLines.classList.toggle('is-hidden', cumulativeWeighing);
+    elements.containerWeighingFields.classList.toggle('is-hidden', !cumulativeWeighing);
+    elements.grossWeightField.classList.toggle('is-hidden', cumulativeWeighing);
+    form.tipo_servicio.required = !soloEnvases;
+    form.concepto_envases.required = soloEnvases;
+    form.peso_bruto.required = !cumulativeWeighing;
+    form.tipo_envase_pesaje.required = cumulativeWeighing;
+    form.cantidad_envases_pesaje.required = cumulativeWeighing;
+    form.tara_unitaria_envase.required = cumulativeWeighing;
+}
 elements.receptionForm.elements.tipo_recepcion.addEventListener('change', toggleReceptionType);
 ['bins', 'totes', 'esponjas'].forEach((type) => elements.receptionForm.elements[`cantidad_${type}`].addEventListener('input', () => syncAdministrativeNetContainerOptions()));
 ['patente_camion', 'patente_carro'].forEach((name) => elements.receptionForm.elements[name].addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); }));
@@ -367,7 +510,7 @@ elements.logout.addEventListener('click', async () => { try { await api('/api/ac
 function startRefresh() {
     window.clearInterval(state.timer);
     state.timer = window.setInterval(() => {
-        if (!document.hidden && !elements.receptionDialog.open && !elements.tareDialog.open) void loadReceptions({ silent: true }).catch(() => {});
+        if (!document.hidden && !elements.receptionDialog.open && !elements.tareDialog.open && !elements.containerWeighingDialog.open) void loadReceptions({ silent: true }).catch(() => {});
     }, 30000);
 }
 

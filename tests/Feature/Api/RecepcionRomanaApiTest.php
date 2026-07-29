@@ -479,6 +479,208 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonCount(0, 'data');
     }
 
+    public function test_pesa_todos_los_envases_en_tandas_y_cierra_con_neto_acumulado(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['tipo_recepcion'] = 'fruta_pesaje_envases';
+        $datos['envases'] = [['tipo_envase' => 'bins', 'cantidad' => 5]];
+        $datos['tipo_envase_pesaje'] = 'bins';
+        $datos['tara_unitaria_envase'] = 40;
+        unset($datos['peso_bruto']);
+
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::EnPesajeEnvases->value)
+            ->assertJsonPath('data.peso_bruto', 0)
+            ->assertJsonPath('data.pesaje_envases.tipo_envase', 'bins')
+            ->assertJsonPath('data.pesaje_envases.tara_unitaria', 40)
+            ->assertJsonPath('data.pesaje_envases.cantidad_declarada', 5)
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 0)
+            ->assertJsonPath('data.pesaje_envases.cantidad_pendiente', 5)
+            ->assertJsonPath('data.puede_confirmar_ingreso', false)
+            ->assertJsonPath('data.puede_registrar_pesaje', true)
+            ->assertJsonPath('data.puede_cerrar', false)
+            ->json('data');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+        ])
+            ->assertConflict()
+            ->assertJsonPath('message', 'Faltan 5 envases por pesar antes de cerrar la recepción.');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 1,
+            'peso_bruto' => 40,
+        ])
+            ->assertConflict()
+            ->assertJsonPath(
+                'message',
+                'El peso bruto del grupo debe ser mayor que la tara total de sus envases.',
+            );
+
+        $primeraOperacion = (string) Str::uuid();
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => $primeraOperacion,
+            'cantidad_envases' => 1,
+            'peso_bruto' => 440,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 1)
+            ->assertJsonPath('data.peso_bruto', 440)
+            ->assertJsonPath('data.peso_tara', 40)
+            ->assertJsonPath('data.peso_neto', 400)
+            ->assertJsonPath('data.peso_neto_por_envase', 400)
+            ->assertJsonPath('data.lecturas_pesaje_envases.0.cantidad_envases', 1);
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => $primeraOperacion,
+            'cantidad_envases' => 1,
+            'peso_bruto' => 440,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 1);
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 3,
+            'peso_bruto' => 1260,
+            'observacion' => 'Tanda de tres bins.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 4)
+            ->assertJsonPath('data.pesaje_envases.cantidad_pendiente', 1)
+            ->assertJsonPath('data.peso_bruto', 1700)
+            ->assertJsonPath('data.peso_tara', 160)
+            ->assertJsonPath('data.peso_neto', 1540)
+            ->assertJsonPath('data.peso_neto_por_envase', 385);
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 2,
+            'peso_bruto' => 820,
+        ])
+            ->assertConflict()
+            ->assertJsonPath('message', 'La lectura supera los 1 envases pendientes de pesaje.');
+
+        $completa = $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 1,
+            'peso_bruto' => 410,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 5)
+            ->assertJsonPath('data.pesaje_envases.cantidad_pendiente', 0)
+            ->assertJsonPath('data.pesaje_envases.completo', true)
+            ->assertJsonPath('data.peso_bruto', 2110)
+            ->assertJsonPath('data.peso_tara', 200)
+            ->assertJsonPath('data.peso_neto', 1910)
+            ->assertJsonPath('data.peso_neto_por_envase', 382)
+            ->assertJsonPath('data.puede_cerrar', true)
+            ->json('data');
+
+        $cerrada = $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'observacion' => 'Pesaje completo de los cinco bins.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
+            ->assertJsonPath('data.peso_neto', 1910)
+            ->assertJsonPath('data.puede_registrar_pesaje', false)
+            ->assertJsonPath('data.aviso_recibo_disponible', true)
+            ->json('data');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 1,
+            'peso_bruto' => 400,
+        ])->assertConflict();
+        $this->assertDatabaseCount('pesajes_envases_recepcion_romana', 3);
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $cerrada['id'],
+            'cantidad_envases_pesados' => 5,
+            'peso_neto' => 1910,
+            'estado' => EstadoRecepcionRomana::Cerrado->value,
+        ]);
+    }
+
+    public function test_anula_una_tanda_y_recalcula_el_avance_antes_del_cierre(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['tipo_recepcion'] = 'fruta_pesaje_envases';
+        $datos['envases'] = [['tipo_envase' => 'totes', 'cantidad' => 3]];
+        $datos['tipo_envase_pesaje'] = 'totes';
+        $datos['tara_unitaria_envase'] = 2.5;
+        unset($datos['peso_bruto']);
+
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data');
+        $pesada = $this->postJson("/api/romana/recepciones/{$recepcion['id']}/pesajes-envases", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 3,
+            'peso_bruto' => 307.5,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.peso_tara', 7.5)
+            ->assertJsonPath('data.peso_neto', 300)
+            ->json('data');
+        $lecturaId = $pesada['lecturas_pesaje_envases'][0]['id'];
+        $operacionAnulacion = (string) Str::uuid();
+        $payloadAnulacion = [
+            'operacion_id' => $operacionAnulacion,
+            'motivo' => 'Lectura digitada con un decimal incorrecto.',
+        ];
+
+        $this->postJson(
+            "/api/romana/recepciones/{$recepcion['id']}/pesajes-envases/{$lecturaId}/anular",
+            $payloadAnulacion,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 0)
+            ->assertJsonPath('data.pesaje_envases.cantidad_pendiente', 3)
+            ->assertJsonPath('data.peso_bruto', 0)
+            ->assertJsonPath('data.peso_tara', 0)
+            ->assertJsonPath('data.peso_neto', 0)
+            ->assertJsonPath('data.lecturas_pesaje_envases.0.anulado', true);
+
+        $this->postJson(
+            "/api/romana/recepciones/{$recepcion['id']}/pesajes-envases/{$lecturaId}/anular",
+            $payloadAnulacion,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.pesaje_envases.cantidad_pesada', 0);
+    }
+
+    public function test_pesaje_acumulativo_exige_un_solo_envase_coincidente_y_su_tara(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['tipo_recepcion'] = 'fruta_pesaje_envases';
+        $datos['envases'] = [
+            ['tipo_envase' => 'bins', 'cantidad' => 5],
+            ['tipo_envase' => 'totes', 'cantidad' => 2],
+        ];
+        $datos['tipo_envase_pesaje'] = 'bins';
+        unset($datos['peso_bruto']);
+
+        $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['envases', 'tara_unitaria_envase']);
+
+        $datos['envases'] = [['tipo_envase' => 'bins', 'cantidad' => 5]];
+        $datos['tipo_envase_pesaje'] = 'totes';
+        $datos['tara_unitaria_envase'] = 3;
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tipo_envase_pesaje');
+    }
+
     private function cliente(bool $activo = true): Cliente
     {
         return Cliente::create([

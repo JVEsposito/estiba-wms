@@ -89,6 +89,7 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.prefrio.disponibles', 1)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.estado', EstadoProcesoPrefrio::Cargando->value)
             ->assertJsonPath('data.romana.en_bascula_ingreso', 0)
+            ->assertJsonPath('data.romana.en_pesaje_envases', 0)
             ->assertJsonPath('data.romana.pendientes_destare', 0)
             ->assertJsonPath('data.romana.cerradas_hoy', 0)
             ->assertJsonPath('data.romana.peso_neto_hoy', 0)
