@@ -39,12 +39,12 @@ class ServicioExportacionRegistroValidacion
 
         $paginas = $this->paginas($validaciones);
         $plantilla = resource_path('templates/validacion/rrpp-01.xlsx');
-        if (! is_file($plantilla)) {
+        if (is_file($plantilla) === false) {
             throw new RuntimeException('No se encuentra la plantilla RRPP-01.');
         }
 
         $ruta = $this->rutaTemporal();
-        if (! copy($plantilla, $ruta)) {
+        if (copy($plantilla, $ruta) === false) {
             throw new RuntimeException('No fue posible preparar la plantilla RRPP-01.');
         }
 
@@ -98,7 +98,7 @@ class ServicioExportacionRegistroValidacion
                 ),
             );
 
-            if (! $zip->close()) {
+            if ($zip->close() === false) {
                 throw new RuntimeException('No fue posible finalizar el registro RRPP-01.');
             }
             $abierto = false;
@@ -167,7 +167,7 @@ class ServicioExportacionRegistroValidacion
         $this->texto($documento, $xpath, 'C7', $pagina['turno']);
         $this->texto($documento, $xpath, 'C8', (string) $pagina['linea']);
 
-        for ($indice = 0; $indice < self::FILAS_POR_HOJA; $indice++) {
+        for ($indice = 0; $indice < self::FILAS_POR_HOJA; $indice += 1) {
             $fila = self::FILA_INICIAL + $indice;
             foreach (range('B', 'L') as $columna) {
                 $this->limpiar($xpath, $columna.$fila);
@@ -175,7 +175,7 @@ class ServicioExportacionRegistroValidacion
 
             /** @var ValidacionPallet|null $validacion */
             $validacion = $pagina['validaciones']->get($indice);
-            if (! $validacion) {
+            if ($validacion === null) {
                 continue;
             }
 
@@ -215,7 +215,7 @@ class ServicioExportacionRegistroValidacion
     {
         $raiz = $documento->documentElement;
         $formato = $xpath->query('/m:worksheet/m:sheetFormatPr')->item(0);
-        if (! $raiz instanceof DOMElement || ! $formato) {
+        if (($raiz instanceof DOMElement) === false || $formato === null) {
             throw new RuntimeException('La plantilla RRPP-01 no contiene la estructura de impresión.');
         }
 
@@ -256,7 +256,7 @@ class ServicioExportacionRegistroValidacion
         $xpath = new DOMXPath($documento);
         $xpath->registerNamespace('m', self::NS_HOJA);
         $hojas = $xpath->query('/m:workbook/m:sheets')->item(0);
-        if (! $hojas instanceof DOMElement) {
+        if (($hojas instanceof DOMElement) === false) {
             throw new RuntimeException('La plantilla RRPP-01 no contiene la colección de hojas.');
         }
 
@@ -295,7 +295,7 @@ class ServicioExportacionRegistroValidacion
             $raiz?->removeChild($relacion);
         }
 
-        for ($numero = 1; $numero <= $cantidad; $numero++) {
+        for ($numero = 1; $numero <= $cantidad; $numero += 1) {
             $relacion = $documento->createElementNS(self::NS_REL_PAQUETE, 'Relationship');
             $relacion->setAttribute('Id', $numero === 1 ? 'rId1' : 'rId'.($numero + 3));
             $relacion->setAttribute('Type', self::NS_REL_DOCUMENTO.'/worksheet');
@@ -313,7 +313,7 @@ class ServicioExportacionRegistroValidacion
         $xpath->registerNamespace('c', self::NS_CONTENT_TYPES);
         $raiz = $documento->documentElement;
 
-        for ($numero = 2; $numero <= $cantidad; $numero++) {
+        for ($numero = 2; $numero <= $cantidad; $numero += 1) {
             $hoja = $documento->createElementNS(self::NS_CONTENT_TYPES, 'Override');
             $hoja->setAttribute('PartName', "/xl/worksheets/sheet{$numero}.xml");
             $hoja->setAttribute(
@@ -396,7 +396,7 @@ class ServicioExportacionRegistroValidacion
     private function celda(DOMXPath $xpath, string $referencia): DOMElement
     {
         $celda = $xpath->query("//m:c[@r='{$referencia}']")->item(0);
-        if (! $celda instanceof DOMElement) {
+        if (($celda instanceof DOMElement) === false) {
             throw new RuntimeException("La plantilla RRPP-01 no contiene la celda {$referencia}.");
         }
 
@@ -449,7 +449,7 @@ class ServicioExportacionRegistroValidacion
         $documento = new DOMDocument('1.0', 'UTF-8');
         $documento->preserveWhiteSpace = false;
         $documento->formatOutput = false;
-        if (! $documento->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS)) {
+        if ($documento->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS) === false) {
             throw new RuntimeException('La plantilla RRPP-01 contiene XML inválido.');
         }
 
@@ -459,7 +459,7 @@ class ServicioExportacionRegistroValidacion
     private function entrada(ZipArchive $zip, string $nombre): string
     {
         $contenido = $zip->getFromName($nombre);
-        if (! is_string($contenido)) {
+        if (is_string($contenido) === false) {
             throw new RuntimeException("La plantilla RRPP-01 no contiene {$nombre}.");
         }
 
