@@ -43,11 +43,11 @@
                 </header>
 
                 <div class="weighbridge-kpis">
-                    <article><span>EN ROMANA · INGRESO</span><strong id="entryCount">0</strong><small>Pendientes de confirmar bruto</small></article>
+                    <article><span>EN ROMANA · INGRESO</span><strong id="entryCount">0</strong><small>Pendientes de confirmar ingreso</small></article>
                     <article><span>PESAJE DE ENVASES</span><strong id="containerWeighingCount">0</strong><small>Recepciones con pesaje acumulativo abierto</small></article>
-                    <article><span>PENDIENTES DE DESTARE</span><strong id="exitCount">0</strong><small>Camiones que deben volver vacíos</small></article>
+                    <article><span>PENDIENTES DE CIERRE</span><strong id="exitCount">0</strong><small>Destare o cierre documental pendiente</small></article>
                     <article><span>RECEPCIONES CERRADAS</span><strong id="closedCount">0</strong><small>Según los filtros aplicados</small></article>
-                    <article class="weighbridge-kpi--weight"><span>PESO NETO RECEPCIONADO</span><strong id="netWeight">0 kg</strong><small>Bruto menos tara documentada</small></article>
+                    <article class="weighbridge-kpi--weight"><span>PESO NETO RECEPCIONADO</span><strong id="netWeight">0 kg</strong><small>Bruto menos tara total documentada</small></article>
                 </div>
 
                 <section class="panel weighbridge-list-panel">
@@ -56,7 +56,7 @@
                         <form class="weighbridge-filters" id="receptionFilters">
                             <input name="buscar" maxlength="100" placeholder="Recepción, guía, patente, cliente">
                             <select name="temporada_id"><option value="">Todas las temporadas</option></select>
-                            <select name="estado"><option value="">Todos los estados</option><option value="en_bascula_ingreso">En báscula ingreso</option><option value="en_pesaje_envases">Pesaje acumulativo</option><option value="en_bascula_salida">Pendiente de destare</option><option value="cerrado">Cerrado</option></select>
+                            <select name="estado"><option value="">Todos los estados</option><option value="en_bascula_ingreso">En báscula ingreso</option><option value="en_pesaje_envases">Pesaje acumulativo</option><option value="en_bascula_salida">Salida / cierre pendiente</option><option value="cerrado">Cerrado</option></select>
                             <input name="desde" type="date" aria-label="Desde">
                             <input name="hasta" type="date" aria-label="Hasta">
                             <button class="secondary-button" type="submit">Filtrar</button>
@@ -95,7 +95,7 @@
 
         <dialog class="weighbridge-dialog" id="receptionDialog">
             <form method="dialog" class="weighbridge-dialog__shell" id="receptionForm" novalidate>
-                <div class="weighbridge-dialog__heading"><div><p class="eyebrow">PESAJE DE ENTRADA</p><h2 id="receptionDialogTitle">Registrar ingreso</h2><p>Captura los antecedentes documentales y el peso del camión cargado.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
+                <div class="weighbridge-dialog__heading"><div><p class="eyebrow">INGRESO A ROMANA</p><h2 id="receptionDialogTitle">Registrar ingreso</h2><p id="receptionDialogDescription">Captura los antecedentes documentales y el peso del camión cargado.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <input name="recepcion_id" type="hidden">
                 <div class="weighbridge-form-grid">
                     <label class="field field--span-2"><span>Temporada global *</span><select name="temporada_id" required><option value="">Seleccionar temporada activa</option></select></label>
@@ -139,7 +139,10 @@
                 <div class="weighbridge-dialog__heading"><div><p class="eyebrow">BÁSCULA DE SALIDA</p><h2>Registrar destare</h2><p id="tareDescription">Captura la lectura del camión vacío.</p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <label class="field weight-field"><span>Peso tara *</span><div><input name="peso_tara" type="number" min="1" max="200000" step="0.01" inputmode="decimal" required><b>kg</b></div></label>
                 <label class="field"><span>Envase para cálculo neto individual *</span><select name="tipo_envase_calculo_neto" required></select></label>
+                <label class="tare-option"><input name="salida_sin_envases" type="checkbox" value="1"><span><strong>El camión sale sin los envases</strong><small>Descuenta del neto la tara de los envases que quedaron en planta.</small></span></label>
+                <fieldset class="outbound-container-tares is-hidden" id="outboundContainerTares"><legend>Tara de envases retenidos *</legend><div id="outboundContainerTareList"></div><small>Configura el peso vacío por unidad para cada tipo declarado.</small></fieldset>
                 <label class="field"><span>Observación de cierre</span><textarea name="observacion" maxlength="2000"></textarea></label>
+                <div class="net-preview is-hidden" id="containerTarePreviewRow"><span>TARA CALCULADA DE ENVASES</span><strong id="containerTarePreview">—</strong></div>
                 <div class="net-preview"><span>PESO NETO CALCULADO</span><strong id="netWeightPreview">—</strong></div>
                 <div class="net-preview"><span>NETO POR ENVASE</span><strong id="netPerContainerPreview">—</strong></div>
                 <p class="form-error" id="tareFormError" role="alert"></p>

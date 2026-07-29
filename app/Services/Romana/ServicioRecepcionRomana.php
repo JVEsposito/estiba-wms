@@ -45,6 +45,7 @@ class ServicioRecepcionRomana
             $numero = $this->siguienteNumero($ahora);
             $envasePrincipal = $payload['envases'][0];
             $esPesajeEnvases = $payload['tipo_recepcion'] === TipoRecepcionRomana::FrutaPesajeEnvases->value;
+            $esSoloEnvases = $payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value;
             $recepcion = RecepcionRomana::create([
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
@@ -65,9 +66,11 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
-                'peso_bruto' => $esPesajeEnvases ? 0 : $payload['peso_bruto'],
+                'peso_bruto' => $esPesajeEnvases ? 0 : ($esSoloEnvases ? null : $payload['peso_bruto']),
                 'peso_tara' => $esPesajeEnvases ? 0 : null,
                 'peso_neto' => $esPesajeEnvases ? 0 : null,
+                'salida_sin_envases' => false,
+                'peso_tara_envases' => null,
                 'tipo_envase_calculo_neto' => $esPesajeEnvases
                     ? $payload['tipo_envase_pesaje']
                     : null,
@@ -97,7 +100,9 @@ class ServicioRecepcionRomana
                 $usuario,
                 $ahora,
                 [
-                    'peso_bruto' => $esPesajeEnvases ? null : (float) $recepcion->peso_bruto,
+                    'peso_bruto' => $esPesajeEnvases || $esSoloEnvases
+                        ? null
+                        : (float) $recepcion->peso_bruto,
                     'numero_recepcion' => $numero,
                     'numero_guia_despacho' => $recepcion->numero_guia_despacho,
                     'temporada_id' => $recepcion->temporada_id,
@@ -169,7 +174,9 @@ class ServicioRecepcionRomana
                 'nombre_conductor' => $payload['nombre_conductor'],
                 'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? 0
-                    : $payload['peso_bruto'],
+                    : ($payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value
+                        ? null
+                        : $payload['peso_bruto']),
                 'peso_tara' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? 0
                     : $recepcion->peso_tara,
@@ -295,7 +302,9 @@ class ServicioRecepcionRomana
                 'nombre_conductor' => $payload['nombre_conductor'],
                 'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? 0
-                    : $payload['peso_bruto'],
+                    : ($payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value
+                        ? null
+                        : $payload['peso_bruto']),
                 'tipo_envase_calculo_neto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? $payload['tipo_envase_pesaje']
                     : $recepcion->tipo_envase_calculo_neto,
@@ -305,7 +314,20 @@ class ServicioRecepcionRomana
                 'version' => $recepcion->version + 1,
             ];
 
-            if ($estado === EstadoRecepcionRomana::Cerrado) {
+            if ($estado === EstadoRecepcionRomana::Cerrado
+                && $payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value) {
+                $actualizacion = [
+                    ...$actualizacion,
+                    'peso_bruto' => null,
+                    'peso_tara' => null,
+                    'peso_neto' => null,
+                    'salida_sin_envases' => false,
+                    'peso_tara_envases' => null,
+                    'tipo_envase_calculo_neto' => null,
+                    'cantidad_envase_calculo_neto' => null,
+                    'peso_neto_por_envase' => null,
+                ];
+            } elseif ($estado === EstadoRecepcionRomana::Cerrado) {
                 $actualizacion = [
                     ...$actualizacion,
                     ...$this->recalcularCierreCorregido($recepcion, $payload),
@@ -314,6 +336,9 @@ class ServicioRecepcionRomana
 
             $recepcion->update($actualizacion);
             $this->sincronizarEnvases($recepcion, $payload['envases']);
+            if ($payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value) {
+                $recepcion->detallesEnvases()->update(['tara_unitaria_salida' => null]);
+            }
             $recepcion->refresh()->load('detallesEnvases');
             $posterior = $this->snapshotCorreccion($recepcion);
 
@@ -371,7 +396,9 @@ class ServicioRecepcionRomana
                 EstadoRecepcionRomana::EnBasculaSalida,
                 $usuario,
                 $ahora,
-                ['peso_bruto' => (float) $recepcion->peso_bruto],
+                ['peso_bruto' => $recepcion->peso_bruto !== null
+                    ? (float) $recepcion->peso_bruto
+                    : null],
             );
 
             return $this->cargar($recepcion);
@@ -602,12 +629,24 @@ class ServicioRecepcionRomana
         if ($recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases) {
             return $this->cerrarPesajeEnvases($recepcion, $datos, $usuario);
         }
+        if ($recepcion->tipo_recepcion === TipoRecepcionRomana::SoloEnvases) {
+            return $this->cerrarSoloEnvases($recepcion, $datos, $usuario);
+        }
 
         $payload = [
             'accion' => 'cerrar',
             'recepcion_id' => $recepcion->id,
             'peso_tara' => round((float) $datos['peso_tara'], 2),
             'tipo_envase_calculo_neto' => $datos['tipo_envase_calculo_neto'] ?? null,
+            'salida_sin_envases' => (bool) ($datos['salida_sin_envases'] ?? false),
+            'taras_envases' => collect($datos['taras_envases'] ?? [])
+                ->map(fn (array $envase): array => [
+                    'tipo_envase' => $envase['tipo_envase'],
+                    'tara_unitaria' => round((float) $envase['tara_unitaria'], 3),
+                ])
+                ->sortBy('tipo_envase')
+                ->values()
+                ->all(),
             'observacion' => $datos['observacion'] ?? null,
         ];
         $hash = $this->hash($payload);
@@ -630,8 +669,15 @@ class ServicioRecepcionRomana
 
             $tara = (float) $payload['peso_tara'];
             $bruto = (float) $recepcion->peso_bruto;
-            if ($tara >= $bruto) {
-                throw new ConflictoOperacion('La tara debe ser menor que el peso bruto registrado.');
+            $tarasEnvases = $this->calcularTaraEnvasesSalida($recepcion, $payload);
+            $pesoTaraEnvases = $tarasEnvases['peso_tara_envases'];
+            $pesoTaraTotal = round($tara + $pesoTaraEnvases, 3);
+            if ($pesoTaraTotal >= $bruto) {
+                throw new ConflictoOperacion(
+                    $payload['salida_sin_envases']
+                        ? 'La tara del camión más la tara calculada de envases debe ser menor que el peso bruto registrado.'
+                        : 'La tara debe ser menor que el peso bruto registrado.',
+                );
             }
 
             $tipoCalculo = $payload['tipo_envase_calculo_neto']
@@ -646,7 +692,7 @@ class ServicioRecepcionRomana
             }
 
             $ahora = CarbonImmutable::now();
-            $pesoNeto = round($bruto - $tara, 2);
+            $pesoNeto = round($bruto - $pesoTaraTotal, 3);
             $pesoNetoPorEnvase = round(
                 $pesoNeto / $detalleCalculo->cantidad_declarada,
                 3,
@@ -654,9 +700,97 @@ class ServicioRecepcionRomana
             $recepcion->update([
                 'peso_tara' => $tara,
                 'peso_neto' => $pesoNeto,
+                'salida_sin_envases' => $payload['salida_sin_envases'],
+                'peso_tara_envases' => $pesoTaraEnvases,
                 'tipo_envase_calculo_neto' => $tipoCalculo,
                 'cantidad_envase_calculo_neto' => $detalleCalculo->cantidad_declarada,
                 'peso_neto_por_envase' => $pesoNetoPorEnvase,
+                'estado' => EstadoRecepcionRomana::Cerrado,
+                'salida_at' => $ahora,
+                'cerrado_por_user_id' => $usuario->id,
+                'observacion_cierre' => $payload['observacion'],
+                'version' => $recepcion->version + 1,
+            ]);
+            foreach ($recepcion->detallesEnvases as $detalle) {
+                $detalle->update([
+                    'tara_unitaria_salida' => $tarasEnvases['taras_unitarias'][$detalle->tipo_envase->value]
+                        ?? null,
+                ]);
+            }
+            $this->registrarEvento(
+                $recepcion,
+                (string) $datos['operacion_id'],
+                $hash,
+                TipoEventoRomana::RecepcionCerrada,
+                EstadoRecepcionRomana::EnBasculaSalida,
+                EstadoRecepcionRomana::Cerrado,
+                $usuario,
+                $ahora,
+                [
+                    'numero_recepcion' => $recepcion->numero_recepcion,
+                    'peso_bruto' => $bruto,
+                    'peso_tara' => $tara,
+                    'salida_sin_envases' => $payload['salida_sin_envases'],
+                    'peso_tara_envases' => $pesoTaraEnvases,
+                    'peso_tara_total' => $pesoTaraTotal,
+                    'peso_neto' => (float) $recepcion->peso_neto,
+                    'tipo_envase_calculo_neto' => $tipoCalculo,
+                    'cantidad_envase_calculo_neto' => $detalleCalculo->cantidad_declarada,
+                    'peso_neto_por_envase' => $pesoNetoPorEnvase,
+                    'observacion_cierre' => $payload['observacion'],
+                ],
+            );
+
+            return $this->cargar($recepcion);
+        });
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function cerrarSoloEnvases(
+        RecepcionRomana $recepcion,
+        array $datos,
+        User $usuario,
+    ): RecepcionRomana {
+        $payload = [
+            'accion' => 'cerrar_solo_envases',
+            'recepcion_id' => $recepcion->id,
+            'observacion' => $datos['observacion'] ?? null,
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($recepcion, $datos, $usuario, $payload, $hash): RecepcionRomana {
+            $recepcion = RecepcionRomana::query()->lockForUpdate()->findOrFail($recepcion->id);
+            $evento = EventoRecepcionRomana::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            if ($evento) {
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $recepcion,
+                    $hash,
+                    TipoEventoRomana::RecepcionCerrada,
+                );
+
+                return $this->cargar($recepcion);
+            }
+
+            if ($recepcion->tipo_recepcion !== TipoRecepcionRomana::SoloEnvases
+                || $recepcion->estado !== EstadoRecepcionRomana::EnBasculaSalida) {
+                throw new ConflictoOperacion(
+                    'La recepción documental de envases debe confirmar primero su ingreso.',
+                );
+            }
+
+            $ahora = CarbonImmutable::now();
+            $recepcion->update([
+                'peso_bruto' => null,
+                'peso_tara' => null,
+                'peso_neto' => null,
+                'salida_sin_envases' => false,
+                'peso_tara_envases' => null,
+                'tipo_envase_calculo_neto' => null,
+                'cantidad_envase_calculo_neto' => null,
+                'peso_neto_por_envase' => null,
                 'estado' => EstadoRecepcionRomana::Cerrado,
                 'salida_at' => $ahora,
                 'cerrado_por_user_id' => $usuario->id,
@@ -674,12 +808,7 @@ class ServicioRecepcionRomana
                 $ahora,
                 [
                     'numero_recepcion' => $recepcion->numero_recepcion,
-                    'peso_bruto' => $bruto,
-                    'peso_tara' => $tara,
-                    'peso_neto' => (float) $recepcion->peso_neto,
-                    'tipo_envase_calculo_neto' => $tipoCalculo,
-                    'cantidad_envase_calculo_neto' => $detalleCalculo->cantidad_declarada,
-                    'peso_neto_por_envase' => $pesoNetoPorEnvase,
+                    'recepcion_sin_pesaje' => true,
                     'observacion_cierre' => $payload['observacion'],
                 ],
             );
@@ -889,9 +1018,32 @@ class ServicioRecepcionRomana
             ? (float) $payload['peso_tara']
             : (float) $recepcion->peso_tara;
         $bruto = (float) $payload['peso_bruto'];
-        if ($tara <= 0 || $tara >= $bruto) {
+        if ($tara <= 0) {
             throw new ConflictoOperacion(
                 'El peso bruto corregido debe ser mayor que la tara registrada.',
+            );
+        }
+
+        $pesoTaraEnvases = 0.0;
+        if ($recepcion->salida_sin_envases) {
+            foreach ($payload['envases'] as $envase) {
+                $detalle = $recepcion->detallesEnvases->first(
+                    fn ($actual): bool => $actual->tipo_envase->value === $envase['tipo_envase'],
+                );
+                $taraUnitaria = (float) ($detalle?->tara_unitaria_salida ?? 0);
+                if ($taraUnitaria <= 0) {
+                    throw new ConflictoOperacion(
+                        'Configura la tara del nuevo tipo de envase antes de recalcular esta recepción.',
+                    );
+                }
+                $pesoTaraEnvases += $taraUnitaria * (int) $envase['cantidad'];
+            }
+            $pesoTaraEnvases = round($pesoTaraEnvases, 3);
+        }
+        $pesoTaraTotal = round($tara + $pesoTaraEnvases, 3);
+        if ($pesoTaraTotal >= $bruto) {
+            throw new ConflictoOperacion(
+                'El peso bruto corregido debe ser mayor que la tara total registrada.',
             );
         }
 
@@ -909,11 +1061,12 @@ class ServicioRecepcionRomana
         }
 
         $cantidad = (int) $detalleCalculo['cantidad'];
-        $pesoNeto = round($bruto - $tara, 2);
+        $pesoNeto = round($bruto - $pesoTaraTotal, 3);
 
         return [
             'peso_tara' => $tara,
             'peso_neto' => $pesoNeto,
+            'peso_tara_envases' => $pesoTaraEnvases,
             'tipo_envase_calculo_neto' => $tipoCalculo,
             'cantidad_envase_calculo_neto' => $cantidad,
             'peso_neto_por_envase' => round($pesoNeto / $cantidad, 3),
@@ -934,6 +1087,9 @@ class ServicioRecepcionRomana
                 ->map(fn ($detalle): array => [
                     'tipo_envase' => $detalle->tipo_envase->value,
                     'cantidad' => $detalle->cantidad_declarada,
+                    'tara_unitaria_salida' => $detalle->tara_unitaria_salida !== null
+                        ? (float) $detalle->tara_unitaria_salida
+                        : null,
                 ])
                 ->values()
                 ->all(),
@@ -942,9 +1098,13 @@ class ServicioRecepcionRomana
             'patente_carro' => $recepcion->patente_carro,
             'rut_conductor' => $recepcion->rut_conductor,
             'nombre_conductor' => $recepcion->nombre_conductor,
-            'peso_bruto' => (float) $recepcion->peso_bruto,
+            'peso_bruto' => $recepcion->peso_bruto !== null ? (float) $recepcion->peso_bruto : null,
             'peso_tara' => $recepcion->peso_tara !== null ? (float) $recepcion->peso_tara : null,
             'peso_neto' => $recepcion->peso_neto !== null ? (float) $recepcion->peso_neto : null,
+            'salida_sin_envases' => $recepcion->salida_sin_envases,
+            'peso_tara_envases' => $recepcion->peso_tara_envases !== null
+                ? (float) $recepcion->peso_tara_envases
+                : null,
             'tipo_envase_calculo_neto' => $recepcion->tipo_envase_calculo_neto,
             'cantidad_envase_calculo_neto' => $recepcion->cantidad_envase_calculo_neto,
             'peso_neto_por_envase' => $recepcion->peso_neto_por_envase !== null
@@ -956,6 +1116,48 @@ class ServicioRecepcionRomana
                 : null,
             'cantidad_envases_pesados' => $recepcion->cantidad_envases_pesados,
             'observacion' => $recepcion->observacion,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{peso_tara_envases: float, taras_unitarias: array<string, float>}
+     */
+    private function calcularTaraEnvasesSalida(
+        RecepcionRomana $recepcion,
+        array $payload,
+    ): array {
+        if (! $payload['salida_sin_envases']) {
+            return [
+                'peso_tara_envases' => 0.0,
+                'taras_unitarias' => [],
+            ];
+        }
+
+        $taras = collect($payload['taras_envases'])->keyBy('tipo_envase');
+        $tarasUnitarias = [];
+        $pesoTaraEnvases = 0.0;
+        foreach ($recepcion->detallesEnvases as $detalle) {
+            $tipo = $detalle->tipo_envase->value;
+            $taraUnitaria = (float) ($taras->get($tipo)['tara_unitaria'] ?? 0);
+            if ($taraUnitaria <= 0) {
+                throw new ConflictoOperacion(
+                    "Configura la tara unitaria de {$tipo} antes de cerrar la recepción.",
+                );
+            }
+            $tarasUnitarias[$tipo] = $taraUnitaria;
+            $pesoTaraEnvases += $taraUnitaria * $detalle->cantidad_declarada;
+        }
+
+        if (count($tarasUnitarias) !== $taras->count()) {
+            throw new ConflictoOperacion(
+                'Las taras configuradas no coinciden con los tipos de envase declarados.',
+            );
+        }
+
+        return [
+            'peso_tara_envases' => round($pesoTaraEnvases, 3),
+            'taras_unitarias' => $tarasUnitarias,
         ];
     }
 

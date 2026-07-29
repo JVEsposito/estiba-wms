@@ -145,6 +145,21 @@ body {
 .container-weighing-config legend { padding: 0 6px; color: var(--muted); font-size: 11px; font-weight: 900; }
 .container-weighing-config label span { display: block; margin-bottom: 6px; }
 .container-weighing-config small { grid-column: 1 / -1; color: var(--muted); }
+.tare-option { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--deep); padding: 12px; cursor: pointer; }
+.tare-option input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 2px; accent-color: var(--cyan); }
+.tare-option span,
+.tare-option small { display: block; }
+.tare-option strong { color: var(--text); font-size: .78rem; }
+.tare-option small { margin-top: 3px; color: var(--muted); font-size: .65rem; line-height: 1.35; }
+.outbound-container-tares { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.outbound-container-tares legend { padding: 0 6px; color: var(--muted); font-size: .7rem; font-weight: 900; }
+.outbound-container-tares > div { display: grid; gap: 10px; }
+.outbound-container-tares label { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; align-items: center; }
+.outbound-container-tares label > span { color: var(--text); font-size: .72rem; font-weight: 800; }
+.outbound-container-tares label > div { position: relative; }
+.outbound-container-tares label input { padding-right: 52px; }
+.outbound-container-tares label b { position: absolute; top: 18px; right: 12px; color: var(--cyan); font-size: .65rem; }
+.outbound-container-tares > small { display: block; margin-top: 9px; color: var(--muted); font-size: .62rem; }
 
 @media (max-width: 1280px) {
     .weighbridge-kpis { grid-template-columns: repeat(3, 1fr); }

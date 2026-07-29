@@ -16,8 +16,16 @@ class GeneradorAvisoReciboPdf
         }
         $recepcion->loadMissing('detallesEnvases', 'pesajesEnvases');
         $esPesajeEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases;
+        $esSoloEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::SoloEnvases;
         $envases = $recepcion->detallesEnvases
-            ->map(fn ($detalle): string => $detalle->cantidad_declarada.' '.ucfirst($detalle->tipo_envase->value))
+            ->map(function ($detalle) use ($recepcion): string {
+                $linea = $detalle->cantidad_declarada.' '.ucfirst($detalle->tipo_envase->value);
+                if ($recepcion->salida_sin_envases && $detalle->tara_unitaria_salida !== null) {
+                    $linea .= ' (tara/u '.$this->peso($detalle->tara_unitaria_salida).' kg)';
+                }
+
+                return $linea;
+            })
             ->implode(' · ');
         if ($esPesajeEnvases) {
             $lecturas = $recepcion->pesajesEnvases->whereNull('anulado_at')->count();
@@ -33,13 +41,17 @@ class GeneradorAvisoReciboPdf
         $lineas = [
             ['N° recepción', $recepcion->numero_recepcion],
             ['Ingreso', $recepcion->ingreso_at?->format('d-m-Y H:i')],
-            [$esPesajeEnvases ? 'Cierre de pesaje' : 'Salida / destare', $recepcion->salida_at?->format('d-m-Y H:i')],
+            [$esSoloEnvases
+                ? 'Cierre documental'
+                : ($esPesajeEnvases ? 'Cierre de pesaje' : 'Salida / destare'), $recepcion->salida_at?->format('d-m-Y H:i')],
             ['Temporada', $recepcion->temporada_nombre_snapshot.' · '.$recepcion->temporada_codigo_snapshot],
             ['Cliente', $recepcion->cliente_nombre_snapshot],
             ['Código cliente', $recepcion->cliente_codigo_snapshot ?: 'Sin código externo'],
-            ['Tipo recepción', $esPesajeEnvases
-                ? 'Fruta con pesaje acumulativo de envases'
-                : str_replace('_', ' ', ucfirst($recepcion->tipo_recepcion->value))],
+            ['Tipo recepción', match ($recepcion->tipo_recepcion) {
+                TipoRecepcionRomana::FrutaPesajeEnvases => 'Fruta con pesaje acumulativo de envases',
+                TipoRecepcionRomana::SoloEnvases => 'Solo envases · sin registro de kilos',
+                default => 'Fruta con envases',
+            }],
             ['Servicio / concepto', ucfirst($recepcion->concepto_envases?->value ?? $recepcion->tipo_servicio->value)],
             ['Guía de despacho', $recepcion->numero_guia_despacho],
             ['Envases declarados', $envases],
@@ -47,13 +59,30 @@ class GeneradorAvisoReciboPdf
             ['Patente carro', $recepcion->patente_carro ?: 'No informada'],
             ['Conductor', $recepcion->nombre_conductor],
             ['RUT conductor', $recepcion->rut_conductor],
-            [$esPesajeEnvases ? 'Bruto acumulado' : 'Peso bruto', $this->peso($recepcion->peso_bruto).' kg'],
-            [$esPesajeEnvases ? 'Tara acumulada' : 'Peso tara', $this->peso($recepcion->peso_tara).' kg'],
-            [$esPesajeEnvases ? 'PESO NETO / PROMEDIO' : 'PESO NETO', $esPesajeEnvases
-                ? $this->peso($recepcion->peso_neto).' kg · '
-                    .$this->peso($recepcion->peso_neto_por_envase).' kg/envase'
-                : $this->peso($recepcion->peso_neto).' kg'],
         ];
+        if ($esSoloEnvases) {
+            $lineas[] = ['PESAJE', 'No aplica para recepción exclusiva de envases'];
+        } elseif ($esPesajeEnvases) {
+            $lineas[] = ['Bruto acumulado', $this->peso($recepcion->peso_bruto).' kg'];
+            $lineas[] = ['Tara acumulada', $this->peso($recepcion->peso_tara).' kg'];
+            $lineas[] = ['PESO NETO / PROMEDIO', $this->peso($recepcion->peso_neto).' kg · '
+                .$this->peso($recepcion->peso_neto_por_envase).' kg/envase'];
+        } else {
+            $lineas[] = ['Peso bruto', $this->peso($recepcion->peso_bruto).' kg'];
+            $lineas[] = $recepcion->salida_sin_envases
+                ? [
+                    'Tara camión + envases',
+                    $this->peso($recepcion->peso_tara).' + '
+                        .$this->peso($recepcion->peso_tara_envases).' = '
+                        .$this->peso(
+                            (float) $recepcion->peso_tara + (float) $recepcion->peso_tara_envases,
+                        ).' kg',
+                ]
+                : ['Peso tara camión', $this->peso($recepcion->peso_tara).' kg'];
+            $lineas[] = ['PESO NETO', $this->peso($recepcion->peso_neto).' kg'];
+        }
+        $inicioPesos = $esSoloEnvases ? count($lineas) - 1 : count($lineas) - 3;
+        $indiceNeto = count($lineas) - 1;
 
         $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
         $contenido .= $this->texto(42, 810, 20, 'ESTIBA WMS', true, '1 1 1');
@@ -64,16 +93,16 @@ class GeneradorAvisoReciboPdf
 
         $y = 695;
         foreach ($lineas as $indice => [$etiqueta, $valor]) {
-            if ($indice === 14) {
+            if ($indice === $inicioPesos) {
                 $contenido .= '0.92 0.96 0.97 rg 38 '.($y - 9)." 519 31 re f\n";
             }
-            if ($indice === 16) {
+            if ($indice === $indiceNeto) {
                 $contenido .= '0.08 0.50 0.48 rg 38 '.($y - 12)." 519 36 re f\n";
             }
-            $color = $indice === 16 ? '1 1 1' : '0.15 0.20 0.23';
-            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === 16, $color);
-            $contenido .= $this->texto(235, $y, $indice === 16 ? 13 : 10, (string) $valor, true, $color);
-            $y -= $indice >= 14 ? 35 : 27;
+            $color = $indice === $indiceNeto ? '1 1 1' : '0.15 0.20 0.23';
+            $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === $indiceNeto, $color);
+            $contenido .= $this->texto(235, $y, $indice === $indiceNeto ? 13 : 10, (string) $valor, true, $color);
+            $y -= $indice >= $inicioPesos ? 35 : 27;
         }
 
         $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);

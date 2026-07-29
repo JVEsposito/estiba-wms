@@ -163,6 +163,75 @@ class RecepcionRomanaApiTest extends TestCase
         ]);
     }
 
+    public function test_descontar_tara_de_envases_si_el_camion_sale_sin_ellos(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['peso_bruto'] = 30000;
+        $datos['envases'] = [
+            ['tipo_envase' => 'bins', 'cantidad' => 10],
+            ['tipo_envase' => 'totes', 'cantidad' => 20],
+        ];
+
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/confirmar-ingreso", [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'peso_tara' => 10000,
+            'tipo_envase_calculo_neto' => 'bins',
+            'salida_sin_envases' => true,
+            'taras_envases' => [
+                ['tipo_envase' => 'bins', 'tara_unitaria' => 40],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['taras_envases']);
+
+        $cerrada = $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'peso_tara' => 10000,
+            'tipo_envase_calculo_neto' => 'bins',
+            'salida_sin_envases' => true,
+            'taras_envases' => [
+                ['tipo_envase' => 'bins', 'tara_unitaria' => 40],
+                ['tipo_envase' => 'totes', 'tara_unitaria' => 2],
+            ],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
+            ->assertJsonPath('data.salida_sin_envases', true)
+            ->assertJsonPath('data.peso_tara', 10000)
+            ->assertJsonPath('data.peso_tara_envases', 440)
+            ->assertJsonPath('data.peso_tara_total', 10440)
+            ->assertJsonPath('data.peso_neto', 19560)
+            ->assertJsonPath('data.peso_neto_por_envase', 1956)
+            ->json('data');
+
+        $this->assertDatabaseHas('detalles_envases_recepcion_romana', [
+            'recepcion_romana_id' => $cerrada['id'],
+            'tipo_envase' => 'bins',
+            'tara_unitaria_salida' => 40,
+        ]);
+        $this->assertDatabaseHas('detalles_envases_recepcion_romana', [
+            'recepcion_romana_id' => $cerrada['id'],
+            'tipo_envase' => 'totes',
+            'tara_unitaria_salida' => 2,
+        ]);
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $cerrada['id'],
+            'salida_sin_envases' => true,
+            'peso_tara_envases' => 440,
+            'peso_neto' => 19560,
+        ]);
+    }
+
     public function test_administrador_corrige_recepcion_cerrada_y_recalcula_pesos_con_trazabilidad(): void
     {
         $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
@@ -420,6 +489,7 @@ class RecepcionRomanaApiTest extends TestCase
         $datos['tipo_recepcion'] = 'solo_envases';
         $datos['concepto_envases'] = 'arriendo';
         $datos['tipo_servicio'] = null;
+        $datos['peso_bruto'] = 28540; // Un cliente antiguo podría seguir enviando el campo.
         $datos['envases'] = [
             ['tipo_envase' => 'bins', 'cantidad' => 120],
             ['tipo_envase' => 'esponjas', 'cantidad' => 800],
@@ -431,6 +501,9 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('data.numero_recepcion', 'REC-2607-0001')
             ->assertJsonPath('data.tipo_recepcion', 'solo_envases')
             ->assertJsonPath('data.concepto_envases', 'arriendo')
+            ->assertJsonPath('data.peso_bruto', null)
+            ->assertJsonPath('data.peso_tara', null)
+            ->assertJsonPath('data.peso_neto', null)
             ->assertJsonPath('data.estado_validacion_mp', 'pendiente')
             ->assertJsonCount(2, 'data.envases')
             ->json('data');
@@ -453,6 +526,31 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('resumen.lineas_pendientes_validacion', 2)
             ->assertJsonPath('pendientes.0.numero_recepcion', 'REC-2607-0001');
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/confirmar-ingreso", [
+            'operacion_id' => (string) Str::uuid(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::EnBasculaSalida->value);
+
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
+            ->assertJsonPath('data.peso_bruto', null)
+            ->assertJsonPath('data.peso_tara', null)
+            ->assertJsonPath('data.peso_neto', null)
+            ->assertJsonPath('data.peso_tara_total', null)
+            ->assertJsonPath('data.aviso_recibo_disponible', true);
+
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $recepcion['id'],
+            'peso_bruto' => null,
+            'peso_tara' => null,
+            'peso_neto' => null,
+            'estado' => EstadoRecepcionRomana::Cerrado->value,
+        ]);
     }
 
     public function test_oculta_notificaciones_de_recepciones_de_temporadas_anteriores(): void

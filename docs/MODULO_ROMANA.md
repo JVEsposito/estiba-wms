@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Romana es el punto de inicio contractual de la recepción. Registra lo que ingresó físicamente a la planta y conserva cliente, temporada, guía, transporte, envases declarados y pesos observados.
+Romana es el punto de inicio contractual de la recepción. Registra lo que ingresó físicamente a la planta y conserva cliente, temporada, guía, transporte, envases declarados y, cuando corresponde, los pesos observados.
 
 La oficina se encuentra en:
 
@@ -46,7 +46,7 @@ Romana puede recibir cualquier cliente operacional activo. Al crear la recepció
 
 ## Correlativo
 
-El número de recepción se asigna al crear el expediente, dentro de la misma transacción que registra el peso bruto tradicional o la configuración inicial del pesaje acumulativo.
+El número de recepción se asigna al crear el expediente, dentro de la misma transacción que registra el peso bruto tradicional, la configuración inicial del pesaje acumulativo o el ingreso documental exclusivo de envases.
 
 Formato:
 
@@ -68,10 +68,10 @@ Asignar el correlativo desde el inicio permite que Validación MP busque, pistol
 
 | Estado | Significado | Acciones permitidas |
 |---|---|---|
-| `en_bascula_ingreso` | Se registró el bruto y los antecedentes pueden revisarse. | Editar datos permitidos o confirmar ingreso. |
+| `en_bascula_ingreso` | Se registraron los antecedentes y, cuando corresponde, el bruto de entrada. | Editar datos permitidos o confirmar ingreso. |
 | `en_pesaje_envases` | La recepción pesa todos los envases declarados en una o más tandas. | Registrar o anular tandas; editar la configuración solo mientras no existan lecturas activas; cerrar al completar el total exacto. |
-| `en_bascula_salida` | El ingreso fue confirmado y el camión debe volver vacío. | Registrar tara y cerrar; corrección administrativa mientras Validación MP siga pendiente. |
-| `cerrado` | Se capturó la tara y se calculó el peso neto. | Consultar, descargar PDF o corregir administrativamente mientras Validación MP siga pendiente. |
+| `en_bascula_salida` | El ingreso fue confirmado. La fruta espera destare y la recepción exclusiva de envases espera cierre documental. | Registrar tara o cerrar sin kilos, según el tipo; corrección administrativa mientras Validación MP siga pendiente. |
+| `cerrado` | Se completó el cálculo de pesos o el cierre documental sin kilos. | Consultar, descargar PDF o corregir administrativamente mientras Validación MP siga pendiente. |
 
 No se permite volver a un estado anterior. Después de confirmar el ingreso los antecedentes contractuales quedan congelados para la operación normal. Solo un administrador puede corregirlos mientras Validación MP no haya tomado la recepción; la corrección exige motivo, conserva valores anteriores y posteriores, incrementa la versión y no cambia el estado.
 
@@ -92,8 +92,10 @@ La recepción registra:
 - RUT y nombre del conductor;
 - tipo de servicio;
 - número de guía;
-- peso bruto;
-- tara;
+- peso bruto, cuando la recepción contiene fruta;
+- tara medida del camión, cuando corresponde;
+- indicador de salida del camión sin los envases;
+- tara unitaria y tara total calculada de los envases retenidos en planta;
 - peso neto;
 - tipo y cantidad de envases elegidos para el cálculo individual;
 - peso neto calculado por envase;
@@ -118,6 +120,17 @@ La recepción puede corresponder a:
 - fruta con pesaje acumulativo de todos los envases;
 - una operación exclusiva de envases por compra o arriendo.
 
+Una recepción `solo_envases` no exige ni almacena peso bruto, tara o peso neto. Conserva correlativo, guía, cliente, fecha y hora, transporte, cantidades, concepto y trazabilidad, y se cierra documentalmente después de confirmar el ingreso.
+
+En el pesaje tradicional de fruta, si el camión sale sin los envases que traían la fruta, la lectura de salida representa únicamente la tara del camión. Romana exige entonces la tara unitaria de cada tipo declarado y calcula:
+
+```text
+tara de envases = Σ(cantidad declarada × tara unitaria)
+peso neto fruta = peso bruto - tara camión - tara de envases
+```
+
+La lectura real de la báscula y la tara calculada de los envases se conservan por separado en el expediente y en su evento de cierre.
+
 En el pesaje acumulativo se declara un solo tipo de envase y su cantidad total. Por ejemplo, una guía con 60 bins puede registrarse en lecturas de 1, 3 o cualquier número que no supere el saldo pendiente. Cada lectura calcula:
 
 ```text
@@ -137,6 +150,7 @@ crear recepción y asignar REC-*
 → confirmar ingreso
 → retorno del camión vacío
 → registrar tara
+→ si sale sin envases, configurar tara por tipo y descontarla
 → calcular peso neto
 → seleccionar envase y calcular neto individual
 → cerrar
@@ -154,6 +168,15 @@ crear recepción y asignar REC-*
 → acumular bruto, tara y neto
 → completar exactamente el total declarado
 → cerrar
+→ emitir Aviso de Recibo
+```
+
+Flujo exclusivo de envases:
+
+```text
+crear recepción sin kilos y asignar REC-*
+→ confirmar ingreso documental
+→ cerrar sin bruto, tara ni neto
 → emitir Aviso de Recibo
 ```
 
@@ -216,7 +239,8 @@ Una recepción cerrada expone un PDF con:
 - servicio y guía;
 - envases declarados;
 - camión, carro y conductor;
-- bruto, tara y peso neto;
+- bruto, tara del camión, tara calculada de envases y peso neto cuando corresponde;
+- indicación expresa de “sin registro de kilos” para recepciones exclusivas de envases;
 - para pesaje acumulativo: tara unitaria, total pesado, cantidad de tandas y neto promedio por envase;
 - observaciones;
 - espacios de firma.
@@ -229,7 +253,7 @@ El endpoint rechaza recepciones abiertas.
 
 - camiones en ingreso;
 - recepciones con pesaje acumulativo abierto;
-- camiones pendientes de destare;
+- recepciones pendientes de destare o cierre documental;
 - recepciones cerradas del día;
 - clientes recibidos;
 - envases declarados;
