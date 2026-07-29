@@ -200,6 +200,4 @@ class GeneradorEtiquetaMaterialZpl
             $valor,
         );
     }
-
-
 }
