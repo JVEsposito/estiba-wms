@@ -58,16 +58,23 @@ class GeneradorEtiquetaMaterialNlbl
         [$ancho, $alto] = $this->dimensiones($perfil);
         $margen = max(2500, (int) round($ancho * 0.04));
         $folio = (string) $etiqueta['numero_folio'];
+        $textoFolio = 'Folio: '.$folio;
+        $anchoFolio = $ancho - ($margen * 2);
+        $tamanoFolio = $this->tamanoFolio(
+            $textoFolio,
+            $anchoFolio,
+            max(14, min(22, (int) round($alto / 3500))),
+        );
         $items = [];
         $z = 1;
 
         $items[] = $this->texto(
-            'Folio: '.$folio,
+            $textoFolio,
             $margen,
             max(1800, (int) round($alto * 0.035)),
-            $ancho - ($margen * 2),
+            $anchoFolio,
             max(6500, (int) round($alto * 0.13)),
-            max(14, min(22, (int) round($alto / 3500))),
+            $tamanoFolio,
             true,
             $z++,
             'Folio',
@@ -536,6 +543,17 @@ XML;
             'Proveedor: '.$etiqueta['proveedor_nombre'],
             'Fecha recepción: '.(($etiqueta['fecha_recepcion'] ?? null) ?: '—'),
         ];
+    }
+
+    private function tamanoFolio(string $texto, int $ancho, int $maximo): int
+    {
+        $caracteres = max(1, mb_strlen($texto));
+        $anchoUtil = max(1, $ancho - 2000);
+        $calculado = (int) floor(
+            $anchoUtil / ($caracteres * 240),
+        );
+
+        return max(7, min($maximo, $calculado));
     }
 
     private function tamanoDetalle(
