@@ -1,0 +1,76 @@
+<?php
+
+namespace App\Services\Materiales;
+
+use App\Enums\ContenidoCamara;
+use App\Enums\EstadoOperacionalFolio;
+use App\Models\FolioMaterial;
+use Closure;
+use LogicException;
+
+class ServicioReservaFifoMaterial
+{
+    /**
+     * Reserva únicamente los folios necesarios y mantiene bloqueado cada candidato
+     * seleccionado hasta que finaliza la transacción que envuelve la operación.
+     *
+     * @param  Closure(FolioMaterial, float, int): void  $registrarReserva
+     */
+    public function reservar(
+        string $itemMaterialId,
+        float $cantidadRequerida,
+        Closure $registrarReserva,
+    ): float {
+        $pendiente = round($cantidadRequerida, 3);
+        $ordenFifo = 1;
+
+        while ($pendiente > 0.0001) {
+            $folio = $this->siguienteDisponibleBloqueado($itemMaterialId);
+
+            if (! $folio) {
+                break;
+            }
+
+            $disponible = round(
+                (float) $folio->cantidad_actual - (float) $folio->cantidad_reservada,
+                3,
+            );
+
+            if ($disponible <= 0) {
+                throw new LogicException(
+                    'El selector FIFO bloqueó un folio sin saldo disponible.',
+                );
+            }
+
+            $cantidad = min($pendiente, $disponible);
+            $registrarReserva($folio, $cantidad, $ordenFifo++);
+            $folio->increment('cantidad_reservada', $cantidad);
+            $pendiente = round($pendiente - $cantidad, 3);
+        }
+
+        return max(0, $pendiente);
+    }
+
+    private function siguienteDisponibleBloqueado(string $itemMaterialId): ?FolioMaterial
+    {
+        return FolioMaterial::query()
+            ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
+            ->select('folios_materiales.*')
+            ->where('folios_materiales.item_material_id', $itemMaterialId)
+            ->whereColumn(
+                'folios_materiales.cantidad_actual',
+                '>',
+                'folios_materiales.cantidad_reservada',
+            )
+            ->whereNull('folios_materiales.motivo_bloqueo')
+            ->where('folios.activo', true)
+            ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
+            ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
+                ->where('contenido', ContenidoCamara::Materiales->value))
+            ->orderBy('folios.fecha_ingreso')
+            ->orderBy('folios.numero_folio')
+            ->orderBy('folios_materiales.folio_id')
+            ->lockForUpdate()
+            ->first();
+    }
+}

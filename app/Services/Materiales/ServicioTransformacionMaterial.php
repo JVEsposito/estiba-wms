@@ -3,7 +3,6 @@
 namespace App\Services\Materiales;
 
 use App\Enums\CategoriaOperacionalMaterial;
-use App\Enums\ContenidoCamara;
 use App\Enums\EstadoLoteTransformacionMaterial;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoOrdenTransformacionMaterial;
@@ -43,6 +42,7 @@ class ServicioTransformacionMaterial
     public function __construct(
         private readonly ServicioTemporadaActiva $temporadaActiva,
         private readonly ServicioCorrelativoFolioMaterial $correlativoFolio,
+        private readonly ServicioReservaFifoMaterial $reservaFifo,
     ) {}
 
     /**
@@ -306,48 +306,24 @@ class ServicioTransformacionMaterial
                     ));
                 }
 
-                $pendiente = $requerido;
-                $ordenFifo = 1;
-                $folios = FolioMaterial::query()
-                    ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
-                    ->select('folios_materiales.*')
-                    ->where('folios_materiales.item_material_id', $itemId)
-                    ->whereNull('folios_materiales.motivo_bloqueo')
-                    ->where('folios.activo', true)
-                    ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
-                    ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
-                        ->where('contenido', ContenidoCamara::Materiales->value))
-                    ->orderBy('folios.fecha_ingreso')
-                    ->orderBy('folios.numero_folio')
-                    ->lockForUpdate()
-                    ->get();
-
-                foreach ($folios as $folio) {
-                    $disponible = round(
-                        (float) $folio->cantidad_actual - (float) $folio->cantidad_reservada,
-                        3,
-                    );
-
-                    if ($disponible <= 0) {
-                        continue;
-                    }
-
-                    $cantidad = min($pendiente, $disponible);
-                    ReservaTransformacionMaterial::create([
-                        'orden_transformacion_material_id' => $orden->id,
-                        'folio_id' => $folio->folio_id,
-                        'item_material_id' => $itemId,
-                        'cantidad' => $cantidad,
-                        'estado' => EstadoReservaMaterial::Activa,
-                        'orden_fifo' => $ordenFifo++,
-                    ]);
-                    $folio->increment('cantidad_reservada', $cantidad);
-                    $pendiente = round($pendiente - $cantidad, 3);
-
-                    if ($pendiente <= 0) {
-                        break;
-                    }
-                }
+                $pendiente = $this->reservaFifo->reservar(
+                    $itemId,
+                    $requerido,
+                    function (
+                        FolioMaterial $folio,
+                        float $cantidad,
+                        int $ordenFifo,
+                    ) use ($orden, $itemId): void {
+                        ReservaTransformacionMaterial::create([
+                            'orden_transformacion_material_id' => $orden->id,
+                            'folio_id' => $folio->folio_id,
+                            'item_material_id' => $itemId,
+                            'cantidad' => $cantidad,
+                            'estado' => EstadoReservaMaterial::Activa,
+                            'orden_fifo' => $ordenFifo,
+                        ]);
+                    },
+                );
 
                 if ($pendiente > 0.0001) {
                     throw new DomainException(sprintf(

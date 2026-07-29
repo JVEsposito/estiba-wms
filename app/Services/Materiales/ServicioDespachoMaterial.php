@@ -42,6 +42,7 @@ class ServicioDespachoMaterial
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioNotificacionesOperacionales $notificaciones,
         private readonly ServicioTemporadaActiva $temporadaActiva,
+        private readonly ServicioReservaFifoMaterial $reservaFifo,
     ) {}
 
     /**
@@ -565,50 +566,20 @@ class ServicioDespachoMaterial
             return;
         }
 
-        $folios = FolioMaterial::query()
-            ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
-            ->select('folios_materiales.*')
-            ->where('folios_materiales.item_material_id', $detalle->item_material_id)
-            ->whereNull('folios_materiales.motivo_bloqueo')
-            ->where('folios.activo', true)
-            ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
-            ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
-                ->where('contenido', ContenidoCamara::Materiales->value))
-            ->orderBy('folios.fecha_ingreso')
-            ->orderBy('folios.numero_folio')
-            ->lockForUpdate()
-            ->get();
-        $orden = 1;
-
-        foreach ($folios as $folio) {
-            $disponible = round(
-                (float) $folio->cantidad_actual - (float) $folio->cantidad_reservada,
-                3,
-            );
-
-            if ($disponible <= 0) {
-                continue;
-            }
-
-            $cantidad = min($pendiente, $disponible);
-            ReservaMaterial::updateOrCreate(
-                [
+        $this->reservaFifo->reservar(
+            $detalle->item_material_id,
+            $pendiente,
+            function (FolioMaterial $folio, float $cantidad, int $orden) use ($detalle): void {
+                ReservaMaterial::updateOrCreate([
                     'detalle_despacho_material_id' => $detalle->id,
                     'folio_id' => $folio->folio_id,
-                ],
-                [
+                ], [
                     'cantidad' => $cantidad,
                     'estado' => EstadoReservaMaterial::Activa,
-                    'orden_fifo' => $orden++,
-                ],
-            );
-            $folio->increment('cantidad_reservada', $cantidad);
-            $pendiente = round($pendiente - $cantidad, 3);
-
-            if ($pendiente <= 0) {
-                break;
-            }
-        }
+                    'orden_fifo' => $orden,
+                ]);
+            },
+        );
     }
 
     /**
