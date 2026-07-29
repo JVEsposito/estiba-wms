@@ -69,6 +69,25 @@ un prefijo fijo compartido.
 El contrato mantiene temporalmente `cantidad_recibida` como alias de
 `cantidad_aceptada` para no interrumpir clientes móviles anteriores.
 
+### Oficina de recepciones
+
+`/oficina/materiales/recepciones` permite crear, consultar y confirmar
+recepciones. La distribución física se ingresa indicando la cantidad aceptada
+y las unidades por bulto; el sistema genera todos los bultos y calcula el
+último con el diferencial.
+
+La edición y eliminación administrativa son exclusivas del rol administrador.
+Una recepción confirmada solo puede corregirse o eliminarse si todos sus folios
+conservan el saldo original y todavía no fueron ubicados, reservados, retirados,
+bloqueados, despachados ni utilizados en transformaciones u otros procesos.
+
+La eliminación física conserva un snapshot en
+`eliminaciones_recepciones_materiales`. Sus números se incorporan a
+`folios_materiales_liberados` y el siguiente ingreso del mismo cliente los
+consume en orden antes de avanzar el correlativo. Si existían etiquetas
+impresas, sus trabajos se invalidan y las copias físicas deben destruirse antes
+de reutilizar el número.
+
 ## Bloqueo supervisado
 
 Administrador y supervisor de Materiales pueden bloquear un folio activo que no
@@ -160,6 +179,8 @@ ni descuentos.
 - `/oficina/camaras`: crea y administra cámaras de productos o materiales.
 - `/oficina/materiales`: mantiene catálogos, crea órdenes, consulta existencia
   y revisa despachos.
+- `/oficina/materiales/recepciones`: registra guías, confirma folios y permite
+  la corrección o eliminación controlada por administrador.
 - `/`: operación web de cámara, incluyendo ingreso y retiro de materiales.
 - `mobile/`: cliente Expo/React Native con las mismas operaciones para la APK.
 

@@ -6,9 +6,11 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoRecepcionMaterial;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarRecepcionMaterialRequest;
+use App\Http\Requests\AdministrarRecepcionMaterialRequest;
 use App\Http\Requests\AnularRecepcionMaterialRequest;
 use App\Http\Requests\ConfirmarRecepcionMaterialRequest;
 use App\Http\Requests\CrearRecepcionMaterialRequest;
+use App\Http\Requests\EliminarRecepcionMaterialRequest;
 use App\Http\Resources\RecepcionMaterialResource;
 use App\Models\ClienteMaterial;
 use App\Models\FolioMaterial;
@@ -147,6 +149,7 @@ class RecepcionMaterialController extends Controller
         $usuario = $request->user();
         $consulta = RecepcionMaterial::query()
             ->with(['temporada', 'cliente', 'proveedor', 'creadoPor', 'confirmadoPor', 'anuladoPor'])
+            ->withCount('detalles')
             ->when($request->query('estado'), fn ($query, $estado) => $query->where('estado', $estado))
             ->when($request->query('cliente_id'), fn ($query, $cliente) => $query->where('cliente_id', $cliente))
             ->when($request->query('proveedor_material_id'), fn ($query, $proveedor) => $query
@@ -242,6 +245,37 @@ class RecepcionMaterialController extends Controller
             $request->validated('motivo'),
             $request->user(),
         ));
+    }
+
+    public function administrar(
+        AdministrarRecepcionMaterialRequest $request,
+        RecepcionMaterial $recepcionMaterial,
+        ServicioRecepcionMaterial $servicio,
+    ): RecepcionMaterialResource {
+        return new RecepcionMaterialResource($servicio->corregirAdministrativamente(
+            $recepcionMaterial,
+            $request->validated(),
+            $request->user(),
+        ));
+    }
+
+    public function destroy(
+        EliminarRecepcionMaterialRequest $request,
+        RecepcionMaterial $recepcionMaterial,
+        ServicioRecepcionMaterial $servicio,
+    ): JsonResponse {
+        $resultado = $servicio->eliminarAdministrativamente(
+            $recepcionMaterial,
+            $request->validated('operacion_id'),
+            $request->integer('version_conocida'),
+            $request->validated('motivo'),
+            $request->user(),
+        );
+
+        return response()->json([
+            'message' => 'La recepción fue eliminada y sus folios quedaron disponibles para reutilización.',
+            'data' => $resultado,
+        ]);
     }
 
     public function foliosPendientes(Request $request): JsonResponse

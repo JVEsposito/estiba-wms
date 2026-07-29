@@ -246,6 +246,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/{recepcionMaterial}/anular', [RecepcionMaterialController::class, 'anular'])
             ->middleware('can:anular-recepciones-materiales');
+        Route::put('/{recepcionMaterial}/administrar', [RecepcionMaterialController::class, 'administrar'])
+            ->middleware('can:administrar-recepciones-materiales');
+        Route::delete('/{recepcionMaterial}', [RecepcionMaterialController::class, 'destroy'])
+            ->middleware('can:administrar-recepciones-materiales');
     });
 
     Route::prefix('materiales/transformaciones')->group(function () {

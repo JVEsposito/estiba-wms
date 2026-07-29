@@ -10,8 +10,10 @@ use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\ClienteMaterial;
 use App\Models\Dispositivo;
+use App\Models\EliminacionRecepcionMaterial;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
+use App\Models\FolioMaterialLiberado;
 use App\Models\ItemMaterial;
 use App\Models\MovimientoInventarioMaterial;
 use App\Models\PerfilImpresionEtiqueta;
@@ -944,6 +946,225 @@ class RecepcionMaterialApiTest extends TestCase
                 $resultado,
             )
             ->assertNotFound();
+    }
+
+    public function test_administrador_corrige_confirmada_y_reutiliza_sus_folios(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $creada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [
+                    ['cantidad' => 6, 'lote_proveedor' => 'LOTE-01'],
+                    ['cantidad' => 4, 'lote_proveedor' => 'LOTE-02'],
+                ],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$creada['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001')
+            ->assertJsonPath('data.detalles.0.bultos.1.folio.numero_folio', 'FGE0000002')
+            ->json('data');
+        $correccion = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 10, 'lote_proveedor' => 'LOTE-CORREGIDO']],
+        );
+        $correccion['version_conocida'] = $confirmada['version'];
+        $correccion['numero_guia_despacho'] = 'GD-REC-CORREGIDA';
+        $correccion['motivo_correccion'] = 'Se corrige la distribución de bultos digitada por error.';
+        $correccion['confirmacion_operacion_id'] = (string) Str::uuid();
+
+        $corregida = $this->conToken($token)
+            ->putJson(
+                "/api/materiales/recepciones/{$creada['id']}/administrar",
+                $correccion,
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'confirmada')
+            ->assertJsonPath('data.version', 4)
+            ->assertJsonPath('data.numero_guia_despacho', 'GD-REC-CORREGIDA')
+            ->assertJsonCount(1, 'data.detalles.0.bultos')
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001')
+            ->json('data');
+
+        $this->assertDatabaseHas('folios_materiales_liberados', [
+            'cliente_id' => $cliente->id,
+            'numero_folio' => 'FGE0000002',
+        ]);
+        $this->assertDatabaseHas('eventos_recepciones_materiales', [
+            'recepcion_material_id' => $creada['id'],
+            'tipo' => 'corregida_administrativamente',
+        ]);
+
+        $siguiente = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 2, 'lote_proveedor' => 'LOTE-SIGUIENTE']],
+        );
+        $siguiente['numero_guia_despacho'] = 'GD-REC-SIGUIENTE';
+        $nueva = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $siguiente)
+            ->assertCreated()
+            ->json('data');
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$nueva['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000002');
+
+        $this->assertNull(FolioMaterialLiberado::query()
+            ->where('numero_folio', 'FGE0000002')
+            ->first());
+        $this->assertSame('FGE0000001', $corregida['detalles'][0]['bultos'][0]['folio']['numero_folio']);
+    }
+
+    public function test_administrador_elimina_recepcion_y_siguiente_ingreso_reutiliza_folio(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $creada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 10]],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$creada['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001')
+            ->json('data');
+
+        $this->conToken($token)
+            ->deleteJson("/api/materiales/recepciones/{$creada['id']}", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $confirmada['version'],
+                'motivo' => 'La guía fue digitada con un número equivocado.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.recepcion_id', $creada['id'])
+            ->assertJsonPath('data.folios_liberados.0', 'FGE0000001');
+
+        $this->assertDatabaseMissing('recepciones_materiales', ['id' => $creada['id']]);
+        $this->assertDatabaseMissing('folios', ['numero_folio' => 'FGE0000001']);
+        $this->assertDatabaseHas('folios_materiales_liberados', [
+            'cliente_id' => $cliente->id,
+            'numero_folio' => 'FGE0000001',
+        ]);
+        $auditoria = EliminacionRecepcionMaterial::query()->firstOrFail();
+        $this->assertSame($creada['id'], $auditoria->recepcion_material_id_original);
+        $this->assertSame(['FGE0000001'], $auditoria->folios);
+        $this->assertSame('GD-REC-001', data_get($auditoria->snapshot, 'cabecera.numero_guia_despacho'));
+
+        $reemplazo = $this->payloadRecepcion(
+            $cliente,
+            $proveedor,
+            $item,
+            [['cantidad' => 10]],
+        );
+        $reemplazo['numero_guia_despacho'] = 'GD-REC-REEMPLAZO';
+        $nueva = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $reemplazo)
+            ->assertCreated()
+            ->json('data');
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$nueva['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.detalles.0.bultos.0.folio.numero_folio', 'FGE0000001');
+    }
+
+    public function test_solo_administrador_puede_corregir_o_eliminar_recepciones(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $creada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 10]],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $supervisor = User::factory()->create([
+            'rol' => RolUsuario::SupervisorMateriales,
+            'activo' => true,
+        ]);
+        $tokenSupervisor = $supervisor->createToken('oficina-supervisor', ['oficina'])->plainTextToken;
+
+        $this->conToken($tokenSupervisor)
+            ->putJson("/api/materiales/recepciones/{$creada['id']}/administrar", [])
+            ->assertForbidden();
+        $this->conToken($tokenSupervisor)
+            ->deleteJson("/api/materiales/recepciones/{$creada['id']}", [])
+            ->assertForbidden();
+        $this->assertDatabaseHas('recepciones_materiales', ['id' => $creada['id']]);
+    }
+
+    public function test_no_elimina_recepcion_si_un_folio_tiene_actividad_posterior(): void
+    {
+        [$administrador, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $creada = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [['cantidad' => 10]],
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$creada['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folioId = $confirmada['detalles'][0]['bultos'][0]['folio']['id'];
+        DB::table('eventos_bloqueos_materiales')->insert([
+            'id' => (string) Str::uuid(),
+            'operacion_id' => (string) Str::uuid(),
+            'folio_id' => $folioId,
+            'tipo' => 'bloqueo',
+            'estado_anterior' => 'pendiente_ubicacion',
+            'estado_resultante' => 'bloqueado',
+            'motivo' => 'Actividad posterior de control.',
+            'user_id' => $administrador->id,
+            'ocurrido_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->conToken($token)
+            ->deleteJson("/api/materiales/recepciones/{$creada['id']}", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => $confirmada['version'],
+                'motivo' => 'Intento administrativo que debe bloquearse.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseHas('recepciones_materiales', ['id' => $creada['id']]);
+        $this->assertDatabaseHas('folios', ['id' => $folioId]);
+        $this->assertDatabaseCount('folios_materiales_liberados', 0);
     }
 
     private function prepararCatalogo(): array

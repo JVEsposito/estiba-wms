@@ -17,6 +17,8 @@ class ApiRoutesConventionTest extends TestCase
             ['POST', 'api/materiales/recepciones', 'can:gestionar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones/{recepcionMaterial}/confirmar', 'can:gestionar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones/{recepcionMaterial}/anular', 'can:anular-recepciones-materiales'],
+            ['PUT', 'api/materiales/recepciones/{recepcionMaterial}/administrar', 'can:administrar-recepciones-materiales'],
+            ['DELETE', 'api/materiales/recepciones/{recepcionMaterial}', 'can:administrar-recepciones-materiales'],
             ['POST', 'api/materiales/inventario/{folioMaterial}/bloquear', 'can:gestionar-bloqueos-materiales'],
             ['POST', 'api/materiales/inventario/{folioMaterial}/liberar-bloqueo', 'can:gestionar-bloqueos-materiales'],
             ['GET', 'api/materiales/transformaciones/recetas', 'can:consultar-transformaciones-materiales'],

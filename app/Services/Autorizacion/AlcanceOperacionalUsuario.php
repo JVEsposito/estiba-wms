@@ -317,6 +317,18 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeAdministrarRecepcionesMateriales(User $usuario): bool
+    {
+        return $this->permiteModuloTablet(
+            $usuario,
+            CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+        ) && $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador],
+            'materiales.etiquetas',
+        );
+    }
+
     public function puedeImprimirEtiquetasMateriales(User $usuario): bool
     {
         return $this->permiteModuloTablet(
@@ -695,6 +707,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_recepciones_materiales' => $this->puedeConsultarRecepcionesMateriales($usuario),
             'puede_gestionar_recepciones_materiales' => $this->puedeGestionarRecepcionesMateriales($usuario),
             'puede_anular_recepciones_materiales' => $this->puedeAnularRecepcionesMateriales($usuario),
+            'puede_administrar_recepciones_materiales' => $this->puedeAdministrarRecepcionesMateriales($usuario),
             'puede_imprimir_etiquetas_materiales' => $this->puedeImprimirEtiquetasMateriales($usuario),
             'puede_consultar_transformaciones_materiales' => $this->puedeConsultarTransformacionesMateriales($usuario),
             'puede_gestionar_transformaciones_materiales' => $this->puedeGestionarTransformacionesMateriales($usuario),
