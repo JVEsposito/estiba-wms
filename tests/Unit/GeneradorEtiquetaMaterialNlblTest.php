@@ -98,6 +98,38 @@ class GeneradorEtiquetaMaterialNlblTest extends TestCase
         $this->assertContenidoCompleto($formato);
     }
 
+    public function test_qr_100_por_200_vertical_usa_textos_grandes_y_codigo_centrado_abajo(): void
+    {
+        $formato = $this->generarFormato(
+            [
+                'fabricante' => 'Bixolon',
+                'modelo' => 'SLP-TX400',
+                'ancho_mm' => 100,
+                'alto_mm' => 200,
+                'orientacion' => 'vertical',
+            ],
+            'qr',
+        );
+
+        $this->assertTextosDentroDelArea($formato, 100000, 200000);
+        $this->assertContenidoCompleto($formato);
+        $this->assertMatchesRegularExpression(
+            '#<Name>Folio</Name>.*?<Name>Arial</Name><Height>16</Height>#s',
+            $formato,
+        );
+        preg_match_all(
+            '#<Name>Detalle \\d+</Name>.*?<Name>Arial</Name><Height>16</Height>#s',
+            $formato,
+            $detalles,
+        );
+        $this->assertCount(6, $detalles[0]);
+        $this->assertMatchesRegularExpression(
+            '#<Name>Código QR</Name>.*?<BaseBarWidth>2200</BaseBarWidth>.*?'
+                .'<Geometry Type="PositionGeometry"><X>22500</X><Y>141000</Y></Geometry>#s',
+            $formato,
+        );
+    }
+
     public function test_pdf_y_zpl_incluyen_los_mismos_datos_completos(): void
     {
         $etiqueta = $this->etiqueta();
