@@ -122,8 +122,7 @@ class DespachoMaterialController extends Controller
     public function inventario(
         Request $request,
         ServicioConsultaInventarioMaterial $servicio,
-    ): JsonResponse
-    {
+    ): JsonResponse {
         Gate::authorize('consultar-despachos-materiales');
         $filtros = $request->validate([
             'vista' => ['nullable', Rule::in(['detalle', 'resumen'])],

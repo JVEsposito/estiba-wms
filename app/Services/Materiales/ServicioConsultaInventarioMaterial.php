@@ -68,7 +68,7 @@ class ServicioConsultaInventarioMaterial
     public function resumen(?string $clienteId = null): array
     {
         $base = $this->consultaAgregadaBase($clienteId);
-        $disponible = $this->expresionDisponible();
+        [$disponible, $bindingsDisponible] = $this->expresionDisponible();
 
         $items = (clone $base)
             ->select([
@@ -89,7 +89,7 @@ class ServicioConsultaInventarioMaterial
             ->selectRaw('COUNT(*) as folios')
             ->selectRaw('SUM(fm.cantidad_actual) as cantidad_actual')
             ->selectRaw('SUM(fm.cantidad_reservada) as cantidad_reservada')
-            ->selectRaw("SUM({$disponible}) as cantidad_disponible")
+            ->selectRaw("SUM({$disponible}) as cantidad_disponible", $bindingsDisponible)
             ->groupBy([
                 'im.id',
                 'im.codigo',
@@ -137,14 +137,12 @@ class ServicioConsultaInventarioMaterial
             ])
             ->selectRaw('COUNT(*) as folios')
             ->selectRaw(
-                "SUM(CASE WHEN ua.id IS NULL AND f.estado_operacional <> '"
-                .EstadoOperacionalFolio::Bloqueado->value
-                ."' THEN 1 ELSE 0 END) as folios_pendientes_ubicacion",
+                'SUM(CASE WHEN ua.id IS NULL AND f.estado_operacional <> ? THEN 1 ELSE 0 END) as folios_pendientes_ubicacion',
+                [EstadoOperacionalFolio::Bloqueado->value],
             )
             ->selectRaw(
-                "SUM(CASE WHEN f.estado_operacional = '"
-                .EstadoOperacionalFolio::Bloqueado->value
-                ."' THEN 1 ELSE 0 END) as folios_bloqueados",
+                'SUM(CASE WHEN f.estado_operacional = ? THEN 1 ELSE 0 END) as folios_bloqueados',
+                [EstadoOperacionalFolio::Bloqueado->value],
             )
             ->selectRaw('COUNT(DISTINCT im.id) as items')
             ->selectRaw('COUNT(DISTINCT ua.posicion_id) as posiciones')
@@ -166,17 +164,15 @@ class ServicioConsultaInventarioMaterial
             ->select(['cm.id as cliente_id', 'fm.unidad_medida'])
             ->selectRaw('SUM(fm.cantidad_actual) as cantidad_actual')
             ->selectRaw(
-                "SUM(CASE WHEN ua.id IS NULL AND f.estado_operacional <> '"
-                .EstadoOperacionalFolio::Bloqueado->value
-                ."' THEN fm.cantidad_actual ELSE 0 END) as cantidad_pendiente_ubicacion",
+                'SUM(CASE WHEN ua.id IS NULL AND f.estado_operacional <> ? THEN fm.cantidad_actual ELSE 0 END) as cantidad_pendiente_ubicacion',
+                [EstadoOperacionalFolio::Bloqueado->value],
             )
             ->selectRaw(
-                "SUM(CASE WHEN f.estado_operacional = '"
-                .EstadoOperacionalFolio::Bloqueado->value
-                ."' THEN fm.cantidad_actual ELSE 0 END) as cantidad_bloqueada",
+                'SUM(CASE WHEN f.estado_operacional = ? THEN fm.cantidad_actual ELSE 0 END) as cantidad_bloqueada',
+                [EstadoOperacionalFolio::Bloqueado->value],
             )
             ->selectRaw('SUM(fm.cantidad_reservada) as cantidad_reservada')
-            ->selectRaw("SUM({$disponible}) as cantidad_disponible")
+            ->selectRaw("SUM({$disponible}) as cantidad_disponible", $bindingsDisponible)
             ->groupBy(['cm.id', 'fm.unidad_medida'])
             ->get()
             ->groupBy('cliente_id');
@@ -261,17 +257,25 @@ class ServicioConsultaInventarioMaterial
             ->limit(1);
     }
 
-    private function expresionDisponible(): string
+    private function expresionDisponible(): array
     {
-        return "CASE WHEN ua.id IS NOT NULL"
-            ." AND ca.contenido = '".ContenidoCamara::Materiales->value."'"
-            ." AND p.estado = '".EstadoPosicion::Activa->value."'"
-            ." AND ca.estado = '".EstadoCamara::Activa->value."'"
-            ." AND f.estado_operacional = '".EstadoOperacionalFolio::Disponible->value."'"
-            .' AND fm.motivo_bloqueo IS NULL'
-            .' THEN CASE WHEN fm.cantidad_actual > fm.cantidad_reservada'
-            .' THEN fm.cantidad_actual - fm.cantidad_reservada ELSE 0 END'
-            .' ELSE 0 END';
+        return [
+            'CASE WHEN ua.id IS NOT NULL'
+                .' AND ca.contenido = ?'
+                .' AND p.estado = ?'
+                .' AND ca.estado = ?'
+                .' AND f.estado_operacional = ?'
+                .' AND fm.motivo_bloqueo IS NULL'
+                .' THEN CASE WHEN fm.cantidad_actual > fm.cantidad_reservada'
+                .' THEN fm.cantidad_actual - fm.cantidad_reservada ELSE 0 END'
+                .' ELSE 0 END',
+            [
+                ContenidoCamara::Materiales->value,
+                EstadoPosicion::Activa->value,
+                EstadoCamara::Activa->value,
+                EstadoOperacionalFolio::Disponible->value,
+            ],
+        ];
     }
 
     private function serializar(FolioMaterial $material): array
