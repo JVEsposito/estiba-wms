@@ -37,6 +37,14 @@ const elements = {
     migrationTitle: byId('seasonMigrationTitle'),
     migrationError: byId('seasonMigrationError'),
     migrationCancel: byId('cancelSeasonMigration'),
+    resetDialog: byId('operationalResetDialog'),
+    resetForm: byId('operationalResetForm'),
+    resetDescription: byId('operationalResetDescription'),
+    resetPreview: byId('operationalResetPreview'),
+    resetPhrase: byId('operationalResetPhrase'),
+    resetError: byId('operationalResetError'),
+    resetClose: byId('closeOperationalReset'),
+    resetCancel: byId('cancelOperationalReset'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -54,6 +62,7 @@ const state = {
     devices: [],
     seasons: [],
     clients: [],
+    resetPreview: null,
 };
 
 class ApiError extends Error {
@@ -80,6 +89,15 @@ function escapeHtml(value) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+}
+
+function operationUuid() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function errorMessage(data, fallback) {
@@ -296,9 +314,49 @@ function renderSeasons() {
             <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>Versión de catálogo ${Number(season.version_catalogo || 1)} · ${Number(season.migraciones_recibidas || 0)} migraciones recibidas</small></td>
             <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
             <td>${statusBadge(season.activa)}</td>
-            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? '' : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
+            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? `<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>` : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
         </tr>
     `).join('');
+}
+
+function renderResetPreview(preview) {
+    const scopes = preview.resumen || {};
+    const cards = Object.entries(scopes).map(([scope, counts]) => {
+        const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
+        const details = Object.entries(counts)
+            .filter(([, value]) => Number(value) > 0)
+            .map(([key, value]) => `${statusText(key)}: ${Number(value)}`)
+            .join(' · ');
+        return `<article><span>${escapeHtml(statusText(scope))}</span><strong>${total}</strong><small>${escapeHtml(details || 'Sin registros')}</small></article>`;
+    }).join('');
+    elements.resetPreview.innerHTML = cards || '<p>No hay registros operacionales para eliminar.</p>';
+}
+
+async function openOperationalReset(seasonId) {
+    const season = state.seasons.find((candidate) => candidate.id === seasonId && candidate.activa);
+    if (!season) return;
+    state.resetPreview = null;
+    elements.resetForm.reset();
+    elements.resetError.textContent = '';
+    elements.resetPreview.innerHTML = '<p>Calculando registros de la temporada activa…</p>';
+    elements.resetDescription.textContent = `Temporada ${season.codigo} · ${season.nombre}. La temporada activa se mantiene; solo se elimina su operación de Frigorífico y Materia Prima.`;
+    elements.resetDialog.showModal();
+    setBusy(true, 'Preparando vista previa del reinicio…');
+    try {
+        const response = await api(`/api/administracion/temporadas/${season.id}/reinicio-operacional`);
+        state.resetPreview = response.data;
+        elements.resetPhrase.textContent = response.data.frase_confirmacion;
+        renderResetPreview(response.data);
+    } catch (error) {
+        elements.resetError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+}
+
+function closeOperationalReset() {
+    state.resetPreview = null;
+    elements.resetDialog.close();
 }
 
 function resetClientForm() {
@@ -503,6 +561,7 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
     const edit = event.target.closest('[data-edit-season]');
     const activate = event.target.closest('[data-activate-season]');
     const migrate = event.target.closest('[data-migrate-season]');
+    const reset = event.target.closest('[data-reset-season]');
     if (edit) {
         const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
         if (!season) return;
@@ -514,6 +573,7 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
         elements.seasonForm.elements.codigo.focus();
     }
     if (migrate) openMigrationForm(migrate.dataset.migrateSeason);
+    if (reset) await openOperationalReset(reset.dataset.resetSeason);
     if (activate) {
         setBusy(true, 'Activando temporada para todas las oficinas…');
         try {
@@ -528,6 +588,51 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
         }
     }
 });
+
+elements.resetForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.resetError.textContent = '';
+    const preview = state.resetPreview;
+    if (!preview) {
+        elements.resetError.textContent = 'Vuelve a abrir el reinicio para cargar una vista previa vigente.';
+        return;
+    }
+    const form = elements.resetForm.elements;
+    const data = {
+        operacion_id: operationUuid(),
+        motivo: form.motivo.value,
+        password: form.password.value,
+        confirmacion: form.confirmacion.value,
+        confirmar_exclusion_bodega: form.confirmar_exclusion_bodega.checked,
+        confirmar_preservar_configuracion: form.confirmar_preservar_configuracion.checked,
+    };
+    if (data.confirmacion !== preview.frase_confirmacion) {
+        elements.resetError.textContent = `Escribe exactamente: ${preview.frase_confirmacion}`;
+        return;
+    }
+    if (!data.confirmar_exclusion_bodega || !data.confirmar_preservar_configuracion) {
+        elements.resetError.textContent = 'Confirma ambas condiciones de protección antes de continuar.';
+        return;
+    }
+
+    setBusy(true, 'Reiniciando Frigorífico y Materia Prima…');
+    try {
+        await api(`/api/administracion/temporadas/${preview.temporada.id}/reinicio-operacional`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+        closeOperationalReset();
+        await loadAccesses();
+        toast(`Temporada ${preview.temporada.codigo}: Frigorífico y Materia Prima quedaron en cero.`);
+    } catch (error) {
+        elements.resetError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.resetClose.addEventListener('click', closeOperationalReset);
+elements.resetCancel.addEventListener('click', closeOperationalReset);
 
 elements.migrationForm.elements.migrar_inventario_materiales.addEventListener('change', (event) => {
     if (!event.target.checked) return;
