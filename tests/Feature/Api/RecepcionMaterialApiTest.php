@@ -23,6 +23,7 @@ use App\Models\RecepcionMaterial;
 use App\Models\TrabajoImpresionMaterial;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -691,29 +692,40 @@ class RecepcionMaterialApiTest extends TestCase
     public function test_genera_nlbl_nativo_con_qr_para_zebra_y_nicelabel(): void
     {
         [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
-        $recepcion = $this->conToken($token)
-            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
-                $cliente,
-                $proveedor,
-                $item,
-                [['cantidad' => 5, 'lote_proveedor' => 'LOTE-NLBL-01']],
-            ))
-            ->assertCreated()
-            ->json('data');
-        $confirmada = $this->conToken($token)
-            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
-                'operacion_id' => (string) Str::uuid(),
-                'version_conocida' => 1,
-            ])
-            ->assertOk()
-            ->json('data');
+        $recepcion = $this->travelTo(
+            Carbon::parse('2026-07-28 08:15:00'),
+            fn () => $this->conToken($token)
+                ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                    $cliente,
+                    $proveedor,
+                    $item,
+                    [['cantidad' => 5, 'lote_proveedor' => 'LOTE-NLBL-01']],
+                ))
+                ->assertCreated()
+                ->json('data'),
+        );
+        $fechaBorrador = RecepcionMaterial::findOrFail($recepcion['id'])
+            ->created_at
+            ->format('d/m/Y H:i');
+        $confirmada = $this->travelTo(
+            Carbon::parse('2026-07-29 13:14:00'),
+            fn () => $this->conToken($token)
+                ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                    'operacion_id' => (string) Str::uuid(),
+                    'version_conocida' => 1,
+                ])
+                ->assertOk()
+                ->json('data'),
+        );
         $folio = $confirmada['detalles'][0]['bultos'][0]['folio'];
         $perfil = PerfilImpresionEtiqueta::query()
             ->where('codigo', 'ZEB-ZT231-203')
             ->firstOrFail();
 
-        $respuesta = $this->conToken($token)
-            ->post(
+        $respuesta = $this->travelTo(
+            Carbon::parse('2026-07-30 16:45:00'),
+            fn () => $this->conToken($token)
+                ->post(
                 "/api/materiales/recepciones/{$recepcion['id']}/etiquetas",
                 [
                     'operacion_id' => (string) Str::uuid(),
@@ -728,10 +740,11 @@ class RecepcionMaterialApiTest extends TestCase
             )
             ->assertOk()
             ->assertHeader('content-type', 'application/octet-stream')
-            ->assertHeader(
-                'content-disposition',
-                'attachment; filename="etiquetas-GD-REC-001.nlbl"',
-            );
+                ->assertHeader(
+                    'content-disposition',
+                    'attachment; filename="etiquetas-GD-REC-001.nlbl"',
+                ),
+        );
 
         $this->assertStringStartsWith("PK\x03\x04", $respuesta->getContent());
         $this->assertStringContainsString('Formats/FGE0000001', $respuesta->getContent());
@@ -742,10 +755,16 @@ class RecepcionMaterialApiTest extends TestCase
             'formato' => 'nlbl',
             'simbologia' => 'qr',
         ]);
-        $this->assertSame(
+        $trabajo = TrabajoImpresionMaterial::findOrFail($trabajoId);
+        $fechaEtiqueta = $trabajo->contenido_snapshot[0]['fecha_recepcion'];
+        $this->assertSame($fechaBorrador, $fechaEtiqueta);
+        $this->assertNotSame(
             Folio::findOrFail($folio['id'])->fecha_ingreso->format('d/m/Y H:i'),
-            TrabajoImpresionMaterial::findOrFail($trabajoId)
-                ->contenido_snapshot[0]['fecha_recepcion'],
+            $fechaEtiqueta,
+        );
+        $this->assertNotSame(
+            $trabajo->solicitado_at->format('d/m/Y H:i'),
+            $fechaEtiqueta,
         );
 
         $this->conToken($token)
