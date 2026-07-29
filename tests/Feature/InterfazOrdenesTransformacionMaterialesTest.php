@@ -29,6 +29,14 @@ class InterfazOrdenesTransformacionMaterialesTest extends TestCase
             '/api/materiales/transformaciones/recetas?per_page=100',
             $script,
         );
+        $this->assertStringContainsString(
+            '/api/materiales/inventario?vista=resumen',
+            $script,
+        );
+        $this->assertStringContainsString(
+            'orderState.inventory = inventory.resumen_items || []',
+            $script,
+        );
         $this->assertStringContainsString('/planificar', $script);
         $this->assertStringContainsString('/cancelar', $script);
         $this->assertStringContainsString('version_conocida', $script);

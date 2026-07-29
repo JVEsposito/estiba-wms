@@ -254,6 +254,10 @@
                     <section class="panel materials-panel materials-inventory-panel" id="materialInventoryWorkspace" data-materials-view="inventario">
                         <div class="materials-panel__heading"><div><p class="eyebrow">EXISTENCIA POR CLIENTE</p><h2>Folios en cámaras</h2><span id="materialsInventorySummary">Sin existencias</span></div><div class="materials-panel__tools"><select id="materialsInventoryClient" aria-label="Filtrar inventario por cliente"><option value="">Todos los clientes</option></select><input id="materialsInventorySearch" type="search" placeholder="Buscar folio o ítem"></div></div>
                         <div class="materials-table-scroll"><table class="materials-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Ítem</th><th>Actual</th><th>Reservada</th><th>Disponible</th><th>Estado</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="materialsInventoryBody"></tbody></table></div>
+                        <div class="materials-pagination" aria-label="Paginación del inventario">
+                            <label>Mostrar <select id="materialsInventoryPageSize"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+                            <div><button id="materialsInventoryPrevious" type="button">← Anterior</button><span id="materialsInventoryPage">Página 1 de 1</span><button id="materialsInventoryNext" type="button">Siguiente →</button></div>
+                        </div>
                     </section>
                 </div>
             </section>
