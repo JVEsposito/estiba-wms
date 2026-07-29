@@ -165,7 +165,7 @@
                             <label class="field"><span>DPI *</span><select name="dpi" required><option value="203">203 dpi</option><option value="300">300 dpi</option><option value="600">600 dpi</option></select></label>
                             <label class="field"><span>Lenguaje de impresión *</span><select name="lenguaje" required><option value="zpl">ZPL II · Zebra</option><option value="bpl-z">BPL-Z · BIXOLON</option></select></label>
                             <label class="field"><span>Ancho (mm) *</span><input name="ancho_mm" type="number" min="30" max="200" step="0.01" value="100" required></label>
-                            <label class="field"><span>Alto (mm) *</span><input name="alto_mm" type="number" min="20" max="150" step="0.01" value="50" required></label>
+                            <label class="field"><span>Alto (mm) *</span><input name="alto_mm" type="number" min="20" max="200" step="0.01" value="50" required></label>
                             <label class="field"><span>Orientación *</span><select name="orientacion" required><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></label>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Perfil activo</span></label>
                             <label class="admin-check"><input name="predeterminado" type="checkbox"><span>Usar como predeterminado</span></label>

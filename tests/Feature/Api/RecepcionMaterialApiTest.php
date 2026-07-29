@@ -773,15 +773,15 @@ class RecepcionMaterialApiTest extends TestCase
         [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
         $perfil = $this->conToken($token)
             ->postJson('/api/administracion/etiquetas/materiales/perfiles', [
-                'codigo' => 'BIX-80X40-300',
-                'nombre' => 'Bixolon 80 × 40 mm',
+                'codigo' => 'BIX-SLP-TX400-203-100X200',
+                'nombre' => 'Bixolon SLP-TX400 · 100 × 200 mm',
                 'fabricante' => 'Bixolon',
-                'modelo' => 'XD5-40d',
+                'modelo' => 'SLP-TX400',
                 'lenguaje' => 'bpl-z',
-                'dpi' => 300,
-                'ancho_mm' => 80,
-                'alto_mm' => 40,
-                'orientacion' => 'horizontal',
+                'dpi' => 203,
+                'ancho_mm' => 100,
+                'alto_mm' => 200,
+                'orientacion' => 'vertical',
                 'predeterminado' => true,
                 'activo' => true,
             ])
@@ -792,11 +792,31 @@ class RecepcionMaterialApiTest extends TestCase
             'id' => $perfil['id'],
             'fabricante' => 'Bixolon',
             'lenguaje' => 'bpl-z',
-            'dpi' => 300,
+            'dpi' => 203,
+            'ancho_mm' => 100,
+            'alto_mm' => 200,
+            'orientacion' => 'vertical',
         ]);
         $this->assertSame(1, PerfilImpresionEtiqueta::query()
             ->where('predeterminado', true)
             ->count());
+
+        $this->conToken($token)
+            ->postJson('/api/administracion/etiquetas/materiales/perfiles', [
+                'codigo' => 'BIX-SLP-TX400-203-100X201',
+                'nombre' => 'Bixolon SLP-TX400 · 100 × 201 mm',
+                'fabricante' => 'Bixolon',
+                'modelo' => 'SLP-TX400',
+                'lenguaje' => 'bpl-z',
+                'dpi' => 203,
+                'ancho_mm' => 100,
+                'alto_mm' => 201,
+                'orientacion' => 'vertical',
+                'predeterminado' => false,
+                'activo' => true,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.alto_mm.0', 'El alto debe estar entre 20 y 200 mm.');
 
         $recepcion = $this->conToken($token)
             ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
