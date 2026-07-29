@@ -57,13 +57,19 @@ class GeneradorEtiquetaMaterialNlbl
     ): string {
         [$ancho, $alto] = $this->dimensiones($perfil);
         $margen = max(2500, (int) round($ancho * 0.04));
+        $esQrVerticalLargo = $simbologia === 'qr'
+            && $alto >= 150000
+            && $alto >= ($ancho * 1.5);
+        $limiteDetalles = $alto - 1200;
         $folio = (string) $etiqueta['numero_folio'];
         $textoFolio = 'Folio: '.$folio;
         $anchoFolio = $ancho - ($margen * 2);
         $tamanoFolio = $this->tamanoFolio(
             $textoFolio,
             $anchoFolio,
-            max(14, min(22, (int) round($alto / 3500))),
+            $esQrVerticalLargo
+                ? 16
+                : max(14, min(22, (int) round($alto / 3500))),
         );
         $items = [];
         $z = 1;
@@ -71,9 +77,13 @@ class GeneradorEtiquetaMaterialNlbl
         $items[] = $this->texto(
             $textoFolio,
             $margen,
-            max(1800, (int) round($alto * 0.035)),
+            $esQrVerticalLargo
+                ? 5000
+                : max(1800, (int) round($alto * 0.035)),
             $anchoFolio,
-            max(6500, (int) round($alto * 0.13)),
+            $esQrVerticalLargo
+                ? 18000
+                : max(6500, (int) round($alto * 0.13)),
             $tamanoFolio,
             true,
             $z++,
@@ -81,20 +91,40 @@ class GeneradorEtiquetaMaterialNlbl
         );
 
         if ($simbologia === 'qr') {
-            $lado = max(18000, min(
-                (int) round($alto * 0.42),
-                (int) round($ancho * 0.38),
-            ));
-            $modulo = max(500, min(1800, (int) floor($lado / 25)));
-            $items[] = $this->qr(
-                $folio,
-                $ancho - $margen - $lado,
-                max(7000, (int) round($alto * 0.17)),
-                $modulo,
-                $z++,
-            );
-            $detalleAncho = max(16000, $ancho - ($margen * 3) - $lado);
-            $detalleY = max(9500, (int) round($alto * 0.22));
+            if ($esQrVerticalLargo) {
+                $lado = max(18000, min(
+                    $ancho - ($margen * 2),
+                    (int) round($ancho * 0.55),
+                ));
+                $modulo = max(500, min(2400, (int) floor($lado / 25)));
+                $qrX = intdiv($ancho - $lado, 2);
+                $qrY = $alto - $margen - $lado;
+                $items[] = $this->qr(
+                    $folio,
+                    $qrX,
+                    $qrY,
+                    $modulo,
+                    $z++,
+                );
+                $detalleAncho = $ancho - ($margen * 2);
+                $detalleY = 34000;
+                $limiteDetalles = $qrY - 4000;
+            } else {
+                $lado = max(18000, min(
+                    (int) round($alto * 0.42),
+                    (int) round($ancho * 0.38),
+                ));
+                $modulo = max(500, min(1800, (int) floor($lado / 25)));
+                $items[] = $this->qr(
+                    $folio,
+                    $ancho - $margen - $lado,
+                    max(7000, (int) round($alto * 0.17)),
+                    $modulo,
+                    $z++,
+                );
+                $detalleAncho = max(16000, $ancho - ($margen * 3) - $lado);
+                $detalleY = max(9500, (int) round($alto * 0.22));
+            }
         } else {
             $barcodeY = max(8500, (int) round($alto * 0.17));
             $barcodeAlto = max(9000, (int) round($alto * 0.18));
@@ -121,15 +151,17 @@ class GeneradorEtiquetaMaterialNlbl
         }
 
         $altoLineaBase = max(4200, (int) round($alto * 0.082));
-        $altoDisponible = max(1, $alto - 1200 - $detalleY);
+        $altoDisponible = max(1, $limiteDetalles - $detalleY);
         $altoLinea = min(
             $altoLineaBase,
             max(3200, (int) floor($altoDisponible / max(1, count($lineas)))),
         );
-        $tamanoBase = max(7, min(12, (int) round($alto / 6200)));
+        $tamanoBase = $esQrVerticalLargo
+            ? 16
+            : max(7, min(12, (int) round($alto / 6200)));
         foreach ($lineas as $indice => $linea) {
             $y = $detalleY + ($indice * $altoLinea);
-            if ($y + $altoLinea > $alto - 1200) {
+            if ($y + $altoLinea > $limiteDetalles) {
                 break;
             }
             $negrita = $indice < 3
@@ -140,12 +172,14 @@ class GeneradorEtiquetaMaterialNlbl
                 $y,
                 $detalleAncho,
                 $altoLinea,
-                $this->tamanoDetalle(
-                    (string) $linea,
-                    $detalleAncho,
-                    $tamanoBase,
-                    $negrita,
-                ),
+                $esQrVerticalLargo
+                    ? 16
+                    : $this->tamanoDetalle(
+                        (string) $linea,
+                        $detalleAncho,
+                        $tamanoBase,
+                        $negrita,
+                    ),
                 $negrita,
                 $z++,
                 'Detalle '.($indice + 1),
