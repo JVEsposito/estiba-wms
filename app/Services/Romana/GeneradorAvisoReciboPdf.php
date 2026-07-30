@@ -84,10 +84,7 @@ class GeneradorAvisoReciboPdf
         $inicioPesos = $esSoloEnvases ? count($lineas) - 1 : count($lineas) - 3;
         $indiceNeto = count($lineas) - 1;
 
-        $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
-        $contenido .= $this->texto(42, 810, 20, 'ESTIBA WMS', true, '1 1 1');
-        $contenido .= $this->texto(42, 786, 12, 'AVISO DE RECIBO · ROMANA', false, '0.75 0.92 0.94');
-        $contenido .= $this->texto(420, 807, 12, (string) $recepcion->numero_recepcion, true, '1 1 1');
+        $contenido = $this->encabezado($recepcion);
         $contenido .= "0.15 0.72 0.70 RG 42 752 m 553 752 l S\n";
         $contenido .= $this->texto(42, 726, 11, 'Antecedentes contractuales de ingreso al frigorífico', true);
 
@@ -115,6 +112,38 @@ class GeneradorAvisoReciboPdf
         $contenido .= $this->texto(42, 52, 7, 'Documento generado por Estiba WMS. Los pesos corresponden a los registros cerrados de la romana.');
 
         return $this->documento($contenido);
+    }
+
+    private function encabezado(RecepcionRomana $recepcion): string
+    {
+        $fecha = $recepcion->salida_at?->format('d-m-Y')
+            ?? $recepcion->ingreso_at?->format('d-m-Y')
+            ?? now()->format('d-m-Y');
+
+        $contenido = "0.12 0.16 0.18 RG 0.75 w\n";
+        $contenido .= "42 770 511 60 re S\n";
+        $contenido .= "182 770 m 182 830 l S\n";
+        $contenido .= "420 770 m 420 830 l S\n";
+        $contenido .= "480 770 m 480 830 l S\n";
+        $contenido .= "420 790 m 553 790 l S\n";
+        $contenido .= "420 810 m 553 810 l S\n";
+
+        $contenido .= $this->texto(87, 811, 20, 'AR', true, '0.20 0.55 0.16');
+        $contenido .= $this->texto(81, 802, 6, 'AGRO ROSARIO', true, '0.20 0.55 0.16');
+        $contenido .= $this->texto(49, 784, 5, 'LOCALIDAD: RENGO, CARRETERA 5 SUR, KM 108,');
+        $contenido .= $this->texto(67, 776, 5, 'ROSARIO, COMUNA DE RENGO');
+
+        $contenido .= $this->texto(220, 806, 14, 'REGISTRO DE PESAJE', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(277, 784, 14, 'ROMANA', false, '0.05 0.05 0.05');
+
+        $contenido .= $this->texto(426, 817, 7, 'CODIGO', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(486, 817, 7, 'POR DEFINIR', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(426, 797, 7, 'VERSION', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(511, 797, 8, '0', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(426, 777, 7, 'FECHA', false, '0.05 0.05 0.05');
+        $contenido .= $this->texto(495, 777, 7, $fecha, false, '0.05 0.05 0.05');
+
+        return $contenido;
     }
 
     private function peso(mixed $valor): string
