@@ -42,7 +42,7 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
             'activo' => true,
         ]);
 
-        $productor = $this->productor('105410', 'CEREZA', 'SANTINA');
+        $productor = $this->productor('105410', 'CEREZA', 'SANTINA', $administrador);
         $pares = $productor->especies_variedades;
         app(ServicioSincronizacionCatalogoSag::class)->sincronizar($productor, $pares);
         app(ServicioAsociacionProductorCsg::class)->sincronizar(
@@ -131,7 +131,7 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
         ]);
 
         $cliente = $this->clienteGlobal('HER-01', 'Exportadora Heredada');
-        $productor = $this->productor('205410', 'CEREZA', 'SANTINA');
+        $productor = $this->productor('205410', 'CEREZA', 'SANTINA', $administrador);
         app(ServicioSincronizacionCatalogoSag::class)->sincronizar(
             $productor,
             $productor->especies_variedades,
@@ -186,7 +186,7 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
         $cliente = $this->clienteGlobal('VIG-01', 'Cliente Vigente');
 
         app(ServicioCliente::class)->asegurarProyeccionesActivas($cliente, $administrador->id);
-        $productor = $this->productor('305410', 'KIWI', 'HAYWARD');
+        $productor = $this->productor('305410', 'KIWI', 'HAYWARD', $administrador);
         app(ServicioSincronizacionCatalogoSag::class)->sincronizar(
             $productor,
             $productor->especies_variedades,
@@ -232,8 +232,12 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
         ]);
     }
 
-    private function productor(string $codigo, string $especie, string $variedad): ProductorCsg
-    {
+    private function productor(
+        string $codigo,
+        string $especie,
+        string $variedad,
+        User $usuario,
+    ): ProductorCsg {
         return ProductorCsg::create([
             'codigo' => $codigo,
             'razon_social' => "Productor {$codigo}",
@@ -249,6 +253,7 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
             'fuente_url' => 'https://sag.example.test',
             'primera_verificacion_at' => now(),
             'ultima_verificacion_at' => now(),
+            'ultima_consulta_user_id' => $usuario->id,
             'respuesta_hash' => hash('sha256', $codigo),
             'datos_fuente' => [],
         ]);
