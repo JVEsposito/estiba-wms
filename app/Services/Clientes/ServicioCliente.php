@@ -9,12 +9,17 @@ use App\Models\ClienteValidacion;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ServicioCliente
 {
+    public function __construct(
+        private readonly ServicioTemporadaActiva $temporadas,
+    ) {}
+
     /** @param array<string, mixed> $datos */
     public function guardarMaestro(
         array $datos,
@@ -76,7 +81,7 @@ class ServicioCliente
         Cliente $cliente,
         ?int $usuarioId = null,
     ): void {
-        $temporada = Temporada::query()->where('activa', true)->first();
+        $temporada = $this->temporadas->buscar();
         if (! $temporada) {
             return;
         }
@@ -101,17 +106,7 @@ class ServicioCliente
             );
         }
 
-        ClienteValidacion::query()->updateOrCreate(
-            [
-                'temporada_id' => $temporada->id,
-                'cliente_id' => $cliente->id,
-            ],
-            [
-                'nombre' => $cliente->nombre,
-                'codigo_externo' => $cliente->codigo,
-                'activo' => $cliente->activo,
-            ],
-        );
+        $this->asegurarClienteValidacion($cliente, $temporada);
     }
 
     public function asegurarClientesEnTemporada(
@@ -137,17 +132,7 @@ class ServicioCliente
                         'actualizado_por_user_id' => $usuarioId,
                     ],
                 );
-                ClienteValidacion::query()->updateOrCreate(
-                    [
-                        'temporada_id' => $temporada->id,
-                        'cliente_id' => $cliente->id,
-                    ],
-                    [
-                        'nombre' => $cliente->nombre,
-                        'codigo_externo' => $cliente->codigo,
-                        'activo' => true,
-                    ],
-                );
+                $this->asegurarClienteValidacion($cliente, $temporada);
             });
     }
 
@@ -189,6 +174,45 @@ class ServicioCliente
             ->get()
             ->first(fn (AliasCliente $candidato): bool => $this->claveNombre($candidato->nombre) === $clave)
             ?->cliente;
+    }
+
+    private function asegurarClienteValidacion(
+        Cliente $cliente,
+        Temporada $temporada,
+    ): ClienteValidacion {
+        $proyeccion = ClienteValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('cliente_id', $cliente->id)
+            ->first();
+
+        if (! $proyeccion) {
+            $codigos = array_values(array_unique(array_filter(array_map(
+                fn (mixed $valor): string => mb_strtoupper(trim((string) $valor)),
+                [$cliente->codigo, $cliente->codigo_externo],
+            ))));
+            $nombre = $this->claveNombre($cliente->nombre);
+            $proyeccion = ClienteValidacion::query()
+                ->where('temporada_id', $temporada->id)
+                ->whereNull('cliente_id')
+                ->get()
+                ->first(function (ClienteValidacion $candidato) use ($codigos, $nombre): bool {
+                    $codigo = mb_strtoupper(trim((string) $candidato->codigo_externo));
+
+                    return ($codigo !== '' && in_array($codigo, $codigos, true))
+                        || $this->claveNombre($candidato->nombre) === $nombre;
+                });
+        }
+
+        $proyeccion ??= new ClienteValidacion;
+        $proyeccion->fill([
+            'temporada_id' => $temporada->id,
+            'cliente_id' => $cliente->id,
+            'nombre' => $cliente->nombre,
+            'codigo_externo' => $cliente->codigo,
+            'activo' => $cliente->activo,
+        ])->save();
+
+        return $proyeccion->refresh();
     }
 
     private function sincronizarProyecciones(Cliente $cliente, int $usuarioId): void
