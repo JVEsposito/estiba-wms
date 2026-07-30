@@ -6,17 +6,15 @@ use App\Enums\MotivoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Http\Controllers\Controller;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class CatalogoValidacionController extends Controller
 {
-    public function __invoke(): JsonResponse
+    public function __invoke(ServicioTemporadaActiva $temporadas): JsonResponse
     {
-        $temporada = DB::table('temporadas')
-            ->where('activa', true)
-            ->orderByDesc('fecha_inicio')
-            ->first();
+        $temporada = $temporadas->buscar();
         abort_unless($temporada, 404, 'No existe una temporada activa para validación.');
 
         $articulos = DB::table('articulos_validacion')

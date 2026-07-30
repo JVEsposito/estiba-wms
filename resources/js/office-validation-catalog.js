@@ -37,6 +37,7 @@ function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;')
 function errorMessage(data, fallback) { return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback; }
 function setBusy(active, message = 'Procesando…') { elements.loadingText.textContent = message; elements.loading.classList.toggle('is-hidden', !active); elements.loading.setAttribute('aria-hidden', String(!active)); }
 function toast(message, error = false) { const node = document.createElement('div'); node.className = `toast${error ? ' toast--error' : ''}`; node.textContent = message; elements.toasts.append(node); window.setTimeout(() => node.remove(), 4500); }
+function wait(milliseconds) { return new Promise((resolve) => window.setTimeout(resolve, milliseconds)); }
 
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
@@ -70,25 +71,38 @@ function verifyAccess() {
     return true;
 }
 
-async function load(seasonId = null) {
+async function fetchCatalog(seasonId) {
+    const suffix = seasonId ? `?temporada_id=${encodeURIComponent(seasonId)}` : '';
+    const admin = await api(`/api/administracion/validacion${suffix}`);
+    state.seasons = admin.temporadas || [];
+    state.season = admin.temporada || null;
+    if (state.season) {
+        const hierarchy = await api(`/api/administracion/validacion/temporadas/${state.season.id}/catalogo`);
+        state.clients = hierarchy.clientes || [];
+        state.categories = hierarchy.categorias || [];
+        state.species = hierarchy.especies || [];
+        state.csg = hierarchy.csg || [];
+        state.projection = hierarchy.proyeccion || { articulos: 0, origenes: 0, combinaciones: 0 };
+        return;
+    }
+    state.clients = []; state.categories = []; state.species = []; state.csg = [];
+    state.projection = { articulos: 0, origenes: 0, combinaciones: 0 };
+}
+
+async function load(seasonId = null, { announce = false } = {}) {
     setBusy(true, 'Cargando catálogo…');
     try {
-        const suffix = seasonId ? `?temporada_id=${encodeURIComponent(seasonId)}` : '';
-        const admin = await api(`/api/administracion/validacion${suffix}`);
-        state.seasons = admin.temporadas || [];
-        state.season = admin.temporada || null;
-        if (state.season) {
-            const hierarchy = await api(`/api/administracion/validacion/temporadas/${state.season.id}/catalogo`);
-            state.clients = hierarchy.clientes || [];
-            state.categories = hierarchy.categorias || [];
-            state.species = hierarchy.especies || [];
-            state.csg = hierarchy.csg || [];
-            state.projection = hierarchy.proyeccion || { articulos: 0, origenes: 0, combinaciones: 0 };
-        } else {
-            state.clients = []; state.categories = []; state.species = []; state.csg = [];
-            state.projection = { articulos: 0, origenes: 0, combinaciones: 0 };
+        try {
+            await fetchCatalog(seasonId);
+        } catch (error) {
+            if (error.status !== 0 && error.status < 500) throw error;
+            await wait(600);
+            await fetchCatalog(seasonId);
         }
         render();
+        if (announce) {
+            toast(`Catálogo actualizado · ${state.season?.nombre || 'sin temporada activa'}.`);
+        }
     } catch (error) {
         toast(error.message, true);
     } finally {
@@ -278,7 +292,7 @@ document.addEventListener('click', (event) => {
 });
 
 elements.selector.addEventListener('change', () => void load(elements.selector.value));
-elements.reload.addEventListener('click', () => void load(state.season?.id));
+elements.reload.addEventListener('click', () => void load(state.season?.id, { announce: true }));
 elements.toggleInactive.addEventListener('click', () => {
     state.showInactive = !state.showInactive;
     render();

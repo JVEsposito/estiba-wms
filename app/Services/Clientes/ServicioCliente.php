@@ -80,10 +80,10 @@ class ServicioCliente
     public function asegurarProyeccionesActivas(
         Cliente $cliente,
         ?int $usuarioId = null,
-    ): void {
+    ): bool {
         $temporada = $this->temporadas->buscar();
         if (! $temporada) {
-            return;
+            return false;
         }
 
         $material = TemporadaMaterial::query()
@@ -106,7 +106,7 @@ class ServicioCliente
             );
         }
 
-        $this->asegurarClienteValidacion($cliente, $temporada);
+        return $this->asegurarProyeccionValidacion($cliente, $temporada);
     }
 
     public function asegurarClientesEnTemporada(
@@ -132,8 +132,15 @@ class ServicioCliente
                         'actualizado_por_user_id' => $usuarioId,
                     ],
                 );
-                $this->asegurarClienteValidacion($cliente, $temporada);
+                $this->asegurarProyeccionValidacion($cliente, $temporada);
             });
+    }
+
+    public function asegurarProyeccionValidacion(
+        Cliente $cliente,
+        Temporada $temporada,
+    ): bool {
+        return $this->asegurarClienteValidacion($cliente, $temporada);
     }
 
     public function buscarPorReferencia(string $referencia): ?Cliente
@@ -179,7 +186,7 @@ class ServicioCliente
     private function asegurarClienteValidacion(
         Cliente $cliente,
         Temporada $temporada,
-    ): ClienteValidacion {
+    ): bool {
         $proyeccion = ClienteValidacion::query()
             ->where('temporada_id', $temporada->id)
             ->where('cliente_id', $cliente->id)
@@ -210,9 +217,11 @@ class ServicioCliente
             'nombre' => $cliente->nombre,
             'codigo_externo' => $cliente->codigo,
             'activo' => $cliente->activo,
-        ])->save();
+        ]);
+        $cambio = ! $proyeccion->exists || $proyeccion->isDirty();
+        $proyeccion->save();
 
-        return $proyeccion->refresh();
+        return $cambio;
     }
 
     private function sincronizarProyecciones(Cliente $cliente, int $usuarioId): void

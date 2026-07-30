@@ -72,6 +72,17 @@ La proyección actual considera:
 
 Antes de publicar un catálogo productivo, operación debe confirmar que estas relaciones representan la realidad comercial. Restricciones adicionales por cliente, marca, categoría, envase o calibre deben modelarse explícitamente; no deben inferirse desde nombres.
 
+Si una temporada heredada conserva clientes o asociaciones CSG anteriores a la
+proyección automática, el administrador puede reparar el contrato operativo:
+
+```bash
+php artisan validacion:reparar-catalogo
+```
+
+El comando adopta las proyecciones heredadas de los clientes globales,
+reconstruye artículos, orígenes y combinaciones de la temporada activa,
+incrementa su versión y muestra los conteos anteriores y resultantes.
+
 ## Importación CSV/XLSX
 
 La oficina `/oficina/validacion` permite:
@@ -110,6 +121,12 @@ La aplicación móvil funciona en orientación vertical y permite:
 - consultar capturas recientes;
 - conservar el último catálogo conocido;
 - guardar operaciones en una bandeja local.
+
+La descarga se ejecuta al entrar y cada vez que la aplicación vuelve al primer
+plano. El botón visible en el encabezado permite repetirla manualmente y confirma
+la versión descargada. Android reserva 64 MB para AsyncStorage, y al detectar un
+almacenamiento lleno reemplaza primero el catálogo anterior sin eliminar la
+bandeja de operaciones.
 
 La bandeja se separa por usuario y dispositivo. Cada captura se persiste antes de transmitirse y conserva el mismo UUID durante los reintentos.
 
