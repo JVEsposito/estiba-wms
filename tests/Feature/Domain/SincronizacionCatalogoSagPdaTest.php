@@ -18,6 +18,8 @@ use App\Services\Consultas\ServicioAsociacionProductorCsg;
 use App\Services\Validacion\ServicioCatalogoJerarquicoValidacion;
 use App\Services\Validacion\ServicioSincronizacionCatalogoSag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SincronizacionCatalogoSagPdaTest extends TestCase
@@ -166,6 +168,80 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
             ->assertJsonCount(1, 'combinaciones');
     }
 
+    public function test_reconstruye_la_pda_si_la_asociacion_ya_existia_al_adoptar_el_cliente_heredado(): void
+    {
+        $temporada = $this->temporadaActiva('TEMP-ASOCIADA', '2026-07-01');
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $validador = User::factory()->create(['rol' => RolUsuario::Validador]);
+        $cliente = $this->clienteGlobal('ASO-01', 'Exportadora Asociada');
+        $clienteValidacion = ClienteValidacion::create([
+            'temporada_id' => $temporada->id,
+            'cliente_id' => null,
+            'nombre' => 'Exportadora Asociada',
+            'codigo_externo' => 'ASO-01',
+            'activo' => true,
+        ]);
+        MarcaValidacion::create([
+            'cliente_validacion_id' => $clienteValidacion->id,
+            'nombre' => 'Marca Asociada',
+            'activo' => true,
+        ]);
+
+        $productor = $this->productor('405410', 'KIWI', 'HAYWARD', $administrador);
+        app(ServicioSincronizacionCatalogoSag::class)->sincronizar(
+            $productor,
+            $productor->especies_variedades,
+        );
+        $especie = EspecieValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('nombre', 'Kiwi')
+            ->firstOrFail();
+        CalibreValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => '25',
+            'activo' => true,
+        ]);
+        EnvaseValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'cliente_validacion_id' => $clienteValidacion->id,
+            'nombre' => 'P10G',
+            'activo' => true,
+        ]);
+        DB::table('clientes_productores_csg')->insert([
+            'id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'productor_csg_id' => $productor->id,
+            'activo' => true,
+            'asociado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        app(ServicioAsociacionProductorCsg::class)->sincronizar(
+            $productor,
+            [$cliente->id],
+            $administrador,
+        );
+
+        $this->assertSame($cliente->id, $clienteValidacion->fresh()->cliente_id);
+        $this->actingAs($validador, 'sanctum')
+            ->getJson('/api/validacion/catalogos')
+            ->assertOk()
+            ->assertJsonFragment([
+                'especie' => 'Kiwi',
+                'variedad' => 'Hayward',
+                'calibre' => '25',
+                'envase' => 'P10G',
+            ])
+            ->assertJsonFragment([
+                'cliente' => 'Exportadora Asociada',
+                'marca' => 'Marca Asociada',
+                'csg' => '405410',
+            ])
+            ->assertJsonCount(1, 'combinaciones');
+    }
+
     public function test_sag_clientes_y_pda_resuelven_la_misma_temporada_activa(): void
     {
         Temporada::query()->update(['activa' => false]);
@@ -209,6 +285,94 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
             ->getJson('/api/validacion/catalogos')
             ->assertOk()
             ->assertJsonPath('temporada.id', $vigente->id);
+    }
+
+    public function test_el_comando_repara_la_proyeccion_existente_de_la_temporada_activa(): void
+    {
+        $temporada = $this->temporadaActiva('TEMP-REPARAR', '2026-07-01');
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $cliente = $this->clienteGlobal('REP-01', 'Exportadora Reparada');
+        $clienteValidacion = ClienteValidacion::create([
+            'temporada_id' => $temporada->id,
+            'cliente_id' => null,
+            'nombre' => 'Exportadora Reparada',
+            'codigo_externo' => 'REP-01',
+            'activo' => true,
+        ]);
+        MarcaValidacion::create([
+            'cliente_validacion_id' => $clienteValidacion->id,
+            'nombre' => 'Marca Reparada',
+            'activo' => true,
+        ]);
+
+        $productor = $this->productor('505410', 'KIWI', 'HAYWARD', $administrador);
+        app(ServicioSincronizacionCatalogoSag::class)->sincronizar(
+            $productor,
+            $productor->especies_variedades,
+        );
+        $especie = EspecieValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('nombre', 'Kiwi')
+            ->firstOrFail();
+        CalibreValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => '25',
+            'activo' => true,
+        ]);
+        EnvaseValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'cliente_validacion_id' => $clienteValidacion->id,
+            'nombre' => 'P10G',
+            'activo' => true,
+        ]);
+        DB::table('clientes_productores_csg')->insert([
+            'id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'productor_csg_id' => $productor->id,
+            'activo' => true,
+            'asociado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertDatabaseCount('combinaciones_validacion', 0);
+
+        $this->artisan('validacion:reparar-catalogo')
+            ->expectsOutputToContain('Catálogo reparado')
+            ->assertSuccessful();
+
+        $this->assertSame($cliente->id, $clienteValidacion->fresh()->cliente_id);
+        $this->assertDatabaseCount('origenes_validacion', 1);
+        $this->assertDatabaseCount('combinaciones_validacion', 1);
+    }
+
+    public function test_la_pda_desempata_temporadas_activas_por_fecha_de_creacion(): void
+    {
+        Temporada::query()->update(['activa' => false]);
+        $anterior = Temporada::create([
+            'codigo' => 'TEMP-MISMA-FECHA-1',
+            'nombre' => 'Temporada creada primero',
+            'fecha_inicio' => '2026-07-01',
+            'activa' => true,
+            'created_at' => '2026-07-01 08:00:00',
+            'updated_at' => '2026-07-01 08:00:00',
+        ]);
+        $vigente = Temporada::create([
+            'codigo' => 'TEMP-MISMA-FECHA-2',
+            'nombre' => 'Temporada creada después',
+            'fecha_inicio' => '2026-07-01',
+            'activa' => true,
+            'created_at' => '2026-07-01 09:00:00',
+            'updated_at' => '2026-07-01 09:00:00',
+        ]);
+        $validador = User::factory()->create(['rol' => RolUsuario::Validador]);
+
+        $this->actingAs($validador, 'sanctum')
+            ->getJson('/api/validacion/catalogos')
+            ->assertOk()
+            ->assertJsonPath('temporada.id', $vigente->id)
+            ->assertJsonMissing(['id' => $anterior->id]);
     }
 
     private function temporadaActiva(string $codigo, string $fechaInicio): Temporada

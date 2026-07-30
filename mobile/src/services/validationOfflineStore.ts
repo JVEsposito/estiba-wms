@@ -67,7 +67,18 @@ export async function saveValidationCatalog(
   deviceId: string,
   catalog: ValidationCatalog,
 ) {
-  await AsyncStorage.setItem(catalogKey(userId, deviceId), JSON.stringify(catalog));
+  const key = catalogKey(userId, deviceId);
+  const serialized = JSON.stringify(catalog);
+
+  try {
+    await AsyncStorage.setItem(key, serialized);
+  } catch (reason) {
+    const message = reason instanceof Error ? reason.message : String(reason);
+    if (!/SQLITE_FULL|database or disk is full/i.test(message)) throw reason;
+
+    await AsyncStorage.removeItem(key);
+    await AsyncStorage.setItem(key, serialized);
+  }
 }
 
 export async function loadValidationOutbox(

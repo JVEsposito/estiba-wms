@@ -69,10 +69,12 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const compact = width < 700 || width < height;
   const folioInput = useRef<TextInput>(null);
   const flushing = useRef(false);
+  const synchronizing = useRef(false);
   const [catalog, setCatalog] = useState<ValidationCatalog | null>(null);
   const [outbox, setOutbox] = useState<ValidationOutboxItem[]>([]);
   const [recent, setRecent] = useState<ValidationAttempt[]>([]);
   const [busy, setBusy] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [online, setOnline] = useState(Boolean(baseUrl));
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -205,11 +207,15 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     }
   }
 
-  async function synchronize() {
+  async function synchronize({ notify = false }: { notify?: boolean } = {}) {
     if (!baseUrl) {
       setOnline(false);
+      if (notify) setError('Configura el servidor antes de sincronizar.');
       return;
     }
+    if (synchronizing.current) return;
+    synchronizing.current = true;
+    setSyncing(true);
 
     try {
       const loaded = await getValidationCatalog(baseUrl, auth.token);
@@ -219,6 +225,10 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       setOnline(true);
       setLastSync(new Date().toISOString());
       await flushOutbox();
+      if (notify) {
+        setError('');
+        setNotice(`Catálogo v${loaded.temporada.version_catalogo} sincronizado correctamente.`);
+      }
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
         Alert.alert('Sesión vencida', 'Vuelve a iniciar el turno.');
@@ -226,7 +236,10 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         return;
       }
       setOnline(!(reason instanceof ApiError && reason.status === 0));
-      if (!catalog) setError(messageFrom(reason));
+      if (!catalog || notify) setError(messageFrom(reason));
+    } finally {
+      synchronizing.current = false;
+      setSyncing(false);
     }
   }
 
@@ -529,8 +542,17 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         </View>
 
         <View style={[styles.statusStrip, compact && styles.statusStripCompact]}>
-          <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
-          <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
+          <View style={styles.statusCopy}>
+            <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
+            <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
+          </View>
+          <Pressable
+            disabled={syncing}
+            onPress={() => void synchronize({ notify: true })}
+            style={[styles.syncButton, styles.syncButtonTop, syncing && styles.disabled]}
+          >
+            <Text style={styles.syncButtonText}>{syncing ? 'Sincronizando…' : '↻ Sincronizar'}</Text>
+          </Pressable>
         </View>
 
         {error ? <Pressable onPress={() => setError('')} style={styles.errorBanner}><Text style={styles.errorBannerText}>{error}</Text><Text style={styles.close}>×</Text></Pressable> : null}
@@ -628,7 +650,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
           </View>
 
           <View style={[styles.sidePanel, compact && styles.panelCompact]}>
-            <View style={styles.sideHeader}><View><Text style={styles.sectionEyebrow}>BANDEJA LOCAL</Text><Text style={styles.sideTitle}>{outbox.length} operaciones</Text></View><Pressable onPress={() => void synchronize()} style={styles.syncButton}><Text style={styles.syncButtonText}>↻ Sincronizar</Text></Pressable></View>
+            <View style={styles.sideHeader}><View><Text style={styles.sectionEyebrow}>BANDEJA LOCAL</Text><Text style={styles.sideTitle}>{outbox.length} operaciones</Text></View></View>
             {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>Línea {item.payload.linea_proceso} · Turno {item.payload.turno} · {statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
 
             <Text style={[styles.sectionEyebrow, styles.recentEyebrow]}>ÚLTIMAS CONFIRMADAS</Text>
@@ -730,7 +752,8 @@ const styles = StyleSheet.create({
   logout: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border },
   logoutText: { color: colors.muted, fontWeight: '800' },
   statusStrip: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', paddingHorizontal: 8 },
-  statusStripCompact: { flexDirection: 'column', gap: 4, paddingHorizontal: 4 },
+  statusStripCompact: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  statusCopy: { flex: 1, gap: 3 },
   statusText: { color: colors.muted, fontSize: 11, fontWeight: '800' },
   errorBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.red, backgroundColor: colors.blocked },
   errorBannerText: { flex: 1, color: colors.text, fontWeight: '800' },
@@ -806,6 +829,7 @@ const styles = StyleSheet.create({
   sideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 13 },
   sideTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginTop: 3 },
   syncButton: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
+  syncButtonTop: { alignSelf: 'center' },
   syncButtonText: { color: colors.cyan, fontSize: 11, fontWeight: '900' },
   queueItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   queueContent: { flex: 1 },

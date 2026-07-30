@@ -49,6 +49,7 @@ class ServicioAsociacionProductorCsg
                 ->keyBy('cliente_id');
             $ahora = now();
             $asociacionCambio = false;
+            $proyeccionClienteCambio = false;
 
             foreach ($existentes as $clienteId => $existente) {
                 $activo = in_array($clienteId, $clienteIds, true);
@@ -64,7 +65,10 @@ class ServicioAsociacionProductorCsg
             }
 
             foreach ($clientes as $cliente) {
-                $this->clientes->asegurarProyeccionesActivas($cliente, $usuario->id);
+                $proyeccionClienteCambio = $this->clientes->asegurarProyeccionesActivas(
+                    $cliente,
+                    $usuario->id,
+                ) || $proyeccionClienteCambio;
                 if ($existentes->has($cliente->id)) {
                     continue;
                 }
@@ -90,11 +94,14 @@ class ServicioAsociacionProductorCsg
                 ? Temporada::query()->find($sincronizacion['temporada_id'])
                 : null;
 
-            if ($temporada && $asociacionCambio) {
+            $catalogoCambio = $asociacionCambio
+                || $proyeccionClienteCambio
+                || $sincronizacion['catalogo_actualizado'];
+
+            if ($temporada && $catalogoCambio) {
                 $temporada->increment('version_catalogo');
             }
-            if ($temporada
-                && ($asociacionCambio || $sincronizacion['catalogo_actualizado'])) {
+            if ($temporada && $catalogoCambio) {
                 $this->proyector->reconstruir($temporada->refresh());
             }
 
