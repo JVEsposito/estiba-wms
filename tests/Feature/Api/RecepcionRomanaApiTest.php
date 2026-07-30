@@ -103,6 +103,7 @@ class RecepcionRomanaApiTest extends TestCase
         $this->assertStringContainsString('(VERSION)', $contenidoPdf);
         $this->assertStringContainsString('(0)', $contenidoPdf);
         $this->assertStringContainsString('(21-07-2026)', $contenidoPdf);
+        $this->assertStringNotContainsString('(Temporada)', $contenidoPdf);
 
         $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
         $this->actingAs($gerencia, 'sanctum')

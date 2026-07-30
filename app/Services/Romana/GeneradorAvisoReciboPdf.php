@@ -44,7 +44,6 @@ class GeneradorAvisoReciboPdf
             [$esSoloEnvases
                 ? 'Cierre documental'
                 : ($esPesajeEnvases ? 'Cierre de pesaje' : 'Salida / destare'), $recepcion->salida_at?->format('d-m-Y H:i')],
-            ['Temporada', $recepcion->temporada_nombre_snapshot.' · '.$recepcion->temporada_codigo_snapshot],
             ['Cliente', $recepcion->cliente_nombre_snapshot],
             ['Código cliente', $recepcion->cliente_codigo_snapshot ?: 'Sin código externo'],
             ['Tipo recepción', match ($recepcion->tipo_recepcion) {
