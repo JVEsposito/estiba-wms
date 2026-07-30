@@ -12,7 +12,8 @@ class ServicioTemporadaActiva
         $consulta = Temporada::query()
             ->where('activa', true)
             ->orderByDesc('fecha_inicio')
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         if ($bloquear) {
             $consulta->lockForUpdate();

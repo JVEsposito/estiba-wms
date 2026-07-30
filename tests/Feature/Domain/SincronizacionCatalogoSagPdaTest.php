@@ -347,7 +347,7 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
         $this->assertDatabaseCount('combinaciones_validacion', 1);
     }
 
-    public function test_la_pda_desempata_temporadas_activas_por_fecha_de_creacion(): void
+    public function test_la_pda_desempata_temporadas_activas_por_fecha_de_creacion_e_identificador(): void
     {
         Temporada::query()->update(['activa' => false]);
         $anterior = Temporada::create([
