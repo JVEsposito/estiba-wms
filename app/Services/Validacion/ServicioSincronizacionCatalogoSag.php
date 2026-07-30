@@ -5,8 +5,8 @@ namespace App\Services\Validacion;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
 use App\Models\ProductorCsg;
-use App\Models\Temporada;
 use App\Models\VariedadValidacion;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -14,6 +14,7 @@ class ServicioSincronizacionCatalogoSag
 {
     public function __construct(
         private readonly ServicioProyeccionCatalogoValidacion $proyector,
+        private readonly ServicioTemporadaActiva $temporadas,
     ) {}
 
     /**
@@ -44,10 +45,7 @@ class ServicioSincronizacionCatalogoSag
         ];
 
         return DB::transaction(function () use ($productor, $pares, $proyectar, $resultado): array {
-            $temporada = Temporada::query()
-                ->where('activa', true)
-                ->lockForUpdate()
-                ->first();
+            $temporada = $this->temporadas->buscar(bloquear: true);
             if (! $temporada) {
                 return $resultado;
             }
