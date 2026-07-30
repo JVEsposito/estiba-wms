@@ -1,0 +1,509 @@
+from pathlib import Path
+
+
+def replace(path: str, old: str, new: str) -> None:
+    file = Path(path)
+    text = file.read_text()
+    if old not in text:
+        raise RuntimeError(f"No se encontró el patrón en {path}: {old[:160]!r}")
+    file.write_text(text.replace(old, new, 1))
+
+
+request = 'app/Http/Requests/GuardarLoteMateriaPrimaRequest.php'
+replace(
+    request,
+    "            'calibre_validacion_id' => ['required', 'uuid', 'exists:calibres_validacion,id'],\n",
+    '',
+)
+replace(
+    request,
+    "            'cuartel' => ['required', 'string', 'max:100'],",
+    "            'cuartel' => ['nullable', 'string', 'max:100'],",
+)
+replace(
+    request,
+    "            'cuartel' => trim((string) $this->input('cuartel')),",
+    "            'cuartel' => filled($this->input('cuartel'))\n"
+    "                ? trim((string) $this->input('cuartel'))\n"
+    "                : null,",
+)
+
+service = 'app/Services/MateriaPrima/ServicioLoteMateriaPrima.php'
+replace(service, 'use App\\Models\\CalibreValidacion;\n', '')
+replace(
+    service,
+    """        $calibre = CalibreValidacion::query()
+            ->whereKey($datos['calibre_validacion_id'])
+            ->where('especie_validacion_id', $especie?->id)
+            ->where('activo', true)
+            ->first();
+        if (! $csg || ! $especie || ! $variedad || ! $calibre) {
+            throw ValidationException::withMessages([
+                'catalogo' => 'CSG, especie, variedad y calibre deben pertenecer a la temporada y combinación seleccionadas.',
+            ]);
+        }
+""",
+    """        if (! $csg || ! $especie || ! $variedad) {
+            throw ValidationException::withMessages([
+                'catalogo' => 'CSG, especie y variedad deben pertenecer a la temporada y combinación seleccionadas.',
+            ]);
+        }
+""",
+)
+replace(
+    service,
+    """        if (filled($segmento->cuartel)
+            && mb_strtolower(trim($segmento->cuartel)) !== mb_strtolower(trim($datos['cuartel']))) {
+""",
+    """        if (filled($segmento->cuartel)
+            && filled($datos['cuartel'] ?? null)
+            && mb_strtolower(trim($segmento->cuartel)) !== mb_strtolower(trim($datos['cuartel']))) {
+""",
+)
+replace(
+    service,
+    "        return compact('segmento', 'recepcion', 'csg', 'especie', 'variedad', 'calibre');",
+    "        return compact('segmento', 'recepcion', 'csg', 'especie', 'variedad');",
+)
+replace(
+    service,
+    """            'calibre_validacion_id' => $preparados['calibre']->id,
+            'calibre_snapshot' => $preparados['calibre']->nombre,
+            'cuartel' => $datos['cuartel'],
+""",
+    """            'calibre_validacion_id' => null,
+            'calibre_snapshot' => null,
+            'cuartel' => filled($datos['cuartel'] ?? null)
+                ? trim((string) $datos['cuartel'])
+                : (filled($preparados['segmento']->cuartel)
+                    ? trim((string) $preparados['segmento']->cuartel)
+                    : null),
+""",
+)
+
+service_marker = """    public function confirmar(
+        LoteMateriaPrima $lote,
+"""
+service_method = """    /** @param array<string, mixed> $datos */
+    public function corregirOrigen(
+        LoteMateriaPrima $lote,
+        array $datos,
+        User $usuario,
+    ): LoteMateriaPrima {
+        $payload = [
+            'cuartel' => $datos['cuartel'] ?? null,
+            'retirar_calibre' => (bool) $datos['retirar_calibre'],
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($lote, $datos, $usuario, $hash): LoteMateriaPrima {
+            $lote = LoteMateriaPrima::query()->lockForUpdate()->findOrFail($lote->id);
+            $evento = EventoLoteMateriaPrima::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            if ($evento) {
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $lote,
+                    'origen_corregido',
+                    $hash,
+                );
+
+                return $this->cargar($lote);
+            }
+            if ($lote->estado === EstadoLoteMateriaPrima::Anulado) {
+                throw new ConflictoOperacion('Un lote anulado no puede corregirse.');
+            }
+            if ($lote->version !== (int) $datos['version_conocida']) {
+                throw new ConflictoOperacion('El lote cambió desde la última lectura.');
+            }
+
+            $estado = $lote->estado;
+            $anterior = [
+                'cuartel' => $lote->cuartel,
+                'calibre_validacion_id' => $lote->calibre_validacion_id,
+                'calibre' => $lote->calibre_snapshot,
+            ];
+            $cuartel = filled($datos['cuartel'] ?? null)
+                ? trim((string) $datos['cuartel'])
+                : null;
+            $atributos = [
+                'cuartel' => $cuartel,
+                'version' => $lote->version + 1,
+                'actualizado_por_user_id' => $usuario->id,
+            ];
+            if ((bool) $datos['retirar_calibre']) {
+                $atributos['calibre_validacion_id'] = null;
+                $atributos['calibre_snapshot'] = null;
+            }
+            $lote->update($atributos);
+            $this->registrarEvento(
+                $lote,
+                'origen_corregido',
+                $usuario,
+                $datos['operacion_id'],
+                $estado,
+                $estado,
+                [
+                    'payload_hash' => $hash,
+                    'anterior' => $anterior,
+                    'nuevo' => [
+                        'cuartel' => $lote->cuartel,
+                        'calibre_validacion_id' => $lote->calibre_validacion_id,
+                        'calibre' => $lote->calibre_snapshot,
+                    ],
+                    'version' => $lote->version,
+                ],
+            );
+
+            return $this->cargar($lote);
+        }, attempts: 3);
+    }
+
+"""
+replace(service, service_marker, service_method + service_marker)
+
+controller = 'app/Http/Controllers/Api/MateriaPrimaController.php'
+replace(
+    controller,
+    'use App\\Http\\Requests\\CompletarHidrocoolerMateriaPrimaRequest;\n',
+    'use App\\Http\\Requests\\CompletarHidrocoolerMateriaPrimaRequest;\n'
+    'use App\\Http\\Requests\\CorregirOrigenLoteMateriaPrimaRequest;\n',
+)
+controller_marker = """    public function confirmar(
+        ConfirmarLoteMateriaPrimaRequest $request,
+"""
+controller_method = """    public function corregirOrigen(
+        CorregirOrigenLoteMateriaPrimaRequest $request,
+        LoteMateriaPrima $loteMateriaPrima,
+        ServicioLoteMateriaPrima $servicio,
+    ): LoteMateriaPrimaResource {
+        return new LoteMateriaPrimaResource(
+            $servicio->corregirOrigen(
+                $loteMateriaPrima,
+                $request->validated(),
+                $request->user(),
+            ),
+        );
+    }
+
+"""
+replace(controller, controller_marker, controller_method + controller_marker)
+
+routes = 'routes/api.php'
+replace(
+    routes,
+    "        Route::put('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'update']);\n",
+    "        Route::put('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'update']);\n"
+    "        Route::put('/lotes/{loteMateriaPrima}/corregir-origen', [MateriaPrimaController::class, 'corregirOrigen']);\n",
+)
+
+blade = 'resources/views/office/raw-material.blade.php'
+replace(
+    blade,
+    '                    <label class="field"><span>Calibre *</span><select name="calibre_validacion_id" required></select></label>\n',
+    '',
+)
+replace(
+    blade,
+    '                    <label class="field"><span>Cuartel *</span><input name="cuartel" maxlength="100" required></label>',
+    '                    <label class="field"><span>Cuartel</span><input name="cuartel" maxlength="100"><small>Opcional; si Validación MP ya lo informó, se conservará automáticamente.</small></label>',
+)
+
+js = 'resources/js/office-raw-material.js'
+replace(
+    js,
+    """    if (canManage && lot.estado === 'borrador') {
+        actions.push(`<button data-action="edit" data-lot-id="${escapeHtml(lot.id)}" type="button">Editar</button>`);
+        actions.push(`<button class="is-primary" data-action="confirm" data-lot-id="${escapeHtml(lot.id)}" type="button">Confirmar</button>`);
+    }
+""",
+    """    if (canManage && lot.estado === 'borrador') {
+        actions.push(`<button data-action="edit" data-lot-id="${escapeHtml(lot.id)}" type="button">Editar</button>`);
+        actions.push(`<button class="is-primary" data-action="confirm" data-lot-id="${escapeHtml(lot.id)}" type="button">Confirmar</button>`);
+    }
+    if (canManage && !['borrador', 'anulado'].includes(lot.estado)) {
+        actions.push(`<button data-action="correct-origin" data-lot-id="${escapeHtml(lot.id)}" type="button">Corregir origen</button>`);
+    }
+""",
+)
+replace(
+    js,
+    """            <td><strong>CSG ${escapeHtml(lot.trazabilidad.csg)}</strong><small>SdP ${escapeHtml(lot.trazabilidad.sdp)} · GGN ${escapeHtml(lot.trazabilidad.ggn)}</small><small>${escapeHtml(lot.trazabilidad.predio)} · ${escapeHtml(lot.trazabilidad.cuartel)}</small></td>
+            <td><strong>${escapeHtml(lot.trazabilidad.especie)} · ${escapeHtml(lot.trazabilidad.variedad)}</strong><small>${escapeHtml(lot.trazabilidad.calibre)} · ${escapeHtml(label(lot.trazabilidad.tipo_producto))}</small><small>Cosecha ${escapeHtml(lot.trazabilidad.fecha_cosecha)}</small></td>
+""",
+    """            <td><strong>CSG ${escapeHtml(lot.trazabilidad.csg)}</strong><small>SdP ${escapeHtml(lot.trazabilidad.sdp)} · GGN ${escapeHtml(lot.trazabilidad.ggn)}</small><small>${escapeHtml(lot.trazabilidad.predio)}${lot.trazabilidad.cuartel ? ` · ${escapeHtml(lot.trazabilidad.cuartel)}` : ' · Sin cuartel'}</small></td>
+            <td><strong>${escapeHtml(lot.trazabilidad.especie)} · ${escapeHtml(lot.trazabilidad.variedad)}</strong><small>${escapeHtml(label(lot.trazabilidad.tipo_producto))}${lot.trazabilidad.calibre ? ` · Calibre histórico: ${escapeHtml(lot.trazabilidad.calibre)}` : ''}</small><small>Cosecha ${escapeHtml(lot.trazabilidad.fecha_cosecha)}</small></td>
+""",
+)
+replace(
+    js,
+    """function updateSpeciesDependants(selectedVariety = '', selectedCalibre = '') {
+    const form = elements.lotForm.elements;
+    const species = state.catalogs?.especies.find(
+        (item) => item.id === form.especie_validacion_id.value,
+    );
+    form.variedad_validacion_id.innerHTML = '<option value="">Seleccionar variedad</option>'
+        + (species?.variedades || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
+    form.calibre_validacion_id.innerHTML = '<option value="">Seleccionar calibre</option>'
+        + (species?.calibres || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
+    form.variedad_validacion_id.value = selectedVariety;
+    form.calibre_validacion_id.value = selectedCalibre;
+}
+""",
+    """function updateSpeciesDependants(selectedVariety = '') {
+    const form = elements.lotForm.elements;
+    const species = state.catalogs?.especies.find(
+        (item) => item.id === form.especie_validacion_id.value,
+    );
+    form.variedad_validacion_id.innerHTML = '<option value="">Seleccionar variedad</option>'
+        + (species?.variedades || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
+    form.variedad_validacion_id.value = selectedVariety;
+}
+""",
+)
+replace(
+    js,
+    """    updateSpeciesDependants(
+        lot.trazabilidad.variedad_id,
+        lot.trazabilidad.calibre_id,
+    );
+""",
+    """    updateSpeciesDependants(lot.trazabilidad.variedad_id);
+""",
+)
+replace(js, "        calibre_validacion_id: form.calibre_validacion_id.value,\n", '')
+replace(
+    js,
+    """    let path = '';
+""",
+    """    let path = '';
+    let method = 'POST';
+""",
+)
+replace(
+    js,
+    """        assign: {
+            eyebrow: 'DESTINO DE MATERIA PRIMA',
+""",
+    """        'correct-origin': {
+            eyebrow: 'CORRECCIÓN DE ORIGEN',
+            title: `Corregir ${lot.numero_lote}`,
+            description: 'Esta corrección no modifica kilos, envases, segmento, hidrocooler ni cámara.',
+            fields: `
+                <label class="field"><span>Cuartel</span><input name="cuartel" maxlength="100" value="${escapeHtml(lot.trazabilidad.cuartel || '')}"><small>Opcional.</small></label>
+                ${lot.trazabilidad.calibre
+                    ? `<div class="field"><span>Calibre histórico</span><input value="${escapeHtml(lot.trazabilidad.calibre)}" disabled><label><input name="retirar_calibre" type="checkbox" value="1" checked> Retirar este dato del lote</label></div>`
+                    : '<input name="retirar_calibre" type="hidden" value="0">'}`,
+        },
+        assign: {
+            eyebrow: 'DESTINO DE MATERIA PRIMA',
+""",
+)
+replace(
+    js,
+    """    } else if (type === 'assign') {
+        path = `/api/materia-prima/lotes/${lotId}/asignar-camara`;
+""",
+    """    } else if (type === 'correct-origin') {
+        const lot = state.lots.find((item) => item.id === lotId);
+        path = `/api/materia-prima/lotes/${lotId}/corregir-origen`;
+        method = 'PUT';
+        payload.version_conocida = lot?.version;
+        payload.cuartel = values.cuartel || null;
+        payload.retirar_calibre = values.retirar_calibre === '1';
+    } else if (type === 'assign') {
+        path = `/api/materia-prima/lotes/${lotId}/asignar-camara`;
+""",
+)
+replace(
+    js,
+    "    await api(path, { method: 'POST', body: JSON.stringify(payload) });",
+    "    await api(path, { method, body: JSON.stringify(payload) });",
+)
+
+test = 'tests/Feature/Api/MateriaPrimaApiTest.php'
+replace(test, "            'calibre_validacion_id' => $contexto['calibre_id'],\n", '')
+test_marker = """    /** @return array<string, mixed> */
+    private function prepararRecepcionValidada(): array
+"""
+test_method = """    public function test_calibre_no_se_exige_cuartel_es_opcional_y_el_origen_confirmado_se_corrige(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-27 15:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $this->actingAs($digitador, 'sanctum');
+
+        $lote = $this->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+            'numero_lote' => 'LOTE-SIN-CALIBRE',
+            'cuartel' => null,
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.trazabilidad.calibre_id', null)
+            ->assertJsonPath('data.trazabilidad.calibre', null)
+            ->assertJsonPath('data.trazabilidad.cuartel', null)
+            ->json('data');
+
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+
+        DB::table('lotes_materia_prima')->where('id', $lote['id'])->update([
+            'calibre_validacion_id' => $contexto['calibre_id'],
+            'calibre_snapshot' => '28 mm',
+            'cuartel' => 'CUARTEL-ANTIGUO',
+        ]);
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'version_conocida' => $lote['version'],
+            'cuartel' => null,
+            'retirar_calibre' => true,
+            'kilos_brutos' => 1,
+        ];
+
+        $corregido = $this->putJson(
+            "/api/materia-prima/lotes/{$lote['id']}/corregir-origen",
+            $payload,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', $lote['estado'])
+            ->assertJsonPath('data.trazabilidad.calibre_id', null)
+            ->assertJsonPath('data.trazabilidad.calibre', null)
+            ->assertJsonPath('data.trazabilidad.cuartel', null)
+            ->assertJsonPath('data.pesos.kilos_brutos', 19000)
+            ->json('data');
+
+        $this->putJson(
+            "/api/materia-prima/lotes/{$lote['id']}/corregir-origen",
+            $payload,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.version', $corregido['version']);
+
+        $this->assertDatabaseHas('eventos_lote_materia_prima', [
+            'lote_materia_prima_id' => $lote['id'],
+            'operacion_id' => $operacionId,
+            'tipo' => 'origen_corregido',
+        ]);
+        $this->assertDatabaseHas('lotes_materia_prima', [
+            'id' => $lote['id'],
+            'calibre_validacion_id' => null,
+            'calibre_snapshot' => null,
+            'cuartel' => null,
+            'kilos_brutos' => 19000,
+        ]);
+    }
+
+"""
+replace(test, test_marker, test_method + test_marker)
+
+Path('app/Http/Requests/CorregirOrigenLoteMateriaPrimaRequest.php').write_text("""<?php
+
+namespace App\\Http\\Requests;
+
+use Illuminate\\Foundation\\Http\\FormRequest;
+
+class CorregirOrigenLoteMateriaPrimaRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->can('gestionar-lotes-materia-prima') === true;
+    }
+
+    /** @return array<string, mixed> */
+    public function rules(): array
+    {
+        return [
+            'operacion_id' => ['required', 'uuid'],
+            'version_conocida' => ['required', 'integer', 'min:1'],
+            'cuartel' => ['nullable', 'string', 'max:100'],
+            'retirar_calibre' => ['required', 'boolean'],
+        ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'cuartel' => filled($this->input('cuartel'))
+                ? trim((string) $this->input('cuartel'))
+                : null,
+        ]);
+    }
+}
+""")
+
+Path('database/migrations/2026_07_30_170000_hacer_calibre_y_cuartel_opcionales_en_lotes_mp.php').write_text("""<?php
+
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Database\\Schema\\Blueprint;
+use Illuminate\\Support\\Facades\\DB;
+use Illuminate\\Support\\Facades\\Schema;
+use Illuminate\\Support\\Str;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('lotes_materia_prima', function (Blueprint $table): void {
+            $table->dropForeign('lote_mp_calibre_fk');
+        });
+        Schema::table('lotes_materia_prima', function (Blueprint $table): void {
+            $table->uuid('calibre_validacion_id')->nullable()->change();
+            $table->string('calibre_snapshot', 50)->nullable()->change();
+            $table->string('cuartel', 100)->nullable()->change();
+            $table->foreign('calibre_validacion_id', 'lote_mp_calibre_fk')
+                ->references('id')->on('calibres_validacion')->restrictOnDelete();
+        });
+    }
+
+    public function down(): void
+    {
+        DB::table('lotes_materia_prima')
+            ->whereNull('cuartel')
+            ->update(['cuartel' => 'SIN INFORMAR']);
+
+        DB::table('lotes_materia_prima')
+            ->whereNull('calibre_validacion_id')
+            ->select('especie_validacion_id')
+            ->distinct()
+            ->get()
+            ->each(function (object $lote): void {
+                $calibreId = DB::table('calibres_validacion')
+                    ->where('especie_validacion_id', $lote->especie_validacion_id)
+                    ->where('nombre', 'SIN INFORMAR')
+                    ->value('id');
+                if (! $calibreId) {
+                    $calibreId = (string) Str::uuid();
+                    DB::table('calibres_validacion')->insert([
+                        'id' => $calibreId,
+                        'especie_validacion_id' => $lote->especie_validacion_id,
+                        'nombre' => 'SIN INFORMAR',
+                        'activo' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+                DB::table('lotes_materia_prima')
+                    ->where('especie_validacion_id', $lote->especie_validacion_id)
+                    ->whereNull('calibre_validacion_id')
+                    ->update([
+                        'calibre_validacion_id' => $calibreId,
+                        'calibre_snapshot' => 'SIN INFORMAR',
+                    ]);
+            });
+
+        Schema::table('lotes_materia_prima', function (Blueprint $table): void {
+            $table->dropForeign('lote_mp_calibre_fk');
+        });
+        Schema::table('lotes_materia_prima', function (Blueprint $table): void {
+            $table->uuid('calibre_validacion_id')->nullable(false)->change();
+            $table->string('calibre_snapshot', 50)->nullable(false)->change();
+            $table->string('cuartel', 100)->nullable(false)->change();
+            $table->foreign('calibre_validacion_id', 'lote_mp_calibre_fk')
+                ->references('id')->on('calibres_validacion')->restrictOnDelete();
+        });
+    }
+};
+""")
