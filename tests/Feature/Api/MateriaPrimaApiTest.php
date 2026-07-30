@@ -311,6 +311,75 @@ class MateriaPrimaApiTest extends TestCase
         ]);
     }
 
+    public function test_calibre_no_se_exige_cuartel_es_opcional_y_el_origen_confirmado_se_corrige(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-27 15:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $this->actingAs($digitador, 'sanctum');
+
+        $lote = $this->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+            'numero_lote' => 'LOTE-SIN-CALIBRE',
+            'cuartel' => null,
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.trazabilidad.calibre_id', null)
+            ->assertJsonPath('data.trazabilidad.calibre', null)
+            ->assertJsonPath('data.trazabilidad.cuartel', null)
+            ->json('data');
+
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+
+        DB::table('lotes_materia_prima')->where('id', $lote['id'])->update([
+            'calibre_validacion_id' => $contexto['calibre_id'],
+            'calibre_snapshot' => '28 mm',
+            'cuartel' => 'CUARTEL-ANTIGUO',
+        ]);
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'version_conocida' => $lote['version'],
+            'cuartel' => null,
+            'retirar_calibre' => true,
+            'kilos_brutos' => 1,
+        ];
+
+        $corregido = $this->putJson(
+            "/api/materia-prima/lotes/{$lote['id']}/corregir-origen",
+            $payload,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', $lote['estado'])
+            ->assertJsonPath('data.trazabilidad.calibre_id', null)
+            ->assertJsonPath('data.trazabilidad.calibre', null)
+            ->assertJsonPath('data.trazabilidad.cuartel', null)
+            ->assertJsonPath('data.pesos.kilos_brutos', 19000)
+            ->json('data');
+
+        $this->putJson(
+            "/api/materia-prima/lotes/{$lote['id']}/corregir-origen",
+            $payload,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.version', $corregido['version']);
+
+        $this->assertDatabaseHas('eventos_lote_materia_prima', [
+            'lote_materia_prima_id' => $lote['id'],
+            'operacion_id' => $operacionId,
+            'tipo' => 'origen_corregido',
+        ]);
+        $this->assertDatabaseHas('lotes_materia_prima', [
+            'id' => $lote['id'],
+            'calibre_validacion_id' => null,
+            'calibre_snapshot' => null,
+            'cuartel' => null,
+            'kilos_brutos' => 19000,
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function prepararRecepcionValidada(): array
     {
@@ -428,7 +497,6 @@ class MateriaPrimaApiTest extends TestCase
             'predio' => 'Fundo El Maitén',
             'especie_validacion_id' => $contexto['especie_id'],
             'variedad_validacion_id' => $contexto['variedad_id'],
-            'calibre_validacion_id' => $contexto['calibre_id'],
             'cuartel' => 'C-12',
             'tipo_producto' => 'materia_prima',
             'envase_primario' => 'bins',

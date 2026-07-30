@@ -345,6 +345,9 @@ function lotActions(lot) {
         actions.push(`<button data-action="edit" data-lot-id="${escapeHtml(lot.id)}" type="button">Editar</button>`);
         actions.push(`<button class="is-primary" data-action="confirm" data-lot-id="${escapeHtml(lot.id)}" type="button">Confirmar</button>`);
     }
+    if (canManage && !['borrador', 'anulado'].includes(lot.estado)) {
+        actions.push(`<button data-action="correct-origin" data-lot-id="${escapeHtml(lot.id)}" type="button">Corregir origen</button>`);
+    }
     if (canManage && lot.estado === 'pendiente_hidrocooler') {
         actions.push(`<button class="is-primary" data-action="start-hydro" data-lot-id="${escapeHtml(lot.id)}" type="button">Iniciar hidro</button>`);
     }
@@ -369,8 +372,8 @@ function renderLots() {
     elements.lotTableBody.innerHTML = state.lots.map((lot) => `
         <tr>
             <td><strong>${escapeHtml(lot.numero_lote)}</strong><small>${escapeHtml(lot.recepcion?.numero_recepcion)} · guía ${escapeHtml(lot.recepcion?.numero_guia_despacho)}</small><small>${escapeHtml(lot.cliente?.nombre)}</small></td>
-            <td><strong>CSG ${escapeHtml(lot.trazabilidad.csg)}</strong><small>SdP ${escapeHtml(lot.trazabilidad.sdp)} · GGN ${escapeHtml(lot.trazabilidad.ggn)}</small><small>${escapeHtml(lot.trazabilidad.predio)} · ${escapeHtml(lot.trazabilidad.cuartel)}</small></td>
-            <td><strong>${escapeHtml(lot.trazabilidad.especie)} · ${escapeHtml(lot.trazabilidad.variedad)}</strong><small>${escapeHtml(lot.trazabilidad.calibre)} · ${escapeHtml(label(lot.trazabilidad.tipo_producto))}</small><small>Cosecha ${escapeHtml(lot.trazabilidad.fecha_cosecha)}</small></td>
+            <td><strong>CSG ${escapeHtml(lot.trazabilidad.csg)}</strong><small>SdP ${escapeHtml(lot.trazabilidad.sdp)} · GGN ${escapeHtml(lot.trazabilidad.ggn)}</small><small>${escapeHtml(lot.trazabilidad.predio)}${lot.trazabilidad.cuartel ? ` · ${escapeHtml(lot.trazabilidad.cuartel)}` : ' · Sin cuartel'}</small></td>
+            <td><strong>${escapeHtml(lot.trazabilidad.especie)} · ${escapeHtml(lot.trazabilidad.variedad)}</strong><small>${escapeHtml(label(lot.trazabilidad.tipo_producto))}${lot.trazabilidad.calibre ? ` · Calibre histórico: ${escapeHtml(lot.trazabilidad.calibre)}` : ''}</small><small>Cosecha ${escapeHtml(lot.trazabilidad.fecha_cosecha)}</small></td>
             <td><strong>${escapeHtml(lot.envases.cantidad_primarios)} ${escapeHtml(label(lot.envases.primario))}${lot.envases.secundario ? ` · ${escapeHtml(lot.envases.cantidad_secundarios)} ${escapeHtml(label(lot.envases.secundario))}` : ''}</strong><small class="weight-value">${escapeHtml(formatWeight(lot.pesos.kilos_netos_confirmados))} netos</small><small>${lot.pesos.corregido_por_digitador ? `Calculado: ${escapeHtml(formatWeight(lot.pesos.kilos_netos_calculados))}` : 'Neto calculado confirmado'}</small></td>
             <td>${stateBadge(lot.estado)}<small>${lot.requiere_hidrocooler ? 'Con hidrocooler' : 'Sin hidrocooler'}</small>${lot.asignacion_camara?.camara ? `<small>Cámara ${escapeHtml(lot.asignacion_camara.camara.codigo)}</small>` : ''}</td>
             <td><div class="lot-actions">${lotActions(lot)}</div></td>
@@ -398,17 +401,14 @@ function fillBaseCatalogs() {
     updateSpeciesDependants();
 }
 
-function updateSpeciesDependants(selectedVariety = '', selectedCalibre = '') {
+function updateSpeciesDependants(selectedVariety = '') {
     const form = elements.lotForm.elements;
     const species = state.catalogs?.especies.find(
         (item) => item.id === form.especie_validacion_id.value,
     );
     form.variedad_validacion_id.innerHTML = '<option value="">Seleccionar variedad</option>'
         + (species?.variedades || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
-    form.calibre_validacion_id.innerHTML = '<option value="">Seleccionar calibre</option>'
-        + (species?.calibres || []).map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.nombre)}</option>`).join('');
     form.variedad_validacion_id.value = selectedVariety;
-    form.calibre_validacion_id.value = selectedCalibre;
 }
 
 function renderSourceSummary(segment) {
@@ -536,10 +536,7 @@ function openEditLot(lotId) {
     form.sdp.value = lot.trazabilidad.sdp;
     form.ggn.value = lot.trazabilidad.ggn;
     form.especie_validacion_id.value = lot.trazabilidad.especie_id;
-    updateSpeciesDependants(
-        lot.trazabilidad.variedad_id,
-        lot.trazabilidad.calibre_id,
-    );
+    updateSpeciesDependants(lot.trazabilidad.variedad_id);
     form.cuartel.value = lot.trazabilidad.cuartel;
     form.tipo_producto.value = lot.trazabilidad.tipo_producto;
     form.envase_primario.value = lot.envases.primario;
@@ -570,7 +567,6 @@ function lotPayload() {
         predio: form.predio.value,
         especie_validacion_id: form.especie_validacion_id.value,
         variedad_validacion_id: form.variedad_validacion_id.value,
-        calibre_validacion_id: form.calibre_validacion_id.value,
         cuartel: form.cuartel.value,
         tipo_producto: form.tipo_producto.value,
         envase_primario: form.envase_primario.value,
@@ -635,6 +631,16 @@ function openOperation(type, lotId) {
                 <label class="field"><span>Temperatura final °C *</span><input name="temperatura_c" type="number" min="-20" max="50" step="0.01" required></label>
                 <label class="field"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>`,
         },
+        'correct-origin': {
+            eyebrow: 'CORRECCIÓN DE ORIGEN',
+            title: `Corregir ${lot.numero_lote}`,
+            description: 'Esta corrección no modifica kilos, envases, segmento, hidrocooler ni cámara.',
+            fields: `
+                <label class="field"><span>Cuartel</span><input name="cuartel" maxlength="100" value="${escapeHtml(lot.trazabilidad.cuartel || '')}"><small>Opcional.</small></label>
+                ${lot.trazabilidad.calibre
+                    ? `<div class="field"><span>Calibre histórico</span><input value="${escapeHtml(lot.trazabilidad.calibre)}" disabled><label><input name="retirar_calibre" type="checkbox" value="1" checked> Retirar este dato del lote</label></div>`
+                    : '<input name="retirar_calibre" type="hidden" value="0">'}`,
+        },
         assign: {
             eyebrow: 'DESTINO DE MATERIA PRIMA',
             title: `Asignar ${lot.numero_lote} a cámara`,
@@ -666,6 +672,7 @@ async function submitOperation() {
     const lotId = values.lote_id;
     const payload = { operacion_id: values.operacion_id };
     let path = '';
+    let method = 'POST';
     if (type === 'start-hydro') {
         path = `/api/materia-prima/lotes/${lotId}/hidrocooler/iniciar`;
         payload.equipo = values.equipo;
@@ -675,6 +682,13 @@ async function submitOperation() {
         payload.termino_at = new Date(values.termino_at).toISOString();
         payload.temperatura_c = values.temperatura_c;
         payload.observacion = values.observacion || null;
+    } else if (type === 'correct-origin') {
+        const lot = state.lots.find((item) => item.id === lotId);
+        path = `/api/materia-prima/lotes/${lotId}/corregir-origen`;
+        method = 'PUT';
+        payload.version_conocida = lot?.version;
+        payload.cuartel = values.cuartel || null;
+        payload.retirar_calibre = values.retirar_calibre === '1';
     } else if (type === 'assign') {
         path = `/api/materia-prima/lotes/${lotId}/asignar-camara`;
         payload.camara_id = values.camara_id;
@@ -684,7 +698,7 @@ async function submitOperation() {
         payload.motivo = values.motivo;
     }
     if (!path) return;
-    await api(path, { method: 'POST', body: JSON.stringify(payload) });
+    await api(path, { method, body: JSON.stringify(payload) });
 }
 
 function filtersQuery() {

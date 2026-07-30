@@ -164,6 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:gestionar-lotes-materia-prima')->prefix('materia-prima')->group(function () {
         Route::post('/lotes', [MateriaPrimaController::class, 'store']);
         Route::put('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'update']);
+        Route::put('/lotes/{loteMateriaPrima}/corregir-origen', [MateriaPrimaController::class, 'corregirOrigen']);
         Route::post('/lotes/{loteMateriaPrima}/confirmar', [MateriaPrimaController::class, 'confirmar']);
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/iniciar', [MateriaPrimaController::class, 'iniciarHidrocooler']);
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/completar', [MateriaPrimaController::class, 'completarHidrocooler']);
