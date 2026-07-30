@@ -1,0 +1,836 @@
+/*
+ * Tema corporativo compartido para todas las oficinas de Estiba WMS.
+ * Esta hoja se carga después de los estilos de cada módulo para modificar
+ * exclusivamente la presentación, conservando estructura, IDs y contratos JS.
+ */
+
+:root {
+    color-scheme: light !important;
+    --bg: #f3f6fa;
+    --deep: #ffffff;
+    --panel: #ffffff;
+    --raised: #f7f9fc;
+    --soft: #eaf0f7;
+    --line: #d4dde8;
+    --border: #d4dde8;
+    --cyan: #145c95;
+    --cyan-light: #1d6ca7;
+    --accent: #145c95;
+    --green: #2f7d55;
+    --amber: #c77b13;
+    --red: #b83a45;
+    --text: #12243a;
+    --muted: #627185;
+    --corporate-navy: #0c3154;
+    --corporate-blue: #145c95;
+    --corporate-blue-dark: #0d456f;
+    --corporate-orange: #e98a18;
+    --corporate-canvas: #f3f6fa;
+    --corporate-card: #ffffff;
+    --corporate-border: #d4dde8;
+    --corporate-shadow: 0 5px 16px rgba(35, 55, 80, .08);
+    --corporate-shadow-raised: 0 10px 28px rgba(35, 55, 80, .12);
+    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+html {
+    background: var(--corporate-canvas) !important;
+}
+
+body {
+    background: var(--corporate-canvas) !important;
+    color: var(--text) !important;
+    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    line-height: 1.45;
+}
+
+body::before,
+body::after {
+    display: none !important;
+}
+
+::selection {
+    background: rgba(20, 92, 149, .2);
+    color: var(--corporate-navy);
+}
+
+button,
+a,
+input,
+select,
+textarea {
+    font-family: inherit !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(20, 92, 149, .24) !important;
+    outline-offset: 2px !important;
+}
+
+.eyebrow {
+    color: var(--corporate-blue) !important;
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+    letter-spacing: .1em !important;
+}
+
+/* Acceso de oficina */
+.office-access {
+    min-height: 100vh !important;
+    background: #eef3f8 !important;
+}
+
+.office-access__brand {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(150deg, #092b49 0%, #0c3d68 66%, #145c95 100%) !important;
+    color: #ffffff !important;
+}
+
+.office-access__brand::before {
+    position: absolute;
+    inset: auto -12% -28% auto;
+    width: 34rem;
+    height: 34rem;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 50%;
+    content: "";
+}
+
+.office-access__brand::after {
+    position: absolute;
+    inset: 9% auto auto 8%;
+    width: 8rem;
+    height: .28rem;
+    background: var(--corporate-orange);
+    content: "";
+}
+
+.office-access__brand > * {
+    position: relative;
+    z-index: 1;
+}
+
+.office-access__brand .eyebrow,
+.office-access__brand h1 {
+    color: #ffffff !important;
+}
+
+.office-access__brand h1 {
+    max-width: 760px !important;
+    font-size: clamp(2.45rem, 4vw, 4.5rem) !important;
+    font-weight: 750 !important;
+    letter-spacing: -.04em !important;
+    line-height: 1.02 !important;
+}
+
+.office-access__brand > p:not(.eyebrow) {
+    color: rgba(255, 255, 255, .8) !important;
+}
+
+.office-access__form {
+    background: #ffffff !important;
+    border-left: 1px solid var(--corporate-border) !important;
+    color: var(--text) !important;
+}
+
+.office-access__form > div:first-child {
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--corporate-border);
+}
+
+.office-access__form h2 {
+    color: var(--corporate-navy) !important;
+    font-size: 1.85rem !important;
+    font-weight: 750 !important;
+    letter-spacing: -.025em;
+}
+
+.office-access__form p,
+.office-access__form label,
+.office-access__form .field {
+    color: var(--muted) !important;
+}
+
+.office-logo {
+    border: 1px solid rgba(255, 255, 255, .5) !important;
+    border-radius: 10px !important;
+    background: rgba(255, 255, 255, .12) !important;
+    box-shadow: none !important;
+    color: #ffffff !important;
+}
+
+.feature-row span {
+    border-color: rgba(255, 255, 255, .24) !important;
+    border-radius: 5px !important;
+    background: rgba(255, 255, 255, .06) !important;
+    color: rgba(255, 255, 255, .86) !important;
+}
+
+/* Encabezado y navegación compartida */
+.office-domain-topbar,
+.office-topbar {
+    min-height: 76px !important;
+    border-bottom: 1px solid var(--corporate-border) !important;
+    background: rgba(255, 255, 255, .98) !important;
+    box-shadow: 0 2px 8px rgba(33, 52, 75, .06) !important;
+    color: var(--text) !important;
+    backdrop-filter: none !important;
+}
+
+.brand-lockup {
+    min-width: 220px;
+    gap: 11px !important;
+}
+
+.office-brand-mark {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    place-items: center;
+    border: 1px solid #9eb5cb;
+    border-radius: 7px;
+    background: #ffffff;
+    color: var(--corporate-blue);
+}
+
+.office-brand-mark svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+.brand-lockup strong {
+    color: var(--corporate-navy) !important;
+    font-size: 1.02rem !important;
+    font-weight: 800 !important;
+    letter-spacing: .02em;
+}
+
+.brand-lockup small,
+.identity small {
+    color: var(--muted) !important;
+    letter-spacing: .08em !important;
+}
+
+.office-domain-navigation,
+.office-topbar nav {
+    gap: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+.office-domain-navigation .office-domain-link {
+    position: relative;
+    min-height: 54px !important;
+    gap: 8px !important;
+    border: 0 !important;
+    border-bottom: 3px solid transparent !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #52657b !important;
+    transition: color .16s ease, background .16s ease, border-color .16s ease;
+}
+
+.office-domain-navigation .office-domain-link:hover {
+    background: #f5f8fb !important;
+    color: var(--corporate-navy) !important;
+}
+
+.office-domain-navigation .office-domain-link.is-active {
+    border-bottom-color: var(--corporate-blue) !important;
+    background: #eef4fa !important;
+    color: var(--corporate-navy) !important;
+}
+
+.office-domain-navigation .office-domain-link > span {
+    display: inline-grid;
+    min-width: 27px;
+    min-height: 23px;
+    place-items: center;
+    padding: 2px 5px !important;
+    border: 1px solid #bfd0df;
+    border-radius: 4px;
+    background: #ffffff;
+    color: var(--corporate-blue) !important;
+    font-size: .58rem !important;
+    font-weight: 900;
+    letter-spacing: .04em;
+}
+
+.office-domain-navigation .office-domain-link > strong {
+    color: inherit !important;
+    font-weight: 750 !important;
+}
+
+.identity {
+    color: var(--text) !important;
+}
+
+.identity__avatar {
+    border: 1px solid #b8c8d7 !important;
+    border-radius: 6px !important;
+    background: var(--corporate-navy) !important;
+    color: #ffffff !important;
+}
+
+.identity strong {
+    color: var(--corporate-navy) !important;
+}
+
+.identity button,
+.icon-button {
+    border: 1px solid #b9c8d6 !important;
+    border-radius: 5px !important;
+    background: #ffffff !important;
+    color: var(--corporate-navy) !important;
+    box-shadow: none !important;
+}
+
+.identity button:hover,
+.icon-button:hover {
+    border-color: var(--corporate-blue) !important;
+    background: #eef4fa !important;
+}
+
+.office-subnavigation {
+    min-height: 58px !important;
+    border-bottom: 1px solid var(--corporate-border) !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+}
+
+.office-subnavigation__heading span {
+    color: #7c8998 !important;
+}
+
+.office-subnavigation__heading strong {
+    color: var(--corporate-navy) !important;
+}
+
+.office-subnavigation__links {
+    gap: 2px !important;
+    padding: 3px !important;
+    border: 1px solid #c9d5e1 !important;
+    border-radius: 6px !important;
+    background: #f5f8fb !important;
+}
+
+.office-subnavigation__links a {
+    border: 1px solid transparent;
+    border-radius: 4px !important;
+    color: #4e6074 !important;
+    font-weight: 700 !important;
+}
+
+.office-subnavigation__links a:hover {
+    background: #ffffff !important;
+    color: var(--corporate-navy) !important;
+}
+
+.office-subnavigation__links a.is-active {
+    border-color: #9fb6ca !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 4px rgba(35, 55, 80, .08);
+    color: var(--corporate-blue-dark) !important;
+}
+
+/* Formularios y controles */
+input,
+select,
+textarea,
+.office-app input,
+.office-app select,
+.office-app textarea,
+.office-access input,
+.office-access select,
+.office-access textarea {
+    border: 1px solid #bdcad7 !important;
+    border-radius: 5px !important;
+    background: #ffffff !important;
+    color: var(--text) !important;
+    box-shadow: inset 0 1px 1px rgba(26, 47, 69, .03) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #8a98a8 !important;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+    border-color: #91a8bc !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--corporate-blue) !important;
+    box-shadow: 0 0 0 3px rgba(20, 92, 149, .12) !important;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+    background: #eef2f6 !important;
+    color: #778598 !important;
+}
+
+label,
+.field,
+.office-app label,
+.office-access label {
+    color: #52657a !important;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    accent-color: var(--corporate-blue) !important;
+}
+
+/* Botones y enlaces de acción */
+.primary-button,
+.secondary-button,
+.danger-button,
+.refresh-button,
+.office-app button,
+.office-app a[class*="button"] {
+    border-radius: 5px !important;
+    box-shadow: none !important;
+    font-weight: 750 !important;
+    letter-spacing: 0 !important;
+    text-decoration: none;
+}
+
+.primary-button,
+.office-app button.primary-button,
+.office-app a.primary-button {
+    border: 1px solid var(--corporate-blue-dark) !important;
+    background: var(--corporate-blue) !important;
+    color: #ffffff !important;
+}
+
+.primary-button:hover,
+.office-app button.primary-button:hover,
+.office-app a.primary-button:hover {
+    background: var(--corporate-blue-dark) !important;
+}
+
+.secondary-button,
+.refresh-button,
+.office-app button.secondary-button,
+.office-app a.secondary-button {
+    border: 1px solid #aebdcc !important;
+    background: #ffffff !important;
+    color: var(--corporate-navy) !important;
+}
+
+.secondary-button:hover,
+.refresh-button:hover,
+.office-app button.secondary-button:hover,
+.office-app a.secondary-button:hover {
+    border-color: var(--corporate-blue) !important;
+    background: #eef4fa !important;
+}
+
+.danger-button,
+.office-app button.danger-button,
+.office-app a.danger-button {
+    border: 1px solid #ca9298 !important;
+    background: #ffffff !important;
+    color: #a72e3a !important;
+}
+
+.danger-button:hover,
+.office-app button.danger-button:hover,
+.office-app a.danger-button:hover {
+    background: #fff1f2 !important;
+}
+
+button:disabled,
+a[aria-disabled="true"] {
+    cursor: not-allowed !important;
+    opacity: .52 !important;
+}
+
+/* Superficies, tarjetas y módulos */
+.office-app {
+    background: var(--corporate-canvas) !important;
+    color: var(--text) !important;
+}
+
+.panel,
+.office-app .panel,
+.office-app [class$="-panel"],
+.office-app [class*="-panel "],
+.office-app [class$="__panel"],
+.office-app [class*="__panel "] {
+    border: 1px solid var(--corporate-border) !important;
+    border-radius: 8px !important;
+    background: var(--corporate-card) !important;
+    box-shadow: var(--corporate-shadow) !important;
+    color: var(--text) !important;
+}
+
+.office-app [class$="-card"],
+.office-app [class*="-card "],
+.office-app [class$="__card"],
+.office-app [class*="__card "] {
+    border-color: var(--corporate-border) !important;
+    border-radius: 7px !important;
+    background: #ffffff !important;
+    box-shadow: 0 3px 11px rgba(35, 55, 80, .06) !important;
+    color: var(--text) !important;
+}
+
+.office-app h1,
+.office-app h2,
+.office-app h3,
+.office-app h4,
+.office-app strong {
+    color: var(--corporate-navy);
+}
+
+.office-app h1 {
+    font-weight: 780 !important;
+    letter-spacing: -.025em !important;
+}
+
+.office-app h2,
+.office-app h3 {
+    font-weight: 740 !important;
+    letter-spacing: -.012em !important;
+}
+
+.office-app p,
+.office-app small,
+.office-app [class*="help"],
+.office-app [class*="description"],
+.office-app [class*="subtitle"],
+.office-app [class*="meta"] {
+    color: var(--muted);
+}
+
+.office-app hr,
+.office-app [class*="divider"] {
+    border-color: var(--corporate-border) !important;
+}
+
+/* KPIs y resúmenes */
+.validation-metrics article,
+.management-kpi,
+.office-app [class*="metrics"] > article,
+.office-app [class*="metric-grid"] > article,
+.office-app [class*="summary-grid"] > article,
+.office-app [class*="kpi-grid"] > article {
+    border: 1px solid var(--corporate-border) !important;
+    border-top: 3px solid var(--corporate-blue) !important;
+    border-radius: 7px !important;
+    background: #ffffff !important;
+    box-shadow: var(--corporate-shadow) !important;
+    color: var(--text) !important;
+}
+
+.validation-metrics strong,
+.management-kpi > strong,
+.office-app [class*="metrics"] > article > strong,
+.office-app [class*="metric-grid"] > article > strong,
+.office-app [class*="summary-grid"] > article > strong,
+.office-app [class*="kpi-grid"] > article > strong {
+    color: var(--corporate-navy) !important;
+}
+
+.management-kpi::before {
+    height: 3px !important;
+    background: var(--corporate-blue) !important;
+}
+
+.management-kpi--romana::before,
+.management-kpi--warning::before {
+    background: var(--corporate-orange) !important;
+}
+
+.management-kpi > p {
+    color: var(--muted) !important;
+}
+
+.kpi-progress,
+.camera-occupancy {
+    background: #e3eaf1 !important;
+}
+
+.kpi-progress i,
+.camera-occupancy span {
+    background: var(--corporate-blue) !important;
+}
+
+/* Tablas */
+.office-app table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+    background: #ffffff !important;
+    color: var(--text) !important;
+}
+
+.office-app table thead,
+.office-app table thead tr,
+.office-app table th {
+    background: #edf2f7 !important;
+    color: #344a61 !important;
+}
+
+.office-app table th {
+    border-top: 1px solid var(--corporate-border) !important;
+    border-bottom: 1px solid #bdcad7 !important;
+    font-size: .68rem !important;
+    font-weight: 800 !important;
+    letter-spacing: .045em !important;
+    text-transform: uppercase;
+}
+
+.office-app table th:first-child {
+    border-left: 1px solid var(--corporate-border) !important;
+}
+
+.office-app table th:last-child {
+    border-right: 1px solid var(--corporate-border) !important;
+}
+
+.office-app table td {
+    border-bottom: 1px solid #e0e6ed !important;
+    background: #ffffff !important;
+    color: #25384d !important;
+}
+
+.office-app table tbody tr:hover td {
+    background: #f6f9fc !important;
+}
+
+.office-app [class*="table-scroll"],
+.office-app .table-scroll {
+    border: 1px solid var(--corporate-border) !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+}
+
+/* Estados y etiquetas */
+.status-pill,
+.validation-result,
+.area-chip,
+.usage-chip,
+[class*="status-chip"],
+[class*="state-chip"],
+[class*="badge"] {
+    border: 1px solid currentColor !important;
+    border-radius: 999px !important;
+    box-shadow: none !important;
+    font-weight: 800 !important;
+}
+
+.status-pill--aprobado,
+.validation-result--aprobado,
+.usage-chip,
+[class*="success"] {
+    background: #edf7f1 !important;
+    color: #2f704e !important;
+}
+
+.status-pill--pendiente_verificacion,
+.status-pill--requiere_reproceso,
+.validation-result--observado,
+.usage-chip--warning,
+[class*="warning"] {
+    background: #fff7e9 !important;
+    color: #9f6210 !important;
+}
+
+.validation-result--rechazado,
+.validation-result--conflicto,
+.status-pill--cancelado,
+[class*="danger"] {
+    color: #a72e3a;
+}
+
+/* Modales, diálogos y mensajes */
+dialog,
+.office-app dialog,
+.office-app [role="dialog"],
+.office-app [class*="modal-card"],
+.office-app [class*="dialog-card"] {
+    border: 1px solid #b9c7d4 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    box-shadow: 0 24px 70px rgba(22, 40, 62, .24) !important;
+    color: var(--text) !important;
+}
+
+dialog::backdrop,
+.office-app [class*="modal-backdrop"] {
+    background: rgba(14, 35, 56, .42) !important;
+    backdrop-filter: blur(2px) !important;
+}
+
+.loading {
+    background: rgba(239, 244, 249, .78) !important;
+    color: var(--corporate-navy) !important;
+}
+
+.loading span {
+    border-color: rgba(20, 92, 149, .2) !important;
+    border-top-color: var(--corporate-blue) !important;
+}
+
+.toast {
+    border: 1px solid #6fa48a !important;
+    border-radius: 6px !important;
+    background: #f1f8f4 !important;
+    box-shadow: var(--corporate-shadow-raised) !important;
+    color: #245b40 !important;
+}
+
+.toast--error {
+    border-color: #c7888f !important;
+    background: #fff2f3 !important;
+    color: #982e39 !important;
+}
+
+.form-error,
+[class*="error"] {
+    color: #a92f3b;
+}
+
+/* Módulos con colores oscuros propios */
+.validation-access-brand,
+.management-access-brand,
+.prefrio-access-brand,
+.materials-access-brand,
+.loads-access-brand,
+.weighbridge-access-brand,
+.raw-material-access-brand,
+.queries-access-brand,
+.accounts-access-brand,
+.dispatches-access-brand,
+.inventory-access-brand {
+    background: linear-gradient(150deg, #092b49 0%, #0c3d68 66%, #145c95 100%) !important;
+}
+
+.management-kpi,
+.management-panel,
+.validation-metrics article,
+.validation-form,
+.validation-row,
+.management-alert,
+.kpi-split span,
+.chart-summary span,
+.camera-item,
+.camera-availability > div,
+.capacity-summary,
+.dock-status-toggle,
+.preview-position {
+    background: #ffffff !important;
+    color: var(--text) !important;
+}
+
+.management-alert,
+.validation-row,
+.kpi-split span,
+.chart-summary span,
+.camera-item,
+.camera-availability > div,
+.capacity-summary,
+.dock-status-toggle,
+.preview-position {
+    border-color: var(--corporate-border) !important;
+}
+
+.preview-position {
+    background: #eef4fa !important;
+}
+
+.preview-position span,
+.orientation,
+.next-code strong {
+    color: var(--corporate-blue) !important;
+}
+
+.preview-position.is-disabled {
+    background: #eef1f4 !important;
+    color: #778598 !important;
+}
+
+.management-alert {
+    box-shadow: none !important;
+}
+
+/* Gráficos y leyendas */
+.chart-container,
+canvas {
+    color: var(--text) !important;
+}
+
+.legend-dot--occupied {
+    background: var(--corporate-blue) !important;
+}
+
+.legend-dot--free {
+    background: var(--corporate-orange) !important;
+}
+
+/* Pantallas angostas */
+@media (max-width: 1250px) {
+    .office-domain-topbar {
+        min-width: 1040px;
+    }
+}
+
+@media (max-width: 900px) {
+    .office-domain-topbar {
+        min-width: 0;
+    }
+
+    .office-domain-navigation {
+        border-top: 1px solid var(--corporate-border) !important;
+    }
+}
+
+@media (max-width: 850px) {
+    .office-access__brand {
+        display: none !important;
+    }
+
+    .office-access__form {
+        width: min(100%, 540px);
+        min-height: 100vh;
+        margin: 0 auto;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+}
+
+@media print {
+    .office-domain-topbar,
+    .office-subnavigation,
+    .identity,
+    .toast-region {
+        display: none !important;
+    }
+
+    body,
+    .office-app,
+    .panel {
+        background: #ffffff !important;
+        box-shadow: none !important;
+    }
+}
