@@ -94,8 +94,7 @@
                     <label class="field"><span>GGN · 13 dígitos *</span><input name="ggn" inputmode="numeric" pattern="[0-9]{13}" minlength="13" maxlength="13" required></label>
                     <label class="field"><span>Especie *</span><select name="especie_validacion_id" required></select></label>
                     <label class="field"><span>Variedad *</span><select name="variedad_validacion_id" required></select></label>
-                    <label class="field"><span>Calibre *</span><select name="calibre_validacion_id" required></select></label>
-                    <label class="field"><span>Cuartel *</span><input name="cuartel" maxlength="100" required></label>
+                    <label class="field"><span>Cuartel</span><input name="cuartel" maxlength="100"><small>Opcional; si Validación MP ya lo informó, se conservará automáticamente.</small></label>
                     <label class="field"><span>Producto *</span><select name="tipo_producto" required></select></label>
                     <label class="field"><span>Envase primario *</span><select name="envase_primario" required></select></label>
                     <label class="field"><span>Cantidad primarios *</span><input name="cantidad_envases_primarios" type="number" min="1" max="100000" required></label>

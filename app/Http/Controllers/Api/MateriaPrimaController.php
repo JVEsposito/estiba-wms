@@ -12,6 +12,7 @@ use App\Http\Requests\AnularLoteMateriaPrimaRequest;
 use App\Http\Requests\AsignarCamaraLoteMateriaPrimaRequest;
 use App\Http\Requests\CompletarHidrocoolerMateriaPrimaRequest;
 use App\Http\Requests\ConfirmarLoteMateriaPrimaRequest;
+use App\Http\Requests\CorregirOrigenLoteMateriaPrimaRequest;
 use App\Http\Requests\GuardarLoteMateriaPrimaRequest;
 use App\Http\Requests\IniciarHidrocoolerMateriaPrimaRequest;
 use App\Http\Resources\LoteMateriaPrimaResource;
@@ -286,6 +287,20 @@ class MateriaPrimaController extends Controller
     ): LoteMateriaPrimaResource {
         return new LoteMateriaPrimaResource(
             $servicio->actualizar(
+                $loteMateriaPrima,
+                $request->validated(),
+                $request->user(),
+            ),
+        );
+    }
+
+    public function corregirOrigen(
+        CorregirOrigenLoteMateriaPrimaRequest $request,
+        LoteMateriaPrima $loteMateriaPrima,
+        ServicioLoteMateriaPrima $servicio,
+    ): LoteMateriaPrimaResource {
+        return new LoteMateriaPrimaResource(
+            $servicio->corregirOrigen(
                 $loteMateriaPrima,
                 $request->validated(),
                 $request->user(),

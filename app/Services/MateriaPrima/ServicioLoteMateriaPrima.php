@@ -9,7 +9,6 @@ use App\Enums\EstadoLoteMateriaPrima;
 use App\Enums\EstadoValidacionMp;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\AsignacionCamaraLoteMateriaPrima;
-use App\Models\CalibreValidacion;
 use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
@@ -142,6 +141,82 @@ class ServicioLoteMateriaPrima
                 EstadoLoteMateriaPrima::Borrador,
                 EstadoLoteMateriaPrima::Borrador,
                 ['payload_hash' => $hash, 'version' => $lote->version],
+            );
+
+            return $this->cargar($lote);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function corregirOrigen(
+        LoteMateriaPrima $lote,
+        array $datos,
+        User $usuario,
+    ): LoteMateriaPrima {
+        $payload = [
+            'cuartel' => $datos['cuartel'] ?? null,
+            'retirar_calibre' => (bool) $datos['retirar_calibre'],
+        ];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($lote, $datos, $usuario, $hash): LoteMateriaPrima {
+            $lote = LoteMateriaPrima::query()->lockForUpdate()->findOrFail($lote->id);
+            $evento = EventoLoteMateriaPrima::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->first();
+            if ($evento) {
+                $this->asegurarEventoIdempotente(
+                    $evento,
+                    $lote,
+                    'origen_corregido',
+                    $hash,
+                );
+
+                return $this->cargar($lote);
+            }
+            if ($lote->estado === EstadoLoteMateriaPrima::Anulado) {
+                throw new ConflictoOperacion('Un lote anulado no puede corregirse.');
+            }
+            if ($lote->version !== (int) $datos['version_conocida']) {
+                throw new ConflictoOperacion('El lote cambió desde la última lectura.');
+            }
+
+            $estado = $lote->estado;
+            $anterior = [
+                'cuartel' => $lote->cuartel,
+                'calibre_validacion_id' => $lote->calibre_validacion_id,
+                'calibre' => $lote->calibre_snapshot,
+            ];
+            $cuartel = filled($datos['cuartel'] ?? null)
+                ? trim((string) $datos['cuartel'])
+                : null;
+            $atributos = [
+                'cuartel' => $cuartel,
+                'version' => $lote->version + 1,
+                'actualizado_por_user_id' => $usuario->id,
+            ];
+            if ((bool) $datos['retirar_calibre']) {
+                $atributos['calibre_validacion_id'] = null;
+                $atributos['calibre_snapshot'] = null;
+            }
+            $lote->update($atributos);
+            $this->registrarEvento(
+                $lote,
+                'origen_corregido',
+                $usuario,
+                $datos['operacion_id'],
+                $estado,
+                $estado,
+                [
+                    'payload_hash' => $hash,
+                    'anterior' => $anterior,
+                    'nuevo' => [
+                        'cuartel' => $lote->cuartel,
+                        'calibre_validacion_id' => $lote->calibre_validacion_id,
+                        'calibre' => $lote->calibre_snapshot,
+                    ],
+                    'version' => $lote->version,
+                ],
             );
 
             return $this->cargar($lote);
@@ -544,14 +619,9 @@ class ServicioLoteMateriaPrima
             ->where('especie_validacion_id', $especie?->id)
             ->where('activo', true)
             ->first();
-        $calibre = CalibreValidacion::query()
-            ->whereKey($datos['calibre_validacion_id'])
-            ->where('especie_validacion_id', $especie?->id)
-            ->where('activo', true)
-            ->first();
-        if (! $csg || ! $especie || ! $variedad || ! $calibre) {
+        if (! $csg || ! $especie || ! $variedad) {
             throw ValidationException::withMessages([
-                'catalogo' => 'CSG, especie, variedad y calibre deben pertenecer a la temporada y combinación seleccionadas.',
+                'catalogo' => 'CSG, especie y variedad deben pertenecer a la temporada y combinación seleccionadas.',
             ]);
         }
         if ($segmento->csg_validacion_id
@@ -567,13 +637,14 @@ class ServicioLoteMateriaPrima
             ]);
         }
         if (filled($segmento->cuartel)
+            && filled($datos['cuartel'] ?? null)
             && mb_strtolower(trim($segmento->cuartel)) !== mb_strtolower(trim($datos['cuartel']))) {
             throw ValidationException::withMessages([
                 'cuartel' => 'El cuartel debe coincidir con la segregación confirmada en Validación MP.',
             ]);
         }
 
-        return compact('segmento', 'recepcion', 'csg', 'especie', 'variedad', 'calibre');
+        return compact('segmento', 'recepcion', 'csg', 'especie', 'variedad');
     }
 
     /**
@@ -619,9 +690,13 @@ class ServicioLoteMateriaPrima
             'especie_snapshot' => $preparados['especie']->nombre,
             'variedad_validacion_id' => $preparados['variedad']->id,
             'variedad_snapshot' => $preparados['variedad']->nombre,
-            'calibre_validacion_id' => $preparados['calibre']->id,
-            'calibre_snapshot' => $preparados['calibre']->nombre,
-            'cuartel' => $datos['cuartel'],
+            'calibre_validacion_id' => null,
+            'calibre_snapshot' => null,
+            'cuartel' => filled($datos['cuartel'] ?? null)
+                ? trim((string) $datos['cuartel'])
+                : (filled($preparados['segmento']->cuartel)
+                    ? trim((string) $preparados['segmento']->cuartel)
+                    : null),
             'tipo_producto' => $datos['tipo_producto'],
             'envase_primario' => $datos['envase_primario'],
             'envase_secundario' => $datos['envase_secundario'] ?? null,

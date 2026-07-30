@@ -29,8 +29,7 @@ class GuardarLoteMateriaPrimaRequest extends FormRequest
             'predio' => ['required', 'string', 'max:150'],
             'especie_validacion_id' => ['required', 'uuid', 'exists:especies_validacion,id'],
             'variedad_validacion_id' => ['required', 'uuid', 'exists:variedades_validacion,id'],
-            'calibre_validacion_id' => ['required', 'uuid', 'exists:calibres_validacion,id'],
-            'cuartel' => ['required', 'string', 'max:100'],
+            'cuartel' => ['nullable', 'string', 'max:100'],
             'tipo_producto' => ['required', Rule::enum(TipoProductoMateriaPrima::class)],
             'envase_primario' => ['required', Rule::enum(TipoEnvaseRomana::class)],
             'envase_secundario' => [
@@ -74,7 +73,9 @@ class GuardarLoteMateriaPrimaRequest extends FormRequest
             'sdp' => trim((string) $this->input('sdp')),
             'ggn' => trim((string) $this->input('ggn')),
             'predio' => trim((string) $this->input('predio')),
-            'cuartel' => trim((string) $this->input('cuartel')),
+            'cuartel' => filled($this->input('cuartel'))
+                ? trim((string) $this->input('cuartel'))
+                : null,
             'envase_secundario' => filled($this->input('envase_secundario'))
                 ? $this->input('envase_secundario')
                 : null,
