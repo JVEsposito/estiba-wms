@@ -44,11 +44,11 @@
     ];
 
     $domains = [
-        'materia-prima' => ['label' => 'Materia Prima', 'icon' => '◫'],
-        'frigorifico' => ['label' => 'Frigorífico (PT)', 'icon' => '❄'],
-        'materiales' => ['label' => 'Materiales', 'icon' => '▦'],
-        'administracion' => ['label' => 'Gerencia & Administración', 'icon' => '⚙'],
-        'consultas' => ['label' => 'Consultas', 'icon' => '⌕'],
+        'materia-prima' => ['label' => 'Materia Prima', 'icon' => 'MP'],
+        'frigorifico' => ['label' => 'Frigorífico (PT)', 'icon' => 'PT'],
+        'materiales' => ['label' => 'Materiales', 'icon' => 'MT'],
+        'administracion' => ['label' => 'Gerencia & Administración', 'icon' => 'GA'],
+        'consultas' => ['label' => 'Consultas', 'icon' => 'CO'],
     ];
 
     foreach ($domains as $domainKey => &$definition) {
@@ -70,8 +70,15 @@
 
 <header class="office-topbar office-domain-topbar" data-active-domain="{{ $domain }}" data-active-office="{{ $office }}">
     <div class="brand-lockup">
-        <span class="office-logo office-logo--small" aria-hidden="true">{{ $icon }}</span>
-        <span><strong>ESTIBA WMS</strong><small>{{ $context }}</small></span>
+        <span class="office-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" role="img">
+                <path d="M20 3 34 10.5 20 18 6 10.5 20 3Z" />
+                <path d="M6 10.5V27L20 35V18L6 10.5Z" />
+                <path d="M34 10.5V27L20 35V18L34 10.5Z" />
+                <path d="m13 14.3 14-7.5" />
+            </svg>
+        </span>
+        <span><strong>ESTIBA</strong><small>SUITE DE GESTIÓN WMS · {{ $context }}</small></span>
     </div>
 
     <nav class="office-domain-navigation" aria-label="Macromódulos del sistema">
@@ -127,6 +134,6 @@
 
 @once
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @vite('resources/js/office-navigation.js')
+        @vite(['resources/css/office-corporate.css', 'resources/js/office-navigation.js'])
     @endif
 @endonce
