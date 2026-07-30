@@ -95,7 +95,14 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf')
             ->assertHeader('Content-Disposition', 'attachment; filename="aviso-recibo-rec-2607-0001.pdf"');
-        $this->assertStringStartsWith('%PDF-1.4', (string) $pdf->getContent());
+        $contenidoPdf = (string) $pdf->getContent();
+        $this->assertStringStartsWith('%PDF-1.4', $contenidoPdf);
+        $this->assertStringContainsString('(REGISTRO DE PESAJE)', $contenidoPdf);
+        $this->assertStringContainsString('(ROMANA)', $contenidoPdf);
+        $this->assertStringContainsString('(POR DEFINIR)', $contenidoPdf);
+        $this->assertStringContainsString('(VERSION)', $contenidoPdf);
+        $this->assertStringContainsString('(0)', $contenidoPdf);
+        $this->assertStringContainsString('(21-07-2026)', $contenidoPdf);
 
         $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
         $this->actingAs($gerencia, 'sanctum')
