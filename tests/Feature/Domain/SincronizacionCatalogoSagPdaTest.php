@@ -61,10 +61,10 @@ class SincronizacionCatalogoSagPdaTest extends TestCase
             ->firstOrFail();
 
         $maestro = app(ServicioCatalogoJerarquicoValidacion::class)->datos($temporada);
+        $especieMaestro = $maestro['especies']->firstWhere('id', $especie->id);
+        $this->assertNotNull($especieMaestro);
         $this->assertTrue(
-            $maestro['especies']->contains(fn (EspecieValidacion $item): bool =>
-                $item->id === $especie->id
-                && $item->variedades->contains('id', $variedad->id)),
+            $especieMaestro->variedades->contains('id', $variedad->id),
             'La especie y variedad creadas desde SAG deben aparecer inmediatamente en el maestro.',
         );
 
