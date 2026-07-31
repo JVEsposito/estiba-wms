@@ -1,9 +1,7 @@
 name: Pint custodia debug
 
 on:
-  push:
-    branches:
-      - agent/custodia-distribuida-materiales
+  pull_request:
 
 permissions:
   contents: read
