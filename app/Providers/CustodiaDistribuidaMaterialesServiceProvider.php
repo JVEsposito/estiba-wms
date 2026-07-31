@@ -28,19 +28,31 @@ class CustodiaDistribuidaMaterialesServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(ContextoSaldoReservaMaterial::class);
-        $this->app->bind(ServicioReservaFifoMaterial::class, ServicioReservaFifoMaterialDistribuido::class);
-        $this->app->bind(ServicioDespachoMaterial::class, ServicioDespachoMaterialDistribuido::class);
-        $this->app->bind(ServicioConsultaInventarioMaterial::class, ServicioConsultaInventarioMaterialDistribuido::class);
+        $this->app->bind(
+            ServicioReservaFifoMaterial::class,
+            ServicioReservaFifoMaterialDistribuido::class,
+        );
+        $this->app->bind(
+            ServicioDespachoMaterial::class,
+            ServicioDespachoMaterialDistribuido::class,
+        );
+        $this->app->bind(
+            ServicioConsultaInventarioMaterial::class,
+            ServicioConsultaInventarioMaterialDistribuido::class,
+        );
     }
 
     public function boot(): void
     {
         FolioMaterial::observe(FolioMaterialAlmacenObserver::class);
         ReservaMaterial::observe(ReservaMaterialAlmacenObserver::class);
-        ReservaTransformacionMaterial::observe(ReservaTransformacionMaterialAlmacenObserver::class);
+        ReservaTransformacionMaterial::observe(
+            ReservaTransformacionMaterialAlmacenObserver::class,
+        );
         SaldoMaterialAlmacen::observe(SaldoMaterialAlmacenObserver::class);
         MovimientoAlmacenMaterial::observe(MovimientoAlmacenMaterialObserver::class);
         UbicacionActual::observe(UbicacionActualAlmacenObserver::class);
+
         $this->loadRoutesFrom(base_path('routes/materiales-almacenes.php'));
     }
 }
