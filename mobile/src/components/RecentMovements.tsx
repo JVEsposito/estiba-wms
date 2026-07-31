@@ -16,6 +16,16 @@ const labels: Record<Movement['tipo_movimiento'], string> = {
   reversion: 'Reversión',
 };
 
+function movementEndLabel(end: Movement['origen'], fallback: string) {
+  if (!end) return fallback;
+
+  const position = end.posicion
+    ? end.posicion.etiqueta ?? `B${end.posicion.banda}`
+    : 'Sin posición';
+
+  return `${end.camara.codigo} · ${position}`;
+}
+
 export function RecentMovements({ movements, lastSync }: RecentMovementsProps) {
   return (
     <View style={styles.panel}>
@@ -32,12 +42,8 @@ export function RecentMovements({ movements, lastSync }: RecentMovementsProps) {
       ) : (
         <View style={styles.list}>
           {movements.slice(0, 4).map((movement) => {
-            const origin = movement.origen
-              ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta ?? `B${movement.origen.posicion.banda}`}`
-              : 'Ingreso';
-            const destination = movement.destino
-              ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta ?? `B${movement.destino.posicion.banda}`}`
-              : 'Salida';
+            const origin = movementEndLabel(movement.origen, 'Ingreso');
+            const destination = movementEndLabel(movement.destino, 'Salida');
             const time = new Date(movement.created_at).toLocaleTimeString('es-CL', {
               hour: '2-digit',
               minute: '2-digit',
