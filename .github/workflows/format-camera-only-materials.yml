@@ -1,0 +1,45 @@
+name: Formatear disponibilidad de materiales por cámara
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.head_ref == 'agent/materiales-disponibles-solo-camara'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar rama
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Aplicar Laravel Pint
+        run: vendor/bin/pint app/Services/Estiba/ServicioMovimientoEstiba.php app/Services/Materiales/ServicioDespachoMaterial.php
+
+      - name: Publicar formato
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/Services/Estiba/ServicioMovimientoEstiba.php app/Services/Materiales/ServicioDespachoMaterial.php
+          if git diff --cached --quiet; then
+            echo 'Sin cambios de formato'
+            exit 0
+          fi
+          git commit -m 'style: formatear disponibilidad de materiales por cámara'
+          git push origin HEAD:${{ github.head_ref }}
