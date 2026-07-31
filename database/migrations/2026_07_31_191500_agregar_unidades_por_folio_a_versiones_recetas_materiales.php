@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('versiones_recetas_materiales', function (Blueprint $table) {
-            // Las versiones históricas permanecen sin regla física hasta crear una nueva versión.
+            // Las versiones históricas permanecen sin regla física ni cambian su operación.
             $table->decimal('unidades_por_folio_salida', 14, 3)
                 ->nullable()
                 ->after('cantidad_base_salida');
