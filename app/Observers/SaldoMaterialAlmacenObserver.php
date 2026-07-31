@@ -24,6 +24,17 @@ class SaldoMaterialAlmacenObserver
             );
         }
 
+        if ($saldo->exists
+            && $saldo->isDirty([
+                'cantidad_actual',
+                'cantidad_reservada',
+                'camara_id',
+                'posicion_id',
+            ])
+            && ! $saldo->isDirty('version')) {
+            $saldo->version = (int) $saldo->getOriginal('version') + 1;
+        }
+
         $almacen = $saldo->almacen()->first();
 
         if (! $almacen) {
