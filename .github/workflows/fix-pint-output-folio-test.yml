@@ -1,0 +1,47 @@
+name: Aplicar formato final de folios
+
+on:
+  push:
+    branches:
+      - agent/unidades-por-folio-transformacion
+    paths:
+      - scripts/fix_pint_output_folio_test.py
+      - .github/workflows/fix-pint-output-folio-test.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/fix_pint_output_folio_test.py
+      - .github/workflows/fix-pint-output-folio-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          ref: agent/unidades-por-folio-transformacion
+          fetch-depth: 0
+
+      - name: Aplicar formato
+        run: python3 scripts/fix_pint_output_folio_test.py
+
+      - name: Retirar archivos temporales
+        run: |
+          rm scripts/fix_pint_output_folio_test.py
+          rm .github/workflows/fix-pint-output-folio-test.yml
+          rm -f .github/workflows/format-output-folio-test.yml
+
+      - name: Publicar formato
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: formatear regresión de folios de salida"
+          git push origin HEAD:agent/unidades-por-folio-transformacion
