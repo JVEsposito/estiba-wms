@@ -7,6 +7,12 @@ on:
     paths:
       - scripts/apply_output_folios.py
       - .github/workflows/apply-output-folios.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/apply_output_folios.py
+      - .github/workflows/apply-output-folios.yml
   workflow_dispatch:
 
 permissions:
@@ -14,6 +20,7 @@ permissions:
 
 jobs:
   apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Descargar código
