@@ -1251,7 +1251,6 @@ class TransformacionMaterialApiTest extends TestCase
             ->count());
     }
 
-
     public function test_configura_un_folio_por_lote_y_calcula_el_remanente_final(): void
     {
         [, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
@@ -1430,8 +1429,7 @@ class TransformacionMaterialApiTest extends TestCase
     private function prepararOrdenOperacional(
         float $cantidadPlanificada,
         ?float $unidadesPorFolio = null,
-    ): array
-    {
+    ): array {
         [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
             $this->prepararCatalogo();
         [, , $tokenTablet] = $this->crearOperador();
