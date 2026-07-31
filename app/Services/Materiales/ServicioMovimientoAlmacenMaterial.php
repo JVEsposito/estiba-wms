@@ -17,11 +17,12 @@ use App\Models\FolioMaterial;
 use App\Models\MovimientoAlmacenMaterial;
 use App\Models\Posicion;
 use App\Models\SaldoMaterialAlmacen;
-use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 class ServicioMovimientoAlmacenMaterial
@@ -31,88 +32,77 @@ class ServicioMovimientoAlmacenMaterial
         private readonly ServicioAlmacenMaterial $almacenes,
     ) {}
 
-    /**
-     * @param  array<string, mixed>  $datos
-     */
+    /** @param array<string, mixed> $datos */
     public function registrar(
         array $datos,
         User $usuario,
         ?Dispositivo $dispositivo,
     ): MovimientoAlmacenMaterial {
         $tipo = TipoMovimientoAlmacenMaterial::from($datos['tipo']);
+        $this->autorizar($tipo, $usuario);
+        $hash = $this->payloadHash($datos);
 
-        if ($tipo === TipoMovimientoAlmacenMaterial::Ajuste) {
-            if (! $this->alcance->puedeGestionarBloqueosMateriales($usuario)) {
-                throw new OperacionNoAutorizada(
-                    'Solo supervisión puede registrar ajustes de inventario.',
-                );
-            }
-        } elseif (! $this->alcance->puedeGestionarDespachosMateriales($usuario)) {
-            throw new OperacionNoAutorizada(
-                'El usuario no está autorizado para mover existencias entre almacenes.',
-            );
-        }
+        try {
+            return DB::transaction(function () use ($datos, $usuario, $dispositivo, $tipo, $hash) {
+                $existente = MovimientoAlmacenMaterial::query()
+                    ->where('operacion_id', $datos['operacion_id'])
+                    ->where('secuencia', 1)
+                    ->lockForUpdate()
+                    ->first();
 
-        $payloadHash = $this->payloadHash($datos);
+                if ($existente) {
+                    return $this->validarReintento($existente, $usuario, $hash);
+                }
 
-        return DB::transaction(function () use (
-            $datos,
-            $usuario,
-            $dispositivo,
-            $tipo,
-            $payloadHash,
-        ): MovimientoAlmacenMaterial {
+                $folio = FolioMaterial::query()
+                    ->with(['folio', 'item'])
+                    ->lockForUpdate()
+                    ->findOrFail($datos['folio_id']);
+
+                return match ($tipo) {
+                    TipoMovimientoAlmacenMaterial::Consumo => $this->consumir(
+                        $folio,
+                        $datos,
+                        $usuario,
+                        $dispositivo,
+                        $hash,
+                    ),
+                    TipoMovimientoAlmacenMaterial::Ajuste => $this->ajustar(
+                        $folio,
+                        $datos,
+                        $usuario,
+                        $dispositivo,
+                        $hash,
+                    ),
+                    TipoMovimientoAlmacenMaterial::Devolucion,
+                    TipoMovimientoAlmacenMaterial::Transferencia => $this->transferir(
+                        $folio,
+                        $datos,
+                        $tipo,
+                        $usuario,
+                        $dispositivo,
+                        $hash,
+                    ),
+                    TipoMovimientoAlmacenMaterial::Entrega => throw new DomainException(
+                        'Las entregas se registran desde una solicitud de materiales.',
+                    ),
+                };
+            }, attempts: 3);
+        } catch (UniqueConstraintViolationException $exception) {
             $existente = MovimientoAlmacenMaterial::query()
                 ->where('operacion_id', $datos['operacion_id'])
                 ->where('secuencia', 1)
-                ->lockForUpdate()
                 ->first();
 
             if ($existente) {
-                if ($existente->user_id !== $usuario->id
-                    || ! hash_equals($existente->payload_hash, $payloadHash)) {
-                    throw new ConflictoOperacion(
-                        'El UUID de movimiento ya fue utilizado con datos diferentes.',
-                    );
-                }
-
-                return $this->cargar($existente);
+                return $this->validarReintento($existente, $usuario, $hash);
             }
 
-            $folio = FolioMaterial::query()
-                ->with(['folio', 'item'])
-                ->lockForUpdate()
-                ->findOrFail($datos['folio_id']);
-
-            return match ($tipo) {
-                TipoMovimientoAlmacenMaterial::Consumo => $this->consumir(
-                    $folio,
-                    $datos,
-                    $usuario,
-                    $dispositivo,
-                    $payloadHash,
-                ),
-                TipoMovimientoAlmacenMaterial::Ajuste => $this->ajustar(
-                    $folio,
-                    $datos,
-                    $usuario,
-                    $dispositivo,
-                    $payloadHash,
-                ),
-                TipoMovimientoAlmacenMaterial::Devolucion,
-                TipoMovimientoAlmacenMaterial::Transferencia => $this->transferir(
-                    $folio,
-                    $datos,
-                    $tipo,
-                    $usuario,
-                    $dispositivo,
-                    $payloadHash,
-                ),
-                TipoMovimientoAlmacenMaterial::Entrega => throw new DomainException(
-                    'Las entregas se registran desde una solicitud de materiales.',
-                ),
-            };
-        }, attempts: 3);
+            throw new ConflictoOperacion(
+                'El movimiento entró en conflicto con otra operación concurrente.',
+                previous: $exception,
+            );
+        }
     }
 
     public function cargar(MovimientoAlmacenMaterial $movimiento): MovimientoAlmacenMaterial
@@ -127,58 +117,42 @@ class ServicioMovimientoAlmacenMaterial
         ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $datos
-     */
+    /** @param array<string, mixed> $datos */
     private function consumir(
         FolioMaterial $folio,
         array $datos,
         User $usuario,
         ?Dispositivo $dispositivo,
-        string $payloadHash,
+        string $hash,
     ): MovimientoAlmacenMaterial {
         $cantidad = $this->cantidadPositiva($datos['cantidad']);
-        $almacen = AlmacenMaterial::query()
-            ->whereKey($datos['almacen_origen_id'] ?? null)
-            ->where('activo', true)
-            ->lockForUpdate()
-            ->first();
-
-        if (! $almacen) {
-            throw new DomainException('El almacén de consumo no existe o está inactivo.');
-        }
-
+        $almacen = $this->almacenBloqueado($datos['almacen_origen_id'] ?? null);
+        $excepcionFifo = trim((string) ($datos['motivo_excepcion_fifo'] ?? ''));
+        $this->validarFifo($folio, $almacen, $excepcionFifo);
         $saldo = $this->saldoBloqueado($folio, $almacen);
-        $disponible = round(
-            (float) $saldo->cantidad_actual - (float) $saldo->cantidad_reservada,
-            3,
-        );
+        $this->validarDisponible($folio, $saldo, $almacen);
 
-        if ($cantidad > $disponible + 0.0001) {
-            throw new DomainException(
-                'La cantidad consumida supera el saldo disponible del almacén.',
-            );
+        if ($cantidad > $saldo->cantidadDisponible() + 0.0001) {
+            throw new DomainException('El consumo supera el saldo disponible del almacén.');
         }
-
-        $this->validarFifoConsumo(
-            $folio,
-            $almacen,
-            trim((string) ($datos['motivo_excepcion_fifo'] ?? '')),
-        );
 
         $anterior = (float) $saldo->cantidad_actual;
         $resultante = round($anterior - $cantidad, 3);
         $totalAnterior = (float) $folio->cantidad_actual;
-        $totalResultante = round($totalAnterior - $cantidad, 3);
+        $camaraAnterior = $saldo->camara_id;
+        $version = (int) $saldo->version + 1;
+        $saldo->update([
+            'cantidad_actual' => $resultante,
+            'camara_id' => $resultante > 0 ? $saldo->camara_id : null,
+            'posicion_id' => $resultante > 0 ? $saldo->posicion_id : null,
+            'version' => $version,
+        ]);
+        $proyeccion = $this->almacenes->sincronizarProyeccion($folio);
+        $this->incrementarPlanos($resultante <= 0 ? [$camaraAnterior] : []);
 
-        $saldo->update(['cantidad_actual' => $resultante]);
-        $folio->update(['cantidad_actual' => $totalResultante]);
-        $this->actualizarEstadoYUbicacion($folio, $almacen, $resultante, $totalResultante);
-
-        return $this->cargar(MovimientoAlmacenMaterial::create([
+        return $this->crearMovimiento([
             'operacion_id' => $datos['operacion_id'],
-            'secuencia' => 1,
-            'payload_hash' => $payloadHash,
+            'payload_hash' => $hash,
             'tipo' => TipoMovimientoAlmacenMaterial::Consumo,
             'folio_id' => $folio->folio_id,
             'item_material_id' => $folio->item_material_id,
@@ -188,120 +162,97 @@ class ServicioMovimientoAlmacenMaterial
             'saldo_origen_resultante' => $resultante,
             'centro_costo' => $almacen->centro_costo,
             'motivo' => trim((string) $datos['motivo']),
-            'documento_relacionado' => $this->textoOpcional(
-                $datos['documento_relacionado'] ?? null,
-            ),
+            'documento_relacionado' => $this->texto($datos['documento_relacionado'] ?? null),
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo?->id,
             'metadatos' => [
                 'total_empresa_anterior' => $totalAnterior,
-                'total_empresa_resultante' => $totalResultante,
-                'motivo_excepcion_fifo' => $this->textoOpcional(
-                    $datos['motivo_excepcion_fifo'] ?? null,
-                ),
+                'total_empresa_resultante' => (float) $proyeccion->cantidad_actual,
+                'motivo_excepcion_fifo' => $this->texto($excepcionFifo),
+                'saldo_version_resultante' => $version,
             ],
-            'ocurrido_at' => now(),
-        ]));
+        ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $datos
-     */
+    /** @param array<string, mixed> $datos */
     private function transferir(
         FolioMaterial $folio,
         array $datos,
         TipoMovimientoAlmacenMaterial $tipo,
         User $usuario,
         ?Dispositivo $dispositivo,
-        string $payloadHash,
+        string $hash,
     ): MovimientoAlmacenMaterial {
         $cantidad = $this->cantidadPositiva($datos['cantidad']);
-        $origen = AlmacenMaterial::query()
-            ->whereKey($datos['almacen_origen_id'] ?? null)
-            ->where('activo', true)
-            ->lockForUpdate()
-            ->first();
-        $destino = AlmacenMaterial::query()
-            ->whereKey($datos['almacen_destino_id'] ?? null)
-            ->where('activo', true)
-            ->lockForUpdate()
-            ->first();
+        $lista = $this->almacenesBloqueados([
+            $datos['almacen_origen_id'] ?? null,
+            $datos['almacen_destino_id'] ?? null,
+        ]);
+        $origen = $lista->firstWhere('id', $datos['almacen_origen_id'] ?? null);
+        $destino = $lista->firstWhere('id', $datos['almacen_destino_id'] ?? null);
 
-        if (! $origen || ! $destino) {
-            throw new DomainException('El almacén de origen o destino no está disponible.');
-        }
-
-        if ($origen->id === $destino->id) {
-            throw new DomainException('El origen y destino deben ser almacenes diferentes.');
+        if (! $origen || ! $destino || $origen->id === $destino->id) {
+            throw new DomainException('Debe indicar almacenes de origen y destino diferentes.');
         }
 
         if ($tipo === TipoMovimientoAlmacenMaterial::Devolucion
             && ($origen->tipo !== TipoAlmacenMaterial::Virtual
                 || $destino->tipo !== TipoAlmacenMaterial::Fisica)) {
             throw new DomainException(
-                'Una devolución debe salir de una bodega virtual y regresar a una bodega física.',
+                'Una devolución debe regresar desde un almacén virtual a uno físico.',
             );
         }
 
-        $saldoOrigen = $this->saldoBloqueado($folio, $origen);
-        $saldoDestino = $this->almacenes->saldo($folio, $destino);
-        $disponible = round(
-            (float) $saldoOrigen->cantidad_actual - (float) $saldoOrigen->cantidad_reservada,
-            3,
-        );
+        $this->almacenes->asegurarSaldo($folio, $destino);
+        $saldos = $this->almacenes->saldosBloqueados(
+            $folio,
+            [$origen->id, $destino->id],
+        )->keyBy('almacen_material_id');
+        $saldoOrigen = $saldos->get($origen->id);
+        $saldoDestino = $saldos->get($destino->id);
 
-        if ($cantidad > $disponible + 0.0001) {
-            throw new DomainException(
-                'La transferencia supera el saldo disponible del almacén de origen.',
-            );
+        if (! $saldoOrigen || ! $saldoDestino) {
+            throw new DomainException('No fue posible bloquear ambos saldos de la transferencia.');
         }
 
-        [$camaraDestino, $posicionDestino] = $this->resolverUbicacionDestino(
-            $destino,
-            $saldoDestino,
-            $datos,
-        );
+        $saldoOrigen->loadMissing(['camara', 'posicion']);
+        $this->validarDisponible($folio, $saldoOrigen, $origen);
 
+        if ($cantidad > $saldoOrigen->cantidadDisponible() + 0.0001) {
+            throw new DomainException('La transferencia supera el saldo disponible de origen.');
+        }
+
+        [$camara, $posicion] = $this->ubicacionDestino($destino, $saldoDestino, $datos);
         $origenAnterior = (float) $saldoOrigen->cantidad_actual;
         $origenResultante = round($origenAnterior - $cantidad, 3);
         $destinoAnterior = (float) $saldoDestino->cantidad_actual;
         $destinoResultante = round($destinoAnterior + $cantidad, 3);
-
+        $totalAnterior = (float) $folio->cantidad_actual;
+        $camaraOrigen = $saldoOrigen->camara_id;
+        $camaraDestinoAnterior = $saldoDestino->camara_id;
+        $versionOrigen = (int) $saldoOrigen->version + 1;
+        $versionDestino = (int) $saldoDestino->version + 1;
         $saldoOrigen->update([
             'cantidad_actual' => $origenResultante,
             'camara_id' => $origenResultante > 0 ? $saldoOrigen->camara_id : null,
             'posicion_id' => $origenResultante > 0 ? $saldoOrigen->posicion_id : null,
+            'version' => $versionOrigen,
         ]);
         $saldoDestino->update([
             'cantidad_actual' => $destinoResultante,
-            'camara_id' => $destino->tipo === TipoAlmacenMaterial::Fisica
-                ? $camaraDestino?->id
-                : null,
-            'posicion_id' => $destino->tipo === TipoAlmacenMaterial::Fisica
-                ? $posicionDestino?->id
-                : null,
+            'camara_id' => $destino->tipo === TipoAlmacenMaterial::Fisica ? $camara?->id : null,
+            'posicion_id' => $destino->tipo === TipoAlmacenMaterial::Fisica ? $posicion?->id : null,
+            'version' => $versionDestino,
+        ]);
+        $proyeccion = $this->almacenes->sincronizarProyeccion($folio);
+        $this->incrementarPlanos([
+            $origenResultante <= 0 ? $camaraOrigen : null,
+            $camaraDestinoAnterior !== $camara?->id ? $camara?->id : null,
         ]);
 
-        if ($origen->tipo === TipoAlmacenMaterial::Fisica && $origenResultante <= 0.0001) {
-            UbicacionActual::query()->where('folio_id', $folio->folio_id)->delete();
-        }
-
-        if ($destino->tipo === TipoAlmacenMaterial::Fisica) {
-            UbicacionActual::query()->updateOrCreate(
-                ['folio_id' => $folio->folio_id],
-                [
-                    'camara_id' => $camaraDestino?->id,
-                    'posicion_id' => $posicionDestino?->id,
-                    'movimiento_id' => null,
-                    'ubicado_at' => now(),
-                ],
-            );
-        }
-
-        return $this->cargar(MovimientoAlmacenMaterial::create([
+        return $this->crearMovimiento([
             'operacion_id' => $datos['operacion_id'],
-            'secuencia' => 1,
-            'payload_hash' => $payloadHash,
+            'payload_hash' => $hash,
             'tipo' => $tipo,
             'folio_id' => $folio->folio_id,
             'item_material_id' => $folio->item_material_id,
@@ -314,29 +265,27 @@ class ServicioMovimientoAlmacenMaterial
             'saldo_destino_resultante' => $destinoResultante,
             'centro_costo' => $destino->centro_costo,
             'motivo' => trim((string) ($datos['motivo'] ?? 'Transferencia interna.')),
-            'documento_relacionado' => $this->textoOpcional(
-                $datos['documento_relacionado'] ?? null,
-            ),
+            'documento_relacionado' => $this->texto($datos['documento_relacionado'] ?? null),
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo?->id,
             'metadatos' => [
-                'camara_destino_id' => $camaraDestino?->id,
-                'posicion_destino_id' => $posicionDestino?->id,
-                'total_empresa' => (float) $folio->cantidad_actual,
+                'total_empresa_anterior' => $totalAnterior,
+                'total_empresa_resultante' => (float) $proyeccion->cantidad_actual,
+                'camara_destino_id' => $camara?->id,
+                'posicion_destino_id' => $posicion?->id,
+                'version_origen_resultante' => $versionOrigen,
+                'version_destino_resultante' => $versionDestino,
             ],
-            'ocurrido_at' => now(),
-        ]));
+        ]);
     }
 
-    /**
-     * @param  array<string, mixed>  $datos
-     */
+    /** @param array<string, mixed> $datos */
     private function ajustar(
         FolioMaterial $folio,
         array $datos,
         User $usuario,
         ?Dispositivo $dispositivo,
-        string $payloadHash,
+        string $hash,
     ): MovimientoAlmacenMaterial {
         $cantidad = round((float) $datos['cantidad'], 3);
 
@@ -344,35 +293,25 @@ class ServicioMovimientoAlmacenMaterial
             throw new DomainException('El ajuste debe ser distinto de cero.');
         }
 
-        $almacen = AlmacenMaterial::query()
-            ->whereKey($datos['almacen_origen_id'] ?? $datos['almacen_destino_id'] ?? null)
-            ->where('activo', true)
-            ->lockForUpdate()
-            ->first();
-
-        if (! $almacen) {
-            throw new DomainException('El almacén que se ajustará no está disponible.');
-        }
-
-        $saldo = $this->almacenes->saldo($folio, $almacen);
+        $almacen = $this->almacenBloqueado(
+            $datos['almacen_origen_id'] ?? $datos['almacen_destino_id'] ?? null,
+        );
+        $this->almacenes->asegurarSaldo($folio, $almacen);
+        $saldo = $this->saldoBloqueado($folio, $almacen);
         $anterior = (float) $saldo->cantidad_actual;
         $resultante = round($anterior + $cantidad, 3);
 
-        if ($resultante < -0.0001) {
-            throw new DomainException('El ajuste dejaría un saldo negativo en el almacén.');
-        }
-
-        $totalAnterior = (float) $folio->cantidad_actual;
-        $totalResultante = round($totalAnterior + $cantidad, 3);
-
-        if ($totalResultante < -0.0001) {
-            throw new DomainException('El ajuste dejaría negativa la existencia total.');
+        if ($resultante < -0.0001
+            || (float) $saldo->cantidad_reservada > $resultante + 0.0001) {
+            throw new DomainException('El ajuste dejaría un saldo negativo o reservado en exceso.');
         }
 
         [$camara, $posicion] = $cantidad > 0
-            ? $this->resolverUbicacionDestino($almacen, $saldo, $datos)
+            ? $this->ubicacionDestino($almacen, $saldo, $datos)
             : [null, null];
-
+        $totalAnterior = (float) $folio->cantidad_actual;
+        $camaraAnterior = $saldo->camara_id;
+        $version = (int) $saldo->version + 1;
         $saldo->update([
             'cantidad_actual' => max(0, $resultante),
             'camara_id' => $resultante > 0 && $almacen->tipo === TipoAlmacenMaterial::Fisica
@@ -381,19 +320,17 @@ class ServicioMovimientoAlmacenMaterial
             'posicion_id' => $resultante > 0 && $almacen->tipo === TipoAlmacenMaterial::Fisica
                 ? ($posicion?->id ?? $saldo->posicion_id)
                 : null,
+            'version' => $version,
         ]);
-        $folio->update(['cantidad_actual' => max(0, $totalResultante)]);
-        $this->actualizarEstadoYUbicacion(
-            $folio,
-            $almacen,
-            max(0, $resultante),
-            max(0, $totalResultante),
-        );
+        $proyeccion = $this->almacenes->sincronizarProyeccion($folio);
+        $this->incrementarPlanos([
+            $resultante <= 0 ? $camaraAnterior : null,
+            $cantidad > 0 && $camaraAnterior !== $camara?->id ? $camara?->id : null,
+        ]);
 
-        return $this->cargar(MovimientoAlmacenMaterial::create([
+        return $this->crearMovimiento([
             'operacion_id' => $datos['operacion_id'],
-            'secuencia' => 1,
-            'payload_hash' => $payloadHash,
+            'payload_hash' => $hash,
             'tipo' => TipoMovimientoAlmacenMaterial::Ajuste,
             'folio_id' => $folio->folio_id,
             'item_material_id' => $folio->item_material_id,
@@ -406,18 +343,83 @@ class ServicioMovimientoAlmacenMaterial
             'saldo_destino_resultante' => $cantidad > 0 ? $resultante : null,
             'centro_costo' => $almacen->centro_costo,
             'motivo' => trim((string) $datos['motivo']),
-            'documento_relacionado' => $this->textoOpcional(
-                $datos['documento_relacionado'] ?? null,
-            ),
+            'documento_relacionado' => $this->texto($datos['documento_relacionado'] ?? null),
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo?->id,
             'metadatos' => [
                 'total_empresa_anterior' => $totalAnterior,
-                'total_empresa_resultante' => max(0, $totalResultante),
+                'total_empresa_resultante' => (float) $proyeccion->cantidad_actual,
                 'requiere_autorizacion_supervision' => true,
+                'saldo_version_resultante' => $version,
             ],
+        ]);
+    }
+
+    /** @param array<string, mixed> $atributos */
+    private function crearMovimiento(array $atributos): MovimientoAlmacenMaterial
+    {
+        return $this->cargar(MovimientoAlmacenMaterial::create([
+            ...$atributos,
+            'secuencia' => 1,
             'ocurrido_at' => now(),
         ]));
+    }
+
+    private function autorizar(TipoMovimientoAlmacenMaterial $tipo, User $usuario): void
+    {
+        $autorizado = $tipo === TipoMovimientoAlmacenMaterial::Ajuste
+            ? $this->alcance->puedeGestionarBloqueosMateriales($usuario)
+            : $this->alcance->puedeGestionarDespachosMateriales($usuario);
+
+        if (! $autorizado) {
+            throw new OperacionNoAutorizada(
+                $tipo === TipoMovimientoAlmacenMaterial::Ajuste
+                    ? 'Solo supervisión puede registrar ajustes de inventario.'
+                    : 'El usuario no está autorizado para mover existencias entre almacenes.',
+            );
+        }
+    }
+
+    private function validarReintento(
+        MovimientoAlmacenMaterial $movimiento,
+        User $usuario,
+        string $hash,
+    ): MovimientoAlmacenMaterial {
+        if ($movimiento->user_id !== $usuario->id
+            || ! hash_equals($movimiento->payload_hash, $hash)) {
+            throw new ConflictoOperacion('El UUID ya fue utilizado con datos diferentes.');
+        }
+
+        return $this->cargar($movimiento);
+    }
+
+    private function almacenBloqueado(?string $id): AlmacenMaterial
+    {
+        $almacen = AlmacenMaterial::query()
+            ->whereKey($id)
+            ->where('activo', true)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $almacen) {
+            throw new DomainException('El almacén no existe o está inactivo.');
+        }
+
+        return $almacen;
+    }
+
+    /**
+     * @param array<int, ?string> $ids
+     * @return Collection<int, AlmacenMaterial>
+     */
+    private function almacenesBloqueados(array $ids): Collection
+    {
+        return AlmacenMaterial::query()
+            ->whereIn('id', collect($ids)->filter()->unique()->sort()->values())
+            ->where('activo', true)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
     }
 
     private function saldoBloqueado(
@@ -425,6 +427,7 @@ class ServicioMovimientoAlmacenMaterial
         AlmacenMaterial $almacen,
     ): SaldoMaterialAlmacen {
         $saldo = SaldoMaterialAlmacen::query()
+            ->with(['camara', 'posicion'])
             ->where('folio_id', $folio->folio_id)
             ->where('almacen_material_id', $almacen->id)
             ->lockForUpdate()
@@ -437,17 +440,50 @@ class ServicioMovimientoAlmacenMaterial
         return $saldo;
     }
 
+    private function validarDisponible(
+        FolioMaterial $folio,
+        SaldoMaterialAlmacen $saldo,
+        AlmacenMaterial $almacen,
+    ): void {
+        if (! $folio->folio?->activo
+            || $folio->folio->estado_operacional === EstadoOperacionalFolio::Agotado
+            || $folio->motivo_bloqueo !== null) {
+            throw new DomainException('El folio se encuentra agotado o bloqueado globalmente.');
+        }
+
+        if ($almacen->tipo === TipoAlmacenMaterial::Virtual) {
+            if ($saldo->camara_id || $saldo->posicion_id) {
+                throw new DomainException('Un almacén virtual no admite ubicación física.');
+            }
+
+            return;
+        }
+
+        if ($almacen->requiere_ubicacion_fisica
+            && (! $saldo->camara
+                || $saldo->camara->contenido !== ContenidoCamara::Materiales
+                || $saldo->camara->estado !== EstadoCamara::Activa
+                || ($saldo->posicion
+                    && $saldo->posicion->estado !== EstadoPosicion::Activa))) {
+            throw new DomainException('El saldo físico no posee una ubicación válida.');
+        }
+    }
+
     /**
-     * @param  array<string, mixed>  $datos
+     * @param array<string, mixed> $datos
      * @return array{0: ?Camara, 1: ?Posicion}
      */
-    private function resolverUbicacionDestino(
+    private function ubicacionDestino(
         AlmacenMaterial $almacen,
         SaldoMaterialAlmacen $saldo,
         array $datos,
     ): array {
-        if ($almacen->tipo !== TipoAlmacenMaterial::Fisica
-            || ! $almacen->requiere_ubicacion_fisica) {
+        if ($almacen->tipo === TipoAlmacenMaterial::Virtual) {
+            if (($datos['camara_destino_id'] ?? null)
+                || ($datos['posicion_destino_id'] ?? null)) {
+                throw new DomainException('Un almacén virtual no admite ubicación física.');
+            }
+
             return [null, null];
         }
 
@@ -455,9 +491,11 @@ class ServicioMovimientoAlmacenMaterial
         $posicionId = $datos['posicion_destino_id'] ?? $saldo->posicion_id;
 
         if (! $camaraId) {
-            throw new DomainException(
-                'Una bodega física requiere indicar una cámara de Materiales.',
-            );
+            if ($almacen->requiere_ubicacion_fisica) {
+                throw new DomainException('La bodega física requiere una cámara de Materiales.');
+            }
+
+            return [null, null];
         }
 
         $camara = Camara::query()
@@ -468,36 +506,35 @@ class ServicioMovimientoAlmacenMaterial
             ->first();
 
         if (! $camara) {
-            throw new DomainException('La cámara de destino no es una cámara activa de Materiales.');
+            throw new DomainException('La cámara indicada no es válida para Materiales.');
         }
 
-        $posicion = null;
-
-        if ($posicionId) {
-            $posicion = Posicion::query()
+        $posicion = $posicionId
+            ? Posicion::query()
                 ->whereKey($posicionId)
                 ->where('camara_id', $camara->id)
                 ->where('estado', EstadoPosicion::Activa->value)
-                ->first();
+                ->lockForUpdate()
+                ->first()
+            : null;
 
-            if (! $posicion) {
-                throw new DomainException(
-                    'La posición no pertenece a la cámara o no se encuentra activa.',
-                );
-            }
+        if ($posicionId && ! $posicion) {
+            throw new DomainException('La posición no pertenece a la cámara o está inactiva.');
         }
 
         return [$camara, $posicion];
     }
 
-    private function validarFifoConsumo(
+    private function validarFifo(
         FolioMaterial $folio,
         AlmacenMaterial $almacen,
-        string $motivoExcepcion,
+        string $motivo,
     ): void {
-        $primero = SaldoMaterialAlmacen::query()
+        $consulta = SaldoMaterialAlmacen::query()
             ->join('folios_materiales as fm', 'fm.folio_id', '=', 'saldos_materiales_almacenes.folio_id')
             ->join('folios as f', 'f.id', '=', 'fm.folio_id')
+            ->leftJoin('camaras as ca', 'ca.id', '=', 'saldos_materiales_almacenes.camara_id')
+            ->leftJoin('posiciones as p', 'p.id', '=', 'saldos_materiales_almacenes.posicion_id')
             ->select('saldos_materiales_almacenes.folio_id')
             ->where('saldos_materiales_almacenes.almacen_material_id', $almacen->id)
             ->where('fm.item_material_id', $folio->item_material_id)
@@ -506,53 +543,51 @@ class ServicioMovimientoAlmacenMaterial
                 '>',
                 'saldos_materiales_almacenes.cantidad_reservada',
             )
-            ->where('f.activo', true)
+            ->whereNull('fm.motivo_bloqueo')
+            ->where('f.activo', true);
+        $this->filtrarUbicacionFifo($consulta, $almacen);
+        $primero = $consulta
+            ->orderByRaw('fm.fecha_vencimiento IS NULL')
+            ->orderBy('fm.fecha_vencimiento')
+            ->orderByRaw('fm.fecha_fabricacion IS NULL')
+            ->orderBy('fm.fecha_fabricacion')
             ->orderBy('f.fecha_ingreso')
             ->orderBy('f.numero_folio')
             ->orderBy('f.id')
-            ->lockForUpdate()
-            ->value('saldos_materiales_almacenes.folio_id');
+            ->first();
 
-        if ($primero !== null
-            && $primero !== $folio->folio_id
-            && mb_strlen($motivoExcepcion) < 5) {
+        if ($primero && $primero->folio_id !== $folio->folio_id && mb_strlen($motivo) < 5) {
             throw new DomainException(
-                'El consumo no respeta FIFO en este almacén. Debe usar el folio más antiguo o justificar la excepción.',
+                'Debe consumir el folio FIFO del almacén o justificar la excepción.',
             );
         }
     }
 
-    private function actualizarEstadoYUbicacion(
-        FolioMaterial $folio,
-        AlmacenMaterial $almacen,
-        float $saldoAlmacen,
-        float $totalEmpresa,
-    ): void {
-        if ($almacen->tipo === TipoAlmacenMaterial::Fisica && $saldoAlmacen <= 0.0001) {
-            UbicacionActual::query()->where('folio_id', $folio->folio_id)->delete();
-        }
-
-        if ($totalEmpresa <= 0.0001) {
-            UbicacionActual::query()->where('folio_id', $folio->folio_id)->delete();
-            $folio->folio->update([
-                'estado_operacional' => EstadoOperacionalFolio::Agotado,
-                'activo' => false,
-            ]);
+    private function filtrarUbicacionFifo(Builder $consulta, AlmacenMaterial $almacen): void
+    {
+        if ($almacen->tipo === TipoAlmacenMaterial::Virtual) {
+            $consulta
+                ->whereNull('saldos_materiales_almacenes.camara_id')
+                ->whereNull('saldos_materiales_almacenes.posicion_id');
 
             return;
         }
 
-        if (! $folio->folio->activo
-            || in_array($folio->folio->estado_operacional, [
-                EstadoOperacionalFolio::Agotado,
-                EstadoOperacionalFolio::Despachado,
-            ], true)) {
-            $folio->folio->update([
-                'estado_operacional' => $folio->motivo_bloqueo
-                    ? EstadoOperacionalFolio::Bloqueado
-                    : EstadoOperacionalFolio::Disponible,
-                'activo' => true,
-            ]);
+        if ($almacen->requiere_ubicacion_fisica) {
+            $consulta
+                ->where('ca.contenido', ContenidoCamara::Materiales->value)
+                ->where('ca.estado', EstadoCamara::Activa->value)
+                ->where(fn (Builder $q) => $q
+                    ->whereNull('saldos_materiales_almacenes.posicion_id')
+                    ->orWhere('p.estado', EstadoPosicion::Activa->value));
+        }
+    }
+
+    /** @param array<int, ?string> $ids */
+    private function incrementarPlanos(array $ids): void
+    {
+        foreach (array_filter(array_unique($ids)) as $id) {
+            Camara::query()->whereKey($id)->increment('version_plano');
         }
     }
 
@@ -567,48 +602,40 @@ class ServicioMovimientoAlmacenMaterial
         return $cantidad;
     }
 
-    private function textoOpcional(mixed $valor): ?string
+    private function texto(mixed $valor): ?string
     {
         $texto = trim((string) ($valor ?? ''));
 
         return $texto !== '' ? $texto : null;
     }
 
-    /**
-     * @param  array<string, mixed>  $payload
-     */
+    /** @param array<string, mixed> $payload */
     private function payloadHash(array $payload): string
     {
         return hash('sha256', json_encode(
-            $this->normalizarPayload($payload),
+            $this->normalizar($payload),
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
         ));
     }
 
-    private function normalizarPayload(mixed $valor): mixed
+    private function normalizar(mixed $valor): mixed
     {
         if (! is_array($valor)) {
             return $valor;
         }
 
         if (array_is_list($valor)) {
-            $normalizado = array_map(
-                fn (mixed $item): mixed => $this->normalizarPayload($item),
-                $valor,
-            );
-            usort($normalizado, fn (mixed $a, mixed $b): int => strcmp(
+            $valor = array_map(fn (mixed $item) => $this->normalizar($item), $valor);
+            usort($valor, fn ($a, $b) => strcmp(
                 json_encode($a, JSON_THROW_ON_ERROR),
                 json_encode($b, JSON_THROW_ON_ERROR),
             ));
 
-            return $normalizado;
+            return $valor;
         }
 
         ksort($valor, SORT_STRING);
 
-        return array_map(
-            fn (mixed $item): mixed => $this->normalizarPayload($item),
-            $valor,
-        );
+        return array_map(fn (mixed $item) => $this->normalizar($item), $valor);
     }
 }
