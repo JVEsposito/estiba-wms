@@ -1,0 +1,33 @@
+name: Aplicar temas de oficinas
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    if: github.head_ref == 'agent/temas-dark-light-oficinas'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Aplicar hoja de temas
+        run: python3 .github/scripts/apply-office-themes.py
+      - name: Publicar cambio
+        shell: bash
+        run: |
+          if git diff --quiet -- resources/css/office-corporate.css; then
+            echo "La hoja ya está aplicada."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resources/css/office-corporate.css
+          git commit -m "feat: aplicar sistema de temas a oficinas"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
