@@ -409,7 +409,7 @@ class ServicioMovimientoAlmacenMaterial
     }
 
     /**
-     * @param array<int, ?string> $ids
+     * @param  array<int, ?string>  $ids
      * @return Collection<int, AlmacenMaterial>
      */
     private function almacenesBloqueados(array $ids): Collection
@@ -470,7 +470,7 @@ class ServicioMovimientoAlmacenMaterial
     }
 
     /**
-     * @param array<string, mixed> $datos
+     * @param  array<string, mixed>  $datos
      * @return array{0: ?Camara, 1: ?Posicion}
      */
     private function ubicacionDestino(
