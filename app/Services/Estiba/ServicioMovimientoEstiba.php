@@ -63,7 +63,6 @@ class ServicioMovimientoEstiba
         string $operacionId,
         string $numeroFolio,
         TipoBulto $tipoBulto,
-        Camara $camaraDestino,
         ?Posicion $posicionDestino,
         SesionEstiba $sesionDestino,
         User $usuario,
@@ -73,7 +72,14 @@ class ServicioMovimientoEstiba
         array $datosFolio = [],
         array $datosMaterial = [],
         array $advertenciasConfirmadas = [],
+        ?Camara $camaraDestino = null,
     ): Movimiento {
+        $camaraDestino ??= $posicionDestino?->camara;
+
+        if (! $camaraDestino) {
+            throw new DomainException('La cámara de destino es obligatoria.');
+        }
+
         $numeroFolio = trim($numeroFolio);
         $this->validarNumeroFolio($numeroFolio);
         sort($advertenciasConfirmadas, SORT_STRING);
@@ -479,7 +485,7 @@ class ServicioMovimientoEstiba
 
         if (! $folio) {
             if ($tipoBulto === TipoBulto::Material) {
-                throw new DomainException('El folio de material debe nacer desde Recepción o Transformación antes de asignarlo.');
+                throw new DomainException('El folio de material no existe. Debe nacer desde Recepción, Transformación o una migración controlada antes de ubicarlo.');
             }
             $folio = Folio::create($this->atributosNuevoFolio(
                 $numeroFolio,
