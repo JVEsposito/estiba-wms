@@ -84,6 +84,9 @@ class ValidadorMovimiento
             ->where('activo', true)
             ->exists();
         $operacion = OperacionSincronizacion::query()->find($movimiento->operacion_id);
+        $tipoCompatible = $operacion
+            && ($operacion->tipo === $tipo->value
+                || $this->esRefinamientoUbicacionMaterial($operacion, $movimiento, $tipo));
 
         if (! $usuario
             || ! $this->alcance->puedeOperarAlgunaCamara($usuario)
@@ -96,11 +99,32 @@ class ValidadorMovimiento
         if (! $operacion
             || $operacion->user_id !== $movimiento->user_id
             || $operacion->dispositivo_id !== $movimiento->dispositivo_id
-            || $operacion->tipo !== $tipo->value) {
+            || ! $tipoCompatible) {
             throw new DomainException(
                 'La operación de sincronización no corresponde al movimiento.',
             );
         }
+    }
+
+    private function esRefinamientoUbicacionMaterial(
+        OperacionSincronizacion $operacion,
+        Movimiento $movimiento,
+        TipoMovimiento $tipo,
+    ): bool {
+        if ($operacion->tipo !== TipoMovimiento::UbicacionInicial->value
+            || $tipo !== TipoMovimiento::Reubicacion
+            || $movimiento->camara_origen_id === null
+            || $movimiento->camara_origen_id !== $movimiento->camara_destino_id
+            || $movimiento->posicion_origen_id !== null
+            || $movimiento->posicion_destino_id === null
+            || $movimiento->sesion_origen_id !== $movimiento->sesion_destino_id) {
+            return false;
+        }
+
+        return Folio::query()
+            ->whereKey($movimiento->folio_id)
+            ->where('tipo_bulto', TipoBulto::Material)
+            ->exists();
     }
 
     private function validarFolio(Movimiento $movimiento, TipoMovimiento $tipo): void
