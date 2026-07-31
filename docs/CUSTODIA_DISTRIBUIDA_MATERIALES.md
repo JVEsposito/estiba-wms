@@ -1,40 +1,116 @@
 # Custodia distribuida de materiales
 
-## Regla de negocio
+## Regla operacional
 
-La entrega de Bodega a un centro de costo es una **transferencia interna**. No reduce la existencia total del folio ni lo deja inactivo.
+La entrega desde Bodega hacia Packing, Frigorífico, Mantención, Calidad u otro centro de costo es una **transferencia interna de custodia**. No reduce la existencia total de la empresa.
 
-La existencia total se calcula como:
+Solo estas operaciones cambian el total vigente:
+
+- consumo;
+- ajuste positivo o negativo debidamente autorizado;
+- operaciones históricas de recepción, transformación o reversa que ya modificaban el inventario.
+
+## Fuente única de saldo
+
+La fuente operacional es `saldos_materiales_almacenes`.
 
 ```text
-Existencia empresa = suma de saldos de todos los almacenes
+Folio material
+├── Bodega Central: cantidad y reserva
+├── Packing: cantidad y reserva
+└── Frigorífico: cantidad y reserva
 ```
 
-Solo las operaciones de **consumo** y **ajuste negativo** disminuyen la existencia total.
+La restricción única es:
 
-## Modelo
+```text
+UNIQUE (folio_id, almacen_material_id)
+```
 
-El catálogo histórico `destinos_materiales` evoluciona como catálogo de almacenes:
+`folios_materiales.cantidad_actual` y `cantidad_reservada` permanecen temporalmente como una **proyección cacheada de compatibilidad**. Nunca se distribuyen de forma independiente: toda operación nueva modifica primero el saldo concreto y luego reconstruye ambos totales mediante la suma de los registros hijos dentro de la misma transacción.
 
-- `fisica`: Bodega Central de Materiales, con cámara y posición opcional;
-- `virtual`: Packing, Frigorífico, Mantención, Calidad u otro custodio lógico.
+Los servicios históricos que todavía escriben el total pasan por un adaptador controlado que aplica la diferencia exclusivamente al saldo de Bodega Central y valida nuevamente la igualdad:
 
-El centro de costo se mantiene como atributo contable del almacén. No reemplaza su identidad operacional.
+```text
+folios_materiales.cantidad_actual
+    = SUM(saldos_materiales_almacenes.cantidad_actual)
+```
 
-### Saldos por almacén
+## Concurrencia
 
-`saldos_materiales_almacenes` conserva por folio:
+Toda operación se ejecuta mediante transacción y bloqueo pesimista.
 
-- almacén custodio;
-- cantidad actual;
-- cantidad reservada;
-- cámara y posición, solamente cuando corresponde a una bodega física.
+El orden de adquisición es estable:
 
-`folios_materiales.cantidad_actual` se mantiene como total empresa para compatibilidad con Recepción, Transformación, bloqueos e integraciones existentes.
+1. folios involucrados, ordenados por identificador;
+2. almacenes involucrados, ordenados por identificador;
+3. saldos involucrados, ordenados por almacén y folio;
+4. movimiento inmutable y proyección global.
 
-### Kardex distribuido
+La creación concurrente de un saldo destino utiliza el índice único, `insertOrIgnore` y una lectura posterior con `FOR UPDATE`.
 
-`movimientos_almacenes_materiales` registra:
+Cada saldo posee `version`, incrementada al cambiar cantidad, reserva o ubicación.
+
+## Invariantes
+
+La base y los servicios protegen:
+
+```text
+cantidad_actual >= 0
+cantidad_reservada >= 0
+cantidad_reservada <= cantidad_actual
+posición requiere cámara
+```
+
+Además:
+
+- un almacén virtual no admite cámara ni posición;
+- una bodega física que exige ubicación solo es disponible cuando posee una cámara activa de Materiales;
+- una reserva identifica `saldo_material_almacen_id`, no solamente el folio;
+- las reservas de despachos y de transformación quedan vinculadas al saldo concreto de Bodega Central;
+- los movimientos de almacén son inmutables; una corrección se registra como movimiento inverso.
+
+## Ubicación física contextual
+
+Para Materiales, cámara y posición pertenecen al saldo del almacén físico.
+
+```text
+Saldo Bodega Central
+└── cámara y posición opcionales
+
+Saldo Packing
+└── sin ubicación física WMS
+```
+
+`ubicaciones_actuales` se conserva únicamente como proyección de compatibilidad de Bodega Central para las pantallas y operaciones existentes. No representa los saldos virtuales.
+
+Una entrega parcial conserva la ubicación de Bodega. Una entrega total la libera, aunque el folio permanezca activo en un almacén virtual.
+
+## FIFO por almacén
+
+FIFO se aplica dentro del custodio:
+
+1. fecha de vencimiento;
+2. fecha de fabricación;
+3. fecha de ingreso;
+4. número e identificador de folio.
+
+Las solicitudes existentes reservan exclusivamente Bodega Central. El consumo consulta únicamente el almacén indicado. Una excepción FIFO requiere motivo explícito.
+
+## Movimientos
+
+`movimientos_almacenes_materiales` registra un documento único con doble efecto:
+
+```text
+Transferencia
+Origen:  -100
+Destino: +100
+Total empresa: sin cambios
+```
+
+Conserva saldos anteriores y resultantes, almacenes, centro de costo, usuario, dispositivo y documento relacionado.
+
+Tipos disponibles:
 
 - entrega;
 - transferencia;
@@ -42,101 +118,37 @@ El centro de costo se mantiene como atributo contable del almacén. No reemplaza
 - consumo;
 - ajuste.
 
-Cada asiento conserva origen, destino, saldos anteriores y resultantes, centro de costo, actor, dispositivo y documento relacionado.
+## Compatibilidad con la PDA
 
-## Comportamiento de los despachos existentes
+`POST /api/materiales/despachos/{despacho}/retirar` mantiene el contrato actual, pero ahora:
 
-`POST /api/materiales/despachos/{despacho}/retirar` conserva su contrato para la PDA, pero cambia su efecto:
-
-1. libera la reserva FIFO de Bodega;
-2. disminuye el saldo de Bodega Central;
-3. aumenta el saldo del almacén virtual asociado al destino;
-4. no modifica la cantidad total del folio;
-5. elimina la ubicación física solamente cuando Bodega queda en cero;
-6. mantiene el folio activo mientras exista saldo en cualquier almacén.
-
-## Operaciones nuevas
-
-### Consulta
-
-```http
-GET /api/materiales/almacenes
-GET /api/materiales/almacenes/movimientos
-```
-
-### Movimiento
-
-```http
-POST /api/materiales/almacenes/movimientos
-```
-
-Ejemplo de consumo:
-
-```json
-{
-  "operacion_id": "uuid",
-  "tipo": "consumo",
-  "folio_id": "uuid",
-  "almacen_origen_id": "uuid",
-  "cantidad": 20,
-  "motivo": "Producción turno noche",
-  "documento_relacionado": "OT-2026-001"
-}
-```
-
-Ejemplo de devolución:
-
-```json
-{
-  "operacion_id": "uuid",
-  "tipo": "devolucion",
-  "folio_id": "uuid",
-  "almacen_origen_id": "uuid-packing",
-  "almacen_destino_id": "uuid-bodega",
-  "cantidad": 12,
-  "motivo": "Sobrante de producción",
-  "camara_destino_id": "uuid-camara",
-  "posicion_destino_id": "uuid-posicion-opcional"
-}
-```
-
-Los movimientos son idempotentes por `operacion_id` y rechazan reutilizaciones con un payload diferente.
-
-## FIFO
-
-- Las solicitudes de Bodega reservan únicamente saldos de la Bodega Central.
-- El consumo aplica FIFO dentro del almacén custodio.
-- Una excepción FIFO exige una justificación explícita.
-- Un centro de costo no puede consumir saldo perteneciente a otro almacén.
+1. libera la reserva del saldo concreto;
+2. disminuye Bodega Central;
+3. aumenta el almacén virtual del destino;
+4. reconstruye la proyección global sin disminuirla;
+5. libera la ubicación física solo cuando Bodega queda en cero.
 
 ## Estados
 
-- saldo total mayor que cero: folio activo;
-- saldo total igual a cero: folio `agotado` e inactivo;
-- saldo cero en Bodega con existencia virtual: folio activo y sin ubicación física.
+```text
+SUM(saldos) > 0  → folio activo
+SUM(saldos) = 0  → folio agotado e inactivo
+```
 
-## Oficina
+La disponibilidad es contextual. Un folio puede tener disponibilidad cero en Bodega y saldo vigente en Packing.
 
-La vista `/oficina/materiales/almacenes` separa:
+## API y oficina
+
+```http
+GET  /api/materiales/almacenes
+GET  /api/materiales/almacenes/movimientos
+POST /api/materiales/almacenes/movimientos
+```
+
+La oficina `/oficina/materiales/almacenes` separa:
 
 1. existencia en Bodega;
 2. existencia en centros de costo;
 3. existencia total empresa.
 
-También permite registrar consumo, devolución, transferencia y ajuste, y muestra el kardex distribuido.
-
-## Puesta en marcha
-
-Después de fusionar:
-
-```bash
-git pull
-composer install
-php artisan migrate
-php artisan optimize:clear
-npm ci
-npm run build
-php artisan test --filter=CustodiaDistribuidaMaterialesTest
-```
-
-No se requiere actualizar la APK para conservar el flujo actual de entrega; el endpoint existente mantiene su contrato. La nueva oficina sí requiere reconstruir los recursos web.
+Inicialmente los consumos son registrados por los perfiles autorizados del módulo Materiales, en representación del centro de costo. La delegación futura a responsables de cada centro requerirá permisos y perfiles separados.
