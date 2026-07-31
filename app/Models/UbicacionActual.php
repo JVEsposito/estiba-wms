@@ -14,6 +14,19 @@ class UbicacionActual extends Model
 
     protected $table = 'ubicaciones_actuales';
 
+    protected static function booted(): void
+    {
+        static::creating(function (UbicacionActual $ubicacion): void {
+            if ($ubicacion->camara_id || ! $ubicacion->posicion_id) {
+                return;
+            }
+
+            $ubicacion->camara_id = Posicion::query()
+                ->whereKey($ubicacion->posicion_id)
+                ->value('camara_id');
+        });
+    }
+
     public function folio(): BelongsTo
     {
         return $this->belongsTo(Folio::class);
