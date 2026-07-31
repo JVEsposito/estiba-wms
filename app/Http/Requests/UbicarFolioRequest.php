@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TipoBulto;
+use App\Models\Posicion;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,6 +17,21 @@ class UbicarFolioRequest extends FormRequest
 
         return $usuario instanceof User
             && app(AlcanceOperacionalUsuario::class)->puedeOperarAlgunaCamara($usuario);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('camara_destino_id') || ! $this->filled('posicion_destino_id')) {
+            return;
+        }
+
+        $camaraDestinoId = Posicion::query()
+            ->whereKey($this->input('posicion_destino_id'))
+            ->value('camara_id');
+
+        if ($camaraDestinoId) {
+            $this->merge(['camara_destino_id' => $camaraDestinoId]);
+        }
     }
 
     /**
