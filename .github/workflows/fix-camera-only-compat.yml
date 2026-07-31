@@ -1,0 +1,43 @@
+name: Aplicar compatibilidad materiales solo cámara
+
+on:
+  push:
+    branches:
+      - agent/materiales-disponibles-solo-camara
+    paths:
+      - .github/workflows/fix-camera-only-compat.yml
+
+permissions:
+  contents: write
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar rama
+        uses: actions/checkout@v4
+        with:
+          ref: agent/materiales-disponibles-solo-camara
+          fetch-depth: 0
+
+      - name: Aplicar corrección
+        run: python .github/scripts/fix-camera-only-compat.py
+
+      - name: Retirar herramientas temporales
+        run: |
+          rm -f \
+            .github/scripts/apply-camera-only-1.py \
+            .github/scripts/apply-camera-only-2.py \
+            .github/scripts/apply-camera-only-3.py \
+            .github/scripts/apply-camera-only-4.py \
+            .github/scripts/patch-camera-only-applicator.py \
+            .github/scripts/fix-camera-only-compat.py \
+            .github/workflows/fix-camera-only-compat.yml
+
+      - name: Publicar corrección limpia
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: preservar compatibilidad de ubicaciones de materiales"
+          git push origin HEAD:agent/materiales-disponibles-solo-camara
