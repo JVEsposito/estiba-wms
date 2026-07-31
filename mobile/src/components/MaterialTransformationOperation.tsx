@@ -518,7 +518,7 @@ export function MaterialTransformationOperation({
                 <ActionCard
                   title={unitsPerOutputFolio > 0 ? 'Abrir siguiente folio / pallet' : 'Abrir lote parcial'}
                   description={unitsPerOutputFolio > 0
-                    ? `La receta fija ${formatQuantity(unitsPerOutputFolio)} ${selected.receta_snapshot.salida.unidad_medida} por folio. El último puede corresponder al remanente de la orden.`
+                    ? `La receta fija ${formatQuantity(String(unitsPerOutputFolio))} ${selected.receta_snapshot.salida.unidad_medida} por folio. El último puede corresponder al remanente de la orden.`
                     : 'Solo puede existir un lote abierto. La suma planificada no puede superar la orden.'}
                 >
                   <Field
