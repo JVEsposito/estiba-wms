@@ -27,7 +27,7 @@ class UbicacionActualAlmacenObserver
         $folio = FolioMaterial::query()->find($ubicacion->folio_id);
 
         if ($folio) {
-            $this->almacenes->sincronizarUbicacion($folio);
+            $this->almacenes->sincronizarUbicacionDesdeCompatibilidad($folio);
         }
     }
 }
