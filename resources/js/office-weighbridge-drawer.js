@@ -87,8 +87,6 @@ function initializeWeighbridgeDrawer() {
         .forEach((button) => footer.append(button));
 
     legacyBottom.remove();
-    detailFacts.remove();
-    weighingPanel.remove();
     heading.after(tabs, content);
     detail.append(footer);
 
