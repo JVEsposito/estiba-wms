@@ -13,13 +13,13 @@ class FolioMaterialAlmacenObserver
 
     public function created(FolioMaterial $folio): void
     {
-        $this->almacenes->sincronizarFolio($folio);
+        $this->almacenes->inicializarFolio($folio);
     }
 
     public function updated(FolioMaterial $folio): void
     {
         if ($folio->wasChanged(['cantidad_actual', 'cantidad_reservada'])) {
-            $this->almacenes->sincronizarFolio($folio);
+            $this->almacenes->aplicarCambioLegado($folio);
         }
     }
 }
