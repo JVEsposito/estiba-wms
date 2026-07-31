@@ -272,7 +272,8 @@ class ServicioExistencias
     {
         return FolioMaterial::query()
             ->with([
-                'folio.ubicacionActual.posicion.camara',
+                'folio.ubicacionActual.camara',
+                'folio.ubicacionActual.posicion',
                 'item.cliente.temporada',
                 'item.cliente.cliente',
                 'proveedorMaterial',
@@ -284,11 +285,12 @@ class ServicioExistencias
             ->lazy(200)
             ->map(function (FolioMaterial $material): array {
                 $folio = $material->folio;
-                $posicion = $folio->ubicacionActual?->posicion;
-                $camara = $posicion?->camara;
+                $ubicacion = $folio->ubicacionActual;
+                $posicion = $ubicacion?->posicion;
+                $camara = $ubicacion?->camara ?? $posicion?->camara;
                 $ubicado = $camara?->contenido === ContenidoCamara::Materiales;
                 $reservable = $ubicado
-                    && $posicion?->estado === EstadoPosicion::Activa
+                    && (! $posicion || $posicion->estado === EstadoPosicion::Activa)
                     && $camara?->estado === EstadoCamara::Activa
                     && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
                     && $material->motivo_bloqueo === null;
@@ -311,7 +313,9 @@ class ServicioExistencias
                     'cantidad_disponible' => $disponible,
                     'unidad_medida' => $material->unidad_medida,
                     'estado_operacional' => $this->humanizar($folio->estado_operacional->value),
-                    'estado_ubicacion' => $ubicado ? 'Ubicado' : 'Pendiente de ubicación',
+                    'estado_ubicacion' => ! $ubicado
+                        ? 'Pendiente de ubicación'
+                        : ($posicion ? 'Ubicación exacta' : 'Solo en cámara'),
                     'reservable' => $reservable ? 'Sí' : 'No',
                     'motivo_bloqueo' => $material->motivo_bloqueo,
                     'camara' => $camara ? trim($camara->codigo.' · '.$camara->nombre) : null,

@@ -1318,6 +1318,120 @@ class MaterialesApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_material_es_reservable_y_despachable_asignando_solo_camara(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara(
+            'MAT-SOLO-CAMARA',
+            ContenidoCamara::Materiales,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->crearFolioMaterialPendiente(
+            $item,
+            'MAT-SIN-POSICION',
+            10,
+            now()->toAtomString(),
+        );
+
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', [
+                'operacion_id' => (string) Str::uuid(),
+                'numero_folio' => 'MAT-SIN-POSICION',
+                'tipo_bulto' => 'material',
+                'camara_destino_id' => $camara->id,
+                'posicion_destino_id' => null,
+                'sesion_destino_id' => $sesion,
+                'version_destino_conocida' => 0,
+                'generado_dispositivo_at' => now()->toAtomString(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.destino.camara.id', $camara->id)
+            ->assertJsonPath('data.destino.posicion', null);
+
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folioId,
+            'camara_id' => $camara->id,
+            'posicion_id' => null,
+        ]);
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioId,
+            'estado_operacional' => 'disponible',
+        ]);
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario?q=MAT-SIN-POSICION')
+            ->assertOk()
+            ->assertJsonPath('data.0.estado_ubicacion', 'solo_camara')
+            ->assertJsonPath('data.0.reservable', true)
+            ->assertJsonPath('data.0.cantidad_disponible', '10.000')
+            ->assertJsonPath('data.0.camara.id', $camara->id)
+            ->assertJsonPath('data.0.posicion', null);
+
+        $this->conToken($tokenTablet)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.ocupacion.sin_posicion', 1)
+            ->assertJsonPath('data.folios_sin_posicion.0.id', $folioId);
+
+        $despachoId = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'items' => [[
+                    'item_material_id' => $item->id,
+                    'cantidad' => 4,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.camara.id', $camara->id)
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.posicion', null)
+            ->json('data.id');
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
+                'operacion_id' => (string) Str::uuid(),
+                'retiros' => [[
+                    'folio_id' => $folioId,
+                    'cantidad' => 4,
+                    'sesion_estiba_id' => $sesion,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'completado')
+            ->assertJsonPath('data.items.0.retiros.0.posicion', null);
+
+        $this->assertDatabaseHas('retiros_materiales', [
+            'folio_id' => $folioId,
+            'camara_id' => $camara->id,
+            'posicion_id' => null,
+            'cantidad_retirada' => 4,
+        ]);
+
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', [
+                'operacion_id' => (string) Str::uuid(),
+                'numero_folio' => 'MAT-SIN-POSICION',
+                'tipo_bulto' => 'material',
+                'camara_destino_id' => $camara->id,
+                'posicion_destino_id' => $posicion->id,
+                'sesion_destino_id' => $sesion,
+                'version_destino_conocida' => 1,
+                'generado_dispositivo_at' => now()->toAtomString(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.tipo_movimiento', 'reubicacion')
+            ->assertJsonPath('data.destino.posicion.id', $posicion->id);
+
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folioId,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion->id,
+        ]);
+    }
+
     private function crearAdministrador(): array
     {
         $usuario = User::factory()->create([
@@ -1532,6 +1646,7 @@ class MaterialesApiTest extends TestCase
             'operacion_id' => (string) Str::uuid(),
             'numero_folio' => $numeroFolio,
             'tipo_bulto' => 'material',
+            'camara_destino_id' => $posicion->camara_id,
             'posicion_destino_id' => $posicion->id,
             'sesion_destino_id' => $sesion,
             'version_destino_conocida' => $version,

@@ -3,7 +3,9 @@
 namespace App\Services\Materiales;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoPosicion;
 use App\Models\FolioMaterial;
 use Closure;
 use LogicException;
@@ -65,8 +67,14 @@ class ServicioReservaFifoMaterial
             ->whereNull('folios_materiales.motivo_bloqueo')
             ->where('folios.activo', true)
             ->where('folios.estado_operacional', EstadoOperacionalFolio::Disponible->value)
-            ->whereHas('folio.ubicacionActual.posicion.camara', fn ($consulta) => $consulta
-                ->where('contenido', ContenidoCamara::Materiales->value))
+            ->whereHas('folio.ubicacionActual', fn ($consulta) => $consulta
+                ->whereHas('camara', fn ($camaras) => $camaras
+                    ->where('contenido', ContenidoCamara::Materiales->value)
+                    ->where('estado', EstadoCamara::Activa->value))
+                ->where(fn ($ubicaciones) => $ubicaciones
+                    ->whereNull('posicion_id')
+                    ->orWhereHas('posicion', fn ($posiciones) => $posiciones
+                        ->where('estado', EstadoPosicion::Activa->value))))
             ->orderBy('folios.fecha_ingreso')
             ->orderBy('folios.numero_folio')
             ->orderBy('folios_materiales.folio_id')

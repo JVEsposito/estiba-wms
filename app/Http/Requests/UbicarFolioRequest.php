@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\TipoBulto;
+use App\Models\Posicion;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Http\FormRequest;
@@ -19,6 +20,24 @@ class UbicarFolioRequest extends FormRequest
     }
 
     /**
+     * Mantiene compatibilidad con clientes que solo informan una posición de destino.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('camara_destino_id') || ! $this->filled('posicion_destino_id')) {
+            return;
+        }
+
+        $camaraDestinoId = Posicion::query()
+            ->whereKey($this->input('posicion_destino_id'))
+            ->value('camara_id');
+
+        if ($camaraDestinoId) {
+            $this->merge(['camara_destino_id' => $camaraDestinoId]);
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
@@ -27,7 +46,8 @@ class UbicarFolioRequest extends FormRequest
             'operacion_id' => ['required', 'uuid'],
             'numero_folio' => ['required', 'string', 'max:50'],
             'tipo_bulto' => ['required', Rule::enum(TipoBulto::class)],
-            'posicion_destino_id' => ['required', 'uuid', 'exists:posiciones,id'],
+            'camara_destino_id' => ['required', 'uuid', 'exists:camaras,id'],
+            'posicion_destino_id' => ['nullable', 'uuid', 'exists:posiciones,id'],
             'sesion_destino_id' => ['required', 'uuid', 'exists:sesiones_estiba,id'],
             'version_destino_conocida' => ['required', 'integer', 'min:0'],
             'generado_dispositivo_at' => ['required', 'date'],

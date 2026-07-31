@@ -4,6 +4,7 @@ namespace App\Services\Estiba;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoIntegracionFolio;
+use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
@@ -62,7 +63,7 @@ class ServicioMovimientoEstiba
         string $operacionId,
         string $numeroFolio,
         TipoBulto $tipoBulto,
-        Posicion $posicionDestino,
+        ?Posicion $posicionDestino,
         SesionEstiba $sesionDestino,
         User $usuario,
         Dispositivo $dispositivo,
@@ -71,7 +72,14 @@ class ServicioMovimientoEstiba
         array $datosFolio = [],
         array $datosMaterial = [],
         array $advertenciasConfirmadas = [],
+        ?Camara $camaraDestino = null,
     ): Movimiento {
+        $camaraDestino ??= $posicionDestino?->camara;
+
+        if (! $camaraDestino) {
+            throw new DomainException('La cámara de destino es obligatoria.');
+        }
+
         $numeroFolio = trim($numeroFolio);
         $this->validarNumeroFolio($numeroFolio);
         sort($advertenciasConfirmadas, SORT_STRING);
@@ -79,7 +87,8 @@ class ServicioMovimientoEstiba
         $payload = [
             'numero_folio' => $numeroFolio,
             'tipo_bulto' => $tipoBulto->value,
-            'posicion_destino_id' => $posicionDestino->id,
+            'camara_destino_id' => $camaraDestino->id,
+            'posicion_destino_id' => $posicionDestino?->id,
             'sesion_destino_id' => $sesionDestino->id,
             'version_destino_conocida' => $versionDestinoConocida,
             'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
@@ -99,6 +108,7 @@ class ServicioMovimientoEstiba
                 $operacion,
                 $numeroFolio,
                 $tipoBulto,
+                $camaraDestino,
                 $posicionDestino,
                 $sesionDestino,
                 $usuario,
@@ -442,7 +452,8 @@ class ServicioMovimientoEstiba
         OperacionSincronizacion $operacion,
         string $numeroFolio,
         TipoBulto $tipoBulto,
-        Posicion $posicionDestino,
+        Camara $camaraDestino,
+        ?Posicion $posicionDestino,
         SesionEstiba $sesionDestino,
         User $usuario,
         Dispositivo $dispositivo,
@@ -453,26 +464,29 @@ class ServicioMovimientoEstiba
         array $datosMaterial,
         array $advertenciasConfirmadas,
     ): Movimiento {
-        $camara = Camara::query()
-            ->lockForUpdate()
-            ->findOrFail($posicionDestino->camara_id);
-        $posicion = Posicion::query()->lockForUpdate()->findOrFail($posicionDestino->id);
+        $camara = Camara::query()->lockForUpdate()->findOrFail($camaraDestino->id);
+        $posicion = $posicionDestino
+            ? Posicion::query()->lockForUpdate()->findOrFail($posicionDestino->id)
+            : null;
         $sesion = SesionEstiba::query()->lockForUpdate()->findOrFail($sesionDestino->id);
 
-        $this->validarContenidoCamara($camara, $tipoBulto);
+        if ($sesion->camara_id !== $camara->id) {
+            throw new DomainException('La sesión de estiba no pertenece a la cámara de destino.');
+        }
+        if ($posicion && $posicion->camara_id !== $camara->id) {
+            throw new DomainException('La posición seleccionada no pertenece a la cámara de destino.');
+        }
+        if (! $posicion && $tipoBulto !== TipoBulto::Material) {
+            throw new DomainException('Los pallets y saldos requieren una posición exacta.');
+        }
 
-        $folio = Folio::query()
-            ->where('numero_folio', $numeroFolio)
-            ->lockForUpdate()
-            ->first();
+        $this->validarContenidoCamara($camara, $tipoBulto);
+        $folio = Folio::query()->where('numero_folio', $numeroFolio)->lockForUpdate()->first();
 
         if (! $folio) {
             if ($tipoBulto === TipoBulto::Material) {
-                throw new DomainException(
-                    'El folio de material no existe. Debe nacer desde Recepción, Transformación o una migración controlada antes de ubicarlo.',
-                );
+                throw new DomainException('El folio de material no existe. Debe nacer desde Recepción, Transformación o una migración controlada antes de ubicarlo.');
             }
-
             $folio = Folio::create($this->atributosNuevoFolio(
                 $numeroFolio,
                 $tipoBulto,
@@ -481,37 +495,72 @@ class ServicioMovimientoEstiba
             ));
         } elseif ($folio->tipo_bulto !== $tipoBulto) {
             throw new DomainException('El tipo de bulto no coincide con el folio existente.');
-        } elseif ($tipoBulto === TipoBulto::Material) {
-            $tieneFichaMaterial = FolioMaterial::query()->whereKey($folio->id)->exists();
-
-            if ($tieneFichaMaterial === false) {
-                throw new DomainException('El folio de material no posee una ficha de inventario válida.');
-            }
+        } elseif ($tipoBulto === TipoBulto::Material
+            && ! FolioMaterial::query()->whereKey($folio->id)->exists()) {
+            throw new DomainException('El folio de material no posee una ficha de inventario válida.');
         }
 
         $this->validarVersion($camara, $versionDestinoConocida, 'destino');
-
-        if (UbicacionActual::query()
+        $ubicacion = UbicacionActual::query()
             ->where('folio_id', $folio->id)
             ->lockForUpdate()
-            ->exists()) {
-            throw new ConflictoMovimiento('El folio ya posee una ubicación actual.');
+            ->first();
+
+        if ($ubicacion) {
+            if ($tipoBulto !== TipoBulto::Material
+                || $ubicacion->camara_id !== $camara->id
+                || $ubicacion->posicion_id !== null
+                || ! $posicion) {
+                throw new ConflictoMovimiento('El folio ya posee una ubicación actual.');
+            }
+
+            $this->validarCompatibilidadPosicionDestino($folio, $posicion);
+            $advertencias = $this->detectorAdvertencias->paraUbicacion($posicion, $advertenciasConfirmadas);
+            $versionResultante = $camara->version_plano + 1;
+            $movimiento = Movimiento::create([
+                'operacion_id' => $operacion->id,
+                'folio_id' => $folio->id,
+                'tipo_movimiento' => TipoMovimiento::Reubicacion,
+                'camara_origen_id' => $camara->id,
+                'posicion_origen_id' => null,
+                'sesion_origen_id' => $sesion->id,
+                'camara_destino_id' => $camara->id,
+                'posicion_destino_id' => $posicion->id,
+                'sesion_destino_id' => $sesion->id,
+                'user_id' => $usuario->id,
+                'dispositivo_id' => $dispositivo->id,
+                'advertencias_confirmadas' => $advertencias !== [] ? $advertencias : null,
+                'version_origen_anterior' => $camara->version_plano,
+                'version_origen_resultante' => $versionResultante,
+                'version_destino_anterior' => $camara->version_plano,
+                'version_destino_resultante' => $versionResultante,
+                'generado_dispositivo_at' => $generadoDispositivoAt,
+                'recibido_servidor_at' => $recibidoServidorAt,
+            ]);
+            $ubicacion->update([
+                'posicion_id' => $posicion->id,
+                'movimiento_id' => $movimiento->id,
+                'ubicado_at' => $recibidoServidorAt,
+            ]);
+            $this->actualizarVersionCamara($camara, $versionResultante);
+            $this->actualizarActividadSesiones(collect([$sesion]), $recibidoServidorAt);
+
+            return $movimiento->load('folio');
         }
 
-        $this->validarCompatibilidadPosicionDestino($folio, $posicion);
-
-        $advertencias = $this->detectorAdvertencias->paraUbicacion(
-            $posicion,
-            $advertenciasConfirmadas,
-        );
-
+        if ($posicion) {
+            $this->validarCompatibilidadPosicionDestino($folio, $posicion);
+        }
+        $advertencias = $posicion
+            ? $this->detectorAdvertencias->paraUbicacion($posicion, $advertenciasConfirmadas)
+            : [];
         $versionResultante = $camara->version_plano + 1;
         $movimiento = Movimiento::create([
             'operacion_id' => $operacion->id,
             'folio_id' => $folio->id,
             'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
             'camara_destino_id' => $camara->id,
-            'posicion_destino_id' => $posicion->id,
+            'posicion_destino_id' => $posicion?->id,
             'sesion_destino_id' => $sesion->id,
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo->id,
@@ -521,18 +570,23 @@ class ServicioMovimientoEstiba
             'generado_dispositivo_at' => $generadoDispositivoAt,
             'recibido_servidor_at' => $recibidoServidorAt,
         ]);
-
         UbicacionActual::create([
             'folio_id' => $folio->id,
-            'posicion_id' => $posicion->id,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion?->id,
             'movimiento_id' => $movimiento->id,
             'ubicado_at' => $recibidoServidorAt,
         ]);
 
+        if ($tipoBulto === TipoBulto::Material
+            && $folio->estado_operacional === EstadoOperacionalFolio::PendienteUbicacion) {
+            $folio->update(['estado_operacional' => EstadoOperacionalFolio::Disponible]);
+        }
+
         $this->actualizarVersionCamara($camara, $versionResultante);
         $this->actualizarActividadSesiones(collect([$sesion]), $recibidoServidorAt);
 
-        return $movimiento->load('folio', 'ubicacionActual');
+        return $movimiento->load('folio');
     }
 
     private function procesarMovimiento(
@@ -645,6 +699,7 @@ class ServicioMovimientoEstiba
         ]);
 
         $ubicacion->update([
+            'camara_id' => $camaraDestino->id,
             'posicion_id' => $destino->id,
             'movimiento_id' => $movimiento->id,
             'ubicado_at' => $recibidoServidorAt,

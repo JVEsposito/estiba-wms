@@ -34,6 +34,16 @@ class Camara extends Model
         return $this->hasMany(Posicion::class);
     }
 
+    public function ubicacionesActuales(): HasMany
+    {
+        return $this->hasMany(UbicacionActual::class);
+    }
+
+    public function ubicacionesSinPosicion(): HasMany
+    {
+        return $this->ubicacionesActuales()->whereNull('posicion_id');
+    }
+
     public function sesionesEstiba(): HasMany
     {
         return $this->hasMany(SesionEstiba::class);

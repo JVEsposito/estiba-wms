@@ -65,6 +65,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [destinationPlan, setDestinationPlan] = useState<CameraPlan | null>(null);
   const [selectedDestination, setSelectedDestination] = useState<Position | null>(null);
   const [locateVisible, setLocateVisible] = useState(false);
+  const [locateCameraOnly, setLocateCameraOnly] = useState(false);
+  const [selectedCameraOnlyFolioId, setSelectedCameraOnlyFolioId] = useState<string | null>(null);
   const [moveVisible, setMoveVisible] = useState(false);
   const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
   const [activeModule, setActiveModule] = useState<'camaras' | 'cargas' | 'materiales' | 'transformacion'>('camaras');
@@ -90,12 +92,30 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     [plan, selectedPositionId],
   );
   const operationalPosition = useMemo(() => {
-    if (!selectedPosition) return null;
-    const folio = selectedPosition.folios?.find((candidate) => candidate.id === selectedFolioId)
-      ?? selectedPosition.folio;
+    if (selectedPosition) {
+      const folio = selectedPosition.folios?.find((candidate) => candidate.id === selectedFolioId)
+        ?? selectedPosition.folio;
 
-    return { ...selectedPosition, folio };
-  }, [selectedFolioId, selectedPosition]);
+      return { ...selectedPosition, folio };
+    }
+
+    const folio = plan?.folios_sin_posicion?.find(
+      (candidate) => candidate.id === selectedCameraOnlyFolioId,
+    );
+    if (!folio) return null;
+
+    return {
+      id: `camera-only:${folio.id}`,
+      banda: 0,
+      posicion: 0,
+      nivel: 0,
+      etiqueta: 'Sin posición',
+      estado: 'activa' as const,
+      ocupada: true,
+      folio,
+      folios: [folio],
+    };
+  }, [plan?.folios_sin_posicion, selectedCameraOnlyFolioId, selectedFolioId, selectedPosition]);
   const ownSession = plan?.acceso.modo === 'edicion' && plan.acceso.sesion?.es_propia
     ? plan.acceso.sesion
     : null;
@@ -190,6 +210,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setError('');
     setSelectedPositionId(null);
     setSelectedFolioId(null);
+    setSelectedCameraOnlyFolioId(null);
     try {
       const [loadedPlan, loadedMovements] = await Promise.all([
         api.getPlan(auth.token, cameraId),
@@ -221,12 +242,22 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     setSelectedPositionId(positionId);
   }
 
-  async function openPositionFromMaterialDispatch(cameraId: string, positionId: string) {
+  async function openPositionFromMaterialDispatch(
+    cameraId: string,
+    positionId: string | null,
+    folioId: string,
+  ) {
     setActiveModule('camaras');
     setSelectedCameraId(cameraId);
     setNotice('Folio abierto desde el despacho de materiales. Abre la estiba para registrar el retiro.');
     await loadCamera(cameraId);
-    setSelectedPositionId(positionId);
+    if (positionId) {
+      setSelectedPositionId(positionId);
+      setSelectedFolioId(folioId);
+    } else {
+      setSelectedPositionId(null);
+      setSelectedCameraOnlyFolioId(folioId);
+    }
   }
 
   async function refreshMaterialDispatches() {
@@ -356,7 +387,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   }
 
   async function confirmLocate(form: LocateFormValue) {
-    if (!plan || !selectedPosition || !ownSession) return;
+    if (!plan || !ownSession || (!locateCameraOnly && !selectedPosition)) return;
     setModalError('');
     const data = {
       condicion_sag_id: form.condicion_sag_id,
@@ -372,7 +403,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       operacion_id: Crypto.randomUUID(),
       numero_folio: form.numero_folio,
       tipo_bulto: form.tipo_bulto,
-      posicion_destino_id: selectedPosition.id,
+      camara_destino_id: plan.id,
+      ...(!locateCameraOnly && selectedPosition
+        ? { posicion_destino_id: selectedPosition.id }
+        : {}),
       sesion_destino_id: ownSession.id,
       version_destino_conocida: plan.version_plano,
       generado_dispositivo_at: new Date().toISOString(),
@@ -386,15 +420,16 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
     if (succeeded) {
       setLocateVisible(false);
-      setNotice(
-        `Folio ${payload.numero_folio} guardado en el servidor y ubicado en ${positionLabel(selectedPosition)}.`,
-      );
+      setNotice(locateCameraOnly
+        ? `Folio ${payload.numero_folio} asignado a ${plan.codigo} sin posición.`
+        : `Folio ${payload.numero_folio} guardado en ${positionLabel(selectedPosition!)}.`);
+      setLocateCameraOnly(false);
       await refreshCurrent();
     }
   }
 
   async function openMove() {
-    if (!plan || !operationalPosition?.folio || !ownSession) return;
+    if (!plan || !operationalPosition?.folio || !ownSession || operationalPosition.id.startsWith('camera-only:')) return;
     setModalError('');
     setDestinationPlan(plan);
     setSelectedDestination(null);
@@ -710,8 +745,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             api={api}
             auth={auth}
             onConnectionFailure={(reason) => reportFailure(reason, setError)}
-            onOpenPosition={(cameraId, positionId) => (
-              void openPositionFromMaterialDispatch(cameraId, positionId)
+            onOpenPosition={(cameraId, positionId, folioId) => (
+              void openPositionFromMaterialDispatch(cameraId, positionId, folioId)
             )}
           />
         ) : activeModule === 'transformacion' && canUseTransformations ? (
@@ -737,14 +772,45 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
           {plan ? (
             <View style={[styles.operationArea, !wideLayout && styles.operationAreaCompact]}>
+              <View style={styles.planColumn}>
+              {plan.contenido === 'materiales' && plan.folios_sin_posicion.length > 0 ? (
+                <View style={styles.cameraOnlyPanel}>
+                  <Text style={styles.sectionEyebrow}>EN CÁMARA · SIN POSICIÓN</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator>
+                    <View style={styles.cameraOnlyList}>
+                      {plan.folios_sin_posicion.map((folio) => (
+                        <Pressable
+                          key={folio.id}
+                          onPress={() => {
+                            setSelectedPositionId(null);
+                            setSelectedFolioId(folio.id);
+                            setSelectedCameraOnlyFolioId(folio.id);
+                          }}
+                          style={[
+                            styles.cameraOnlyItem,
+                            selectedCameraOnlyFolioId === folio.id && styles.cameraOnlyItemActive,
+                          ]}
+                        >
+                          <Text style={styles.cameraOnlyCode}>{folio.numero_folio}</Text>
+                          <Text style={styles.cameraOnlyMeta}>
+                            {folio.material?.item.codigo ?? 'Material'} · {folio.material?.cantidad_actual ?? '0'} {folio.material?.unidad_medida ?? ''}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              ) : null}
               <PositionMap
                 onSelectPosition={(position) => {
+                  setSelectedCameraOnlyFolioId(null);
                   setSelectedPositionId(position.id);
                   setSelectedFolioId(position.folio?.id ?? null);
                 }}
                 plan={plan}
                 selectedPositionId={selectedPositionId}
               />
+              </View>
               <ActionPanel
                 busy={busy}
                 canDispatchMaterial={canWithdrawMaterial}
@@ -754,6 +820,13 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                 onLocate={() => {
                   setModalError('');
                   setNotice('');
+                  setLocateCameraOnly(false);
+                  setLocateVisible(true);
+                }}
+                onAssignCamera={() => {
+                  setModalError('');
+                  setNotice('');
+                  setLocateCameraOnly(true);
                   setLocateVisible(true);
                 }}
                 onMove={() => void openMove()}
@@ -787,12 +860,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
       <LocateModal
         busy={busy}
+        cameraOnly={locateCameraOnly}
         conditions={conditions}
         materialItems={materialCatalog.items}
         error={modalError}
         onCancel={() => {
           setModalError('');
           setLocateVisible(false);
+          setLocateCameraOnly(false);
         }}
         onConfirm={confirmLocate}
         onLookup={(folioNumber) => api.lookupFolio(auth.token, folioNumber)}
@@ -977,6 +1052,26 @@ const styles = StyleSheet.create({
   cameraList: { marginTop: 12, gap: 9 },
   cameraListHorizontal: { paddingBottom: 2, flexDirection: 'row', gap: 10 },
   operationArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  planColumn: { flex: 1, minWidth: 0, gap: 10 },
+  cameraOnlyPanel: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.panel,
+  },
+  cameraOnlyList: { flexDirection: 'row', gap: 8, marginTop: 7 },
+  cameraOnlyItem: {
+    minWidth: 160,
+    padding: 9,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundDeep,
+  },
+  cameraOnlyItemActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  cameraOnlyCode: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  cameraOnlyMeta: { marginTop: 3, color: colors.muted, fontSize: 8 },
   operationAreaCompact: { width: '100%', flexDirection: 'column' },
   emptyPlan: {
     flex: 1,

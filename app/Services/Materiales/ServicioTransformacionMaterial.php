@@ -757,7 +757,7 @@ class ServicioTransformacionMaterial
                 /** @var ReservaTransformacionMaterial $reserva */
                 $reserva = $consumoPreparado['reserva'];
                 $folioMaterial = FolioMaterial::query()
-                    ->with('folio.ubicacionActual.posicion.camara')
+                    ->with('folio.ubicacionActual.camara', 'folio.ubicacionActual.posicion')
                     ->lockForUpdate()
                     ->findOrFail($reserva->folio_id);
                 $folio = $folioMaterial->folio;
@@ -786,10 +786,10 @@ class ServicioTransformacionMaterial
                 $reservaConsumida = round((float) $reserva->cantidad_consumida + $cantidad, 3);
                 $reservaCompleta = abs($reservaConsumida - (float) $reserva->cantidad) <= 0.0001;
                 $ubicacion = $folio->ubicacionActual;
-                $camara = $ubicacion?->posicion?->camara;
-                $metadatosUbicacion = $ubicacion?->posicion ? [
-                    'camara' => $ubicacion->posicion->camara->codigo,
-                    'posicion' => $ubicacion->posicion->etiqueta,
+                $camara = $ubicacion?->camara ?? $ubicacion?->posicion?->camara;
+                $metadatosUbicacion = $camara ? [
+                    'camara' => $camara->codigo,
+                    'posicion' => $ubicacion?->posicion?->etiqueta,
                 ] : [];
 
                 $folioMaterial->update([

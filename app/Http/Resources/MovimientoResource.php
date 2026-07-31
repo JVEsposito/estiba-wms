@@ -48,7 +48,7 @@ class MovimientoResource extends JsonResource
         $camaraId = $this->{"camara_{$extremo}_id"};
         $posicionId = $this->{"posicion_{$extremo}_id"};
 
-        if ($camaraId === null || $posicionId === null) {
+        if ($camaraId === null) {
             return null;
         }
 
@@ -61,13 +61,13 @@ class MovimientoResource extends JsonResource
                 'codigo' => $camara?->codigo,
                 'nombre' => $camara?->nombre,
             ],
-            'posicion' => [
+            'posicion' => $posicionId ? [
                 'id' => $posicionId,
                 'banda' => $posicion?->banda,
                 'posicion' => $posicion?->posicion,
                 'nivel' => $posicion?->nivel,
                 'etiqueta' => $posicion?->etiqueta,
-            ],
+            ] : null,
             'version_anterior' => $this->{"version_{$extremo}_anterior"},
             'version_resultante' => $this->{"version_{$extremo}_resultante"},
         ];

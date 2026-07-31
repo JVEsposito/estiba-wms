@@ -37,7 +37,8 @@ class MovimientoController extends Controller
             ->where('numero_folio', $numeroFolio)
             ->with([
                 'condicionSag:id,codigo,nombre',
-                'ubicacionActual.posicion.camara:id,codigo,nombre',
+                'ubicacionActual.camara:id,codigo,nombre,contenido,estado',
+                'ubicacionActual.posicion:id,camara_id,etiqueta,estado',
                 'material.item:id,codigo,nombre,unidad_medida',
             ])
             ->first();
@@ -56,6 +57,7 @@ class MovimientoController extends Controller
             $habilitacion,
         );
         $ubicacion = $folio->ubicacionActual;
+        $camaraUbicacion = $ubicacion?->camara ?? $ubicacion?->posicion?->camara;
         $material = $folio->material;
 
         return response()->json([
@@ -79,16 +81,16 @@ class MovimientoController extends Controller
                 'calibre' => $folio->calibre,
                 'marca' => $folio->marca,
                 'exportadora' => $folio->exportadora,
-                'ubicacion_actual' => $ubicacion ? [
+                'ubicacion_actual' => $ubicacion && $camaraUbicacion ? [
                     'camara' => [
-                        'id' => $ubicacion->posicion->camara->id,
-                        'codigo' => $ubicacion->posicion->camara->codigo,
-                        'nombre' => $ubicacion->posicion->camara->nombre,
+                        'id' => $camaraUbicacion->id,
+                        'codigo' => $camaraUbicacion->codigo,
+                        'nombre' => $camaraUbicacion->nombre,
                     ],
-                    'posicion' => [
+                    'posicion' => $ubicacion->posicion ? [
                         'id' => $ubicacion->posicion->id,
                         'etiqueta' => $ubicacion->posicion->etiqueta,
-                    ],
+                    ] : null,
                 ] : null,
                 'material' => $material ? [
                     'item_material_id' => $material->item_material_id,
@@ -116,7 +118,10 @@ class MovimientoController extends Controller
             operacionId: $datos['operacion_id'],
             numeroFolio: $datos['numero_folio'],
             tipoBulto: TipoBulto::from($datos['tipo_bulto']),
-            posicionDestino: Posicion::query()->findOrFail($datos['posicion_destino_id']),
+            camaraDestino: Camara::query()->findOrFail($datos['camara_destino_id']),
+            posicionDestino: isset($datos['posicion_destino_id'])
+                ? Posicion::query()->findOrFail($datos['posicion_destino_id'])
+                : null,
             sesionDestino: SesionEstiba::query()->findOrFail($datos['sesion_destino_id']),
             usuario: $usuario,
             dispositivo: $dispositivo,
@@ -223,11 +228,22 @@ class MovimientoController extends Controller
         ServicioHabilitacionAlmacenamiento $habilitacion,
     ): array {
         if ($folio->ubicacionActual) {
-            $posicion = $folio->ubicacionActual->posicion;
+            $ubicacion = $folio->ubicacionActual;
+            $posicion = $ubicacion->posicion;
+            $camara = $ubicacion->camara ?? $posicion?->camara;
+
+            if ($folio->tipo_bulto === TipoBulto::Material && $camara && ! $posicion) {
+                return [
+                    true,
+                    "El folio está en {$camara->codigo} sin posición. Puede completar una ubicación exacta.",
+                ];
+            }
+
+            $detalle = $posicion?->etiqueta ? " · {$posicion->etiqueta}" : '';
 
             return [
                 false,
-                "El folio ya está ubicado en {$posicion->camara->codigo} · {$posicion->etiqueta}.",
+                "El folio ya está ubicado en {$camara?->codigo}{$detalle}.",
             ];
         }
 
