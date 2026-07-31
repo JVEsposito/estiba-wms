@@ -1,36 +1,257 @@
 /*
- * Tema corporativo compartido para todas las oficinas de Estiba WMS.
- * Esta hoja se carga después de los estilos de cada módulo para modificar
- * exclusivamente la presentación, conservando estructura, IDs y contratos JS.
+ * Sistema visual compartido para las oficinas de ESTIBA WMS.
+ *
+ * Dark Industrial es el tema predeterminado. Las variantes light comparten
+ * la misma arquitectura y cambian únicamente tokens de color y profundidad.
+ * Esta hoja se carga después de los estilos de cada módulo para conservar
+ * estructura, IDs y contratos JavaScript.
  */
 
-:root {
-    color-scheme: light !important;
-    --bg: #f3f6fa;
+:root,
+:root[data-office-theme="dark-industrial"] {
+    color-scheme: dark;
+    --bg: #0d131a;
+    --deep: #101820;
+    --panel: #141e27;
+    --raised: #192630;
+    --soft: #202f3a;
+    --line: #2a3945;
+    --border: #2a3945;
+    --cyan: #2f8fc7;
+    --cyan-light: #65b9e5;
+    --accent: #2378b5;
+    --green: #61c98b;
+    --amber: #e0ad4d;
+    --red: #ed7d88;
+    --text: #edf3f7;
+    --muted: #91a2af;
+
+    --corporate-navy: #edf3f7;
+    --corporate-blue: #2c88c4;
+    --corporate-blue-dark: #1d6799;
+    --corporate-orange: #d99a3f;
+    --corporate-canvas: #0d131a;
+    --corporate-card: #141e27;
+    --corporate-border: #2a3945;
+    --corporate-shadow: 0 8px 22px rgba(0, 0, 0, .16);
+    --corporate-shadow-raised: 0 20px 54px rgba(0, 0, 0, .34);
+
+    --header-bg: #0a1117;
+    --subnav-bg: #101820;
+    --surface-muted: #111b24;
+    --surface-hover: #1b2a35;
+    --surface-selected: #1b2c39;
+    --input-bg: #0f1821;
+    --table-head: #18242e;
+    --row-bg: #141e27;
+    --row-hover: #1a2934;
+    --text-strong: #f4f7fa;
+    --text-secondary: #cbd6dd;
+    --text-subtle: #708390;
+    --icon-surface: #122330;
+    --button-secondary: #131e27;
+    --button-secondary-hover: #1b2b37;
+    --success-bg: #123425;
+    --success-text: #67d095;
+    --warning-bg: #392b12;
+    --warning-text: #e7b34d;
+    --danger-bg: #3d2026;
+    --danger-text: #ef8993;
+    --info-bg: #133247;
+    --info-text: #69bde5;
+    --overlay: rgba(2, 8, 13, .78);
+    --focus-ring: rgba(48, 151, 211, .26);
+    --selection-bg: rgba(47, 143, 199, .28);
+    --brand-gradient: linear-gradient(150deg, #08141d 0%, #0d2637 68%, #144765 100%);
+    --kpi-surface: linear-gradient(145deg, #17232d, #121b23);
+    --logo-border: #315269;
+    --logo-bg: #0e202d;
+    --radius: 7px;
+
+    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-office-theme="light-professional"] {
+    color-scheme: light;
+    --bg: #f2f6fa;
     --deep: #ffffff;
     --panel: #ffffff;
     --raised: #f7f9fc;
-    --soft: #eaf0f7;
-    --line: #d4dde8;
-    --border: #d4dde8;
+    --soft: #e9f0f6;
+    --line: #d3dde7;
+    --border: #d3dde7;
     --cyan: #145c95;
     --cyan-light: #1d6ca7;
     --accent: #145c95;
     --green: #2f7d55;
-    --amber: #c77b13;
+    --amber: #bd7614;
     --red: #b83a45;
     --text: #12243a;
     --muted: #627185;
+
     --corporate-navy: #0c3154;
     --corporate-blue: #145c95;
     --corporate-blue-dark: #0d456f;
-    --corporate-orange: #e98a18;
-    --corporate-canvas: #f3f6fa;
+    --corporate-orange: #dd851c;
+    --corporate-canvas: #f2f6fa;
     --corporate-card: #ffffff;
-    --corporate-border: #d4dde8;
+    --corporate-border: #d3dde7;
     --corporate-shadow: 0 5px 16px rgba(35, 55, 80, .08);
-    --corporate-shadow-raised: 0 10px 28px rgba(35, 55, 80, .12);
-    font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    --corporate-shadow-raised: 0 14px 38px rgba(35, 55, 80, .16);
+
+    --header-bg: #ffffff;
+    --subnav-bg: #ffffff;
+    --surface-muted: #f7f9fc;
+    --surface-hover: #edf4fa;
+    --surface-selected: #e8f1f8;
+    --input-bg: #ffffff;
+    --table-head: #edf2f7;
+    --row-bg: #ffffff;
+    --row-hover: #f5f8fb;
+    --text-strong: #0c3154;
+    --text-secondary: #344a61;
+    --text-subtle: #7b8998;
+    --icon-surface: #ffffff;
+    --button-secondary: #ffffff;
+    --button-secondary-hover: #edf4fa;
+    --success-bg: #edf7f1;
+    --success-text: #2f704e;
+    --warning-bg: #fff7e9;
+    --warning-text: #9f6210;
+    --danger-bg: #fff1f2;
+    --danger-text: #a72e3a;
+    --info-bg: #edf5fb;
+    --info-text: #145c95;
+    --overlay: rgba(14, 35, 56, .42);
+    --focus-ring: rgba(20, 92, 149, .18);
+    --selection-bg: rgba(20, 92, 149, .2);
+    --brand-gradient: linear-gradient(150deg, #092b49 0%, #0c3d68 66%, #145c95 100%);
+    --kpi-surface: #ffffff;
+    --logo-border: #9eb5cb;
+    --logo-bg: #ffffff;
+    --radius: 7px;
+}
+
+:root[data-office-theme="light-natural"] {
+    color-scheme: light;
+    --bg: #f2f6f3;
+    --deep: #ffffff;
+    --panel: #ffffff;
+    --raised: #f7faf7;
+    --soft: #e8f0ea;
+    --line: #d1ddd4;
+    --border: #d1ddd4;
+    --cyan: #347960;
+    --cyan-light: #3f886c;
+    --accent: #347960;
+    --green: #347960;
+    --amber: #b4771c;
+    --red: #b6454e;
+    --text: #183027;
+    --muted: #63766d;
+
+    --corporate-navy: #173d30;
+    --corporate-blue: #347960;
+    --corporate-blue-dark: #285f4b;
+    --corporate-orange: #c5892f;
+    --corporate-canvas: #f2f6f3;
+    --corporate-card: #ffffff;
+    --corporate-border: #d1ddd4;
+    --corporate-shadow: 0 5px 16px rgba(35, 68, 52, .08);
+    --corporate-shadow-raised: 0 14px 38px rgba(35, 68, 52, .16);
+
+    --header-bg: #ffffff;
+    --subnav-bg: #ffffff;
+    --surface-muted: #f6f9f7;
+    --surface-hover: #edf5f0;
+    --surface-selected: #e8f2ec;
+    --input-bg: #ffffff;
+    --table-head: #edf3ef;
+    --row-bg: #ffffff;
+    --row-hover: #f4f8f5;
+    --text-strong: #173d30;
+    --text-secondary: #355548;
+    --text-subtle: #7b8d84;
+    --icon-surface: #ffffff;
+    --button-secondary: #ffffff;
+    --button-secondary-hover: #edf5f0;
+    --success-bg: #eaf6ee;
+    --success-text: #2d714d;
+    --warning-bg: #fff7e8;
+    --warning-text: #9b6411;
+    --danger-bg: #fff1f2;
+    --danger-text: #a43741;
+    --info-bg: #edf6f2;
+    --info-text: #347960;
+    --overlay: rgba(20, 49, 37, .38);
+    --focus-ring: rgba(52, 121, 96, .18);
+    --selection-bg: rgba(52, 121, 96, .18);
+    --brand-gradient: linear-gradient(150deg, #12382b 0%, #205b45 66%, #347960 100%);
+    --kpi-surface: #ffffff;
+    --logo-border: #a8c0b2;
+    --logo-bg: #ffffff;
+    --radius: 7px;
+}
+
+:root[data-office-theme="light-warm"] {
+    color-scheme: light;
+    --bg: #f8f4ee;
+    --deep: #ffffff;
+    --panel: #ffffff;
+    --raised: #fbf8f3;
+    --soft: #f1e8dc;
+    --line: #e2d5c5;
+    --border: #e2d5c5;
+    --cyan: #b7691e;
+    --cyan-light: #c67a2e;
+    --accent: #b7691e;
+    --green: #4f8056;
+    --amber: #b7691e;
+    --red: #b64445;
+    --text: #392a1e;
+    --muted: #77685b;
+
+    --corporate-navy: #57351d;
+    --corporate-blue: #b7691e;
+    --corporate-blue-dark: #925117;
+    --corporate-orange: #cf791d;
+    --corporate-canvas: #f8f4ee;
+    --corporate-card: #ffffff;
+    --corporate-border: #e2d5c5;
+    --corporate-shadow: 0 5px 16px rgba(81, 56, 32, .08);
+    --corporate-shadow-raised: 0 14px 38px rgba(81, 56, 32, .16);
+
+    --header-bg: #ffffff;
+    --subnav-bg: #ffffff;
+    --surface-muted: #fbf8f3;
+    --surface-hover: #faf1e6;
+    --surface-selected: #f7eadb;
+    --input-bg: #ffffff;
+    --table-head: #f5eee5;
+    --row-bg: #ffffff;
+    --row-hover: #fcf8f3;
+    --text-strong: #57351d;
+    --text-secondary: #604937;
+    --text-subtle: #8c7d70;
+    --icon-surface: #ffffff;
+    --button-secondary: #ffffff;
+    --button-secondary-hover: #faf1e6;
+    --success-bg: #edf6ee;
+    --success-text: #3d7146;
+    --warning-bg: #fff2de;
+    --warning-text: #9b5a15;
+    --danger-bg: #fff0f0;
+    --danger-text: #a6383a;
+    --info-bg: #fff3e7;
+    --info-text: #a95e1b;
+    --overlay: rgba(55, 38, 23, .38);
+    --focus-ring: rgba(183, 105, 30, .18);
+    --selection-bg: rgba(183, 105, 30, .18);
+    --brand-gradient: linear-gradient(150deg, #4b2b16 0%, #7a451c 66%, #b7691e 100%);
+    --kpi-surface: #ffffff;
+    --logo-border: #d1b89d;
+    --logo-bg: #ffffff;
+    --radius: 7px;
 }
 
 html {
@@ -42,6 +263,7 @@ body {
     color: var(--text) !important;
     font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     line-height: 1.45;
+    transition: background-color .18s ease, color .18s ease;
 }
 
 body::before,
@@ -50,8 +272,8 @@ body::after {
 }
 
 ::selection {
-    background: rgba(20, 92, 149, .2);
-    color: var(--corporate-navy);
+    background: var(--selection-bg);
+    color: var(--text-strong);
 }
 
 button,
@@ -67,7 +289,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: 3px solid rgba(20, 92, 149, .24) !important;
+    outline: 3px solid var(--focus-ring) !important;
     outline-offset: 2px !important;
 }
 
@@ -81,13 +303,24 @@ textarea:focus-visible {
 /* Acceso de oficina */
 .office-access {
     min-height: 100vh !important;
-    background: #eef3f8 !important;
+    background: var(--corporate-canvas) !important;
 }
 
-.office-access__brand {
+.office-access__brand,
+.validation-access-brand,
+.management-access-brand,
+.prefrio-access-brand,
+.materials-access-brand,
+.loads-access-brand,
+.weighbridge-access-brand,
+.raw-material-access-brand,
+.queries-access-brand,
+.accounts-access-brand,
+.dispatches-access-brand,
+.inventory-access-brand {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(150deg, #092b49 0%, #0c3d68 66%, #145c95 100%) !important;
+    background: var(--brand-gradient) !important;
     color: #ffffff !important;
 }
 
@@ -105,7 +338,7 @@ textarea:focus-visible {
     position: absolute;
     inset: 9% auto auto 8%;
     width: 8rem;
-    height: .28rem;
+    height: .25rem;
     background: var(--corporate-orange);
     content: "";
 }
@@ -133,7 +366,7 @@ textarea:focus-visible {
 }
 
 .office-access__form {
-    background: #ffffff !important;
+    background: var(--panel) !important;
     border-left: 1px solid var(--corporate-border) !important;
     color: var(--text) !important;
 }
@@ -144,7 +377,7 @@ textarea:focus-visible {
 }
 
 .office-access__form h2 {
-    color: var(--corporate-navy) !important;
+    color: var(--text-strong) !important;
     font-size: 1.85rem !important;
     font-weight: 750 !important;
     letter-spacing: -.025em;
@@ -159,7 +392,7 @@ textarea:focus-visible {
 .office-logo {
     border: 1px solid rgba(255, 255, 255, .5) !important;
     border-radius: 10px !important;
-    background: rgba(255, 255, 255, .12) !important;
+    background: rgba(255, 255, 255, .1) !important;
     box-shadow: none !important;
     color: #ffffff !important;
 }
@@ -174,10 +407,10 @@ textarea:focus-visible {
 /* Encabezado y navegación compartida */
 .office-domain-topbar,
 .office-topbar {
-    min-height: 76px !important;
+    min-height: 72px !important;
     border-bottom: 1px solid var(--corporate-border) !important;
-    background: rgba(255, 255, 255, .98) !important;
-    box-shadow: 0 2px 8px rgba(33, 52, 75, .06) !important;
+    background: var(--header-bg) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .08) !important;
     color: var(--text) !important;
     backdrop-filter: none !important;
 }
@@ -189,19 +422,19 @@ textarea:focus-visible {
 
 .office-brand-mark {
     display: grid;
-    width: 46px;
-    height: 46px;
-    flex: 0 0 46px;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     place-items: center;
-    border: 1px solid #9eb5cb;
-    border-radius: 7px;
-    background: #ffffff;
+    border: 1px solid var(--logo-border);
+    border-radius: var(--radius);
+    background: var(--logo-bg);
     color: var(--corporate-blue);
 }
 
 .office-brand-mark svg {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     fill: none;
     stroke: currentColor;
     stroke-linecap: round;
@@ -210,7 +443,7 @@ textarea:focus-visible {
 }
 
 .brand-lockup strong {
-    color: var(--corporate-navy) !important;
+    color: var(--text-strong) !important;
     font-size: 1.02rem !important;
     font-weight: 800 !important;
     letter-spacing: .02em;
@@ -224,7 +457,7 @@ textarea:focus-visible {
 
 .office-domain-navigation,
 .office-topbar nav {
-    gap: 0 !important;
+    gap: 2px !important;
     padding: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -233,25 +466,25 @@ textarea:focus-visible {
 
 .office-domain-navigation .office-domain-link {
     position: relative;
-    min-height: 54px !important;
+    min-height: 52px !important;
     gap: 8px !important;
     border: 0 !important;
-    border-bottom: 3px solid transparent !important;
-    border-radius: 0 !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 5px 5px 0 0 !important;
     background: transparent !important;
-    color: #52657b !important;
+    color: var(--muted) !important;
     transition: color .16s ease, background .16s ease, border-color .16s ease;
 }
 
 .office-domain-navigation .office-domain-link:hover {
-    background: #f5f8fb !important;
-    color: var(--corporate-navy) !important;
+    background: var(--surface-hover) !important;
+    color: var(--text-strong) !important;
 }
 
 .office-domain-navigation .office-domain-link.is-active {
     border-bottom-color: var(--corporate-blue) !important;
-    background: #eef4fa !important;
-    color: var(--corporate-navy) !important;
+    background: var(--surface-selected) !important;
+    color: var(--text-strong) !important;
 }
 
 .office-domain-navigation .office-domain-link > span {
@@ -260,9 +493,9 @@ textarea:focus-visible {
     min-height: 23px;
     place-items: center;
     padding: 2px 5px !important;
-    border: 1px solid #bfd0df;
+    border: 1px solid var(--logo-border);
     border-radius: 4px;
-    background: #ffffff;
+    background: var(--icon-surface);
     color: var(--corporate-blue) !important;
     font-size: .58rem !important;
     font-weight: 900;
@@ -275,75 +508,124 @@ textarea:focus-visible {
 }
 
 .identity {
+    gap: 9px !important;
     color: var(--text) !important;
 }
 
 .identity__avatar {
-    border: 1px solid #b8c8d7 !important;
+    border: 1px solid var(--logo-border) !important;
     border-radius: 6px !important;
-    background: var(--corporate-navy) !important;
-    color: #ffffff !important;
+    background: var(--surface-selected) !important;
+    color: var(--text-strong) !important;
 }
 
 .identity strong {
-    color: var(--corporate-navy) !important;
+    color: var(--text-strong) !important;
 }
 
 .identity button,
 .icon-button {
-    border: 1px solid #b9c8d6 !important;
+    border: 1px solid var(--corporate-border) !important;
     border-radius: 5px !important;
-    background: #ffffff !important;
-    color: var(--corporate-navy) !important;
+    background: var(--button-secondary) !important;
+    color: var(--text-strong) !important;
     box-shadow: none !important;
 }
 
 .identity button:hover,
 .icon-button:hover {
     border-color: var(--corporate-blue) !important;
-    background: #eef4fa !important;
+    background: var(--button-secondary-hover) !important;
+}
+
+.office-theme-selector {
+    position: relative;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    margin-left: 4px;
+    padding: 0 7px 0 9px;
+    border: 1px solid var(--corporate-border);
+    border-radius: 5px;
+    background: var(--button-secondary);
+    color: var(--muted) !important;
+}
+
+.office-theme-selector::before {
+    content: "◐";
+    color: var(--corporate-blue);
+    font-size: .92rem;
+    line-height: 1;
+}
+
+.office-theme-selector:hover {
+    border-color: var(--corporate-blue);
+    background: var(--button-secondary-hover);
+}
+
+.office-theme-selector select {
+    width: 108px;
+    min-height: 34px !important;
+    padding: 0 22px 0 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+    box-shadow: none !important;
+    font-size: .68rem !important;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.office-theme-selector select:focus {
+    box-shadow: none !important;
+}
+
+.office-theme-selector option {
+    background: var(--panel);
+    color: var(--text);
 }
 
 .office-subnavigation {
-    min-height: 58px !important;
+    min-height: 52px !important;
     border-bottom: 1px solid var(--corporate-border) !important;
-    background: #ffffff !important;
+    background: var(--subnav-bg) !important;
     box-shadow: none !important;
 }
 
 .office-subnavigation__heading span {
-    color: #7c8998 !important;
+    color: var(--text-subtle) !important;
 }
 
 .office-subnavigation__heading strong {
-    color: var(--corporate-navy) !important;
+    color: var(--text-strong) !important;
 }
 
 .office-subnavigation__links {
     gap: 2px !important;
     padding: 3px !important;
-    border: 1px solid #c9d5e1 !important;
+    border: 1px solid var(--corporate-border) !important;
     border-radius: 6px !important;
-    background: #f5f8fb !important;
+    background: var(--surface-muted) !important;
 }
 
 .office-subnavigation__links a {
     border: 1px solid transparent;
     border-radius: 4px !important;
-    color: #4e6074 !important;
+    color: var(--muted) !important;
     font-weight: 700 !important;
 }
 
 .office-subnavigation__links a:hover {
-    background: #ffffff !important;
-    color: var(--corporate-navy) !important;
+    background: var(--surface-hover) !important;
+    color: var(--text-strong) !important;
 }
 
 .office-subnavigation__links a.is-active {
-    border-color: #9fb6ca !important;
-    background: #ffffff !important;
-    box-shadow: 0 1px 4px rgba(35, 55, 80, .08);
-    color: var(--corporate-blue-dark) !important;
+    border-color: var(--logo-border) !important;
+    background: var(--surface-selected) !important;
+    box-shadow: none !important;
+    color: var(--corporate-blue) !important;
 }
 
 /* Formularios y controles */
@@ -356,43 +638,43 @@ textarea,
 .office-access input,
 .office-access select,
 .office-access textarea {
-    border: 1px solid #bdcad7 !important;
+    border: 1px solid var(--corporate-border) !important;
     border-radius: 5px !important;
-    background: #ffffff !important;
+    background: var(--input-bg) !important;
     color: var(--text) !important;
-    box-shadow: inset 0 1px 1px rgba(26, 47, 69, .03) !important;
+    box-shadow: none !important;
 }
 
 input::placeholder,
 textarea::placeholder {
-    color: #8a98a8 !important;
+    color: var(--text-subtle) !important;
 }
 
 input:hover,
 select:hover,
 textarea:hover {
-    border-color: #91a8bc !important;
+    border-color: var(--logo-border) !important;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--corporate-blue) !important;
-    box-shadow: 0 0 0 3px rgba(20, 92, 149, .12) !important;
+    box-shadow: 0 0 0 3px var(--focus-ring) !important;
 }
 
 input:disabled,
 select:disabled,
 textarea:disabled {
-    background: #eef2f6 !important;
-    color: #778598 !important;
+    background: var(--surface-muted) !important;
+    color: var(--text-subtle) !important;
 }
 
 label,
 .field,
 .office-app label,
 .office-access label {
-    color: #52657a !important;
+    color: var(--muted) !important;
 }
 
 input[type="checkbox"],
@@ -432,9 +714,9 @@ input[type="radio"] {
 .refresh-button,
 .office-app button.secondary-button,
 .office-app a.secondary-button {
-    border: 1px solid #aebdcc !important;
-    background: #ffffff !important;
-    color: var(--corporate-navy) !important;
+    border: 1px solid var(--corporate-border) !important;
+    background: var(--button-secondary) !important;
+    color: var(--text-strong) !important;
 }
 
 .secondary-button:hover,
@@ -442,21 +724,21 @@ input[type="radio"] {
 .office-app button.secondary-button:hover,
 .office-app a.secondary-button:hover {
     border-color: var(--corporate-blue) !important;
-    background: #eef4fa !important;
+    background: var(--button-secondary-hover) !important;
 }
 
 .danger-button,
 .office-app button.danger-button,
 .office-app a.danger-button {
-    border: 1px solid #ca9298 !important;
-    background: #ffffff !important;
-    color: #a72e3a !important;
+    border: 1px solid var(--danger-text) !important;
+    background: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
 }
 
 .danger-button:hover,
 .office-app button.danger-button:hover,
 .office-app a.danger-button:hover {
-    background: #fff1f2 !important;
+    filter: brightness(1.06);
 }
 
 button:disabled,
@@ -490,8 +772,8 @@ a[aria-disabled="true"] {
 .office-app [class*="__card "] {
     border-color: var(--corporate-border) !important;
     border-radius: 7px !important;
-    background: #ffffff !important;
-    box-shadow: 0 3px 11px rgba(35, 55, 80, .06) !important;
+    background: var(--corporate-card) !important;
+    box-shadow: 0 3px 11px rgba(0, 0, 0, .06) !important;
     color: var(--text) !important;
 }
 
@@ -500,7 +782,7 @@ a[aria-disabled="true"] {
 .office-app h3,
 .office-app h4,
 .office-app strong {
-    color: var(--corporate-navy);
+    color: var(--text-strong);
 }
 
 .office-app h1 {
@@ -531,29 +813,66 @@ a[aria-disabled="true"] {
 /* KPIs y resúmenes */
 .validation-metrics article,
 .management-kpi,
+.weighbridge-kpis article,
+.raw-material-kpis article,
 .office-app [class*="metrics"] > article,
 .office-app [class*="metric-grid"] > article,
 .office-app [class*="summary-grid"] > article,
 .office-app [class*="kpi-grid"] > article {
     border: 1px solid var(--corporate-border) !important;
-    border-top: 3px solid var(--corporate-blue) !important;
+    border-top: 2px solid var(--corporate-blue) !important;
     border-radius: 7px !important;
-    background: #ffffff !important;
+    background: var(--kpi-surface) !important;
     box-shadow: var(--corporate-shadow) !important;
     color: var(--text) !important;
 }
 
+.weighbridge-kpis article:nth-child(2)::before,
+.weighbridge-kpis article:nth-child(2) {
+    border-top-color: var(--warning-text) !important;
+}
+
+.weighbridge-kpis article:nth-child(3)::before,
+.weighbridge-kpis article:nth-child(3) {
+    border-top-color: #d27d49 !important;
+}
+
+.weighbridge-kpis article:nth-child(4)::before,
+.weighbridge-kpis article:nth-child(4) {
+    border-top-color: var(--success-text) !important;
+}
+
+.weighbridge-kpis article::before {
+    height: 0 !important;
+}
+
 .validation-metrics strong,
 .management-kpi > strong,
+.weighbridge-kpis strong,
+.raw-material-kpis strong,
 .office-app [class*="metrics"] > article > strong,
 .office-app [class*="metric-grid"] > article > strong,
 .office-app [class*="summary-grid"] > article > strong,
 .office-app [class*="kpi-grid"] > article > strong {
-    color: var(--corporate-navy) !important;
+    color: var(--text-strong) !important;
+}
+
+.weighbridge-kpis article:nth-child(2) strong {
+    color: var(--warning-text) !important;
+}
+
+.weighbridge-kpis article:nth-child(4) strong {
+    color: var(--success-text) !important;
+}
+
+.weighbridge-kpi--weight strong,
+.weight-cell strong,
+.detail-fact--weight strong {
+    color: var(--info-text) !important;
 }
 
 .management-kpi::before {
-    height: 3px !important;
+    height: 2px !important;
     background: var(--corporate-blue) !important;
 }
 
@@ -568,7 +887,7 @@ a[aria-disabled="true"] {
 
 .kpi-progress,
 .camera-occupancy {
-    background: #e3eaf1 !important;
+    background: var(--soft) !important;
 }
 
 .kpi-progress i,
@@ -576,24 +895,71 @@ a[aria-disabled="true"] {
     background: var(--corporate-blue) !important;
 }
 
+/* Romana: estructura operacional densa y mate */
+.weighbridge-workspace {
+    background: var(--corporate-canvas) !important;
+}
+
+.weighbridge-heading {
+    align-items: flex-end !important;
+}
+
+.weighbridge-heading h1 {
+    color: var(--text-strong) !important;
+}
+
+.weighbridge-list-panel,
+.reception-detail,
+.container-weighing-panel,
+.reception-detail__bottom section,
+.detail-fact,
+.container-weighing-row,
+.tare-option,
+.outbound-container-tares,
+.container-weighing-config {
+    border-color: var(--corporate-border) !important;
+    background: var(--corporate-card) !important;
+    box-shadow: none !important;
+}
+
+.weighbridge-panel-heading {
+    border-bottom-color: var(--corporate-border) !important;
+    background: var(--corporate-card) !important;
+}
+
+.weighbridge-filters {
+    align-items: stretch;
+}
+
+.weighbridge-filters input,
+.weighbridge-filters select,
+.weighbridge-filters button {
+    min-height: 40px !important;
+}
+
+.weighbridge-pagination {
+    border-top-color: var(--corporate-border) !important;
+    background: var(--surface-muted) !important;
+}
+
 /* Tablas */
 .office-app table {
     border-collapse: separate !important;
     border-spacing: 0 !important;
-    background: #ffffff !important;
+    background: var(--row-bg) !important;
     color: var(--text) !important;
 }
 
 .office-app table thead,
 .office-app table thead tr,
 .office-app table th {
-    background: #edf2f7 !important;
-    color: #344a61 !important;
+    background: var(--table-head) !important;
+    color: var(--text-secondary) !important;
 }
 
 .office-app table th {
     border-top: 1px solid var(--corporate-border) !important;
-    border-bottom: 1px solid #bdcad7 !important;
+    border-bottom: 1px solid var(--corporate-border) !important;
     font-size: .68rem !important;
     font-weight: 800 !important;
     letter-spacing: .045em !important;
@@ -609,20 +975,24 @@ a[aria-disabled="true"] {
 }
 
 .office-app table td {
-    border-bottom: 1px solid #e0e6ed !important;
-    background: #ffffff !important;
-    color: #25384d !important;
+    border-bottom: 1px solid var(--corporate-border) !important;
+    background: var(--row-bg) !important;
+    color: var(--text-secondary) !important;
+}
+
+.office-app table td strong {
+    color: var(--text-strong) !important;
 }
 
 .office-app table tbody tr:hover td {
-    background: #f6f9fc !important;
+    background: var(--row-hover) !important;
 }
 
 .office-app [class*="table-scroll"],
 .office-app .table-scroll {
     border: 1px solid var(--corporate-border) !important;
     border-radius: 6px !important;
-    background: #ffffff !important;
+    background: var(--row-bg) !important;
 }
 
 /* Estados y etiquetas */
@@ -630,6 +1000,7 @@ a[aria-disabled="true"] {
 .validation-result,
 .area-chip,
 .usage-chip,
+.state-badge,
 [class*="status-chip"],
 [class*="state-chip"],
 [class*="badge"] {
@@ -641,26 +1012,34 @@ a[aria-disabled="true"] {
 
 .status-pill--aprobado,
 .validation-result--aprobado,
+.state-badge--closed,
 .usage-chip,
 [class*="success"] {
-    background: #edf7f1 !important;
-    color: #2f704e !important;
+    background: var(--success-bg) !important;
+    color: var(--success-text) !important;
 }
 
 .status-pill--pendiente_verificacion,
 .status-pill--requiere_reproceso,
 .validation-result--observado,
+.state-badge--exit,
 .usage-chip--warning,
 [class*="warning"] {
-    background: #fff7e9 !important;
-    color: #9f6210 !important;
+    background: var(--warning-bg) !important;
+    color: var(--warning-text) !important;
+}
+
+.state-badge--entry {
+    background: var(--info-bg) !important;
+    color: var(--info-text) !important;
 }
 
 .validation-result--rechazado,
 .validation-result--conflicto,
 .status-pill--cancelado,
 [class*="danger"] {
-    color: #a72e3a;
+    background: var(--danger-bg);
+    color: var(--danger-text);
 }
 
 /* Modales, diálogos y mensajes */
@@ -668,64 +1047,52 @@ dialog,
 .office-app dialog,
 .office-app [role="dialog"],
 .office-app [class*="modal-card"],
-.office-app [class*="dialog-card"] {
-    border: 1px solid #b9c7d4 !important;
+.office-app [class*="dialog-card"],
+.weighbridge-dialog {
+    border: 1px solid var(--corporate-border) !important;
     border-radius: 8px !important;
-    background: #ffffff !important;
-    box-shadow: 0 24px 70px rgba(22, 40, 62, .24) !important;
+    background: var(--panel) !important;
+    box-shadow: var(--corporate-shadow-raised) !important;
     color: var(--text) !important;
 }
 
 dialog::backdrop,
-.office-app [class*="modal-backdrop"] {
-    background: rgba(14, 35, 56, .42) !important;
-    backdrop-filter: blur(2px) !important;
+.office-app [class*="modal-backdrop"],
+.weighbridge-dialog::backdrop {
+    background: var(--overlay) !important;
+    backdrop-filter: blur(3px) !important;
 }
 
 .loading {
-    background: rgba(239, 244, 249, .78) !important;
-    color: var(--corporate-navy) !important;
+    background: color-mix(in srgb, var(--corporate-canvas) 82%, transparent) !important;
+    color: var(--text-strong) !important;
 }
 
 .loading span {
-    border-color: rgba(20, 92, 149, .2) !important;
+    border-color: var(--focus-ring) !important;
     border-top-color: var(--corporate-blue) !important;
 }
 
 .toast {
-    border: 1px solid #6fa48a !important;
+    border: 1px solid var(--success-text) !important;
     border-radius: 6px !important;
-    background: #f1f8f4 !important;
+    background: var(--success-bg) !important;
     box-shadow: var(--corporate-shadow-raised) !important;
-    color: #245b40 !important;
+    color: var(--success-text) !important;
 }
 
 .toast--error {
-    border-color: #c7888f !important;
-    background: #fff2f3 !important;
-    color: #982e39 !important;
+    border-color: var(--danger-text) !important;
+    background: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
 }
 
 .form-error,
 [class*="error"] {
-    color: #a92f3b;
+    color: var(--danger-text);
 }
 
-/* Módulos con colores oscuros propios */
-.validation-access-brand,
-.management-access-brand,
-.prefrio-access-brand,
-.materials-access-brand,
-.loads-access-brand,
-.weighbridge-access-brand,
-.raw-material-access-brand,
-.queries-access-brand,
-.accounts-access-brand,
-.dispatches-access-brand,
-.inventory-access-brand {
-    background: linear-gradient(150deg, #092b49 0%, #0c3d68 66%, #145c95 100%) !important;
-}
-
+/* Componentes heredados de módulos */
 .management-kpi,
 .management-panel,
 .validation-metrics article,
@@ -739,7 +1106,7 @@ dialog::backdrop,
 .capacity-summary,
 .dock-status-toggle,
 .preview-position {
-    background: #ffffff !important;
+    background: var(--corporate-card) !important;
     color: var(--text) !important;
 }
 
@@ -756,7 +1123,7 @@ dialog::backdrop,
 }
 
 .preview-position {
-    background: #eef4fa !important;
+    background: var(--surface-selected) !important;
 }
 
 .preview-position span,
@@ -766,15 +1133,14 @@ dialog::backdrop,
 }
 
 .preview-position.is-disabled {
-    background: #eef1f4 !important;
-    color: #778598 !important;
+    background: var(--surface-muted) !important;
+    color: var(--text-subtle) !important;
 }
 
 .management-alert {
     box-shadow: none !important;
 }
 
-/* Gráficos y leyendas */
 .chart-container,
 canvas {
     color: var(--text) !important;
@@ -788,7 +1154,28 @@ canvas {
     background: var(--corporate-orange) !important;
 }
 
+/* Utilidad accesible */
+.office-visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+}
+
 /* Pantallas angostas */
+@media (max-width: 1420px) {
+    .office-theme-selector select {
+        width: 78px;
+    }
+
+    .office-theme-selector option {
+        font-size: .75rem;
+    }
+}
+
 @media (max-width: 1250px) {
     .office-domain-topbar {
         min-width: 1040px;
@@ -802,6 +1189,10 @@ canvas {
 
     .office-domain-navigation {
         border-top: 1px solid var(--corporate-border) !important;
+    }
+
+    .office-theme-selector {
+        order: 3;
     }
 }
 
@@ -827,10 +1218,15 @@ canvas {
         display: none !important;
     }
 
+    :root {
+        color-scheme: light;
+    }
+
     body,
     .office-app,
     .panel {
         background: #ffffff !important;
+        color: #111111 !important;
         box-shadow: none !important;
     }
 }
