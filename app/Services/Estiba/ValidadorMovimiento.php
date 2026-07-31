@@ -125,18 +125,26 @@ class ValidadorMovimiento
 
     private function validarEstructura(Movimiento $movimiento, TipoMovimiento $tipo): void
     {
+        $esMaterial = Folio::query()
+            ->whereKey($movimiento->folio_id)
+            ->where('tipo_bulto', TipoBulto::Material)
+            ->exists();
         $origenCompleto = $this->extremoCompleto($movimiento, 'origen');
         $destinoCompleto = $this->extremoCompleto($movimiento, 'destino');
+        $origenSoloCamara = $esMaterial && $this->extremoSoloCamara($movimiento, 'origen');
+        $destinoSoloCamara = $esMaterial && $this->extremoSoloCamara($movimiento, 'destino');
+        $origenValido = $origenCompleto || $origenSoloCamara;
+        $destinoValido = $destinoCompleto || $destinoSoloCamara;
         $origenVacio = $this->extremoVacio($movimiento, 'origen');
         $destinoVacio = $this->extremoVacio($movimiento, 'destino');
 
         $valido = match ($tipo) {
-            TipoMovimiento::UbicacionInicial => $origenVacio && $destinoCompleto,
+            TipoMovimiento::UbicacionInicial => $origenVacio && $destinoValido,
             TipoMovimiento::Reubicacion,
-            TipoMovimiento::TrasladoEntreCamaras => $origenCompleto && $destinoCompleto,
-            TipoMovimiento::Retiro => $origenCompleto && $destinoVacio,
-            TipoMovimiento::Reversion => ($origenCompleto || $origenVacio)
-                && ($destinoCompleto || $destinoVacio)
+            TipoMovimiento::TrasladoEntreCamaras => $origenValido && $destinoValido,
+            TipoMovimiento::Retiro => $origenValido && $destinoVacio,
+            TipoMovimiento::Reversion => ($origenValido || $origenVacio)
+                && ($destinoValido || $destinoVacio)
                 && ! ($origenVacio && $destinoVacio)
                 && filled($movimiento->motivo),
         };
@@ -150,6 +158,13 @@ class ValidadorMovimiento
     {
         return $movimiento->{"camara_{$extremo}_id"} !== null
             && $movimiento->{"posicion_{$extremo}_id"} !== null
+            && $movimiento->{"sesion_{$extremo}_id"} !== null;
+    }
+
+    private function extremoSoloCamara(Movimiento $movimiento, string $extremo): bool
+    {
+        return $movimiento->{"camara_{$extremo}_id"} !== null
+            && $movimiento->{"posicion_{$extremo}_id"} === null
             && $movimiento->{"sesion_{$extremo}_id"} !== null;
     }
 
@@ -170,7 +185,6 @@ class ValidadorMovimiento
         $sesionId = $movimiento->{"sesion_{$extremo}_id"};
 
         $camara = Camara::query()->find($camaraId);
-        $posicion = Posicion::query()->find($posicionId);
         $sesion = SesionEstiba::query()->find($sesionId);
 
         if (! $camara || $camara->estado !== EstadoCamara::Activa) {
@@ -196,12 +210,18 @@ class ValidadorMovimiento
             );
         }
 
-        if (! $posicion || $posicion->camara_id !== $camara->id) {
-            throw new DomainException("La posición de {$extremo} no pertenece a la cámara indicada.");
-        }
+        if ($posicionId !== null) {
+            $posicion = Posicion::query()->find($posicionId);
 
-        if ($esDestino && $posicion->estado !== EstadoPosicion::Activa) {
-            throw new DomainException('La posición de destino no se encuentra activa.');
+            if (! $posicion || $posicion->camara_id !== $camara->id) {
+                throw new DomainException("La posición de {$extremo} no pertenece a la cámara indicada.");
+            }
+
+            if ($esDestino && $posicion->estado !== EstadoPosicion::Activa) {
+                throw new DomainException('La posición de destino no se encuentra activa.');
+            }
+        } elseif (! $folio || $folio->tipo_bulto !== TipoBulto::Material) {
+            throw new DomainException("El extremo de {$extremo} requiere una posición exacta.");
         }
 
         if (! $sesion
