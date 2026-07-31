@@ -16,6 +16,7 @@ class CrearVersionRecetaMaterialRequest extends FormRequest
     {
         return [
             'cantidad_base_salida' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'unidades_por_folio_salida' => ['sometimes', 'nullable', 'numeric', 'gt:0', 'decimal:0,3'],
             'componentes' => ['required', 'array', 'min:1', 'max:50'],
             'componentes.*' => [
                 'required',

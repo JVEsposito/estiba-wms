@@ -77,6 +77,7 @@ export type MaterialTransformationRecipeSnapshot = {
     codigo: string;
     nombre: string;
     cantidad_base: string;
+    unidades_por_folio: string | null;
     unidad_medida: string;
   };
   componentes: {
@@ -98,6 +99,10 @@ export type MaterialTransformationOrder = {
   version: number;
   cantidad_planificada_salida: string;
   cantidad_real_salida: string | null;
+  unidades_por_folio_salida: string | null;
+  folios_planificados: number | null;
+  folios_generados?: number;
+  folios_pendientes?: number;
   linea: string | null;
   turno: string | null;
   fecha_operacional: string;
