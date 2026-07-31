@@ -19,6 +19,9 @@ class UbicarFolioRequest extends FormRequest
             && app(AlcanceOperacionalUsuario::class)->puedeOperarAlgunaCamara($usuario);
     }
 
+    /**
+     * Mantiene compatibilidad con clientes que solo informan una posición de destino.
+     */
     protected function prepareForValidation(): void
     {
         if ($this->filled('camara_destino_id') || ! $this->filled('posicion_destino_id')) {
