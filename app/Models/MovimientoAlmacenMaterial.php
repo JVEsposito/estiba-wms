@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use LogicException;
 
 #[Fillable([
     'operacion_id',
@@ -38,6 +39,15 @@ class MovimientoAlmacenMaterial extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'movimientos_almacenes_materiales';
+
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new LogicException(
+                'Los movimientos de almacén son inmutables. Registre un movimiento inverso.',
+            );
+        });
+    }
 
     public function folioMaterial(): BelongsTo
     {
