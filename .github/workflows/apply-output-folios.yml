@@ -6,12 +6,14 @@ on:
       - agent/unidades-por-folio-transformacion
     paths:
       - scripts/apply_output_folios.py
+      - scripts/fix_output_folios_applicator.py
       - .github/workflows/apply-output-folios.yml
   pull_request:
     branches:
       - main
     paths:
       - scripts/apply_output_folios.py
+      - scripts/fix_output_folios_applicator.py
       - .github/workflows/apply-output-folios.yml
   workflow_dispatch:
 
@@ -29,12 +31,16 @@ jobs:
           ref: agent/unidades-por-folio-transformacion
           fetch-depth: 0
 
+      - name: Ajustar aplicador
+        run: python3 scripts/fix_output_folios_applicator.py
+
       - name: Aplicar cambio funcional
         run: python3 scripts/apply_output_folios.py
 
-      - name: Retirar aplicador temporal
+      - name: Retirar aplicadores temporales
         run: |
           rm scripts/apply_output_folios.py
+          rm scripts/fix_output_folios_applicator.py
           rm .github/workflows/apply-output-folios.yml
 
       - name: Publicar implementación
