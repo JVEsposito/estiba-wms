@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\TipoAlmacenMaterial;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 #[Fillable([
     'codigo',
@@ -28,6 +30,20 @@ class DestinoMaterial extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'destinos_materiales';
+
+    protected static function booted(): void
+    {
+        static::creating(function (DestinoMaterial $destino): void {
+            if (! $destino->codigo) {
+                $destino->codigo = 'ALM-'.Str::upper(
+                    substr(str_replace('-', '', (string) Str::uuid()), 0, 8),
+                );
+            }
+
+            $destino->tipo ??= TipoAlmacenMaterial::Virtual->value;
+            $destino->requiere_ubicacion_fisica ??= false;
+        });
+    }
 
     public function despachos(): HasMany
     {
