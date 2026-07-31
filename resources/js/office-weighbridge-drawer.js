@@ -1,6 +1,7 @@
 import '../css/office-weighbridge-drawer.css';
 
 function initializeWeighbridgeDrawer() {
+    const app = document.getElementById('officeApp');
     const detail = document.getElementById('receptionDetail');
     const tableBody = document.getElementById('receptionTableBody');
     const closeButton = document.getElementById('closeDetailButton');
@@ -9,12 +10,13 @@ function initializeWeighbridgeDrawer() {
     const weightBalance = document.getElementById('weightBalance');
     const weighingPanel = document.getElementById('containerWeighingPanel');
 
-    if (!detail || !tableBody || !closeButton || !detailFacts || !detailTimeline || !weightBalance || !weighingPanel) {
+    if (!app || !detail || !tableBody || !closeButton || !detailFacts || !detailTimeline || !weightBalance || !weighingPanel) {
         return;
     }
 
     let selectedReceptionId = null;
     let activeTab = 'summary';
+    let offsetFrame = null;
 
     // El flujo original llevaba el expediente al final de la página. El panel
     // lateral conserva la posición del listado para cambiar de recepción rápido.
@@ -97,6 +99,29 @@ function initializeWeighbridgeDrawer() {
     backdrop.addEventListener('click', () => closeButton.click());
     document.body.append(backdrop);
 
+    function updateDrawerOffset() {
+        offsetFrame = null;
+        if (window.matchMedia('(max-width: 900px)').matches) {
+            document.documentElement.style.removeProperty('--weighbridge-drawer-top');
+            return;
+        }
+
+        const bars = [
+            document.querySelector('.office-domain-topbar'),
+            document.querySelector('.office-subnavigation'),
+        ].filter(Boolean);
+        const visibleBottoms = bars
+            .map((bar) => bar.getBoundingClientRect().bottom)
+            .filter((bottom) => bottom > 0 && bottom < window.innerHeight * .55);
+        const offset = Math.max(12, ...visibleBottoms) + 10;
+        document.documentElement.style.setProperty('--weighbridge-drawer-top', `${Math.round(offset)}px`);
+    }
+
+    function scheduleDrawerOffset() {
+        if (offsetFrame !== null) return;
+        offsetFrame = window.requestAnimationFrame(updateDrawerOffset);
+    }
+
     function syncWeighingAvailability() {
         const available = !weighingPanel.classList.contains('is-hidden');
         weighingEmpty.hidden = available;
@@ -130,12 +155,13 @@ function initializeWeighbridgeDrawer() {
     }
 
     function syncDrawerState() {
-        const open = !detail.classList.contains('is-hidden');
+        const open = !detail.classList.contains('is-hidden') && !app.classList.contains('is-hidden');
         document.body.classList.toggle('has-reception-drawer', open);
         detail.setAttribute('aria-hidden', String(!open));
         backdrop.tabIndex = open ? 0 : -1;
 
         if (open) {
+            scheduleDrawerOffset();
             activateTab(activeTab);
             markSelectedRow();
         } else {
@@ -180,17 +206,24 @@ function initializeWeighbridgeDrawer() {
         if (!openDialog) closeButton.click();
     });
 
-    new MutationObserver(syncDrawerState).observe(detail, {
-        attributes: true,
-        attributeFilter: ['class'],
-    });
+    const drawerObserver = new MutationObserver(syncDrawerState);
+    drawerObserver.observe(detail, { attributes: true, attributeFilter: ['class'] });
+    drawerObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
     new MutationObserver(markSelectedRow).observe(tableBody, { childList: true });
     new MutationObserver(syncWeighingAvailability).observe(weighingPanel, {
         attributes: true,
         attributeFilter: ['class'],
     });
 
+    window.addEventListener('resize', scheduleDrawerOffset);
+    window.addEventListener('scroll', scheduleDrawerOffset, { passive: true });
+    if ('ResizeObserver' in window) {
+        const resizeObserver = new ResizeObserver(scheduleDrawerOffset);
+        document.querySelectorAll('.office-domain-topbar, .office-subnavigation').forEach((bar) => resizeObserver.observe(bar));
+    }
+
     activateTab('summary');
+    updateDrawerOffset();
     syncDrawerState();
 }
 
