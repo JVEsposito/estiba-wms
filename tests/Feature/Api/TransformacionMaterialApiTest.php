@@ -1429,8 +1429,7 @@ class TransformacionMaterialApiTest extends TestCase
     private function prepararOrdenOperacional(
         float $cantidadPlanificada,
         ?float $unidadesPorFolio = null,
-    ): array
-    {
+    ): array {
         [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
             $this->prepararCatalogo();
         [, , $tokenTablet] = $this->crearOperador();
