@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['folio_id', 'posicion_id', 'movimiento_id', 'ubicado_at'])]
+#[Fillable(['folio_id', 'camara_id', 'posicion_id', 'movimiento_id', 'ubicado_at'])]
 class UbicacionActual extends Model
 {
     use HasUuids;
@@ -17,6 +17,11 @@ class UbicacionActual extends Model
     public function folio(): BelongsTo
     {
         return $this->belongsTo(Folio::class);
+    }
+
+    public function camara(): BelongsTo
+    {
+        return $this->belongsTo(Camara::class);
     }
 
     public function posicion(): BelongsTo

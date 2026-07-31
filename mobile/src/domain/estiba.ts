@@ -106,6 +106,7 @@ export type CameraAccess = {
 
 export type Occupancy = {
   ocupadas: number;
+  sin_posicion: number;
   total: number;
   porcentaje: number;
 };
@@ -167,7 +168,7 @@ export type FolioLookup = {
   exportadora: string | null;
   ubicacion_actual: {
     camara: { id: string; codigo: string; nombre: string };
-    posicion: { id: string; etiqueta: string | null };
+    posicion: { id: string; etiqueta: string | null } | null;
   } | null;
   material: {
     item_material_id: string;
@@ -464,6 +465,7 @@ export type Position = {
 };
 
 export type CameraPlan = CameraSummary & {
+  folios_sin_posicion: Folio[];
   posiciones: Position[];
 };
 
@@ -511,7 +513,8 @@ export type LocatePayload = {
   operacion_id: string;
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo' | 'material';
-  posicion_destino_id: string;
+  camara_destino_id: string;
+  posicion_destino_id?: string;
   sesion_destino_id: string;
   version_destino_conocida: number;
   generado_dispositivo_at: string;

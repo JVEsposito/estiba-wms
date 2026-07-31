@@ -76,16 +76,18 @@ class DespachoMaterialResource extends JsonResource
                         'sugerencias_fifo' => $detalle->relationLoaded('reservas')
                             ? $detalle->reservas->map(function ($reserva): array {
                                 $folio = $reserva->folioMaterial->folio;
-                                $posicion = $folio->ubicacionActual?->posicion;
+                                $ubicacion = $folio->ubicacionActual;
+                                $posicion = $ubicacion?->posicion;
+                                $camara = $ubicacion?->camara ?? $posicion?->camara;
 
                                 return [
                                     'folio_id' => $folio->id,
                                     'numero_folio' => $folio->numero_folio,
                                     'cantidad' => $reserva->cantidad,
-                                    'camara' => $posicion?->camara ? [
-                                        'id' => $posicion->camara->id,
-                                        'codigo' => $posicion->camara->codigo,
-                                        'nombre' => $posicion->camara->nombre,
+                                    'camara' => $camara ? [
+                                        'id' => $camara->id,
+                                        'codigo' => $camara->codigo,
+                                        'nombre' => $camara->nombre,
                                     ] : null,
                                     'posicion' => $posicion ? [
                                         'id' => $posicion->id,

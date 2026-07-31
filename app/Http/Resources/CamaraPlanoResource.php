@@ -13,6 +13,9 @@ class CamaraPlanoResource extends CamaraResumenResource
     {
         return [
             ...parent::toArray($request),
+            'folios_sin_posicion' => FolioSinPosicionResource::collection(
+                $this->whenLoaded('ubicacionesSinPosicion'),
+            ),
             'posiciones' => PosicionPlanoResource::collection(
                 $this->whenLoaded('posiciones'),
             ),

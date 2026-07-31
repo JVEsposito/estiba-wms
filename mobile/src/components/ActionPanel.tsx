@@ -12,6 +12,7 @@ type ActionPanelProps = {
   plan: CameraPlan;
   selectedPosition: Position | null;
   onLocate: () => void;
+  onAssignCamera: () => void;
   onMove: () => void;
   onSelectFolio: (folioId: string) => void;
   onDispatchMaterial: () => void;
@@ -26,6 +27,7 @@ export function ActionPanel({
   canDispatchMaterial,
   compact = false,
   onLocate,
+  onAssignCamera,
   onMove,
   onSelectFolio,
   onDispatchMaterial,
@@ -112,6 +114,16 @@ export function ActionPanel({
           primary
           subtitle={plan.contenido === 'materiales' && selectedPosition?.ocupada ? 'Mismo cliente, nueva línea trazable' : 'Registrar un bulto nuevo'}
         />
+        {plan.contenido === 'materiales' && (
+          <ActionButton
+            compact={compact}
+            disabled={busy || !canOperate}
+            icon="▣"
+            label="Asignar solo a cámara"
+            onPress={onAssignCamera}
+            subtitle="Disponible sin ocupar posición"
+          />
+        )}
         {plan.contenido === 'materiales' && canDispatchMaterial && (
           <ActionButton
             compact={compact}

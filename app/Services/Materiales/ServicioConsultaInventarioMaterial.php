@@ -20,7 +20,8 @@ class ServicioConsultaInventarioMaterial
             ->with([
                 'item.cliente.temporada',
                 'item.cliente.cliente',
-                'folio.ubicacionActual.posicion.camara',
+                'folio.ubicacionActual.camara',
+                'folio.ubicacionActual.posicion',
                 'bultoRecepcion.detalle.recepcion.proveedor',
             ]);
 
@@ -45,10 +46,10 @@ class ServicioConsultaInventarioMaterial
                                 ->where('codigo', 'like', $termino)
                                 ->orWhere('nombre', 'like', $termino)))
                         ->orWhereHas('folio.ubicacionActual.posicion', fn (EloquentBuilder $posiciones) => $posiciones
-                            ->where('etiqueta', 'like', $termino)
-                            ->orWhereHas('camara', fn (EloquentBuilder $camaras) => $camaras
-                                ->where('codigo', 'like', $termino)
-                                ->orWhere('nombre', 'like', $termino)));
+                            ->where('etiqueta', 'like', $termino))
+                        ->orWhereHas('folio.ubicacionActual.camara', fn (EloquentBuilder $camaras) => $camaras
+                            ->where('codigo', 'like', $termino)
+                            ->orWhere('nombre', 'like', $termino));
                 });
             })
             ->orderBy('item_material_id')
@@ -223,7 +224,7 @@ class ServicioConsultaInventarioMaterial
             ->where(function (EloquentBuilder $ubicaciones): void {
                 $ubicaciones
                     ->whereDoesntHave('folio.ubicacionActual')
-                    ->orWhereHas('folio.ubicacionActual.posicion.camara', fn (EloquentBuilder $camaras) => $camaras
+                    ->orWhereHas('folio.ubicacionActual.camara', fn (EloquentBuilder $camaras) => $camaras
                         ->where('contenido', ContenidoCamara::Materiales->value));
             });
     }
@@ -237,7 +238,7 @@ class ServicioConsultaInventarioMaterial
             ->join('temporadas_materiales as tm', 'tm.id', '=', 'cm.temporada_material_id')
             ->leftJoin('ubicaciones_actuales as ua', 'ua.folio_id', '=', 'f.id')
             ->leftJoin('posiciones as p', 'p.id', '=', 'ua.posicion_id')
-            ->leftJoin('camaras as ca', 'ca.id', '=', 'p.camara_id')
+            ->leftJoin('camaras as ca', 'ca.id', '=', 'ua.camara_id')
             ->where('f.activo', true)
             ->where('f.temporada_id', '=', $this->consultaTemporadaActiva())
             ->where(function (QueryBuilder $ubicaciones): void {
@@ -262,8 +263,8 @@ class ServicioConsultaInventarioMaterial
         return [
             'CASE WHEN ua.id IS NOT NULL'
                 .' AND ca.contenido = ?'
-                .' AND p.estado = ?'
                 .' AND ca.estado = ?'
+                .' AND (ua.posicion_id IS NULL OR p.estado = ?)'
                 .' AND f.estado_operacional = ?'
                 .' AND fm.motivo_bloqueo IS NULL'
                 .' THEN CASE WHEN fm.cantidad_actual > fm.cantidad_reservada'
@@ -271,8 +272,8 @@ class ServicioConsultaInventarioMaterial
                 .' ELSE 0 END',
             [
                 ContenidoCamara::Materiales->value,
-                EstadoPosicion::Activa->value,
                 EstadoCamara::Activa->value,
+                EstadoPosicion::Activa->value,
                 EstadoOperacionalFolio::Disponible->value,
             ],
         ];
@@ -281,11 +282,13 @@ class ServicioConsultaInventarioMaterial
     private function serializar(FolioMaterial $material): array
     {
         $folio = $material->folio;
-        $posicion = $folio->ubicacionActual?->posicion;
-        $ubicado = $posicion?->camara?->contenido === ContenidoCamara::Materiales;
-        $reservable = $ubicado
-            && $posicion->estado === EstadoPosicion::Activa
-            && $posicion->camara?->estado === EstadoCamara::Activa
+        $ubicacion = $folio->ubicacionActual;
+        $posicion = $ubicacion?->posicion;
+        $camara = $ubicacion?->camara ?? $posicion?->camara;
+        $enCamara = $camara?->contenido === ContenidoCamara::Materiales;
+        $reservable = $enCamara
+            && $camara->estado === EstadoCamara::Activa
+            && (! $posicion || $posicion->estado === EstadoPosicion::Activa)
             && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
             && $material->motivo_bloqueo === null;
         $disponible = $reservable
@@ -297,7 +300,9 @@ class ServicioConsultaInventarioMaterial
             'folio_id' => $folio->id,
             'numero_folio' => $folio->numero_folio,
             'estado_operacional' => $folio->estado_operacional->value,
-            'estado_ubicacion' => $ubicado ? 'ubicado' : 'pendiente_ubicacion',
+            'estado_ubicacion' => ! $enCamara
+                ? 'pendiente_ubicacion'
+                : ($posicion ? 'ubicado' : 'solo_camara'),
             'reservable' => $reservable,
             'motivo_bloqueo' => $material->motivo_bloqueo,
             'item' => [
@@ -326,10 +331,10 @@ class ServicioConsultaInventarioMaterial
             'unidad_medida' => $material->unidad_medida,
             'lote' => $material->lote,
             'fecha_ingreso' => $folio->fecha_ingreso?->toAtomString(),
-            'camara' => $posicion?->camara ? [
-                'id' => $posicion->camara->id,
-                'codigo' => $posicion->camara->codigo,
-                'nombre' => $posicion->camara->nombre,
+            'camara' => $camara ? [
+                'id' => $camara->id,
+                'codigo' => $camara->codigo,
+                'nombre' => $camara->nombre,
             ] : null,
             'posicion' => $posicion ? [
                 'id' => $posicion->id,

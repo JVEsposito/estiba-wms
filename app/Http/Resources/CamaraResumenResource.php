@@ -26,6 +26,7 @@ class CamaraResumenResource extends JsonResource
             'version_plano' => $this->version_plano,
             'ocupacion' => [
                 'ocupadas' => $ocupadas,
+                'sin_posicion' => (int) ($this->ubicaciones_sin_posicion_count ?? 0),
                 'total' => $total,
                 'porcentaje' => $total > 0
                     ? round(($ocupadas / $total) * 100, 1)

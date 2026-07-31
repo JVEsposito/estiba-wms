@@ -168,10 +168,11 @@ function createPlan(
     contenido: 'productos',
     estado: 'activa',
     version_plano: 3,
-    ocupacion: { ocupadas: 0, total: 0, porcentaje: 0 },
+    ocupacion: { ocupadas: 0, sin_posicion: 0, total: 0, porcentaje: 0 },
     acceso: locked
       ? { modo: 'solo_lectura', bloqueada: true, sesion: otherEditSession(id) }
       : { modo: 'disponible', bloqueada: false, sesion: null },
+    folios_sin_posicion: [],
     posiciones: createPositions(id, occupied),
   };
 
@@ -183,6 +184,7 @@ function syncOccupancy(plan: CameraPlan) {
   const occupied = plan.posiciones.filter((position) => position.ocupada).length;
   plan.ocupacion = {
     ocupadas: occupied,
+    sin_posicion: plan.folios_sin_posicion.length,
     total,
     porcentaje: total === 0 ? 0 : Math.round((occupied / total) * 1000) / 10,
   };
@@ -492,6 +494,9 @@ export class DemoEstibaApi implements EstibaApi {
   }
 
   async locate(_token: string, payload: LocatePayload) {
+    if (!payload.posicion_destino_id) {
+      throw new ApiError('La asignación solo a cámara no está disponible en modo demo.', 422);
+    }
     const destination = this.findPosition(payload.posicion_destino_id);
     this.assertOwnSession(destination.plan, payload.sesion_destino_id);
 
@@ -538,6 +543,9 @@ export class DemoEstibaApi implements EstibaApi {
     const origin = this.plans
       .flatMap((plan) => plan.posiciones.map((position) => ({ plan, position })))
       .find((item) => item.position.folio?.id === payload.folio_id);
+    if (!payload.posicion_destino_id) {
+      throw new ApiError('La asignación solo a cámara no está disponible en modo demo.', 422);
+    }
     const destination = this.findPosition(payload.posicion_destino_id);
 
     if (!origin?.position.folio) throw new ApiError('El folio ya no está en el origen indicado.', 409);

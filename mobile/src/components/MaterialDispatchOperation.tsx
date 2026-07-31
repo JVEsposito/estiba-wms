@@ -21,7 +21,7 @@ type Props = {
   api: EstibaApi;
   auth: AuthSession;
   onConnectionFailure: (reason: unknown) => void;
-  onOpenPosition: (cameraId: string, positionId: string) => void;
+  onOpenPosition: (cameraId: string, positionId: string | null, folioId: string) => void;
 };
 
 const ALL_STATES: MaterialDispatch['estado'][] = [
@@ -248,11 +248,15 @@ export function MaterialDispatchOperation({
                     <View style={styles.reservations}>
                       {item.sugerencias_fifo.map((suggestion, index) => (
                         <Pressable
-                          disabled={!suggestion.camara || !suggestion.posicion}
+                          disabled={!suggestion.camara}
                           key={`${suggestion.folio_id}-${index}`}
                           onPress={() => {
-                            if (suggestion.camara && suggestion.posicion) {
-                              onOpenPosition(suggestion.camara.id, suggestion.posicion.id);
+                            if (suggestion.camara) {
+                              onOpenPosition(
+                                suggestion.camara.id,
+                                suggestion.posicion?.id ?? null,
+                                suggestion.folio_id,
+                              );
                             }
                           }}
                           style={styles.reservation}
@@ -261,9 +265,9 @@ export function MaterialDispatchOperation({
                           <View style={styles.reservationCopy}>
                             <Text style={styles.folioNumber}>{suggestion.numero_folio}</Text>
                             <Text style={styles.location}>
-                              {suggestion.camara && suggestion.posicion
-                                ? `${suggestion.camara.codigo} · ${suggestion.posicion.etiqueta}`
-                                : 'Sin ubicación operable'}
+                              {suggestion.camara
+                                ? `${suggestion.camara.codigo} · ${suggestion.posicion?.etiqueta ?? 'Sin posición'}`
+                                : 'Sin cámara asignada'}
                             </Text>
                           </View>
                           <Text style={styles.reservationAmount}>

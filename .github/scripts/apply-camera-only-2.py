@@ -199,7 +199,7 @@ replace(
 
                 if (! $ubicacion || ! $posicion || ! $camara
                     || $camara->contenido !== ContenidoCamara::Materiales) {
-                    throw new DomainException('El folio no posee una ubicación material válida.');
+                    throw new DomainException('El folio no se encuentra ubicado en una cámara de materiales.');
                 }
 """,
     """                $ubicacion = $folioMaterial->folio->ubicacionActual;

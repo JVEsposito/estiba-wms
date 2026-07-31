@@ -157,9 +157,17 @@ replace(
             sesionDestino: SesionEstiba::query()->findOrFail($datos['sesion_destino_id']),
 """,
 )
-regex(
+replace(
     'app/Http/Controllers/Api/MovimientoController.php',
-    r"        if \(\$folio->ubicacionActual\) \{.*?\n        \}\n\n        if \(\$folio->tipo_bulto === TipoBulto::Material",
+    """        if ($folio->ubicacionActual) {
+            $posicion = $folio->ubicacionActual->posicion;
+
+            return [
+                false,
+                \"El folio ya está ubicado en {$posicion->camara->codigo} · {$posicion->etiqueta}.\",
+            ];
+        }
+""",
     """        if ($folio->ubicacionActual) {
             $ubicacion = $folio->ubicacionActual;
             $posicion = $ubicacion->posicion;
@@ -179,8 +187,7 @@ regex(
                 \"El folio ya está ubicado en {$camara?->codigo}{$detalle}.\",
             ];
         }
-
-        if ($folio->tipo_bulto === TipoBulto::Material""",
+""",
 )
 
 replace(

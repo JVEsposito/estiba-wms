@@ -3,6 +3,8 @@
 namespace App\Services\Materiales;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
+use App\Enums\EstadoPosicion;
 use App\Enums\EstadoDespachoMaterial;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoReservaMaterial;
@@ -212,7 +214,7 @@ class ServicioDespachoMaterial
 
             foreach ($retiros as $datosRetiro) {
                 $folioMaterial = FolioMaterial::query()
-                    ->with(['folio.ubicacionActual.posicion.camara', 'item'])
+                    ->with(['folio.ubicacionActual.camara', 'folio.ubicacionActual.posicion', 'item'])
                     ->lockForUpdate()
                     ->findOrFail($datosRetiro['folio_id']);
 
@@ -254,11 +256,13 @@ class ServicioDespachoMaterial
 
                 $ubicacion = $folioMaterial->folio->ubicacionActual;
                 $posicion = $ubicacion?->posicion;
-                $camara = $posicion?->camara;
+                $camara = $ubicacion?->camara ?? $posicion?->camara;
 
-                if (! $ubicacion || ! $posicion || ! $camara
-                    || $camara->contenido !== ContenidoCamara::Materiales) {
-                    throw new DomainException('El folio no se encuentra ubicado en una cámara de materiales.');
+                if (! $ubicacion || ! $camara
+                    || $camara->contenido !== ContenidoCamara::Materiales
+                    || $camara->estado !== EstadoCamara::Activa
+                    || ($posicion && $posicion->estado !== EstadoPosicion::Activa)) {
+                    throw new DomainException('El folio no posee una ubicación material válida.');
                 }
 
                 $sesion = SesionEstiba::query()
@@ -283,7 +287,7 @@ class ServicioDespachoMaterial
                     'cantidad_retirada' => $cantidad,
                     'cantidad_resultante' => $resultante,
                     'camara_id' => $camara->id,
-                    'posicion_id' => $posicion->id,
+                    'posicion_id' => $posicion?->id,
                     'user_id' => $usuario->id,
                     'dispositivo_id' => $dispositivo->id,
                     'siguio_fifo' => $siguioFifo,
@@ -306,7 +310,7 @@ class ServicioDespachoMaterial
                     'metadatos' => [
                         'siguio_fifo' => $siguioFifo,
                         'camara' => $camara->codigo,
-                        'posicion' => $posicion->etiqueta,
+                        'posicion' => $posicion?->etiqueta,
                     ],
                     'ocurrido_at' => now(),
                 ]);

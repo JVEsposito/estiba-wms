@@ -51,6 +51,7 @@ type LocateModalProps = {
   plan: CameraPlan | null;
   position: Position | null;
   visible: boolean;
+  cameraOnly?: boolean;
 };
 
 export function LocateModal({
@@ -64,6 +65,7 @@ export function LocateModal({
   plan,
   position,
   visible,
+  cameraOnly = false,
 }: LocateModalProps) {
   const { height, width } = useWindowDimensions();
   const compact = height < 700 || width < 1000;
@@ -301,10 +303,12 @@ export function LocateModal({
         <View style={[styles.dialog, compact && styles.dialogCompact]}>
           <DialogHeading
             compact={compact}
-            eyebrow="UBICACIÓN INICIAL"
+            eyebrow={cameraOnly ? 'ASIGNACIÓN A CÁMARA' : 'UBICACIÓN INICIAL'}
             onClose={onCancel}
-            subtitle={'Destino: ' + (plan?.codigo ?? '') + ' · ' + (position?.etiqueta ?? '')}
-            title="Registrar folio"
+            subtitle={cameraOnly
+              ? `Destino: ${plan?.codigo ?? ''} · Sin posición`
+              : `Destino: ${plan?.codigo ?? ''} · ${position?.etiqueta ?? ''}`}
+            title={cameraOnly ? 'Asignar material a cámara' : 'Registrar folio'}
           />
           <ScrollView
             contentContainerStyle={styles.form}
@@ -434,7 +438,7 @@ export function LocateModal({
               || lookupBlocked
               || (isMaterial && !existingFolio)
             }
-            confirmLabel="Confirmar ubicación"
+            confirmLabel={cameraOnly ? "Asignar a cámara" : "Confirmar ubicación"}
             onCancel={onCancel}
             onConfirm={submit}
           />

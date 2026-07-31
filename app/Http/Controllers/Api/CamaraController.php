@@ -35,6 +35,7 @@ class CamaraController extends Controller
                     ->where('estado', EstadoPosicion::Activa->value)
                     ->whereHas('ubicacionesActuales'),
             ])
+            ->withCount('ubicacionesSinPosicion')
             ->with($this->relacionesBloqueo())
             ->orderBy('codigo')
             ->get();
@@ -67,8 +68,17 @@ class CamaraController extends Controller
                 ->where('estado', EstadoPosicion::Activa->value)
                 ->whereHas('ubicacionesActuales'),
         ]);
+        $camara->loadCount('ubicacionesSinPosicion');
         $camara->loadMissing($this->relacionesBloqueo());
         $camara->load([
+            'ubicacionesSinPosicion' => fn ($consulta) => $consulta
+                ->with([
+                    'folio.condicionSag',
+                    'folio.material.item.cliente.temporada',
+                    'folio.asignacionCargaActual.carga',
+                ])
+                ->orderBy('ubicado_at')
+                ->orderBy('folio_id'),
             'posiciones' => fn ($consulta) => $consulta
                 ->with([
                     'ubicacionesActuales.folio.condicionSag',
