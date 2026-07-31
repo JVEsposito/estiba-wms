@@ -1,0 +1,46 @@
+name: Corregir tipo móvil de folios
+
+on:
+  push:
+    branches:
+      - agent/unidades-por-folio-transformacion
+    paths:
+      - scripts/fix_mobile_units_per_folio.py
+      - .github/workflows/fix-mobile-units-per-folio.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/fix_mobile_units_per_folio.py
+      - .github/workflows/fix-mobile-units-per-folio.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          ref: agent/unidades-por-folio-transformacion
+          fetch-depth: 0
+
+      - name: Corregir contrato móvil
+        run: python3 scripts/fix_mobile_units_per_folio.py
+
+      - name: Retirar archivos temporales
+        run: |
+          rm scripts/fix_mobile_units_per_folio.py
+          rm .github/workflows/fix-mobile-units-per-folio.yml
+
+      - name: Publicar corrección
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: convertir capacidad de folio para la PDA"
+          git push origin HEAD:agent/unidades-por-folio-transformacion
