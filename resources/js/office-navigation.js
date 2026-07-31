@@ -1,6 +1,50 @@
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
+const themeKey = 'estiba_wms_office_theme';
+const defaultTheme = 'dark-industrial';
+const availableThemes = new Set([
+    defaultTheme,
+    'light-professional',
+    'light-natural',
+    'light-warm',
+]);
+
+function normalizeTheme(value) {
+    return availableThemes.has(value) ? value : defaultTheme;
+}
+
+function storedTheme() {
+    try {
+        return normalizeTheme(localStorage.getItem(themeKey));
+    } catch {
+        return defaultTheme;
+    }
+}
+
+function applyTheme(theme, { persist = false } = {}) {
+    const normalized = normalizeTheme(theme);
+    document.documentElement.dataset.officeTheme = normalized;
+
+    if (persist) {
+        try {
+            localStorage.setItem(themeKey, normalized);
+        } catch {
+            // El tema sigue aplicado aunque el navegador no permita persistencia.
+        }
+    }
+
+    const selector = document.getElementById('officeThemeSelector');
+    if (selector && selector.value !== normalized) selector.value = normalized;
+
+    document.dispatchEvent(new CustomEvent('estiba:office-theme', {
+        detail: { theme: normalized },
+    }));
+
+    return normalized;
+}
+
+applyTheme(storedTheme());
 
 function readIdentity() {
     try {
@@ -168,7 +212,45 @@ function observeApplication() {
     });
 }
 
+function ensureThemeSelector() {
+    const existing = document.getElementById('officeThemeSelector');
+    if (existing) return existing;
+
+    const identity = document.querySelector('.office-domain-topbar .identity');
+    if (!identity) return null;
+
+    const control = document.createElement('label');
+    control.className = 'office-theme-selector';
+    control.title = 'Cambiar apariencia de las oficinas';
+    control.innerHTML = `
+        <span class="office-visually-hidden">Tema visual</span>
+        <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
+            <option value="dark-industrial">Dark Industrial</option>
+            <option value="light-professional">Light Profesional</option>
+            <option value="light-natural">Light Natural</option>
+            <option value="light-warm">Light Cálido</option>
+        </select>
+    `;
+
+    const logout = document.getElementById('officeLogoutButton');
+    identity.insertBefore(control, logout || null);
+
+    return control.querySelector('select');
+}
+
+function initializeThemeSelector() {
+    const selector = ensureThemeSelector();
+    if (!selector) return;
+
+    selector.value = storedTheme();
+    selector.addEventListener('change', () => {
+        applyTheme(selector.value, { persist: true });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    applyTheme(storedTheme());
+    initializeThemeSelector();
     refreshNavigation();
     observeApplication();
     scrollToOfficeTarget();
@@ -178,6 +260,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.addEventListener('storage', refreshNavigation);
+window.addEventListener('storage', (event) => {
+    if (event.key === themeKey) applyTheme(event.newValue);
+    refreshNavigation();
+});
 window.addEventListener('estiba:office-session', refreshNavigation);
+
+window.EstibaOfficeTheme = {
+    apply: (theme) => applyTheme(theme, { persist: true }),
+    current: () => normalizeTheme(document.documentElement.dataset.officeTheme),
+    themes: [...availableThemes],
+};
 window.EstibaOfficeNavigation = { refresh: refreshNavigation };
