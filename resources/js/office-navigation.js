@@ -46,6 +46,12 @@ function applyTheme(theme, { persist = false } = {}) {
 
 applyTheme(storedTheme());
 
+if (window.location.pathname.startsWith('/oficina/romana')) {
+    import('./office-weighbridge-drawer.js').catch((error) => {
+        console.error('No fue posible cargar el panel lateral de Romana.', error);
+    });
+}
+
 function readIdentity() {
     try {
         return JSON.parse(localStorage.getItem(identityKey) || 'null');
