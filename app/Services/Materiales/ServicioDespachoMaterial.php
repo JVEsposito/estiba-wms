@@ -4,9 +4,9 @@ namespace App\Services\Materiales;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
-use App\Enums\EstadoPosicion;
 use App\Enums\EstadoDespachoMaterial;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaMaterial;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\OrigenDespachoMaterial;

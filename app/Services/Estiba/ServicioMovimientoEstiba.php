@@ -4,8 +4,8 @@ namespace App\Services\Estiba;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoIntegracionFolio;
-use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Exceptions\ConflictoMovimiento;
