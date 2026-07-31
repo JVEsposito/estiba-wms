@@ -10,12 +10,23 @@ use App\Models\AlmacenMaterial;
 use App\Models\FolioMaterial;
 use App\Models\SaldoMaterialAlmacen;
 use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use LogicException;
 
 class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
 {
+    public function __construct(
+        private readonly ServicioAlmacenMaterial $almacenes,
+        private readonly ContextoSaldoReservaMaterial $contextoReserva,
+    ) {}
+
     /**
-     * @param  Closure(FolioMaterial, float, int): void  $registrarReserva
+     * Reserva únicamente saldos pertenecientes a Bodega Central.
+     *
+     * El cuarto argumento enviado al callback es opcional para conservar
+     * compatibilidad con consumidores históricos de este servicio.
+     *
+     * @param  Closure(FolioMaterial, float, int, SaldoMaterialAlmacen=): void  $registrarReserva
      */
     public function reservar(
         string $itemMaterialId,
@@ -32,10 +43,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 break;
             }
 
-            $disponible = round(
-                (float) $saldo->cantidad_actual - (float) $saldo->cantidad_reservada,
-                3,
-            );
+            $disponible = $saldo->cantidadDisponible();
 
             if ($disponible <= 0) {
                 throw new LogicException(
@@ -45,9 +53,25 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
 
             $folio = $saldo->folioMaterial;
             $cantidad = min($pendiente, $disponible);
-            $registrarReserva($folio, $cantidad, $ordenFifo++);
-            $saldo->increment('cantidad_reservada', $cantidad);
-            $folio->increment('cantidad_reservada', $cantidad);
+
+            $this->contextoReserva->ejecutar(
+                $saldo,
+                fn () => $registrarReserva(
+                    $folio,
+                    $cantidad,
+                    $ordenFifo++,
+                    $saldo,
+                ),
+            );
+            $versionResultante = (int) $saldo->version + 1;
+            $saldo->update([
+                'cantidad_reservada' => round(
+                    (float) $saldo->cantidad_reservada + $cantidad,
+                    3,
+                ),
+                'version' => $versionResultante,
+            ]);
+            $this->almacenes->sincronizarProyeccion($folio);
             $pendiente = round($pendiente - $cantidad, 3);
         }
 
@@ -57,14 +81,61 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
     private function siguienteDisponibleBloqueado(
         string $itemMaterialId,
     ): ?SaldoMaterialAlmacen {
+        while (true) {
+            $candidato = $this->consultaCandidatos($itemMaterialId)
+                ->first([
+                    'saldos_materiales_almacenes.id',
+                    'saldos_materiales_almacenes.folio_id',
+                ]);
+
+            if (! $candidato) {
+                return null;
+            }
+
+            $folio = FolioMaterial::query()
+                ->lockForUpdate()
+                ->findOrFail($candidato->folio_id);
+            $saldo = SaldoMaterialAlmacen::query()
+                ->with(['folioMaterial', 'almacen', 'camara', 'posicion'])
+                ->lockForUpdate()
+                ->find($candidato->id);
+
+            if (! $saldo || ! $this->continuaDisponible($saldo, $folio)) {
+                continue;
+            }
+
+            return $saldo;
+        }
+    }
+
+    private function consultaCandidatos(string $itemMaterialId): Builder
+    {
         return SaldoMaterialAlmacen::query()
-            ->with('folioMaterial')
-            ->join('destinos_materiales as am', 'am.id', '=', 'saldos_materiales_almacenes.almacen_material_id')
-            ->join('folios_materiales as fm', 'fm.folio_id', '=', 'saldos_materiales_almacenes.folio_id')
+            ->join(
+                'destinos_materiales as am',
+                'am.id',
+                '=',
+                'saldos_materiales_almacenes.almacen_material_id',
+            )
+            ->join(
+                'folios_materiales as fm',
+                'fm.folio_id',
+                '=',
+                'saldos_materiales_almacenes.folio_id',
+            )
             ->join('folios as f', 'f.id', '=', 'fm.folio_id')
-            ->leftJoin('camaras as ca', 'ca.id', '=', 'saldos_materiales_almacenes.camara_id')
-            ->leftJoin('posiciones as p', 'p.id', '=', 'saldos_materiales_almacenes.posicion_id')
-            ->select('saldos_materiales_almacenes.*')
+            ->leftJoin(
+                'camaras as ca',
+                'ca.id',
+                '=',
+                'saldos_materiales_almacenes.camara_id',
+            )
+            ->leftJoin(
+                'posiciones as p',
+                'p.id',
+                '=',
+                'saldos_materiales_almacenes.posicion_id',
+            )
             ->where('am.codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
             ->where('am.activo', true)
             ->where('fm.item_material_id', $itemMaterialId)
@@ -78,15 +149,32 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
             ->where('f.estado_operacional', EstadoOperacionalFolio::Disponible->value)
             ->where('ca.contenido', ContenidoCamara::Materiales->value)
             ->where('ca.estado', EstadoCamara::Activa->value)
-            ->where(function ($ubicacion): void {
+            ->where(function (Builder $ubicacion): void {
                 $ubicacion
                     ->whereNull('saldos_materiales_almacenes.posicion_id')
                     ->orWhere('p.estado', EstadoPosicion::Activa->value);
             })
+            ->orderByRaw('fm.fecha_vencimiento IS NULL')
+            ->orderBy('fm.fecha_vencimiento')
+            ->orderByRaw('fm.fecha_fabricacion IS NULL')
+            ->orderBy('fm.fecha_fabricacion')
             ->orderBy('f.fecha_ingreso')
             ->orderBy('f.numero_folio')
-            ->orderBy('f.id')
-            ->lockForUpdate()
-            ->first();
+            ->orderBy('f.id');
+    }
+
+    private function continuaDisponible(
+        SaldoMaterialAlmacen $saldo,
+        FolioMaterial $folio,
+    ): bool {
+        return $saldo->almacen?->codigo === AlmacenMaterial::CODIGO_BODEGA_CENTRAL
+            && $saldo->almacen?->activo
+            && $saldo->cantidadDisponible() > 0
+            && $folio->motivo_bloqueo === null
+            && $folio->folio?->activo
+            && $folio->folio?->estado_operacional === EstadoOperacionalFolio::Disponible
+            && $saldo->camara?->contenido === ContenidoCamara::Materiales
+            && $saldo->camara?->estado === EstadoCamara::Activa
+            && (! $saldo->posicion || $saldo->posicion->estado === EstadoPosicion::Activa);
     }
 }
