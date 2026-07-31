@@ -1,0 +1,39 @@
+name: Aplicar folios por transformación
+
+on:
+  push:
+    branches:
+      - agent/unidades-por-folio-transformacion
+    paths:
+      - scripts/apply_output_folios.py
+      - .github/workflows/apply-output-folios.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          ref: agent/unidades-por-folio-transformacion
+          fetch-depth: 0
+
+      - name: Aplicar cambio funcional
+        run: python3 scripts/apply_output_folios.py
+
+      - name: Retirar aplicador temporal
+        run: |
+          rm scripts/apply_output_folios.py
+          rm .github/workflows/apply-output-folios.yml
+
+      - name: Publicar implementación
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: planificar folios de salida en transformaciones"
+          git push origin HEAD:agent/unidades-por-folio-transformacion
