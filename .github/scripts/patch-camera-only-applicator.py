@@ -62,5 +62,31 @@ new = '''replace(
 )
 '''
 if old not in text:
-    raise RuntimeError('No se encontró el bloque defectuoso del aplicador')
+    raise RuntimeError('No se encontró el bloque defectuoso del aplicador 1')
+path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+path = Path('.github/scripts/apply-camera-only-2.py')
+text = path.read_text(encoding='utf-8')
+old = '''    """                $ubicacion = $folioMaterial->folio->ubicacionActual;
+                $posicion = $ubicacion?->posicion;
+                $camara = $posicion?->camara;
+
+                if (! $ubicacion || ! $posicion || ! $camara
+                    || $camara->contenido !== ContenidoCamara::Materiales) {
+                    throw new DomainException('El folio no posee una ubicación material válida.');
+                }
+""",
+'''
+new = '''    """                $ubicacion = $folioMaterial->folio->ubicacionActual;
+                $posicion = $ubicacion?->posicion;
+                $camara = $posicion?->camara;
+
+                if (! $ubicacion || ! $posicion || ! $camara
+                    || $camara->contenido !== ContenidoCamara::Materiales) {
+                    throw new DomainException('El folio no se encuentra ubicado en una cámara de materiales.');
+                }
+""",
+'''
+if old not in text:
+    raise RuntimeError('No se encontró el bloque defectuoso del aplicador 2')
 path.write_text(text.replace(old, new, 1), encoding='utf-8')
