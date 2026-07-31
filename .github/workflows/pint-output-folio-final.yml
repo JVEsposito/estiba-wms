@@ -1,0 +1,48 @@
+name: Pint final de folios
+
+on:
+  push:
+    branches:
+      - agent/unidades-por-folio-transformacion
+    paths:
+      - .github/workflows/pint-output-folio-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+        with:
+          ref: agent/unidades-por-folio-transformacion
+          fetch-depth: 0
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Aplicar Laravel Pint
+        run: vendor/bin/pint tests/Feature/Api/TransformacionMaterialApiTest.php
+
+      - name: Mostrar ajuste
+        run: git diff -- tests/Feature/Api/TransformacionMaterialApiTest.php
+
+      - name: Retirar workflow temporal
+        run: rm .github/workflows/pint-output-folio-final.yml
+
+      - name: Publicar formato
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "style: aplicar Pint a regresión de folios"
+          git push origin HEAD:agent/unidades-por-folio-transformacion
