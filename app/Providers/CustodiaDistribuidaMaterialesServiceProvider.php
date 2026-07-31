@@ -4,10 +4,17 @@ namespace App\Providers;
 
 use App\Models\FolioMaterial;
 use App\Models\MovimientoAlmacenMaterial;
+use App\Models\ReservaMaterial;
+use App\Models\ReservaTransformacionMaterial;
+use App\Models\SaldoMaterialAlmacen;
 use App\Models\UbicacionActual;
 use App\Observers\FolioMaterialAlmacenObserver;
 use App\Observers\MovimientoAlmacenMaterialObserver;
+use App\Observers\ReservaMaterialAlmacenObserver;
+use App\Observers\ReservaTransformacionMaterialAlmacenObserver;
+use App\Observers\SaldoMaterialAlmacenObserver;
 use App\Observers\UbicacionActualAlmacenObserver;
+use App\Services\Materiales\ContextoSaldoReservaMaterial;
 use App\Services\Materiales\ServicioConsultaInventarioMaterial;
 use App\Services\Materiales\ServicioConsultaInventarioMaterialDistribuido;
 use App\Services\Materiales\ServicioDespachoMaterial;
@@ -20,26 +27,20 @@ class CustodiaDistribuidaMaterialesServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind(
-            ServicioReservaFifoMaterial::class,
-            ServicioReservaFifoMaterialDistribuido::class,
-        );
-        $this->app->bind(
-            ServicioDespachoMaterial::class,
-            ServicioDespachoMaterialDistribuido::class,
-        );
-        $this->app->bind(
-            ServicioConsultaInventarioMaterial::class,
-            ServicioConsultaInventarioMaterialDistribuido::class,
-        );
+        $this->app->singleton(ContextoSaldoReservaMaterial::class);
+        $this->app->bind(ServicioReservaFifoMaterial::class, ServicioReservaFifoMaterialDistribuido::class);
+        $this->app->bind(ServicioDespachoMaterial::class, ServicioDespachoMaterialDistribuido::class);
+        $this->app->bind(ServicioConsultaInventarioMaterial::class, ServicioConsultaInventarioMaterialDistribuido::class);
     }
 
     public function boot(): void
     {
         FolioMaterial::observe(FolioMaterialAlmacenObserver::class);
+        ReservaMaterial::observe(ReservaMaterialAlmacenObserver::class);
+        ReservaTransformacionMaterial::observe(ReservaTransformacionMaterialAlmacenObserver::class);
+        SaldoMaterialAlmacen::observe(SaldoMaterialAlmacenObserver::class);
         MovimientoAlmacenMaterial::observe(MovimientoAlmacenMaterialObserver::class);
         UbicacionActual::observe(UbicacionActualAlmacenObserver::class);
-
         $this->loadRoutesFrom(base_path('routes/materiales-almacenes.php'));
     }
 }
