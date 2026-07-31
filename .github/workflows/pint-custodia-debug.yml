@@ -4,19 +4,27 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diff:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
       - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Mostrar corrección Pint
+      - name: Aplicar Pint y publicar
         run: |
           vendor/bin/pint app/Services/Materiales/ServicioDespachoMaterialDistribuido.php app/Services/Materiales/ServicioMovimientoAlmacenMaterial.php
-          git diff -- app/Services/Materiales/ServicioDespachoMaterialDistribuido.php app/Services/Materiales/ServicioMovimientoAlmacenMaterial.php
-          test -z "$(git status --porcelain)" || exit 1
+          if test -n "$(git status --porcelain)"; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add app/Services/Materiales/ServicioDespachoMaterialDistribuido.php app/Services/Materiales/ServicioMovimientoAlmacenMaterial.php
+            git commit -m "style: formatear custodia distribuida"
+            git push
+          fi
