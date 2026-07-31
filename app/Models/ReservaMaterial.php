@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'detalle_despacho_material_id',
     'folio_id',
+    'saldo_material_almacen_id',
     'cantidad',
     'estado',
     'orden_fifo',
@@ -30,6 +31,11 @@ class ReservaMaterial extends Model
     public function folioMaterial(): BelongsTo
     {
         return $this->belongsTo(FolioMaterial::class, 'folio_id');
+    }
+
+    public function saldoAlmacen(): BelongsTo
+    {
+        return $this->belongsTo(SaldoMaterialAlmacen::class, 'saldo_material_almacen_id');
     }
 
     protected function casts(): array
