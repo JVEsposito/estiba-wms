@@ -1,0 +1,24 @@
+name: Pint custodia debug
+
+on:
+  push:
+    branches:
+      - agent/custodia-distribuida-materiales
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Mostrar corrección Pint
+        run: |
+          vendor/bin/pint app/Services/Materiales/ServicioDespachoMaterialDistribuido.php app/Services/Materiales/ServicioMovimientoAlmacenMaterial.php
+          git diff -- app/Services/Materiales/ServicioDespachoMaterialDistribuido.php app/Services/Materiales/ServicioMovimientoAlmacenMaterial.php
+          test -z "$(git status --porcelain)" || exit 1
