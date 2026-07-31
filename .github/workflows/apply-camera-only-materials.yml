@@ -22,6 +22,7 @@ jobs:
 
       - name: Aplicar cambio funcional
         run: |
+          python .github/scripts/patch-camera-only-applicator.py
           python .github/scripts/apply-camera-only-1.py
           python .github/scripts/apply-camera-only-2.py
           python .github/scripts/apply-camera-only-3.py
