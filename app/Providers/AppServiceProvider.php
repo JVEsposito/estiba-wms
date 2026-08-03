@@ -234,6 +234,10 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeConsultarValidacionesPallet($usuario),
         );
         Gate::define(
+            'corregir-validaciones-pallet',
+            fn (User $usuario): bool => $alcance->puedeCorregirValidacionesPallet($usuario),
+        );
+        Gate::define(
             'administrar-catalogos-validacion',
             fn (User $usuario): bool => $alcance->puedeAdministrarCatalogosValidacion($usuario),
         );
