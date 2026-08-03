@@ -334,16 +334,20 @@
     $('custodyMovementForm').elements.camara_destino_id.addEventListener('change', renderPositions);
     $('custodyMovementForm').addEventListener('submit', async (event) => {
         event.preventDefault(); $('custodyMovementError').textContent = '';
-        const form = new FormData(event.currentTarget);
+        const movementForm = event.currentTarget;
+        const submitButton = event.submitter ?? movementForm.querySelector('button[type="submit"]');
+        const form = new FormData(movementForm);
         const payload = Object.fromEntries(form.entries());
         payload.operacion_id = uuid();
         Object.keys(payload).forEach((key) => { if (payload[key] === '') delete payload[key]; });
+        if (submitButton) submitButton.disabled = true;
         try {
             await api('/api/materiales/almacenes/movimientos', { method: 'POST', body: JSON.stringify(payload) });
-            event.currentTarget.elements.cantidad.value = '';
-            event.currentTarget.elements.motivo.value = '';
+            movementForm.elements.cantidad.value = '';
+            movementForm.elements.motivo.value = '';
             await load();
         } catch (error) { $('custodyMovementError').textContent = error.message; }
+        finally { if (submitButton) submitButton.disabled = false; }
     });
 
     if (state.token) {
