@@ -92,7 +92,7 @@
         </section>
 
         <div class="custody-grid">
-            <section class="custody-card">
+            <section class="custody-card" id="custodyMovementPanel">
                 <p class="eyebrow">OPERACIÓN POSTERIOR A LA ENTREGA</p>
                 <h2>Registrar movimiento</h2>
                 <p>Consumir descuenta inventario; devolver y transferir conservan el total; ajustar exige supervisión.</p>
@@ -139,7 +139,7 @@
                 </form>
             </section>
 
-            <aside class="custody-card">
+            <aside class="custody-card" id="custodyKardexPanel">
                 <p class="eyebrow">TRAZABILIDAD</p>
                 <h2>Kardex por almacén</h2>
                 <div class="custody-kardex" id="custodyKardex"></div>
@@ -162,6 +162,19 @@
     });
 
     try { state.identity = JSON.parse(localStorage.getItem(identityKey) || 'null'); } catch {}
+
+    function capabilities() {
+        return {
+            ...(state.identity?.capacidades || {}),
+            ...(state.identity || {}),
+        };
+    }
+
+    function can(permission) {
+        if (state.identity?.rol === 'administrador') return true;
+
+        return capabilities()[permission] === true;
+    }
 
     async function api(path, options = {}) {
         const headers = new Headers(options.headers || {});
@@ -186,9 +199,12 @@
     }
 
     async function load() {
+        const puedeConsultarKardex = can('puede_consultar_kardex_materiales');
         const [data, movements] = await Promise.all([
             api('/api/materiales/almacenes'),
-            api('/api/materiales/almacenes/movimientos?limite=100'),
+            puedeConsultarKardex
+                ? api('/api/materiales/almacenes/movimientos?limite=100')
+                : Promise.resolve({ data: [] }),
         ]);
         state.data = data;
         state.kardex = movements.data || [];
@@ -196,12 +212,39 @@
     }
 
     function render() {
+        const puedeGestionar = can('puede_gestionar_despachos_materiales');
+        const puedeAjustar = can('puede_gestionar_bloqueos_materiales');
+        const puedeConsultarKardex = can('puede_consultar_kardex_materiales');
+
+        $('custodyMovementPanel').classList.toggle(
+            'is-hidden',
+            !puedeGestionar && !puedeAjustar,
+        );
+        $('custodyKardexPanel').classList.toggle('is-hidden', !puedeConsultarKardex);
         $('custodyFolioCount').textContent = state.data.resumen.folios;
         $('custodyWarehouseCount').textContent = state.data.resumen.almacenes;
         $('custodyItemCount').textContent = state.data.resumen.items;
+        configurarAcciones(puedeGestionar, puedeAjustar);
         renderTable();
-        renderSelectors();
-        renderKardex();
+        if (puedeGestionar || puedeAjustar) renderSelectors();
+        if (puedeConsultarKardex) renderKardex();
+    }
+
+    function configurarAcciones(puedeGestionar, puedeAjustar) {
+        const select = $('custodyMovementForm').elements.tipo;
+
+        [...select.options].forEach((option) => {
+            const permitida = option.value === 'ajuste'
+                ? puedeAjustar
+                : puedeGestionar;
+            option.disabled = !permitida;
+            option.hidden = !permitida;
+        });
+
+        if (select.selectedOptions[0]?.disabled) {
+            const primeraPermitida = [...select.options].find((option) => !option.disabled);
+            if (primeraPermitida) select.value = primeraPermitida.value;
+        }
     }
 
     function renderTable() {

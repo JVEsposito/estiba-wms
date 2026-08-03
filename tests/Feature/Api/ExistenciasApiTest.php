@@ -225,6 +225,18 @@ class ExistenciasApiTest extends TestCase
             ->assertJsonPath('data.0.tipo', 'materiales');
     }
 
+    public function test_usuario_de_consulta_accede_a_custodia_sin_permiso_de_kardex(): void
+    {
+        [, $token] = $this->acceso(RolUsuario::Consulta);
+
+        $this->withToken($token)
+            ->getJson('/api/materiales/almacenes')
+            ->assertOk();
+        $this->withToken($token)
+            ->getJson('/api/materiales/almacenes/movimientos')
+            ->assertForbidden();
+    }
+
     public function test_oficina_de_existencias_esta_disponible(): void
     {
         $this->get('/oficina/existencias')
@@ -235,6 +247,9 @@ class ExistenciasApiTest extends TestCase
         $this->get('/oficina/materiales/almacenes')
             ->assertOk()
             ->assertSee('data-office-key="custodia"', false)
+            ->assertSee('data-navigation-module="materiales.inventario"', false)
+            ->assertDontSee('data-navigation-module="materiales.custodia"', false)
+            ->assertSee("can('puede_consultar_kardex_materiales')", false)
             ->assertSee('Existencia en centros de costo');
     }
 

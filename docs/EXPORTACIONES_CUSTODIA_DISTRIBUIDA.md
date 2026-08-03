@@ -24,8 +24,10 @@ La exportación de Materiales informa:
 
 El código de almacén es el identificador interno generado por el WMS. El centro de costo conserva el código operacional o contable del área receptora, por ejemplo `PACK-01`.
 
-La cantidad inicial y la cantidad total empresa son atributos globales del folio. Las cantidades actual, reservada y disponible son contextuales al almacén indicado en la fila.
+La cantidad inicial y la cantidad total empresa son atributos globales del folio. Para que ambas columnas puedan sumarse sin duplicar inventario, se informan solamente en la primera fila de cada folio; las filas adicionales dejan esos campos vacíos. Las cantidades actual, reservada y disponible son contextuales al almacén indicado en la fila.
+
+**Disponible para reserva** se informa únicamente para saldos disponibles en Bodega Central. Un saldo de almacén virtual puede estar disponible para consumo, devolución o transferencia, pero no participa en la reserva FIFO de despachos desde Bodega.
 
 ## Navegación
 
-La oficina se encuentra en el macromódulo Materiales, pestaña **Custodia**, y utiliza la ruta `/oficina/materiales/almacenes`.
+La oficina se encuentra en el macromódulo Materiales, pestaña **Custodia**, y utiliza la ruta `/oficina/materiales/almacenes`. La pestaña reutiliza el módulo autorizado de Inventario; el formulario de movimientos y el kardex se muestran de forma independiente según las capacidades del usuario.
