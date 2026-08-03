@@ -3,8 +3,8 @@
 namespace App\Services\Validacion;
 
 use App\Models\ArticuloValidacion;
-use App\Models\ClienteValidacion;
 use App\Models\CategoriaValidacion;
+use App\Models\ClienteValidacion;
 use App\Models\CombinacionValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\Temporada;
