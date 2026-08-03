@@ -22,6 +22,8 @@ La exportación de Materiales informa:
 - cantidad total vigente en la empresa;
 - cámara y posición cuando la custodia es física.
 
+El código de almacén es el identificador interno generado por el WMS. El centro de costo conserva el código operacional o contable del área receptora, por ejemplo `PACK-01`.
+
 La cantidad inicial y la cantidad total empresa son atributos globales del folio. Las cantidades actual, reservada y disponible son contextuales al almacén indicado en la fila.
 
 ## Navegación
