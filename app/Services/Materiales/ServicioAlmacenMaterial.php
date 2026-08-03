@@ -216,7 +216,7 @@ class ServicioAlmacenMaterial
                 'cantidad_reservada' => $cantidadReservada,
                 'camara_id' => $cantidadActual > 0 ? $saldo->camara_id : null,
                 'posicion_id' => $cantidadActual > 0 ? $saldo->posicion_id : null,
-                'version' => DB::raw('version + 1'),
+                'version' => (int) $saldo->version + 1,
             ]);
 
             if ($cantidadActual <= 0.0001) {
@@ -280,7 +280,7 @@ class ServicioAlmacenMaterial
                 'posicion_id' => (float) $saldo->cantidad_actual > 0
                     ? $ubicacion?->posicion_id
                     : null,
-                'version' => DB::raw('version + 1'),
+                'version' => (int) $saldo->version + 1,
             ]);
         }, attempts: 3);
     }
