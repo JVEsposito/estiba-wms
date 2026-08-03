@@ -250,6 +250,9 @@ class ExistenciasApiTest extends TestCase
             ->assertSee('data-navigation-module="materiales.inventario"', false)
             ->assertDontSee('data-navigation-module="materiales.custodia"', false)
             ->assertSee("can('puede_consultar_kardex_materiales')", false)
+            ->assertSee('const movementForm = event.currentTarget;', false)
+            ->assertSee('submitButton.disabled = true;', false)
+            ->assertDontSee('event.currentTarget.elements', false)
             ->assertSee('Existencia en centros de costo');
     }
 
