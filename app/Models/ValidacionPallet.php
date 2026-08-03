@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'id', 'operacion_id', 'payload_hash', 'numero_folio', 'numero_intento',
@@ -53,6 +54,14 @@ class ValidacionPallet extends Model
     public function conflictoCon(): BelongsTo
     {
         return $this->belongsTo(self::class, 'validacion_conflicto_id');
+    }
+
+    public function correcciones(): HasMany
+    {
+        return $this->hasMany(
+            CorreccionValidacionPallet::class,
+            'validacion_pallet_id',
+        )->latest('corregido_at');
     }
 
     protected function casts(): array
