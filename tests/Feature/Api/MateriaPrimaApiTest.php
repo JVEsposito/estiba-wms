@@ -8,6 +8,7 @@ use App\Models\CalibreValidacion;
 use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
+use App\Models\EntregaFrutaProceso;
 use App\Models\EspecieValidacion;
 use App\Models\Temporada;
 use App\Models\User;
@@ -378,6 +379,195 @@ class MateriaPrimaApiTest extends TestCase
             'cuartel' => null,
             'kilos_brutos' => 19000,
         ]);
+    }
+
+    public function test_entrega_bins_a_proceso_por_viajes_parciales_sin_sobrepasar_el_saldo(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $camara = Camara::create([
+            'codigo' => 'MP-PROCESO',
+            'nombre' => 'Cámara fruta a proceso',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-PROCESO-01',
+                'requiere_hidrocooler' => false,
+            ]))
+            ->assertCreated()
+            ->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/asignar-camara", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camara->id,
+        ])->assertOk();
+
+        $operacionPrimerViaje = (string) Str::uuid();
+        $primerViaje = [
+            'operacion_id' => $operacionPrimerViaje,
+            'cantidad_envases' => 20,
+            'linea_proceso' => 'Línea 2',
+            'turno' => 'A',
+            'numero_orden' => 'OP-2026-0088',
+            'observacion' => 'Primer viaje físico.',
+        ];
+        $this->actingAs($camarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", $primerViaje)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'entrega_parcial_proceso')
+            ->assertJsonPath('data.progreso.total', 48)
+            ->assertJsonPath('data.progreso.entregados', 20)
+            ->assertJsonPath('data.progreso.disponibles', 28)
+            ->assertJsonPath('data.entregas.0.linea_proceso', 'Línea 2')
+            ->assertJsonPath('data.entregas.0.turno', 'A')
+            ->assertJsonPath('data.entregas.0.numero_orden', 'OP-2026-0088');
+
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", $primerViaje)
+            ->assertOk()
+            ->assertJsonPath('data.progreso.entregados', 20);
+        $this->assertDatabaseCount('entregas_fruta_proceso', 1);
+
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            ...$primerViaje,
+            'cantidad_envases' => 21,
+        ])->assertConflict();
+
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            ...$primerViaje,
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 29,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('cantidad_envases');
+
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            ...$primerViaje,
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 28,
+            'turno' => 'B',
+            'numero_orden' => 'OP-2026-0089',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'entregado_proceso')
+            ->assertJsonPath('data.progreso.entregados', 48)
+            ->assertJsonPath('data.progreso.disponibles', 0);
+
+        $this->getJson('/api/materia-prima/fruta-proceso/resumen')
+            ->assertOk()
+            ->assertJsonPath('lotes_abiertos', 0)
+            ->assertJsonPath('lotes_completados', 1)
+            ->assertJsonPath('bins_entregados', 48)
+            ->assertJsonPath('bins_disponibles', 0);
+    }
+
+    public function test_camarero_anula_solo_su_ultimo_viaje_abierto_y_supervisor_corrige_un_lote_completo(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $otroCamarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $camara = Camara::create([
+            'codigo' => 'MP-CORRECCION',
+            'nombre' => 'Cámara corrección',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-CORRECCION-PROCESO',
+                'requiere_hidrocooler' => false,
+            ]))->assertCreated()->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/asignar-camara", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camara->id,
+        ])->assertOk();
+
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 20,
+            'linea_proceso' => 'Línea 1',
+            'turno' => 'A',
+            'numero_orden' => 'ORD-100',
+        ];
+        $entrega = $this->actingAs($camarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.entregas.0.puede_anular', true)
+            ->json('data.entregas.0');
+
+        $this->actingAs($otroCamarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'No corresponde al operador.',
+            ])->assertForbidden();
+
+        $anulacion = [
+            'operacion_id' => (string) Str::uuid(),
+            'motivo' => 'Cantidad digitada incorrectamente.',
+        ];
+        $this->actingAs($camarero, 'sanctum')
+            ->postJson(
+                "/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/anular",
+                $anulacion,
+            )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'asignado_camara')
+            ->assertJsonPath('data.progreso.entregados', 0)
+            ->assertJsonPath('data.entregas.0.anulado', true);
+        $this->postJson(
+            "/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/anular",
+            $anulacion,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.progreso.entregados', 0);
+
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            ...$payload,
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+        $primeraVigente = EntregaFrutaProceso::query()
+            ->where('lote_materia_prima_id', $lote['id'])
+            ->whereNull('anulado_at')
+            ->firstOrFail();
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            ...$payload,
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 28,
+        ])->assertOk()->assertJsonPath('data.estado', 'entregado_proceso');
+
+        $this->postJson("/api/materia-prima/fruta-proceso/entregas/{$primeraVigente->id}/anular", [
+            'operacion_id' => (string) Str::uuid(),
+            'motivo' => 'Intento después del cierre.',
+        ])->assertForbidden();
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/entregas/{$primeraVigente->id}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Corrección supervisada por error documental.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'entrega_parcial_proceso')
+            ->assertJsonPath('data.progreso.entregados', 28)
+            ->assertJsonPath('data.progreso.disponibles', 20);
     }
 
     /** @return array<string, mixed> */

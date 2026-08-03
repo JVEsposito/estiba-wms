@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\FolioPrefrioController;
+use App\Http\Controllers\Api\FrutaProcesoController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
@@ -172,6 +173,15 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/materia-prima/lotes/{loteMateriaPrima}/anular', [MateriaPrimaController::class, 'anular'])
         ->middleware('can:supervisar-lotes-materia-prima');
+    Route::middleware('can:consultar-fruta-proceso')->prefix('materia-prima/fruta-proceso')->group(function () {
+        Route::get('/resumen', [FrutaProcesoController::class, 'resumen']);
+        Route::get('/lotes', [FrutaProcesoController::class, 'index']);
+        Route::get('/lotes/{loteMateriaPrima}', [FrutaProcesoController::class, 'show']);
+    });
+    Route::post('/materia-prima/fruta-proceso/lotes/{loteMateriaPrima}/entregas', [FrutaProcesoController::class, 'store'])
+        ->middleware('can:entregar-fruta-proceso');
+    Route::post('/materia-prima/fruta-proceso/entregas/{entregaFrutaProceso}/anular', [FrutaProcesoController::class, 'anular'])
+        ->middleware('can:anular-entregas-fruta-proceso');
     Route::prefix('administracion/validacion')
         ->middleware('can:administrar-catalogos-validacion')
         ->group(function () {

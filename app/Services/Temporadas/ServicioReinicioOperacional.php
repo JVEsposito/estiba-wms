@@ -236,6 +236,9 @@ class ServicioReinicioOperacional
                 'validaciones_mp' => (clone $validacionesMp)->count(),
                 'segmentos' => (clone $segmentos)->count(),
                 'lotes' => (clone $lotes)->count(),
+                'entregas_fruta_proceso' => DB::table('entregas_fruta_proceso')
+                    ->whereIn('lote_materia_prima_id', clone $lotes)
+                    ->count(),
                 'procesos_hidrocooler' => DB::table('procesos_hidrocooler_materia_prima')
                     ->whereIn('lote_materia_prima_id', clone $lotes)
                     ->count(),
@@ -396,6 +399,9 @@ class ServicioReinicioOperacional
             ->where('temporada_id', $temporada->id)
             ->delete();
 
+        $eliminados['entregas_fruta_proceso'] = DB::table('entregas_fruta_proceso')
+            ->whereIn('lote_materia_prima_id', clone $lotes)
+            ->delete();
         $eliminados['eventos_lotes'] = DB::table('eventos_lote_materia_prima')
             ->whereIn('lote_materia_prima_id', clone $lotes)
             ->delete();

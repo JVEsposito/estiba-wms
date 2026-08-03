@@ -12,12 +12,21 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
             ->assertOk()
             ->assertSee('Materia prima')
             ->assertSee('Digitación de lotes')
+            ->assertSee('Fruta a proceso')
             ->assertSee('/oficina/materia-prima/romana', escape: false)
+            ->assertSee('/oficina/materia-prima/fruta-a-proceso', escape: false)
             ->assertSee('/oficina/materia-prima/envases', escape: false)
             ->assertSee('Neto confirmado por digitador')
             ->assertSee('¿El lote necesita hidrocooler?');
 
         $this->get('/oficina/materia-prima/lotes')->assertOk();
+        $this->get('/oficina/materia-prima/fruta-a-proceso')
+            ->assertOk()
+            ->assertSee('Fruta a proceso')
+            ->assertSee('Confirmar viaje')
+            ->assertSee('Cantidad de bins')
+            ->assertSee('Línea de proceso')
+            ->assertSee('N° de orden');
         $this->get('/oficina/materia-prima/romana')
             ->assertRedirect('/oficina/romana');
         $this->get('/oficina/materia-prima/envases')

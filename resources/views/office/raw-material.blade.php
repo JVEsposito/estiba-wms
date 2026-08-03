@@ -40,7 +40,8 @@
                 <nav class="raw-material-module-links" aria-label="Procesos del módulo">
                     <a href="/oficina/materia-prima/romana"><span>01</span><strong>Romana</strong><small>Ingreso, destare y neto por envase</small></a>
                     <a class="is-active" href="/oficina/materia-prima/lotes"><span>02</span><strong>Digitación de lotes</strong><small>Origen, pesos e hidrocooler</small></a>
-                    <a href="/oficina/materia-prima/envases"><span>03</span><strong>Envases</strong><small>Cuenta corriente y trazabilidad</small></a>
+                    <a href="/oficina/materia-prima/fruta-a-proceso"><span>03</span><strong>Fruta a proceso</strong><small>Entregas parciales hacia Packing</small></a>
+                    <a href="/oficina/materia-prima/envases"><span>04</span><strong>Envases</strong><small>Cuenta corriente y trazabilidad</small></a>
                 </nav>
 
                 <div class="raw-material-kpis">
@@ -61,7 +62,7 @@
                             <div><p class="eyebrow">TRAZABILIDAD OPERACIONAL</p><h2>Lotes de la temporada</h2></div>
                             <form class="lot-filters" id="lotFilters">
                                 <input name="buscar" maxlength="100" placeholder="Lote, recepción, GGN o SdP">
-                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="asignado_camara">Asignado</option><option value="anulado">Anulado</option></select>
+                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="asignado_camara">Asignado</option><option value="entrega_parcial_proceso">Entrega parcial a Packing</option><option value="entregado_proceso">Entregado a Packing</option><option value="anulado">Anulado</option></select>
                                 <button class="secondary-button" type="submit">Filtrar</button>
                             </form>
                         </div>

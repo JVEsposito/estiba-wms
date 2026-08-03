@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-`/oficina/materia-prima` es la oficina madre del ingreso de materia prima. Agrupa los accesos a Romana y Envases, y ejecuta la digitación que transforma los segmentos confirmados por Validación MP en lotes operacionales.
+`/oficina/materia-prima` es la oficina madre del ingreso de materia prima. Agrupa Romana, Digitación, Fruta a proceso y Envases. Digitación transforma los segmentos confirmados por Validación MP en lotes operacionales y Fruta a proceso controla su entrega física desde cámara hacia Packing.
 
 ```text
 Romana
@@ -11,6 +11,7 @@ Romana
 → hidrocooler, cuando corresponde
 → pendiente de asignación
 → cámara de materia prima
+→ entregas parciales de bins a Packing
 ```
 
 El lote no es un folio ni un pallet de Frigorífico.
@@ -68,6 +69,8 @@ Una anulación supervisada libera la clave, de modo que el número pueda recrear
 | `hidrocooler_en_curso` | Tratamiento iniciado. |
 | `pendiente_asignacion` | No requiere hidrocooler o ya lo completó; puede pasar a cámara. |
 | `asignado_camara` | Tiene una asignación de destino a cámara de materia prima. |
+| `entrega_parcial_proceso` | Packing recibió una parte de los bins y el lote conserva saldo en cámara. |
+| `entregado_proceso` | Todos los bins del lote fueron entregados a Packing. |
 | `anulado` | Corrección supervisada conservada en el historial. |
 
 Confirmar un lote actualiza el segmento a `lotizacion_parcial` o `lotizado` según la distribución confirmada de sus envases.
@@ -96,6 +99,22 @@ La asignación del lote:
 - se realiza a nivel de cámara;
 - no crea folio;
 - no ocupa una posición del plano frigorífico.
+
+## Fruta a proceso
+
+La oficina `/oficina/materia-prima/fruta-a-proceso` y el módulo tablet `fruta_proceso` muestran únicamente lotes cuyo envase primario es `bins`, pertenecen a la temporada activa y ya están asignados a una cámara de materia prima.
+
+El camarero registra una entrega por cada viaje físico. No se escanea cada bin. Cada movimiento exige:
+
+- cantidad de bins del viaje;
+- línea de proceso;
+- turno A o B;
+- número de orden de Packing;
+- observación opcional.
+
+La cantidad se descuenta del saldo vigente con bloqueo transaccional y nunca puede superar los bins disponibles. Cada solicitud utiliza un UUID idempotente para impedir duplicados por reintentos de red.
+
+Un camarero puede anular solamente su última entrega mientras el lote todavía tenga saldo. Un supervisor de frío o administrador puede corregir cualquier entrega con motivo obligatorio, incluso después de completar el lote. La corrección no borra el viaje: lo marca anulado, restituye el saldo y conserva operador, dispositivo, fecha y motivo.
 
 ## Correcciones
 
@@ -131,6 +150,12 @@ POST /api/materia-prima/lotes/{lote}/hidrocooler/iniciar
 POST /api/materia-prima/lotes/{lote}/hidrocooler/completar
 POST /api/materia-prima/lotes/{lote}/asignar-camara
 POST /api/materia-prima/lotes/{lote}/anular
+
+GET  /api/materia-prima/fruta-proceso/resumen
+GET  /api/materia-prima/fruta-proceso/lotes
+GET  /api/materia-prima/fruta-proceso/lotes/{lote}
+POST /api/materia-prima/fruta-proceso/lotes/{lote}/entregas
+POST /api/materia-prima/fruta-proceso/entregas/{entrega}/anular
 ```
 
 Todas las mutaciones usan UUID de operación. Las transiciones y correcciones generan eventos auditables.
@@ -147,3 +172,5 @@ Todas las mutaciones usan UUID de operación. Las transiciones y correcciones ge
 - asignar lotes a cámara.
 
 No puede anular lotes confirmados ni operar posiciones de cámara.
+
+`camarero_frio` puede consultar Fruta a proceso y registrar viajes. `supervisor_frio` y `administrador` pueden además realizar correcciones supervisadas. Los perfiles configurables deben tener habilitados tanto `materia-prima.fruta-proceso` como el módulo tablet `fruta_proceso` cuando corresponda usar la APK.

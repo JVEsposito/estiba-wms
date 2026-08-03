@@ -13,6 +13,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertSee('data-active-domain="materia-prima"', false)
             ->assertSee('Romana')
             ->assertSee('Digitación de Lotes')
+            ->assertSee('Fruta a Proceso')
             ->assertSee('Cuenta Envases')
             ->assertSee('Despacho Envases')
             ->assertDontSee('Cargas &amp; Despachos', false);

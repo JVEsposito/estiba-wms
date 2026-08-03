@@ -7,6 +7,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { AuthSession, LoginPayload, TabletModule } from './src/domain/estiba';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
+import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
 import { PrefrioWorkspaceScreen } from './src/screens/PrefrioWorkspaceScreen';
 import { ValidationScreen } from './src/screens/ValidationScreen';
@@ -34,7 +35,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const orientation = activeModule === 'validacion' || activeModule === 'validacion_mp'
+    const orientation = activeModule === 'validacion' || activeModule === 'validacion_mp' || activeModule === 'fruta_proceso'
       ? ScreenOrientation.OrientationLock.PORTRAIT_UP
       : activeModule
         ? ScreenOrientation.OrientationLock.LANDSCAPE
@@ -116,6 +117,8 @@ export default function App() {
               />
             ) : activeModule === 'validacion_mp' ? (
               <ValidationMpScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
+            ) : activeModule === 'fruta_proceso' ? (
+              <FrutaProcesoScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
             ) : activeModule === 'recepcion_materiales' ? (
               <MaterialReceptionScreen
                 auth={auth}
@@ -147,6 +150,7 @@ function availableModules(auth: AuthSession): MobileModule[] {
     'recepcion_materiales',
     'validacion',
     'validacion_mp',
+    'fruta_proceso',
     'prefrio',
   ];
 
@@ -163,6 +167,8 @@ function moduleLabel(module: MobileModule) {
     ? 'Validación'
     : module === 'validacion_mp'
       ? 'Validación MP'
+      : module === 'fruta_proceso'
+        ? 'Fruta a proceso'
       : module === 'prefrio'
         ? 'Prefrío'
         : module === 'operacion_materiales'
@@ -191,6 +197,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorIcon}>⌁</Text>
             <Text style={styles.selectorCardTitle}>Validación MP</Text>
             <Text style={styles.selectorCardCopy}>Recibir correlativos de Romana, contar envases y preparar segregaciones.</Text>
+          </Pressable>
+        ) : null}
+        {modules.includes('fruta_proceso') ? (
+          <Pressable onPress={() => onSelect('fruta_proceso')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>→</Text>
+            <Text style={styles.selectorCardTitle}>Fruta a proceso</Text>
+            <Text style={styles.selectorCardCopy}>Entregar bins por viaje físico desde cámara hacia Packing.</Text>
           </Pressable>
         ) : null}
         {modules.includes('prefrio') ? (

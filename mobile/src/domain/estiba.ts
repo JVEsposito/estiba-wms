@@ -12,6 +12,7 @@ export type TabletModule =
   | 'recepcion_materiales'
   | 'validacion'
   | 'validacion_mp'
+  | 'fruta_proceso'
   | 'prefrio'
   | 'operacion_materiales';
 
@@ -62,6 +63,9 @@ export type UserCapabilities = {
   puede_consultar_materia_prima?: boolean;
   puede_gestionar_lotes_materia_prima?: boolean;
   puede_supervisar_lotes_materia_prima?: boolean;
+  puede_consultar_fruta_proceso?: boolean;
+  puede_entregar_fruta_proceso?: boolean;
+  puede_corregir_entregas_fruta_proceso?: boolean;
 };
 
 export type DeviceIdentity = {

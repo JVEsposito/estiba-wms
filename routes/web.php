@@ -75,5 +75,6 @@ Route::view('/oficina/consultas/productores', 'office.queries', [
     'queriesSection' => 'productores',
 ]);
 Route::view('/oficina/materia-prima/lotes', 'office.raw-material');
+Route::view('/oficina/materia-prima/fruta-a-proceso', 'office.raw-material-process');
 Route::redirect('/oficina/materia-prima/romana', '/oficina/romana');
 Route::redirect('/oficina/materia-prima/envases', '/oficina/envases/cuenta-corriente');

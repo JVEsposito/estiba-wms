@@ -15,6 +15,8 @@ class CatalogoModulosAcceso
 
     public const TABLET_VALIDACION_MP = 'validacion_mp';
 
+    public const TABLET_FRUTA_PROCESO = 'fruta_proceso';
+
     public const TABLET_PREFRIO = 'prefrio';
 
     public const TABLET_OPERACION_MATERIALES = 'operacion_materiales';
@@ -37,6 +39,7 @@ class CatalogoModulosAcceso
                 'modulos' => [
                     $this->modulo('materia-prima.romana', 'Romana', 'Ingreso, pesaje y seguimiento de recepciones.'),
                     $this->modulo('materia-prima.digitacion', 'Digitación de lotes', 'Creación y gestión de lotes posteriores a validación.'),
+                    $this->modulo('materia-prima.fruta-proceso', 'Fruta a proceso', 'Entregas parciales de bins desde cámara hacia Packing.'),
                     $this->modulo('materia-prima.validacion-mp', 'Validación MP', 'Flujo PDA/tablet para validar y segregar recepciones.'),
                     $this->modulo('materia-prima.cuenta-envases', 'Cuenta de envases', 'Saldos y movimientos de envases por cliente.'),
                     $this->modulo('materia-prima.despacho-envases', 'Despacho de envases', 'Guías, reservas y confirmación de salidas.'),
@@ -129,6 +132,12 @@ class CatalogoModulosAcceso
                         'Validación MP',
                         'Validar cantidades, revisar tarjas y preparar segregaciones.',
                         ['materia-prima.validacion-mp'],
+                    ),
+                    $this->moduloTablet(
+                        self::TABLET_FRUTA_PROCESO,
+                        'Fruta a proceso',
+                        'Registrar viajes parciales de bins desde cámara hacia Packing.',
+                        ['materia-prima.fruta-proceso'],
                     ),
                 ],
             ],
@@ -271,6 +280,7 @@ class CatalogoModulosAcceso
                 'gerencia.panel',
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.fruta-proceso',
                 'frigorifico.validacion',
                 'frigorifico.prefrio',
                 'frigorifico.camaras',
@@ -322,6 +332,7 @@ class CatalogoModulosAcceso
                 'consultas.productores',
             ],
             RolUsuario::CamareroFrio => [
+                'materia-prima.fruta-proceso',
                 'frigorifico.camaras',
                 'frigorifico.cargas',
             ],
@@ -344,6 +355,7 @@ class CatalogoModulosAcceso
                 'gerencia.panel',
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.fruta-proceso',
                 'materia-prima.cuenta-envases',
                 'frigorifico.prefrio',
                 'frigorifico.camaras',
