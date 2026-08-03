@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\ReinicioOperacionalController;
+use App\Http\Controllers\Api\RetornoPackingController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TransformacionMaterialController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -175,6 +176,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:supervisar-lotes-materia-prima');
     Route::middleware('can:consultar-fruta-proceso')->prefix('materia-prima/fruta-proceso')->group(function () {
         Route::get('/resumen', [FrutaProcesoController::class, 'resumen']);
+        Route::get('/catalogos', [RetornoPackingController::class, 'catalogos']);
         Route::get('/lotes', [FrutaProcesoController::class, 'index']);
         Route::get('/lotes/{loteMateriaPrima}', [FrutaProcesoController::class, 'show']);
     });
@@ -182,6 +184,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:entregar-fruta-proceso');
     Route::post('/materia-prima/fruta-proceso/entregas/{entregaFrutaProceso}/anular', [FrutaProcesoController::class, 'anular'])
         ->middleware('can:anular-entregas-fruta-proceso');
+    Route::post('/materia-prima/fruta-proceso/entregas/{entregaFrutaProceso}/retornos', [RetornoPackingController::class, 'store'])
+        ->middleware('can:entregar-fruta-proceso');
+    Route::post('/materia-prima/fruta-proceso/retornos/{retornoPacking}/anular', [RetornoPackingController::class, 'anular'])
+        ->middleware('can:anular-entregas-fruta-proceso');
+    Route::post('/materia-prima/fruta-proceso/sublotes/{subloteRetornoPacking}/ubicar', [RetornoPackingController::class, 'ubicar'])
+        ->middleware('can:entregar-fruta-proceso');
     Route::prefix('administracion/validacion')
         ->middleware('can:administrar-catalogos-validacion')
         ->group(function () {

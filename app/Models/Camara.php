@@ -69,6 +69,11 @@ class Camara extends Model
         return $this->hasMany(AsignacionCamaraLoteMateriaPrima::class);
     }
 
+    public function sublotesRetornoPacking(): HasMany
+    {
+        return $this->hasMany(SubloteRetornoPacking::class);
+    }
+
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'creado_por_user_id');

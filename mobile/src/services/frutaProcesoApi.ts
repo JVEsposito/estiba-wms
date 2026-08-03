@@ -1,4 +1,4 @@
-import { CreateProcessDelivery, ProcessLot, ProcessSummary } from '../domain/frutaProceso';
+import { CreatePackingReturn, CreateProcessDelivery, ProcessCatalogs, ProcessLot, ProcessSummary } from '../domain/frutaProceso';
 import { ApiError } from './apiError';
 
 async function request<T>(baseUrl: string, path: string, token: string, init: RequestInit = {}): Promise<T> {
@@ -21,6 +21,10 @@ export async function getProcessSummary(baseUrl: string, token: string) {
   return request<ProcessSummary>(baseUrl, '/api/materia-prima/fruta-proceso/resumen', token);
 }
 
+export async function getProcessCatalogs(baseUrl: string, token: string) {
+  return request<ProcessCatalogs>(baseUrl, '/api/materia-prima/fruta-proceso/catalogos', token);
+}
+
 export async function listProcessLots(baseUrl: string, token: string, search = '', status = 'abiertos') {
   const params = new URLSearchParams({ per_page: '200', estado: status });
   if (search.trim()) params.set('buscar', search.trim());
@@ -36,5 +40,23 @@ export async function createProcessDelivery(baseUrl: string, token: string, lotI
 export async function annulProcessDelivery(baseUrl: string, token: string, deliveryId: string, operationId: string, reason: string) {
   return (await request<{ data: ProcessLot }>(baseUrl, `/api/materia-prima/fruta-proceso/entregas/${deliveryId}/anular`, token, {
     method: 'POST', body: JSON.stringify({ operacion_id: operationId, motivo: reason }),
+  })).data;
+}
+
+export async function createPackingReturn(baseUrl: string, token: string, deliveryId: string, input: CreatePackingReturn) {
+  return (await request<{ data: ProcessLot }>(baseUrl, `/api/materia-prima/fruta-proceso/entregas/${deliveryId}/retornos`, token, {
+    method: 'POST', body: JSON.stringify(input),
+  })).data;
+}
+
+export async function annulPackingReturn(baseUrl: string, token: string, returnId: string, operationId: string, reason: string) {
+  return (await request<{ data: ProcessLot }>(baseUrl, `/api/materia-prima/fruta-proceso/retornos/${returnId}/anular`, token, {
+    method: 'POST', body: JSON.stringify({ operacion_id: operationId, motivo: reason }),
+  })).data;
+}
+
+export async function locatePackingSublot(baseUrl: string, token: string, sublotId: string, operationId: string, cameraId: string, observation: string | null) {
+  return (await request<{ data: ProcessLot }>(baseUrl, `/api/materia-prima/fruta-proceso/sublotes/${sublotId}/ubicar`, token, {
+    method: 'POST', body: JSON.stringify({ operacion_id: operationId, camara_id: cameraId, observacion: observation }),
   })).data;
 }
