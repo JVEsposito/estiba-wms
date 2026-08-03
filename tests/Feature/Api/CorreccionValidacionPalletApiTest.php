@@ -106,7 +106,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
                 "/api/validacion/pallets/{$validacionId}/corregir",
                 $this->payloadCorreccion($catalogo, (string) Str::uuid()),
             )
-            ->assertConflict()
+            ->assertStatus(409)
             ->assertJsonPath('codigo', 'conflicto_operacional');
 
         $this->assertDatabaseCount('correcciones_validacion_pallet', 0);
