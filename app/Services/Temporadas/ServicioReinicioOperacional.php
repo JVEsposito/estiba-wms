@@ -42,6 +42,7 @@ class ServicioReinicioOperacional
         'dispositivos',
         'perfiles_acceso',
         'perfiles_impresion_etiquetas',
+        'tipos_resultado_packing',
     ];
 
     private const TABLAS_BODEGA = [
@@ -201,6 +202,12 @@ class ServicioReinicioOperacional
         $validacionesMp = $this->validacionesMp($temporada);
         $segmentos = $this->segmentosMp($temporada);
         $lotes = $this->lotesMp($temporada);
+        $entregasProceso = DB::table('entregas_fruta_proceso')
+            ->select('id')
+            ->whereIn('lote_materia_prima_id', clone $lotes);
+        $retornosPacking = DB::table('retornos_packing')
+            ->select('id')
+            ->whereIn('entrega_fruta_proceso_id', clone $entregasProceso);
         $movimientosEnvases = $this->movimientosEnvases($temporada);
         $guias = $this->guiasEnvases($temporada);
 
@@ -239,6 +246,10 @@ class ServicioReinicioOperacional
                 'entregas_fruta_proceso' => DB::table('entregas_fruta_proceso')
                     ->whereIn('lote_materia_prima_id', clone $lotes)
                     ->count(),
+                'retornos_packing' => (clone $retornosPacking)->count(),
+                'sublotes_retorno_packing' => DB::table('sublotes_retorno_packing')
+                    ->whereIn('retorno_packing_id', clone $retornosPacking)
+                    ->count(),
                 'procesos_hidrocooler' => DB::table('procesos_hidrocooler_materia_prima')
                     ->whereIn('lote_materia_prima_id', clone $lotes)
                     ->count(),
@@ -268,6 +279,12 @@ class ServicioReinicioOperacional
         $validacionesMp = $this->validacionesMp($temporada);
         $segmentos = $this->segmentosMp($temporada);
         $lotes = $this->lotesMp($temporada);
+        $entregasProceso = DB::table('entregas_fruta_proceso')
+            ->select('id')
+            ->whereIn('lote_materia_prima_id', clone $lotes);
+        $retornosPacking = DB::table('retornos_packing')
+            ->select('id')
+            ->whereIn('entrega_fruta_proceso_id', clone $entregasProceso);
         $movimientosEnvases = $this->movimientosEnvases($temporada);
         $guias = $this->guiasEnvases($temporada);
         $sesiones = $this->sesionesRelacionadas($folios, $asignacionesCarga);
@@ -399,6 +416,12 @@ class ServicioReinicioOperacional
             ->where('temporada_id', $temporada->id)
             ->delete();
 
+        $eliminados['sublotes_retorno_packing'] = DB::table('sublotes_retorno_packing')
+            ->whereIn('retorno_packing_id', clone $retornosPacking)
+            ->delete();
+        $eliminados['retornos_packing'] = DB::table('retornos_packing')
+            ->whereIn('entrega_fruta_proceso_id', clone $entregasProceso)
+            ->delete();
         $eliminados['entregas_fruta_proceso'] = DB::table('entregas_fruta_proceso')
             ->whereIn('lote_materia_prima_id', clone $lotes)
             ->delete();

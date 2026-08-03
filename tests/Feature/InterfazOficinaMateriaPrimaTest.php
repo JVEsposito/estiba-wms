@@ -24,6 +24,9 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
             ->assertOk()
             ->assertSee('Fruta a proceso')
             ->assertSee('Confirmar viaje')
+            ->assertSee('Retornos de Packing')
+            ->assertSee('Crear sublotes')
+            ->assertSee('PENDIENTES DE UBICACIÓN')
             ->assertSee('Cantidad de bins')
             ->assertSee('Línea de proceso')
             ->assertSee('N° de orden');

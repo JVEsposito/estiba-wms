@@ -10,6 +10,7 @@ use App\Http\Requests\RegistrarEntregaFrutaProcesoRequest;
 use App\Http\Resources\FrutaProcesoLoteResource;
 use App\Models\EntregaFrutaProceso;
 use App\Models\LoteMateriaPrima;
+use App\Models\SubloteRetornoPacking;
 use App\Models\Temporada;
 use App\Services\MateriaPrima\ServicioFrutaProceso;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,6 +33,10 @@ class FrutaProcesoController extends Controller
                 'lotes_completados' => 0,
                 'bins_disponibles' => 0,
                 'bins_entregados' => 0,
+                'entregas_pendientes_retorno' => 0,
+                'bins_retornados' => 0,
+                'kilos_recuperados' => 0,
+                'sublotes_pendientes_ubicacion' => 0,
             ]);
         }
 
@@ -41,6 +46,17 @@ class FrutaProcesoController extends Controller
                     ->whereNull('anulado_at'),
             ], 'cantidad_envases')
             ->get();
+        $entregasVigentes = EntregaFrutaProceso::query()
+            ->whereNull('anulado_at')
+            ->whereHas('lote.temporada', fn (Builder $consulta) => $consulta
+                ->where('activa', true));
+        $sublotesVigentes = SubloteRetornoPacking::query()
+            ->whereHas('retorno', fn (Builder $consulta) => $consulta
+                ->whereNull('anulado_at')
+                ->whereHas('entrega', fn (Builder $entrega) => $entrega
+                    ->whereNull('anulado_at')
+                    ->whereHas('lote.temporada', fn (Builder $temporada) => $temporada
+                        ->where('activa', true))));
 
         return response()->json([
             'temporada' => [
@@ -66,6 +82,19 @@ class FrutaProcesoController extends Controller
                 $lote->cantidad_envases_primarios - (int) $lote->cantidad_entregada,
             )),
             'bins_entregados' => (int) $lotes->sum('cantidad_entregada'),
+            'entregas_pendientes_retorno' => (clone $entregasVigentes)
+                ->whereDoesntHave('retornos', fn (Builder $consulta) => $consulta
+                    ->whereNull('anulado_at')
+                    ->where('cierra_entrega', true))
+                ->count(),
+            'bins_retornados' => (int) (clone $sublotesVigentes)->sum('cantidad_bins'),
+            'kilos_recuperados' => round(
+                (float) (clone $sublotesVigentes)->sum('kilos_netos'),
+                3,
+            ),
+            'sublotes_pendientes_ubicacion' => (clone $sublotesVigentes)
+                ->where('estado', 'pendiente_ubicacion')
+                ->count(),
         ]);
     }
 
@@ -189,6 +218,13 @@ class FrutaProcesoController extends Controller
             'entregasProceso.entregadoPor',
             'entregasProceso.anuladoPor',
             'entregasProceso.dispositivo',
+            'entregasProceso.retornos.registradoPor',
+            'entregasProceso.retornos.anuladoPor',
+            'entregasProceso.retornos.dispositivo',
+            'entregasProceso.retornos.resultados.tipoResultado',
+            'entregasProceso.retornos.resultados.camara',
+            'entregasProceso.retornos.resultados.ubicadoPor',
+            'entregasProceso.retornos.resultados.dispositivoUbicacion',
         ];
     }
 }

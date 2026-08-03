@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'operacion_id',
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'asignacion_camara_lote_id',
     'camara_id',
     'cantidad_envases',
+    'kilos_enviados',
     'saldo_anterior',
     'saldo_posterior',
     'linea_proceso',
@@ -68,10 +70,16 @@ class EntregaFrutaProceso extends Model
         return $this->belongsTo(User::class, 'anulado_por_user_id');
     }
 
+    public function retornos(): HasMany
+    {
+        return $this->hasMany(RetornoPacking::class, 'entrega_fruta_proceso_id');
+    }
+
     protected function casts(): array
     {
         return [
             'cantidad_envases' => 'integer',
+            'kilos_enviados' => 'decimal:3',
             'saldo_anterior' => 'integer',
             'saldo_posterior' => 'integer',
             'entregado_at' => 'datetime',

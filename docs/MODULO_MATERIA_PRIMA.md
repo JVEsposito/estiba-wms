@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-`/oficina/materia-prima` es la oficina madre del ingreso de materia prima. Agrupa Romana, Digitación, Fruta a proceso y Envases. Digitación transforma los segmentos confirmados por Validación MP en lotes operacionales y Fruta a proceso controla su entrega física desde cámara hacia Packing.
+`/oficina/materia-prima` es la oficina madre del ingreso de materia prima. Agrupa Romana, Digitación, Fruta a proceso y Envases. Digitación transforma los segmentos confirmados por Validación MP en lotes operacionales y Fruta a proceso controla la entrega física hacia Packing y el retorno clasificado a cámara.
 
 ```text
 Romana
@@ -12,6 +12,9 @@ Romana
 → pendiente de asignación
 → cámara de materia prima
 → entregas parciales de bins a Packing
+→ retornos de Packing por resultado
+→ sublotes internos pendientes de ubicación
+→ cámara de materia prima
 ```
 
 El lote no es un folio ni un pallet de Frigorífico.
@@ -110,11 +113,25 @@ El camarero registra una entrega por cada viaje físico. No se escanea cada bin.
 - línea de proceso;
 - turno A o B;
 - número de orden de Packing;
-- observación opcional.
+- observación opcional;
+- kilos enviados opcionales para calcular rendimiento y merma cuando Packing también informa kilos recuperados.
 
 La cantidad se descuenta del saldo vigente con bloqueo transaccional y nunca puede superar los bins disponibles. Cada solicitud utiliza un UUID idempotente para impedir duplicados por reintentos de red.
 
-Un camarero puede anular solamente su última entrega mientras el lote todavía tenga saldo. Un supervisor de frío o administrador puede corregir cualquier entrega con motivo obligatorio, incluso después de completar el lote. La corrección no borra el viaje: lo marca anulado, restituye el saldo y conserva operador, dispositivo, fecha y motivo.
+Un camarero puede anular solamente su última entrega mientras el lote todavía tenga saldo y antes de que Packing registre un retorno. Un supervisor de frío o administrador puede corregir cualquier entrega con motivo obligatorio mientras no tenga retornos. La corrección no borra el viaje: lo marca anulado, restituye el saldo y conserva operador, dispositivo, fecha y motivo.
+
+### Retornos de Packing
+
+Cada retorno se registra contra una entrega física concreta. Puede ser parcial o cerrar definitivamente esa entrega y admite varios resultados en una misma operación:
+
+- precalibre;
+- comercial;
+- descarte;
+- otro resultado con nombre manual.
+
+Cada resultado crea un sublote interno correlativo (`PC-`, `CO-`, `DE-` u `OT-`) vinculado al lote original, la recepción y la entrega. Los bins de salida pueden diferir de los enviados porque Packing puede vaciar y volver a llenar envases. Los kilos recuperados son opcionales; si la entrega y sus resultados informan kilos, al cerrar se calcula la merma.
+
+Los sublotes nacen en `pendiente_ubicacion`. El camarero los asigna a una cámara activa exclusiva de materia prima, sin crear una recepción nueva ni duplicar la fruta. Un retorno puede anularse con motivo solamente antes de ubicar cualquiera de sus sublotes; la anulación conserva toda la trazabilidad y excluye sus cantidades de los totales vigentes.
 
 ## Correcciones
 
@@ -152,10 +169,14 @@ POST /api/materia-prima/lotes/{lote}/asignar-camara
 POST /api/materia-prima/lotes/{lote}/anular
 
 GET  /api/materia-prima/fruta-proceso/resumen
+GET  /api/materia-prima/fruta-proceso/catalogos
 GET  /api/materia-prima/fruta-proceso/lotes
 GET  /api/materia-prima/fruta-proceso/lotes/{lote}
 POST /api/materia-prima/fruta-proceso/lotes/{lote}/entregas
 POST /api/materia-prima/fruta-proceso/entregas/{entrega}/anular
+POST /api/materia-prima/fruta-proceso/entregas/{entrega}/retornos
+POST /api/materia-prima/fruta-proceso/retornos/{retorno}/anular
+POST /api/materia-prima/fruta-proceso/sublotes/{sublote}/ubicar
 ```
 
 Todas las mutaciones usan UUID de operación. Las transiciones y correcciones generan eventos auditables.
@@ -173,4 +194,4 @@ Todas las mutaciones usan UUID de operación. Las transiciones y correcciones ge
 
 No puede anular lotes confirmados ni operar posiciones de cámara.
 
-`camarero_frio` puede consultar Fruta a proceso y registrar viajes. `supervisor_frio` y `administrador` pueden además realizar correcciones supervisadas. Los perfiles configurables deben tener habilitados tanto `materia-prima.fruta-proceso` como el módulo tablet `fruta_proceso` cuando corresponda usar la APK.
+`camarero_frio` puede consultar Fruta a proceso, registrar viajes y retornos, y ubicar sus sublotes. `supervisor_frio` y `administrador` pueden además realizar correcciones supervisadas. Los perfiles configurables deben tener habilitados tanto `materia-prima.fruta-proceso` como el módulo tablet `fruta_proceso` cuando corresponda usar la APK.

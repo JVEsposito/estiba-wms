@@ -570,6 +570,179 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('data.progreso.disponibles', 20);
     }
 
+    public function test_registra_retorno_de_packing_crea_sublotes_y_los_ubica_en_camara(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $camaraOrigen = Camara::create([
+            'codigo' => 'MP-ORIGEN-PACK',
+            'nombre' => 'Cámara origen Packing',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $camaraRetorno = Camara::create([
+            'codigo' => 'MP-RETORNO-PACK',
+            'nombre' => 'Cámara retorno Packing',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-RETORNO-PACKING',
+                'requiere_hidrocooler' => false,
+            ]))->assertCreated()->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/asignar-camara", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camaraOrigen->id,
+        ])->assertOk();
+
+        $entrega = $this->actingAs($camarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+                'operacion_id' => (string) Str::uuid(),
+                'cantidad_envases' => 20,
+                'kilos_enviados' => 7500,
+                'linea_proceso' => 'Línea 2',
+                'turno' => 'A',
+                'numero_orden' => 'OP-RET-001',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.entregas.0.kilos_enviados', 7500)
+            ->json('data.entregas.0');
+
+        $catalogos = $this->getJson('/api/materia-prima/fruta-proceso/catalogos')
+            ->assertOk()
+            ->assertJsonFragment(['codigo' => 'MP-ORIGEN-PACK'])
+            ->assertJsonFragment(['codigo' => 'MP-RETORNO-PACK'])
+            ->assertJsonCount(4, 'tipos_resultado')
+            ->json();
+        $tipos = collect($catalogos['tipos_resultado'])->keyBy('codigo');
+
+        $retornoParcial = $this->postJson(
+            "/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/retornos",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'cierra_entrega' => false,
+                'resultados' => [[
+                    'tipo_resultado_packing_id' => $tipos['precalibre']['id'],
+                    'cantidad_bins' => 1,
+                    'kilos_netos' => 350,
+                ]],
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.entregas.0.retorno.estado', 'parcial')
+            ->assertJsonPath('data.entregas.0.retorno.bins_retornados', 1)
+            ->json('data.entregas.0.retorno.movimientos.0');
+        $this->postJson("/api/materia-prima/fruta-proceso/retornos/{$retornoParcial['id']}/anular", [
+            'operacion_id' => (string) Str::uuid(),
+            'motivo' => 'Packing corrigió la clasificación informada.',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.entregas.0.retorno.estado', 'pendiente')
+            ->assertJsonPath('data.entregas.0.retorno.bins_retornados', 0)
+            ->assertJsonPath('data.entregas.0.retorno.movimientos.0.anulado', true);
+
+        $operacionRetorno = (string) Str::uuid();
+        $retornoPayload = [
+            'operacion_id' => $operacionRetorno,
+            'cierra_entrega' => true,
+            'observacion' => 'Packing cerró el viaje físico.',
+            'resultados' => [
+                [
+                    'tipo_resultado_packing_id' => $tipos['precalibre']['id'],
+                    'cantidad_bins' => 12,
+                    'kilos_netos' => 4500,
+                ],
+                [
+                    'tipo_resultado_packing_id' => $tipos['comercial']['id'],
+                    'cantidad_bins' => 6,
+                    'kilos_netos' => 2200,
+                ],
+                [
+                    'tipo_resultado_packing_id' => $tipos['descarte']['id'],
+                    'cantidad_bins' => 2,
+                    'kilos_netos' => 500,
+                ],
+            ],
+        ];
+
+        $respuesta = $this->postJson(
+            "/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/retornos",
+            $retornoPayload,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.entregas.0.retorno.estado', 'completado')
+            ->assertJsonPath('data.entregas.0.retorno.bins_retornados', 20)
+            ->assertJsonPath('data.entregas.0.retorno.kilos_recuperados', 7200)
+            ->assertJsonPath('data.entregas.0.retorno.merma_kilos', 300)
+            ->assertJsonPath('data.entregas.0.retorno.puede_registrar', false)
+            ->assertJsonPath('data.entregas.0.puede_anular', false)
+            ->assertJsonCount(3, 'data.entregas.0.retorno.movimientos.0.resultados')
+            ->json('data.entregas.0.retorno.movimientos.0');
+
+        $this->assertMatchesRegularExpression('/^RP-\d{6}$/', $respuesta['numero']);
+        $resultadoPrecalibre = collect($respuesta['resultados'])->first(
+            fn (array $resultado): bool => $resultado['tipo']['codigo'] === 'precalibre',
+        );
+        $this->assertNotNull($resultadoPrecalibre);
+        $this->assertMatchesRegularExpression(
+            '/^PC-\d{6}$/',
+            $resultadoPrecalibre['numero_sublote'],
+        );
+        $this->assertDatabaseCount('retornos_packing', 2);
+        $this->assertDatabaseCount('sublotes_retorno_packing', 4);
+
+        $this->postJson(
+            "/api/materia-prima/fruta-proceso/entregas/{$entrega['id']}/retornos",
+            $retornoPayload,
+        )
+            ->assertOk()
+            ->assertJsonCount(2, 'data.entregas.0.retorno.movimientos');
+        $this->assertDatabaseCount('retornos_packing', 2);
+
+        $sublote = $respuesta['resultados'][0];
+        $this->postJson("/api/materia-prima/fruta-proceso/sublotes/{$sublote['id']}/ubicar", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camaraRetorno->id,
+            'observacion' => 'Retorno ubicado por el camarero.',
+        ])
+            ->assertOk()
+            ->assertJsonPath(
+                'data.entregas.0.retorno.movimientos.0.resultados.0.estado',
+                'ubicado_camara',
+            )
+            ->assertJsonPath(
+                'data.entregas.0.retorno.movimientos.0.resultados.0.camara.codigo',
+                'MP-RETORNO-PACK',
+            );
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/retornos/{$respuesta['id']}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Intento posterior a la ubicación.',
+            ])->assertForbidden();
+
+        $this->getJson('/api/materia-prima/fruta-proceso/resumen')
+            ->assertOk()
+            ->assertJsonPath('entregas_pendientes_retorno', 0)
+            ->assertJsonPath('bins_retornados', 20)
+            ->assertJsonPath('kilos_recuperados', 7200)
+            ->assertJsonPath('sublotes_pendientes_ubicacion', 2);
+    }
+
     /** @return array<string, mixed> */
     private function prepararRecepcionValidada(): array
     {

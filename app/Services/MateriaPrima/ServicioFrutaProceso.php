@@ -95,6 +95,9 @@ class ServicioFrutaProceso
                     'asignacion_camara_lote_id' => $asignacion->id,
                     'camara_id' => $asignacion->camara_id,
                     'cantidad_envases' => $cantidad,
+                    'kilos_enviados' => filled($datos['kilos_enviados'] ?? null)
+                        ? round((float) $datos['kilos_enviados'], 3)
+                        : null,
                     'saldo_anterior' => $disponibles,
                     'saldo_posterior' => $saldoPosterior,
                     'linea_proceso' => trim((string) $datos['linea_proceso']),
@@ -129,6 +132,7 @@ class ServicioFrutaProceso
                     [
                         'entrega_id' => $entrega->id,
                         'cantidad_envases' => $cantidad,
+                        'kilos_enviados' => $entrega->kilos_enviados,
                         'saldo_anterior' => $disponibles,
                         'saldo_posterior' => $saldoPosterior,
                         'linea_proceso' => $entrega->linea_proceso,
@@ -260,6 +264,9 @@ class ServicioFrutaProceso
         if ($entrega->anulado_at !== null) {
             return false;
         }
+        if ($entrega->retornos()->whereNull('anulado_at')->exists()) {
+            return false;
+        }
         if ($this->alcance->puedeCorregirEntregasFrutaProceso($usuario)) {
             return true;
         }
@@ -286,7 +293,7 @@ class ServicioFrutaProceso
         User $usuario,
     ): void {
         if (! $this->puedeAnular($entrega, $lote, $usuario)) {
-            abort(403, 'No puedes anular esta entrega. Un camarero solo puede anular su último viaje mientras el lote siga abierto.');
+            abort(403, 'No puedes anular esta entrega. Debe ser tu último viaje abierto y no puede tener retornos de Packing.');
         }
     }
 
@@ -318,6 +325,9 @@ class ServicioFrutaProceso
     {
         return [
             'cantidad_envases' => (int) $datos['cantidad_envases'],
+            'kilos_enviados' => filled($datos['kilos_enviados'] ?? null)
+                ? round((float) $datos['kilos_enviados'], 3)
+                : null,
             'linea_proceso' => trim((string) $datos['linea_proceso']),
             'turno' => strtoupper(trim((string) $datos['turno'])),
             'numero_orden' => trim((string) $datos['numero_orden']),
@@ -371,6 +381,13 @@ class ServicioFrutaProceso
             'entregasProceso.entregadoPor',
             'entregasProceso.anuladoPor',
             'entregasProceso.dispositivo',
+            'entregasProceso.retornos.registradoPor',
+            'entregasProceso.retornos.anuladoPor',
+            'entregasProceso.retornos.dispositivo',
+            'entregasProceso.retornos.resultados.tipoResultado',
+            'entregasProceso.retornos.resultados.camara',
+            'entregasProceso.retornos.resultados.ubicadoPor',
+            'entregasProceso.retornos.resultados.dispositivoUbicacion',
         ]);
     }
 }
