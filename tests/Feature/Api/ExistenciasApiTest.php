@@ -158,7 +158,8 @@ class ExistenciasApiTest extends TestCase
             ->assertStreamed();
         $contenidoConsulta = $respuestaConsulta->streamedContent();
         $this->assertStringContainsString('Existencia de materiales', $contenidoConsulta);
-        $this->assertStringContainsString('Cantidad disponible', $contenidoConsulta);
+        $this->assertStringContainsString('Cantidad disponible en almacén', $contenidoConsulta);
+        $this->assertStringContainsString('Centro de costo', $contenidoConsulta);
 
         $this->withToken($tokenOficina)
             ->postJson("/api/existencias/conexiones/{$conexion->id}/revocar")
@@ -230,6 +231,11 @@ class ExistenciasApiTest extends TestCase
             ->assertOk()
             ->assertSee('Tres inventarios. Una fuente oficial.')
             ->assertSee('Excel conectado');
+
+        $this->get('/oficina/materiales/almacenes')
+            ->assertOk()
+            ->assertSee('data-office-key="custodia"', false)
+            ->assertSee('Existencia en centros de costo');
     }
 
     /** @return array{User, string} */
