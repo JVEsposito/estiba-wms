@@ -36,7 +36,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('folio_id')
                 ->constrained('folios_materiales', 'folio_id')
-                ->restrictOnDelete();
+                ->cascadeOnDelete();
             $table->foreignUuid('almacen_material_id')
                 ->constrained('destinos_materiales')
                 ->restrictOnDelete();
