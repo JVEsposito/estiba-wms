@@ -11,4 +11,5 @@ enum EstadoOperacionalFolio: string
     case Anulado = 'anulado';
     case RetiradoDefinitivo = 'retirado_definitivo';
     case Despachado = 'despachado';
+    case Agotado = 'agotado';
 }

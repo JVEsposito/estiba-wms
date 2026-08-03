@@ -553,7 +553,7 @@ class MaterialesApiTest extends TestCase
         ]);
     }
 
-    public function test_reserva_fifo_y_permite_retiros_parciales_hasta_liberar_el_folio(): void
+    public function test_reserva_fifo_y_permite_entregas_parciales_sin_reducir_existencia_empresa(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
         [$operadorMateriales, $tabletMateriales, $tokenTablet] = $this->crearOperador();
@@ -659,7 +659,7 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.items.0.cantidad_despachada', '4.000');
 
-        $this->assertSame('6.000', FolioMaterial::findOrFail($folio1)->cantidad_actual);
+        $this->assertSame('10.000', FolioMaterial::findOrFail($folio1)->cantidad_actual);
         $this->assertSame(1, RetiroMaterial::query()
             ->where('operacion_retiro_material_id', $operacionRetiroParcial)
             ->count());
@@ -691,14 +691,14 @@ class MaterialesApiTest extends TestCase
         $this->assertDatabaseMissing('ubicaciones_actuales', ['folio_id' => $folio1]);
         $this->assertDatabaseHas('folios', [
             'id' => $folio1,
-            'estado_operacional' => 'despachado',
-            'activo' => false,
+            'estado_operacional' => 'disponible',
+            'activo' => true,
         ]);
         $this->assertDatabaseHas('ubicaciones_actuales', [
             'folio_id' => $folio2,
             'posicion_id' => $posicion2->id,
         ]);
-        $this->assertSame('4.000', FolioMaterial::findOrFail($folio2)->cantidad_actual);
+        $this->assertSame('6.000', FolioMaterial::findOrFail($folio2)->cantidad_actual);
         $this->assertSame(3, $camara->refresh()->version_plano);
     }
 
@@ -879,7 +879,7 @@ class MaterialesApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath(
                 'message',
-                'El folio se encuentra bloqueado o no está disponible para retiro.',
+                'El folio se encuentra bloqueado o no está disponible para entrega.',
             );
 
         $material = FolioMaterial::findOrFail($folioId);

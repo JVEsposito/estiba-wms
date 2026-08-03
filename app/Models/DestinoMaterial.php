@@ -2,16 +2,21 @@
 
 namespace App\Models;
 
+use App\Enums\TipoAlmacenMaterial;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 #[Fillable([
+    'codigo',
     'nombre',
+    'tipo',
     'centro_costo',
+    'requiere_ubicacion_fisica',
     'descripcion',
     'codigo_externo',
     'origen_sistema',
@@ -26,9 +31,28 @@ class DestinoMaterial extends Model
 
     protected $table = 'destinos_materiales';
 
+    protected static function booted(): void
+    {
+        static::creating(function (DestinoMaterial $destino): void {
+            if (! $destino->codigo) {
+                $destino->codigo = 'ALM-'.Str::upper(
+                    substr(str_replace('-', '', (string) Str::uuid()), 0, 8),
+                );
+            }
+
+            $destino->tipo ??= TipoAlmacenMaterial::Virtual->value;
+            $destino->requiere_ubicacion_fisica ??= false;
+        });
+    }
+
     public function despachos(): HasMany
     {
         return $this->hasMany(DespachoMaterial::class, 'destino_material_id');
+    }
+
+    public function saldos(): HasMany
+    {
+        return $this->hasMany(SaldoMaterialAlmacen::class, 'almacen_material_id');
     }
 
     public function creadoPor(): BelongsTo
@@ -44,6 +68,7 @@ class DestinoMaterial extends Model
     protected function casts(): array
     {
         return [
+            'requiere_ubicacion_fisica' => 'boolean',
             'activo' => 'boolean',
             'sincronizado_at' => 'datetime',
         ];
