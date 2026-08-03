@@ -19,7 +19,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
     public function test_administrador_corrige_validacion_y_folio_antes_de_prefrio(): void
     {
         [$catalogo, $usuario, $tokenPda] = $this->contexto();
-        $validacionId = $this->withToken($tokenPda)
+        $validacionId = $this->conToken($tokenPda)
             ->postJson(
                 '/api/validacion/pallets',
                 $this->payloadValidacion($catalogo, 'PAL-CORR-0001'),
@@ -29,7 +29,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
         $operacionId = (string) Str::uuid();
         $correccion = $this->payloadCorreccion($catalogo, $operacionId);
 
-        $this->withToken($this->tokenOficina($usuario))
+        $this->conToken($this->tokenOficina($usuario))
             ->putJson(
                 "/api/validacion/pallets/{$validacionId}/corregir",
                 $correccion,
@@ -66,7 +66,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
     public function test_la_correccion_es_idempotente_ante_reintentos(): void
     {
         [$catalogo, $usuario, $tokenPda] = $this->contexto();
-        $validacionId = $this->withToken($tokenPda)
+        $validacionId = $this->conToken($tokenPda)
             ->postJson(
                 '/api/validacion/pallets',
                 $this->payloadValidacion($catalogo, 'PAL-CORR-0002'),
@@ -76,10 +76,10 @@ class CorreccionValidacionPalletApiTest extends TestCase
         $payload = $this->payloadCorreccion($catalogo, (string) Str::uuid());
         $tokenOficina = $this->tokenOficina($usuario);
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->putJson("/api/validacion/pallets/{$validacionId}/corregir", $payload)
             ->assertOk();
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->putJson("/api/validacion/pallets/{$validacionId}/corregir", $payload)
             ->assertOk();
 
@@ -89,7 +89,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
     public function test_no_permite_corregir_despues_de_salir_de_pendiente_prefrio(): void
     {
         [$catalogo, $usuario, $tokenPda] = $this->contexto();
-        $validacionId = $this->withToken($tokenPda)
+        $validacionId = $this->conToken($tokenPda)
             ->postJson(
                 '/api/validacion/pallets',
                 $this->payloadValidacion($catalogo, 'PAL-CORR-0003'),
@@ -101,7 +101,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
             ->where('numero_folio', 'PAL-CORR-0003')
             ->update(['estado_operacional' => 'pendiente_ubicacion']);
 
-        $this->withToken($this->tokenOficina($usuario))
+        $this->conToken($this->tokenOficina($usuario))
             ->putJson(
                 "/api/validacion/pallets/{$validacionId}/corregir",
                 $this->payloadCorreccion($catalogo, (string) Str::uuid()),
@@ -115,7 +115,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
     public function test_supervisor_no_puede_corregir_validacion_aprobada(): void
     {
         [$catalogo, , $tokenPda] = $this->contexto();
-        $validacionId = $this->withToken($tokenPda)
+        $validacionId = $this->conToken($tokenPda)
             ->postJson(
                 '/api/validacion/pallets',
                 $this->payloadValidacion($catalogo, 'PAL-CORR-0004'),
@@ -126,7 +126,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
             'rol' => RolUsuario::SupervisorFrio,
         ]);
 
-        $this->withToken($this->tokenOficina($supervisor))
+        $this->conToken($this->tokenOficina($supervisor))
             ->putJson(
                 "/api/validacion/pallets/{$validacionId}/corregir",
                 $this->payloadCorreccion($catalogo, (string) Str::uuid()),
@@ -290,5 +290,12 @@ class CorreccionValidacionPalletApiTest extends TestCase
     private function tokenOficina(User $usuario): string
     {
         return $usuario->createToken('oficina-test', ['oficina'])->plainTextToken;
+    }
+
+    private function conToken(string $token): self
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
     }
 }
