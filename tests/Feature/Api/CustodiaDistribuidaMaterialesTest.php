@@ -165,7 +165,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
 
         $this->assertCount(1, $filasExportacion);
         $this->assertSame('Virtual', $filasExportacion[0]['tipo_almacen']);
-        $this->assertSame('PACK-01', $filasExportacion[0]['codigo_almacen']);
+        $this->assertSame($destino->codigo, $filasExportacion[0]['codigo_almacen']);
         $this->assertSame('Packing Línea 1', $filasExportacion[0]['almacen']);
         $this->assertSame('PACK-01', $filasExportacion[0]['centro_costo']);
         $this->assertSame(7.0, $filasExportacion[0]['cantidad_actual']);
