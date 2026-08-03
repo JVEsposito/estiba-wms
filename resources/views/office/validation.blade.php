@@ -67,8 +67,36 @@
                         </form>
                     </div>
                     <p class="validation-help">El registro RRPP-01 utiliza la fecha real de terreno y agrupa automáticamente cada hoja por encargado, línea y turno. Los conflictos de sincronización no forman parte del registro oficial.</p>
-                    <div class="validation-table-scroll"><table class="validation-table"><thead><tr><th>Folio</th><th>Artículo</th><th>Origen</th><th>Resultado</th><th>Validador</th><th>Fecha y jornada</th></tr></thead><tbody id="validationHistoryBody"></tbody></table></div>
+                    <div class="validation-table-scroll"><table class="validation-table"><thead><tr><th>Folio</th><th>Artículo</th><th>Origen</th><th>Resultado</th><th>Validador</th><th>Fecha y jornada</th><th>Administración</th></tr></thead><tbody id="validationHistoryBody"></tbody></table></div>
                 </section>
+
+                <dialog class="validation-correction-dialog" id="validationCorrectionDialog">
+                    <form class="validation-form validation-correction-form" id="validationCorrectionForm" novalidate>
+                        <div class="validation-correction-heading">
+                            <div>
+                                <p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p>
+                                <h2 id="validationCorrectionTitle">Corregir validación</h2>
+                                <p>Disponible solo antes de ingresar el folio a Prefrío. El cambio actualiza el folio y conserva la auditoría completa.</p>
+                            </div>
+                            <button aria-label="Cerrar" class="validation-dialog-close" id="cancelValidationCorrection" type="button">×</button>
+                        </div>
+                        <div class="validation-form__grid">
+                            <label><span>Tipo de bulto *</span><select name="tipo_bulto" required><option value="pallet">Pallet completo</option><option value="saldo">Saldo</option></select></label>
+                            <label><span>Cantidad de cajas *</span><input name="cantidad_cajas" type="number" min="1" required></label>
+                            <label><span>Línea *</span><select name="linea_proceso" required><option value="1">Línea 1</option><option value="2">Línea 2</option><option value="3">Línea 3</option></select></label>
+                            <label><span>Turno *</span><select name="turno" required><option value="A">Turno A</option><option value="B">Turno B</option></select></label>
+                        </div>
+                        <label><span>Artículo / embalaje *</span><select name="articulo_validacion_id" required></select></label>
+                        <label><span>Origen autorizado *</span><select name="origen_validacion_id" required></select></label>
+                        <label><span>Categoría *</span><select name="categoria_validacion_id" required></select></label>
+                        <label><span>Motivo de la corrección *</span><textarea name="motivo_correccion" rows="3" maxlength="1000" placeholder="Explica el error y el dato corregido" required></textarea></label>
+                        <p class="form-error" id="validationCorrectionError" role="alert"></p>
+                        <div class="validation-actions">
+                            <button class="secondary-button" onclick="document.getElementById('cancelValidationCorrection').click()" type="button">Cancelar</button>
+                            <button class="primary-button" type="submit">Guardar corrección</button>
+                        </div>
+                    </form>
+                </dialog>
 
                 <div class="validation-admin is-hidden" id="validationAdmin">
                     <div class="validation-admin-grid">
