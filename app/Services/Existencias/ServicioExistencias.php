@@ -9,9 +9,10 @@ use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Models\AlmacenMaterial;
 use App\Models\Folio;
-use App\Models\FolioMaterial;
 use App\Models\LoteMateriaPrima;
+use App\Models\SaldoMaterialAlmacen;
 use App\Models\Temporada;
 use App\Models\User;
 use DomainException;
@@ -66,7 +67,7 @@ class ServicioExistencias
             self::MATERIALES => [
                 'tipo' => self::MATERIALES,
                 'titulo' => 'Existencia de materiales',
-                'descripcion' => 'Folios de materiales con cantidad actual, reservada y disponible por unidad.',
+                'descripcion' => 'Saldos de materiales distribuidos entre Bodega y centros de costo, con total empresa.',
                 'archivo' => 'Existencia_Materiales',
                 'columnas' => [
                     ['clave' => 'temporada', 'titulo' => 'Temporada', 'ancho' => 18],
@@ -77,10 +78,15 @@ class ServicioExistencias
                     ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 24],
                     ['clave' => 'proveedor', 'titulo' => 'Proveedor', 'ancho' => 24],
                     ['clave' => 'lote', 'titulo' => 'Lote', 'ancho' => 18],
-                    ['clave' => 'cantidad_inicial', 'titulo' => 'Cantidad inicial', 'ancho' => 17, 'tipo' => 'numero'],
-                    ['clave' => 'cantidad_actual', 'titulo' => 'Cantidad actual', 'ancho' => 17, 'tipo' => 'numero'],
-                    ['clave' => 'cantidad_reservada', 'titulo' => 'Cantidad reservada', 'ancho' => 19, 'tipo' => 'numero'],
-                    ['clave' => 'cantidad_disponible', 'titulo' => 'Cantidad disponible', 'ancho' => 20, 'tipo' => 'numero'],
+                    ['clave' => 'tipo_almacen', 'titulo' => 'Tipo de almacén', 'ancho' => 18],
+                    ['clave' => 'codigo_almacen', 'titulo' => 'Código de almacén', 'ancho' => 20],
+                    ['clave' => 'almacen', 'titulo' => 'Almacén / centro de costo', 'ancho' => 30],
+                    ['clave' => 'centro_costo', 'titulo' => 'Centro de costo', 'ancho' => 20],
+                    ['clave' => 'cantidad_inicial', 'titulo' => 'Cantidad inicial del folio (una vez)', 'ancho' => 31, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_actual', 'titulo' => 'Cantidad actual en almacén', 'ancho' => 24, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_reservada', 'titulo' => 'Cantidad reservada en almacén', 'ancho' => 27, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_disponible', 'titulo' => 'Cantidad disponible en almacén', 'ancho' => 28, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_total_empresa', 'titulo' => 'Cantidad total empresa (una vez por folio)', 'ancho' => 38, 'tipo' => 'numero'],
                     ['clave' => 'unidad_medida', 'titulo' => 'Unidad de medida', 'ancho' => 18],
                     ['clave' => 'estado_operacional', 'titulo' => 'Estado operacional', 'ancho' => 22],
                     ['clave' => 'estado_ubicacion', 'titulo' => 'Estado de ubicación', 'ancho' => 22],
@@ -270,33 +276,50 @@ class ServicioExistencias
     /** @return LazyCollection<int, array<string, mixed>> */
     private function materiales(): LazyCollection
     {
-        return FolioMaterial::query()
+        $folioAnterior = null;
+
+        return SaldoMaterialAlmacen::query()
             ->with([
-                'folio.ubicacionActual.camara',
-                'folio.ubicacionActual.posicion',
-                'item.cliente.temporada',
-                'item.cliente.cliente',
-                'proveedorMaterial',
+                'folioMaterial.folio',
+                'folioMaterial.item.cliente.temporada',
+                'folioMaterial.item.cliente.cliente',
+                'folioMaterial.proveedorMaterial',
+                'almacen',
+                'camara',
+                'posicion',
             ])
-            ->whereHas('folio', fn ($consulta) => $consulta->where('activo', true))
-            ->whereHas('item.cliente.temporada', fn ($consulta) => $consulta->where('activa', true))
-            ->orderBy('item_material_id')
+            ->where('cantidad_actual', '>', 0)
+            ->whereHas('folioMaterial.folio', fn ($consulta) => $consulta->where('activo', true))
+            ->whereHas(
+                'folioMaterial.item.cliente.temporada',
+                fn ($consulta) => $consulta->where('activa', true),
+            )
             ->orderBy('folio_id')
+            ->orderBy('almacen_material_id')
             ->lazy(200)
-            ->map(function (FolioMaterial $material): array {
+            ->map(function (SaldoMaterialAlmacen $saldo) use (&$folioAnterior): array {
+                $material = $saldo->folioMaterial;
                 $folio = $material->folio;
-                $ubicacion = $folio->ubicacionActual;
-                $posicion = $ubicacion?->posicion;
-                $camara = $ubicacion?->camara ?? $posicion?->camara;
-                $ubicado = $camara?->contenido === ContenidoCamara::Materiales;
-                $reservable = $ubicado
-                    && (! $posicion || $posicion->estado === EstadoPosicion::Activa)
-                    && $camara?->estado === EstadoCamara::Activa
+                $almacen = $saldo->almacen;
+                $posicion = $saldo->posicion;
+                $camara = $saldo->camara ?? $posicion?->camara;
+                $almacenFisico = $almacen?->requiere_ubicacion_fisica === true;
+                $ubicacionValida = ! $almacenFisico
+                    || ($camara?->contenido === ContenidoCamara::Materiales
+                        && (! $posicion || $posicion->estado === EstadoPosicion::Activa)
+                        && $camara->estado === EstadoCamara::Activa);
+                $actual = (float) $saldo->cantidad_actual;
+                $reservada = (float) $saldo->cantidad_reservada;
+                $operable = $almacen?->activo === true
+                    && $ubicacionValida
                     && $folio->estado_operacional === EstadoOperacionalFolio::Disponible
                     && $material->motivo_bloqueo === null;
-                $actual = (float) $material->cantidad_actual;
-                $reservada = (float) $material->cantidad_reservada;
-                $disponible = $reservable ? max(0, $actual - $reservada) : 0;
+                $disponible = $operable ? max(0, $actual - $reservada) : 0;
+                $reservable = $operable
+                    && $almacen?->codigo === AlmacenMaterial::CODIGO_BODEGA_CENTRAL
+                    && $disponible > 0.0001;
+                $primeraFilaFolio = $folioAnterior !== $folio->id;
+                $folioAnterior = $folio->id;
 
                 return [
                     'temporada' => $material->item->cliente->temporada?->codigo,
@@ -307,15 +330,28 @@ class ServicioExistencias
                     'cliente' => $material->item->cliente->nombre,
                     'proveedor' => $material->proveedor ?? $material->proveedorMaterial?->nombre,
                     'lote' => $material->lote,
-                    'cantidad_inicial' => (float) $material->cantidad_inicial,
+                    'tipo_almacen' => $almacen?->tipo
+                        ? $this->humanizar($almacen->tipo->value)
+                        : null,
+                    'codigo_almacen' => $almacen?->codigo,
+                    'almacen' => $almacen?->nombre,
+                    'centro_costo' => $almacen?->centro_costo,
+                    'cantidad_inicial' => $primeraFilaFolio
+                        ? (float) $material->cantidad_inicial
+                        : null,
                     'cantidad_actual' => $actual,
                     'cantidad_reservada' => $reservada,
                     'cantidad_disponible' => $disponible,
+                    'cantidad_total_empresa' => $primeraFilaFolio
+                        ? (float) $material->cantidad_actual
+                        : null,
                     'unidad_medida' => $material->unidad_medida,
                     'estado_operacional' => $this->humanizar($folio->estado_operacional->value),
-                    'estado_ubicacion' => ! $ubicado
-                        ? 'Pendiente de ubicación'
-                        : ($posicion ? 'Ubicación exacta' : 'Solo en cámara'),
+                    'estado_ubicacion' => ! $almacenFisico
+                        ? 'Almacén virtual'
+                        : (! $camara
+                            ? 'Pendiente de ubicación'
+                            : ($posicion ? 'Ubicado' : 'Solo en cámara')),
                     'reservable' => $reservable ? 'Sí' : 'No',
                     'motivo_bloqueo' => $material->motivo_bloqueo,
                     'camara' => $camara ? trim($camara->codigo.' · '.$camara->nombre) : null,

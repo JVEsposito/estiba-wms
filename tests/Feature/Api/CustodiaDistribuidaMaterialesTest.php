@@ -18,6 +18,7 @@ use App\Models\Posicion;
 use App\Models\ReservaMaterial;
 use App\Models\SaldoMaterialAlmacen;
 use App\Models\User;
+use App\Services\Existencias\ServicioExistencias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -93,6 +94,32 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         ]);
         $this->assertProyeccion($folio->id, 10, 6);
 
+        $filasParciales = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::MATERIALES)
+            ->filter(fn (array $fila): bool => $fila['folio'] === $folio->numero_folio)
+            ->values()
+            ->all();
+        $coleccionParcial = collect($filasParciales);
+        $filaVirtualParcial = $coleccionParcial->firstWhere('tipo_almacen', 'Virtual');
+
+        $this->assertCount(2, $filasParciales);
+        $this->assertSame(10.0, (float) $coleccionParcial->sum('cantidad_actual'));
+        $this->assertSame(
+            10.0,
+            (float) $coleccionParcial->sum(
+                fn (array $fila): float => (float) ($fila['cantidad_total_empresa'] ?? 0),
+            ),
+        );
+        $this->assertCount(
+            1,
+            $coleccionParcial->filter(
+                fn (array $fila): bool => $fila['cantidad_total_empresa'] !== null,
+            ),
+        );
+        $this->assertNotNull($filaVirtualParcial);
+        $this->assertSame(4.0, $filaVirtualParcial['cantidad_disponible']);
+        $this->assertSame('No', $filaVirtualParcial['reservable']);
+
         $this->entregar($tokenTablet, $despachoId, $folio, $sesion, 6)
             ->assertJsonPath('data.estado', 'completado');
 
@@ -155,6 +182,23 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             ->assertJsonPath('perspectivas.centros_costo.0.numero_folio', 'FCU0000001')
             ->assertJsonPath('perspectivas.centros_costo.0.cantidad_actual', '7.000')
             ->assertJsonPath('perspectivas.total_empresa.0.total_empresa', '7.000');
+
+        $filasExportacion = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::MATERIALES)
+            ->filter(fn (array $fila): bool => $fila['folio'] === $folio->numero_folio)
+            ->values()
+            ->all();
+
+        $this->assertCount(1, $filasExportacion);
+        $this->assertSame('Virtual', $filasExportacion[0]['tipo_almacen']);
+        $this->assertSame($destino->codigo, $filasExportacion[0]['codigo_almacen']);
+        $this->assertSame('Packing Línea 1', $filasExportacion[0]['almacen']);
+        $this->assertSame('PACK-01', $filasExportacion[0]['centro_costo']);
+        $this->assertSame(7.0, $filasExportacion[0]['cantidad_actual']);
+        $this->assertSame(7.0, $filasExportacion[0]['cantidad_disponible']);
+        $this->assertSame(7.0, $filasExportacion[0]['cantidad_total_empresa']);
+        $this->assertSame('Almacén virtual', $filasExportacion[0]['estado_ubicacion']);
+        $this->assertSame('No', $filasExportacion[0]['reservable']);
 
         $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', [
