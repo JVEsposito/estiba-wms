@@ -10,12 +10,37 @@ class OrdenTransformacionMaterialResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $unidadesPorFolio = data_get($this->snapshot_receta, 'salida.unidades_por_folio');
+        $unidadesPorFolio = $unidadesPorFolio !== null
+            ? round((float) $unidadesPorFolio, 3)
+            : null;
+        $foliosPlanificados = $unidadesPorFolio !== null && $unidadesPorFolio > 0
+            ? (int) ceil((float) $this->cantidad_planificada_salida / $unidadesPorFolio)
+            : null;
+        $foliosGenerados = $this->relationLoaded('lotes')
+            ? $this->lotes->filter(
+                fn ($lote): bool => $lote->estado?->value === 'cerrado',
+            )->count()
+            : null;
+
         return [
             'id' => $this->id,
             'estado' => $this->estado->value,
             'version' => $this->version,
             'cantidad_planificada_salida' => $this->cantidad_planificada_salida,
             'cantidad_real_salida' => $this->cantidad_real_salida,
+            'unidades_por_folio_salida' => $unidadesPorFolio !== null
+                ? number_format($unidadesPorFolio, 3, '.', '')
+                : null,
+            'folios_planificados' => $foliosPlanificados,
+            'folios_generados' => $this->when(
+                $foliosGenerados !== null,
+                fn (): int => $foliosGenerados,
+            ),
+            'folios_pendientes' => $this->when(
+                $foliosGenerados !== null && $foliosPlanificados !== null,
+                fn (): int => max(0, $foliosPlanificados - $foliosGenerados),
+            ),
             'linea' => $this->linea,
             'turno' => $this->turno,
             'fecha_operacional' => $this->fecha_operacional?->toDateString(),

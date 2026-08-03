@@ -69,7 +69,8 @@ componentes de entrada de categoría `material_mp` o `insumo`.
 
 Cada versión conserva:
 
-- cantidad base de salida;
+- cantidad base de salida para el cálculo proporcional;
+- unidades por folio o pallet de salida;
 - unidad de medida de salida;
 - cantidades estándar por componente;
 - unidad de medida de cada componente;
@@ -199,8 +200,14 @@ Cada lote vincula:
 folios de entrada
 → cantidades consumidas
 → lote de transformación
-→ folios de salida con prefijo por cliente
+→ un folio de salida con prefijo por cliente
 ```
+
+Cuando la versión define `unidades_por_folio_salida`, el siguiente lote debe
+corresponder exactamente a esa capacidad o al remanente final de la orden. Por
+ejemplo, 12.000 unidades con 120 por folio producen 100 lotes y, al cerrar cada
+uno, 100 folios. Las versiones históricas sin esta regla conservan sus lotes
+parciales libres.
 
 El origen de los materiales se remonta a Recepción de Materiales y sus guías de
 proveedor. `REC-*` pertenece a Romana y no forma parte de esta genealogía.
