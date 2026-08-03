@@ -8,6 +8,9 @@ enum TipoMovimientoInventarioMaterial: string
     case IngresoRecepcion = 'ingreso_recepcion';
     case AnulacionRecepcion = 'anulacion_recepcion';
     case Despacho = 'despacho';
+    case TransferenciaInterna = 'transferencia_interna';
+    case ConsumoCentroCosto = 'consumo_centro_costo';
+    case AjusteAlmacen = 'ajuste_almacen';
     case Ajuste = 'ajuste';
     case Devolucion = 'devolucion';
     case CorreccionItemSalida = 'correccion_item_salida';
