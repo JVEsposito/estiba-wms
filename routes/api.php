@@ -143,6 +143,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:validar-pallets');
     Route::post('/validacion/pallets', [ValidacionPalletController::class, 'store'])
         ->middleware('can:validar-pallets');
+    Route::put(
+        '/validacion/pallets/{validacionPallet}/corregir',
+        [ValidacionPalletController::class, 'corregir'],
+    )->middleware('can:corregir-validaciones-pallet');
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
         Route::get('/validacion/registro/opciones', [ValidacionPalletController::class, 'opciones']);
