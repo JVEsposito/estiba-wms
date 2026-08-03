@@ -1,0 +1,33 @@
+name: Corregir prueba de exportación distribuida
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'agent/custodia-visible-exportaciones-distribuidas'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar rama
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Corregir expectativa
+        run: python .github/scripts/fix-custody-export-test.py
+
+      - name: Retirar archivos temporales
+        run: rm .github/scripts/fix-custody-export-test.py .github/workflows/fix-custody-export-test.yml
+
+      - name: Publicar corrección
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/Feature/Api/CustodiaDistribuidaMaterialesTest.php .github/scripts/fix-custody-export-test.py .github/workflows/fix-custody-export-test.yml
+          git commit -m "test: validar código real del almacén virtual"
+          git push origin HEAD:${{ github.head_ref }}
