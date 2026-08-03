@@ -42,7 +42,7 @@ class ConfiguracionCamaraApiTest extends TestCase
         ]);
     }
 
-    public function test_operador_no_puede_ingresar_a_los_modulos_de_oficina(): void
+    public function test_camarero_accede_a_fruta_proceso_sin_permisos_administrativos(): void
     {
         $usuario = User::factory()->create([
             'email' => 'operador@estiba.local',
@@ -54,8 +54,12 @@ class ConfiguracionCamaraApiTest extends TestCase
         $this->postJson('/api/acceso-oficina', [
             'email' => $usuario->email,
             'password' => 'password',
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('email');
+        ])->assertOk()
+            ->assertJsonPath('usuario.puede_consultar_fruta_proceso', true)
+            ->assertJsonPath('usuario.puede_entregar_fruta_proceso', true)
+            ->assertJsonPath('usuario.puede_corregir_entregas_fruta_proceso', false)
+            ->assertJsonPath('usuario.puede_configurar_camaras', false)
+            ->assertJsonPath('usuario.puede_administrar_camaras', false);
     }
 
     public function test_administrador_recibe_permiso_para_editar_camaras(): void

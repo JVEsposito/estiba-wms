@@ -23,7 +23,7 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
         $this->get('/oficina/materia-prima/fruta-a-proceso')
             ->assertOk()
             ->assertSee('Fruta a proceso')
-            ->assertSee('Registrar viaje')
+            ->assertSee('Confirmar viaje')
             ->assertSee('Cantidad de bins')
             ->assertSee('Línea de proceso')
             ->assertSee('N° de orden');
