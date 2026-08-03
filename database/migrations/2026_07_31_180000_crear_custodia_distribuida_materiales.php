@@ -80,6 +80,10 @@ return new class extends Migration
             .'CHECK (posicion_id IS NULL OR camara_id IS NOT NULL)',
         );
 
+        Schema::table('ubicaciones_actuales', function (Blueprint $table): void {
+            $table->uuid('movimiento_id')->nullable()->change();
+        });
+
         Schema::table('reservas_materiales', function (Blueprint $table): void {
             $table->uuid('saldo_material_almacen_id')->nullable()->after('folio_id');
             $table->foreign(
@@ -178,6 +182,12 @@ return new class extends Migration
 
     public function down(): void
     {
+        DB::table('ubicaciones_actuales')->whereNull('movimiento_id')->delete();
+
+        Schema::table('ubicaciones_actuales', function (Blueprint $table): void {
+            $table->uuid('movimiento_id')->nullable(false)->change();
+        });
+
         Schema::dropIfExists('movimientos_almacenes_materiales');
 
         Schema::table('reservas_transformacion_materiales', function (Blueprint $table): void {
