@@ -37,13 +37,13 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         $destino = $this->crearDestino($administrador, 'Packing Línea 1', 'PACK-01');
         [$camara, $posicion] = $this->crearCamara();
         $folio = $this->crearFolio($item, 10);
-        $sesion = $this->withToken($tokenTablet)
+        $sesion = $this->conToken($tokenTablet)
             ->postJson("/api/camaras/{$camara->id}/sesiones")
             ->assertCreated()
             ->json('data.id');
 
         $this->ubicar($tokenTablet, $folio, $camara, $posicion, $sesion);
-        $despachoId = $this->withToken($tokenOficina)
+        $despachoId = $this->conToken($tokenOficina)
             ->postJson('/api/materiales/despachos', [
                 'operacion_id' => (string) Str::uuid(),
                 'destino_material_id' => $destino->id,
@@ -130,12 +130,12 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             'documento_relacionado' => 'TURNO-NOCHE',
         ];
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', $payloadConsumo)
             ->assertCreated()
             ->assertJsonPath('data.tipo', 'consumo')
             ->assertJsonPath('data.saldo_origen_resultante', '7.000');
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', $payloadConsumo)
             ->assertCreated()
             ->assertJsonPath('data.saldo_origen_resultante', '7.000');
@@ -148,7 +148,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         );
         $this->assertProyeccion($folio->id, 7, 0);
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->getJson('/api/materiales/almacenes')
             ->assertOk()
             ->assertJsonPath('perspectivas.bodega', [])
@@ -156,7 +156,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             ->assertJsonPath('perspectivas.centros_costo.0.cantidad_actual', '7.000')
             ->assertJsonPath('perspectivas.total_empresa.0.total_empresa', '7.000');
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', [
                 'operacion_id' => (string) Str::uuid(),
                 'tipo' => 'consumo',
@@ -203,7 +203,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             'cantidad_reservada' => 0,
         ]);
 
-        $this->withToken($tokenOficina)
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', [
                 'operacion_id' => (string) Str::uuid(),
                 'tipo' => 'transferencia',
@@ -216,7 +216,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             ])
             ->assertUnprocessable();
 
-        $movimientoId = $this->withToken($tokenOficina)
+        $movimientoId = $this->conToken($tokenOficina)
             ->postJson('/api/materiales/almacenes/movimientos', [
                 'operacion_id' => (string) Str::uuid(),
                 'tipo' => 'transferencia',
@@ -368,7 +368,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         Posicion $posicion,
         string $sesion,
     ): void {
-        $this->withToken($token)
+        $this->conToken($token)
             ->postJson('/api/movimientos/ubicar', [
                 'operacion_id' => (string) Str::uuid(),
                 'numero_folio' => $folio->numero_folio,
@@ -389,7 +389,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         string $sesion,
         float $cantidad,
     ) {
-        return $this->withToken($token)
+        return $this->conToken($token)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
                 'operacion_id' => (string) Str::uuid(),
                 'retiros' => [[
@@ -399,6 +399,13 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
                 ]],
             ])
             ->assertOk();
+    }
+
+    private function conToken(string $token): static
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
     }
 
     private function assertProyeccion(
