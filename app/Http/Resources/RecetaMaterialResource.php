@@ -39,6 +39,7 @@ class RecetaMaterialResource extends JsonResource
                     'numero_version' => $version->numero_version,
                     'estado' => $version->estado->value,
                     'cantidad_base_salida' => $version->cantidad_base_salida,
+                    'unidades_por_folio_salida' => $version->unidades_por_folio_salida,
                     'unidad_medida_salida' => $version->unidad_medida_salida,
                     'activado_at' => $version->activado_at?->toAtomString(),
                     'retirado_at' => $version->retirado_at?->toAtomString(),

@@ -166,6 +166,8 @@ function injectRecipePanel() {
                     <label><span>Producto de salida *</span><select name="item_salida_id" required></select></label>
                     <label class="materials-wide"><span>Nombre de receta *</span><input name="nombre" minlength="3" maxlength="180" placeholder="Caja 10 kg preparada para línea" required></label>
                     <label><span>Cantidad base de salida *</span><input name="cantidad_base_salida" type="number" min="0.001" step="0.001" value="1" required></label>
+                    <label><span>Unidades por folio / pallet *</span><input name="unidades_por_folio_salida" type="number" min="0.001" step="0.001" value="1" required></label>
+                    <p class="materials-help materials-wide">Cada lote cerrado genera un folio. Esta cantidad define cuántas unidades contiene normalmente cada pallet o bulto de salida.</p>
                 </div>
                 <div class="materials-panel__heading">
                     <div><p class="eyebrow">COMPONENTES</p><h3>Entradas de la receta</h3></div>
@@ -331,6 +333,8 @@ function openRecipeVersion(recipeId) {
     recipeElements.form.elements.item_salida_id.value = recipe.item_salida.id;
     recipeElements.form.elements.nombre.value = recipe.nombre;
     recipeElements.form.elements.cantidad_base_salida.value = version.cantidad_base_salida;
+    recipeElements.form.elements.unidades_por_folio_salida.value = version.unidades_por_folio_salida
+        || version.cantidad_base_salida;
     recipeElements.form.elements.cliente_id.disabled = true;
     recipeElements.form.elements.item_salida_id.disabled = true;
     recipeElements.form.elements.nombre.disabled = true;
@@ -381,10 +385,13 @@ async function submitRecipeForm(event) {
 
     try {
         const amount = Number(data.cantidad_base_salida);
+        const unitsPerFolio = Number(data.unidades_por_folio_salida);
         if (!Number.isFinite(amount) || amount <= 0) throw new RecipeApiError('La cantidad base de salida debe ser mayor que cero.', 422);
+        if (!Number.isFinite(unitsPerFolio) || unitsPerFolio <= 0) throw new RecipeApiError('Las unidades por folio deben ser mayores que cero.', 422);
 
         const payload = {
             cantidad_base_salida: amount,
+            unidades_por_folio_salida: unitsPerFolio,
             componentes: recipeComponentsPayload(),
         };
         let path = '/api/materiales/transformaciones/recetas';
@@ -439,6 +446,7 @@ function renderRecipes() {
                     <span>Historial: ${versionCount} ${versionCount === 1 ? 'versión' : 'versiones'}</span>
                     <span>${recipeEscape(recipeStatus(version?.estado || 'sin_version'))}</span>
                     <span>Salida base: ${recipeQuantity(version?.cantidad_base_salida)} ${recipeEscape(version?.unidad_medida_salida || recipe.item_salida?.unidad_medida || '')}</span>
+                    <span>Por folio: ${version?.unidades_por_folio_salida ? `${recipeQuantity(version.unidades_por_folio_salida)} ${recipeEscape(version.unidad_medida_salida || recipe.item_salida?.unidad_medida || '')}` : 'Sin regla'}</span>
                     <span>Principal: ${recipeEscape(principal?.item?.codigo || 'No definido')}</span>
                     <span>Merma estándar: ${recipeQuantity(principal?.merma_estandar_porcentaje, 4)}%</span>
                 </div>

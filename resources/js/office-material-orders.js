@@ -396,6 +396,13 @@ function renderOrderRequirements() {
     const entry = selectedRecipeEntry();
     const plannedOutput = Number(orderElements.form.elements.cantidad_planificada_salida.value || 0);
     const requirements = requirementsForRecipe(entry, plannedOutput);
+    const unitsPerFolio = Number(entry?.version?.unidades_por_folio_salida || 0);
+    const expectedFolios = unitsPerFolio > 0 && plannedOutput > 0
+        ? Math.ceil(plannedOutput / unitsPerFolio)
+        : 0;
+    const finalFolioUnits = expectedFolios > 0
+        ? Math.round((plannedOutput - (expectedFolios - 1) * unitsPerFolio) * 1000) / 1000
+        : 0;
 
     if (!entry) {
         orderElements.requirements.innerHTML = '<p class="materials-order-empty">Crea una receta activa antes de preparar órdenes.</p>';
@@ -408,7 +415,7 @@ function renderOrderRequirements() {
 
     orderElements.requirements.innerHTML = `
         <div class="materials-order-requirement">
-            <div><strong>Salida: ${orderEscape(entry.recipe.item_salida?.codigo)} · ${orderEscape(entry.recipe.item_salida?.nombre)}</strong><small>Receta base ${orderQuantity(entry.version.cantidad_base_salida)} ${orderEscape(entry.version.unidad_medida_salida)}</small></div>
+            <div><strong>Salida: ${orderEscape(entry.recipe.item_salida?.codigo)} · ${orderEscape(entry.recipe.item_salida?.nombre)}</strong><small>Receta base ${orderQuantity(entry.version.cantidad_base_salida)} ${orderEscape(entry.version.unidad_medida_salida)}${unitsPerFolio > 0 ? ` · ${orderQuantity(unitsPerFolio)} por folio · ${expectedFolios} folios esperados${finalFolioUnits !== unitsPerFolio ? ` (último con ${orderQuantity(finalFolioUnits)})` : ''}` : ' · sin regla de folios'}</small></div>
             <strong class="materials-order-requirement__stock">${orderQuantity(plannedOutput)} ${orderEscape(entry.version.unidad_medida_salida)}</strong>
         </div>
         ${requirements.map((requirement) => {

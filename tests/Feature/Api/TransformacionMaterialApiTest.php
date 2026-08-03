@@ -1251,6 +1251,118 @@ class TransformacionMaterialApiTest extends TestCase
             ->count());
     }
 
+    public function test_configura_un_folio_por_lote_y_calcula_el_remanente_final(): void
+    {
+        [, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
+            $this->prepararOrdenOperacional(80, 30);
+
+        $this->assertSame('30.000', $orden['unidades_por_folio_salida']);
+        $this->assertSame(3, $orden['folios_planificados']);
+        $this->assertSame(0, $orden['folios_generados']);
+        $this->assertSame(3, $orden['folios_pendientes']);
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 80,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El siguiente folio debe planificarse con 30.000 unidades de salida.',
+            );
+
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 30,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.lotes.0.cantidad_planificada_salida', '30.000')
+            ->json('data');
+        $loteUno = $orden['lotes'][0];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteUno['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 30,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 30],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 3],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.folios_generados', 1)
+            ->assertJsonPath('data.folios_pendientes', 2)
+            ->assertJsonCount(1, 'data.lotes.0.salidas')
+            ->json('data');
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El siguiente folio debe planificarse con 30.000 unidades de salida.',
+            );
+
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'cantidad_planificada_salida' => 30,
+            ])
+            ->assertOk()
+            ->json('data');
+        $loteDos = $orden['lotes'][1];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteDos['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 6,
+                'cantidad_real_salida' => 30,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 30],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 3],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.folios_generados', 2)
+            ->json('data');
+
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 7,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.lotes.2.cantidad_planificada_salida', '20.000')
+            ->json('data');
+        $loteTres = $orden['lotes'][2];
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$loteTres['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 8,
+                'cantidad_real_salida' => 20,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'pendiente_cierre')
+            ->assertJsonPath('data.folios_generados', 3)
+            ->assertJsonPath('data.folios_pendientes', 0)
+            ->assertJsonCount(1, 'data.lotes.0.salidas')
+            ->assertJsonCount(1, 'data.lotes.1.salidas')
+            ->assertJsonCount(1, 'data.lotes.2.salidas');
+    }
+
     private function prepararLoteCerradoParaImpresion(): array
     {
         [$tokenOficina, $tokenTablet, $folioPrincipal, $folioAuxiliar, $orden] =
@@ -1314,8 +1426,10 @@ class TransformacionMaterialApiTest extends TestCase
         return $trabajoId;
     }
 
-    private function prepararOrdenOperacional(float $cantidadPlanificada): array
-    {
+    private function prepararOrdenOperacional(
+        float $cantidadPlanificada,
+        ?float $unidadesPorFolio = null,
+    ): array {
         [, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
             $this->prepararCatalogo();
         [, , $tokenTablet] = $this->crearOperador();
@@ -1364,6 +1478,9 @@ class TransformacionMaterialApiTest extends TestCase
                 'item_salida_id' => $salida->id,
                 'nombre' => 'Reversa de consumo agotado',
                 'cantidad_base_salida' => 100,
+                ...($unidadesPorFolio !== null
+                    ? ['unidades_por_folio_salida' => $unidadesPorFolio]
+                    : []),
                 'componentes' => [
                     [
                         'item_entrada_id' => $entradaPrincipal->id,

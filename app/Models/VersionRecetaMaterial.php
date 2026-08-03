@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'numero_version',
     'estado',
     'cantidad_base_salida',
+    'unidades_por_folio_salida',
     'unidad_medida_salida',
     'snapshot',
     'creado_por_user_id',
@@ -52,6 +53,7 @@ class VersionRecetaMaterial extends Model
         return [
             'estado' => EstadoVersionRecetaMaterial::class,
             'cantidad_base_salida' => 'decimal:3',
+            'unidades_por_folio_salida' => 'decimal:3',
             'snapshot' => 'array',
             'activado_at' => 'datetime',
             'retirado_at' => 'datetime',

@@ -72,6 +72,9 @@ class ServicioVersionRecetaMaterial
                 'numero_version' => $siguienteNumero,
                 'estado' => EstadoVersionRecetaMaterial::Activa,
                 'cantidad_base_salida' => $this->cantidad($datos['cantidad_base_salida']),
+                'unidades_por_folio_salida' => isset($datos['unidades_por_folio_salida'])
+                    ? $this->cantidad($datos['unidades_por_folio_salida'])
+                    : null,
                 'unidad_medida_salida' => $receta->itemSalida->unidad_medida,
                 'creado_por_user_id' => $usuario->id,
                 'activado_at' => $ahora,
@@ -128,6 +131,7 @@ class ServicioVersionRecetaMaterial
                     'codigo' => $receta->itemSalida->codigo,
                     'nombre' => $receta->itemSalida->nombre,
                     'cantidad_base' => $version->cantidad_base_salida,
+                    'unidades_por_folio' => $version->unidades_por_folio_salida,
                     'unidad_medida' => $receta->itemSalida->unidad_medida,
                 ],
                 'componentes' => $detallesSnapshot,

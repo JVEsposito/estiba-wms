@@ -88,6 +88,21 @@ export function MaterialTransformationOperation({
       && reservation.folio,
   ) ?? [];
   const closedLots = selected?.lotes.filter((lot) => lot.estado === 'cerrado') ?? [];
+  const unitsPerOutputFolio = Number(
+    selected?.unidades_por_folio_salida
+      ?? selected?.receta_snapshot.salida.unidades_por_folio
+      ?? 0,
+  );
+  const plannedInLots = selected?.lotes
+    .filter((lot) => lot.estado !== 'anulado')
+    .reduce((sum, lot) => sum + Number(lot.cantidad_planificada_salida), 0) ?? 0;
+  const remainingPlannedOutput = Math.max(
+    0,
+    Number(selected?.cantidad_planificada_salida ?? 0) - plannedInLots,
+  );
+  const suggestedLotQuantity = unitsPerOutputFolio > 0
+    ? Math.min(unitsPerOutputFolio, remainingPlannedOutput)
+    : 0;
   const lastLot = [...(selected?.lotes ?? [])]
     .sort((a, b) => b.numero_lote - a.numero_lote)[0] ?? null;
 
@@ -136,9 +151,9 @@ export function MaterialTransformationOperation({
     setCloseReason('');
     setReverseCandidateId(null);
     setReverseReason('');
-    setPlannedQuantity('');
+    setPlannedQuantity(suggestedLotQuantity > 0 ? formatInputQuantity(suggestedLotQuantity) : '');
     operationIds.current.clear();
-  }, [selected?.id, openLot?.id]);
+  }, [selected?.id, selected?.version, openLot?.id, suggestedLotQuantity]);
 
   async function refresh(quiet: boolean) {
     if (pollInFlight.current) return;
@@ -485,7 +500,9 @@ export function MaterialTransformationOperation({
               <View style={styles.metrics}>
                 <Metric label="PLANIFICADO" value={`${formatQuantity(selected.cantidad_planificada_salida)} ${selected.receta_snapshot.salida.unidad_medida}`} />
                 <Metric label="PRODUCIDO" value={`${formatQuantity(selected.cantidad_real_salida ?? '0')} ${selected.receta_snapshot.salida.unidad_medida}`} />
-                <Metric label="LOTES CERRADOS" value={String(closedLots.length)} />
+                <Metric label="FOLIOS GENERADOS" value={selected.folios_planificados
+                  ? `${closedLots.length}/${selected.folios_planificados}`
+                  : String(closedLots.length)} />
               </View>
 
               {selected.estado === 'planificada' ? (
@@ -499,12 +516,15 @@ export function MaterialTransformationOperation({
 
               {(selected.estado === 'en_proceso' || selected.estado === 'pendiente_cierre') && !openLot ? (
                 <ActionCard
-                  title="Abrir lote parcial"
-                  description="Solo puede existir un lote abierto. La suma planificada no puede superar la orden."
+                  title={unitsPerOutputFolio > 0 ? 'Abrir siguiente folio / pallet' : 'Abrir lote parcial'}
+                  description={unitsPerOutputFolio > 0
+                    ? `La receta fija ${formatQuantity(String(unitsPerOutputFolio))} ${selected.receta_snapshot.salida.unidad_medida} por folio. El último puede corresponder al remanente de la orden.`
+                    : 'Solo puede existir un lote abierto. La suma planificada no puede superar la orden.'}
                 >
                   <Field
+                    editable={unitsPerOutputFolio <= 0}
                     keyboardType="decimal-pad"
-                    label="Cantidad planificada del lote"
+                    label={unitsPerOutputFolio > 0 ? 'Unidades del siguiente folio' : 'Cantidad planificada del lote'}
                     onChangeText={setPlannedQuantity}
                     value={plannedQuantity}
                   />
@@ -769,11 +789,13 @@ function ActionCard({
 }
 
 function Field({
+  editable = true,
   keyboardType,
   label,
   onChangeText,
   value,
 }: {
+  editable?: boolean;
   keyboardType?: 'default' | 'decimal-pad';
   label: string;
   onChangeText: (value: string) => void;
@@ -783,6 +805,7 @@ function Field({
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        editable={editable}
         keyboardType={keyboardType}
         onChangeText={onChangeText}
         placeholderTextColor={colors.muted}

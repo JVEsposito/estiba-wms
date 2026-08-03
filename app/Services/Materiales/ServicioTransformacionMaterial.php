@@ -84,6 +84,9 @@ class ServicioTransformacionMaterial
                 'numero_version' => 1,
                 'estado' => EstadoVersionRecetaMaterial::Activa,
                 'cantidad_base_salida' => $this->cantidad($datos['cantidad_base_salida']),
+                'unidades_por_folio_salida' => isset($datos['unidades_por_folio_salida'])
+                    ? $this->cantidad($datos['unidades_por_folio_salida'])
+                    : null,
                 'unidad_medida_salida' => $salida->unidad_medida,
                 'creado_por_user_id' => $usuario->id,
                 'activado_at' => now(),
@@ -150,6 +153,7 @@ class ServicioTransformacionMaterial
                     'codigo' => $salida->codigo,
                     'nombre' => $salida->nombre,
                     'cantidad_base' => $version->cantidad_base_salida,
+                    'unidades_por_folio' => $version->unidades_por_folio_salida,
                     'unidad_medida' => $salida->unidad_medida,
                 ],
                 'componentes' => $detallesSnapshot,
@@ -562,12 +566,31 @@ class ServicioTransformacionMaterial
                 throw new DomainException('La orden ya posee un lote abierto.');
             }
 
-            $totalPlanificado = round($lotes
+            $planificadoAnterior = round($lotes
                 ->reject(
                     fn (LoteTransformacionMaterial $lote): bool => $lote->estado === EstadoLoteTransformacionMaterial::Anulado,
                 )
-                ->sum(fn (LoteTransformacionMaterial $lote): float => (float) $lote->cantidad_planificada_salida)
-                + $cantidadPlanificada, 3);
+                ->sum(fn (LoteTransformacionMaterial $lote): float => (float) $lote->cantidad_planificada_salida), 3);
+            $unidadesPorFolio = data_get($orden->snapshot_receta, 'salida.unidades_por_folio');
+
+            if ($unidadesPorFolio !== null) {
+                $unidadesPorFolio = $this->cantidad($unidadesPorFolio);
+                $restantePlanificado = round(
+                    (float) $orden->cantidad_planificada_salida - $planificadoAnterior,
+                    3,
+                );
+                $cantidadEsperada = min($unidadesPorFolio, $restantePlanificado);
+
+                if ($cantidadEsperada <= 0
+                    || abs($cantidadPlanificada - $cantidadEsperada) > 0.0001) {
+                    throw new DomainException(sprintf(
+                        'El siguiente folio debe planificarse con %.3f unidades de salida.',
+                        max(0, $cantidadEsperada),
+                    ));
+                }
+            }
+
+            $totalPlanificado = round($planificadoAnterior + $cantidadPlanificada, 3);
 
             if ($totalPlanificado - (float) $orden->cantidad_planificada_salida > 0.0001) {
                 throw new DomainException('La suma de lotes supera la salida planificada de la orden.');
@@ -649,6 +672,22 @@ class ServicioTransformacionMaterial
             if ($orden->estado !== EstadoOrdenTransformacionMaterial::EnProceso
                 || $lote->estado !== EstadoLoteTransformacionMaterial::Abierto) {
                 throw new DomainException('El lote ya no se encuentra abierto para registrar consumos.');
+            }
+
+            $unidadesPorFolio = data_get($orden->snapshot_receta, 'salida.unidades_por_folio');
+
+            if ($unidadesPorFolio !== null) {
+                $maximoSalida = min(
+                    $this->cantidad($unidadesPorFolio),
+                    (float) $lote->cantidad_planificada_salida,
+                );
+
+                if ($cantidadRealSalida - $maximoSalida > 0.0001) {
+                    throw new DomainException(sprintf(
+                        'Un folio de salida no puede superar %.3f unidades.',
+                        $maximoSalida,
+                    ));
+                }
             }
 
             $componentes = collect(data_get($orden->snapshot_receta, 'componentes', []));
