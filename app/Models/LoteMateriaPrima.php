@@ -136,6 +136,11 @@ class LoteMateriaPrima extends Model
         return $this->hasMany(EventoLoteMateriaPrima::class, 'lote_materia_prima_id');
     }
 
+    public function entregasProceso(): HasMany
+    {
+        return $this->hasMany(EntregaFrutaProceso::class, 'lote_materia_prima_id');
+    }
+
     protected function casts(): array
     {
         return [

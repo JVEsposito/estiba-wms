@@ -34,6 +34,12 @@ class AccesoTabletApiTest extends TestCase
             ->assertJsonPath('usuario.ambito_camaras', 'productos')
             ->assertJsonPath('usuario.capacidades.puede_operar_productos', true)
             ->assertJsonPath('usuario.capacidades.puede_operar_materiales', false)
+            ->assertJsonPath('usuario.capacidades.puede_consultar_fruta_proceso', true)
+            ->assertJsonPath('usuario.capacidades.puede_entregar_fruta_proceso', true)
+            ->assertJsonPath(
+                'usuario.modulos_tablet.0',
+                CatalogoModulosAcceso::TABLET_FRUTA_PROCESO,
+            )
             ->assertJsonPath('dispositivo.id', $dispositivo->id)
             ->json('token');
 
@@ -294,6 +300,20 @@ class AccesoTabletApiTest extends TestCase
         );
         $this->assertContains(
             CatalogoModulosAcceso::TABLET_RECEPCION_MATERIALES,
+            $perfil->modulos_tablet,
+        );
+    }
+
+    public function test_el_perfil_inicial_de_camarero_publica_fruta_a_proceso_en_tablet(): void
+    {
+        $perfil = PerfilAcceso::query()
+            ->where('codigo', 'CAMARERO_FRIO')
+            ->where('predeterminado', true)
+            ->firstOrFail();
+
+        $this->assertContains('materia-prima.fruta-proceso', $perfil->modulos);
+        $this->assertContains(
+            CatalogoModulosAcceso::TABLET_FRUTA_PROCESO,
             $perfil->modulos_tablet,
         );
     }

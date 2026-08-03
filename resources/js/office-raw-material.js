@@ -107,6 +107,8 @@ function label(value) {
         hidrocooler_en_curso: 'Hidrocooler en curso',
         pendiente_asignacion: 'Pendiente de cámara',
         asignado_camara: 'Asignado a cámara',
+        entrega_parcial_proceso: 'Entrega parcial a Packing',
+        entregado_proceso: 'Entregado a Packing',
         anulado: 'Anulado',
         materia_prima: 'Materia prima',
         comercial: 'Comercial',
@@ -158,7 +160,7 @@ function stateBadge(status) {
             ? 'hydro'
             : status === 'pendiente_asignacion'
                 ? 'camera'
-                : status === 'asignado_camara'
+                : ['asignado_camara', 'entrega_parcial_proceso', 'entregado_proceso'].includes(status)
                     ? 'assigned'
                     : 'void';
     return `<span class="raw-state raw-state--${style}">${escapeHtml(label(status))}</span>`;

@@ -587,6 +587,38 @@ class AlcanceOperacionalUsuario
         ], 'materia-prima.digitacion');
     }
 
+    public function puedeConsultarFrutaProceso(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::CamareroFrio,
+            RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::Consulta,
+        ], 'materia-prima.fruta-proceso');
+    }
+
+    public function puedeEntregarFrutaProceso(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::CamareroFrio,
+        ], 'materia-prima.fruta-proceso')
+            && $this->permiteModuloTablet(
+                $usuario,
+                CatalogoModulosAcceso::TABLET_FRUTA_PROCESO,
+            );
+    }
+
+    public function puedeCorregirEntregasFrutaProceso(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ], 'materia-prima.fruta-proceso');
+    }
+
     public function puedeConsultarOficinaConsultas(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -660,6 +692,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Despachador,
             RolUsuario::OperadorRomana,
             RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::CamareroFrio,
             RolUsuario::Consulta,
         ], $this->catalogoModulos->claves());
     }
@@ -685,6 +718,9 @@ class AlcanceOperacionalUsuario
             'puede_consultar_materia_prima' => $this->puedeConsultarMateriaPrima($usuario),
             'puede_gestionar_lotes_materia_prima' => $this->puedeGestionarLotesMateriaPrima($usuario),
             'puede_supervisar_lotes_materia_prima' => $this->puedeSupervisarLotesMateriaPrima($usuario),
+            'puede_consultar_fruta_proceso' => $this->puedeConsultarFrutaProceso($usuario),
+            'puede_entregar_fruta_proceso' => $this->puedeEntregarFrutaProceso($usuario),
+            'puede_corregir_entregas_fruta_proceso' => $this->puedeCorregirEntregasFrutaProceso($usuario),
             'puede_consultar_oficina_consultas' => $this->puedeConsultarOficinaConsultas($usuario),
             'puede_consultar_sag' => $this->puedeConsultarSag($usuario),
             'puede_asociar_productores_csg' => $this->puedeAsociarProductoresCsg($usuario),
