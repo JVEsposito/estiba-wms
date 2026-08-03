@@ -332,7 +332,6 @@ class ServicioAlmacenMaterial
             [
                 'camara_id' => $saldo->camara_id,
                 'posicion_id' => $saldo->posicion_id,
-                'movimiento_id' => null,
                 'ubicado_at' => now(),
             ],
         ));
