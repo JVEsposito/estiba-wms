@@ -568,8 +568,11 @@ function renderOrders() {
         const progress = planned > 0 ? Math.min(100, Math.max(0, (actual / planned) * 100)) : 0;
         const activeSeason = order.temporada?.activa === true;
         const canPlan = canManageOrders() && order.estado === 'borrador' && activeSeason;
-        const canCancel = canManageOrders() && ['borrador', 'planificada'].includes(order.estado);
         const hasOutputs = orderHasOutputs(order);
+        const canCancel = canManageOrders() && (
+            ['borrador', 'planificada'].includes(order.estado)
+            || (order.estado === 'en_proceso' && !hasOutputs)
+        );
         const cancelledDetail = order.estado === 'cancelada' && order.motivo_cancelacion
             ? `<p class="materials-help">Cancelada: ${orderEscape(order.motivo_cancelacion)}</p>`
             : '';
@@ -713,8 +716,11 @@ async function planOrder(order) {
 
 async function cancelOrder(order) {
     const previous = orderState.cancellationOperations.get(order.id);
+    const cancellationEffect = order.estado === 'en_proceso'
+        ? ' Se descartará cualquier lote abierto y se liberarán sus reservas activas:'
+        : ' Sus reservas activas serán liberadas:';
     const reason = window.prompt(
-        `Indica el motivo para cancelar ${orderCode(order)}. Sus reservas activas serán liberadas:`,
+        `Indica el motivo para cancelar ${orderCode(order)}.${cancellationEffect}`,
         previous?.reason || '',
     );
     if (reason === null) return;
@@ -739,7 +745,10 @@ async function cancelOrder(order) {
         orderState.cancellationOperations.delete(order.id);
         await loadOrdersOffice(true);
         window.dispatchEvent(new CustomEvent('estiba:materials-updated'));
-        orderToast(`${orderCode(order)} fue cancelada y sus reservas quedaron liberadas.`);
+        const discardedOpenLot = order.estado === 'en_proceso'
+            ? ' También se descartó cualquier lote abierto.'
+            : '';
+        orderToast(`${orderCode(order)} fue cancelada y sus reservas quedaron liberadas.${discardedOpenLot}`);
     } catch (error) {
         orderToast(error.message, true);
     }
