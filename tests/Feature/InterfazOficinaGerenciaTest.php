@@ -6,7 +6,7 @@ use Tests\TestCase;
 
 class InterfazOficinaGerenciaTest extends TestCase
 {
-    public function test_el_panel_gerencial_presenta_indicadores_y_graficos_de_solo_observacion(): void
+    public function test_el_panel_gerencial_presenta_indicadores_accionables_por_area(): void
     {
         $this->get('/oficina/gerencia')
             ->assertOk()
@@ -14,14 +14,20 @@ class InterfazOficinaGerenciaTest extends TestCase
             ->assertSee('Solo observación')
             ->assertSee('CAPACIDAD DE CÁMARAS')
             ->assertSee('INVENTARIO DE MATERIALES')
-            ->assertSee('RECEPCIÓN ROMANA')
-            ->assertSee('Ocupación por cámara')
-            ->assertSee('Disponibilidad de producto')
-            ->assertSee('Materiales por ítem')
-            ->assertSee('Peso neto últimos 7 días')
+            ->assertSee('Focos operacionales priorizados')
+            ->assertSee('Cargas activas y avance operativo')
+            ->assertSee('Validación de pallets de hoy')
+            ->assertSee('Ocupación, cola y cumplimiento de tiempo')
+            ->assertSee('Lotes y continuidad hacia proceso')
+            ->assertSee('Movimientos y revisión documental')
+            ->assertSee('/oficina/frigorifico/existencias', false)
+            ->assertSee('/oficina/materiales/exportaciones', false)
+            ->assertSee('/oficina/materia-prima/existencias', false)
             ->assertSee('cameraOccupancyChart', false)
             ->assertSee('materialStockChart', false)
             ->assertSee('weighbridgeReceptionChart', false)
+            ->assertSee('managementLoadList', false)
+            ->assertSee('managementPrecoolingList', false)
             ->assertSee('refreshDashboardButton', false)
             ->assertDontSee('<form id="create', false);
     }
