@@ -191,6 +191,101 @@ function refreshNavigation() {
     if (hasSession) redirectFromUnavailableOffice(identity);
 }
 
+const panelStoragePrefix = 'estiba_wms_office_panel:';
+
+function panelStorageKey(group) {
+    return `${panelStoragePrefix}${group}`;
+}
+
+function storedOfficePanel(group) {
+    try {
+        return sessionStorage.getItem(panelStorageKey(group));
+    } catch {
+        return null;
+    }
+}
+
+function officePanelData(switcher) {
+    const group = switcher.dataset.officePanelSwitcher;
+    const tabs = [...switcher.querySelectorAll('[data-office-panel-target]')];
+    const panels = [...document.querySelectorAll(
+        `[data-office-panel-group="${CSS.escape(group)}"][data-office-panel-id]`,
+    )];
+
+    return { group, tabs, panels };
+}
+
+function selectOfficePanel(switcher, requestedPanel, { focus = false, persist = true } = {}) {
+    const { group, tabs, panels } = officePanelData(switcher);
+    if (!group || !tabs.length || !panels.length) return null;
+
+    const availableTabs = tabs.filter((tab) => !tab.classList.contains('is-hidden'));
+    const defaultPanel = switcher.dataset.defaultPanel;
+    const panelIds = new Set(panels.map((panel) => panel.dataset.officePanelId));
+    const selectedPanel = [requestedPanel, defaultPanel, availableTabs[0]?.dataset.officePanelTarget]
+        .find((panelId) => panelId && panelIds.has(panelId)
+            && availableTabs.some((tab) => tab.dataset.officePanelTarget === panelId));
+
+    if (!selectedPanel) return null;
+
+    tabs.forEach((tab) => {
+        const selected = tab.dataset.officePanelTarget === selectedPanel;
+        tab.classList.toggle('is-active', selected);
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        if (selected && focus) tab.focus();
+    });
+
+    panels.forEach((panel) => {
+        panel.hidden = panel.dataset.officePanelId !== selectedPanel;
+    });
+
+    if (persist) {
+        try {
+            sessionStorage.setItem(panelStorageKey(group), selectedPanel);
+        } catch {
+            // La navegación sigue operativa aunque el navegador no permita persistencia.
+        }
+    }
+
+    document.dispatchEvent(new CustomEvent('estiba:office-panel-change', {
+        detail: { group, panel: selectedPanel },
+    }));
+
+    return selectedPanel;
+}
+
+function initializeOfficePanelSwitchers() {
+    document.querySelectorAll('[data-office-panel-switcher]').forEach((switcher) => {
+        const { group, tabs } = officePanelData(switcher);
+        selectOfficePanel(switcher, storedOfficePanel(group), { persist: false });
+
+        switcher.addEventListener('click', (event) => {
+            const tab = event.target.closest('[data-office-panel-target]');
+            if (!tab || !switcher.contains(tab)) return;
+            selectOfficePanel(switcher, tab.dataset.officePanelTarget);
+        });
+
+        switcher.addEventListener('keydown', (event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+
+            const availableTabs = tabs.filter((tab) => !tab.classList.contains('is-hidden'));
+            const activeIndex = availableTabs.indexOf(document.activeElement);
+            if (activeIndex < 0 || !availableTabs.length) return;
+
+            event.preventDefault();
+            let nextIndex = activeIndex;
+            if (event.key === 'Home') nextIndex = 0;
+            if (event.key === 'End') nextIndex = availableTabs.length - 1;
+            if (event.key === 'ArrowLeft') nextIndex = (activeIndex - 1 + availableTabs.length) % availableTabs.length;
+            if (event.key === 'ArrowRight') nextIndex = (activeIndex + 1) % availableTabs.length;
+
+            const nextTab = availableTabs[nextIndex];
+            selectOfficePanel(switcher, nextTab.dataset.officePanelTarget, { focus: true });
+        });
+    });
+}
+
 function scrollToOfficeTarget() {
     if (!location.hash) return;
     const id = decodeURIComponent(location.hash.slice(1));
@@ -199,6 +294,13 @@ function scrollToOfficeTarget() {
         attempts += 1;
         const target = document.getElementById(id);
         if (target) {
+            const panel = target.closest('[data-office-panel-group][data-office-panel-id]');
+            if (panel?.hidden) {
+                const switcher = document.querySelector(
+                    `[data-office-panel-switcher="${CSS.escape(panel.dataset.officePanelGroup)}"]`,
+                );
+                if (switcher) selectOfficePanel(switcher, panel.dataset.officePanelId);
+            }
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             target.classList.add('office-navigation-target');
             window.setTimeout(() => target.classList.remove('office-navigation-target'), 1800);
@@ -259,6 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeThemeSelector();
     refreshNavigation();
     observeApplication();
+    initializeOfficePanelSwitchers();
     scrollToOfficeTarget();
 
     document.querySelectorAll('[data-domain-key]').forEach((link) => {

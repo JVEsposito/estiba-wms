@@ -226,11 +226,42 @@ body {
     font-size: .95rem;
 }
 
-.management-grid {
+.management-switcher-shell {
+    padding: 0 28px 14px;
+}
+
+.management-panel-workspace {
+    min-width: 0;
+    padding: 0 28px;
+}
+
+.management-view {
     display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(300px, .75fr);
+    grid-template-columns: minmax(0, 1.2fr) minmax(440px, 1fr);
     gap: 14px;
-    padding: 0 28px 16px;
+    min-width: 0;
+    align-items: stretch;
+}
+
+.management-view--single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.management-view > .management-panel {
+    min-height: 430px;
+}
+
+.management-view--single > .management-panel {
+    min-height: 470px;
+}
+
+.management-view .chart-container--bar {
+    height: 360px;
+}
+
+.management-view--single .chart-container--doughnut {
+    height: 340px;
+    min-height: 340px;
 }
 
 .management-panel {
@@ -320,11 +351,9 @@ body {
     color: var(--text);
 }
 
-.management-detail-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(300px, .75fr);
-    gap: 14px;
-    padding: 0 28px;
+.management-table-panel .table-scroll {
+    max-height: 365px;
+    overflow: auto;
 }
 
 .table-scroll {
@@ -452,7 +481,22 @@ body {
 }
 
 @media (max-width: 1260px) {
-    .management-kpis { grid-template-columns: repeat(2, 1fr); }
+    .management-kpis {
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(230px, 1fr);
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+    }
+
+    .management-kpi {
+        scroll-snap-align: start;
+    }
+
+    .management-view {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .management-topbar { grid-template-columns: minmax(230px, 1fr) auto; }
     .management-topbar nav { display: none; }
 }
@@ -461,6 +505,4 @@ body {
     .management-app { min-width: 760px; }
     .management-heading { align-items: flex-start; flex-direction: column; }
     .management-refresh { width: 100%; justify-content: space-between; text-align: left; }
-    .management-grid,
-    .management-detail-grid { grid-template-columns: 1fr; }
 }

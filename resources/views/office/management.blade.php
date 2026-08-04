@@ -102,58 +102,126 @@
                 </article>
             </section>
 
-            <section class="management-grid">
-                <article class="management-panel management-panel--wide">
-                    <header>
-                        <div><p class="eyebrow">USO DE INFRAESTRUCTURA</p><h2>Ocupación por cámara</h2></div>
-                        <div class="chart-legend" aria-label="Leyenda"><span><i class="legend-dot legend-dot--occupied"></i>Ocupada</span><span><i class="legend-dot legend-dot--free"></i>Disponible</span></div>
-                    </header>
-                    <div class="chart-container chart-container--bar"><canvas id="cameraOccupancyChart" aria-label="Gráfico de ocupación por cámara" role="img"></canvas></div>
-                </article>
+            <div class="management-switcher-shell">
+                <x-office.panel-switcher
+                    id="management"
+                    label="Detalle del panel gerencial"
+                    default="cameras"
+                    :panels="[
+                        'cameras' => ['label' => 'Cámaras', 'icon' => '▦'],
+                        'products' => ['label' => 'Producto', 'icon' => '◇'],
+                        'materials' => ['label' => 'Materiales', 'icon' => '▤'],
+                        'precooling' => ['label' => 'Prefrío', 'icon' => '❄'],
+                        'weighbridge' => ['label' => 'Romana', 'icon' => '⚖'],
+                        'alerts' => ['label' => 'Focos', 'icon' => '!', 'badge_id' => 'alertTabCount'],
+                    ]"
+                />
+            </div>
 
-                <article class="management-panel">
-                    <header><div><p class="eyebrow">RECEPCIÓN DE CLIENTES</p><h2>Peso neto últimos 7 días</h2></div></header>
-                    <div class="chart-container chart-container--bar"><canvas id="weighbridgeReceptionChart" aria-label="Gráfico de peso neto recibido en romana" role="img"></canvas></div>
-                    <div class="chart-summary" id="weighbridgeChartSummary"></div>
-                </article>
+            <section class="management-panel-workspace">
+                <div
+                    class="management-view management-view--cameras"
+                    id="management-panel-cameras"
+                    data-office-panel-group="management"
+                    data-office-panel-id="cameras"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-cameras"
+                >
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">USO DE INFRAESTRUCTURA</p><h2>Ocupación por cámara</h2></div>
+                            <div class="chart-legend" aria-label="Leyenda"><span><i class="legend-dot legend-dot--occupied"></i>Ocupada</span><span><i class="legend-dot legend-dot--free"></i>Disponible</span></div>
+                        </header>
+                        <div class="chart-container chart-container--bar"><canvas id="cameraOccupancyChart" aria-label="Gráfico de ocupación por cámara" role="img"></canvas></div>
+                    </article>
 
-                <article class="management-panel">
-                    <header><div><p class="eyebrow">FOLIOS ACTIVOS</p><h2>Disponibilidad de producto</h2></div></header>
-                    <div class="chart-container chart-container--doughnut"><canvas id="productAvailabilityChart" aria-label="Gráfico de disponibilidad de producto" role="img"></canvas></div>
-                    <div class="chart-summary" id="productChartSummary"></div>
-                </article>
+                    <article class="management-panel management-table-panel">
+                        <header><div><p class="eyebrow">DETALLE FÍSICO</p><h2>Capacidad por cámara</h2></div></header>
+                        <div class="table-scroll">
+                            <table>
+                                <thead><tr><th>Cámara</th><th>Área</th><th>Ocupadas</th><th>Disponibles</th><th>No operativas</th><th>Uso</th></tr></thead>
+                                <tbody id="cameraDetailRows"></tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
 
-                <article class="management-panel management-panel--wide">
-                    <header>
-                        <div><p class="eyebrow">STOCK UTILIZABLE</p><h2>Materiales por ítem</h2></div>
-                        <label class="chart-filter"><span>Unidad</span><select id="materialUnitSelect" aria-label="Unidad de medida para el gráfico"></select></label>
-                    </header>
-                    <div class="chart-container chart-container--bar"><canvas id="materialStockChart" aria-label="Gráfico de stock de materiales" role="img"></canvas></div>
-                    <div class="chart-summary" id="materialChartSummary"></div>
-                </article>
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-products"
+                    data-office-panel-group="management"
+                    data-office-panel-id="products"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-products"
+                >
+                    <article class="management-panel">
+                        <header><div><p class="eyebrow">FOLIOS ACTIVOS</p><h2>Disponibilidad de producto</h2></div></header>
+                        <div class="chart-container chart-container--doughnut"><canvas id="productAvailabilityChart" aria-label="Gráfico de disponibilidad de producto" role="img"></canvas></div>
+                        <div class="chart-summary" id="productChartSummary"></div>
+                    </article>
+                </div>
 
-                <article class="management-panel">
-                    <header><div><p class="eyebrow">CAPACIDAD TÉRMICA</p><h2>Ocupación de prefrío</h2></div></header>
-                    <div class="chart-container chart-container--bar"><canvas id="precoolingChart" aria-label="Gráfico de ocupación de túneles" role="img"></canvas></div>
-                    <div class="chart-summary" id="precoolingChartSummary"></div>
-                </article>
-            </section>
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-materials"
+                    data-office-panel-group="management"
+                    data-office-panel-id="materials"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-materials"
+                >
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">STOCK UTILIZABLE</p><h2>Materiales por ítem</h2></div>
+                            <label class="chart-filter"><span>Unidad</span><select id="materialUnitSelect" aria-label="Unidad de medida para el gráfico"></select></label>
+                        </header>
+                        <div class="chart-container chart-container--bar"><canvas id="materialStockChart" aria-label="Gráfico de stock de materiales" role="img"></canvas></div>
+                        <div class="chart-summary" id="materialChartSummary"></div>
+                    </article>
+                </div>
 
-            <section class="management-detail-grid">
-                <article class="management-panel management-table-panel">
-                    <header><div><p class="eyebrow">DETALLE FÍSICO</p><h2>Capacidad por cámara</h2></div></header>
-                    <div class="table-scroll">
-                        <table>
-                            <thead><tr><th>Cámara</th><th>Área</th><th>Ocupadas</th><th>Disponibles</th><th>No operativas</th><th>Uso</th></tr></thead>
-                            <tbody id="cameraDetailRows"></tbody>
-                        </table>
-                    </div>
-                </article>
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-precooling"
+                    data-office-panel-group="management"
+                    data-office-panel-id="precooling"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-precooling"
+                >
+                    <article class="management-panel">
+                        <header><div><p class="eyebrow">CAPACIDAD TÉRMICA</p><h2>Ocupación de prefrío</h2></div></header>
+                        <div class="chart-container chart-container--bar"><canvas id="precoolingChart" aria-label="Gráfico de ocupación de túneles" role="img"></canvas></div>
+                        <div class="chart-summary" id="precoolingChartSummary"></div>
+                    </article>
+                </div>
 
-                <article class="management-panel management-alerts-panel">
-                    <header><div><p class="eyebrow">ATENCIÓN GERENCIAL</p><h2>Focos operacionales</h2></div><span class="alert-count" id="alertCount">0</span></header>
-                    <div class="management-alerts" id="managementAlerts" aria-live="polite"></div>
-                </article>
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-weighbridge"
+                    data-office-panel-group="management"
+                    data-office-panel-id="weighbridge"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-weighbridge"
+                >
+                    <article class="management-panel">
+                        <header><div><p class="eyebrow">RECEPCIÓN DE CLIENTES</p><h2>Peso neto últimos 7 días</h2></div></header>
+                        <div class="chart-container chart-container--bar"><canvas id="weighbridgeReceptionChart" aria-label="Gráfico de peso neto recibido en romana" role="img"></canvas></div>
+                        <div class="chart-summary" id="weighbridgeChartSummary"></div>
+                    </article>
+                </div>
+
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-alerts"
+                    data-office-panel-group="management"
+                    data-office-panel-id="alerts"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-alerts"
+                >
+                    <article class="management-panel management-alerts-panel">
+                        <header><div><p class="eyebrow">ATENCIÓN GERENCIAL</p><h2>Focos operacionales</h2></div><span class="alert-count" id="alertCount">0</span></header>
+                        <div class="management-alerts" id="managementAlerts" aria-live="polite"></div>
+                    </article>
+                </div>
             </section>
         </main>
 

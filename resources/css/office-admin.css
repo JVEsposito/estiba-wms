@@ -696,3 +696,13 @@
 #officeApp.is-read-only .access-profiles-layout {
     grid-template-columns: minmax(0, 1fr);
 }
+
+
+.admin-workspace > .office-panel-switcher {
+    margin-top: 16px;
+}
+
+.admin-workspace > [data-office-panel-group="administration"],
+.admin-grid.office-panel-workspace {
+    margin-top: 16px;
+}
