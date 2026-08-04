@@ -195,39 +195,42 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/materia-prima/fruta-proceso/sublotes/{subloteRetornoPacking}/ubicar', [RetornoPackingController::class, 'ubicar'])
         ->middleware('can:entregar-fruta-proceso');
     Route::prefix('administracion/validacion')
-        ->middleware('can:administrar-catalogos-validacion')
         ->group(function () {
-            Route::get('/', [AdministracionValidacionController::class, 'index']);
-            Route::get('/temporadas/{temporada}/catalogo', [CatalogoJerarquicoValidacionController::class, 'index']);
-            Route::post('/marcas', [CatalogoJerarquicoValidacionController::class, 'storeMarca']);
-            Route::put('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateMarca']);
-            Route::delete('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyMarca']);
-            Route::post('/especies', [CatalogoJerarquicoValidacionController::class, 'storeEspecie']);
-            Route::put('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEspecie']);
-            Route::delete('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyEspecie']);
-            Route::post('/categorias', [CatalogoJerarquicoValidacionController::class, 'storeCategoria']);
-            Route::put('/categorias/{categoriaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCategoria']);
-            Route::delete('/categorias/{categoriaValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCategoria']);
-            Route::post('/variedades', [CatalogoJerarquicoValidacionController::class, 'storeVariedad']);
-            Route::put('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateVariedad']);
-            Route::delete('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyVariedad']);
-            Route::post('/calibres', [CatalogoJerarquicoValidacionController::class, 'storeCalibre']);
-            Route::put('/calibres/{calibreValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCalibre']);
-            Route::delete('/calibres/{calibreValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCalibre']);
-            Route::post('/envases', [CatalogoJerarquicoValidacionController::class, 'storeEnvase']);
-            Route::put('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEnvase']);
-            Route::delete('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyEnvase']);
-            Route::post('/csg', [CatalogoJerarquicoValidacionController::class, 'storeCsg']);
-            Route::put('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCsg']);
-            Route::delete('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCsg']);
-            Route::post('/articulos', [AdministracionValidacionController::class, 'storeArticulo']);
-            Route::put('/articulos/{articuloValidacion}', [AdministracionValidacionController::class, 'updateArticulo']);
-            Route::post('/origenes', [AdministracionValidacionController::class, 'storeOrigen']);
-            Route::put('/origenes/{origenValidacion}', [AdministracionValidacionController::class, 'updateOrigen']);
-            Route::post('/combinaciones', [AdministracionValidacionController::class, 'storeCombinacion']);
-            Route::put('/combinaciones/{combinacionValidacion}', [AdministracionValidacionController::class, 'updateCombinacion']);
-            Route::post('/importaciones/previsualizar', [AdministracionValidacionController::class, 'previsualizarImportacion']);
-            Route::post('/importaciones/{importacionValidacion}/confirmar', [AdministracionValidacionController::class, 'confirmarImportacion']);
+            Route::middleware('can:consultar-catalogos-validacion')->group(function () {
+                Route::get('/', [AdministracionValidacionController::class, 'index']);
+                Route::get('/temporadas/{temporada}/catalogo', [CatalogoJerarquicoValidacionController::class, 'index']);
+            });
+            Route::middleware('can:administrar-catalogos-validacion')->group(function () {
+                Route::post('/marcas', [CatalogoJerarquicoValidacionController::class, 'storeMarca']);
+                Route::put('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateMarca']);
+                Route::delete('/marcas/{marcaValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyMarca']);
+                Route::post('/especies', [CatalogoJerarquicoValidacionController::class, 'storeEspecie']);
+                Route::put('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEspecie']);
+                Route::delete('/especies/{especieValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyEspecie']);
+                Route::post('/categorias', [CatalogoJerarquicoValidacionController::class, 'storeCategoria']);
+                Route::put('/categorias/{categoriaValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCategoria']);
+                Route::delete('/categorias/{categoriaValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCategoria']);
+                Route::post('/variedades', [CatalogoJerarquicoValidacionController::class, 'storeVariedad']);
+                Route::put('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateVariedad']);
+                Route::delete('/variedades/{variedadValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyVariedad']);
+                Route::post('/calibres', [CatalogoJerarquicoValidacionController::class, 'storeCalibre']);
+                Route::put('/calibres/{calibreValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCalibre']);
+                Route::delete('/calibres/{calibreValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCalibre']);
+                Route::post('/envases', [CatalogoJerarquicoValidacionController::class, 'storeEnvase']);
+                Route::put('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateEnvase']);
+                Route::delete('/envases/{envaseValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyEnvase']);
+                Route::post('/csg', [CatalogoJerarquicoValidacionController::class, 'storeCsg']);
+                Route::put('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'updateCsg']);
+                Route::delete('/csg/{csgValidacion}', [CatalogoJerarquicoValidacionController::class, 'destroyCsg']);
+                Route::post('/articulos', [AdministracionValidacionController::class, 'storeArticulo']);
+                Route::put('/articulos/{articuloValidacion}', [AdministracionValidacionController::class, 'updateArticulo']);
+                Route::post('/origenes', [AdministracionValidacionController::class, 'storeOrigen']);
+                Route::put('/origenes/{origenValidacion}', [AdministracionValidacionController::class, 'updateOrigen']);
+                Route::post('/combinaciones', [AdministracionValidacionController::class, 'storeCombinacion']);
+                Route::put('/combinaciones/{combinacionValidacion}', [AdministracionValidacionController::class, 'updateCombinacion']);
+                Route::post('/importaciones/previsualizar', [AdministracionValidacionController::class, 'previsualizarImportacion']);
+                Route::post('/importaciones/{importacionValidacion}/confirmar', [AdministracionValidacionController::class, 'confirmarImportacion']);
+            });
         });
 
     Route::get('/notificaciones-operacionales', [NotificacionOperacionalController::class, 'index']);
@@ -352,25 +355,27 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy'])
         ->middleware('can:administrar-camaras');
 
-    Route::middleware('can:administrar-accesos')->group(function () {
+    Route::middleware('can:consultar-accesos')->group(function () {
         Route::get('/administracion/accesos', [AdministracionAccesoController::class, 'index']);
         Route::get('/administracion/perfiles-acceso', [PerfilAccesoController::class, 'index']);
+        Route::get('/administracion/clientes', [ClienteGlobalController::class, 'index']);
+        Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
+        Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
+    });
+    Route::middleware('can:administrar-accesos')->group(function () {
         Route::post('/administracion/perfiles-acceso', [PerfilAccesoController::class, 'store']);
         Route::put('/administracion/perfiles-acceso/{perfilAcceso}', [PerfilAccesoController::class, 'update']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::put('/administracion/usuarios/{usuario}', [AdministracionAccesoController::class, 'actualizarUsuario']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
-        Route::get('/administracion/clientes', [ClienteGlobalController::class, 'index']);
         Route::post('/administracion/clientes', [ClienteGlobalController::class, 'store']);
         Route::put('/administracion/clientes/{cliente}', [ClienteGlobalController::class, 'update']);
-        Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
         Route::post('/administracion/temporadas', [AdministracionTemporadaController::class, 'store']);
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
         Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
         Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
         Route::get('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'preview']);
         Route::post('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'store']);
-        Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
         Route::post('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'store']);
         Route::put('/administracion/etiquetas/materiales/perfiles/{perfilImpresionEtiqueta}', [PerfilImpresionEtiquetaController::class, 'update']);
     });

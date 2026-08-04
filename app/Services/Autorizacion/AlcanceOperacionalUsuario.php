@@ -23,7 +23,7 @@ class AlcanceOperacionalUsuario
             return [];
         }
 
-        $contenidos = match ($usuario->rol) {
+        $contenidos = match ($this->rolEfectivo($usuario)) {
             RolUsuario::SupervisorFrio,
             RolUsuario::CamareroFrio => [ContenidoCamara::Productos],
             RolUsuario::SupervisorMateriales,
@@ -156,6 +156,24 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeConsultarAccesos(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador, RolUsuario::Consulta],
+            'administracion.accesos',
+        );
+    }
+
+    public function puedeConsultarConfiguracionCamaras(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador, RolUsuario::Consulta],
+            'administracion.camaras',
+        );
+    }
+
     public function contenidoForzadoCreacion(User $usuario): ?ContenidoCamara
     {
         return match ($usuario->rol) {
@@ -270,6 +288,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Consulta,
         ], [
             'materiales.resumen',
+            'materiales.catalogos',
             'materiales.etiquetas',
             'materiales.inventario',
             'materiales.despachos',
@@ -420,7 +439,7 @@ class AlcanceOperacionalUsuario
             CatalogoModulosAcceso::TABLET_OPERACION_MATERIALES,
         ) && $this->rolActivoEnModulo(
             $usuario,
-            [RolUsuario::Administrador, RolUsuario::SupervisorMateriales],
+            [RolUsuario::Administrador, RolUsuario::SupervisorMateriales, RolUsuario::Consulta],
             'materiales.inventario',
         );
     }
@@ -462,7 +481,21 @@ class AlcanceOperacionalUsuario
 
     public function puedeConsultarValidacionesPallet(User $usuario): bool
     {
-        return $this->puedeValidarPallets($usuario);
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Validador,
+            RolUsuario::Consulta,
+        ], 'frigorifico.validacion');
+    }
+
+    public function puedeConsultarCatalogosValidacion(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador, RolUsuario::Consulta],
+            'frigorifico.catalogos',
+        );
     }
 
     public function puedeAdministrarCatalogosValidacion(User $usuario): bool
@@ -634,6 +667,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::Consulta,
         ], ['consultas.busqueda', 'consultas.sag', 'consultas.productores']);
     }
 
@@ -643,6 +677,7 @@ class AlcanceOperacionalUsuario
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
             RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::Consulta,
         ], 'consultas.sag');
     }
 
@@ -712,6 +747,7 @@ class AlcanceOperacionalUsuario
     public function capacidadesApi(User $usuario): array
     {
         return [
+            'solo_consulta' => $this->esSoloConsulta($usuario),
             'modulos_acceso' => $this->catalogoModulos->modulosUsuario($usuario),
             'modulos_tablet' => $this->catalogoModulos->modulosTabletUsuario($usuario),
             'perfil_acceso' => $usuario->perfilAcceso ? [
@@ -764,6 +800,9 @@ class AlcanceOperacionalUsuario
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
             'puede_corregir_validaciones_pallet' => $this->puedeCorregirValidacionesPallet($usuario),
             'puede_administrar_catalogos_validacion' => $this->puedeAdministrarCatalogosValidacion($usuario),
+            'puede_consultar_catalogos_validacion' => $this->puedeConsultarCatalogosValidacion($usuario),
+            'puede_consultar_accesos' => $this->puedeConsultarAccesos($usuario),
+            'puede_consultar_configuracion_camaras' => $this->puedeConsultarConfiguracionCamaras($usuario),
             'puede_consultar_prefrio' => $this->puedeConsultarPrefrio($usuario),
             'puede_operar_prefrio' => $this->puedeOperarPrefrio($usuario),
             'puede_supervisar_prefrio' => $this->puedeSupervisarPrefrio($usuario),
@@ -780,6 +819,18 @@ class AlcanceOperacionalUsuario
         ];
     }
 
+    public function esSoloConsulta(User $usuario): bool
+    {
+        if (! $usuario->activo) {
+            return false;
+        }
+
+        $usuario->loadMissing('perfilAcceso');
+
+        return $usuario->rol === RolUsuario::Consulta
+            || $usuario->perfilAcceso?->rol_base === RolUsuario::Consulta;
+    }
+
     /**
      * @param  array<int, RolUsuario>  $roles
      * @param  string|array<int, string>  $modulos
@@ -787,8 +838,15 @@ class AlcanceOperacionalUsuario
     private function rolActivoEnModulo(User $usuario, array $roles, string|array $modulos): bool
     {
         return $usuario->activo
-            && in_array($usuario->rol, $roles, true)
+            && in_array($this->rolEfectivo($usuario), $roles, true)
             && $this->catalogoModulos->usuarioTieneModulo($usuario, $modulos);
+    }
+
+    private function rolEfectivo(User $usuario): RolUsuario
+    {
+        return $this->esSoloConsulta($usuario)
+            ? RolUsuario::Consulta
+            : $usuario->rol;
     }
 
     private function permiteModuloTablet(User $usuario, string $modulo): bool

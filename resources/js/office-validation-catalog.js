@@ -61,11 +61,17 @@ function leave() {
 }
 
 function verifyAccess() {
-    if (!state.token || !state.identity || state.identity.puede_administrar_catalogos_validacion !== true) {
+    const canConsult = state.identity?.puede_consultar_catalogos_validacion === true;
+    if (!state.token || !state.identity || !canConsult) {
         window.location.replace('/oficina/validacion');
         return false;
     }
-    const name = state.identity.nombre || 'Administrador';
+    const readOnly = state.identity.puede_administrar_catalogos_validacion !== true;
+    document.querySelectorAll('.catalog-form').forEach((form) => {
+        form.classList.toggle('is-hidden', readOnly);
+    });
+    document.body.classList.toggle('catalog-read-only', readOnly);
+    const name = state.identity.nombre || 'Usuario';
     elements.user.textContent = name;
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     return true;
@@ -114,8 +120,14 @@ function option(value, label) { return `<option value="${escapeHtml(value)}">${e
 function active(items) { return items.filter((item) => item.activo); }
 function visible(items) { return state.showInactive ? items : active(items); }
 function activeClass(item) { return item.activo ? '' : ' is-inactive'; }
-function editButton(type, id) { return `<button data-edit-type="${type}" data-edit-id="${id}" type="button">Editar</button>`; }
-function deleteButton(type, id) { return `<button class="catalog-delete-button" data-delete-type="${type}" data-delete-id="${id}" type="button">Eliminar</button>`; }
+function editButton(type, id) {
+    if (state.identity?.puede_administrar_catalogos_validacion !== true) return '';
+    return `<button data-edit-type="${type}" data-edit-id="${id}" type="button">Editar</button>`;
+}
+function deleteButton(type, id) {
+    if (state.identity?.puede_administrar_catalogos_validacion !== true) return '';
+    return `<button class="catalog-delete-button" data-delete-type="${type}" data-delete-id="${id}" type="button">Eliminar</button>`;
+}
 function row(title, detail, type, item) {
     const status = item.activo ? '' : ' · ELIMINADO';
     const actions = `${editButton(type, item.id)}${item.activo ? deleteButton(type, item.id) : ''}`;
