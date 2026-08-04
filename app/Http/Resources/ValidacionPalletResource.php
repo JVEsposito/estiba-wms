@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use Illuminate\Http\Request;
@@ -45,12 +44,14 @@ class ValidacionPalletResource extends JsonResource
                 'id' => $this->folio->id,
                 'numero_folio' => $this->folio->numero_folio,
                 'estado_operacional' => $this->folio->estado_operacional->value,
+                'condicion_termica' => $this->folio->condicion_termica->value,
+                'activo' => $this->folio->activo,
             ] : null),
             'puede_corregir' => $request->user()?->can('corregir-validaciones-pallet') === true
                 && $this->estado === EstadoValidacionPallet::Aceptada
                 && $this->resultado === ResultadoValidacionPallet::Aprobado
                 && $this->relationLoaded('folio')
-                && $this->folio?->estado_operacional === EstadoOperacionalFolio::PendientePrefrio,
+                && $this->folio !== null,
             'correcciones' => $this->whenLoaded(
                 'correcciones',
                 fn () => $this->correcciones->map(fn ($correccion): array => [
