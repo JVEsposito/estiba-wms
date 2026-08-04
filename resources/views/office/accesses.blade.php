@@ -70,7 +70,21 @@
                     <article><span>ÚLTIMO ACCESO TABLET</span><strong id="lastDeviceAccess">Sin accesos</strong></article>
                 </div>
 
-                <section class="admin-panel admin-season-panel panel" aria-labelledby="seasonsTitle">
+                <x-office.panel-switcher
+                    id="administration"
+                    label="Secciones de administración"
+                    default="seasons"
+                    :panels="[
+                        'seasons' => ['label' => 'Temporadas', 'icon' => '◷'],
+                        'clients' => ['label' => 'Clientes', 'icon' => '◇'],
+                        'labels' => ['label' => 'Etiquetas', 'icon' => '▤'],
+                        'profiles' => ['label' => 'Perfiles', 'icon' => '⚙'],
+                        'users' => ['label' => 'Usuarios', 'icon' => '●'],
+                        'devices' => ['label' => 'Tablets', 'icon' => '▣'],
+                    ]"
+                />
+
+                <section class="admin-panel admin-season-panel panel" id="administration-panel-seasons" data-office-panel-group="administration" data-office-panel-id="seasons" role="tabpanel" aria-labelledby="administration-tab-seasons">
                     <div class="admin-panel__heading">
                         <div><p class="eyebrow">TEMPORADA GLOBAL</p><h2 id="seasonsTitle">Ciclo operacional compartido</h2></div>
                         <span id="seasonsSummary">0 registradas</span>
@@ -119,7 +133,7 @@
                     </form>
                 </section>
 
-                <section class="admin-panel admin-client-panel panel" aria-labelledby="clientsTitle">
+                <section class="admin-panel admin-client-panel panel" id="administration-panel-clients" data-office-panel-group="administration" data-office-panel-id="clients" role="tabpanel" aria-labelledby="administration-tab-clients">
                     <div class="admin-panel__heading">
                         <div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2 id="clientsTitle">Clientes de servicio</h2></div>
                         <span id="globalClientsSummary">0 registrados</span>
@@ -150,7 +164,7 @@
                     </div>
                 </section>
 
-                <section class="admin-panel panel" aria-labelledby="labelProfilesTitle">
+                <section class="admin-panel panel" id="administration-panel-labels" data-office-panel-group="administration" data-office-panel-id="labels" role="tabpanel" aria-labelledby="administration-tab-labels">
                     <div class="admin-panel__heading">
                         <div><p class="eyebrow">IMPRESIÓN TRANSVERSAL</p><h2 id="labelProfilesTitle">Perfiles de etiquetas</h2></div>
                         <span id="labelProfilesSummary">0 registrados</span>
@@ -185,7 +199,7 @@
                     </div>
                 </section>
 
-                <section class="admin-panel panel access-profiles-panel" aria-labelledby="accessProfilesTitle">
+                <section class="admin-panel panel access-profiles-panel" id="administration-panel-profiles" data-office-panel-group="administration" data-office-panel-id="profiles" role="tabpanel" aria-labelledby="administration-tab-profiles">
                     <div class="admin-panel__heading">
                         <div><p class="eyebrow">PERFILES Y PERMISOS</p><h2 id="accessProfilesTitle">Perfiles de acceso</h2></div>
                         <span id="accessProfilesSummary">0 configurados</span>
@@ -230,8 +244,8 @@
                     </div>
                 </section>
 
-                <div class="admin-grid">
-                    <section class="admin-panel panel" aria-labelledby="usersTitle">
+                <div class="admin-grid office-panel-workspace">
+                    <section class="admin-panel panel" id="administration-panel-users" data-office-panel-group="administration" data-office-panel-id="users" role="tabpanel" aria-labelledby="administration-tab-users">
                         <div class="admin-panel__heading">
                             <div><p class="eyebrow">PERSONAS</p><h2 id="usersTitle">Usuarios</h2></div>
                             <span id="usersSummary">0 registrados</span>
@@ -258,7 +272,7 @@
                         </div>
                     </section>
 
-                    <section class="admin-panel panel" aria-labelledby="devicesTitle">
+                    <section class="admin-panel panel" id="administration-panel-devices" data-office-panel-group="administration" data-office-panel-id="devices" role="tabpanel" aria-labelledby="administration-tab-devices">
                         <div class="admin-panel__heading">
                             <div><p class="eyebrow">EQUIPOS</p><h2 id="devicesTitle">Tablets autorizadas</h2></div>
                             <span id="devicesSummary">0 registradas</span>
