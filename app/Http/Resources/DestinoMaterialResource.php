@@ -15,7 +15,9 @@ class DestinoMaterialResource extends JsonResource
         return [
             'id' => $this->id,
             'nombre' => $this->nombre,
+            'tipo' => $this->tipo instanceof \BackedEnum ? $this->tipo->value : $this->tipo,
             'centro_costo' => $this->centro_costo,
+            'requiere_ubicacion_fisica' => $this->requiere_ubicacion_fisica,
             'descripcion' => $this->descripcion,
             'codigo_externo' => $this->codigo_externo,
             'origen_sistema' => $this->origen_sistema,

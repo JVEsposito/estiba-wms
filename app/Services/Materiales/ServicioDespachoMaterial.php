@@ -54,6 +54,7 @@ class ServicioDespachoMaterial
         array $datos,
         User $usuario,
         ?Dispositivo $dispositivo,
+        bool $notificar = true,
     ): DespachoMaterial {
         if (! $this->alcance->puedeGestionarDespachosMateriales($usuario)) {
             throw new OperacionNoAutorizada(
@@ -61,7 +62,7 @@ class ServicioDespachoMaterial
             );
         }
 
-        return DB::transaction(function () use ($datos, $usuario, $dispositivo): DespachoMaterial {
+        return DB::transaction(function () use ($datos, $usuario, $dispositivo, $notificar): DespachoMaterial {
             $payloadHash = $this->payloadHash($datos);
             $existente = DespachoMaterial::query()
                 ->where('operacion_id', $datos['operacion_id'])
@@ -134,7 +135,9 @@ class ServicioDespachoMaterial
                 $this->reservarFifo($detalle);
             }
 
-            $this->notificaciones->notificarDespachoMaterialCreado($despacho);
+            if ($notificar) {
+                $this->notificaciones->notificarDespachoMaterialCreado($despacho);
+            }
 
             return $this->cargar($despacho);
         }, attempts: 3);

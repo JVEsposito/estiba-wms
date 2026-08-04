@@ -404,6 +404,28 @@
             </section>
             <section class="materials-import__history"><div class="materials-panel__heading"><div><p class="eyebrow">AUDITORÍA</p><h3>Importaciones recientes</h3></div></div><div id="materialImportHistory"></div></section>
         </dialog>
+        <dialog class="materials-import" id="materialDirectDispatchDialog">
+            <div class="materials-import__header">
+                <div>
+                    <p class="eyebrow">DESPACHO DIRECTO · OFICINA</p>
+                    <h2>Entregar material a centro de costo</h2>
+                    <p id="materialDirectDispatchContext">Selecciona un folio ubicado.</p>
+                </div>
+                <button id="closeMaterialDirectDispatch" type="button" aria-label="Cerrar">×</button>
+            </div>
+            <form class="materials-import__form" id="materialDirectDispatchForm">
+                <input name="folio_id" type="hidden">
+                <label><span>Destino y centro de costo *</span><select name="destino_material_id" required></select></label>
+                <label><span>Cantidad a entregar *</span><input name="cantidad" type="number" min="0.001" step="0.001" required></label>
+                <label><span>Observación</span><textarea name="observacion" maxlength="1000" rows="2" placeholder="Referencia, turno o motivo de la entrega"></textarea></label>
+                <p class="materials-import__help">Solo se admiten folios con ubicación válida en una cámara de Materiales. La entrega traslada la custodia al centro de costo y no disminuye la existencia total de la empresa.</p>
+                <p class="form-error" id="materialDirectDispatchError" role="alert"></p>
+                <div class="materials-import__actions">
+                    <button class="secondary-button" id="cancelMaterialDirectDispatch" type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Confirmar despacho directo</button>
+                </div>
+            </form>
+        </dialog>
         <dialog class="materials-import" id="materialCorrectionDialog">
             <div class="materials-import__header">
                 <div><p class="eyebrow">CORRECCIÓN SUPERVISADA</p><h2>Corregir código del ítem</h2><p id="materialCorrectionContext"></p></div>

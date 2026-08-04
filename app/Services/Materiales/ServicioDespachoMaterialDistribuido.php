@@ -9,6 +9,7 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaMaterial;
 use App\Enums\EstadoSesionEstiba;
+use App\Enums\TipoAlmacenMaterial;
 use App\Enums\TipoMovimientoAlmacenMaterial;
 use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
@@ -53,6 +54,50 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
     }
 
     /**
+     * Crea y completa una entrega desde la Oficina de Materiales.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    public function despacharDirecto(
+        array $datos,
+        User $usuario,
+    ): DespachoMaterial {
+        if (! $this->alcanceDistribuido->puedeGestionarDespachosMateriales($usuario)
+            || ! $this->alcanceDistribuido->puedeRetirarMateriales($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para realizar despachos directos.',
+            );
+        }
+
+        return DB::transaction(function () use ($datos, $usuario): DespachoMaterial {
+            $folio = FolioMaterial::query()
+                ->with('item')
+                ->findOrFail($datos['folio_id']);
+            $despacho = $this->crear([
+                'operacion_id' => $datos['operacion_id'],
+                'destino_material_id' => $datos['destino_material_id'],
+                'observacion' => $datos['observacion'] ?? null,
+                'items' => [[
+                    'item_material_id' => $folio->item_material_id,
+                    'cantidad' => $datos['cantidad'],
+                ]],
+            ], $usuario, null, notificar: false);
+
+            return $this->retirar(
+                $despacho,
+                $datos['operacion_id'],
+                [[
+                    'folio_id' => $folio->folio_id,
+                    'cantidad' => $datos['cantidad'],
+                ]],
+                $usuario,
+                null,
+                requiereSesion: false,
+            );
+        }, attempts: 3);
+    }
+
+    /**
      * La entrega deja de ser una salida terminal: transfiere custodia desde
      * Bodega Central hacia el almacén virtual asociado al destino.
      *
@@ -63,11 +108,18 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
         string $operacionId,
         array $retiros,
         User $usuario,
-        Dispositivo $dispositivo,
+        ?Dispositivo $dispositivo,
+        bool $requiereSesion = true,
     ): DespachoMaterial {
         if (! $this->alcanceDistribuido->puedeRetirarMateriales($usuario)) {
             throw new OperacionNoAutorizada(
                 'El usuario no está autorizado para entregar materiales.',
+            );
+        }
+
+        if ($requiereSesion && ! $dispositivo) {
+            throw new DomainException(
+                'Las entregas desde tablet requieren un dispositivo autorizado.',
             );
         }
 
@@ -77,6 +129,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
             $retiros,
             $usuario,
             $dispositivo,
+            $requiereSesion,
         ): DespachoMaterial {
             $despacho = DespachoMaterial::query()
                 ->with(['detalles', 'destino'])
@@ -93,7 +146,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
             if ($operacionRetiro) {
                 if ($operacionRetiro->despacho_material_id !== $despacho->id
                     || $operacionRetiro->user_id !== $usuario->id
-                    || $operacionRetiro->dispositivo_id !== $dispositivo->id
+                    || $operacionRetiro->dispositivo_id !== $dispositivo?->id
                     || ! hash_equals($operacionRetiro->payload_hash, $payloadHash)) {
                     throw new ConflictoOperacion(
                         'El UUID de la entrega ya fue utilizado con datos diferentes.',
@@ -125,11 +178,19 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 $destinoCatalogo,
                 $usuario,
             );
+
+            if ($almacenDestino->id === $bodega->id
+                || $almacenDestino->tipo !== TipoAlmacenMaterial::Virtual) {
+                throw new DomainException(
+                    'El despacho debe dirigirse a un centro de costo virtual.',
+                );
+            }
+
             $operacionRetiro = OperacionRetiroMaterial::create([
                 'id' => $operacionId,
                 'despacho_material_id' => $despacho->id,
                 'user_id' => $usuario->id,
-                'dispositivo_id' => $dispositivo->id,
+                'dispositivo_id' => $dispositivo?->id,
                 'payload_hash' => $payloadHash,
             ]);
 
@@ -218,10 +279,13 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     );
                 }
 
-                $sesion = SesionEstiba::query()
-                    ->lockForUpdate()
-                    ->findOrFail($datosRetiro['sesion_estiba_id']);
-                $this->validarSesion($sesion, $camara->id, $usuario, $dispositivo);
+                $sesion = null;
+                if ($requiereSesion) {
+                    $sesion = SesionEstiba::query()
+                        ->lockForUpdate()
+                        ->findOrFail($datosRetiro['sesion_estiba_id'] ?? null);
+                    $this->validarSesion($sesion, $camara->id, $usuario, $dispositivo);
+                }
 
                 $origenAnterior = (float) $saldoOrigen->cantidad_actual;
                 $origenResultante = round($origenAnterior - $cantidad, 3);
@@ -258,7 +322,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'camara_id' => $camara->id,
                     'posicion_id' => $posicion?->id,
                     'user_id' => $usuario->id,
-                    'dispositivo_id' => $dispositivo->id,
+                    'dispositivo_id' => $dispositivo?->id,
                     'siguio_fifo' => $siguioFifo,
                     'retirado_at' => now(),
                 ]);
@@ -282,12 +346,13 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'despacho_material_id' => $despacho->id,
                     'retiro_material_id' => $retiro->id,
                     'user_id' => $usuario->id,
-                    'dispositivo_id' => $dispositivo->id,
+                    'dispositivo_id' => $dispositivo?->id,
                     'metadatos' => [
                         'siguio_fifo' => $siguioFifo,
                         'camara_origen' => $camara->codigo,
                         'posicion_origen' => $posicion?->etiqueta,
                         'existencia_total_empresa' => (float) $folioMaterial->cantidad_actual,
+                        'origen_operacion' => $requiereSesion ? 'tablet' : 'oficina',
                     ],
                     'ocurrido_at' => now(),
                 ]);
@@ -301,7 +366,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'despacho_material_id' => $despacho->id,
                     'retiro_material_id' => $retiro->id,
                     'user_id' => $usuario->id,
-                    'dispositivo_id' => $dispositivo->id,
+                    'dispositivo_id' => $dispositivo?->id,
                     'destino_nombre' => $almacenDestino->nombre,
                     'destino_centro_costo' => $almacenDestino->centro_costo,
                     'motivo' => 'Transferencia interna: no disminuye la existencia total.',
@@ -314,7 +379,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 ]);
 
                 $retiradoPorDetalle[$detalle->id] = $yaRetirado + $cantidad;
-                $sesion->update(['ultima_actividad_at' => now()]);
+                $sesion?->update(['ultima_actividad_at' => now()]);
 
                 if ($origenResultante <= 0.0001) {
                     UbicacionActual::query()

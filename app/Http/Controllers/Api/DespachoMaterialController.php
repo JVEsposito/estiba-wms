@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
+use App\Http\Requests\DespacharDirectoMaterialRequest;
 use App\Http\Requests\RetirarDespachoMaterialRequest;
 use App\Http\Resources\DespachoMaterialResource;
 use App\Http\Resources\ResumenDespachoMaterialResource;
@@ -15,6 +16,7 @@ use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Materiales\ServicioConsultaInventarioMaterial;
 use App\Services\Materiales\ServicioDespachoMaterial;
+use App\Services\Materiales\ServicioDespachoMaterialDistribuido;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,6 +67,20 @@ class DespachoMaterialController extends Controller
             $request->validated(),
             $request->user(),
             $dispositivo,
+        );
+
+        return (new DespachoMaterialResource($despacho))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    public function directo(
+        DespacharDirectoMaterialRequest $request,
+        ServicioDespachoMaterialDistribuido $servicio,
+    ): JsonResponse {
+        $despacho = $servicio->despacharDirecto(
+            $request->validated(),
+            $request->user(),
         );
 
         return (new DespachoMaterialResource($despacho))
