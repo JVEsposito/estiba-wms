@@ -395,12 +395,43 @@ class ServicioTransformacionMaterial
             $orden = OrdenTransformacionMaterial::query()
                 ->lockForUpdate()
                 ->findOrFail($orden->id);
+            $estadoAnterior = $orden->estado;
 
-            if (! in_array($orden->estado, [
+            if (! in_array($estadoAnterior, [
                 EstadoOrdenTransformacionMaterial::Borrador,
                 EstadoOrdenTransformacionMaterial::Planificada,
+                EstadoOrdenTransformacionMaterial::EnProceso,
             ], true)) {
                 throw new DomainException('La orden ya no puede cancelarse sin movimientos compensatorios.');
+            }
+
+            $lotes = LoteTransformacionMaterial::query()
+                ->where('orden_transformacion_material_id', $orden->id)
+                ->lockForUpdate()
+                ->get();
+
+            if ($lotes->contains(
+                fn (LoteTransformacionMaterial $lote): bool => $lote->estado
+                    === EstadoLoteTransformacionMaterial::Cerrado,
+            )) {
+                throw new DomainException(
+                    'La orden posee lotes cerrados. Revierta primero sus movimientos antes de cancelarla.',
+                );
+            }
+
+            $ahora = now();
+            $lotesAbiertos = $lotes->filter(
+                fn (LoteTransformacionMaterial $lote): bool => $lote->estado
+                    === EstadoLoteTransformacionMaterial::Abierto,
+            );
+
+            foreach ($lotesAbiertos as $lote) {
+                $lote->update([
+                    'estado' => EstadoLoteTransformacionMaterial::Anulado,
+                    'reversado_por_user_id' => $usuario->id,
+                    'reversado_at' => $ahora,
+                    'motivo_reversa' => "Cancelación de orden: {$motivo}",
+                ]);
             }
 
             $reservas = ReservaTransformacionMaterial::query()
@@ -424,7 +455,7 @@ class ServicioTransformacionMaterial
                 'estado' => EstadoOrdenTransformacionMaterial::Cancelada,
                 'version' => $orden->version + 1,
                 'cancelado_por_user_id' => $usuario->id,
-                'cancelado_at' => now(),
+                'cancelado_at' => $ahora,
                 'motivo_cancelacion' => $motivo,
             ]);
             $this->registrarEvento(
@@ -432,7 +463,11 @@ class ServicioTransformacionMaterial
                 TipoEventoTransformacionMaterial::Cancelada,
                 $usuario,
                 $operacionId,
-                ['reservas_liberadas' => $reservas->count()],
+                [
+                    'estado_anterior' => $estadoAnterior->value,
+                    'reservas_liberadas' => $reservas->count(),
+                    'lotes_abiertos_descartados' => $lotesAbiertos->count(),
+                ],
                 $motivo,
             );
 
