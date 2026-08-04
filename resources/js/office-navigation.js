@@ -1,3 +1,5 @@
+import './office-material-inventory-actions.js';
+
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
