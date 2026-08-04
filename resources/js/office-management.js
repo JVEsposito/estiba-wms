@@ -46,6 +46,51 @@ const elements = {
     alerts: byId('managementAlerts'),
     alertCount: byId('alertCount'),
     alertTabCount: byId('alertTabCount'),
+    materialOperationDetail: byId('materialOperationDetail'),
+    productPallets: byId('productPalletsMetric'),
+    productBalances: byId('productBalancesMetric'),
+    productUnlocated: byId('productUnlocatedMetric'),
+    productEnteredToday: byId('productEnteredTodayMetric'),
+    activeLoads: byId('activeLoadsMetric'),
+    pendingLoads: byId('pendingLoadsMetric'),
+    preparingLoads: byId('preparingLoadsMetric'),
+    separatedLoads: byId('separatedLoadsMetric'),
+    loadFoliosPending: byId('loadFoliosPendingMetric'),
+    loadFoliosDock: byId('loadFoliosDockMetric'),
+    loadIncidents: byId('loadIncidentsMetric'),
+    loadsClosedToday: byId('loadsClosedTodayMetric'),
+    loadList: byId('managementLoadList'),
+    validationProcessed: byId('validationProcessedMetric'),
+    validationApproved: byId('validationApprovedMetric'),
+    validationObserved: byId('validationObservedMetric'),
+    validationRejected: byId('validationRejectedMetric'),
+    validationConflicts: byId('validationConflictsMetric'),
+    validationLatest: byId('managementValidationLatest'),
+    materialOpenDispatches: byId('materialOpenDispatchesMetric'),
+    materialPartialDispatches: byId('materialPartialDispatchesMetric'),
+    materialReceptionsToday: byId('materialReceptionsTodayMetric'),
+    materialReceptionDrafts: byId('materialReceptionDraftsMetric'),
+    precoolingActive: byId('precoolingActiveMetric'),
+    precoolingOverdue: byId('precoolingOverdueMetric'),
+    precoolingApproved: byId('precoolingApprovedMetric'),
+    precoolingReprocess: byId('precoolingReprocessMetric'),
+    precoolingAverage: byId('precoolingAverageMetric'),
+    precoolingList: byId('managementPrecoolingList'),
+    weighbridgeEntry: byId('weighbridgeEntryMetric'),
+    weighbridgeContainers: byId('weighbridgeContainersMetric'),
+    weighbridgeTare: byId('weighbridgeTareMetric'),
+    weighbridgeClients: byId('weighbridgeClientsMetric'),
+    rawLotsActive: byId('rawLotsActiveMetric'),
+    rawHydrocoolerPending: byId('rawHydrocoolerPendingMetric'),
+    rawHydrocoolerActive: byId('rawHydrocoolerActiveMetric'),
+    rawAssignmentPending: byId('rawAssignmentPendingMetric'),
+    rawInCamera: byId('rawInCameraMetric'),
+    rawPartialDelivery: byId('rawPartialDeliveryMetric'),
+    rawConfirmedToday: byId('rawConfirmedTodayMetric'),
+    containerMovementsToday: byId('containerMovementsTodayMetric'),
+    containerUnitsToday: byId('containerUnitsTodayMetric'),
+    containerPendingReview: byId('containerPendingReviewMetric'),
+    containerObserved: byId('containerObservedMetric'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -244,6 +289,15 @@ function formatWeight(value) {
     return new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 }).format(Number(value || 0));
 }
 
+function formatDuration(minutes) {
+    if (minutes === null || minutes === undefined) return 'Sin objetivo';
+    const total = Math.max(0, Number(minutes || 0));
+    const hours = Math.floor(total / 60);
+    const remainder = Math.round(total % 60);
+    if (!hours) return `${remainder} min`;
+    return `${hours} h ${String(remainder).padStart(2, '0')} min`;
+}
+
 function formatDate(value) {
     if (!value) return 'Sin actualizar';
 
@@ -261,9 +315,13 @@ function renderDashboard(data) {
     state.dashboard = data;
     const capacity = data.camaras.resumen;
     const products = data.productos;
+    const loads = data.cargas;
+    const validation = data.validacion;
     const materials = data.materiales;
     const precooling = data.prefrio;
     const weighbridge = data.romana;
+    const rawMaterial = data.materia_prima;
+    const containers = data.envases;
 
     elements.lastUpdated.textContent = formatDate(data.generado_at);
     elements.refreshStatus.textContent = `Actualiza automáticamente cada ${data.actualizacion_segundos} segundos`;
@@ -274,27 +332,34 @@ function renderDashboard(data) {
 
     elements.availableProducts.textContent = formatInteger(products.disponibles_despacho);
     elements.productAvailabilityProgress.style.width = `${clampPercentage(products.disponibilidad_porcentaje)}%`;
-    elements.productAvailabilityDetail.textContent = `${formatInteger(products.total_activos)} folios activos · ${products.disponibilidad_porcentaje}% disponibles`;
+    elements.productAvailabilityDetail.textContent = `${formatInteger(loads.activas)} cargas activas · ${formatInteger(loads.folios_con_incidencia)} incidencias · ${formatInteger(products.bloqueados)} bloqueados`;
 
     elements.materialItems.textContent = formatInteger(materials.items_con_stock);
     elements.materialFolios.textContent = formatInteger(materials.folios_con_stock);
     elements.materialUnits.textContent = formatInteger(materials.unidades_medida.length);
+    elements.materialOperationDetail.textContent = `${formatInteger(materials.despachos_abiertos)} despachos abiertos · ${formatInteger(materials.recepciones_borrador)} recepciones sin confirmar`;
 
     elements.precoolingAvailable.textContent = formatInteger(precooling.disponibles);
     elements.precoolingOccupancyProgress.style.width = `${clampPercentage(precooling.ocupacion_porcentaje)}%`;
-    elements.precoolingDetail.textContent = `${formatInteger(precooling.ocupadas)} ocupadas · ${formatInteger(precooling.folios_pendientes)} folios en espera · ${precooling.tuneles_operativos}/${precooling.tuneles_totales} túneles operativos`;
+    elements.precoolingDetail.textContent = `${formatInteger(precooling.folios_pendientes)} folios en espera · ${formatInteger(precooling.procesos_atrasados)} procesos atrasados · promedio ${formatDuration(precooling.duracion_promedio_minutos_7d)}`;
 
     elements.weighbridgeNetWeight.textContent = formatWeight(weighbridge.peso_neto_hoy);
     elements.weighbridgeClosed.textContent = formatInteger(weighbridge.cerradas_hoy);
     elements.weighbridgePending.textContent = formatInteger(weighbridge.pendientes_destare);
-    elements.weighbridgeDetail.textContent = `${formatInteger(weighbridge.en_bascula_ingreso)} en ingreso · ${formatInteger(weighbridge.en_pesaje_envases)} en pesaje acumulativo · ${formatInteger(weighbridge.envases_hoy)} envases · ${formatInteger(weighbridge.clientes_hoy)} clientes hoy`;
+    elements.weighbridgeDetail.textContent = `${formatInteger(weighbridge.en_bascula_ingreso)} en ingreso · ${formatInteger(weighbridge.en_pesaje_envases)} en pesaje · ${formatInteger(rawMaterial.confirmados_hoy)} lotes confirmados hoy`;
 
     renderCameraChart(data.camaras.detalle);
     renderProductChart(products);
+    renderLoads(loads);
+    renderValidation(validation);
     renderMaterialUnitOptions(materials.unidades_medida);
     renderMaterialChart();
+    renderMaterialsOperation(materials);
     renderPrecoolingChart(precooling);
+    renderPrecoolingOperation(precooling);
     renderWeighbridgeChart(weighbridge);
+    renderWeighbridgeOperation(weighbridge);
+    renderRawMaterial(rawMaterial, containers);
     renderCameraTable(data.camaras.detalle);
     renderAlerts(data.alertas);
 }
@@ -342,15 +407,16 @@ function renderCameraChart(cameras) {
 }
 
 function renderProductChart(products) {
-    const labels = ['Disponibles', 'Comprometidos', 'Pendientes prefrío', 'Bloqueados', 'Otros'];
+    const labels = ['Disponibles', 'Comprometidos', 'Pendientes prefrío', 'Sin ubicación', 'Bloqueados', 'Otros'];
     const values = [
         products.disponibles_despacho,
         products.comprometidos_carga,
         products.pendientes_prefrio,
+        products.pendientes_ubicacion,
         products.bloqueados,
         products.otros,
     ];
-    const colors = [palette.green, palette.blue, palette.amber, palette.red, palette.quiet];
+    const colors = [palette.green, palette.blue, palette.amber, palette.muted, palette.red, palette.quiet];
 
     replaceChart('products', 'productAvailabilityChart', {
         type: 'doughnut',
@@ -369,6 +435,58 @@ function renderProductChart(products) {
     elements.productSummary.innerHTML = labels
         .map((label, index) => `<span><b style="color:${colors[index]}">${formatInteger(values[index])}</b>${escapeHtml(label)}</span>`)
         .join('');
+
+    elements.productPallets.textContent = formatInteger(products.pallets);
+    elements.productBalances.textContent = formatInteger(products.saldos);
+    elements.productUnlocated.textContent = formatInteger(products.pendientes_ubicacion);
+    elements.productEnteredToday.textContent = formatInteger(products.ingresados_hoy);
+}
+
+function renderLoads(loads) {
+    elements.activeLoads.textContent = formatInteger(loads.activas);
+    elements.pendingLoads.textContent = formatInteger(loads.pendientes);
+    elements.preparingLoads.textContent = formatInteger(loads.en_preparacion);
+    elements.separatedLoads.textContent = formatInteger(loads.separadas);
+    elements.loadFoliosPending.textContent = formatInteger(loads.folios_pendientes);
+    elements.loadFoliosDock.textContent = formatInteger(loads.folios_en_anden);
+    elements.loadIncidents.textContent = formatInteger(loads.folios_con_incidencia);
+    elements.loadsClosedToday.textContent = formatInteger(loads.cerradas_hoy);
+
+    elements.loadList.innerHTML = loads.detalle?.length
+        ? loads.detalle.map((load) => `
+            <a class="management-operation-row" href="/oficina/cargas">
+                <div>
+                    <strong>${escapeHtml(load.codigo)}</strong>
+                    <span>${escapeHtml(load.orden_embarque || 'Sin orden externa')} · ${escapeHtml(humanize(load.estado))}</span>
+                </div>
+                <div class="management-operation-row__metrics">
+                    <span>${formatInteger(load.folios_asignados)} folios</span>
+                    <span>${escapeHtml(load.camara_objetivo || 'Sin cámara')}</span>
+                    <span>${formatDuration(load.antiguedad_minutos)}</span>
+                </div>
+            </a>
+        `).join('')
+        : '<div class="management-empty">No hay cargas activas.</div>';
+}
+
+function renderValidation(validation) {
+    elements.validationProcessed.textContent = formatInteger(validation.procesados_hoy);
+    elements.validationApproved.textContent = formatInteger(validation.aprobados_hoy);
+    elements.validationObserved.textContent = formatInteger(validation.observados_hoy);
+    elements.validationRejected.textContent = formatInteger(validation.rechazados_hoy);
+    elements.validationConflicts.textContent = formatInteger(validation.conflictos_hoy);
+
+    const latest = validation.ultima_validacion;
+    elements.validationLatest.innerHTML = latest
+        ? `<span>ÚLTIMO REGISTRO RECIBIDO</span><strong>${escapeHtml(latest.folio)}</strong><small>${escapeHtml(humanize(latest.resultado))} · ${escapeHtml(formatDate(latest.recibido_at))}</small>`
+        : '<span>ÚLTIMO REGISTRO RECIBIDO</span><strong>Sin actividad hoy</strong><small>No hay validaciones informadas.</small>';
+}
+
+function renderMaterialsOperation(materials) {
+    elements.materialOpenDispatches.textContent = formatInteger(materials.despachos_abiertos);
+    elements.materialPartialDispatches.textContent = formatInteger(materials.despachos_parciales);
+    elements.materialReceptionsToday.textContent = formatInteger(materials.recepciones_confirmadas_hoy);
+    elements.materialReceptionDrafts.textContent = formatInteger(materials.recepciones_borrador);
 }
 
 function renderMaterialUnitOptions(units) {
@@ -450,6 +568,34 @@ function renderPrecoolingChart(precooling) {
     `;
 }
 
+function renderPrecoolingOperation(precooling) {
+    elements.precoolingActive.textContent = formatInteger(precooling.procesos_activos);
+    elements.precoolingOverdue.textContent = formatInteger(precooling.procesos_atrasados);
+    elements.precoolingApproved.textContent = formatInteger(precooling.aprobados_hoy);
+    elements.precoolingReprocess.textContent = formatInteger(precooling.reprocesos_hoy);
+    elements.precoolingAverage.textContent = formatDuration(precooling.duracion_promedio_minutos_7d);
+
+    const active = (precooling.tuneles || []).filter((tunnel) => tunnel.proceso_activo);
+    elements.precoolingList.innerHTML = active.length
+        ? active.map((tunnel) => {
+            const process = tunnel.proceso_activo;
+            return `
+                <a class="management-operation-row${process.atrasado ? ' is-critical' : ''}" href="/oficina/prefrio">
+                    <div>
+                        <strong>${escapeHtml(tunnel.codigo)} · ${escapeHtml(process.codigo)}</strong>
+                        <span>${escapeHtml(humanize(process.estado))} · ${formatInteger(tunnel.ocupadas)}/${formatInteger(tunnel.capacidad)} posiciones</span>
+                    </div>
+                    <div class="management-operation-row__metrics">
+                        <span>${process.setpoint === null ? 'Sin setpoint' : `${formatQuantity(process.setpoint)} °C`}</span>
+                        <span>${formatDuration(process.transcurridos_minutos)} / ${formatDuration(process.duracion_objetivo_minutos)}</span>
+                        <span>${process.atrasado ? 'Atrasado' : 'Dentro de objetivo'}</span>
+                    </div>
+                </a>
+            `;
+        }).join('')
+        : '<div class="management-empty">No hay procesos activos en túneles.</div>';
+}
+
 function renderWeighbridgeChart(weighbridge) {
     const days = weighbridge.tendencia_diaria || [];
     replaceChart('weighbridge', 'weighbridgeReceptionChart', {
@@ -489,6 +635,28 @@ function renderWeighbridgeChart(weighbridge) {
     `;
 }
 
+function renderWeighbridgeOperation(weighbridge) {
+    elements.weighbridgeEntry.textContent = formatInteger(weighbridge.en_bascula_ingreso);
+    elements.weighbridgeContainers.textContent = formatInteger(weighbridge.en_pesaje_envases);
+    elements.weighbridgeTare.textContent = formatInteger(weighbridge.pendientes_destare);
+    elements.weighbridgeClients.textContent = formatInteger(weighbridge.clientes_hoy);
+}
+
+function renderRawMaterial(rawMaterial, containers) {
+    elements.rawLotsActive.textContent = formatInteger(rawMaterial.lotes_activos);
+    elements.rawHydrocoolerPending.textContent = formatInteger(rawMaterial.pendientes_hidrocooler);
+    elements.rawHydrocoolerActive.textContent = formatInteger(rawMaterial.hidrocooler_en_curso);
+    elements.rawAssignmentPending.textContent = formatInteger(rawMaterial.pendientes_asignacion);
+    elements.rawInCamera.textContent = formatInteger(rawMaterial.en_camara);
+    elements.rawPartialDelivery.textContent = formatInteger(rawMaterial.entrega_parcial);
+    elements.rawConfirmedToday.textContent = `${formatInteger(rawMaterial.confirmados_hoy)} lotes · ${formatWeight(rawMaterial.kilos_confirmados_hoy)} kg`;
+
+    elements.containerMovementsToday.textContent = formatInteger(containers.movimientos_hoy);
+    elements.containerUnitsToday.textContent = formatInteger(containers.unidades_movidas_hoy);
+    elements.containerPendingReview.textContent = formatInteger(containers.pendientes_revision);
+    elements.containerObserved.textContent = formatInteger(containers.observados);
+}
+
 function renderCameraTable(cameras) {
     elements.cameraRows.innerHTML = cameras.length
         ? cameras.map((camera) => `
@@ -510,12 +678,17 @@ function renderAlerts(alerts) {
     if (elements.alertTabCount) elements.alertTabCount.textContent = count;
     elements.alerts.innerHTML = alerts.length
         ? alerts.map((alert) => `
-            <div class="management-alert${alert.nivel === 'critica' ? ' management-alert--critical' : ''}">
+            <a class="management-alert${alert.nivel === 'critica' ? ' management-alert--critical' : ''}" href="${escapeHtml(alert.href || '#')}">
                 <i aria-hidden="true"></i>
-                <div><strong>${escapeHtml(alert.titulo)}</strong><span>${escapeHtml(alert.detalle)}</span></div>
-            </div>
+                <div>
+                    <small>${escapeHtml(alert.area || 'Operación')}</small>
+                    <strong>${escapeHtml(alert.titulo)}</strong>
+                    <span>${escapeHtml(alert.detalle)}</span>
+                </div>
+                <b>${escapeHtml(alert.metrica ?? '')}</b>
+            </a>
         `).join('')
-        : '<div class="management-empty">Sin focos críticos en la instantánea actual.</div>';
+        : '<div class="management-empty"><strong>Operación sin focos críticos.</strong><span>No hay excepciones activas en la instantánea actual.</span></div>';
 }
 
 async function loadDashboard({ blocking = false, silent = false } = {}) {

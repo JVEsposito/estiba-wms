@@ -5,17 +5,32 @@ namespace App\Services\Gerencia;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoAdministrativoTunelPrefrio;
 use App\Enums\EstadoCamara;
+use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
+use App\Enums\EstadoDespachoMaterial;
+use App\Enums\EstadoLoteMateriaPrima;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\EstadoRecepcionMaterial;
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoRevisionMovimientoEnvase;
 use App\Enums\EstadoTecnicoTunelPrefrio;
+use App\Enums\EstadoValidacionPallet;
+use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
+use App\Models\Carga;
+use App\Models\CargaFolio;
+use App\Models\DespachoMaterial;
 use App\Models\Folio;
+use App\Models\LoteMateriaPrima;
+use App\Models\MovimientoEnvase;
 use App\Models\ProcesoPrefrio;
+use App\Models\RecepcionMaterial;
 use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
+use App\Models\ValidacionPallet;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,7 +41,7 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioPanelGerencial
 {
-    public const CLAVE_CACHE = 'gerencia:panel:resumen:v1';
+    public const CLAVE_CACHE = 'gerencia:panel:resumen:v2';
 
     private const CLAVE_BLOQUEO = 'gerencia:panel:resumen:bloqueo';
 
@@ -71,19 +86,37 @@ class ServicioPanelGerencial
     {
         $camaras = $this->camaras();
         $productos = $this->productos();
+        $cargas = $this->cargas();
+        $validacion = $this->validacion();
         $materiales = $this->materiales();
         $prefrio = $this->prefrio();
         $romana = $this->romana();
+        $materiaPrima = $this->materiaPrima();
+        $envases = $this->envases();
 
         return [
             'generado_at' => now()->toAtomString(),
             'actualizacion_segundos' => 30,
             'camaras' => $camaras,
             'productos' => $productos,
+            'cargas' => $cargas,
+            'validacion' => $validacion,
             'materiales' => $materiales,
             'prefrio' => $prefrio,
             'romana' => $romana,
-            'alertas' => $this->alertas($camaras, $materiales, $prefrio, $romana),
+            'materia_prima' => $materiaPrima,
+            'envases' => $envases,
+            'alertas' => $this->alertas(
+                $camaras,
+                $productos,
+                $cargas,
+                $validacion,
+                $materiales,
+                $prefrio,
+                $romana,
+                $materiaPrima,
+                $envases,
+            ),
         ];
     }
 
@@ -182,6 +215,14 @@ class ServicioPanelGerencial
         $bloqueados = (clone $base)
             ->where('estado_operacional', EstadoOperacionalFolio::Bloqueado->value)
             ->count();
+        $pendientesUbicacion = (clone $base)
+            ->where('estado_operacional', EstadoOperacionalFolio::PendienteUbicacion->value)
+            ->count();
+        $ingresadosHoy = (clone $base)
+            ->where('fecha_ingreso', '>=', now()->startOfDay())
+            ->count();
+        $pallets = (clone $base)->where('tipo_bulto', TipoBulto::Pallet->value)->count();
+        $saldos = (clone $base)->where('tipo_bulto', TipoBulto::Saldo->value)->count();
 
         return [
             'total_activos' => $total,
@@ -189,7 +230,14 @@ class ServicioPanelGerencial
             'comprometidos_carga' => $comprometidos,
             'pendientes_prefrio' => $pendientes,
             'bloqueados' => $bloqueados,
-            'otros' => max(0, $total - $disponibles - $comprometidos - $pendientes - $bloqueados),
+            'pendientes_ubicacion' => $pendientesUbicacion,
+            'ingresados_hoy' => $ingresadosHoy,
+            'pallets' => $pallets,
+            'saldos' => $saldos,
+            'otros' => max(
+                0,
+                $total - $disponibles - $comprometidos - $pendientes - $bloqueados - $pendientesUbicacion,
+            ),
             'disponibilidad_porcentaje' => $this->porcentaje($disponibles, $total),
         ];
     }
@@ -197,6 +245,108 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @return array<string, mixed>
+     */
+    private function cargas(): array
+    {
+        $estadosActivos = collect(EstadoCarga::visiblesEnOperacion())->map->value->all();
+        $porEstado = Carga::query()
+            ->whereIn('estado', $estadosActivos)
+            ->groupBy('estado')
+            ->select('estado')
+            ->selectRaw('COUNT(*) as total')
+            ->pluck('total', 'estado');
+        $folios = CargaFolio::query()
+            ->whereHas('reservaActiva')
+            ->whereHas('carga', fn (Builder $consulta): Builder => $consulta->whereIn('estado', $estadosActivos));
+        $detalle = Carga::query()
+            ->withCount('asignacionesActuales')
+            ->with([
+                'camaraObjetivo:id,codigo,nombre',
+                'andenPrevisto:id,codigo,nombre',
+            ])
+            ->whereIn('estado', $estadosActivos)
+            ->oldest('created_at')
+            ->limit(8)
+            ->get()
+            ->map(fn (Carga $carga): array => [
+                'id' => $carga->id,
+                'codigo' => $carga->codigo,
+                'orden_embarque' => $carga->numero_orden_externa,
+                'estado' => $carga->estado->value,
+                'prioridad' => $carga->prioridad?->value,
+                'folios_asignados' => (int) $carga->asignaciones_actuales_count,
+                'camara_objetivo' => $carga->camaraObjetivo?->codigo,
+                'anden' => $carga->andenPrevisto?->codigo,
+                'publicada_at' => $carga->publicada_at?->toAtomString(),
+                'antiguedad_minutos' => (int) $carga->created_at->diffInMinutes(now()),
+            ]);
+
+        return [
+            'activas' => (int) $porEstado->sum(),
+            'pendientes' => (int) $porEstado->get(EstadoCarga::Pendiente->value, 0),
+            'en_preparacion' => (int) collect([
+                EstadoCarga::EnPreparacion,
+                EstadoCarga::EnSeparacion,
+                EstadoCarga::DespachoParcial,
+            ])->sum(fn (EstadoCarga $estado): int => (int) $porEstado->get($estado->value, 0)),
+            'separadas' => (int) collect([
+                EstadoCarga::Separada,
+                EstadoCarga::SeparacionCompleta,
+            ])->sum(fn (EstadoCarga $estado): int => (int) $porEstado->get($estado->value, 0)),
+            'folios_pendientes' => (clone $folios)
+                ->whereIn('estado', [
+                    EstadoCargaFolio::Pendiente->value,
+                    EstadoCargaFolio::ConIncidencia->value,
+                ])
+                ->count(),
+            'folios_en_anden' => (clone $folios)
+                ->where('estado', EstadoCargaFolio::EnAnden->value)
+                ->count(),
+            'folios_con_incidencia' => (clone $folios)
+                ->where('estado', EstadoCargaFolio::ConIncidencia->value)
+                ->count(),
+            'cerradas_hoy' => Carga::query()
+                ->whereIn('estado', [EstadoCarga::Despachada->value, EstadoCarga::Cerrada->value])
+                ->where('cerrada_at', '>=', now()->startOfDay())
+                ->count(),
+            'detalle' => $detalle->values()->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validacion(): array
+    {
+        $inicio = now()->startOfDay();
+        $baseHoy = ValidacionPallet::query()->where('recibido_servidor_at', '>=', $inicio);
+        $porResultado = (clone $baseHoy)
+            ->groupBy('resultado')
+            ->select('resultado')
+            ->selectRaw('COUNT(*) as total')
+            ->pluck('total', 'resultado');
+        $ultima = ValidacionPallet::query()
+            ->latest('recibido_servidor_at')
+            ->first(['numero_folio', 'resultado', 'recibido_servidor_at']);
+
+        return [
+            'procesados_hoy' => (clone $baseHoy)->count(),
+            'aprobados_hoy' => (int) $porResultado->get(ResultadoValidacionPallet::Aprobado->value, 0),
+            'observados_hoy' => (int) $porResultado->get(ResultadoValidacionPallet::Observado->value, 0),
+            'rechazados_hoy' => (int) $porResultado->get(ResultadoValidacionPallet::Rechazado->value, 0),
+            'conflictos_hoy' => (clone $baseHoy)
+                ->where('estado', EstadoValidacionPallet::Conflicto->value)
+                ->count(),
+            'ultima_validacion' => $ultima ? [
+                'folio' => $ultima->numero_folio,
+                'resultado' => $ultima->resultado->value,
+                'recibido_at' => $ultima->recibido_servidor_at?->toAtomString(),
+            ] : null,
+        ];
+    }
+
     private function materiales(): array
     {
         $filas = DB::table('folios_materiales as fm')
@@ -362,6 +512,22 @@ class ServicioPanelGerencial
         return [
             'items_con_stock' => $filas->pluck('item_id')->unique()->count(),
             'folios_con_stock' => (int) $filas->sum('folios'),
+            'despachos_abiertos' => DespachoMaterial::query()
+                ->whereIn('estado', [
+                    EstadoDespachoMaterial::Pendiente->value,
+                    EstadoDespachoMaterial::Parcial->value,
+                ])
+                ->count(),
+            'despachos_parciales' => DespachoMaterial::query()
+                ->where('estado', EstadoDespachoMaterial::Parcial->value)
+                ->count(),
+            'recepciones_confirmadas_hoy' => RecepcionMaterial::query()
+                ->where('estado', EstadoRecepcionMaterial::Confirmada->value)
+                ->where('confirmado_at', '>=', now()->startOfDay())
+                ->count(),
+            'recepciones_borrador' => RecepcionMaterial::query()
+                ->where('estado', EstadoRecepcionMaterial::Borrador->value)
+                ->count(),
             'unidades_medida' => $porUnidad->all(),
         ];
     }
@@ -369,6 +535,69 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
+    /**
+     * @return array<string, mixed>
+     */
+    private function materiaPrima(): array
+    {
+        $base = LoteMateriaPrima::query()
+            ->where('estado', '!=', EstadoLoteMateriaPrima::Anulado->value);
+        $porEstado = (clone $base)
+            ->groupBy('estado')
+            ->select('estado')
+            ->selectRaw('COUNT(*) as total')
+            ->pluck('total', 'estado');
+
+        return [
+            'lotes_activos' => (clone $base)->count(),
+            'borradores' => (int) $porEstado->get(EstadoLoteMateriaPrima::Borrador->value, 0),
+            'pendientes_hidrocooler' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::PendienteHidrocooler->value,
+                0,
+            ),
+            'hidrocooler_en_curso' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::HidrocoolerEnCurso->value,
+                0,
+            ),
+            'pendientes_asignacion' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::PendienteAsignacion->value,
+                0,
+            ),
+            'en_camara' => (int) $porEstado->get(EstadoLoteMateriaPrima::AsignadoCamara->value, 0),
+            'entrega_parcial' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::EntregaParcialProceso->value,
+                0,
+            ),
+            'confirmados_hoy' => LoteMateriaPrima::query()
+                ->whereNotNull('confirmado_at')
+                ->where('confirmado_at', '>=', now()->startOfDay())
+                ->count(),
+            'kilos_confirmados_hoy' => round((float) LoteMateriaPrima::query()
+                ->whereNotNull('confirmado_at')
+                ->where('confirmado_at', '>=', now()->startOfDay())
+                ->sum('kilos_netos_confirmados'), 2),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function envases(): array
+    {
+        $hoy = MovimientoEnvase::query()->where('ocurrido_at', '>=', now()->startOfDay());
+
+        return [
+            'movimientos_hoy' => (clone $hoy)->count(),
+            'unidades_movidas_hoy' => (int) (clone $hoy)->sum('cantidad'),
+            'pendientes_revision' => MovimientoEnvase::query()
+                ->where('estado_revision', EstadoRevisionMovimientoEnvase::Pendiente->value)
+                ->count(),
+            'observados' => MovimientoEnvase::query()
+                ->where('estado_revision', EstadoRevisionMovimientoEnvase::Observado->value)
+                ->count(),
+        ];
+    }
+
     private function prefrio(): array
     {
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
@@ -396,6 +625,18 @@ class ServicioPanelGerencial
                 $ocupadas = $operativo
                     ? min($capacidad, (int) ($tunel->procesoActivo?->folios_activos_count ?? 0))
                     : 0;
+                $proceso = $tunel->procesoActivo;
+                $transcurridos = $proceso?->iniciado_at
+                    ? (int) $proceso->iniciado_at->diffInMinutes(now())
+                    : null;
+                $objetivo = $proceso?->duracion_objetivo_minutos;
+                $atrasado = $transcurridos !== null
+                    && $objetivo
+                    && $transcurridos > $objetivo
+                    && in_array($proceso->estado, [
+                        EstadoProcesoPrefrio::EnProceso,
+                        EstadoProcesoPrefrio::PendienteVerificacion,
+                    ], true);
 
                 return [
                     'id' => $tunel->id,
@@ -408,19 +649,54 @@ class ServicioPanelGerencial
                     'ocupadas' => $ocupadas,
                     'disponibles' => max(0, $capacidad - $ocupadas),
                     'ocupacion_porcentaje' => $this->porcentaje($ocupadas, $capacidad),
-                    'proceso_activo' => $tunel->procesoActivo ? [
-                        'codigo' => $tunel->procesoActivo->codigo,
-                        'estado' => $tunel->procesoActivo->estado->value,
+                    'proceso_activo' => $proceso ? [
+                        'codigo' => $proceso->codigo,
+                        'estado' => $proceso->estado->value,
+                        'setpoint' => $proceso->setpoint !== null ? (float) $proceso->setpoint : null,
+                        'formato' => $proceso->formato_referencia,
+                        'iniciado_at' => $proceso->iniciado_at?->toAtomString(),
+                        'duracion_objetivo_minutos' => $objetivo,
+                        'transcurridos_minutos' => $transcurridos,
+                        'atrasado' => $atrasado,
+                        'avance_porcentaje' => $transcurridos !== null && $objetivo
+                            ? min(100, $this->porcentaje($transcurridos, $objetivo))
+                            : null,
                     ] : null,
                 ];
             });
         $capacidad = (int) $tuneles->sum('capacidad');
         $ocupadas = (int) $tuneles->sum('ocupadas');
+        $completados = ProcesoPrefrio::query()
+            ->whereIn('estado', [
+                EstadoProcesoPrefrio::Aprobado->value,
+                EstadoProcesoPrefrio::RequiereReproceso->value,
+            ])
+            ->whereNotNull('iniciado_at')
+            ->whereNotNull('finalizado_at')
+            ->where('finalizado_at', '>=', now()->subDays(7))
+            ->get(['estado', 'iniciado_at', 'finalizado_at']);
+        $duraciones = $completados
+            ->map(fn (ProcesoPrefrio $proceso): int => (int) $proceso->iniciado_at->diffInMinutes($proceso->finalizado_at))
+            ->filter(fn (int $minutos): bool => $minutos >= 0);
 
         return [
             'tuneles_operativos' => $tuneles->where('operativo', true)->count(),
             'tuneles_totales' => $tuneles->count(),
             'procesos_activos' => ProcesoPrefrio::query()->whereIn('estado', $estadosActivos)->count(),
+            'procesos_atrasados' => $tuneles
+                ->filter(fn (array $tunel): bool => (bool) ($tunel['proceso_activo']['atrasado'] ?? false))
+                ->count(),
+            'aprobados_hoy' => $completados
+                ->where('estado', EstadoProcesoPrefrio::Aprobado)
+                ->filter(fn (ProcesoPrefrio $proceso): bool => $proceso->finalizado_at->isToday())
+                ->count(),
+            'reprocesos_hoy' => $completados
+                ->where('estado', EstadoProcesoPrefrio::RequiereReproceso)
+                ->filter(fn (ProcesoPrefrio $proceso): bool => $proceso->finalizado_at->isToday())
+                ->count(),
+            'duracion_promedio_minutos_7d' => $duraciones->isNotEmpty()
+                ? (int) round($duraciones->average())
+                : null,
             'folios_pendientes' => Folio::query()
                 ->where('activo', true)
                 ->where('estado_operacional', EstadoOperacionalFolio::PendientePrefrio->value)
@@ -520,78 +796,179 @@ class ServicioPanelGerencial
 
     /**
      * @param  array<string, mixed>  $camaras
+     * @param  array<string, mixed>  $productos
+     * @param  array<string, mixed>  $cargas
+     * @param  array<string, mixed>  $validacion
      * @param  array<string, mixed>  $materiales
      * @param  array<string, mixed>  $prefrio
      * @param  array<string, mixed>  $romana
-     * @return array<int, array<string, string>>
+     * @param  array<string, mixed>  $materiaPrima
+     * @param  array<string, mixed>  $envases
+     * @return array<int, array<string, string|int|float>>
      */
-    private function alertas(array $camaras, array $materiales, array $prefrio, array $romana): array
-    {
+    private function alertas(
+        array $camaras,
+        array $productos,
+        array $cargas,
+        array $validacion,
+        array $materiales,
+        array $prefrio,
+        array $romana,
+        array $materiaPrima,
+        array $envases,
+    ): array {
         $alertas = collect($camaras['detalle'])
             ->filter(fn (array $camara): bool => $camara['ocupacion_porcentaje'] >= 90)
             ->map(fn (array $camara): array => [
                 'nivel' => 'advertencia',
+                'area' => 'Cámaras',
                 'titulo' => "{$camara['codigo']} con alta ocupación",
                 'detalle' => "{$camara['ocupadas']} de {$camara['operativas']} posiciones operativas ocupadas.",
+                'metrica' => "{$camara['ocupacion_porcentaje']}%",
+                'href' => '/oficina/frigorifico/camaras',
             ]);
 
         collect($prefrio['tuneles'])
             ->where('operativo', false)
-            ->each(function (array $tunel) use ($alertas): void {
-                $alertas->push([
-                    'nivel' => 'critica',
-                    'titulo' => "{$tunel['codigo']} no disponible",
-                    'detalle' => 'El túnel está inactivo, en mantenimiento o fuera de servicio.',
-                ]);
-            });
+            ->each(fn (array $tunel) => $alertas->push([
+                'nivel' => 'critica',
+                'area' => 'Prefrío',
+                'titulo' => "{$tunel['codigo']} no disponible",
+                'detalle' => 'El túnel está inactivo, en mantenimiento o fuera de servicio.',
+                'metrica' => 'Fuera de servicio',
+                'href' => '/oficina/prefrio',
+            ]));
+
+        if ($prefrio['procesos_atrasados'] > 0) {
+            $alertas->push([
+                'nivel' => 'critica',
+                'area' => 'Prefrío',
+                'titulo' => 'Procesos sobre su duración objetivo',
+                'detalle' => "{$prefrio['procesos_atrasados']} proceso(s) exceden el tiempo configurado.",
+                'metrica' => $prefrio['procesos_atrasados'],
+                'href' => '/oficina/prefrio',
+            ]);
+        }
+
+        if ($productos['bloqueados'] > 0) {
+            $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Producto terminado',
+                'titulo' => 'Folios bloqueados',
+                'detalle' => "{$productos['bloqueados']} folio(s) requieren liberación o corrección.",
+                'metrica' => $productos['bloqueados'],
+                'href' => '/oficina/frigorifico/camaras',
+            ]);
+        }
+
+        if ($cargas['folios_con_incidencia'] > 0) {
+            $alertas->push([
+                'nivel' => 'critica',
+                'area' => 'Cargas',
+                'titulo' => 'Folios con incidencia de despacho',
+                'detalle' => "{$cargas['folios_con_incidencia']} folio(s) frenan o condicionan cargas activas.",
+                'metrica' => $cargas['folios_con_incidencia'],
+                'href' => '/oficina/cargas',
+            ]);
+        }
+
+        if ($validacion['observados_hoy'] + $validacion['rechazados_hoy'] > 0) {
+            $total = $validacion['observados_hoy'] + $validacion['rechazados_hoy'];
+            $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Validación PT',
+                'titulo' => 'Pallets observados o rechazados hoy',
+                'detalle' => "{$validacion['observados_hoy']} observados y {$validacion['rechazados_hoy']} rechazados.",
+                'metrica' => $total,
+                'href' => '/oficina/validacion',
+            ]);
+        }
+
+        if ($validacion['conflictos_hoy'] > 0) {
+            $alertas->push([
+                'nivel' => 'critica',
+                'area' => 'Validación PT',
+                'titulo' => 'Conflictos de sincronización',
+                'detalle' => "{$validacion['conflictos_hoy']} validación(es) presentan conflicto de datos.",
+                'metrica' => $validacion['conflictos_hoy'],
+                'href' => '/oficina/validacion',
+            ]);
+        }
 
         collect($materiales['unidades_medida'])
             ->filter(fn (array $unidad): bool => $unidad['cantidad_actual'] > 0
                 && $unidad['cantidad_disponible'] <= 0)
-            ->each(function (array $unidad) use ($alertas): void {
-                $alertas->push([
-                    'nivel' => 'advertencia',
-                    'titulo' => "Stock {$unidad['unidad_medida']} sin disponibilidad operativa",
-                    'detalle' => 'No queda cantidad habilitada para nuevos despachos en esta unidad de medida.',
-                ]);
-            });
+            ->each(fn (array $unidad) => $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Materiales',
+                'titulo' => "Stock {$unidad['unidad_medida']} sin disponibilidad operativa",
+                'detalle' => 'No queda cantidad habilitada para nuevos despachos en esta unidad de medida.',
+                'metrica' => $unidad['cantidad_actual'],
+                'href' => '/oficina/materiales/inventario',
+            ]));
 
         collect($materiales['unidades_medida'])
             ->filter(fn (array $unidad): bool => $unidad['cantidad_bloqueada'] > 0)
-            ->each(function (array $unidad) use ($alertas): void {
-                $alertas->push([
-                    'nivel' => 'advertencia',
-                    'titulo' => "Material {$unidad['unidad_medida']} bloqueado",
-                    'detalle' => "{$unidad['cantidad_bloqueada']} {$unidad['unidad_medida']} requieren revisión supervisada.",
-                ]);
-            });
+            ->each(fn (array $unidad) => $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Materiales',
+                'titulo' => "Material {$unidad['unidad_medida']} bloqueado",
+                'detalle' => "{$unidad['cantidad_bloqueada']} {$unidad['unidad_medida']} requieren revisión supervisada.",
+                'metrica' => $unidad['cantidad_bloqueada'],
+                'href' => '/oficina/materiales/inventario',
+            ]));
 
         collect($materiales['unidades_medida'])
             ->filter(fn (array $unidad): bool => $unidad['cantidad_pendiente_ubicacion'] > 0)
-            ->each(function (array $unidad) use ($alertas): void {
-                $alertas->push([
-                    'nivel' => 'advertencia',
-                    'titulo' => "Material {$unidad['unidad_medida']} sin ubicación",
-                    'detalle' => "{$unidad['cantidad_pendiente_ubicacion']} {$unidad['unidad_medida']} todavía no están disponibles para operación.",
-                ]);
-            });
+            ->each(fn (array $unidad) => $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Materiales',
+                'titulo' => "Material {$unidad['unidad_medida']} sin ubicación",
+                'detalle' => "{$unidad['cantidad_pendiente_ubicacion']} {$unidad['unidad_medida']} todavía no están disponibles para operación.",
+                'metrica' => $unidad['cantidad_pendiente_ubicacion'],
+                'href' => '/oficina/materiales/inventario',
+            ]));
+
+        if ($materiaPrima['pendientes_hidrocooler'] + $materiaPrima['pendientes_asignacion'] > 0) {
+            $total = $materiaPrima['pendientes_hidrocooler'] + $materiaPrima['pendientes_asignacion'];
+            $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Materia prima',
+                'titulo' => 'Lotes pendientes de etapa',
+                'detalle' => "{$materiaPrima['pendientes_hidrocooler']} esperan hidrocooler y {$materiaPrima['pendientes_asignacion']} esperan cámara.",
+                'metrica' => $total,
+                'href' => '/oficina/materia-prima',
+            ]);
+        }
 
         if ($romana['pendientes_destare'] > 0) {
             $alertas->push([
                 'nivel' => 'advertencia',
+                'area' => 'Romana',
                 'titulo' => 'Recepciones pendientes de cierre',
-                'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan destare o cierre documental en Romana.",
-            ]);
-        }
-        if ($romana['en_pesaje_envases'] > 0) {
-            $alertas->push([
-                'nivel' => 'informativa',
-                'titulo' => 'Pesajes acumulativos abiertos',
-                'detalle' => "{$romana['en_pesaje_envases']} recepción(es) aún están completando tandas de envases.",
+                'detalle' => "{$romana['pendientes_destare']} recepción(es) esperan destare o cierre documental.",
+                'metrica' => $romana['pendientes_destare'],
+                'href' => '/oficina/romana',
             ]);
         }
 
-        return $alertas->values()->all();
+        if ($envases['pendientes_revision'] > 0) {
+            $alertas->push([
+                'nivel' => 'informativa',
+                'area' => 'Envases',
+                'titulo' => 'Movimientos pendientes de revisión',
+                'detalle' => "{$envases['pendientes_revision']} movimiento(s) requieren chequeo documental.",
+                'metrica' => $envases['pendientes_revision'],
+                'href' => '/oficina/envases/cuenta-corriente',
+            ]);
+        }
+
+        $prioridad = ['critica' => 0, 'advertencia' => 1, 'informativa' => 2];
+
+        return $alertas
+            ->sortBy(fn (array $alerta): int => $prioridad[$alerta['nivel']] ?? 3)
+            ->values()
+            ->all();
     }
 
     private function porcentaje(int|float $parte, int|float $total): float

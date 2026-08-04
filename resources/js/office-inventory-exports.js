@@ -34,6 +34,7 @@ const keys = {
 const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
+    inventoryType: elements.app?.dataset.inventoryType || '',
     types: [],
     connections: [],
     busy: false,
@@ -208,7 +209,7 @@ function typeAppearance(type) {
 
 function renderCards() {
     if (!state.types.length) {
-        elements.cards.innerHTML = '<div class="inventory-empty"><strong>Tu perfil no posee existencias descargables.</strong><p>Solicita al administrador que revise el área y los permisos asignados.</p></div>';
+        elements.cards.innerHTML = '<div class="inventory-empty"><strong>Tu perfil no posee acceso a esta existencia.</strong><p>Solicita al administrador que revise el área y los permisos asignados.</p></div>';
         return;
     }
 
@@ -301,7 +302,8 @@ async function revokeConnection(id) {
 async function loadInventory(showLoading = true) {
     if (showLoading) setBusy(true, 'Consultando existencias autorizadas…');
     try {
-        const payload = await api('/api/existencias');
+        const query = new URLSearchParams({ tipo: state.inventoryType });
+        const payload = await api(`/api/existencias?${query.toString()}`);
         state.types = payload.data || [];
         state.connections = payload.conexiones || [];
         showApp();

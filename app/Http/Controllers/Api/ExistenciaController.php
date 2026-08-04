@@ -18,19 +18,39 @@ class ExistenciaController extends Controller
     public function index(Request $request, ServicioExistencias $servicio): JsonResponse
     {
         $usuario = $request->user();
-        $conexiones = ConexionExistencia::query()
+        $tipo = trim((string) $request->query('tipo', ''));
+
+        if ($tipo !== '') {
+            $servicio->definicion($tipo);
+            abort_unless($servicio->puedeConsultar($usuario, $tipo), Response::HTTP_FORBIDDEN);
+        }
+
+        $conexionesActivas = ConexionExistencia::query()
             ->where('user_id', $usuario->id)
+            ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
             ->whereNull('revocado_at')
             ->where(function ($consulta): void {
                 $consulta->whereNull('expira_at')->orWhere('expira_at', '>', now());
             })
             ->get()
             ->groupBy('tipo');
+        $historial = ConexionExistencia::query()
+            ->where('user_id', $usuario->id)
+            ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
+            ->latest()
+            ->limit(30)
+            ->get();
 
         $tipos = collect($servicio->disponiblesPara($usuario))
-            ->map(function (array $definicion) use ($conexiones): array {
+            ->when(
+                $tipo !== '',
+                fn ($definiciones) => $definiciones->where('tipo', $tipo),
+            )
+            ->map(function (array $definicion) use ($conexionesActivas): array {
                 unset($definicion['columnas']);
-                $definicion['conexiones_activas'] = $conexiones->get($definicion['tipo'], collect())->count();
+                $definicion['conexiones_activas'] = $conexionesActivas
+                    ->get($definicion['tipo'], collect())
+                    ->count();
 
                 return $definicion;
             })
@@ -38,12 +58,9 @@ class ExistenciaController extends Controller
 
         return response()->json([
             'data' => $tipos,
-            'conexiones' => ConexionExistencia::query()
-                ->where('user_id', $usuario->id)
-                ->latest()
-                ->limit(30)
-                ->get()
-                ->map(fn (ConexionExistencia $conexion): array => $this->serializarConexion($conexion)),
+            'conexiones' => $historial
+                ->map(fn (ConexionExistencia $conexion): array => $this->serializarConexion($conexion))
+                ->values(),
         ]);
     }
 
