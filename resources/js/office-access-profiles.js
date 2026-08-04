@@ -35,6 +35,24 @@ if (profileForm && profileTable) {
         return state.roles.find((role) => role.clave === profileForm.elements.rol_base.value);
     }
 
+    function isReadOnlyProfile() {
+        return profileForm.elements.solo_consulta.value === '1';
+    }
+
+    function applyAccessMode(selectDefaults = false) {
+        if (isReadOnlyProfile()) {
+            profileForm.elements.rol_base.value = 'consulta';
+            profileForm.elements.rol_base.disabled = true;
+        } else {
+            if (profileForm.elements.rol_base.value === 'consulta') {
+                profileForm.elements.rol_base.value =
+                    state.roles.find((role) => role.clave !== 'consulta')?.clave || '';
+            }
+            profileForm.elements.rol_base.disabled = false;
+        }
+        applyRoleAvailability(selectDefaults);
+    }
+
     function selectedModules() {
         return [...profileForm.querySelectorAll('[name="modulos[]"]:checked')]
             .map((input) => input.value);
@@ -56,11 +74,13 @@ if (profileForm && profileTable) {
 
     function applyTabletAvailability(selectDefaults = false) {
         const role = selectedRole();
+        const readOnly = isReadOnlyProfile();
         const officeModules = new Set(selectedModules());
         const defaults = new Set(role?.modulos_tablet_sugeridos || []);
         profileForm.querySelectorAll('[name="modulos_tablet[]"]').forEach((input) => {
             const related = (input.dataset.officeModules || '').split(' ').filter(Boolean);
-            const enabled = related.some((officeModule) => officeModules.has(officeModule));
+            const enabled = !readOnly
+                && related.some((officeModule) => officeModules.has(officeModule));
             input.disabled = !enabled;
             input.closest('.access-module-option')?.classList.toggle('is-disabled', !enabled);
             if (!enabled) input.checked = false;
@@ -171,7 +191,7 @@ if (profileForm && profileTable) {
         profileTable.innerHTML = state.profiles.map((profile) => `
             <tr>
                 <td><strong>${escapeHtml(profile.codigo)} · ${escapeHtml(profile.nombre)}</strong><small>${profile.predeterminado ? 'Perfil inicial · ' : ''}${escapeHtml(profile.descripcion || 'Sin descripción')}</small></td>
-                <td><span class="role-badge">${escapeHtml(profile.rol_base_nombre)}</span></td>
+                <td><span class="role-badge">${escapeHtml(profile.solo_consulta ? 'Solo consulta' : profile.rol_base_nombre)}</span></td>
                 <td><strong>${profile.modulos.length} PC · ${(profile.modulos_tablet || []).length} PDA</strong><small>oficinas y módulos móviles</small></td>
                 <td>${profile.usuarios_count}</td>
                 <td><span class="access-status access-status--${profile.activo ? 'active' : 'inactive'}">${profile.activo ? 'Activo' : 'Inactivo'}</span></td>
@@ -187,11 +207,14 @@ if (profileForm && profileTable) {
         profileForm.reset();
         profileForm.elements.id.value = '';
         profileForm.elements.activo.checked = true;
+        profileForm.elements.solo_consulta.value = '0';
+        profileForm.elements.solo_consulta.disabled = false;
         profileForm.elements.rol_base.disabled = false;
-        profileForm.elements.rol_base.value = state.roles[0]?.clave || '';
+        profileForm.elements.rol_base.value =
+            state.roles.find((role) => role.clave !== 'consulta')?.clave || '';
         document.getElementById('cancelAccessProfileEdit').classList.add('is-hidden');
         document.getElementById('accessProfileError').textContent = '';
-        applyRoleAvailability(true);
+        applyAccessMode(true);
     }
 
     function editProfile(profile) {
@@ -199,8 +222,10 @@ if (profileForm && profileTable) {
         profileForm.elements.codigo.value = profile.codigo;
         profileForm.elements.nombre.value = profile.nombre;
         profileForm.elements.descripcion.value = profile.descripcion || '';
+        profileForm.elements.solo_consulta.value = profile.solo_consulta ? '1' : '0';
+        profileForm.elements.solo_consulta.disabled = profile.predeterminado;
         profileForm.elements.rol_base.value = profile.rol_base;
-        profileForm.elements.rol_base.disabled = profile.predeterminado;
+        profileForm.elements.rol_base.disabled = profile.predeterminado || profile.solo_consulta;
         profileForm.elements.activo.checked = profile.activo;
         applyRoleAvailability(false);
         const selected = new Set(profile.modulos);
@@ -242,6 +267,7 @@ if (profileForm && profileTable) {
     profileForm.elements.codigo.addEventListener('input', (event) => {
         event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     });
+    profileForm.elements.solo_consulta.addEventListener('change', () => applyAccessMode(false));
     profileForm.elements.rol_base.addEventListener('change', () => applyRoleAvailability(true));
     document.getElementById('cancelAccessProfileEdit').addEventListener('click', resetForm);
 
@@ -261,6 +287,7 @@ if (profileForm && profileTable) {
             codigo: profileForm.elements.codigo.value,
             nombre: profileForm.elements.nombre.value,
             descripcion: profileForm.elements.descripcion.value,
+            solo_consulta: isReadOnlyProfile(),
             rol_base: profileForm.elements.rol_base.value,
             modulos: selectedModules(),
             modulos_tablet: selectedTabletModules(),

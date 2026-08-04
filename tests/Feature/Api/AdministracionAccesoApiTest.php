@@ -852,4 +852,87 @@ class AdministracionAccesoApiTest extends TestCase
             'email' => 'consulta.sin.perfil@empresa.cl',
         ]);
     }
+
+    public function test_perfil_solo_consulta_navega_areas_asignadas_y_bloquea_operaciones(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $perfil = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/perfiles-acceso', [
+                'codigo' => 'AUDITOR_TRANSVERSAL',
+                'nombre' => 'Auditor transversal',
+                'solo_consulta' => true,
+                'rol_base' => RolUsuario::Administrador->value,
+                'modulos' => [
+                    'materia-prima.romana',
+                    'frigorifico.validacion',
+                    'frigorifico.catalogos',
+                    'frigorifico.prefrio',
+                    'materiales.catalogos',
+                    'administracion.accesos',
+                ],
+                'modulos_tablet' => [
+                    CatalogoModulosAcceso::TABLET_VALIDACION_PT,
+                ],
+                'activo' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.solo_consulta', true)
+            ->assertJsonPath('data.rol_base', RolUsuario::Consulta->value)
+            ->assertJsonPath('data.modulos_tablet', [])
+            ->json('data');
+
+        $this->postJson('/api/administracion/usuarios', [
+            'nombre' => 'Auditor de prueba',
+            'email' => 'auditor@empresa.cl',
+            'perfil_acceso_id' => $perfil['id'],
+            'password' => 'Temporal2026',
+            'password_confirmation' => 'Temporal2026',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('usuario.rol', RolUsuario::Consulta->value);
+
+        $auditor = User::query()->where('email', 'auditor@empresa.cl')->firstOrFail();
+
+        $this->assertSame(
+            [],
+            app(CatalogoModulosAcceso::class)->modulosTabletUsuario($auditor),
+        );
+
+        $this->postJson('/api/acceso-oficina', [
+            'email' => 'auditor@empresa.cl',
+            'password' => 'Temporal2026',
+        ])
+            ->assertOk()
+            ->assertJsonPath('usuario.solo_consulta', true)
+            ->assertJsonPath('usuario.puede_consultar_accesos', true)
+            ->assertJsonPath('usuario.puede_consultar_catalogos_validacion', true)
+            ->assertJsonPath('usuario.puede_consultar_validaciones_pallet', true)
+            ->assertJsonPath('usuario.puede_administrar_accesos', false)
+            ->assertJsonPath('usuario.puede_administrar_catalogos_validacion', false)
+            ->assertJsonPath('usuario.puede_operar_prefrio', false)
+            ->assertJsonPath('usuario.puede_operar_romana', false);
+
+        $this->actingAs($auditor, 'sanctum')
+            ->getJson('/api/administracion/accesos')
+            ->assertOk();
+
+        $this->getJson('/api/administracion/validacion')
+            ->assertOk();
+
+        $this->getJson('/api/validacion/pallets')
+            ->assertOk();
+
+        $this->postJson('/api/administracion/perfiles-acceso', [])
+            ->assertForbidden();
+
+        $this->postJson('/api/prefrio/procesos', [])
+            ->assertForbidden();
+
+        $this->postJson('/api/romana/recepciones', [])
+            ->assertForbidden();
+    }
 }

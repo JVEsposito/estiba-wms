@@ -21,7 +21,7 @@ class PerfilAccesoController extends Controller
 
     public function index(): JsonResponse
     {
-        Gate::authorize('administrar-accesos');
+        Gate::authorize('consultar-accesos');
 
         return response()->json([
             'data' => PerfilAcceso::query()
@@ -48,6 +48,8 @@ class PerfilAccesoController extends Controller
     public function store(GuardarPerfilAccesoRequest $request): JsonResponse
     {
         $datos = $request->validated();
+        unset($datos['solo_consulta']);
+
         $perfil = PerfilAcceso::create([
             ...$datos,
             'predeterminado' => false,
@@ -73,6 +75,8 @@ class PerfilAccesoController extends Controller
         }
 
         $datos = $request->validated();
+        unset($datos['solo_consulta']);
+
         if ($perfilAcceso->predeterminado
             && $perfilAcceso->rol_base->value !== $datos['rol_base']) {
             throw new DomainException(
@@ -123,6 +127,7 @@ class PerfilAccesoController extends Controller
             'descripcion' => $perfil->descripcion,
             'rol_base' => $perfil->rol_base->value,
             'rol_base_nombre' => $this->nombreRol($perfil->rol_base),
+            'solo_consulta' => $perfil->rol_base === RolUsuario::Consulta,
             'modulos' => $perfil->modulos,
             'modulos_tablet' => $perfil->modulos_tablet ?? [],
             'activo' => $perfil->activo,

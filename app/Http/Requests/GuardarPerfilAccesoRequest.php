@@ -34,6 +34,7 @@ class GuardarPerfilAccesoRequest extends FormRequest
             ],
             'nombre' => ['required', 'string', 'max:150'],
             'descripcion' => ['nullable', 'string', 'max:500'],
+            'solo_consulta' => ['sometimes', 'boolean'],
             'rol_base' => [
                 'required',
                 Rule::enum(RolUsuario::class),
@@ -102,8 +103,15 @@ class GuardarPerfilAccesoRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $soloConsulta = $this->boolean('solo_consulta')
+            || $this->input('rol_base') === RolUsuario::Consulta->value;
+
         $this->merge([
             'codigo' => mb_strtoupper(trim((string) $this->input('codigo'))),
+            'solo_consulta' => $soloConsulta,
+            'rol_base' => $soloConsulta
+                ? RolUsuario::Consulta->value
+                : $this->input('rol_base'),
             'nombre' => trim((string) $this->input('nombre')),
             'descripcion' => filled($this->input('descripcion'))
                 ? trim((string) $this->input('descripcion'))
@@ -112,10 +120,12 @@ class GuardarPerfilAccesoRequest extends FormRequest
                 (array) $this->input('modulos', []),
                 fn (mixed $modulo): bool => is_string($modulo) && $modulo !== '',
             ))),
-            'modulos_tablet' => array_values(array_unique(array_filter(
-                (array) $this->input('modulos_tablet', []),
-                fn (mixed $modulo): bool => is_string($modulo) && $modulo !== '',
-            ))),
+            'modulos_tablet' => $soloConsulta
+                ? []
+                : array_values(array_unique(array_filter(
+                    (array) $this->input('modulos_tablet', []),
+                    fn (mixed $modulo): bool => is_string($modulo) && $modulo !== '',
+                ))),
         ]);
     }
 }

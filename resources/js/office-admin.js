@@ -184,7 +184,8 @@ function clearSession() {
 function showApp() {
     elements.access.classList.add('is-hidden');
     elements.app.classList.remove('is-hidden');
-    const name = state.identity?.nombre || 'Administrador';
+    elements.app.classList.toggle('is-read-only', state.identity?.solo_consulta === true);
+    const name = state.identity?.nombre || 'Usuario';
     elements.userName.textContent = name;
     elements.userRole.textContent = statusText(state.identity?.rol || 'administrador');
     elements.initials.textContent = name
@@ -425,10 +426,10 @@ elements.loginForm.addEventListener('submit', async (event) => {
             body: JSON.stringify(data),
         });
         state.token = payload.token;
-        if (payload.usuario.puede_administrar_accesos !== true) {
+        if (payload.usuario.puede_consultar_accesos !== true) {
             await api('/api/acceso-oficina', { method: 'DELETE' });
             clearSession();
-            throw new ApiError('Tu perfil no puede administrar usuarios ni tablets.', 403);
+            throw new ApiError('Tu perfil no puede consultar Accesos y Temporadas.', 403);
         }
         persistSession(payload);
         showApp();
@@ -705,10 +706,10 @@ elements.logout.addEventListener('click', async () => {
 });
 
 async function boot() {
-    if (!state.token || state.identity?.puede_administrar_accesos !== true) {
+    if (!state.token || state.identity?.puede_consultar_accesos !== true) {
         if (state.token) {
             clearSession();
-            elements.loginError.textContent = 'Inicia sesión con una cuenta administradora.';
+            elements.loginError.textContent = 'Inicia sesión con un perfil autorizado para consultar Accesos y Temporadas.';
         }
         return;
     }

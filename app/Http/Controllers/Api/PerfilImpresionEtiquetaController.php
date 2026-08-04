@@ -28,7 +28,7 @@ class PerfilImpresionEtiquetaController extends Controller
 
     public function administracion(): JsonResponse
     {
-        Gate::authorize('administrar-accesos');
+        Gate::authorize('consultar-accesos');
 
         return response()->json([
             'data' => PerfilImpresionEtiqueta::query()

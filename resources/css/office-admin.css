@@ -683,3 +683,16 @@
         grid-template-columns: repeat(5, minmax(130px, 1fr));
     }
 }
+
+
+/* Los perfiles de consulta conservan navegación y lectura, sin controles mutables. */
+#officeApp.is-read-only .admin-form,
+#officeApp.is-read-only .admin-table button,
+#officeApp.is-read-only .admin-reset-dialog,
+#officeApp.is-read-only .admin-migration-form {
+    display: none !important;
+}
+
+#officeApp.is-read-only .access-profiles-layout {
+    grid-template-columns: minmax(0, 1fr);
+}

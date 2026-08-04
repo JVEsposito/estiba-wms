@@ -25,7 +25,7 @@ class AdministracionAccesoController extends Controller
 
     public function index(): JsonResponse
     {
-        Gate::authorize('administrar-accesos');
+        Gate::authorize('consultar-accesos');
 
         return response()->json([
             'usuarios' => User::query()

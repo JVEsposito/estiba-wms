@@ -69,7 +69,7 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define(
             'consultar-configuracion-camaras',
-            fn (User $usuario): bool => $alcance->puedeAccederOficina($usuario),
+            fn (User $usuario): bool => $alcance->puedeConsultarConfiguracionCamaras($usuario),
         );
         Gate::define(
             'crear-camaras-productos',
@@ -127,6 +127,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define(
             'administrar-accesos',
             fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
+        );
+        Gate::define(
+            'consultar-accesos',
+            fn (User $usuario): bool => $alcance->puedeConsultarAccesos($usuario),
         );
         Gate::define(
             'reiniciar-datos-operacionales',
@@ -240,6 +244,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define(
             'administrar-catalogos-validacion',
             fn (User $usuario): bool => $alcance->puedeAdministrarCatalogosValidacion($usuario),
+        );
+        Gate::define(
+            'consultar-catalogos-validacion',
+            fn (User $usuario): bool => $alcance->puedeConsultarCatalogosValidacion($usuario),
         );
         Gate::define(
             'consultar-prefrio',

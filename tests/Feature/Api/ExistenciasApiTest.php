@@ -225,7 +225,7 @@ class ExistenciasApiTest extends TestCase
             ->assertJsonPath('data.0.tipo', 'materiales');
     }
 
-    public function test_usuario_de_consulta_accede_a_custodia_sin_permiso_de_kardex(): void
+    public function test_usuario_de_consulta_accede_a_custodia_y_su_historial(): void
     {
         [, $token] = $this->acceso(RolUsuario::Consulta);
 
@@ -234,7 +234,7 @@ class ExistenciasApiTest extends TestCase
             ->assertOk();
         $this->withToken($token)
             ->getJson('/api/materiales/almacenes/movimientos')
-            ->assertForbidden();
+            ->assertOk();
     }
 
     public function test_oficina_de_existencias_esta_disponible(): void

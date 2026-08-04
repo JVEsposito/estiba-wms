@@ -251,7 +251,7 @@ class CatalogoModulosAcceso
         $usuario->loadMissing('perfilAcceso');
         $perfil = $usuario->perfilAcceso;
 
-        if (! $perfil || ! $perfil->activo) {
+        if (! $perfil || ! $perfil->activo || $perfil->rol_base === RolUsuario::Consulta) {
             return [];
         }
 
