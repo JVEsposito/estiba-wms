@@ -127,7 +127,7 @@ export function ActionPanel({
         {plan.contenido === 'materiales' && canDispatchMaterial && (
           <ActionButton
             compact={compact}
-            disabled={busy || !canOperate || !selectedMaterial || Number(selectedPosition?.folio?.material?.cantidad_disponible ?? 0) <= 0}
+            disabled={busy || !canOperate || !selectedMaterial}
             icon="⇥"
             label="Despachar material"
             onPress={onDispatchMaterial}
