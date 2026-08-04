@@ -9,13 +9,15 @@ const elements = {
     articleForm: byId('articleForm'), articleError: byId('articleError'), articleCancel: byId('cancelArticleEdit'), articleList: byId('articleList'), articleSummary: byId('articleSummary'),
     originForm: byId('originForm'), originError: byId('originError'), originCancel: byId('cancelOriginEdit'), originList: byId('originList'), originSummary: byId('originSummary'),
     combinationForm: byId('combinationForm'), combinationError: byId('combinationError'), combinationCancel: byId('cancelCombinationEdit'), combinationList: byId('combinationList'), combinationSummary: byId('combinationSummary'),
+    correctionDialog: byId('validationCorrectionDialog'), correctionForm: byId('validationCorrectionForm'), correctionError: byId('validationCorrectionError'), correctionCancel: byId('cancelValidationCorrection'), correctionTitle: byId('validationCorrectionTitle'), correctionState: byId('validationCorrectionState'),
     importForm: byId('importForm'), importError: byId('importError'), importPreview: byId('importPreview'), importList: byId('importList'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), seasons: [], season: null,
-    filterSeasons: [], filterSeason: null, validators: [], articles: [], origins: [], combinations: [], imports: [], history: [], preview: null,
+    filterSeasons: [], filterSeason: null, validators: [], articles: [], origins: [], categories: [], combinations: [], imports: [], history: [], preview: null,
+    correctionTarget: null, correctionOperationId: null,
 };
 
 class ApiError extends Error {
@@ -112,7 +114,7 @@ async function loadAdministration(seasonId = null) {
     const suffix = seasonId ? `?temporada_id=${encodeURIComponent(seasonId)}` : '';
     const response = await api(`/api/administracion/validacion${suffix}`);
     state.seasons = response.temporadas || []; state.season = response.temporada || null; state.articles = response.articulos || [];
-    state.origins = response.origenes || []; state.combinations = response.combinaciones || []; state.imports = response.importaciones || [];
+    state.origins = response.origenes || []; state.categories = response.categorias || []; state.combinations = response.combinaciones || []; state.imports = response.importaciones || [];
     renderAdministration();
 }
 
@@ -135,8 +137,12 @@ function renderHistory() {
         const article = item.catalogo?.articulo || {}; const origin = item.catalogo?.origen || {};
         const resultClass = item.estado === 'conflicto' ? 'conflicto' : item.resultado;
         const category = item.catalogo?.categoria || {};
-        return `<tr><td><strong>${escapeHtml(item.numero_folio)}</strong><small>Intento ${item.numero_intento} · ${escapeHtml(statusText(item.tipo_bulto))}</small></td><td><strong>${escapeHtml(article.especie || 'Sin artículo')} · ${escapeHtml(article.variedad || '')}</strong><small>${escapeHtml(category.nombre || 'Sin categoría')} · ${escapeHtml(article.calibre || '')} · ${escapeHtml(article.envase || '')}</small></td><td><strong>${escapeHtml(origin.cliente || 'Sin origen')}</strong><small>${escapeHtml(origin.marca || '')} · CSG ${escapeHtml(origin.csg || '—')}</small></td><td><span class="validation-result validation-result--${escapeHtml(resultClass)}">${escapeHtml(item.estado === 'conflicto' ? 'Conflicto' : item.resultado)}</span>${item.motivo ? `<small>${escapeHtml(statusText(item.motivo))}</small>` : ''}</td><td><strong>${escapeHtml(item.usuario?.nombre || '—')}</strong><small>${escapeHtml(item.dispositivo?.codigo || '')}</small></td><td>${escapeHtml(formatDate(item.generado_dispositivo_at))}<small>${item.linea_proceso && item.turno ? `Línea ${escapeHtml(item.linea_proceso)} · Turno ${escapeHtml(item.turno)}` : 'Sin jornada histórica'}</small></td></tr>`;
-    }).join('') || '<tr><td class="empty-validation" colspan="6">No existen validaciones coincidentes.</td></tr>';
+        const lastCorrection = item.correcciones?.[0];
+        const correction = item.puede_corregir === true
+            ? `<button class="validation-correction-button" data-correct-validation="${item.id}" type="button">Corregir</button>`
+            : '<span class="validation-action-unavailable">No disponible</span>';
+        return `<tr><td><strong>${escapeHtml(item.numero_folio)}</strong><small>Intento ${item.numero_intento} · ${escapeHtml(statusText(item.tipo_bulto))}</small></td><td><strong>${escapeHtml(article.especie || 'Sin artículo')} · ${escapeHtml(article.variedad || '')}</strong><small>${escapeHtml(category.nombre || 'Sin categoría')} · ${escapeHtml(article.calibre || '')} · ${escapeHtml(article.envase || '')}</small></td><td><strong>${escapeHtml(origin.cliente || 'Sin origen')}</strong><small>${escapeHtml(origin.marca || '')} · CSG ${escapeHtml(origin.csg || '—')}</small></td><td><span class="validation-result validation-result--${escapeHtml(resultClass)}">${escapeHtml(item.estado === 'conflicto' ? 'Conflicto' : item.resultado)}</span>${item.motivo ? `<small>${escapeHtml(statusText(item.motivo))}</small>` : ''}</td><td><strong>${escapeHtml(item.usuario?.nombre || '—')}</strong><small>${escapeHtml(item.dispositivo?.codigo || '')}</small></td><td>${escapeHtml(formatDate(item.generado_dispositivo_at))}<small>${item.linea_proceso && item.turno ? `Línea ${escapeHtml(item.linea_proceso)} · Turno ${escapeHtml(item.turno)}` : 'Sin jornada histórica'}</small>${lastCorrection ? `<small>Corregido ${escapeHtml(formatDate(lastCorrection.corregido_at))}</small>` : ''}</td><td>${correction}</td></tr>`;
+    }).join('') || '<tr><td class="empty-validation" colspan="7">No existen validaciones coincidentes.</td></tr>';
     renderMetrics();
 }
 
@@ -158,6 +164,76 @@ function renderAdministration() {
     if ([...elements.combinationForm.elements.origen_validacion_id.options].some((option) => option.value === originCurrent)) elements.combinationForm.elements.origen_validacion_id.value = originCurrent;
     elements.importList.innerHTML = state.imports.map((item) => `<article class="validation-row"><div><strong>${escapeHtml(item.nombre_archivo)}</strong><small>${escapeHtml(statusText(item.estado))} · ${formatDate(item.created_at)} · ${item.resumen?.filas_validas || 0} filas válidas</small></div>${item.estado === 'borrador' ? `<button data-confirm-import="${item.id}" type="button">Confirmar</button>` : ''}</article>`).join('') || '<p class="empty-validation">Sin importaciones recientes.</p>';
     renderMetrics();
+}
+
+
+function renderCorrectionOrigins(selectedId = '') {
+    const articleId = elements.correctionForm.elements.articulo_validacion_id.value;
+    const allowed = new Set(state.combinations
+        .filter((item) => item.activo && item.articulo_validacion_id === articleId)
+        .map((item) => item.origen_validacion_id));
+    const origins = state.origins.filter((item) => item.activo && allowed.has(item.id));
+    elements.correctionForm.elements.origen_validacion_id.innerHTML = `<option value="">Selecciona un origen autorizado</option>${origins.map((item) => `<option value="${item.id}">${escapeHtml(item.cliente)} · ${escapeHtml(item.marca)} · CSG ${escapeHtml(item.csg)}</option>`).join('')}`;
+    if (origins.some((item) => item.id === selectedId)) elements.correctionForm.elements.origen_validacion_id.value = selectedId;
+}
+
+function openCorrection(item) {
+    state.correctionTarget = item;
+    state.correctionOperationId = operationUuid();
+    elements.correctionTitle.textContent = `Corregir ${item.numero_folio}`;
+    const operationalState = statusText(item.folio?.estado_operacional || 'sin estado');
+    const thermalCondition = statusText(item.folio?.condicion_termica || 'sin condición térmica');
+    elements.correctionState.textContent = `Estado actual: ${operationalState} · ${thermalCondition}. Estos estados no serán modificados.`;
+    const form = elements.correctionForm;
+    const activeArticles = state.articles.filter((article) => article.activo);
+    const activeCategories = state.categories.filter((category) => category.activo);
+    form.elements.articulo_validacion_id.innerHTML = `<option value="">Selecciona un artículo</option>${activeArticles.map((article) => `<option value="${article.id}">${escapeHtml(article.especie)} · ${escapeHtml(article.variedad)} · ${escapeHtml(article.calibre)} · ${escapeHtml(article.envase)}</option>`).join('')}`;
+    form.elements.categoria_validacion_id.innerHTML = `<option value="">Selecciona una categoría</option>${activeCategories.map((category) => `<option value="${category.id}">${escapeHtml(category.nombre)}</option>`).join('')}`;
+    form.elements.tipo_bulto.value = item.tipo_bulto || 'pallet';
+    form.elements.cantidad_cajas.value = item.cantidad_cajas || 1;
+    form.elements.linea_proceso.value = item.linea_proceso || 1;
+    form.elements.turno.value = item.turno || 'A';
+    form.elements.articulo_validacion_id.value = item.articulo_validacion_id || '';
+    form.elements.categoria_validacion_id.value = item.categoria_validacion_id || '';
+    renderCorrectionOrigins(item.origen_validacion_id || '');
+    form.elements.motivo_correccion.value = '';
+    elements.correctionError.textContent = '';
+    elements.correctionDialog.showModal();
+}
+
+function closeCorrection() {
+    elements.correctionDialog.close();
+    elements.correctionForm.reset();
+    elements.correctionError.textContent = '';
+    state.correctionTarget = null;
+    state.correctionOperationId = null;
+}
+
+async function submitCorrection(event) {
+    event.preventDefault();
+    if (!state.correctionTarget || !state.correctionOperationId) return;
+    const submitButton = event.submitter ?? elements.correctionForm.querySelector('button[type="submit"]');
+    const payload = Object.fromEntries(new FormData(elements.correctionForm));
+    payload.operacion_id = state.correctionOperationId;
+    payload.cantidad_cajas = Number(payload.cantidad_cajas);
+    payload.linea_proceso = Number(payload.linea_proceso);
+    elements.correctionError.textContent = '';
+    if (submitButton) submitButton.disabled = true;
+    setBusy(true, 'Corrigiendo validación y folio…');
+    try {
+        const response = await api(`/api/validacion/pallets/${state.correctionTarget.id}/corregir`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        closeCorrection();
+        await loadHistory(state.filterSeason?.id);
+        toast(response.message || 'Validación corregida y auditada.');
+    } catch (error) {
+        elements.correctionError.textContent = error.message;
+    } finally {
+        if (submitButton) submitButton.disabled = false;
+        setBusy(false);
+    }
 }
 
 function resetForm(form, cancelButton, error) { form.reset(); if (form.elements.id) form.elements.id.value = ''; if (form.elements.activo) form.elements.activo.checked = true; cancelButton?.classList.add('is-hidden'); error.textContent = ''; }
@@ -193,6 +269,11 @@ elements.login.addEventListener('submit', async (event) => { event.preventDefaul
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
 elements.reload.addEventListener('click', () => { setBusy(true, 'Actualizando validación…'); void loadAll(state.season?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 elements.filters.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Consultando historial…'); void loadHistory(state.filterSeason?.id).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.history.addEventListener('click', (event) => { const button = event.target.closest('[data-correct-validation]'); if (!button) return; const item = state.history.find((candidate) => candidate.id === button.dataset.correctValidation); if (item) openCorrection(item); });
+elements.correctionForm.addEventListener('submit', (event) => { void submitCorrection(event); });
+elements.correctionForm.elements.articulo_validacion_id.addEventListener('change', () => renderCorrectionOrigins());
+elements.correctionCancel.addEventListener('click', closeCorrection);
+elements.correctionDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeCorrection(); });
 elements.seasonSelector.addEventListener('change', () => { setBusy(true, 'Cambiando temporada…'); void loadAll(elements.seasonSelector.value || null).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 elements.exportRegister.addEventListener('click', () => {
     const values = Object.fromEntries(new FormData(elements.filters));

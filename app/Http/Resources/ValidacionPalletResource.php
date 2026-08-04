@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoValidacionPallet;
+use App\Enums\ResultadoValidacionPallet;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -42,7 +44,28 @@ class ValidacionPalletResource extends JsonResource
                 'id' => $this->folio->id,
                 'numero_folio' => $this->folio->numero_folio,
                 'estado_operacional' => $this->folio->estado_operacional->value,
+                'condicion_termica' => $this->folio->condicion_termica->value,
+                'activo' => $this->folio->activo,
             ] : null),
+            'puede_corregir' => $request->user()?->can('corregir-validaciones-pallet') === true
+                && $this->estado === EstadoValidacionPallet::Aceptada
+                && $this->resultado === ResultadoValidacionPallet::Aprobado
+                && $this->relationLoaded('folio')
+                && $this->folio !== null,
+            'correcciones' => $this->whenLoaded(
+                'correcciones',
+                fn () => $this->correcciones->map(fn ($correccion): array => [
+                    'id' => $correccion->id,
+                    'motivo' => $correccion->motivo,
+                    'corregido_at' => $correccion->corregido_at?->toAtomString(),
+                    'corregido_por' => $correccion->relationLoaded('corregidoPor')
+                        ? [
+                            'id' => $correccion->corregidoPor?->id,
+                            'nombre' => $correccion->corregidoPor?->name,
+                        ]
+                        : null,
+                ])->values(),
+            ),
             'usuario' => $this->whenLoaded('usuario', fn () => [
                 'id' => $this->usuario->id,
                 'nombre' => $this->usuario->name,

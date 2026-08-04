@@ -474,6 +474,15 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeCorregirValidacionesPallet(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador],
+            'frigorifico.validacion',
+        ) && $this->puedeAdministrarCatalogosValidacion($usuario);
+    }
+
     public function puedeConsultarPrefrio(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -753,6 +762,7 @@ class AlcanceOperacionalUsuario
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
+            'puede_corregir_validaciones_pallet' => $this->puedeCorregirValidacionesPallet($usuario),
             'puede_administrar_catalogos_validacion' => $this->puedeAdministrarCatalogosValidacion($usuario),
             'puede_consultar_prefrio' => $this->puedeConsultarPrefrio($usuario),
             'puede_operar_prefrio' => $this->puedeOperarPrefrio($usuario),

@@ -248,7 +248,7 @@ class ServicioValidacionPallet
     private function cargar(ValidacionPallet $validacion): ValidacionPallet
     {
         return $validacion->load([
-            'folio:id,numero_folio,estado_operacional,condicion_termica,habilitacion_almacenamiento',
+            'folio:id,numero_folio,estado_operacional,condicion_termica,habilitacion_almacenamiento,activo',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',

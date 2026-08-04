@@ -6,12 +6,14 @@ use App\Enums\EstadoValidacionPallet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConsultarOpcionesRegistroValidacionRequest;
 use App\Http\Requests\ConsultarValidacionesPalletRequest;
+use App\Http\Requests\CorregirValidacionPalletRequest;
 use App\Http\Requests\ExportarRegistroValidacionPalletRequest;
 use App\Http\Requests\RegistrarValidacionPalletRequest;
 use App\Http\Resources\ValidacionPalletResource;
 use App\Models\Temporada;
 use App\Models\ValidacionPallet;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Validacion\ServicioCorreccionValidacionPallet;
 use App\Services\Validacion\ServicioExportacionRegistroValidacion;
 use App\Services\Validacion\ServicioValidacionPallet;
 use Carbon\CarbonImmutable;
@@ -107,6 +109,24 @@ class ValidacionPalletController extends Controller
         );
     }
 
+    public function corregir(
+        CorregirValidacionPalletRequest $request,
+        ValidacionPallet $validacionPallet,
+        ServicioCorreccionValidacionPallet $servicio,
+    ): JsonResponse {
+        $validacion = $servicio->corregir(
+            $validacionPallet,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return (new ValidacionPalletResource($validacion))
+            ->additional([
+                'message' => 'La validación y su folio fueron corregidos y auditados.',
+            ])
+            ->response();
+    }
+
     public function store(
         RegistrarValidacionPalletRequest $request,
         ContextoOperacional $contexto,
@@ -137,10 +157,11 @@ class ValidacionPalletController extends Controller
     {
         return [
             'temporada:id,codigo,nombre,activa',
-            'folio:id,numero_folio,estado_operacional',
+            'folio:id,numero_folio,estado_operacional,condicion_termica,activo',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',
+            'correcciones.corregidoPor:id,name',
         ];
     }
 
