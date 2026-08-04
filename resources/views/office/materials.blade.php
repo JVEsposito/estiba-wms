@@ -130,7 +130,7 @@
                         <div><p class="eyebrow">PROGRAMACIÓN</p><h2>Órdenes</h2><p>Planificación, reservas FIFO y ejecución en PDA.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
-                    <a class="materials-module-card" href="/oficina/existencias" data-navigation-module="materiales.exportaciones" data-navigation-permissions="puede_consultar_despachos_materiales">
+                    <a class="materials-module-card" href="/oficina/materiales/exportaciones" data-navigation-module="materiales.exportaciones" data-navigation-permissions="puede_consultar_despachos_materiales">
                         <span aria-hidden="true">⇩</span>
                         <div><p class="eyebrow">RESPALDOS</p><h2>Exportaciones</h2><p>Cortes XLSX y conexiones autoactualizables para Excel.</p></div>
                         <strong aria-hidden="true">→</strong>
