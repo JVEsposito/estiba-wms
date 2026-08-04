@@ -83,6 +83,46 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertStringContainsString('Math.ceil(accepted / packageSize)', $script);
     }
 
+    public function test_despacho_directo_se_opera_desde_inventario_y_no_se_crea_en_pda(): void
+    {
+        $this->get('/oficina/materiales/inventario')
+            ->assertOk()
+            ->assertSee('id="materialDirectDispatchDialog"', false)
+            ->assertSee('Entregar material a centro de costo')
+            ->assertSee('Confirmar despacho directo');
+
+        $office = file_get_contents(resource_path('js/office-materials.js'));
+        $operationalScreen = file_get_contents(
+            base_path('mobile/src/screens/OperationalScreen.tsx'),
+        );
+        $operationModals = file_get_contents(
+            base_path('mobile/src/components/OperationModals.tsx'),
+        );
+
+        $this->assertIsString($office);
+        $this->assertStringContainsString(
+            '/api/materiales/despachos/directos',
+            $office,
+        );
+        $this->assertStringContainsString('data-direct-dispatch', $office);
+        $this->assertStringContainsString('Boolean(folio.camara)', $office);
+        $this->assertIsString($operationalScreen);
+        $this->assertStringNotContainsString(
+            'materialCreateOperationId',
+            $operationalScreen,
+        );
+        $this->assertStringNotContainsString(
+            'api.createMaterialDispatch',
+            $operationalScreen,
+        );
+        $this->assertIsString($operationModals);
+        $this->assertStringNotContainsString('Nuevo despacho', $operationModals);
+        $this->assertStringContainsString(
+            'Orden de despacho asignada',
+            $operationModals,
+        );
+    }
+
     public function test_materiales_solo_actualiza_datos_de_la_seccion_visible(): void
     {
         $this->get('/oficina/materiales')
