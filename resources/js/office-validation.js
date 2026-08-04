@@ -9,7 +9,7 @@ const elements = {
     articleForm: byId('articleForm'), articleError: byId('articleError'), articleCancel: byId('cancelArticleEdit'), articleList: byId('articleList'), articleSummary: byId('articleSummary'),
     originForm: byId('originForm'), originError: byId('originError'), originCancel: byId('cancelOriginEdit'), originList: byId('originList'), originSummary: byId('originSummary'),
     combinationForm: byId('combinationForm'), combinationError: byId('combinationError'), combinationCancel: byId('cancelCombinationEdit'), combinationList: byId('combinationList'), combinationSummary: byId('combinationSummary'),
-    correctionDialog: byId('validationCorrectionDialog'), correctionForm: byId('validationCorrectionForm'), correctionError: byId('validationCorrectionError'), correctionCancel: byId('cancelValidationCorrection'), correctionTitle: byId('validationCorrectionTitle'),
+    correctionDialog: byId('validationCorrectionDialog'), correctionForm: byId('validationCorrectionForm'), correctionError: byId('validationCorrectionError'), correctionCancel: byId('cancelValidationCorrection'), correctionTitle: byId('validationCorrectionTitle'), correctionState: byId('validationCorrectionState'),
     importForm: byId('importForm'), importError: byId('importError'), importPreview: byId('importPreview'), importList: byId('importList'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
@@ -181,6 +181,9 @@ function openCorrection(item) {
     state.correctionTarget = item;
     state.correctionOperationId = operationUuid();
     elements.correctionTitle.textContent = `Corregir ${item.numero_folio}`;
+    const operationalState = statusText(item.folio?.estado_operacional || 'sin estado');
+    const thermalCondition = statusText(item.folio?.condicion_termica || 'sin condición térmica');
+    elements.correctionState.textContent = `Estado actual: ${operationalState} · ${thermalCondition}. Estos estados no serán modificados.`;
     const form = elements.correctionForm;
     const activeArticles = state.articles.filter((article) => article.activo);
     const activeCategories = state.categories.filter((category) => category.activo);
