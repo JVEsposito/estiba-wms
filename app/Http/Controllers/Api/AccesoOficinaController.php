@@ -77,6 +77,7 @@ class AccesoOficinaController extends Controller
                 'puede_gestionar_andenes' => $capacidades['puede_gestionar_andenes'],
                 'puede_administrar_catalogos_materiales' => $usuario->can('administrar-catalogos-materiales'),
                 'puede_gestionar_despachos_materiales' => $capacidades['puede_gestionar_despachos_materiales'],
+                'puede_retirar_materiales' => $capacidades['puede_retirar_materiales'],
                 'puede_consultar_despachos_materiales' => $capacidades['puede_consultar_despachos_materiales'],
                 'puede_cancelar_despachos_materiales' => $capacidades['puede_cancelar_despachos_materiales'],
                 'puede_consultar_kardex_materiales' => $capacidades['puede_consultar_kardex_materiales'],
