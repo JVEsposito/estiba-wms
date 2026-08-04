@@ -604,15 +604,24 @@ export function MaterialDispatchModal({
 
   const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
   const selectedDetail = selectedDispatch?.items.find((detail) => detail.item.id === material?.item.id);
-  const ownReservation = reservationForFolio(
+  const reservedForSelectedDispatch = reservationForFolio(
     selectedDispatch,
     material?.item.id,
     position?.folio?.id,
   );
-  const followsFifo = ownReservation > 0;
-  const maximum = Math.min(
-    Number(material?.cantidad_disponible ?? 0) + ownReservation,
-    selectedDetail ? Number(selectedDetail.cantidad_pendiente) : Number(material?.cantidad_disponible ?? 0),
+  const currentAmount = Number(material?.cantidad_actual ?? 0);
+  const freeAmount = Number(material?.cantidad_disponible ?? 0);
+  const pendingAmount = selectedDetail
+    ? Number(selectedDetail.cantidad_pendiente)
+    : freeAmount;
+  const dispatchableForSelectedOrder = Math.min(
+    currentAmount,
+    freeAmount + reservedForSelectedDispatch,
+  );
+  const followsFifo = reservedForSelectedDispatch > 0;
+  const maximum = Math.max(
+    0,
+    Math.min(dispatchableForSelectedOrder, pendingAmount),
   );
 
   async function submit() {
@@ -640,7 +649,8 @@ export function MaterialDispatchModal({
 
             <View style={styles.materialBalance}>
               <View><Text style={styles.label}>SALDO ACTUAL</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_actual ?? '0'} {material?.unidad_medida}</Text></View>
-              <View><Text style={styles.label}>DISPONIBLE</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_disponible ?? '0'} {material?.unidad_medida}</Text></View>
+              <View><Text style={styles.label}>DISPONIBLE LIBRE</Text><Text style={styles.materialBalanceValue}>{material?.cantidad_disponible ?? '0'} {material?.unidad_medida}</Text></View>
+              <View><Text style={styles.label}>RESERVA DE ESTA ORDEN</Text><Text style={styles.materialBalanceValue}>{reservedForSelectedDispatch} {material?.unidad_medida}</Text></View>
             </View>
 
             <Text style={styles.label}>{canCreate ? 'Orden existente o despacho directo' : 'Orden de despacho asignada'}</Text>
@@ -675,7 +685,7 @@ export function MaterialDispatchModal({
               <View style={[styles.fifoNotice, followsFifo === false && styles.fifoNoticeOverride]}>
                 <Text style={styles.fifoNoticeTitle}>{followsFifo ? 'Folio sugerido por FIFO' : 'Selección distinta de FIFO'}</Text>
                 <Text style={styles.fifoNoticeText}>{selectedDispatch?.destino.nombre} · {selectedDispatch?.destino.centro_costo} · pendiente {selectedDetail?.cantidad_pendiente} {selectedDetail?.unidad_medida}</Text>
-                <Text style={styles.fifoReservationText}>Asignado a este folio: {ownReservation} {selectedDetail?.unidad_medida}</Text>
+                <Text style={styles.fifoReservationText}>Asignado a este folio: {reservedForSelectedDispatch} {selectedDetail?.unidad_medida}</Text>
               </View>
             )}
 

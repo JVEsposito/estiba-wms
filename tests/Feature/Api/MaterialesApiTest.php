@@ -633,6 +633,13 @@ class MaterialesApiTest extends TestCase
         $this->assertSame('10.000', FolioMaterial::findOrFail($folio1)->cantidad_reservada);
         $this->assertSame('2.000', FolioMaterial::findOrFail($folio2)->cantidad_reservada);
 
+        $this->conToken($tokenTablet)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_actual', '10.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_reservada', '10.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_disponible', '0.000');
+
         $operacionRetiroParcial = (string) Str::uuid();
         $retiroParcial = [
             'operacion_id' => $operacionRetiroParcial,
@@ -700,6 +707,71 @@ class MaterialesApiTest extends TestCase
         ]);
         $this->assertSame('6.000', FolioMaterial::findOrFail($folio2)->cantidad_actual);
         $this->assertSame(3, $camara->refresh()->version_plano);
+    }
+
+    public function test_reserva_fifo_parcial_permite_retirar_mas_que_el_disponible_libre(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara(
+            'CAM-RESERVA-PARCIAL',
+            ContenidoCamara::Materiales,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-RESERVA-PARCIAL',
+            0,
+            800,
+            now()->toAtomString(),
+        );
+
+        $despachoId = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'items' => [[
+                    'item_material_id' => $item->id,
+                    'cantidad' => 600,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.folio_id', $folioId)
+            ->assertJsonPath('data.items.0.sugerencias_fifo.0.cantidad', '600.000')
+            ->json('data.id');
+
+        $this->conToken($tokenTablet)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_actual', '800.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_reservada', '600.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_disponible', '200.000');
+
+        $this->conToken($tokenTablet)
+            ->getJson('/api/materiales/despachos?estados=pendiente,parcial&vista=operacion')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $despachoId)
+            ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.folio_id', $folioId)
+            ->assertJsonPath('data.0.items.0.sugerencias_fifo.0.cantidad', '600.000');
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
+                'operacion_id' => (string) Str::uuid(),
+                'retiros' => [[
+                    'folio_id' => $folioId,
+                    'cantidad' => 600,
+                    'sesion_estiba_id' => $sesion,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'completado')
+            ->assertJsonPath('data.items.0.cantidad_despachada', '600.000')
+            ->assertJsonPath('data.items.0.cantidad_pendiente', '0.000');
     }
 
     public function test_reserva_fifo_bloquea_solo_los_folios_que_necesita(): void
