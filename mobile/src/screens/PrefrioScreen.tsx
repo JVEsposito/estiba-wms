@@ -20,6 +20,7 @@ import {
   PrefrioMobileCache,
   PrefrioOperationalEventType,
   PrefrioProcess,
+  PrefrioProcessFolio,
   PrefrioQueuedCommand,
   PrefrioTunnel,
 } from '../domain/prefrio';
@@ -107,16 +108,26 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
     const processTunnelId = selectedProcess?.tunel.id;
     return cache.tunnels.find((item) => item.id === (processTunnelId ?? selectedTunnelId)) ?? null;
   }, [cache.tunnels, selectedProcess, selectedTunnelId]);
-  const assignmentsByPosition = useMemo(() => new Map(
-    selectedProcess?.folios
-      .filter((item) => !['retirado', 'cancelado'].includes(item.estado))
-      .map((item) => [item.posicion?.id ?? '', item]) ?? [],
-  ), [selectedProcess]);
+  const activeAssignments = useMemo(
+    () => selectedProcess?.folios.filter((item) => !['retirado', 'cancelado'].includes(item.estado)) ?? [],
+    [selectedProcess],
+  );
+  const assignmentsByPosition = useMemo(() => {
+    const grouped = new Map<string, PrefrioProcessFolio[]>();
+    activeAssignments.forEach((item) => {
+      const positionId = item.posicion?.id;
+      if (!positionId) return;
+      grouped.set(positionId, [...(grouped.get(positionId) ?? []), item]);
+    });
+    return grouped;
+  }, [activeAssignments]);
   const freePositions = useMemo(
     () => selectedTunnel?.posiciones.filter((item) => item.activa && !assignmentsByPosition.has(item.id)) ?? [],
     [selectedTunnel, assignmentsByPosition],
   );
   const selectedPosition = selectedTunnel?.posiciones.find((item) => item.id === selectedPositionId) ?? null;
+  const selectedAssignments = assignmentsByPosition.get(selectedPositionId ?? '') ?? [];
+  const occupiedPositionCount = assignmentsByPosition.size;
   const processQueue = outbox.filter((item) => item.process_id === selectedProcessId);
   const unresolved = outbox.filter((item) => item.status !== 'pendiente').length;
 
@@ -332,12 +343,6 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
       return;
     }
 
-    const position = selectedPosition ?? freePositions[0];
-    if (!position) {
-      setError('No quedan posiciones disponibles en el túnel.');
-      return;
-    }
-
     setBusy(true);
     setError('');
     setNotice('');
@@ -347,6 +352,24 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
         setError(online
           ? 'El folio no está habilitado para ingresar a Prefrío.'
           : 'El folio no existe en el catálogo guardado. Sincroniza la PDA para incorporarlo.');
+        return;
+      }
+
+      const position = selectedPosition ?? freePositions[0];
+      if (!position) {
+        setError(
+          folio.tipo_bulto === 'saldo'
+            ? 'Selecciona una posición ocupada por saldos para compartirla.'
+            : 'No quedan posiciones libres para un pallet completo.',
+        );
+        return;
+      }
+
+      const occupants = assignmentsByPosition.get(position.id) ?? [];
+      if (occupants.length > 0
+        && (folio.tipo_bulto !== 'saldo'
+          || occupants.some((item) => item.folio?.tipo_bulto !== 'saldo'))) {
+        setError('Esta posición es exclusiva. Solo puede compartirse entre folios de tipo saldo.');
         return;
       }
 
@@ -402,6 +425,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
               calibre: folio.calibre,
               marca: folio.marca,
               exportadora: folio.exportadora,
+              cantidad_cajas: folio.cantidad_cajas,
             },
             cargado_por: { id: auth.usuario.id, nombre: auth.usuario.nombre },
           },
@@ -410,7 +434,11 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
       await enqueueAndApply(command, optimistic, folio.id);
       setFolioNumber('');
       setInitialTemperature('');
-      setSelectedPositionId(nextFreePositionId(optimistic, selectedTunnel));
+      setSelectedPositionId(
+        folio.tipo_bulto === 'saldo'
+          ? position.id
+          : nextFreePositionId(optimistic, selectedTunnel),
+      );
       setNotice(
         `${folio.numero_folio} quedó registrado en ${position.etiqueta}.`
         + (selectedProcess.estado === 'listo_para_iniciar'
@@ -721,43 +749,50 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
                 <Text style={styles.muted}>{stateLabel(selectedProcess.estado)} · versión {selectedProcess.version} · setpoint {formatTemperature(selectedProcess.setpoint)}</Text>
               </View>
               <View style={styles.processCounts}>
-                <Text style={styles.processCountValue}>{selectedProcess.folios.filter((item) => !['retirado', 'cancelado'].includes(item.estado)).length}/{selectedTunnel.capacidad_posiciones}</Text>
-                <Text style={styles.processCountLabel}>POSICIONES</Text>
+                <Text style={styles.processCountValue}>{occupiedPositionCount}/{selectedTunnel.capacidad_posiciones}</Text>
+                <Text style={styles.processCountLabel}>POSICIONES · {activeAssignments.length} FOLIOS</Text>
               </View>
             </View>
 
             <View style={styles.workGrid}>
               <View style={styles.positionPanel}>
                 <Text style={styles.panelTitle}>Plano del túnel</Text>
-                <Text style={styles.muted}>Dos lados por profundidad. Selecciona una posición libre antes de escanear.</Text>
+                <Text style={styles.muted}>Selecciona una posición libre o una compartida por saldos. Los pallets completos son exclusivos.</Text>
                 <View style={styles.tunnelDirection}>
                   <Text style={styles.tunnelDirectionBack}>FONDO</Text>
                   <Text style={styles.tunnelDirectionCopy}>Lado A / Lado B</Text>
                 </View>
                 <View style={styles.positions}>
                   {[...selectedTunnel.posiciones].sort((left, right) => left.numero - right.numero).map((position) => {
-                    const assignment = assignmentsByPosition.get(position.id);
+                    const assignments = assignmentsByPosition.get(position.id) ?? [];
                     const selected = selectedPositionId === position.id;
                     const side = position.numero % 2 === 1 ? 'A' : 'B';
                     const depth = Math.ceil(position.numero / 2);
+                    const boxes = assignments.reduce(
+                      (total, item) => total + (item.folio?.cantidad_cajas ?? 0),
+                      0,
+                    );
+                    const positionContent = assignments.length === 0
+                      ? 'Libre'
+                      : assignments.length === 1
+                        ? assignments[0].folio?.numero_folio ?? 'Ocupado'
+                        : `${assignments.length} saldos${boxes > 0 ? ` · ${boxes} cajas` : ''}`;
                     return (
                       <Pressable
                         key={position.id}
                         disabled={!position.activa}
-                        onPress={() => assignment
-                          ? void removeAssignment(assignment.id, assignment.folio?.numero_folio ?? 'folio')
-                          : setSelectedPositionId(position.id)}
+                        onPress={() => setSelectedPositionId(position.id)}
                         style={[
                           styles.position,
-                          assignment && styles.positionOccupied,
-                          selected && !assignment && styles.positionSelected,
+                          assignments.length > 0 && styles.positionOccupied,
+                          selected && styles.positionSelected,
                           !position.activa && styles.positionDisabled,
                         ]}
                       >
                         <Text style={styles.positionLabel}>P{String(position.numero).padStart(2, '0')}</Text>
                         <Text style={styles.positionMeta}>Lado {side} · Prof. {depth}</Text>
-                        <Text numberOfLines={1} style={styles.positionFolio}>
-                          {assignment?.folio?.numero_folio ?? 'Libre'}
+                        <Text numberOfLines={2} style={styles.positionFolio}>
+                          {positionContent}
                         </Text>
                       </Pressable>
                     );
@@ -771,7 +806,34 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
 
               <View style={styles.operationPanel}>
                 <Text style={styles.panelTitle}>Escaneo de carga</Text>
-                <Text style={styles.selectedPosition}>Posición: {selectedPosition?.etiqueta ?? 'selecciona una libre'}</Text>
+                <Text style={styles.selectedPosition}>Posición: {selectedPosition?.etiqueta ?? 'selecciona una posición'}</Text>
+                {selectedAssignments.length > 0 ? (
+                  <View style={styles.positionContents}>
+                    <Text style={styles.positionContentsTitle}>
+                      Contenido actual · {selectedAssignments.length} folio{selectedAssignments.length === 1 ? '' : 's'}
+                    </Text>
+                    {selectedAssignments.map((assignment) => (
+                      <View key={assignment.id} style={styles.positionContentRow}>
+                        <View style={styles.positionContentCopy}>
+                          <Text style={styles.positionContentFolio}>{assignment.folio?.numero_folio ?? 'Folio'}</Text>
+                          <Text style={styles.positionContentMeta}>
+                            {assignment.folio?.tipo_bulto === 'saldo' ? 'Saldo' : 'Pallet completo'}
+                            {assignment.folio?.cantidad_cajas ? ` · ${assignment.folio.cantidad_cajas} cajas` : ''}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => void removeAssignment(
+                            assignment.id,
+                            assignment.folio?.numero_folio ?? 'folio',
+                          )}
+                          style={styles.smallDangerButton}
+                        >
+                          <Text style={styles.smallDangerText}>Retirar</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
                 <TextInput
                   ref={scannerRef}
                   autoCapitalize="characters"
@@ -1089,6 +1151,12 @@ const styles = StyleSheet.create({
   positionMeta: { color: colors.muted, fontSize: 9, marginTop: 2 },
   positionFolio: { color: colors.text, fontSize: 9, marginTop: 4 },
   selectedPosition: { color: colors.cyan, fontWeight: '800' },
+  positionContents: { gap: 6, padding: 9, borderRadius: 9, backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.borderSoft },
+  positionContentsTitle: { color: colors.muted, fontSize: 9, fontWeight: '900' },
+  positionContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 5, borderTopWidth: 1, borderTopColor: colors.borderSoft },
+  positionContentCopy: { flex: 1 },
+  positionContentFolio: { color: colors.text, fontSize: 11, fontWeight: '900' },
+  positionContentMeta: { color: colors.muted, fontSize: 9, marginTop: 2 },
   scannerInput: { minHeight: 58, paddingHorizontal: 14, borderRadius: 10, borderWidth: 2, borderColor: colors.cyanDark, backgroundColor: colors.backgroundDeep, color: colors.text, fontSize: 20, fontWeight: '900' },
   input: { minHeight: 46, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep, color: colors.text },
   multiline: { minHeight: 96, paddingTop: 12, textAlignVertical: 'top' },
