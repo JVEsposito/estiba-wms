@@ -16,7 +16,6 @@ import {
   CameraPlan,
   CameraSummary,
   FolioLookup,
-  MaterialDestination,
   MaterialDispatch,
   MaterialItem,
   Position,
@@ -555,14 +554,11 @@ export function MoveModal({
 
 export type MaterialDispatchFormValue = {
   cantidad: number;
-  despacho_id?: string;
-  destino_material_id?: string;
+  despacho_id: string;
 };
 
 export function MaterialDispatchModal({
   busy,
-  canCreate,
-  destinations,
   dispatches,
   error,
   onCancel,
@@ -571,8 +567,6 @@ export function MaterialDispatchModal({
   visible,
 }: {
   busy: boolean;
-  canCreate: boolean;
-  destinations: MaterialDestination[];
   dispatches: MaterialDispatch[];
   error: string;
   onCancel: () => void;
@@ -592,15 +586,13 @@ export function MaterialDispatchModal({
   ));
   const preferredDispatchId = prioritizedDispatches[0]?.id;
   const [dispatchId, setDispatchId] = useState<string>();
-  const [destinationId, setDestinationId] = useState<string>();
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
     if (!visible) return;
-    setDispatchId(preferredDispatchId ?? (canCreate ? undefined : matchingDispatches[0]?.id));
-    setDestinationId(undefined);
+    setDispatchId(preferredDispatchId ?? matchingDispatches[0]?.id);
     setAmount('');
-  }, [canCreate, preferredDispatchId, visible, position?.folio?.id]);
+  }, [preferredDispatchId, visible, position?.folio?.id]);
 
   const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
   const selectedDetail = selectedDispatch?.items.find((detail) => detail.item.id === material?.item.id);
@@ -626,12 +618,8 @@ export function MaterialDispatchModal({
 
   async function submit() {
     const parsed = Number(amount);
-    if (parsed <= 0 || parsed > maximum || (!dispatchId && !destinationId)) return;
-    await onConfirm({
-      cantidad: parsed,
-      despacho_id: dispatchId,
-      destino_material_id: dispatchId ? undefined : destinationId,
-    });
+    if (parsed <= 0 || parsed > maximum || !dispatchId) return;
+    await onConfirm({ cantidad: parsed, despacho_id: dispatchId });
   }
 
   return (
@@ -653,10 +641,9 @@ export function MaterialDispatchModal({
               <View><Text style={styles.label}>RESERVA DE ESTA ORDEN</Text><Text style={styles.materialBalanceValue}>{reservedForSelectedDispatch} {material?.unidad_medida}</Text></View>
             </View>
 
-            <Text style={styles.label}>{canCreate ? 'Orden existente o despacho directo' : 'Orden de despacho asignada'}</Text>
+            <Text style={styles.label}>Orden de despacho asignada</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator>
               <View style={styles.choiceRow}>
-                {canCreate && <Choice active={!dispatchId} label="Nuevo despacho" onPress={() => { setDispatchId(undefined); setAmount(''); }} />}
                 {prioritizedDispatches.map((dispatch) => (
                   <Choice
                     active={dispatchId === dispatch.id}
@@ -667,19 +654,6 @@ export function MaterialDispatchModal({
                 ))}
               </View>
             </ScrollView>
-
-            {canCreate && !dispatchId && (
-              <View style={[styles.field, styles.wide, styles.materialField]}>
-                <Text style={styles.label}>Destino y centro de costo *</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator>
-                  <View style={styles.choiceRow}>
-                    {destinations.map((destination) => (
-                      <Choice active={destinationId === destination.id} key={destination.id} label={`${destination.nombre} · ${destination.centro_costo}`} onPress={() => setDestinationId(destination.id)} />
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
 
             {dispatchId && (
               <View style={[styles.fifoNotice, followsFifo === false && styles.fifoNoticeOverride]}>
@@ -695,7 +669,7 @@ export function MaterialDispatchModal({
             </View>
 
             <ModalError message={error} />
-            <DialogActions busy={busy} compact={compact} confirmDisabled={Number(amount) <= 0 || Number(amount) > maximum || (!dispatchId && !destinationId)} confirmLabel="Confirmar despacho" onCancel={onCancel} onConfirm={submit} />
+            <DialogActions busy={busy} compact={compact} confirmDisabled={Number(amount) <= 0 || Number(amount) > maximum || !dispatchId} confirmLabel="Confirmar despacho" onCancel={onCancel} onConfirm={submit} />
           </View>
         </View>
       </SafeAreaView>
