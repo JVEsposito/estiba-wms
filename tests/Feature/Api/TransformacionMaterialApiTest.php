@@ -4,7 +4,11 @@ namespace Tests\Feature\Api;
 
 use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoLoteTransformacionMaterial;
+use App\Enums\EstadoOrdenTransformacionMaterial;
+use App\Enums\EstadoReservaMaterial;
 use App\Enums\RolUsuario;
+use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\ClienteMaterial;
