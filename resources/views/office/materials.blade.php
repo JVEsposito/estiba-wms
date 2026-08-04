@@ -137,21 +137,36 @@
                     </a>
                 </section>
 
-                <div class="materials-admin-grid" id="materialsAdminCatalogs" data-materials-view="catalogos">
-                    <section class="panel materials-panel">
+                @if ($activeMaterialsSection === 'catalogos')
+                    <x-office.panel-switcher
+                        id="materials-catalog"
+                        label="Catálogos de materiales"
+                        default="season"
+                        :panels="[
+                            'season' => ['label' => 'Temporada', 'icon' => '◷'],
+                            'clients' => ['label' => 'Clientes', 'icon' => '◇'],
+                            'providers' => ['label' => 'Proveedores', 'icon' => '⇄'],
+                            'items' => ['label' => 'Ítems', 'icon' => '▤'],
+                            'destinations' => ['label' => 'Destinos', 'icon' => '⌖'],
+                        ]"
+                    />
+                @endif
+
+                <div class="materials-admin-grid office-panel-workspace" id="materialsAdminCatalogs" data-materials-view="catalogos">
+                    <section class="panel materials-panel" id="materials-catalog-panel-season" data-office-panel-group="materials-catalog" data-office-panel-id="season" role="tabpanel" aria-labelledby="materials-catalog-tab-season">
                         <div class="materials-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Ciclo operacional</h2></div><span id="seasonsSummary">0 registradas</span></div>
                         <label class="materials-season-selector"><span>Temporada seleccionada</span><select id="materialSeasonSelector"></select></label>
                         <p class="materials-help">La temporada se crea, edita y activa en la oficina Accesos. Materiales administra ítems, proveedores y destinos dentro del ciclo seleccionado.</p>
                         <div class="materials-list" id="seasonsMaterialList"></div>
                     </section>
 
-                    <section class="panel materials-panel">
+                    <section class="panel materials-panel" id="materials-catalog-panel-clients" data-office-panel-group="materials-catalog" data-office-panel-id="clients" role="tabpanel" aria-labelledby="materials-catalog-tab-clients">
                         <div class="materials-panel__heading"><div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2>Clientes de servicio</h2></div><span id="clientsSummary">0 registrados</span></div>
                         <p class="materials-help">Estos clientes provienen de Accesos y se comparten con Romana, Validación, Envases y los demás procesos. Aquí se usan para asociar ítems, inventario y proveedores.</p>
                         <div class="materials-list" id="clientsMaterialList"></div>
                     </section>
 
-                    <section class="panel materials-panel">
+                    <section class="panel materials-panel" id="materials-catalog-panel-providers" data-office-panel-group="materials-catalog" data-office-panel-id="providers" role="tabpanel" aria-labelledby="materials-catalog-tab-providers">
                         <div class="materials-panel__heading"><div><p class="eyebrow">ABASTECIMIENTO</p><h2>Proveedores</h2></div><span id="providersSummary">0 registrados</span></div>
                         <form class="materials-form" id="providerMaterialForm" novalidate>
                             <input name="id" type="hidden">
@@ -176,7 +191,7 @@
                         <div class="materials-list" id="providersMaterialList"></div>
                     </section>
 
-                    <section class="panel materials-panel">
+                    <section class="panel materials-panel" id="materials-catalog-panel-items" data-office-panel-group="materials-catalog" data-office-panel-id="items" role="tabpanel" aria-labelledby="materials-catalog-tab-items">
                         <div class="materials-panel__heading"><div><p class="eyebrow">CATÁLOGO</p><h2>Ítems seleccionables</h2></div><div class="materials-panel__tools"><span id="itemsSummary">0 registrados</span><button class="secondary-button" id="openMaterialImport" type="button">Importar catálogo</button></div></div>
                         <form class="materials-form" id="itemMaterialForm" novalidate>
                             <input name="id" type="hidden">
@@ -197,7 +212,7 @@
                         <div class="materials-list" id="itemsMaterialList"></div>
                     </section>
 
-                    <section class="panel materials-panel">
+                    <section class="panel materials-panel" id="materials-catalog-panel-destinations" data-office-panel-group="materials-catalog" data-office-panel-id="destinations" role="tabpanel" aria-labelledby="materials-catalog-tab-destinations">
                         <div class="materials-panel__heading"><div><p class="eyebrow">DESTINOS</p><h2>Centros de costo</h2></div><span id="destinationsSummary">0 registrados</span></div>
                         <form class="materials-form" id="destinationMaterialForm" novalidate>
                             <input name="id" type="hidden">
