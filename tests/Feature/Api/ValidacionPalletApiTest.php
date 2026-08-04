@@ -79,6 +79,9 @@ class ValidacionPalletApiTest extends TestCase
     public function test_mi_sesion_resume_folios_intentos_y_no_mezcla_validadores_dispositivos_ni_accesos_previos(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-SES-01');
+        DB::table('temporadas')
+            ->where('id', '!=', $catalogo['temporada_id'])
+            ->update(['activa' => false]);
 
         $anterior = $this->payload($catalogo, 'PAL-SES-ANTERIOR');
         $anterior['generado_dispositivo_at'] = now()->subMinute()->toAtomString();
