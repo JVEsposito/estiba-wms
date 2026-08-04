@@ -163,14 +163,25 @@ class ServicioProcesoPrefrio
                     throw new DomainException('La posición no pertenece al túnel o se encuentra inactiva.');
                 }
 
-                if ($procesoBloqueado->folios()
+                $ocupantes = $procesoBloqueado->folios()
                     ->where('posicion_tunel_prefrio_id', $posicion->id)
                     ->whereNotIn('estado', [
                         EstadoFolioProcesoPrefrio::Retirado->value,
                         EstadoFolioProcesoPrefrio::Cancelado->value,
                     ])
-                    ->exists()) {
-                    throw new ConflictoOperacion('La posición del túnel ya se encuentra ocupada en este proceso.');
+                    ->with('folio:id,tipo_bulto')
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($ocupantes->isNotEmpty()
+                    && ($folio->tipo_bulto !== TipoBulto::Saldo
+                        || $ocupantes->contains(
+                            fn (ProcesoPrefrioFolio $ocupante): bool => $ocupante->folio?->tipo_bulto
+                                !== TipoBulto::Saldo,
+                        ))) {
+                    throw new ConflictoOperacion(
+                        'La posición solo puede compartirse entre folios de tipo saldo.',
+                    );
                 }
 
                 if ($procesoBloqueado->folios()
@@ -803,7 +814,7 @@ class ServicioProcesoPrefrio
             'tunel:id,codigo,nombre,capacidad_posiciones,setpoint_habitual,estado_administrativo,estado_tecnico,version_configuracion',
             'folios' => fn ($consulta) => $consulta
                 ->with([
-                    'folio:id,numero_folio,tipo_bulto,estado_operacional,condicion_termica,habilitacion_almacenamiento,variedad,calibre,marca,exportadora',
+                    'folio:id,numero_folio,tipo_bulto,estado_operacional,condicion_termica,habilitacion_almacenamiento,variedad,calibre,marca,exportadora,datos_externos',
                     'posicion:id,tunel_prefrio_id,numero,etiqueta,activa',
                     'cargadoPor:id,name',
                 ])

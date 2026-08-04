@@ -94,11 +94,18 @@ Los estados `borrador`, `cargando` y `listo_para_iniciar` admiten carga de folio
 
 ## Folios y posiciones
 
-Durante la carga, cada folio ocupa una posición única del proceso:
+Durante la carga, las posiciones representan capacidad física:
+
+- un folio de tipo `pallet` ocupa una posición de forma exclusiva;
+- dos o más folios de tipo `saldo` pueden compartir una misma posición;
+- los saldos compartidos pueden pertenecer a clientes, variedades, calibres o embalajes distintos;
+- cada saldo conserva su identificación, temperaturas, resultado y trazabilidad individual.
+
+Por lo tanto, un túnel de 20 posiciones puede contener más de 20 folios cuando existen saldos apilados físicamente:
 
 ```text
-TUN-01-P01
-TUN-01-P02
+TUN-01-P01 = PAL-000001
+TUN-01-P02 = SALDO-0001 + SALDO-0002 + SALDO-0003
 ...
 ```
 
@@ -114,9 +121,10 @@ P03 / P04 = profundidad 2
 El proceso impide:
 
 - repetir un folio;
-- ocupar dos veces una posición;
+- compartir una posición que contiene un pallet completo;
+- cargar un pallet completo en una posición ocupada;
+- mezclar pallets completos con saldos en una posición;
 - usar una posición de otro túnel;
-- superar la capacidad configurada;
 - cargar materiales;
 - cargar folios ya habilitados para almacenamiento;
 - cargar folios que permanecen ubicados en cámara.
@@ -309,7 +317,9 @@ La aplicación móvil entrega al operador:
 
 - catálogo de túneles y procesos activos;
 - búsqueda o escaneo de folios habilitados para Prefrío;
-- carga y retiro por posición;
+- carga en posiciones libres o compartidas exclusivamente por saldos;
+- visualización separada de posiciones físicas y cantidad total de folios;
+- retiro individual de cada folio sin afectar a los demás ocupantes;
 - confirmación de armado e inicio;
 - lecturas, inversión, pausa, reanudación y deshielo;
 - envío a verificación;
