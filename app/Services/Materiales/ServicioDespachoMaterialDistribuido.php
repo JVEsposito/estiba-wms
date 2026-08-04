@@ -9,6 +9,7 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaMaterial;
 use App\Enums\EstadoSesionEstiba;
+use App\Enums\TipoAlmacenMaterial;
 use App\Enums\TipoMovimientoAlmacenMaterial;
 use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
@@ -177,6 +178,14 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 $destinoCatalogo,
                 $usuario,
             );
+
+            if ($almacenDestino->id === $bodega->id
+                || $almacenDestino->tipo !== TipoAlmacenMaterial::Virtual) {
+                throw new DomainException(
+                    'El despacho debe dirigirse a un centro de costo virtual.',
+                );
+            }
+
             $operacionRetiro = OperacionRetiroMaterial::create([
                 'id' => $operacionId,
                 'despacho_material_id' => $despacho->id,
