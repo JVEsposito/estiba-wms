@@ -57,7 +57,37 @@ Route::view('/oficina/validacion', 'office.validation');
 Route::view('/oficina/validacion/catalogo', 'office.validation-catalog');
 Route::view('/oficina/prefrio', 'office.precooling');
 Route::view('/oficina/gerencia', 'office.management');
-Route::view('/oficina/existencias', 'office.inventory-exports');
+Route::redirect('/oficina/existencias', '/oficina/materiales/exportaciones');
+Route::view('/oficina/frigorifico/existencias', 'office.inventory-exports', [
+    'inventoryType' => 'producto-terminado',
+    'inventoryDomain' => 'frigorifico',
+    'inventoryOffice' => 'existencias-pt',
+    'inventoryContext' => 'FRIGORÍFICO · PT',
+    'inventoryArea' => 'Producto terminado',
+    'inventoryTitle' => 'Existencia de producto terminado',
+    'inventoryDescription' => 'Folios activos desde Validación y Prefrío hasta cámara, carga y despacho.',
+    'inventoryIcon' => '◇',
+]);
+Route::view('/oficina/materiales/exportaciones', 'office.inventory-exports', [
+    'inventoryType' => 'materiales',
+    'inventoryDomain' => 'materiales',
+    'inventoryOffice' => 'exportaciones',
+    'inventoryContext' => 'MATERIALES',
+    'inventoryArea' => 'Materiales',
+    'inventoryTitle' => 'Existencia de materiales',
+    'inventoryDescription' => 'Saldos por folio, almacén, centro de costo, reserva, disponibilidad y ubicación.',
+    'inventoryIcon' => '▦',
+]);
+Route::view('/oficina/materia-prima/existencias', 'office.inventory-exports', [
+    'inventoryType' => 'materia-prima',
+    'inventoryDomain' => 'materia-prima',
+    'inventoryOffice' => 'existencias-mp',
+    'inventoryContext' => 'MATERIA PRIMA',
+    'inventoryArea' => 'Materia prima',
+    'inventoryTitle' => 'Existencia de materia prima',
+    'inventoryDescription' => 'Lotes vigentes, condición de hidrocooler, cámara asignada y continuidad hacia proceso.',
+    'inventoryIcon' => '⌁',
+]);
 Route::view('/oficina/romana', 'office.weighbridge');
 Route::view('/oficina/envases/cuenta-corriente', 'office.container-accounts');
 Route::view('/oficina/envases/despachos', 'office.container-dispatches');

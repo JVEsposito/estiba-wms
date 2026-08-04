@@ -9,6 +9,7 @@ use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
+use App\Models\Carga;
 use App\Models\ClienteMaterial;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -21,6 +22,7 @@ use App\Models\ProcesoPrefrioFolio;
 use App\Models\RecepcionRomana;
 use App\Models\TunelPrefrio;
 use App\Models\User;
+use App\Models\ValidacionPallet;
 use App\Observers\InvalidarPanelGerencialObserver;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
@@ -72,6 +74,14 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.productos.disponibles_despacho', 1)
             ->assertJsonPath('data.productos.pendientes_prefrio', 1)
             ->assertJsonPath('data.productos.bloqueados', 1)
+            ->assertJsonPath('data.productos.pendientes_ubicacion', 0)
+            ->assertJsonPath('data.productos.ingresados_hoy', 3)
+            ->assertJsonPath('data.productos.pallets', 3)
+            ->assertJsonPath('data.productos.saldos', 0)
+            ->assertJsonPath('data.cargas.activas', 0)
+            ->assertJsonPath('data.cargas.folios_con_incidencia', 0)
+            ->assertJsonPath('data.validacion.procesados_hoy', 0)
+            ->assertJsonPath('data.validacion.conflictos_hoy', 0)
             ->assertJsonPath('data.materiales.items_con_stock', 1)
             ->assertJsonPath('data.materiales.folios_con_stock', 3)
             ->assertJsonPath('data.materiales.unidades_medida.0.unidad_medida', 'unidad')
@@ -83,17 +93,25 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.materiales.unidades_medida.0.cantidad_no_disponible', 0)
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.cliente.codigo', 'GENERAL')
             ->assertJsonPath('data.materiales.unidades_medida.0.items.0.temporada.activa', true)
+            ->assertJsonPath('data.materiales.despachos_abiertos', 0)
+            ->assertJsonPath('data.materiales.recepciones_borrador', 0)
             ->assertJsonPath('data.prefrio.tuneles_operativos', 1)
             ->assertJsonPath('data.prefrio.capacidad', 2)
             ->assertJsonPath('data.prefrio.ocupadas', 1)
             ->assertJsonPath('data.prefrio.disponibles', 1)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.estado', EstadoProcesoPrefrio::Cargando->value)
+            ->assertJsonPath('data.prefrio.procesos_atrasados', 0)
+            ->assertJsonPath('data.prefrio.duracion_promedio_minutos_7d', null)
             ->assertJsonPath('data.romana.en_bascula_ingreso', 0)
             ->assertJsonPath('data.romana.en_pesaje_envases', 0)
             ->assertJsonPath('data.romana.pendientes_destare', 0)
             ->assertJsonPath('data.romana.cerradas_hoy', 0)
             ->assertJsonPath('data.romana.peso_neto_hoy', 0)
-            ->assertJsonCount(7, 'data.romana.tendencia_diaria');
+            ->assertJsonCount(7, 'data.romana.tendencia_diaria')
+            ->assertJsonPath('data.materia_prima.lotes_activos', 0)
+            ->assertJsonPath('data.materia_prima.pendientes_hidrocooler', 0)
+            ->assertJsonPath('data.envases.movimientos_hoy', 0)
+            ->assertJsonPath('data.envases.pendientes_revision', 0);
 
         $this->assertNotNull($respuesta->json('data.generado_at'));
     }
@@ -158,6 +176,14 @@ class PanelGerencialApiTest extends TestCase
         $this->assertNotSame($primera['generado_at'], $tercera['generado_at']);
         $this->assertContains(
             RecepcionRomana::class,
+            InvalidarPanelGerencialObserver::modelosObservados(),
+        );
+        $this->assertContains(
+            Carga::class,
+            InvalidarPanelGerencialObserver::modelosObservados(),
+        );
+        $this->assertContains(
+            ValidacionPallet::class,
             InvalidarPanelGerencialObserver::modelosObservados(),
         );
     }

@@ -56,6 +56,20 @@ class ExistenciasApiTest extends TestCase
         );
     }
 
+    public function test_consulta_dedicada_filtra_definicion_y_conexiones_por_area(): void
+    {
+        [, $token] = $this->acceso(RolUsuario::Administrador);
+
+        $this->withToken($token)
+            ->getJson('/api/existencias?tipo=materiales')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.tipo', 'materiales')
+            ->assertJsonMissing(['tipo' => 'producto-terminado'])
+            ->assertJsonMissing(['tipo' => 'materia-prima'])
+            ->assertJsonCount(0, 'conexiones');
+    }
+
     public function test_producto_aprobado_en_prefrio_queda_pendiente_de_ubicacion_en_existencias(): void
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
@@ -217,6 +231,9 @@ class ExistenciasApiTest extends TestCase
         $this->withToken($token)
             ->get('/api/existencias/producto-terminado/corte')
             ->assertForbidden();
+        $this->withToken($token)
+            ->getJson('/api/existencias?tipo=producto-terminado')
+            ->assertForbidden();
 
         $this->withToken($token)
             ->getJson('/api/existencias')
@@ -237,12 +254,29 @@ class ExistenciasApiTest extends TestCase
             ->assertOk();
     }
 
-    public function test_oficina_de_existencias_esta_disponible(): void
+    public function test_cada_area_posee_su_propia_oficina_de_existencias(): void
     {
         $this->get('/oficina/existencias')
+            ->assertRedirect('/oficina/materiales/exportaciones');
+
+        $this->get('/oficina/frigorifico/existencias')
             ->assertOk()
-            ->assertSee('Tres inventarios. Una fuente oficial.')
-            ->assertSee('Excel conectado');
+            ->assertSee('Existencia de producto terminado')
+            ->assertSee('data-inventory-type="producto-terminado"', false)
+            ->assertSee('data-office-key="existencias-pt"', false)
+            ->assertDontSee('Tres inventarios. Una fuente oficial.');
+
+        $this->get('/oficina/materiales/exportaciones')
+            ->assertOk()
+            ->assertSee('Existencia de materiales')
+            ->assertSee('data-inventory-type="materiales"', false)
+            ->assertSee('data-office-key="exportaciones"', false);
+
+        $this->get('/oficina/materia-prima/existencias')
+            ->assertOk()
+            ->assertSee('Existencia de materia prima')
+            ->assertSee('data-inventory-type="materia-prima"', false)
+            ->assertSee('data-office-key="existencias-mp"', false);
 
         $this->get('/oficina/materiales/almacenes')
             ->assertOk()
