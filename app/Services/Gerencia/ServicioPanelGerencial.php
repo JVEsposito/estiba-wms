@@ -4,11 +4,11 @@ namespace App\Services\Gerencia;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoAdministrativoTunelPrefrio;
+use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
 use App\Enums\EstadoDespachoMaterial;
 use App\Enums\EstadoLoteMateriaPrima;
-use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoProcesoPrefrio;
