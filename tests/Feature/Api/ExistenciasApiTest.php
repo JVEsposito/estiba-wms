@@ -68,11 +68,6 @@ class ExistenciasApiTest extends TestCase
             ->assertJsonMissing(['tipo' => 'producto-terminado'])
             ->assertJsonMissing(['tipo' => 'materia-prima'])
             ->assertJsonCount(0, 'conexiones');
-
-        [, $tokenMateriales] = $this->acceso(RolUsuario::SupervisorMateriales);
-        $this->withToken($tokenMateriales)
-            ->getJson('/api/existencias?tipo=producto-terminado')
-            ->assertForbidden();
     }
 
     public function test_producto_aprobado_en_prefrio_queda_pendiente_de_ubicacion_en_existencias(): void
@@ -235,6 +230,9 @@ class ExistenciasApiTest extends TestCase
             ->assertForbidden();
         $this->withToken($token)
             ->get('/api/existencias/producto-terminado/corte')
+            ->assertForbidden();
+        $this->withToken($token)
+            ->getJson('/api/existencias?tipo=producto-terminado')
             ->assertForbidden();
 
         $this->withToken($token)
