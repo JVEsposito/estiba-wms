@@ -2,8 +2,6 @@
 
 namespace App\Services\Validacion;
 
-use App\Enums\CondicionTermicaFolio;
-use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use App\Exceptions\ConflictoOperacion;
@@ -197,34 +195,9 @@ class ServicioCorreccionValidacionPallet
     ): void {
         if ($validacion->estado !== EstadoValidacionPallet::Aceptada
             || $validacion->resultado !== ResultadoValidacionPallet::Aprobado
-            || ! $folio
-            || ! $folio->activo
-            || $folio->estado_operacional !== EstadoOperacionalFolio::PendientePrefrio
-            || $folio->condicion_termica !== CondicionTermicaFolio::PendientePrefrio) {
+            || ! $folio) {
             throw new ConflictoOperacion(
-                'La validación solo puede corregirse mientras su folio siga pendiente de Prefrío.',
-            );
-        }
-
-        $tieneFlujoPosterior = DB::table('procesos_prefrio_folios')
-            ->where('folio_id', $folio->id)
-            ->exists()
-            || DB::table('ubicaciones_actuales')
-                ->where('folio_id', $folio->id)
-                ->exists()
-            || DB::table('movimientos')
-                ->where('folio_id', $folio->id)
-                ->exists()
-            || DB::table('carga_folios')
-                ->where('folio_id', $folio->id)
-                ->exists()
-            || DB::table('reservas_carga_folio')
-                ->where('folio_id', $folio->id)
-                ->exists();
-
-        if ($tieneFlujoPosterior) {
-            throw new ConflictoOperacion(
-                'El folio ya posee actividad posterior y no admite correcciones administrativas.',
+                'Solo se pueden corregir validaciones aprobadas que conserven su folio asociado.',
             );
         }
     }
@@ -267,6 +240,9 @@ class ServicioCorreccionValidacionPallet
                 'snapshot' => $validacion->snapshot,
             ],
             'folio' => [
+                'activo' => $folio->activo,
+                'estado_operacional' => $folio->estado_operacional->value,
+                'condicion_termica' => $folio->condicion_termica->value,
                 'tipo_bulto' => $folio->tipo_bulto->value,
                 'variedad' => $folio->variedad,
                 'calibre' => $folio->calibre,
