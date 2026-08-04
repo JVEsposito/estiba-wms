@@ -23,12 +23,25 @@
                 <header class="accounts-heading"><div><p class="eyebrow">CONTROL Y CONCILIACIÓN</p><h1>Cuenta corriente de envases</h1><p>La operación muestra la temporada activa; selecciona otra temporada sólo para consultar su historial.</p></div><button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button></header>
                 <div class="accounts-kpis"><article><span>MOVIMIENTOS CONFIRMADOS</span><strong id="confirmedCount">0</strong></article><article><span>ENVASES RESERVADOS</span><strong id="reservedCount">0</strong></article><article><span>PENDIENTES DE VALIDACIÓN</span><strong id="pendingCount">0</strong></article><article><span>OBSERVADOS</span><strong id="observedCount">0</strong></article><article><span>ÚLTIMA SINCRONIZACIÓN</span><strong id="syncTime">—</strong></article></div>
                 <section class="panel accounts-filters"><form id="filtersForm"><input name="buscar" placeholder="Guía, recepción o cliente"><select name="cliente_id"><option value="">Todos los clientes</option></select><select name="temporada_id"><option value="">Temporada activa</option></select><select name="tipo_envase"><option value="">Todos los envases</option></select><select name="estado_revision"><option value="">Toda revisión</option><option value="pendiente">Pendiente</option><option value="revisado">Revisado</option><option value="observado">Observado</option></select><input name="desde" type="date"><input name="hasta" type="date"><button class="primary-button" type="submit">Aplicar filtros</button></form></section>
-                <div class="accounts-grid">
-                    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">SALDOS</p><h2>Por cliente y tipo</h2></div></div><div class="balance-list" id="balanceList"></div></section>
-                    <section class="panel"><div class="panel-heading"><div><p class="eyebrow">EN VERDE</p><h2>Pendiente de Validación MP</h2></div></div><div class="pending-list" id="pendingList"></div></section>
+
+                <x-office.panel-switcher
+                    id="container-accounts"
+                    label="Vistas de cuenta corriente"
+                    default="balances"
+                    :panels="[
+                        'balances' => ['label' => 'Saldos', 'icon' => '∑'],
+                        'pending' => ['label' => 'Pendientes', 'icon' => '◷'],
+                        'reservations' => ['label' => 'Reservas', 'icon' => '◇'],
+                        'movements' => ['label' => 'Movimientos', 'icon' => '⇄'],
+                    ]"
+                />
+
+                <div class="accounts-grid office-panel-workspace">
+                    <section class="panel" id="container-accounts-panel-balances" data-office-panel-group="container-accounts" data-office-panel-id="balances" role="tabpanel" aria-labelledby="container-accounts-tab-balances"><div class="panel-heading"><div><p class="eyebrow">SALDOS</p><h2>Por cliente y tipo</h2></div></div><div class="balance-list" id="balanceList"></div></section>
+                    <section class="panel" id="container-accounts-panel-pending" data-office-panel-group="container-accounts" data-office-panel-id="pending" role="tabpanel" aria-labelledby="container-accounts-tab-pending"><div class="panel-heading"><div><p class="eyebrow">EN VERDE</p><h2>Pendiente de Validación MP</h2></div></div><div class="pending-list" id="pendingList"></div></section>
                 </div>
-                <section class="panel"><div class="panel-heading"><div><p class="eyebrow">RESERVAS OPERACIONALES</p><h2>Borradores de despacho</h2></div><small>No modifican el saldo hasta confirmar la salida.</small></div><div class="reservation-list" id="reservationList"></div></section>
-                <section class="panel movements-panel"><div class="panel-heading"><div><p class="eyebrow">KARDEX DOCUMENTAL</p><h2>Movimientos confirmados</h2></div><small>Ingreso y salida conservan fecha y hora exactas.</small></div><div class="accounts-table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Cliente / documento</th><th>Envase</th><th>Cuenta</th><th>Propiedad</th><th>Revisión</th><th>Acción</th></tr></thead><tbody id="movementsBody"></tbody></table></div></section>
+                <section class="panel" id="container-accounts-panel-reservations" data-office-panel-group="container-accounts" data-office-panel-id="reservations" role="tabpanel" aria-labelledby="container-accounts-tab-reservations"><div class="panel-heading"><div><p class="eyebrow">RESERVAS OPERACIONALES</p><h2>Borradores de despacho</h2></div><small>No modifican el saldo hasta confirmar la salida.</small></div><div class="reservation-list" id="reservationList"></div></section>
+                <section class="panel movements-panel" id="container-accounts-panel-movements" data-office-panel-group="container-accounts" data-office-panel-id="movements" role="tabpanel" aria-labelledby="container-accounts-tab-movements"><div class="panel-heading"><div><p class="eyebrow">KARDEX DOCUMENTAL</p><h2>Movimientos confirmados</h2></div><small>Ingreso y salida conservan fecha y hora exactas.</small></div><div class="accounts-table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Cliente / documento</th><th>Envase</th><th>Cuenta</th><th>Propiedad</th><th>Revisión</th><th>Acción</th></tr></thead><tbody id="movementsBody"></tbody></table></div></section>
             </section>
         </main>
         <dialog class="review-dialog" id="reviewDialog"><form id="reviewForm" method="dialog"><input name="movimiento_id" type="hidden"><div><p class="eyebrow">CHEQUEO DOCUMENTAL</p><h2>Revisar movimiento</h2></div><label><span>Resultado</span><select name="estado" required><option value="revisado">Revisado</option><option value="observado">Observado</option></select></label><label><span>Nota</span><textarea name="nota" maxlength="2000"></textarea></label><p class="form-error" id="reviewError"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">Cancelar</button><button class="primary-button" value="default">Guardar chequeo</button></div></form></dialog>
