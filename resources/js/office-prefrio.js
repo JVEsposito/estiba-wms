@@ -124,8 +124,9 @@ function renderProcessFormOptions() {
 function renderProcesses() {
     elements.processBody.innerHTML = state.processes.map((item) => {
         const activeFolios = (item.folios || []).filter((folio) => !['retirado', 'cancelado'].includes(folio.estado));
+        const occupiedPositions = new Set(activeFolios.map((folio) => folio.posicion?.id).filter(Boolean)).size;
         const finalText = item.estado === 'aprobado' ? 'Habilitado' : item.estado === 'requiere_reproceso' ? 'Retenido' : item.estado === 'cancelado' ? 'Cancelado' : 'Pendiente';
-        return `<tr data-process-id="${item.id}"><td><strong>${escapeHtml(item.codigo)}</strong><small>v${item.version} · ${escapeHtml(item.formato_referencia || 'Sin formato')}</small></td><td><strong>${escapeHtml(item.tunel?.codigo || '—')}</strong><small>${escapeHtml(item.tunel?.nombre || '')}</small></td><td><span class="status-pill status-pill--${escapeHtml(item.estado)}">${escapeHtml(statusText(item.estado))}</span></td><td><strong>${activeFolios.length}</strong><small>de ${item.tunel?.capacidad_posiciones || '—'} posiciones</small></td><td>${escapeHtml(formatDate(item.iniciado_at, 'No iniciado'))}</td><td><strong>${escapeHtml(finalText)}</strong><small>${escapeHtml(formatDate(item.finalizado_at, '—'))}</small></td></tr>`;
+        return `<tr data-process-id="${item.id}"><td><strong>${escapeHtml(item.codigo)}</strong><small>v${item.version} · ${escapeHtml(item.formato_referencia || 'Sin formato')}</small></td><td><strong>${escapeHtml(item.tunel?.codigo || '—')}</strong><small>${escapeHtml(item.tunel?.nombre || '')}</small></td><td><span class="status-pill status-pill--${escapeHtml(item.estado)}">${escapeHtml(statusText(item.estado))}</span></td><td><strong>${occupiedPositions}/${item.tunel?.capacidad_posiciones || '—'} posiciones</strong><small>${activeFolios.length} folios</small></td><td>${escapeHtml(formatDate(item.iniciado_at, 'No iniciado'))}</td><td><strong>${escapeHtml(finalText)}</strong><small>${escapeHtml(formatDate(item.finalizado_at, '—'))}</small></td></tr>`;
     }).join('') || '<tr><td class="empty-prefrio" colspan="6">No existen procesos coincidentes.</td></tr>';
 }
 
@@ -141,17 +142,34 @@ function renderProcessDetail() {
     elements.detail.classList.remove('is-hidden'); elements.detailTitle.textContent = `${process.codigo} · ${process.tunel?.codigo || 'Sin túnel'}`;
     elements.detailSubtitle.textContent = `${process.tunel?.nombre || ''} · ${statusText(process.estado)} · setpoint ${process.setpoint} °C · versión ${process.version}`;
     const occupied = (process.folios || []).filter((item) => !['retirado', 'cancelado'].includes(item.estado));
+    const occupiedPositions = new Set(occupied.map((item) => item.posicion?.id).filter(Boolean)).size;
     elements.detailMetrics.innerHTML = [
-        ['ESTADO', statusText(process.estado)], ['FOLIOS', occupied.length], ['CAPACIDAD', process.tunel?.capacidad_posiciones || '—'], ['INICIO', formatDate(process.iniciado_at, 'No iniciado')], ['FINAL', formatDate(process.finalizado_at, 'Pendiente')],
+        ['ESTADO', statusText(process.estado)], ['POSICIONES', `${occupiedPositions}/${process.tunel?.capacidad_posiciones || '—'}`], ['FOLIOS', occupied.length], ['INICIO', formatDate(process.iniciado_at, 'No iniciado')], ['FINAL', formatDate(process.finalizado_at, 'Pendiente')],
     ].map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
     renderTunnelMap(process, occupied); renderTimeline(process); renderDecisionPanel(process, occupied);
 }
 function renderTunnelMap(process, occupied) {
-    const byPosition = new Map(occupied.map((item) => [item.posicion?.numero, item])); const capacity = Number(process.tunel?.capacidad_posiciones || 0);
+    const byPosition = new Map();
+    occupied.forEach((item) => {
+        const number = item.posicion?.numero;
+        if (!number) return;
+        byPosition.set(number, [...(byPosition.get(number) || []), item]);
+    });
+    const capacity = Number(process.tunel?.capacidad_posiciones || 0);
     elements.tunnelMap.innerHTML = Array.from({ length: capacity }, (_, index) => {
-        const number = index + 1; const item = byPosition.get(number); const reprocess = item?.estado === 'requiere_reproceso';
+        const number = index + 1; const items = byPosition.get(number) || [];
+        const reprocess = items.some((item) => item.estado === 'requiere_reproceso');
+        const boxes = items.reduce((total, item) => total + Number(item.folio?.cantidad_cajas || 0), 0);
+        const summary = items.length === 0
+            ? 'Libre'
+            : items.length === 1
+                ? items[0].folio?.numero_folio || 'Ocupado'
+                : `${items.length} saldos${boxes > 0 ? ` · ${boxes} cajas` : ''}`;
+        const folios = items.length > 1
+            ? items.map((item) => item.folio?.numero_folio || 'Folio').join(' · ')
+            : '';
         const meta = positionMeta(number);
-        return `<article class="tunnel-slot${item ? ' is-occupied' : ''}${reprocess ? ' is-reprocess' : ''}"><strong>P${String(number).padStart(2, '0')}</strong><small>Lado ${meta.side} · Prof. ${meta.depth}</small><span>${item ? escapeHtml(item.folio?.numero_folio || 'Ocupado') : 'Libre'}</span>${item?.temperatura_final !== null && item?.temperatura_final !== undefined ? `<span>${item.temperatura_final} °C</span>` : ''}</article>`;
+        return `<article class="tunnel-slot${items.length ? ' is-occupied' : ''}${reprocess ? ' is-reprocess' : ''}"><strong>P${String(number).padStart(2, '0')}</strong><small>Lado ${meta.side} · Prof. ${meta.depth}</small><span>${escapeHtml(summary)}</span>${folios ? `<small>${escapeHtml(folios)}</small>` : ''}</article>`;
     }).join('') || '<p class="empty-prefrio">El túnel no posee posiciones configuradas.</p>';
 }
 function renderTimeline(process) {
