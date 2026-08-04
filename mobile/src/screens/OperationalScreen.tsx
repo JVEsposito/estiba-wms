@@ -78,12 +78,10 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [lastSync, setLastSync] = useState<string | null>(null);
   const refreshInFlight = useRef(false);
   const materialDispatchRefreshInFlight = useRef<Promise<MaterialDispatch[]> | null>(null);
-  const materialCreateOperationId = useRef(Crypto.randomUUID());
   const materialWithdrawOperationId = useRef(Crypto.randomUUID());
   const capabilities = auth.usuario.capacidades;
   const canUseMaterials = capabilities.puede_consultar_despachos_materiales;
   const canUseTransformations = capabilities.puede_consultar_transformaciones_materiales === true;
-  const canCreateMaterialDispatch = capabilities.puede_gestionar_despachos_materiales;
   const canWithdrawMaterial = capabilities.puede_retirar_materiales;
   const canUseLoads = capabilities.puede_consultar_cargas;
 
@@ -298,7 +296,6 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       return;
     }
 
-    materialCreateOperationId.current = Crypto.randomUUID();
     materialWithdrawOperationId.current = Crypto.randomUUID();
     setMaterialDispatchVisible(true);
   }
@@ -496,26 +493,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   async function confirmMaterialDispatch(form: MaterialDispatchFormValue) {
     if (!operationalPosition?.folio?.material || !ownSession || !canWithdrawMaterial) return;
     setModalError('');
-    let dispatchId = form.despacho_id;
-
     const succeeded = await runOperation(async () => {
-      if (!dispatchId) {
-        if (!canCreateMaterialDispatch) {
-          throw new Error('Selecciona una orden de despacho asignada por oficina.');
-        }
-        if (!form.destino_material_id) throw new Error('Selecciona el destino del material.');
-        const created = await api.createMaterialDispatch(auth.token, {
-          operacion_id: materialCreateOperationId.current,
-          destino_material_id: form.destino_material_id,
-          items: [{
-            item_material_id: operationalPosition.folio!.material!.item.id,
-            cantidad: form.cantidad,
-          }],
-        });
-        dispatchId = created.id;
-      }
-
-      await api.withdrawMaterial(auth.token, dispatchId, {
+      await api.withdrawMaterial(auth.token, form.despacho_id, {
         operacion_id: materialWithdrawOperationId.current,
         retiros: [{
           folio_id: operationalPosition.folio!.id,
@@ -894,8 +873,6 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       />
       <MaterialDispatchModal
         busy={busy}
-        canCreate={canCreateMaterialDispatch}
-        destinations={materialCatalog.destinos}
         dispatches={materialDispatches}
         error={modalError}
         onCancel={() => {
