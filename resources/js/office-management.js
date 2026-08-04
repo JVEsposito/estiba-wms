@@ -45,6 +45,7 @@ const elements = {
     cameraRows: byId('cameraDetailRows'),
     alerts: byId('managementAlerts'),
     alertCount: byId('alertCount'),
+    alertTabCount: byId('alertTabCount'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -504,7 +505,9 @@ function renderCameraTable(cameras) {
 }
 
 function renderAlerts(alerts) {
-    elements.alertCount.textContent = formatInteger(alerts.length);
+    const count = formatInteger(alerts.length);
+    elements.alertCount.textContent = count;
+    if (elements.alertTabCount) elements.alertTabCount.textContent = count;
     elements.alerts.innerHTML = alerts.length
         ? alerts.map((alert) => `
             <div class="management-alert${alert.nivel === 'critica' ? ' management-alert--critical' : ''}">
@@ -585,6 +588,16 @@ elements.logout.addEventListener('click', async () => {
 
 elements.refresh.addEventListener('click', () => void loadDashboard());
 elements.materialUnitSelect.addEventListener('change', renderMaterialChart);
+
+document.addEventListener('estiba:office-panel-change', (event) => {
+    if (event.detail?.group !== 'management') return;
+
+    window.requestAnimationFrame(() => {
+        state.charts.forEach((chart) => {
+            if (!chart.canvas.closest('[hidden]')) chart.resize();
+        });
+    });
+});
 
 async function boot() {
     if (!state.token || state.identity?.puede_consultar_panel_gerencial !== true) return;
