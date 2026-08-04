@@ -97,6 +97,7 @@ export type PrefrioProcessFolio = {
     calibre: string | null;
     marca: string | null;
     exportadora: string | null;
+    cantidad_cajas: number | null;
   } | null;
   cargado_por: { id: string; nombre: string } | null;
 };
