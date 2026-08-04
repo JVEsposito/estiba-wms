@@ -264,7 +264,7 @@ class ProcesoPrefrioController extends Controller
             'tunel:id,codigo,nombre,capacidad_posiciones,setpoint_habitual,estado_administrativo,estado_tecnico,version_configuracion',
             'folios' => fn ($consulta) => $consulta
                 ->with([
-                    'folio:id,numero_folio,tipo_bulto,estado_operacional,condicion_termica,habilitacion_almacenamiento,variedad,calibre,marca,exportadora',
+                    'folio:id,numero_folio,tipo_bulto,estado_operacional,condicion_termica,habilitacion_almacenamiento,variedad,calibre,marca,exportadora,datos_externos',
                     'posicion:id,tunel_prefrio_id,numero,etiqueta,activa',
                     'cargadoPor:id,name',
                 ])
