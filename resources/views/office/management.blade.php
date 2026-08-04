@@ -84,7 +84,7 @@
                     <strong id="materialItemsKpi">—</strong>
                     <p>ítems con stock</p>
                     <div class="kpi-split"><span><b id="materialFoliosKpi">—</b> folios</span><span><b id="materialUnitsKpi">—</b> unidades de medida</span></div>
-                    <small>Las cantidades se separan por unidad para evitar totales incompatibles.</small>
+                    <small id="materialOperationDetail">Las cantidades se separan por unidad para evitar totales incompatibles.</small>
                 </article>
                 <article class="management-kpi management-kpi--prefrio">
                     <div class="management-kpi__top"><span>PREFRÍO</span><i aria-hidden="true">❄</i></div>
