@@ -157,7 +157,7 @@ class ValidacionPalletController extends Controller
     {
         return [
             'temporada:id,codigo,nombre,activa',
-            'folio:id,numero_folio,estado_operacional',
+            'folio:id,numero_folio,estado_operacional,condicion_termica,activo',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',
