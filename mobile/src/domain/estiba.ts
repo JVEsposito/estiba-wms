@@ -77,6 +77,10 @@ export type DeviceIdentity = {
 export type AuthSession = {
   token: string;
   token_type: 'Bearer';
+  sesion?: {
+    id: string;
+    iniciada_at: string;
+  };
   usuario: UserIdentity;
   dispositivo: DeviceIdentity;
 };

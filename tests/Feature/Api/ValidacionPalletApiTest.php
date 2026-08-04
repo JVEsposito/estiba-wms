@@ -76,6 +76,68 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.folio.numero_folio', 'PAL-0002');
     }
 
+    public function test_mi_sesion_resume_folios_intentos_y_no_mezcla_validadores_dispositivos_ni_accesos_previos(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-SES-01');
+        DB::table('temporadas')
+            ->where('id', '!=', $catalogo['temporada_id'])
+            ->update(['activa' => false]);
+
+        $anterior = $this->payload($catalogo, 'PAL-SES-ANTERIOR');
+        $anterior['generado_dispositivo_at'] = now()->subMinute()->toAtomString();
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $anterior)
+            ->assertCreated();
+
+        $observado = [
+            ...$this->payload($catalogo, 'PAL-SES-0001'),
+            'resultado' => 'observado',
+            'motivo' => 'csg_no_coincide',
+            'observacion' => 'Primer intento de la sesión.',
+        ];
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $observado)
+            ->assertCreated();
+
+        $aprobado = $this->payload($catalogo, 'PAL-SES-0001');
+        $aprobado['operacion_id'] = (string) Str::uuid();
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $aprobado)
+            ->assertCreated()
+            ->assertJsonPath('data.numero_intento', 2);
+
+        $segundoObservado = [
+            ...$this->payload($catalogo, 'PAL-SES-0002'),
+            'resultado' => 'observado',
+            'motivo' => 'etiqueta_no_coincide',
+            'observacion' => 'Segundo folio de la sesión.',
+        ];
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $segundoObservado)
+            ->assertCreated();
+
+        [, $otroToken] = $this->acceso(RolUsuario::Validador, 'VAL-SES-02');
+        $this->conToken($otroToken)
+            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-SES-OTRO'))
+            ->assertCreated();
+
+        $this->conToken($token)
+            ->getJson('/api/validacion/pallets/mi-sesion?per_page=10')
+            ->assertOk()
+            ->assertJsonPath('sesion.dispositivo.codigo', 'VAL-SES-01')
+            ->assertJsonPath('sesion.temporada.id', $catalogo['temporada_id'])
+            ->assertJsonPath('resumen.folios_trabajados', 2)
+            ->assertJsonPath('resumen.registros_realizados', 3)
+            ->assertJsonPath('resumen.aprobados', 1)
+            ->assertJsonPath('resumen.observados', 1)
+            ->assertJsonPath('resumen.rechazados', 0)
+            ->assertJsonPath('resumen.conflictos', 0)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonCount(3, 'data')
+            ->assertJsonMissing(['numero_folio' => 'PAL-SES-ANTERIOR'])
+            ->assertJsonMissing(['numero_folio' => 'PAL-SES-OTRO']);
+    }
+
     public function test_aprobacion_es_terminal_y_un_intento_posterior_queda_en_conflicto(): void
     {
         [$catalogo, $tokenA] = $this->contexto(RolUsuario::Validador, 'VAL-03');

@@ -119,6 +119,34 @@ export type ValidationAttempt = {
   recibido_servidor_at: string;
 };
 
+export type ValidationSessionSummary = {
+  folios_trabajados: number;
+  registros_realizados: number;
+  aprobados: number;
+  observados: number;
+  rechazados: number;
+  conflictos: number;
+};
+
+export type ValidationSessionSnapshot = {
+  sesion: {
+    id: string;
+    iniciada_at: string;
+    servidor_at: string;
+    usuario: { id: string; nombre: string };
+    dispositivo: { id: string; codigo: string; nombre: string };
+    temporada: { id: string; codigo: string; nombre: string } | null;
+  };
+  resumen: ValidationSessionSummary;
+  data: ValidationAttempt[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
 export type ValidationOutboxStatus = 'pendiente' | 'conflicto' | 'error';
 
 export type ValidationOutboxItem = {

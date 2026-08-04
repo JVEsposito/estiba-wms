@@ -6,6 +6,7 @@ import {
   ValidationWorkContext,
   ValidationOutboxItem,
   ValidationOutboxStatus,
+  ValidationSessionSnapshot,
 } from '../domain/validation';
 
 function catalogKey(userId: string, deviceId: string) {
@@ -18,6 +19,38 @@ function outboxKey(userId: string, deviceId: string) {
 
 function workContextKey(userId: string, deviceId: string) {
   return `estiba_validation_work_context:${userId}:${deviceId}`;
+}
+
+function sessionKey(userId: string, deviceId: string, sessionId: string) {
+  return `estiba_validation_session:${userId}:${deviceId}:${sessionId}`;
+}
+
+export async function loadCachedValidationSession(
+  userId: string,
+  deviceId: string,
+  sessionId: string,
+): Promise<ValidationSessionSnapshot | null> {
+  const raw = await AsyncStorage.getItem(sessionKey(userId, deviceId, sessionId));
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as ValidationSessionSnapshot;
+  } catch {
+    await AsyncStorage.removeItem(sessionKey(userId, deviceId, sessionId));
+    return null;
+  }
+}
+
+export async function saveValidationSession(
+  userId: string,
+  deviceId: string,
+  sessionId: string,
+  snapshot: ValidationSessionSnapshot,
+) {
+  await AsyncStorage.setItem(
+    sessionKey(userId, deviceId, sessionId),
+    JSON.stringify(snapshot),
+  );
 }
 
 export async function loadValidationWorkContext(

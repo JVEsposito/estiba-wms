@@ -77,6 +77,10 @@ class AccesoTabletController extends Controller
         return response()->json([
             'token' => $nuevoToken->plainTextToken,
             'token_type' => 'Bearer',
+            'sesion' => [
+                'id' => (string) $nuevoToken->accessToken->getKey(),
+                'iniciada_at' => $nuevoToken->accessToken->created_at?->toAtomString(),
+            ],
             'usuario' => [
                 'id' => $usuario->id,
                 'nombre' => $usuario->name,
