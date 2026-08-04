@@ -105,20 +105,41 @@
             <div class="management-switcher-shell">
                 <x-office.panel-switcher
                     id="management"
-                    label="Detalle del panel gerencial"
-                    default="cameras"
+                    label="Áreas del panel gerencial"
+                    default="alerts"
                     :panels="[
-                        'cameras' => ['label' => 'Cámaras', 'icon' => '▦'],
-                        'products' => ['label' => 'Producto', 'icon' => '◇'],
-                        'materials' => ['label' => 'Materiales', 'icon' => '▤'],
-                        'precooling' => ['label' => 'Prefrío', 'icon' => '❄'],
-                        'weighbridge' => ['label' => 'Romana', 'icon' => '⚖'],
                         'alerts' => ['label' => 'Focos', 'icon' => '!', 'badge_id' => 'alertTabCount'],
+                        'cameras' => ['label' => 'Cámaras', 'icon' => '▦'],
+                        'products' => ['label' => 'Producto PT', 'icon' => '◇'],
+                        'loads' => ['label' => 'Cargas', 'icon' => '↗'],
+                        'validation' => ['label' => 'Validación', 'icon' => '✓'],
+                        'precooling' => ['label' => 'Prefrío', 'icon' => '❄'],
+                        'materials' => ['label' => 'Materiales', 'icon' => '▤'],
+                        'weighbridge' => ['label' => 'Romana', 'icon' => '⚖'],
+                        'raw-material' => ['label' => 'MP y Envases', 'icon' => '▣'],
                     ]"
                 />
             </div>
 
             <section class="management-panel-workspace">
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-alerts"
+                    data-office-panel-group="management"
+                    data-office-panel-id="alerts"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-alerts"
+                >
+                    <article class="management-panel management-alerts-panel">
+                        <header>
+                            <div><p class="eyebrow">ATENCIÓN GERENCIAL</p><h2>Focos operacionales priorizados</h2></div>
+                            <span class="alert-count" id="alertCount">0</span>
+                        </header>
+                        <p class="management-panel-intro">Muestra excepciones que requieren acción, ordenadas por criticidad y enlazadas con la oficina responsable.</p>
+                        <div class="management-alerts" id="managementAlerts" aria-live="polite"></div>
+                    </article>
+                </div>
+
                 <div
                     class="management-view management-view--cameras"
                     id="management-panel-cameras"
@@ -130,7 +151,10 @@
                     <article class="management-panel">
                         <header>
                             <div><p class="eyebrow">USO DE INFRAESTRUCTURA</p><h2>Ocupación por cámara</h2></div>
-                            <div class="chart-legend" aria-label="Leyenda"><span><i class="legend-dot legend-dot--occupied"></i>Ocupada</span><span><i class="legend-dot legend-dot--free"></i>Disponible</span></div>
+                            <div class="management-panel-actions">
+                                <div class="chart-legend" aria-label="Leyenda"><span><i class="legend-dot legend-dot--occupied"></i>Ocupada</span><span><i class="legend-dot legend-dot--free"></i>Disponible</span></div>
+                                <a class="management-panel-link" href="/oficina/frigorifico/camaras">Abrir cámaras →</a>
+                            </div>
                         </header>
                         <div class="chart-container chart-container--bar"><canvas id="cameraOccupancyChart" aria-label="Gráfico de ocupación por cámara" role="img"></canvas></div>
                     </article>
@@ -155,9 +179,105 @@
                     aria-labelledby="management-tab-products"
                 >
                     <article class="management-panel">
-                        <header><div><p class="eyebrow">FOLIOS ACTIVOS</p><h2>Disponibilidad de producto</h2></div></header>
-                        <div class="chart-container chart-container--doughnut"><canvas id="productAvailabilityChart" aria-label="Gráfico de disponibilidad de producto" role="img"></canvas></div>
-                        <div class="chart-summary" id="productChartSummary"></div>
+                        <header>
+                            <div><p class="eyebrow">PRODUCTO TERMINADO</p><h2>Estado y disponibilidad de folios</h2></div>
+                            <a class="management-panel-link" href="/oficina/frigorifico/existencias">Existencia PT →</a>
+                        </header>
+                        <div class="management-chart-with-metrics">
+                            <div>
+                                <div class="chart-container chart-container--doughnut"><canvas id="productAvailabilityChart" aria-label="Gráfico de disponibilidad de producto" role="img"></canvas></div>
+                                <div class="chart-summary" id="productChartSummary"></div>
+                            </div>
+                            <div class="management-operational-metrics">
+                                <article><span>PALLETS</span><strong id="productPalletsMetric">0</strong><small>folios completos activos</small></article>
+                                <article><span>SALDOS</span><strong id="productBalancesMetric">0</strong><small>folios incompletos activos</small></article>
+                                <article><span>SIN UBICACIÓN</span><strong id="productUnlocatedMetric">0</strong><small>requieren posición</small></article>
+                                <article><span>INGRESADOS HOY</span><strong id="productEnteredTodayMetric">0</strong><small>nuevos folios PT</small></article>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-loads"
+                    data-office-panel-group="management"
+                    data-office-panel-id="loads"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-loads"
+                >
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">DESPACHO DE PRODUCTO TERMINADO</p><h2>Cargas activas y avance operativo</h2></div>
+                            <a class="management-panel-link" href="/oficina/cargas">Gestionar cargas →</a>
+                        </header>
+                        <div class="management-operational-metrics management-operational-metrics--eight">
+                            <article><span>CARGAS ACTIVAS</span><strong id="activeLoadsMetric">0</strong><small>en circuito</small></article>
+                            <article><span>PENDIENTES</span><strong id="pendingLoadsMetric">0</strong><small>sin preparar</small></article>
+                            <article><span>EN PREPARACIÓN</span><strong id="preparingLoadsMetric">0</strong><small>separación activa</small></article>
+                            <article><span>SEPARADAS</span><strong id="separatedLoadsMetric">0</strong><small>listas o completas</small></article>
+                            <article><span>FOLIOS PENDIENTES</span><strong id="loadFoliosPendingMetric">0</strong><small>por enviar</small></article>
+                            <article><span>EN ANDÉN</span><strong id="loadFoliosDockMetric">0</strong><small>preparados para salida</small></article>
+                            <article><span>INCIDENCIAS</span><strong id="loadIncidentsMetric">0</strong><small>requieren resolución</small></article>
+                            <article><span>CERRADAS HOY</span><strong id="loadsClosedTodayMetric">0</strong><small>despachos finalizados</small></article>
+                        </div>
+                        <div class="management-operation-list" id="managementLoadList"></div>
+                    </article>
+                </div>
+
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-validation"
+                    data-office-panel-group="management"
+                    data-office-panel-id="validation"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-validation"
+                >
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">CONTROL DE PRODUCTO TERMINADO</p><h2>Validación de pallets de hoy</h2></div>
+                            <a class="management-panel-link" href="/oficina/validacion">Abrir Validación →</a>
+                        </header>
+                        <div class="management-operational-metrics management-operational-metrics--five">
+                            <article><span>PROCESADOS</span><strong id="validationProcessedMetric">0</strong><small>registros recibidos</small></article>
+                            <article class="is-positive"><span>APROBADOS</span><strong id="validationApprovedMetric">0</strong><small>sin observación</small></article>
+                            <article class="is-warning"><span>OBSERVADOS</span><strong id="validationObservedMetric">0</strong><small>requieren revisión</small></article>
+                            <article class="is-critical"><span>RECHAZADOS</span><strong id="validationRejectedMetric">0</strong><small>no liberados</small></article>
+                            <article class="is-critical"><span>CONFLICTOS</span><strong id="validationConflictsMetric">0</strong><small>sincronización</small></article>
+                        </div>
+                        <div class="management-latest-event" id="managementValidationLatest"></div>
+                    </article>
+                </div>
+
+                <div
+                    class="management-view management-view--single"
+                    id="management-panel-precooling"
+                    data-office-panel-group="management"
+                    data-office-panel-id="precooling"
+                    role="tabpanel"
+                    aria-labelledby="management-tab-precooling"
+                >
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">CAPACIDAD TÉRMICA</p><h2>Ocupación, cola y cumplimiento de tiempo</h2></div>
+                            <a class="management-panel-link" href="/oficina/prefrio">Abrir Prefrío →</a>
+                        </header>
+                        <div class="management-chart-with-metrics">
+                            <div>
+                                <div class="chart-container chart-container--bar"><canvas id="precoolingChart" aria-label="Gráfico de ocupación de túneles" role="img"></canvas></div>
+                                <div class="chart-summary" id="precoolingChartSummary"></div>
+                            </div>
+                            <div>
+                                <div class="management-operational-metrics">
+                                    <article><span>ACTIVOS</span><strong id="precoolingActiveMetric">0</strong><small>procesos abiertos</small></article>
+                                    <article class="is-critical"><span>ATRASADOS</span><strong id="precoolingOverdueMetric">0</strong><small>sobre objetivo</small></article>
+                                    <article class="is-positive"><span>APROBADOS HOY</span><strong id="precoolingApprovedMetric">0</strong><small>procesos cerrados</small></article>
+                                    <article class="is-warning"><span>REPROCESOS HOY</span><strong id="precoolingReprocessMetric">0</strong><small>requieren nuevo ciclo</small></article>
+                                </div>
+                                <div class="management-average"><span>PROMEDIO ÚLTIMOS 7 DÍAS</span><strong id="precoolingAverageMetric">—</strong></div>
+                            </div>
+                        </div>
+                        <div class="management-operation-list" id="managementPrecoolingList"></div>
                     </article>
                 </div>
 
@@ -171,26 +291,20 @@
                 >
                     <article class="management-panel">
                         <header>
-                            <div><p class="eyebrow">STOCK UTILIZABLE</p><h2>Materiales por ítem</h2></div>
-                            <label class="chart-filter"><span>Unidad</span><select id="materialUnitSelect" aria-label="Unidad de medida para el gráfico"></select></label>
+                            <div><p class="eyebrow">BODEGA DE MATERIALES</p><h2>Stock utilizable y operación pendiente</h2></div>
+                            <div class="management-panel-actions">
+                                <label class="chart-filter"><span>Unidad</span><select id="materialUnitSelect" aria-label="Unidad de medida para el gráfico"></select></label>
+                                <a class="management-panel-link" href="/oficina/materiales/exportaciones">Exportar materiales →</a>
+                            </div>
                         </header>
+                        <div class="management-operational-metrics management-operational-metrics--four">
+                            <article><span>DESPACHOS ABIERTOS</span><strong id="materialOpenDispatchesMetric">0</strong><small>pendientes o parciales</small></article>
+                            <article class="is-warning"><span>PARCIALES</span><strong id="materialPartialDispatchesMetric">0</strong><small>retiro incompleto</small></article>
+                            <article class="is-positive"><span>RECEPCIONES HOY</span><strong id="materialReceptionsTodayMetric">0</strong><small>confirmadas</small></article>
+                            <article><span>BORRADORES</span><strong id="materialReceptionDraftsMetric">0</strong><small>sin confirmar</small></article>
+                        </div>
                         <div class="chart-container chart-container--bar"><canvas id="materialStockChart" aria-label="Gráfico de stock de materiales" role="img"></canvas></div>
                         <div class="chart-summary" id="materialChartSummary"></div>
-                    </article>
-                </div>
-
-                <div
-                    class="management-view management-view--single"
-                    id="management-panel-precooling"
-                    data-office-panel-group="management"
-                    data-office-panel-id="precooling"
-                    role="tabpanel"
-                    aria-labelledby="management-tab-precooling"
-                >
-                    <article class="management-panel">
-                        <header><div><p class="eyebrow">CAPACIDAD TÉRMICA</p><h2>Ocupación de prefrío</h2></div></header>
-                        <div class="chart-container chart-container--bar"><canvas id="precoolingChart" aria-label="Gráfico de ocupación de túneles" role="img"></canvas></div>
-                        <div class="chart-summary" id="precoolingChartSummary"></div>
                     </article>
                 </div>
 
@@ -203,23 +317,59 @@
                     aria-labelledby="management-tab-weighbridge"
                 >
                     <article class="management-panel">
-                        <header><div><p class="eyebrow">RECEPCIÓN DE CLIENTES</p><h2>Peso neto últimos 7 días</h2></div></header>
+                        <header>
+                            <div><p class="eyebrow">RECEPCIÓN DE MATERIA PRIMA</p><h2>Romana: flujo actual y últimos 7 días</h2></div>
+                            <a class="management-panel-link" href="/oficina/romana">Abrir Romana →</a>
+                        </header>
+                        <div class="management-operational-metrics management-operational-metrics--four">
+                            <article><span>EN INGRESO</span><strong id="weighbridgeEntryMetric">0</strong><small>sobre báscula</small></article>
+                            <article><span>PESAJE ENVASES</span><strong id="weighbridgeContainersMetric">0</strong><small>tandas abiertas</small></article>
+                            <article class="is-warning"><span>PENDIENTES DESTARE</span><strong id="weighbridgeTareMetric">0</strong><small>esperan cierre</small></article>
+                            <article><span>CLIENTES HOY</span><strong id="weighbridgeClientsMetric">0</strong><small>con recepción cerrada</small></article>
+                        </div>
                         <div class="chart-container chart-container--bar"><canvas id="weighbridgeReceptionChart" aria-label="Gráfico de peso neto recibido en romana" role="img"></canvas></div>
                         <div class="chart-summary" id="weighbridgeChartSummary"></div>
                     </article>
                 </div>
 
                 <div
-                    class="management-view management-view--single"
-                    id="management-panel-alerts"
+                    class="management-view management-view--domain-pair"
+                    id="management-panel-raw-material"
                     data-office-panel-group="management"
-                    data-office-panel-id="alerts"
+                    data-office-panel-id="raw-material"
                     role="tabpanel"
-                    aria-labelledby="management-tab-alerts"
+                    aria-labelledby="management-tab-raw-material"
                 >
-                    <article class="management-panel management-alerts-panel">
-                        <header><div><p class="eyebrow">ATENCIÓN GERENCIAL</p><h2>Focos operacionales</h2></div><span class="alert-count" id="alertCount">0</span></header>
-                        <div class="management-alerts" id="managementAlerts" aria-live="polite"></div>
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">MATERIA PRIMA</p><h2>Lotes y continuidad hacia proceso</h2></div>
+                            <div class="management-panel-actions">
+                                <a class="management-panel-link" href="/oficina/materia-prima">Abrir lotes →</a>
+                                <a class="management-panel-link" href="/oficina/materia-prima/existencias">Existencia MP →</a>
+                            </div>
+                        </header>
+                        <div class="management-operational-metrics">
+                            <article><span>LOTES ACTIVOS</span><strong id="rawLotsActiveMetric">0</strong><small>en circuito</small></article>
+                            <article class="is-warning"><span>ESPERA HIDROCOOLER</span><strong id="rawHydrocoolerPendingMetric">0</strong><small>pendientes</small></article>
+                            <article><span>EN HIDROCOOLER</span><strong id="rawHydrocoolerActiveMetric">0</strong><small>proceso activo</small></article>
+                            <article class="is-warning"><span>SIN CÁMARA</span><strong id="rawAssignmentPendingMetric">0</strong><small>esperan asignación</small></article>
+                            <article><span>EN CÁMARA</span><strong id="rawInCameraMetric">0</strong><small>lotes ubicados</small></article>
+                            <article><span>ENTREGA PARCIAL</span><strong id="rawPartialDeliveryMetric">0</strong><small>saldo por procesar</small></article>
+                        </div>
+                        <div class="management-average"><span>INGRESO CONFIRMADO HOY</span><strong id="rawConfirmedTodayMetric">0 lotes · 0 kg</strong></div>
+                    </article>
+
+                    <article class="management-panel">
+                        <header>
+                            <div><p class="eyebrow">CUENTA DE ENVASES</p><h2>Movimientos y revisión documental</h2></div>
+                            <a class="management-panel-link" href="/oficina/envases/cuenta-corriente">Abrir cuenta →</a>
+                        </header>
+                        <div class="management-operational-metrics">
+                            <article><span>MOVIMIENTOS HOY</span><strong id="containerMovementsTodayMetric">0</strong><small>registros</small></article>
+                            <article><span>UNIDADES HOY</span><strong id="containerUnitsTodayMetric">0</strong><small>movidas</small></article>
+                            <article class="is-warning"><span>PENDIENTES</span><strong id="containerPendingReviewMetric">0</strong><small>sin revisión</small></article>
+                            <article class="is-critical"><span>OBSERVADOS</span><strong id="containerObservedMetric">0</strong><small>requieren gestión</small></article>
+                        </div>
                     </article>
                 </div>
             </section>
