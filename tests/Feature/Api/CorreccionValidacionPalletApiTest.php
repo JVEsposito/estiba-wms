@@ -86,7 +86,7 @@ class CorreccionValidacionPalletApiTest extends TestCase
         $this->assertSame(1, CorreccionValidacionPallet::query()->count());
     }
 
-    public function test_no_permite_corregir_despues_de_salir_de_pendiente_prefrio(): void
+    public function test_permite_corregir_en_camara_sin_alterar_el_estado_operativo(): void
     {
         [$catalogo, $usuario, $tokenPda] = $this->contexto();
         $validacionId = $this->conToken($tokenPda)
@@ -99,17 +99,69 @@ class CorreccionValidacionPalletApiTest extends TestCase
 
         Folio::query()
             ->where('numero_folio', 'PAL-CORR-0003')
-            ->update(['estado_operacional' => 'pendiente_ubicacion']);
+            ->update([
+                'estado_operacional' => 'disponible',
+                'condicion_termica' => 'prefrio_aprobado',
+            ]);
 
         $this->conToken($this->tokenOficina($usuario))
             ->putJson(
                 "/api/validacion/pallets/{$validacionId}/corregir",
                 $this->payloadCorreccion($catalogo, (string) Str::uuid()),
             )
-            ->assertStatus(409)
-            ->assertJsonPath('codigo', 'conflicto_operacional');
+            ->assertOk()
+            ->assertJsonPath('data.folio.estado_operacional', 'disponible')
+            ->assertJsonPath('data.folio.condicion_termica', 'prefrio_aprobado')
+            ->assertJsonPath('data.catalogo.articulo.envase', 'Cartón 10 kg');
 
-        $this->assertDatabaseCount('correcciones_validacion_pallet', 0);
+        $folio = Folio::query()->where('numero_folio', 'PAL-CORR-0003')->firstOrFail();
+        $this->assertSame('disponible', $folio->estado_operacional->value);
+        $this->assertSame('prefrio_aprobado', $folio->condicion_termica->value);
+
+        $correccion = CorreccionValidacionPallet::query()->firstOrFail();
+        $this->assertSame(
+            'disponible',
+            $correccion->datos_anteriores['folio']['estado_operacional'],
+        );
+        $this->assertSame(
+            'disponible',
+            $correccion->datos_nuevos['folio']['estado_operacional'],
+        );
+    }
+
+    public function test_permite_corregir_un_folio_despachado_e_inactivo(): void
+    {
+        [$catalogo, $usuario, $tokenPda] = $this->contexto();
+        $validacionId = $this->conToken($tokenPda)
+            ->postJson(
+                '/api/validacion/pallets',
+                $this->payloadValidacion($catalogo, 'PAL-CORR-0005'),
+            )
+            ->assertCreated()
+            ->json('data.id');
+
+        Folio::query()
+            ->where('numero_folio', 'PAL-CORR-0005')
+            ->update([
+                'estado_operacional' => 'despachado',
+                'condicion_termica' => 'prefrio_aprobado',
+                'activo' => false,
+            ]);
+
+        $this->conToken($this->tokenOficina($usuario))
+            ->putJson(
+                "/api/validacion/pallets/{$validacionId}/corregir",
+                $this->payloadCorreccion($catalogo, (string) Str::uuid()),
+            )
+            ->assertOk()
+            ->assertJsonPath('data.folio.estado_operacional', 'despachado')
+            ->assertJsonPath('data.folio.activo', false)
+            ->assertJsonPath('data.puede_corregir', true);
+
+        $folio = Folio::query()->where('numero_folio', 'PAL-CORR-0005')->firstOrFail();
+        $this->assertFalse($folio->activo);
+        $this->assertSame('despachado', $folio->estado_operacional->value);
+        $this->assertSame('prefrio_aprobado', $folio->condicion_termica->value);
     }
 
     public function test_supervisor_no_puede_corregir_validacion_aprobada(): void
