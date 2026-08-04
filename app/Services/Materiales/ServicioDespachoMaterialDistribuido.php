@@ -116,6 +116,12 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
             );
         }
 
+        if ($requiereSesion && ! $dispositivo) {
+            throw new DomainException(
+                'Las entregas desde tablet requieren un dispositivo autorizado.',
+            );
+        }
+
         return DB::transaction(function () use (
             $despacho,
             $operacionId,
@@ -331,7 +337,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'despacho_material_id' => $despacho->id,
                     'retiro_material_id' => $retiro->id,
                     'user_id' => $usuario->id,
-                    'dispositivo_id' => $dispositivo->id,
+                    'dispositivo_id' => $dispositivo?->id,
                     'metadatos' => [
                         'siguio_fifo' => $siguioFifo,
                         'camara_origen' => $camara->codigo,
@@ -351,7 +357,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'despacho_material_id' => $despacho->id,
                     'retiro_material_id' => $retiro->id,
                     'user_id' => $usuario->id,
-                    'dispositivo_id' => $dispositivo->id,
+                    'dispositivo_id' => $dispositivo?->id,
                     'destino_nombre' => $almacenDestino->nombre,
                     'destino_centro_costo' => $almacenDestino->centro_costo,
                     'motivo' => 'Transferencia interna: no disminuye la existencia total.',
