@@ -72,6 +72,9 @@ class ProcesoPrefrioResource extends JsonResource
                     'calibre' => $asignacion->folio->calibre,
                     'marca' => $asignacion->folio->marca,
                     'exportadora' => $asignacion->folio->exportadora,
+                    'cantidad_cajas' => isset($asignacion->folio->datos_externos['cantidad_cajas'])
+                        ? (int) $asignacion->folio->datos_externos['cantidad_cajas']
+                        : null,
                 ] : null,
                 'cargado_por' => $asignacion->relationLoaded('cargadoPor') ? [
                     'id' => $asignacion->cargadoPor->id,
