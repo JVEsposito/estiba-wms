@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CancelarDespachoMaterialRequest;
-use App\Http\Requests\DespacharDirectoMaterialRequest;
 use App\Http\Requests\CrearDespachoMaterialRequest;
+use App\Http\Requests\DespacharDirectoMaterialRequest;
 use App\Http\Requests\RetirarDespachoMaterialRequest;
 use App\Http\Resources\DespachoMaterialResource;
 use App\Http\Resources\ResumenDespachoMaterialResource;
