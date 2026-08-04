@@ -284,3 +284,18 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+.inventory-cards--dedicated {
+    grid-template-columns: minmax(0, 760px);
+}
+
+.inventory-cards--dedicated .inventory-card {
+    min-height: 250px;
+}
+
+@media (max-width: 820px) {
+    .inventory-cards--dedicated {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
