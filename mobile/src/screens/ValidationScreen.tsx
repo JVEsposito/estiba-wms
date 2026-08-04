@@ -22,10 +22,12 @@ import {
   ValidationLine,
   ValidationOutboxItem,
   ValidationResult,
+  ValidationSessionSnapshot,
   ValidationShift,
 } from '../domain/validation';
 import { ApiError } from '../services/apiError';
 import {
+  getMyValidationSession,
   getValidationCatalog,
   listRecentValidations,
   listValidationsByFolio,
@@ -34,12 +36,14 @@ import {
 import {
   enqueueValidation,
   loadCachedValidationCatalog,
+  loadCachedValidationSession,
   loadValidationOutbox,
   loadValidationWorkContext,
   markValidationOutboxItem,
   removeValidationFromOutbox,
   retryValidationOutboxItem,
   saveValidationCatalog,
+  saveValidationSession,
   saveValidationWorkContext,
 } from '../services/validationOfflineStore';
 import { colors } from '../theme/colors';
@@ -73,6 +77,9 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const [catalog, setCatalog] = useState<ValidationCatalog | null>(null);
   const [outbox, setOutbox] = useState<ValidationOutboxItem[]>([]);
   const [recent, setRecent] = useState<ValidationAttempt[]>([]);
+  const [validationSession, setValidationSession] = useState<ValidationSessionSnapshot | null>(null);
+  const [sessionExpanded, setSessionExpanded] = useState(false);
+  const [loadingMoreSession, setLoadingMoreSession] = useState(false);
   const [busy, setBusy] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [online, setOnline] = useState(Boolean(baseUrl));
@@ -98,6 +105,23 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const userId = auth.usuario.id;
   const deviceId = auth.dispositivo.id;
   const canReject = auth.usuario.capacidades.puede_rechazar_pallets;
+  const sessionCacheId = auth.sesion?.id ?? 'actual';
+  const sessionStartedAt = auth.sesion?.iniciada_at ?? validationSession?.sesion.iniciada_at ?? null;
+  const currentSessionOutbox = useMemo(
+    () => outbox.filter((item) => !sessionStartedAt
+      || new Date(item.payload.generado_dispositivo_at).getTime() >= new Date(sessionStartedAt).getTime()),
+    [outbox, sessionStartedAt],
+  );
+  const pendingSessionOutbox = currentSessionOutbox
+    .filter((item) => item.status === 'pendiente');
+  const unconfirmedSessionOutbox = currentSessionOutbox
+    .filter((item) => item.status !== 'conflicto');
+  const previousSessionOutbox = outbox
+    .filter((item) => !currentSessionOutbox.some((current) => current.id === item.id));
+  const visibleSessionAttempts = validationSession?.data.slice(
+    0,
+    sessionExpanded ? validationSession.data.length : Math.max(0, 6 - currentSessionOutbox.length),
+  ) ?? [];
   const terminalDecision = folioReview?.status === 'aprobado' || folioReview?.status === 'rechazado';
   const observedAttempt = folioReview?.status === 'observado' ? folioReview.attempt : null;
 
@@ -187,12 +211,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     setBusy(true);
     setError('');
     try {
-      const [cached, queued, savedContext] = await Promise.all([
+      const [cached, cachedSession, queued, savedContext] = await Promise.all([
         loadCachedValidationCatalog(userId, deviceId),
+        loadCachedValidationSession(userId, deviceId, sessionCacheId),
         loadValidationOutbox(userId, deviceId),
         loadValidationWorkContext(userId, deviceId),
       ]);
       if (cached) setCatalog(cached);
+      if (cachedSession) setValidationSession(cachedSession);
       setOutbox(queued);
       if (savedContext) {
         setLine(savedContext.linea_proceso);
@@ -207,6 +233,39 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     }
   }
 
+  async function refreshSession(page = 1, append = false) {
+    if (!baseUrl) return null;
+
+    const snapshot = await getMyValidationSession(baseUrl, auth.token, page);
+    const combined = append && validationSession
+      ? {
+        ...snapshot,
+        data: [
+          ...validationSession.data,
+          ...snapshot.data.filter((item) => !validationSession.data.some((current) => current.id === item.id)),
+        ],
+      }
+      : snapshot;
+
+    setValidationSession(combined);
+    await saveValidationSession(userId, deviceId, sessionCacheId, combined);
+    setOnline(true);
+    return combined;
+  }
+
+  async function loadMoreSession() {
+    if (!validationSession || validationSession.meta.current_page >= validationSession.meta.last_page) return;
+
+    setLoadingMoreSession(true);
+    try {
+      await refreshSession(validationSession.meta.current_page + 1, true);
+    } catch (reason) {
+      setError(messageFrom(reason));
+    } finally {
+      setLoadingMoreSession(false);
+    }
+  }
+
   async function synchronize({ notify = false }: { notify?: boolean } = {}) {
     if (!baseUrl) {
       setOnline(false);
@@ -218,16 +277,19 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     setSyncing(true);
 
     try {
-      const loaded = await getValidationCatalog(baseUrl, auth.token);
+      const [loaded, latest] = await Promise.all([
+        getValidationCatalog(baseUrl, auth.token),
+        listRecentValidations(baseUrl, auth.token),
+      ]);
       await saveValidationCatalog(userId, deviceId, loaded);
       setCatalog(loaded);
-      setRecent(await listRecentValidations(baseUrl, auth.token));
+      setRecent(latest);
       setOnline(true);
       setLastSync(new Date().toISOString());
       await flushOutbox();
       if (notify) {
         setError('');
-        setNotice(`Catálogo v${loaded.temporada.version_catalogo} sincronizado correctamente.`);
+        setNotice(`Catálogo v${loaded.temporada.version_catalogo} y sesión actualizados.`);
       }
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
@@ -266,8 +328,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         }
       }
       setOutbox(items);
-      if (baseUrl && online) {
-        try { setRecent(await listRecentValidations(baseUrl, auth.token)); } catch { /* conserva historial visible */ }
+      try {
+        const [latest] = await Promise.all([
+          listRecentValidations(baseUrl, auth.token),
+          refreshSession(),
+        ]);
+        setRecent(latest);
+      } catch {
+        // Conserva la última sesión visible si la red cae después de enviar la bandeja.
       }
     } finally {
       flushing.current = false;
@@ -457,6 +525,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
           items = await removeValidationFromOutbox(userId, deviceId, payload.operacion_id);
           setOutbox(items);
           setRecent((current) => [attempt, ...current.filter((item) => item.id !== attempt.id)].slice(0, 10));
+          try { await refreshSession(); } catch { /* conserva actualización optimista */ }
           setOnline(true);
           setNotice(result === 'aprobado'
             ? `${payload.numero_folio} aprobado y creado como pendiente de prefrío.`
@@ -468,6 +537,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
           } else if (reasonCaught instanceof ApiError && reasonCaught.status === 409) {
             items = await markValidationOutboxItem(userId, deviceId, payload.operacion_id, 'conflicto', reasonCaught.message);
             setOutbox(items);
+            try { await refreshSession(); } catch { /* el conflicto permanece visible en la bandeja */ }
             setError(`Conflicto en ${payload.numero_folio}: ${reasonCaught.message}`);
           } else {
             items = await markValidationOutboxItem(userId, deviceId, payload.operacion_id, 'error', messageFrom(reasonCaught));
@@ -544,7 +614,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         <View style={[styles.statusStrip, compact && styles.statusStripCompact]}>
           <View style={styles.statusCopy}>
             <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
-            <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {outbox.filter((item) => item.status === 'pendiente').length} pendientes · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
+            <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {pendingSessionOutbox.length} pendientes de esta sesión · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
           </View>
           <Pressable
             disabled={syncing}
@@ -650,17 +720,148 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
           </View>
 
           <View style={[styles.sidePanel, compact && styles.panelCompact]}>
-            <View style={styles.sideHeader}><View><Text style={styles.sectionEyebrow}>BANDEJA LOCAL</Text><Text style={styles.sideTitle}>{outbox.length} operaciones</Text></View></View>
-            {outbox.length ? outbox.map((item) => <View key={item.id} style={styles.queueItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.payload.numero_folio}</Text><Text style={styles.queueDetail}>Línea {item.payload.linea_proceso} · Turno {item.payload.turno} · {statusLabel(item.status)} · {item.payload.resultado} · {item.attempts} intentos</Text>{item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}</View>{item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}</View>) : <Text style={styles.empty}>No existen validaciones pendientes.</Text>}
+            <View style={styles.sessionHeader}>
+              <View>
+                <Text style={styles.sectionEyebrow}>MI SESIÓN DE VALIDACIÓN</Text>
+                <Text style={styles.sideTitle}>{auth.usuario.nombre}</Text>
+                <Text style={styles.sessionStarted}>
+                  Desde {formatDateTime(sessionStartedAt)} · {auth.dispositivo.codigo}
+                </Text>
+              </View>
+              <Pressable onPress={() => setSessionExpanded((current) => !current)} style={styles.sessionToggle}>
+                <Text style={styles.sessionToggleText}>{sessionExpanded ? 'Contraer' : 'Ver todos'}</Text>
+              </Pressable>
+            </View>
 
-            <Text style={[styles.sectionEyebrow, styles.recentEyebrow]}>ÚLTIMAS CONFIRMADAS</Text>
-            {recent.slice(0, 6).map((item) => <Pressable key={item.id} onPress={() => { setFolio(item.numero_folio); void inspectFolio(item.numero_folio); }} style={styles.recentItem}><View style={styles.queueContent}><Text style={styles.queueFolio}>{item.numero_folio}</Text><Text style={styles.queueDetail}>Intento {item.numero_intento} · {formatTime(item.recibido_servidor_at)}</Text></View><Text style={[styles.resultBadge, item.resultado === 'aprobado' ? styles.badgeApproved : item.resultado === 'observado' ? styles.badgeObserved : styles.badgeRejected]}>{item.estado === 'conflicto' ? 'conflicto' : item.resultado}</Text></Pressable>)}
+            <View style={styles.sessionMetrics}>
+              <SessionMetric label="Folios" value={validationSession?.resumen.folios_trabajados ?? 0} />
+              <SessionMetric label="Intentos" value={validationSession?.resumen.registros_realizados ?? 0} />
+              <SessionMetric label="Aprobados" value={validationSession?.resumen.aprobados ?? 0} tone="positive" />
+              <SessionMetric label="Observados" value={validationSession?.resumen.observados ?? 0} tone="warning" />
+              <SessionMetric label="Rechazados" value={validationSession?.resumen.rechazados ?? 0} tone="critical" />
+              <SessionMetric label="Conflictos" value={validationSession?.resumen.conflictos ?? 0} tone="critical" />
+              <SessionMetric label="Pendientes PDA" value={pendingSessionOutbox.length} tone="warning" />
+            </View>
+
+            <View style={styles.sessionBalance}>
+              <Text style={styles.sessionBalanceText}>
+                Servidor: {validationSession?.resumen.registros_realizados ?? 0} · Sin confirmar: {unconfirmedSessionOutbox.length}
+              </Text>
+              <Text style={styles.sessionTotal}>
+                Total capturado: {(validationSession?.resumen.registros_realizados ?? 0) + unconfirmedSessionOutbox.length}
+              </Text>
+            </View>
+
+            <View style={styles.sessionListHeader}>
+              <Text style={styles.sectionEyebrow}>PALLETS TRABAJADOS</Text>
+              <Text style={styles.sessionListCount}>
+                {validationSession?.meta.total ?? 0} en servidor · {currentSessionOutbox.length} locales
+              </Text>
+            </View>
+
+            {currentSessionOutbox.map((item) => (
+              <View key={item.id} style={[styles.sessionItem, styles.sessionItemLocal]}>
+                <View style={styles.queueContent}>
+                  <Text style={styles.queueFolio}>{item.payload.numero_folio}</Text>
+                  <Text style={styles.queueDetail}>
+                    {formatTime(item.payload.generado_dispositivo_at)} · {item.payload.tipo_bulto} · {item.payload.cantidad_cajas} cajas · Línea {item.payload.linea_proceso} · Turno {item.payload.turno}
+                  </Text>
+                  {item.message ? <Text style={styles.queueError}>{item.message}</Text> : null}
+                </View>
+                <View style={styles.sessionItemActions}>
+                  <Text style={[styles.resultBadge, item.status === 'pendiente' ? styles.badgeObserved : styles.badgeRejected]}>
+                    {statusLabel(item.status)}
+                  </Text>
+                  {item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}
+                </View>
+              </View>
+            ))}
+
+            {visibleSessionAttempts.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => { setFolio(item.numero_folio); void inspectFolio(item.numero_folio); }}
+                style={styles.sessionItem}
+              >
+                <View style={styles.queueContent}>
+                  <Text style={styles.queueFolio}>{item.numero_folio}</Text>
+                  <Text style={styles.queueDetail}>
+                    {formatTime(item.recibido_servidor_at)} · intento {item.numero_intento} · {item.tipo_bulto} · {item.cantidad_cajas} cajas
+                  </Text>
+                  <Text style={styles.queueDetail}>
+                    Línea {item.linea_proceso ?? '—'} · Turno {item.turno ?? '—'} · confirmado en servidor
+                  </Text>
+                </View>
+                <Text style={[
+                  styles.resultBadge,
+                  item.resultado === 'aprobado'
+                    ? styles.badgeApproved
+                    : item.resultado === 'observado'
+                      ? styles.badgeObserved
+                      : styles.badgeRejected,
+                ]}>
+                  {item.estado === 'conflicto' ? 'conflicto' : item.resultado}
+                </Text>
+              </Pressable>
+            ))}
+
+            {!currentSessionOutbox.length && !visibleSessionAttempts.length
+              ? <Text style={styles.empty}>Aún no existen pallets trabajados en esta sesión.</Text>
+              : null}
+
+            {sessionExpanded && validationSession && validationSession.meta.current_page < validationSession.meta.last_page
+              ? (
+                <Pressable disabled={loadingMoreSession} onPress={() => void loadMoreSession()} style={[styles.loadMoreButton, loadingMoreSession && styles.disabled]}>
+                  <Text style={styles.loadMoreText}>{loadingMoreSession ? 'Cargando…' : 'Cargar más registros'}</Text>
+                </Pressable>
+              )
+              : null}
+
+            {previousSessionOutbox.length ? (
+              <View style={styles.previousQueue}>
+                <Text style={styles.previousQueueTitle}>BANDEJA DE UNA SESIÓN ANTERIOR</Text>
+                <Text style={styles.previousQueueText}>
+                  {previousSessionOutbox.length} operaciones siguen guardadas en esta PDA y no se suman a la sesión actual.
+                </Text>
+                {previousSessionOutbox.map((item) => (
+                  <View key={item.id} style={styles.queueItem}>
+                    <View style={styles.queueContent}>
+                      <Text style={styles.queueFolio}>{item.payload.numero_folio}</Text>
+                      <Text style={styles.queueDetail}>{statusLabel(item.status)} · {formatTime(item.payload.generado_dispositivo_at)}</Text>
+                    </View>
+                    {item.status !== 'pendiente' ? <Pressable onPress={() => void retryItem(item)} style={styles.retryButton}><Text style={styles.retryText}>Reintentar</Text></Pressable> : null}
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </View>
         </View>
       </ScrollView>
 
       {busy ? <View pointerEvents="none" style={styles.busy}><ActivityIndicator color={colors.cyan} size="large" /><Text style={styles.busyText}>Procesando…</Text></View> : null}
       <ObservationModal catalog={catalog} draft={observation} onCancel={() => setObservation(null)} onConfirm={(draft) => void submit(draft.result, draft.reason, draft.note)} />
+    </View>
+  );
+}
+
+function SessionMetric({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: number;
+  tone?: 'neutral' | 'positive' | 'warning' | 'critical';
+}) {
+  return (
+    <View style={[
+      styles.sessionMetric,
+      tone === 'positive' && styles.sessionMetricPositive,
+      tone === 'warning' && styles.sessionMetricWarning,
+      tone === 'critical' && styles.sessionMetricCritical,
+    ]}>
+      <Text style={styles.sessionMetricLabel}>{label}</Text>
+      <Text style={styles.sessionMetricValue}>{value}</Text>
     </View>
   );
 }
@@ -728,6 +929,7 @@ function uniqueOptions(values: string[]): Option[] {
 }
 function normalizeFolio(value: string) { return value.trim().toUpperCase(); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' }).format(date); }
+function formatDateTime(value: string | null) { const date = value ? new Date(value) : null; return !date || Number.isNaN(date.getTime()) ? 'sin hora registrada' : new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date); }
 function messageFrom(reason: unknown) { return reason instanceof Error ? reason.message : 'Ocurrió un error inesperado.'; }
 function statusLabel(status: ValidationOutboxItem['status']) { return status === 'pendiente' ? 'Pendiente' : status === 'conflicto' ? 'Conflicto' : 'Requiere revisión'; }
 function reasonLabel(value: string) { return value.replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()); }
@@ -828,6 +1030,30 @@ const styles = StyleSheet.create({
   resultButtonText: { color: colors.text, fontSize: 12, fontWeight: '900', textTransform: 'uppercase' },
   sideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 13 },
   sideTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginTop: 3 },
+  sessionHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 13 },
+  sessionStarted: { color: colors.muted, fontSize: 10, fontWeight: '700', marginTop: 4 },
+  sessionToggle: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
+  sessionToggleText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
+  sessionMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  sessionMetric: { flexGrow: 1, flexBasis: '29%', minWidth: 88, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  sessionMetricPositive: { borderColor: colors.green, backgroundColor: colors.greenDark },
+  sessionMetricWarning: { borderColor: colors.amber, backgroundColor: colors.amberDark },
+  sessionMetricCritical: { borderColor: colors.red, backgroundColor: colors.blocked },
+  sessionMetricLabel: { color: colors.muted, fontSize: 8, fontWeight: '900', letterSpacing: .5, textTransform: 'uppercase' },
+  sessionMetricValue: { color: colors.text, fontSize: 20, fontWeight: '900', marginTop: 3 },
+  sessionBalance: { marginTop: 9, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.selected },
+  sessionBalanceText: { color: colors.muted, fontSize: 10, fontWeight: '800' },
+  sessionTotal: { color: colors.cyan, fontSize: 13, fontWeight: '900', marginTop: 3 },
+  sessionListHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 20, marginBottom: 5 },
+  sessionListCount: { color: colors.muted, fontSize: 9, fontWeight: '800', textAlign: 'right' },
+  sessionItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  sessionItemLocal: { paddingHorizontal: 9, borderRadius: 9, borderWidth: 1, borderColor: colors.amber, backgroundColor: colors.amberDark, marginBottom: 5 },
+  sessionItemActions: { alignItems: 'flex-end', gap: 6 },
+  loadMoreButton: { alignItems: 'center', marginTop: 10, padding: 11, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
+  loadMoreText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
+  previousQueue: { marginTop: 18, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: colors.amber, backgroundColor: colors.amberDark },
+  previousQueueTitle: { color: colors.amber, fontSize: 9, fontWeight: '900', letterSpacing: .6 },
+  previousQueueText: { color: colors.text, fontSize: 10, marginTop: 4, marginBottom: 4 },
   syncButton: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
   syncButtonTop: { alignSelf: 'center' },
   syncButtonText: { color: colors.cyan, fontSize: 11, fontWeight: '900' },

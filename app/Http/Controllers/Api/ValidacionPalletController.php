@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EstadoValidacionPallet;
+use App\Enums\ResultadoValidacionPallet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConsultarOpcionesRegistroValidacionRequest;
 use App\Http\Requests\ConsultarValidacionesPalletRequest;
@@ -19,6 +20,7 @@ use App\Services\Validacion\ServicioValidacionPallet;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -40,6 +42,90 @@ class ValidacionPalletController extends Controller
         return ValidacionPalletResource::collection(
             $consulta->paginate($filtros['per_page'] ?? 25)->withQueryString(),
         );
+    }
+
+    public function miSesion(
+        Request $request,
+        ContextoOperacional $contexto,
+    ): AnonymousResourceCollection {
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+        $token = $usuario->currentAccessToken();
+        $inicio = $token?->created_at ?? now();
+        $temporada = Temporada::query()
+            ->where('activa', true)
+            ->first(['id', 'codigo', 'nombre']);
+
+        $base = ValidacionPallet::query()
+            ->where('user_id', $usuario->id)
+            ->where('dispositivo_id', $dispositivo->id)
+            ->where('generado_dispositivo_at', '>=', $inicio)
+            ->when(
+                $temporada,
+                fn (Builder $consulta, Temporada $temporada): Builder => $consulta
+                    ->where('temporada_id', $temporada->id),
+            );
+
+        $vigentes = (clone $base)
+            ->orderByDesc('recibido_servidor_at')
+            ->orderByDesc('numero_intento')
+            ->get([
+                'id',
+                'numero_folio',
+                'numero_intento',
+                'resultado',
+                'estado',
+                'recibido_servidor_at',
+            ])
+            ->unique('numero_folio')
+            ->values();
+        $vigentesAceptadas = $vigentes
+            ->where('estado', EstadoValidacionPallet::Aceptada);
+
+        $consulta = (clone $base)
+            ->with($this->relaciones())
+            ->orderByDesc('recibido_servidor_at')
+            ->orderByDesc('numero_intento');
+        $porPagina = min(50, max(10, $request->integer('per_page', 25)));
+
+        return ValidacionPalletResource::collection(
+            $consulta->paginate($porPagina)->withQueryString(),
+        )->additional([
+            'sesion' => [
+                'id' => (string) $token?->getKey(),
+                'iniciada_at' => $inicio->toAtomString(),
+                'servidor_at' => now()->toAtomString(),
+                'usuario' => [
+                    'id' => $usuario->id,
+                    'nombre' => $usuario->name,
+                ],
+                'dispositivo' => [
+                    'id' => $dispositivo->id,
+                    'codigo' => $dispositivo->codigo,
+                    'nombre' => $dispositivo->nombre,
+                ],
+                'temporada' => $temporada ? [
+                    'id' => $temporada->id,
+                    'codigo' => $temporada->codigo,
+                    'nombre' => $temporada->nombre,
+                ] : null,
+            ],
+            'resumen' => [
+                'folios_trabajados' => $vigentes->count(),
+                'registros_realizados' => (clone $base)->count(),
+                'aprobados' => $vigentesAceptadas
+                    ->where('resultado', ResultadoValidacionPallet::Aprobado)
+                    ->count(),
+                'observados' => $vigentesAceptadas
+                    ->where('resultado', ResultadoValidacionPallet::Observado)
+                    ->count(),
+                'rechazados' => $vigentesAceptadas
+                    ->where('resultado', ResultadoValidacionPallet::Rechazado)
+                    ->count(),
+                'conflictos' => $vigentes
+                    ->where('estado', EstadoValidacionPallet::Conflicto)
+                    ->count(),
+            ],
+        ]);
     }
 
     public function opciones(ConsultarOpcionesRegistroValidacionRequest $request): JsonResponse

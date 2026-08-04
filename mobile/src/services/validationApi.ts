@@ -2,6 +2,7 @@ import {
   RegisterValidationPayload,
   ValidationAttempt,
   ValidationCatalog,
+  ValidationSessionSnapshot,
 } from '../domain/validation';
 import { ApiError } from './apiError';
 
@@ -61,6 +62,22 @@ export async function registerValidation(
     { method: 'POST', body: JSON.stringify(payload) },
   );
   return response.data;
+}
+
+export function getMyValidationSession(
+  baseUrl: string,
+  token: string,
+  page = 1,
+) {
+  const query = new URLSearchParams({
+    page: String(page),
+    per_page: '25',
+  });
+  return request<ValidationSessionSnapshot>(
+    baseUrl,
+    `/api/validacion/pallets/mi-sesion?${query.toString()}`,
+    token,
+  );
 }
 
 export async function listRecentValidations(baseUrl: string, token: string) {
