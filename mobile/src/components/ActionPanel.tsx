@@ -92,7 +92,8 @@ export function ActionPanel({
               <Detail label="Cliente" value={selectedPosition.folio.material?.item.cliente ? `${selectedPosition.folio.material.item.cliente.codigo} · ${selectedPosition.folio.material.item.cliente.nombre}` : undefined} />
               <Detail label="Ítem" value={selectedPosition.folio.material ? `${selectedPosition.folio.material.item.codigo} · ${selectedPosition.folio.material.item.nombre}` : undefined} />
               <Detail label="Cantidad" value={`${selectedPosition.folio.material?.cantidad_actual ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
-              <Detail label="Disponible" value={`${selectedPosition.folio.material?.cantidad_disponible ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
+              <Detail label="Reservado FIFO" value={`${selectedPosition.folio.material?.cantidad_reservada ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
+              <Detail label="Disponible libre" value={`${selectedPosition.folio.material?.cantidad_disponible ?? '0'} ${selectedPosition.folio.material?.unidad_medida ?? ''}`} />
             </>
           ) : (
             <>
