@@ -201,7 +201,7 @@
                                 <label class="field"><span>Modo de acceso *</span><select name="solo_consulta" required><option value="0">Operacional</option><option value="1">Solo consulta</option></select></label>
                                 <label class="field"><span>Nivel operacional base *</span><select name="rol_base" required></select></label>
                             </div>
-                            <p class="admin-form__hint">En modo Solo consulta, el usuario puede navegar y exportar información de las oficinas PC seleccionadas, pero no puede crear, editar, eliminar, validar, mover ni cerrar procesos. Los módulos PDA/tablet quedan deshabilitados automáticamente.</p>
+                            <p class="admin-form__hint">Configura por separado las oficinas PC y los módulos PDA/tablet. En modo Solo consulta, el usuario puede navegar y exportar información de las oficinas PC seleccionadas, pero no puede crear, editar, eliminar, validar, mover ni cerrar procesos. Los módulos PDA/tablet quedan deshabilitados automáticamente.</p>
                             <div class="access-permission-heading">
                                 <div><p class="eyebrow">OFICINAS PC</p><h3>Oficinas y módulos web</h3></div>
                                 <span>Definen la navegación disponible al ingresar desde un computador.</span>
