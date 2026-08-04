@@ -123,6 +123,29 @@ class InterfazOficinaMaterialesTest extends TestCase
         );
     }
 
+    public function test_ordenes_expone_cancelacion_segura_durante_la_transformacion(): void
+    {
+        $this->get('/oficina/materiales/ordenes')
+            ->assertOk()
+            ->assertSee('Órdenes de transformación');
+
+        $script = file_get_contents(resource_path('js/office-material-orders.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString(
+            "(order.estado === 'en_proceso' && !hasOutputs)",
+            $script,
+        );
+        $this->assertStringContainsString(
+            'Se descartará cualquier lote abierto',
+            $script,
+        );
+        $this->assertStringContainsString(
+            '/api/materiales/transformaciones/ordenes/${order.id}/cancelar',
+            $script,
+        );
+    }
+
     public function test_materiales_solo_actualiza_datos_de_la_seccion_visible(): void
     {
         $this->get('/oficina/materiales')

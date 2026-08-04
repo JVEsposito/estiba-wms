@@ -4,7 +4,11 @@ namespace Tests\Feature\Api;
 
 use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoLoteTransformacionMaterial;
+use App\Enums\EstadoOrdenTransformacionMaterial;
+use App\Enums\EstadoReservaMaterial;
 use App\Enums\RolUsuario;
+use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\ClienteMaterial;
@@ -1424,6 +1428,139 @@ class TransformacionMaterialApiTest extends TestCase
         $this->assertIsString($trabajoId);
 
         return $trabajoId;
+    }
+
+    public function test_cancela_orden_en_proceso_tomada_sin_movimientos(): void
+    {
+        [
+            $tokenOficina,
+            ,
+            $folioPrincipal,
+            $folioAuxiliar,
+            $orden,
+        ] = $this->prepararOrdenOperacional(20);
+
+        $this->assertSame('en_proceso', $orden['estado']);
+        $cancelada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Orden tomada por error desde la operación.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cancelada')
+            ->assertJsonPath('data.version', 4)
+            ->assertJsonPath('data.eventos.3.datos.estado_anterior', 'en_proceso')
+            ->assertJsonPath('data.eventos.3.datos.lotes_abiertos_descartados', 0)
+            ->json('data');
+
+        $this->assertCount(0, $cancelada['lotes']);
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail($folioPrincipal['id'])
+            ->cantidad_reservada);
+        $this->assertSame('0.000', FolioMaterial::query()
+            ->findOrFail($folioAuxiliar['id'])
+            ->cantidad_reservada);
+        $this->assertSame(2, ReservaTransformacionMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->where('estado', EstadoReservaMaterial::Liberada->value)
+            ->count());
+    }
+
+    public function test_cancela_orden_en_proceso_descartando_lote_abierto(): void
+    {
+        [
+            $tokenOficina,
+            $tokenTablet,
+            ,
+            ,
+            $orden,
+        ] = $this->prepararOrdenOperacional(20);
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.lotes.0.estado', 'abierto')
+            ->json('data');
+
+        $cancelada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'El operador abrió una orden que no correspondía.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'cancelada')
+            ->assertJsonPath('data.version', 5)
+            ->assertJsonPath('data.lotes.0.estado', 'anulado')
+            ->assertJsonPath('data.eventos.4.datos.lotes_abiertos_descartados', 1)
+            ->json('data');
+
+        $this->assertStringContainsString(
+            'Cancelación de orden:',
+            $cancelada['lotes'][0]['motivo_reversa'],
+        );
+        $this->assertDatabaseCount('consumos_transformacion_materiales', 0);
+        $this->assertDatabaseCount('salidas_transformacion_materiales', 0);
+    }
+
+    public function test_rechaza_cancelar_orden_en_proceso_con_lote_cerrado(): void
+    {
+        [
+            $tokenOficina,
+            $tokenTablet,
+            $folioPrincipal,
+            $folioAuxiliar,
+            $orden,
+        ] = $this->prepararOrdenOperacional(40);
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 20,
+            ])
+            ->assertOk()
+            ->json('data');
+        $lote = $orden['lotes'][0];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 20,
+                'consumos' => [
+                    ['folio_id' => $folioPrincipal['id'], 'cantidad' => 20],
+                    ['folio_id' => $folioAuxiliar['id'], 'cantidad' => 2],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'en_proceso')
+            ->json('data');
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Intento de cancelar una orden con producción real.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseHas('ordenes_transformacion_materiales', [
+            'id' => $orden['id'],
+            'estado' => EstadoOrdenTransformacionMaterial::EnProceso->value,
+        ]);
+        $this->assertDatabaseHas('lotes_transformacion_materiales', [
+            'id' => $lote['id'],
+            'estado' => EstadoLoteTransformacionMaterial::Cerrado->value,
+        ]);
+        $this->assertSame(2, MovimientoInventarioMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->where('tipo', TipoMovimientoInventarioMaterial::ConsumoTransformacion->value)
+            ->count());
+        $this->assertSame(1, MovimientoInventarioMaterial::query()
+            ->where('orden_transformacion_material_id', $orden['id'])
+            ->where('tipo', TipoMovimientoInventarioMaterial::ProduccionTransformacion->value)
+            ->count());
     }
 
     private function prepararOrdenOperacional(
