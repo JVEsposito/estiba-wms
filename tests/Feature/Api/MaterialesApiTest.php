@@ -633,6 +633,13 @@ class MaterialesApiTest extends TestCase
         $this->assertSame('10.000', FolioMaterial::findOrFail($folio1)->cantidad_reservada);
         $this->assertSame('2.000', FolioMaterial::findOrFail($folio2)->cantidad_reservada);
 
+        $this->conToken($tokenTablet)
+            ->getJson("/api/camaras/{$camara->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_actual', '10.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_reservada', '10.000')
+            ->assertJsonPath('data.posiciones.0.folio.material.cantidad_disponible', '0.000');
+
         $operacionRetiroParcial = (string) Str::uuid();
         $retiroParcial = [
             'operacion_id' => $operacionRetiroParcial,
