@@ -25,15 +25,21 @@ class ExistenciaController extends Controller
             abort_unless($servicio->puedeConsultar($usuario, $tipo), Response::HTTP_FORBIDDEN);
         }
 
+        $conexionesActivas = ConexionExistencia::query()
+            ->where('user_id', $usuario->id)
+            ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
+            ->whereNull('revocado_at')
+            ->where(function ($consulta): void {
+                $consulta->whereNull('expira_at')->orWhere('expira_at', '>', now());
+            })
+            ->get()
+            ->groupBy('tipo');
         $historial = ConexionExistencia::query()
             ->where('user_id', $usuario->id)
             ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
             ->latest()
             ->limit(30)
             ->get();
-        $conexionesActivas = $historial
-            ->filter(fn (ConexionExistencia $conexion): bool => $conexion->estaVigente())
-            ->groupBy('tipo');
 
         $tipos = collect($servicio->disponiblesPara($usuario))
             ->when(
