@@ -257,7 +257,7 @@ class ServicioCorreccionValidacionPallet
     {
         return $validacion->load([
             'temporada:id,codigo,nombre,activa',
-            'folio:id,numero_folio,estado_operacional,condicion_termica',
+            'folio:id,numero_folio,estado_operacional,condicion_termica,activo',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',
