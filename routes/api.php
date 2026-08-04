@@ -254,6 +254,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])
         ->middleware('can:gestionar-despachos-materiales');
+    Route::post('/materiales/despachos/directos', [DespachoMaterialController::class, 'directo'])
+        ->middleware('can:gestionar-despachos-materiales');
     Route::post('/materiales/despachos/{despachoMaterial}/retirar', [DespachoMaterialController::class, 'retirar'])
         ->middleware('can:retirar-materiales');
     Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
