@@ -76,10 +76,11 @@
                             <div>
                                 <p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p>
                                 <h2 id="validationCorrectionTitle">Corregir validación</h2>
-                                <p>Disponible solo antes de ingresar el folio a Prefrío. El cambio actualiza el folio y conserva la auditoría completa.</p>
+                                <p>Disponible en cualquier etapa del folio. Corrige sus datos sin cambiar el proceso, túnel, cámara, reserva, carga ni estado operativo.</p>
                             </div>
                             <button aria-label="Cerrar" class="validation-dialog-close" id="cancelValidationCorrection" type="button">×</button>
                         </div>
+                        <p class="validation-help" id="validationCorrectionState"></p>
                         <div class="validation-form__grid">
                             <label><span>Tipo de bulto *</span><select name="tipo_bulto" required><option value="pallet">Pallet completo</option><option value="saldo">Saldo</option></select></label>
                             <label><span>Cantidad de cajas *</span><input name="cantidad_cajas" type="number" min="1" required></label>
