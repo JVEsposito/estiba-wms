@@ -30,6 +30,9 @@ const elements = {
     importErrors: byId('materialImportErrors'), importRows: byId('materialImportRows'),
     importConfirm: byId('confirmMaterialImport'), importConfirmationHelp: byId('materialImportConfirmationHelp'),
     importHistory: byId('materialImportHistory'),
+    directDispatchDialog: byId('materialDirectDispatchDialog'), directDispatchForm: byId('materialDirectDispatchForm'),
+    directDispatchContext: byId('materialDirectDispatchContext'), directDispatchError: byId('materialDirectDispatchError'),
+    directDispatchClose: byId('closeMaterialDirectDispatch'), directDispatchCancel: byId('cancelMaterialDirectDispatch'),
     correctionDialog: byId('materialCorrectionDialog'), correctionForm: byId('materialCorrectionForm'),
     correctionContext: byId('materialCorrectionContext'), correctionError: byId('materialCorrectionError'),
     correctionClose: byId('closeMaterialCorrection'), correctionCancel: byId('cancelMaterialCorrection'),
@@ -38,7 +41,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
-    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, correctionOperationId: null,
+    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
 };
 const operationalRefreshIntervalMs = 30000;
@@ -117,6 +120,7 @@ function globalClients() {
 function seasonItems() { return state.items.filter((item) => item.cliente?.temporada?.id === state.selectedSeasonId); }
 function activeItems() { return state.items.filter((item) => item.activo && item.cliente?.activo !== false && item.cliente?.temporada?.activa !== false); }
 function activeDestinations() { return state.destinations.filter((destination) => destination.activo); }
+function directDispatchDestinations() { return activeDestinations().filter((destination) => destination.tipo !== 'fisica'); }
 function normalizedSearch(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function itemLabel(item) { return `${item.cliente?.temporada?.codigo || ''} · ${item.cliente?.codigo || ''} · ${item.codigo} · ${item.nombre}`; }
 function itemSearchText(item) { return normalizedSearch(`${itemLabel(item)} ${item.cliente?.nombre || ''} ${item.categoria || ''}`); }
@@ -279,6 +283,8 @@ function renderInventory() {
         : `${Number(state.inventoryMeta?.total || 0)} folios coincidentes · ${Number(state.inventoryTotals.clientes || 0)} clientes`;
     const canCorrect = state.identity?.puede_corregir_items_estibados_materiales === true;
     const canManageBlock = state.identity?.puede_gestionar_bloqueos_materiales === true;
+    const canDispatchDirect = state.identity?.puede_gestionar_despachos_materiales === true
+        && state.identity?.puede_retirar_materiales === true;
     elements.inventoryBody.innerHTML = rows.map((folio) => {
         const blocked = folio.estado_operacional === 'bloqueado';
         const canBlock = canManageBlock
@@ -291,7 +297,13 @@ function renderInventory() {
                 : folio.reservable
                     ? '<strong>Disponible</strong>'
                     : '<strong>No disponible</strong>';
+        const canDirect = canDispatchDirect
+            && !blocked
+            && Boolean(folio.camara)
+            && folio.estado_ubicacion !== 'pendiente_ubicacion'
+            && Number(folio.cantidad_disponible || 0) > 0;
         const actions = [
+            canDirect ? `<button data-direct-dispatch="${folio.folio_id}" type="button">Despachar directo</button>` : '',
             canCorrect ? `<button data-correct-material="${folio.folio_id}" type="button">Corregir código</button>` : '',
             canManageBlock && blocked
                 ? `<button data-release-material="${folio.folio_id}" type="button">Liberar</button>`
@@ -658,7 +670,63 @@ elements.inventoryPrevious.addEventListener('click', () => {
 elements.inventoryNext.addEventListener('click', () => {
     loadInventoryPage(state.inventoryCurrentPage + 1).catch((error) => toast(error.message, true));
 });
+function closeDirectDispatchDialog() {
+    state.directDispatchOperationId = null;
+    state.directDispatchFolioId = null;
+    elements.directDispatchDialog.close();
+}
+elements.directDispatchClose.addEventListener('click', closeDirectDispatchDialog);
+elements.directDispatchCancel.addEventListener('click', closeDirectDispatchDialog);
+elements.directDispatchForm.addEventListener('input', () => {
+    state.directDispatchOperationId = null;
+});
+elements.directDispatchForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.directDispatchError.textContent = '';
+    const payload = Object.fromEntries(new FormData(elements.directDispatchForm));
+    payload.operacion_id = state.directDispatchOperationId ||= operationUuid();
+    if (!payload.observacion) delete payload.observacion;
+    setBusy(true, 'Despachando material al centro de costo…');
+    try {
+        const response = await api('/api/materiales/despachos/directos', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        closeDirectDispatchDialog();
+        await loadAll();
+        toast(`${response.data.codigo} completado. La custodia fue trasladada al centro de costo.`);
+    } catch (error) {
+        elements.directDispatchError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
 elements.inventoryBody.addEventListener('click', async (event) => {
+    const directButton = event.target.closest('[data-direct-dispatch]');
+    if (directButton) {
+        const folio = state.inventory.find(
+            (candidate) => candidate.folio_id === directButton.dataset.directDispatch,
+        );
+        if (!folio || !folio.camara || Number(folio.cantidad_disponible || 0) <= 0) return;
+        const destinations = directDispatchDestinations();
+        if (!destinations.length) {
+            toast('No existen centros de costo activos para realizar el despacho.', true);
+            return;
+        }
+        state.directDispatchFolioId = folio.folio_id;
+        state.directDispatchOperationId = operationUuid();
+        elements.directDispatchForm.reset();
+        elements.directDispatchForm.elements.folio_id.value = folio.folio_id;
+        elements.directDispatchForm.elements.destino_material_id.innerHTML = '<option value="">Selecciona un centro de costo</option>'
+            + destinations.map((destination) => `<option value="${destination.id}">${escapeHtml(destination.nombre)} · ${escapeHtml(destination.centro_costo)}</option>`).join('');
+        elements.directDispatchForm.elements.cantidad.max = String(folio.cantidad_disponible);
+        elements.directDispatchForm.elements.cantidad.value = String(folio.cantidad_disponible);
+        elements.directDispatchContext.textContent = `${folio.numero_folio} · ${folio.item.codigo} · ${folio.item.nombre} · ${folio.camara.codigo} / ${folio.posicion?.etiqueta || 'Sin posición'} · máximo ${quantity(folio.cantidad_disponible)} ${folio.unidad_medida}`;
+        elements.directDispatchError.textContent = '';
+        elements.directDispatchDialog.showModal();
+        return;
+    }
+
     const blockButton = event.target.closest('[data-block-material], [data-release-material]');
     if (blockButton && state.identity?.puede_gestionar_bloqueos_materiales === true) {
         const releasing = Boolean(blockButton.dataset.releaseMaterial);
