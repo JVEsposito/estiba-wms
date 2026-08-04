@@ -41,7 +41,7 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioPanelGerencial
 {
-    public const CLAVE_CACHE = 'gerencia:panel:resumen:v1';
+    public const CLAVE_CACHE = 'gerencia:panel:resumen:v2';
 
     private const CLAVE_BLOQUEO = 'gerencia:panel:resumen:bloqueo';
 
@@ -275,7 +275,7 @@ class ServicioPanelGerencial
                 'codigo' => $carga->codigo,
                 'orden_embarque' => $carga->numero_orden_externa,
                 'estado' => $carga->estado->value,
-                'prioridad' => $carga->prioridad->value,
+                'prioridad' => $carga->prioridad?->value,
                 'folios_asignados' => (int) $carga->asignaciones_actuales_count,
                 'camara_objetivo' => $carga->camaraObjetivo?->codigo,
                 'anden' => $carga->andenPrevisto?->codigo,
