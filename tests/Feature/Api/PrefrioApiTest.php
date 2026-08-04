@@ -125,6 +125,95 @@ class PrefrioApiTest extends TestCase
         $this->assertSame(1, ProcesoPrefrio::query()->count());
     }
 
+    public function test_posicion_admite_varios_saldos_y_mantiene_pallet_completo_exclusivo(): void
+    {
+        [$tunel, $primeraPosicion, $token] = $this->contexto();
+        $segundaPosicion = $tunel->posiciones()->orderBy('numero')->skip(1)->firstOrFail();
+        $primerSaldo = $this->folioPendiente('SALDO-PF-001', TipoBulto::Saldo);
+        $segundoSaldo = $this->folioPendiente('SALDO-PF-002', TipoBulto::Saldo);
+        $tercerSaldo = $this->folioPendiente('SALDO-PF-003', TipoBulto::Saldo);
+        $cuartoSaldo = $this->folioPendiente('SALDO-PF-004', TipoBulto::Saldo);
+        $pallet = $this->folioPendiente('PAL-PF-EXCLUSIVO');
+        $primerSaldo->update(['exportadora' => 'Cliente A', 'variedad' => 'Hayward']);
+        $segundoSaldo->update(['exportadora' => 'Cliente B', 'variedad' => 'Duke']);
+        $tercerSaldo->update(['exportadora' => 'Cliente C', 'variedad' => 'Santina']);
+
+        $proceso = $this->crearProceso($token, $tunel);
+        foreach ([$primerSaldo, $segundoSaldo, $tercerSaldo] as $version => $saldo) {
+            $proceso = $this->accion(
+                $token,
+                "/api/prefrio/procesos/{$proceso['id']}/folios",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'version_conocida' => $version,
+                    'folio_id' => $saldo->id,
+                    'posicion_tunel_prefrio_id' => $primeraPosicion->id,
+                    'ocurrido_at' => now()->toAtomString(),
+                ],
+            );
+        }
+
+        $this->assertCount(3, $proceso['folios']);
+        $this->assertSame(
+            [$primerSaldo->id, $segundoSaldo->id, $tercerSaldo->id],
+            collect($proceso['folios'])->pluck('folio.id')->all(),
+        );
+        $this->assertDatabaseCount('procesos_prefrio_folios', 3);
+
+        $this->conToken($token)
+            ->postJson("/api/prefrio/procesos/{$proceso['id']}/folios", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'folio_id' => $pallet->id,
+                'posicion_tunel_prefrio_id' => $primeraPosicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/folios",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'folio_id' => $pallet->id,
+                'posicion_tunel_prefrio_id' => $segundaPosicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ],
+        );
+
+        $this->conToken($token)
+            ->postJson("/api/prefrio/procesos/{$proceso['id']}/folios", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'folio_id' => $cuartoSaldo->id,
+                'posicion_tunel_prefrio_id' => $segundaPosicion->id,
+                'ocurrido_at' => now()->toAtomString(),
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $asignacionRetirada = collect($proceso['folios'])
+            ->firstWhere('folio.id', $segundoSaldo->id);
+        $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/folios/{$asignacionRetirada['id']}/retirar",
+            $this->payloadAccion(4),
+        );
+
+        $this->assertSame(2, DB::table('procesos_prefrio_folios')
+            ->where('proceso_prefrio_id', $proceso['id'])
+            ->where('posicion_tunel_prefrio_id', $primeraPosicion->id)
+            ->where('estado', 'cargado')
+            ->count());
+        $this->assertDatabaseHas('procesos_prefrio_folios', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'folio_id' => $segundoSaldo->id,
+            'estado' => 'retirado',
+        ]);
+    }
+
     public function test_cancelacion_de_proceso_vacio_libera_tunel_y_excluye_historial_operacional(): void
     {
         [$tunel, , $tokenOperador] = $this->contexto();
@@ -645,11 +734,13 @@ class PrefrioApiTest extends TestCase
         return [$tunel, $posicion, $token];
     }
 
-    private function folioPendiente(string $numero): Folio
-    {
+    private function folioPendiente(
+        string $numero,
+        TipoBulto $tipoBulto = TipoBulto::Pallet,
+    ): Folio {
         return Folio::create([
             'numero_folio' => $numero,
-            'tipo_bulto' => TipoBulto::Pallet,
+            'tipo_bulto' => $tipoBulto,
             'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
             'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
