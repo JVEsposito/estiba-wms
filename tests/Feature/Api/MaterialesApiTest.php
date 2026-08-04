@@ -553,6 +553,125 @@ class MaterialesApiTest extends TestCase
         ]);
     }
 
+    public function test_despacho_directo_desde_oficina_exige_ubicacion_material_valida(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        $folioId = $this->crearFolioMaterialPendiente(
+            $item,
+            'MAT-DIRECTO-SIN-UBICAR',
+            10,
+            now()->toAtomString(),
+        );
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', [
+                'operacion_id' => (string) Str::uuid(),
+                'folio_id' => $folioId,
+                'destino_material_id' => $destino->id,
+                'cantidad' => 4,
+            ])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseCount('despachos_materiales', 0);
+        $this->assertDatabaseCount('operaciones_retiro_materiales', 0);
+        $this->assertDatabaseCount('retiros_materiales', 0);
+        $this->assertSame('10.000', FolioMaterial::findOrFail($folioId)->cantidad_actual);
+    }
+
+    public function test_oficina_despacha_directamente_a_centro_de_costo_sin_reducir_total_empresa(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara(
+            'MAT-DIRECTO-01',
+            ContenidoCamara::Materiales,
+        );
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioId = $this->ubicarMaterial(
+            $tokenTablet,
+            $posicion,
+            $sesion,
+            $item,
+            'MAT-DIRECTO-UBICADO',
+            0,
+            10,
+            now()->toAtomString(),
+        );
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'folio_id' => $folioId,
+            'destino_material_id' => $destino->id,
+            'cantidad' => 4,
+            'observacion' => 'Entrega directa solicitada por producción.',
+        ];
+
+        $despachoId = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.origen', 'oficina')
+            ->assertJsonPath('data.estado', 'completado')
+            ->assertJsonPath('data.destino.centro_costo', 'CC-100')
+            ->assertJsonPath('data.items.0.cantidad_despachada', '4.000')
+            ->assertJsonPath('data.items.0.retiros.0.folio.id', $folioId)
+            ->assertJsonPath('data.items.0.retiros.0.dispositivo', null)
+            ->json('data.id');
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.id', $despachoId)
+            ->assertJsonPath('data.estado', 'completado');
+
+        $this->assertDatabaseCount('despachos_materiales', 1);
+        $this->assertDatabaseCount('operaciones_retiro_materiales', 1);
+        $this->assertDatabaseCount('retiros_materiales', 1);
+        $this->assertDatabaseCount('notificaciones_operacionales', 0);
+        $this->assertDatabaseHas('operaciones_retiro_materiales', [
+            'id' => $operacionId,
+            'dispositivo_id' => null,
+        ]);
+        $this->assertDatabaseHas('retiros_materiales', [
+            'folio_id' => $folioId,
+            'cantidad_retirada' => 4,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion->id,
+            'dispositivo_id' => null,
+        ]);
+        $this->assertDatabaseHas('saldos_materiales_almacenes', [
+            'folio_id' => $folioId,
+            'almacen_material_id' => $destino->id,
+            'cantidad_actual' => 4,
+        ]);
+        $this->assertDatabaseHas('movimientos_almacenes_materiales', [
+            'operacion_id' => $operacionId,
+            'folio_id' => $folioId,
+            'tipo' => 'entrega',
+            'centro_costo' => 'CC-100',
+            'dispositivo_id' => null,
+        ]);
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $folioId,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion->id,
+        ]);
+        $this->assertSame('10.000', FolioMaterial::findOrFail($folioId)->cantidad_actual);
+        $this->assertSame('0.000', FolioMaterial::findOrFail($folioId)->cantidad_reservada);
+
+        $bodegaId = DB::table('destinos_materiales')
+            ->where('codigo', 'BOD-CENTRAL')
+            ->value('id');
+        $this->assertDatabaseHas('saldos_materiales_almacenes', [
+            'folio_id' => $folioId,
+            'almacen_material_id' => $bodegaId,
+            'cantidad_actual' => 6,
+        ]);
+    }
+
     public function test_reserva_fifo_y_permite_entregas_parciales_sin_reducir_existencia_empresa(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
