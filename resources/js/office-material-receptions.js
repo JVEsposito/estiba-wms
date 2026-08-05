@@ -1,3 +1,5 @@
+import './office-material-reception-import.js';
+
 const receptionElements = {
     workspace: document.getElementById('materialReceptionsWorkspace'),
     summary: document.getElementById('materialReceptionsSummary'),
@@ -328,6 +330,7 @@ function configureReceptionDialog() {
         : 'Los folios se asignan automáticamente al confirmar.';
     receptionElements.form.classList.toggle('material-reception-readonly', readonly);
     receptionElements.addLine.classList.toggle('is-hidden', readonly);
+    window.estibaMaterialReceptionImporter?.setVisible(!readonly);
     receptionElements.reason.classList.toggle('is-hidden', !editing);
     receptionElements.warning.classList.toggle('is-hidden', !(editing && confirmed));
     receptionElements.saveDraft.classList.toggle('is-hidden', readonly || confirmed);
@@ -479,6 +482,37 @@ async function deleteReception() {
     receptionElements.deleteDialog.close();
     await loadReceptions(receptionState.page);
 }
+
+window.estibaMaterialReceptionImportContext = {
+    context() {
+        return {
+            clienteId: receptionClientId(),
+            proveedorId: receptionProviderId(),
+            mode: receptionState.mode,
+        };
+    },
+    apply(rows, replace = true) {
+        if (receptionState.mode === 'view') {
+            throw new Error('Una recepción en modo consulta no puede modificarse.');
+        }
+        if (!Array.isArray(rows) || rows.length === 0) {
+            throw new Error('La previsualización no contiene productos válidos.');
+        }
+
+        const importedLines = rows.map((row) => receptionLineState(row));
+        const currentLines = receptionState.lines.filter((line) =>
+            line.itemId || line.documentary || line.counted || line.accepted || line.packageSize);
+        const resultingLines = replace ? importedLines : [...currentLines, ...importedLines];
+        if (resultingLines.length > 100) {
+            throw new Error('Una recepción puede contener como máximo 100 productos.');
+        }
+
+        receptionState.lines = resultingLines;
+        renderReceptionLines();
+
+        return importedLines.length;
+    },
+};
 
 if (receptionElements.workspace) {
     receptionElements.reload.addEventListener('click', () => loadReceptions(receptionState.page));
