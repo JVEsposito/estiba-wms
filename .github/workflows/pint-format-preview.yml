@@ -1,0 +1,33 @@
+name: Pint format preview
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Formatear archivos nuevos
+        run: |
+          vendor/bin/pint app/Services/Materiales/ServicioPrevisualizacionImportacionRecepcionMaterial.php tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php
+          mkdir -p formatted/app/Services/Materiales formatted/tests/Feature/Api
+          cp app/Services/Materiales/ServicioPrevisualizacionImportacionRecepcionMaterial.php formatted/app/Services/Materiales/
+          cp tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php formatted/tests/Feature/Api/
+      - name: Publicar archivos formateados
+        uses: actions/upload-artifact@v4
+        with:
+          name: pint-formatted
+          path: formatted
