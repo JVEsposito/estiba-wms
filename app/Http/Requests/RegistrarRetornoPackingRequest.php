@@ -17,7 +17,15 @@ class RegistrarRetornoPackingRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
-            'cierra_entrega' => ['required', 'boolean'],
+            'cierra_entrega' => ['required_without:entregas', 'boolean'],
+            'entregas' => ['nullable', 'array', 'min:1', 'max:20'],
+            'entregas.*.entrega_fruta_proceso_id' => [
+                'required',
+                'uuid',
+                'distinct',
+                Rule::exists('entregas_fruta_proceso', 'id'),
+            ],
+            'entregas.*.cierra_entrega' => ['required', 'boolean'],
             'observacion' => ['nullable', 'string', 'max:2000'],
             'resultados' => ['required', 'array', 'min:1', 'max:20'],
             'resultados.*.tipo_resultado_packing_id' => [
