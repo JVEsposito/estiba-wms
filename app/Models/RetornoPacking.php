@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -30,9 +31,22 @@ class RetornoPacking extends Model
 
     protected $table = 'retornos_packing';
 
+    /**
+     * Entrega principal conservada por compatibilidad con registros y clientes anteriores.
+     */
     public function entrega(): BelongsTo
     {
         return $this->belongsTo(EntregaFrutaProceso::class, 'entrega_fruta_proceso_id');
+    }
+
+    public function entregas(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            EntregaFrutaProceso::class,
+            'retorno_packing_entregas',
+            'retorno_packing_id',
+            'entrega_fruta_proceso_id',
+        )->withPivot('cierra_entrega')->withTimestamps();
     }
 
     public function resultados(): HasMany
