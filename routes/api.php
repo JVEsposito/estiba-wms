@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\FrutaProcesoController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
+use App\Http\Controllers\Api\ImportacionProductosRecepcionMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
 use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
@@ -274,6 +275,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::middleware('can:gestionar-recepciones-materiales')->group(function () {
+            Route::post('/importaciones/previsualizar', ImportacionProductosRecepcionMaterialController::class);
             Route::post('/', [RecepcionMaterialController::class, 'store']);
             Route::put('/{recepcionMaterial}', [RecepcionMaterialController::class, 'update']);
             Route::post('/{recepcionMaterial}/confirmar', [RecepcionMaterialController::class, 'confirmar']);
