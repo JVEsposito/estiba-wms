@@ -15,6 +15,7 @@ class ApiRoutesConventionTest extends TestCase
             ['GET', 'api/materiales/recepciones', 'can:consultar-recepciones-materiales'],
             ['GET', 'api/materiales/recepciones/{recepcionMaterial}', 'can:consultar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones', 'can:gestionar-recepciones-materiales'],
+            ['POST', 'api/materiales/recepciones/importaciones/previsualizar', 'can:gestionar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones/{recepcionMaterial}/confirmar', 'can:gestionar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones/{recepcionMaterial}/anular', 'can:anular-recepciones-materiales'],
             ['PUT', 'api/materiales/recepciones/{recepcionMaterial}/administrar', 'can:administrar-recepciones-materiales'],
@@ -60,8 +61,10 @@ class ApiRoutesConventionTest extends TestCase
     {
         $proveedores = require base_path('bootstrap/providers.php');
 
+        $this->assertNotContains('App\\Providers\\ImportacionRecepcionesMaterialesServiceProvider', $proveedores);
         $this->assertNotContains('App\\Providers\\RecepcionMaterialServiceProvider', $proveedores);
         $this->assertNotContains('App\\Providers\\TransformacionMaterialServiceProvider', $proveedores);
+        $this->assertFileDoesNotExist(app_path('Providers/ImportacionRecepcionesMaterialesServiceProvider.php'));
         $this->assertFileDoesNotExist(app_path('Providers/RecepcionMaterialServiceProvider.php'));
         $this->assertFileDoesNotExist(app_path('Providers/TransformacionMaterialServiceProvider.php'));
 
