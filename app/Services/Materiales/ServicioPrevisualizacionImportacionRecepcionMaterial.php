@@ -10,6 +10,7 @@ use App\Models\TemporadaMaterial;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -244,9 +245,9 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, string>
+     * @return Collection<int, string>
      */
-    private function categoriasAutorizadas(ClienteProveedorMaterial $vinculo): \Illuminate\Support\Collection
+    private function categoriasAutorizadas(ClienteProveedorMaterial $vinculo): Collection
     {
         $categorias = $vinculo->categorias ?? [];
         if (is_string($categorias)) {

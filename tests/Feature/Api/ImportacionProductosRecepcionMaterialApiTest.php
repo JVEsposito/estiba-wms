@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\RolUsuario;
+use App\Models\Cliente;
 use App\Models\ClienteMaterial;
 use App\Models\ItemMaterial;
 use App\Models\ProveedorMaterial;
@@ -131,7 +132,7 @@ class ImportacionProductosRecepcionMaterialApiTest extends TestCase
     }
 
     /**
-     * @return array{User, \App\Models\Cliente, ProveedorMaterial}
+     * @return array{User, Cliente, ProveedorMaterial}
      */
     private function prepararCatalogo(): array
     {
