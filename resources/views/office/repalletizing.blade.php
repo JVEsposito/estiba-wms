@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#07151e">
+        <meta name="color-scheme" content="dark">
+        <title>Estiba WMS · Repaletizajes</title>
+        @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+            @vite(['resources/css/office.css', 'resources/css/office-repalletizing.css', 'resources/js/office-repalletizing.js'])
+        @endif
+    </head>
+    <body>
+        <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
+            <div class="office-access__brand repa-access-brand">
+                <div class="office-logo" aria-hidden="true">⇄</div>
+                <p class="eyebrow">ESTIBA WMS · REPALETIZAJES</p>
+                <h1 id="officeAccessTitle">Consolida saldos sin perder su composición.</h1>
+                <p>El resultado puede ser pallet o saldo, conservar un folio o recibir otro número escrito o escaneado.</p>
+                <div class="feature-row"><span>Genealogía</span><span>MIX visible</span><span>Estado térmico protegido</span></div>
+            </div>
+            <form class="office-access__form" id="officeLoginForm" novalidate>
+                <div><p class="eyebrow">ACCESO DE OFICINA</p><h2>Ingresar a repaletizajes</h2></div>
+                <label><span>Correo electrónico</span><input name="email" type="email" autocomplete="username" required></label>
+                <label><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required></label>
+                <p class="form-error" id="officeLoginError" role="alert"></p>
+                <button class="primary-button" type="submit">Entrar <span>→</span></button>
+            </form>
+        </section>
+
+        <main class="office-app is-hidden" id="officeApp">
+            <x-office.navigation domain="frigorifico" office="repaletizajes" context="FRIGORÍFICO · PT" icon="⇄" />
+
+            <section class="repa-workspace">
+                <header class="repa-heading">
+                    <div>
+                        <p class="eyebrow">CONSOLIDACIÓN DE SALDOS</p>
+                        <h1>Repaletizajes</h1>
+                        <p>Cliente, especie, marca y estado térmico nunca se mezclan. Las demás diferencias se informan y quedan trazadas como MIX.</p>
+                    </div>
+                    <button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button>
+                </header>
+
+                <div class="repa-layout">
+                    <section class="panel repa-builder">
+                        <div class="repa-panel-heading">
+                            <div><p class="eyebrow">NUEVA REPA</p><h2>Configurar resultado</h2></div>
+                            <span id="sourceCount">0 saldos</span>
+                        </div>
+                        <form id="repaForm" novalidate>
+                            <div class="repa-grid">
+                                <label>
+                                    <span>Tipo de resultado *</span>
+                                    <select name="tipo_resultado">
+                                        <option value="pallet">Pallet completo</option>
+                                        <option value="saldo">Saldo consolidado</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Identificación *</span>
+                                    <select name="estrategia_folio">
+                                        <option value="conservar">Conservar un folio participante</option>
+                                        <option value="nuevo">Escribir o escanear otro folio</option>
+                                    </select>
+                                </label>
+                                <label id="keptFolioField">
+                                    <span>Folio que se conserva *</span>
+                                    <select name="folio_conservado_id"><option value="">Agrega primero los saldos</option></select>
+                                </label>
+                                <label class="is-hidden" id="newFolioField">
+                                    <span>Folio resultante *</span>
+                                    <input name="numero_folio_resultante" maxlength="80" autocomplete="off" placeholder="Escanear o escribir">
+                                </label>
+                                <label>
+                                    <span>Capacidad del pallet</span>
+                                    <input name="cantidad_objetivo" type="number" min="2" max="100000" value="120">
+                                    <small>Obligatoria para pallet; en saldo evita que se confirme como saldo una cantidad completa.</small>
+                                </label>
+                                <label>
+                                    <span>Observación</span>
+                                    <textarea name="observacion" maxlength="2000" rows="3"></textarea>
+                                </label>
+                            </div>
+
+                            <div class="source-entry">
+                                <label>
+                                    <span>Agregar saldo por folio</span>
+                                    <input id="sourceFolioInput" maxlength="80" autocomplete="off" placeholder="Escanear o escribir folio">
+                                </label>
+                                <button class="secondary-button" id="addSourceButton" type="button">+ Agregar saldo</button>
+                            </div>
+                            <p class="form-error" id="sourceError" role="alert"></p>
+
+                            <div class="hard-rule" id="hardRule">
+                                <strong>Compatibilidad obligatoria</strong>
+                                <span>Cliente · especie · marca · estado térmico</span>
+                            </div>
+                            <div class="mix-warnings is-hidden" id="mixWarnings"></div>
+                            <div class="source-list" id="sourceList"><p class="empty-copy">Agrega al menos dos folios tipo saldo.</p></div>
+
+                            <section class="result-preview">
+                                <div><span>RESULTADO</span><strong id="previewFolio">Sin definir</strong></div>
+                                <div><span>TIPO</span><strong id="previewType">Pallet completo</strong></div>
+                                <div><span>CAJAS</span><strong id="previewQuantity">0 / 120</strong></div>
+                                <div><span>ESTADO TÉRMICO</span><strong id="previewThermal">—</strong></div>
+                            </section>
+                            <div class="spec-preview" id="specPreview"></div>
+                            <p class="form-error" id="repaError" role="alert"></p>
+                            <div class="repa-actions">
+                                <button class="secondary-button" id="clearButton" type="button">Limpiar</button>
+                                <button class="primary-button" type="submit">Confirmar repaletizaje</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="panel repa-history">
+                        <div class="repa-panel-heading">
+                            <div><p class="eyebrow">TRAZABILIDAD</p><h2>Repas recientes</h2></div>
+                            <input id="historyFilter" maxlength="80" placeholder="Buscar folio">
+                        </div>
+                        <div class="repa-history-list" id="historyList"></div>
+                    </section>
+                </div>
+            </section>
+        </main>
+
+        <div class="loading is-hidden" id="officeLoading" aria-hidden="true"><span></span><strong id="officeLoadingText">Procesando…</strong></div>
+        <div class="toast-region" id="officeToasts" aria-live="polite"></div>
+    </body>
+</html>
