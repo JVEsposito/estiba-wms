@@ -134,6 +134,18 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
             $documental ??= $contada;
             $tamanoBulto = $this->decimal($filaLeida['unidades_por_bulto'] ?? '');
 
+            foreach ([
+                'La cantidad documental' => $filaLeida['cantidad_documental'] ?? '',
+                'La cantidad contada' => $filaLeida['cantidad_contada'] ?? '',
+                'La cantidad aceptada' => $filaLeida['cantidad_aceptada'] ?? '',
+                'La cantidad rechazada' => $filaLeida['cantidad_rechazada'] ?? '',
+                'Las unidades por bulto' => $filaLeida['unidades_por_bulto'] ?? '',
+            ] as $etiqueta => $valor) {
+                if ($this->excedeTresDecimales($valor)) {
+                    $mensajes[] = $etiqueta.' admite como máximo 3 decimales.';
+                }
+            }
+
             if ($aceptada === null || $aceptada < 0) {
                 $mensajes[] = 'La cantidad aceptada debe ser un número mayor o igual a cero.';
             }
@@ -163,6 +175,9 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
             if ($bloqueado && ! $motivoBloqueo) {
                 $mensajes[] = 'Un producto bloqueado debe indicar el motivo del bloqueo.';
             }
+            if ($motivoBloqueo !== null && mb_strlen($motivoBloqueo) > 2000) {
+                $mensajes[] = 'El motivo del bloqueo no puede superar 2000 caracteres.';
+            }
 
             $fechaFabricacion = $this->fecha($filaLeida['fecha_fabricacion'] ?? '');
             $fechaVencimiento = $this->fecha($filaLeida['fecha_vencimiento'] ?? '');
@@ -176,12 +191,21 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
                 $mensajes[] = 'La fecha de vencimiento no puede ser anterior a la fabricación.';
             }
 
+            $loteProveedor = $this->opcional($filaLeida['lote_proveedor'] ?? '');
+            $observacion = $this->opcional($filaLeida['observacion'] ?? '');
+            if ($loteProveedor !== null && mb_strlen($loteProveedor) > 100) {
+                $mensajes[] = 'El lote del proveedor no puede superar 100 caracteres.';
+            }
+            if ($observacion !== null && mb_strlen($observacion) > 2000) {
+                $mensajes[] = 'La observación no puede superar 2000 caracteres.';
+            }
+
             $bultos = [];
             if ($aceptada !== null && $aceptada > 0 && $tamanoBulto !== null && $tamanoBulto > 0) {
                 $bultos = $this->generarBultos(
                     $aceptada,
                     $tamanoBulto,
-                    $this->opcional($filaLeida['lote_proveedor'] ?? ''),
+                    $loteProveedor,
                     $fechaFabricacion,
                     $fechaVencimiento,
                     $bloqueado,
@@ -219,7 +243,7 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
                 'cantidad_aceptada' => $aceptada,
                 'cantidad_rechazada' => $rechazada,
                 'unidades_por_bulto' => $tamanoBulto,
-                'observacion' => $this->opcional($filaLeida['observacion'] ?? ''),
+                'observacion' => $observacion,
                 'bultos' => $bultos,
             ];
         }
@@ -293,6 +317,25 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
 
     private function decimal(mixed $valor): ?float
     {
+        $texto = $this->normalizarDecimal($valor);
+
+        return $texto !== null ? round((float) $texto, 3) : null;
+    }
+
+    private function excedeTresDecimales(mixed $valor): bool
+    {
+        $texto = $this->normalizarDecimal($valor);
+        if ($texto === null) {
+            return false;
+        }
+
+        $numero = (float) $texto;
+
+        return abs($numero - round($numero, 3)) > 0.0000001;
+    }
+
+    private function normalizarDecimal(mixed $valor): ?string
+    {
         $texto = $this->texto($valor);
         if ($texto === '') {
             return null;
@@ -313,7 +356,7 @@ class ServicioPrevisualizacionImportacionRecepcionMaterial
             $texto = str_replace(',', '.', $texto);
         }
 
-        return is_numeric($texto) ? round((float) $texto, 3) : null;
+        return is_numeric($texto) ? $texto : null;
     }
 
     private function booleano(mixed $valor): ?bool

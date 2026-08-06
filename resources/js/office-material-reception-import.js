@@ -1,5 +1,7 @@
 const receptionImportState = {
     preview: null,
+    previewFingerprint: null,
+    requestSequence: 0,
 };
 
 function receptionImportEscape(value) {
@@ -13,6 +15,22 @@ function receptionImportEscape(value) {
 
 function receptionImportToken() {
     return localStorage.getItem('estiba_wms_office_token');
+}
+
+function receptionImportSelectedFile(form) {
+    return form.elements.archivo.files?.[0] || null;
+}
+
+function receptionImportFileFingerprint(file) {
+    return file ? `${file.name}:${file.size}:${file.lastModified}` : null;
+}
+
+function receptionImportInvalidate(elements) {
+    receptionImportState.preview = null;
+    receptionImportState.previewFingerprint = null;
+    receptionImportState.requestSequence += 1;
+    elements.preview.classList.add('is-hidden');
+    elements.apply.disabled = true;
 }
 
 function receptionImportError(data, fallback) {
@@ -121,6 +139,13 @@ async function receptionImportPreview(elements) {
         throw new Error('Selecciona primero el cliente y el proveedor de la recepción.');
     }
 
+    const file = receptionImportSelectedFile(elements.form);
+    if (!file) {
+        throw new Error('Selecciona una planilla CSV o XLSX.');
+    }
+    const fingerprint = receptionImportFileFingerprint(file);
+    receptionImportInvalidate(elements);
+    const requestSequence = ++receptionImportState.requestSequence;
     const formData = new FormData(elements.form);
     formData.set('cliente_id', context.clienteId);
     formData.set('proveedor_material_id', context.proveedorId);
@@ -136,7 +161,12 @@ async function receptionImportPreview(elements) {
     if (!response.ok) {
         throw new Error(receptionImportError(payload, 'No fue posible leer la planilla.'));
     }
+    if (requestSequence !== receptionImportState.requestSequence
+        || fingerprint !== receptionImportFileFingerprint(receptionImportSelectedFile(elements.form))) {
+        return;
+    }
 
+    receptionImportState.previewFingerprint = fingerprint;
     receptionImportRender(elements, payload.data || {});
 }
 
@@ -187,12 +217,15 @@ function receptionImportBoot() {
         }
         elements.form.reset();
         elements.form.elements.reemplazar.checked = true;
-        elements.preview.classList.add('is-hidden');
-        receptionImportState.preview = null;
+        receptionImportInvalidate(elements);
         elements.dialog.showModal();
     });
     elements.close.addEventListener('click', () => elements.dialog.close());
     elements.template.addEventListener('click', receptionImportDownloadTemplate);
+    elements.form.elements.archivo.addEventListener('change', () => {
+        receptionImportInvalidate(elements);
+        elements.error.textContent = '';
+    });
     elements.form.addEventListener('submit', async (event) => {
         event.preventDefault();
         elements.error.textContent = '';
@@ -205,7 +238,13 @@ function receptionImportBoot() {
     elements.apply.addEventListener('click', () => {
         elements.error.textContent = '';
         try {
-            const rows = receptionImportState.preview?.filas || [];
+            const fingerprint = receptionImportFileFingerprint(receptionImportSelectedFile(elements.form));
+            if (!receptionImportState.preview
+                || !fingerprint
+                || receptionImportState.previewFingerprint !== fingerprint) {
+                throw new Error('La planilla seleccionada cambió; vuelve a previsualizarla antes de cargar.');
+            }
+            const rows = receptionImportState.preview.filas || [];
             const replace = elements.form.elements.reemplazar.checked;
             const count = window.estibaMaterialReceptionImportContext?.apply(rows, replace) || 0;
             elements.dialog.close();
