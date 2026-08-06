@@ -81,3 +81,5 @@ jobs:
           git add app/Services/Materiales/ServicioPrevisualizacionImportacionRecepcionMaterial.php resources/js/office-material-reception-import.js tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php tests/Feature/InterfazImportacionRecepcionMaterialesTest.php .github/scripts/apply-import-review-fixes.py
           git commit -m "fix(materiales): asegurar previsualización importable"
           git push origin HEAD:agent/corregir-importacion-recepciones-excel
+
+# Disparador explícito de revisión del PR #179.
