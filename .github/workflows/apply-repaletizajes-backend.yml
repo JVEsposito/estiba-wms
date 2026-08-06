@@ -7,6 +7,12 @@ on:
     paths:
       - .github/scripts/apply-repaletizajes-backend.py
       - .github/workflows/apply-repaletizajes-backend.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/scripts/apply-repaletizajes-backend.py
+      - .github/workflows/apply-repaletizajes-backend.yml
 
 permissions:
   contents: write
@@ -72,6 +78,7 @@ jobs:
         run: rm .github/scripts/apply-repaletizajes-backend.py
 
       - name: Publicar núcleo
+        if: github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
