@@ -6,6 +6,7 @@ on:
       - agent/corregir-importacion-recepciones-excel
     paths:
       - .github/scripts/apply-import-review-fixes.py
+      - .github/workflows/apply-import-review-fixes.yml
 
 permissions:
   contents: write
