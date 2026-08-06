@@ -47,7 +47,17 @@ jobs:
           fetch-depth: 0
 
       - name: Aplicar correcciones
-        run: python .github/scripts/apply-pr178-backend-review.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply-pr178-backend-review.py')
+          content = path.read_text().replace(
+              'TipoResultadoPacking::query()',
+              r'\App\Models\TipoResultadoPacking::query()',
+          )
+          path.write_text(content)
+          PY
+          python .github/scripts/apply-pr178-backend-review.py
 
       - name: Preparar PHP
         uses: shivammathur/setup-php@v2
