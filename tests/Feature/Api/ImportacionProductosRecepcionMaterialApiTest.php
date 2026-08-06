@@ -131,6 +131,37 @@ class ImportacionProductosRecepcionMaterialApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_previsualizacion_rechaza_precision_y_textos_que_el_guardado_no_admite(): void
+    {
+        [$administrador, $cliente, $proveedor] = $this->prepararCatalogo();
+        $lote = str_repeat('L', 101);
+        $motivo = str_repeat('M', 2001);
+        $observacion = str_repeat('O', 2001);
+        $contenido = "codigo_item;cantidad_aceptada;cantidad_rechazada;cantidad_contada;unidades_por_bulto;lote_proveedor;bloqueado;motivo_bloqueo;observacion\n".
+            "FILM-REC;10,0004;0;10,0004;5;{$lote};si;{$motivo};{$observacion}\n";
+
+        $respuesta = $this->actingAs($administrador, 'sanctum')
+            ->post('/api/materiales/recepciones/importaciones/previsualizar', [
+                'archivo' => UploadedFile::fake()->createWithContent('recepcion-limites.csv', $contenido),
+                'cliente_id' => $cliente->id,
+                'proveedor_material_id' => $proveedor->id,
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('data.resumen.filas_leidas', 1)
+            ->assertJsonPath('data.resumen.filas_validas', 0)
+            ->assertJsonPath('data.resumen.filas_con_error', 1)
+            ->assertJsonCount(0, 'data.filas');
+
+        $mensaje = (string) $respuesta->json('data.errores.0.mensaje');
+        $this->assertStringContainsString('La cantidad aceptada admite como máximo 3 decimales.', $mensaje);
+        $this->assertStringContainsString('La cantidad contada admite como máximo 3 decimales.', $mensaje);
+        $this->assertStringContainsString('El lote del proveedor no puede superar 100 caracteres.', $mensaje);
+        $this->assertStringContainsString('El motivo del bloqueo no puede superar 2000 caracteres.', $mensaje);
+        $this->assertStringContainsString('La observación no puede superar 2000 caracteres.', $mensaje);
+        $this->assertDatabaseCount('recepciones_materiales', 0);
+        $this->assertDatabaseCount('folios', 0);
+    }
+
     /**
      * @return array{User, Cliente, ProveedorMaterial}
      */
