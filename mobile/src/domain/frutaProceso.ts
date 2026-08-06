@@ -35,10 +35,20 @@ export type ProcessSublot = {
   observacion_ubicacion: string | null;
   puede_ubicar: boolean;
 };
+export type ProcessReturnOrigin = {
+  entrega_id: string;
+  lote_id: string;
+  numero_lote: string | null;
+  linea_proceso: string;
+  turno: 'A' | 'B';
+  numero_orden: string;
+  cierra_entrega: boolean;
+};
 export type ProcessReturnMovement = {
   id: string;
   numero: string;
   cierra_entrega: boolean;
+  origenes: ProcessReturnOrigin[];
   observacion: string | null;
   registrado_por: { id: string; nombre: string } | null;
   dispositivo: { id: string; codigo: string; nombre: string } | null;
@@ -92,6 +102,13 @@ export type ProcessSummary = {
   bins_retornados: number;
   kilos_recuperados: number;
   sublotes_pendientes_ubicacion: number;
+  retornos_registrados: number;
+  desglose_resultados: Array<{
+    tipo: { id: string | null; codigo: string | null; nombre: string | null };
+    sublotes: number;
+    bins: number;
+    kilos: number;
+  }>;
 };
 
 export type CreateProcessDelivery = {
@@ -107,7 +124,7 @@ export type CreateProcessDelivery = {
 export type ProcessCatalogs = { tipos_resultado: ProcessResultType[]; camaras: ProcessCamera[] };
 export type CreatePackingReturn = {
   operacion_id: string;
-  cierra_entrega: boolean;
+  entregas: Array<{ entrega_fruta_proceso_id: string; cierra_entrega: boolean }>;
   observacion: string | null;
   resultados: Array<{
     tipo_resultado_packing_id: string;

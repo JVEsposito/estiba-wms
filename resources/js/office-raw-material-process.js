@@ -14,7 +14,7 @@ const elements = {
     deliveryDescription: byId('deliveryDescription'), deliverySummary: byId('deliverySummary'), deliveryError: byId('deliveryError'),
     returnDialog: byId('returnDialog'), returnForm: byId('returnForm'), returnTitle: byId('returnTitle'),
     returnDescription: byId('returnDescription'), returnSummary: byId('returnSummary'), returnResults: byId('returnResults'),
-    addReturnResult: byId('addReturnResult'), returnError: byId('returnError'),
+    addReturnResult: byId('addReturnResult'), returnOrigins: byId('returnOrigins'), returnError: byId('returnError'),
     locationDialog: byId('locationDialog'), locationForm: byId('locationForm'), locationTitle: byId('locationTitle'),
     locationDescription: byId('locationDescription'), locationError: byId('locationError'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
@@ -132,7 +132,11 @@ function renderResult(result) {
     return `<div class="return-result"><div><strong>${escapeHtml(result.numero_sublote)} · ${escapeHtml(result.nombre_resultado)}</strong><small>${formatNumber(result.cantidad_bins)} bins · ${escapeHtml(formatKilos(result.kilos_netos))}</small></div><span class="process-status">${escapeHtml(location)}</span>${result.puede_ubicar ? `<button data-locate="${escapeHtml(result.id)}" type="button">Ubicar</button>` : '<span></span>'}</div>`;
 }
 function renderReturnMovement(movement) {
-    return `<article class="return-movement${movement.anulado ? ' is-void' : ''}"><div class="return-movement__heading"><div><strong>${escapeHtml(movement.numero)}${movement.cierra_entrega ? ' · Cierre' : ' · Parcial'}</strong><small>${escapeHtml(movement.registrado_por?.nombre)} · ${escapeHtml(formatDate(movement.registrado_at))}${movement.anulado ? ` · Anulado: ${escapeHtml(movement.motivo_anulacion)}` : ''}</small></div>${movement.puede_anular ? `<button data-annul-return="${escapeHtml(movement.id)}" type="button">Anular retorno</button>` : ''}</div>${movement.resultados.map(renderResult).join('')}</article>`;
+    const origins = movement.origenes || [];
+    const originMarkup = origins.length
+        ? `<div class="return-movement__origins"><strong>Orígenes:</strong> ${origins.map((origin) => `${escapeHtml(origin.numero_lote || 'Lote')} · ${escapeHtml(origin.numero_orden)}${origin.cierra_entrega ? ' (cerrado)' : ' (abierto)'}`).join(' · ')}</div>`
+        : '';
+    return `<article class="return-movement${movement.anulado ? ' is-void' : ''}"><div class="return-movement__heading"><div><strong>${escapeHtml(movement.numero)}${movement.cierra_entrega ? ' · Cierre del viaje' : ' · Retorno parcial'}</strong><small>${escapeHtml(movement.registrado_por?.nombre)} · ${escapeHtml(formatDate(movement.registrado_at))}${movement.anulado ? ` · Anulado: ${escapeHtml(movement.motivo_anulacion)}` : ''}</small></div>${movement.puede_anular ? `<button data-annul-return="${escapeHtml(movement.id)}" type="button">Anular retorno</button>` : ''}</div>${originMarkup}${movement.resultados.map(renderResult).join('')}</article>`;
 }
 function renderDelivery(delivery) {
     const destination = `${delivery.linea_proceso} · turno ${delivery.turno} · orden ${delivery.numero_orden}`;
@@ -220,9 +224,38 @@ function addResultRow() {
     row.innerHTML = `<label><span>Resultado *</span><select data-field="tipo" required><option value="">Seleccionar</option>${state.catalogs.tipos_resultado.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.nombre)}</option>`).join('')}</select></label><label><span>Nombre específico</span><input data-field="nombre" maxlength="100" placeholder="Obligatorio para Otro"></label><label><span>Bins *</span><input data-field="bins" type="number" min="1" max="100000" inputmode="numeric" required></label><label><span>Kilos netos</span><input data-field="kilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" placeholder="Opcional"></label><button class="remove-result" type="button" aria-label="Quitar resultado">×</button>`;
     elements.returnResults.append(row);
 }
+function eligibleReturnOrigins() {
+    return state.lots.flatMap((lot) => lot.entregas
+        .filter((delivery) => !delivery.anulado && delivery.retorno?.puede_registrar)
+        .map((delivery) => ({ lot, delivery })));
+}
+function renderReturnOrigins(primaryDeliveryId) {
+    const origins = eligibleReturnOrigins();
+    elements.returnOrigins.innerHTML = origins.map(({ lot, delivery }) => {
+        const primary = delivery.id === primaryDeliveryId;
+        return `<article class="return-origin${primary ? ' is-primary' : ''}">
+            <label class="return-origin__selection">
+                <input data-return-origin value="${escapeHtml(delivery.id)}" type="checkbox"${primary ? ' checked disabled' : ''}>
+                <span><strong>${escapeHtml(lot.numero_lote)} · ${escapeHtml(delivery.numero_orden)}</strong><small>${escapeHtml(delivery.linea_proceso)} · turno ${escapeHtml(delivery.turno)} · ${formatNumber(delivery.cantidad_envases)} bins${primary ? ' · viaje principal' : ''}</small></span>
+            </label>
+            <label class="return-origin__close">
+                <input data-return-close value="${escapeHtml(delivery.id)}" type="checkbox">
+                <span>Cerrar este viaje</span>
+            </label>
+        </article>`;
+    }).join('');
+}
+function collectReturnOrigins() {
+    return [...elements.returnOrigins.querySelectorAll('[data-return-origin]')]
+        .filter((input) => input.checked)
+        .map((input) => ({
+            entrega_fruta_proceso_id: input.value,
+            cierra_entrega: elements.returnOrigins.querySelector(`[data-return-close][value="${CSS.escape(input.value)}"]`)?.checked === true,
+        }));
+}
 function openReturn(deliveryId) {
     const selected = findDelivery(deliveryId); if (!selected) return;
-    state.selected = selected; elements.returnForm.reset(); elements.returnResults.innerHTML = ''; addResultRow();
+    state.selected = selected; elements.returnForm.reset(); elements.returnResults.innerHTML = ''; addResultRow(); renderReturnOrigins(deliveryId);
     elements.returnForm.elements.entrega_id.value = deliveryId;
     elements.returnTitle.textContent = `Retorno de ${selected.lot.numero_lote}`;
     elements.returnDescription.textContent = `${selected.delivery.linea_proceso} · turno ${selected.delivery.turno} · orden ${selected.delivery.numero_orden}.`;
@@ -241,7 +274,9 @@ async function submitReturn() {
     const otherType = state.catalogs.tipos_resultado.find((item) => item.codigo === 'otro');
     if (results.some((item) => item.tipo_resultado_packing_id === otherType?.id && !item.nombre_resultado)) { elements.returnError.textContent = 'Especifica el nombre del resultado clasificado como Otro.'; return; }
     const data = new FormData(elements.returnForm);
-    const payload = { operacion_id: uuid(), cierra_entrega: data.get('cierra_entrega') === 'on', observacion: String(data.get('observacion') || '').trim() || null, resultados: results };
+    const origins = collectReturnOrigins();
+    if (!origins.length || !origins.some((origin) => origin.entrega_fruta_proceso_id === state.selected.delivery.id)) { elements.returnError.textContent = 'El retorno debe conservar el viaje principal y al menos un origen.'; return; }
+    const payload = { operacion_id: uuid(), entregas: origins, observacion: String(data.get('observacion') || '').trim() || null, resultados: results };
     setBusy(true, 'Creando sublotes de Packing…');
     try { await api(`/api/materia-prima/fruta-proceso/entregas/${state.selected.delivery.id}/retornos`, { method: 'POST', body: JSON.stringify(payload) }); elements.returnDialog.close(); toast('Retorno registrado; los sublotes quedaron pendientes de ubicación.'); await load(); }
     catch (error) { elements.returnError.textContent = error.message; }
@@ -295,6 +330,12 @@ elements.returnForm.addEventListener('submit', (event) => { event.preventDefault
 elements.locationForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.locationDialog.close(); return; } void submitLocation(); });
 elements.addReturnResult.addEventListener('click', addResultRow);
 elements.returnResults.addEventListener('click', (event) => { const remove = event.target.closest('.remove-result'); if (remove && elements.returnResults.children.length > 1) remove.closest('.return-result-row').remove(); });
+elements.returnOrigins.addEventListener('change', (event) => {
+    const origin = event.target.closest('[data-return-origin]');
+    if (!origin) return;
+    const close = elements.returnOrigins.querySelector(`[data-return-close][value="${CSS.escape(origin.value)}"]`);
+    if (close && !origin.checked) close.checked = false;
+});
 
 if (state.token && state.identity && showApp()) void load(); else clearSession();
 window.setInterval(() => {

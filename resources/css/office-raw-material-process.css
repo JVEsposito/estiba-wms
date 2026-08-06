@@ -122,8 +122,19 @@ body {
 .delivery-fields textarea { min-height: 90px; resize: vertical; }
 .delivery-fields .field-wide { grid-column: span 2; }
 .dialog-actions { justify-content: flex-end; border-top: 1px solid var(--line); margin-top: 15px; padding-top: 15px; }
+.return-origins-heading,
 .return-results-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 15px 0 9px; }
+.return-origins-heading small,
 .return-results-heading small { display: block; color: var(--muted); margin-top: 3px; }
+.return-origins { display: grid; gap: 8px; }
+.return-origin { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--deep); padding: 11px; }
+.return-origin.is-primary { border-color: rgba(98, 224, 173, .45); }
+.return-origin__selection, .return-origin__close { display: flex; align-items: center; gap: 9px; }
+.return-origin__selection input, .return-origin__close input { width: 19px; height: 19px; accent-color: var(--process-green); }
+.return-origin__selection span { display: grid; gap: 3px; }
+.return-origin__selection small, .return-movement__origins { color: var(--muted); font-size: .64rem; }
+.return-origin__close { color: #c5d4da; font-size: .68rem; font-weight: 800; white-space: nowrap; }
+.return-movement__origins { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; line-height: 1.5; }
 .return-results { display: grid; gap: 8px; }
 .return-result-row { display: grid; grid-template-columns: minmax(190px, 1.2fr) minmax(150px, 1fr) 120px 140px auto; gap: 8px; align-items: end; border: 1px solid var(--line); border-radius: 11px; background: var(--deep); padding: 10px; }
 .return-result-row label { display: grid; gap: 5px; }
@@ -156,6 +167,7 @@ body {
     .delivery-summary { grid-template-columns: 1fr 1fr; }
     .delivery-fields { grid-template-columns: 1fr; }
     .delivery-fields .field-wide { grid-column: auto; }
+    .return-origin { grid-template-columns: 1fr; }
     .return-result-row { grid-template-columns: 1fr 1fr; }
     .return-result-row .remove-result { width: 100%; }
 }

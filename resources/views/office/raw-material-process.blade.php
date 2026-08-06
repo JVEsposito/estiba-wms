@@ -90,9 +90,10 @@
                 <div class="process-dialog__heading"><div><p class="eyebrow">PACKING → CÁMARA MP</p><h2 id="returnTitle">Registrar retorno</h2><p id="returnDescription"></p></div><button value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <input name="entrega_id" type="hidden">
                 <div class="delivery-summary" id="returnSummary"></div>
-                <div class="return-results-heading"><div><strong>Resultados de Packing</strong><small>Se creará un sublote interno por cada fila.</small></div><button class="secondary-button" id="addReturnResult" type="button">+ Agregar resultado</button></div>
+                <div class="return-origins-heading"><div><strong>Viajes de origen</strong><small>Selecciona todos los viajes incluidos en este retorno físico y decide cuáles quedan cerrados.</small></div></div>
+                <div class="return-origins" id="returnOrigins"></div>
+                <div class="return-results-heading"><div><strong>Resultados de Packing</strong><small>Se creará un sublote interno por cada fila, sin duplicarlo entre los orígenes.</small></div><button class="secondary-button" id="addReturnResult" type="button">+ Agregar resultado</button></div>
                 <div class="return-results" id="returnResults"></div>
-                <label class="process-check"><input name="cierra_entrega" type="checkbox"><span><strong>Cerrar el retorno de este viaje</strong><small>Marca esta opción cuando Packing ya no devolverá más fruta de la entrega.</small></span></label>
                 <label class="return-observation"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
                 <p class="form-error" id="returnError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Crear sublotes</button></div>
