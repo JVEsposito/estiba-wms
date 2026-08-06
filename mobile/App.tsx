@@ -10,7 +10,7 @@ import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
 import { OperationalScreen } from './src/screens/OperationalScreen';
 import { PrefrioWorkspaceScreen } from './src/screens/PrefrioWorkspaceScreen';
-import { ValidationScreen } from './src/screens/ValidationScreen';
+import { ValidationWorkspaceScreen } from './src/screens/ValidationWorkspaceScreen';
 import { ValidationMpScreen } from './src/screens/ValidationMpScreen';
 import { loadApiBaseUrl, saveApiBaseUrl } from './src/services/apiConfiguration';
 import { applyAvailableUpdate } from './src/services/appUpdates';
@@ -104,7 +104,7 @@ export default function App() {
                 userName={auth.usuario.nombre}
               />
             ) : activeModule === 'validacion' ? (
-              <ValidationScreen
+              <ValidationWorkspaceScreen
                 auth={auth}
                 baseUrl={api.baseUrl}
                 onLogout={() => void logoutPersistentModule()}
