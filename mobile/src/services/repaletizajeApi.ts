@@ -10,19 +10,24 @@ async function request<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+  const headers = new Headers(init.headers);
+  headers.set('Accept', 'application/json');
+  headers.set('Authorization', `Bearer ${token}`);
+  if (init.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const errors = Object.values(data.errors ?? {}).flat();
-    throw new Error(String(errors[0] ?? data.message ?? 'No fue posible completar la operación.'));
+    const detail = data as {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+    const errors = Object.values(detail.errors ?? {}).flat();
+    throw new Error(
+      errors[0] ?? detail.message ?? 'No fue posible completar la operación.',
+    );
   }
 
   return data as T;
