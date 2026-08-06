@@ -1,0 +1,82 @@
+name: Aplicar correcciones de revisión de importación
+
+on:
+  push:
+    branches:
+      - agent/corregir-importacion-recepciones-excel
+    paths:
+      - .github/scripts/apply-import-review-fixes.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: estiba_wms_test
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      CACHE_STORE: array
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: estiba_wms_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+    steps:
+      - name: Descargar rama
+        uses: actions/checkout@v7
+        with:
+          ref: agent/corregir-importacion-recepciones-excel
+          fetch-depth: 0
+
+      - name: Aplicar correcciones
+        run: python .github/scripts/apply-import-review-fixes.py
+
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, zip
+          coverage: none
+
+      - name: Instalar dependencias PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Formatear PHP
+        run: vendor/bin/pint app/Services/Materiales/ServicioPrevisualizacionImportacionRecepcionMaterial.php tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php tests/Feature/InterfazImportacionRecepcionMaterialesTest.php
+
+      - name: Validar JavaScript
+        run: node --check resources/js/office-material-reception-import.js
+
+      - name: Crear esquema limpio
+        run: php artisan migrate:fresh --force
+
+      - name: Ejecutar regresiones
+        run: php artisan test tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php tests/Feature/InterfazImportacionRecepcionMaterialesTest.php
+
+      - name: Retirar aplicador temporal
+        run: rm .github/scripts/apply-import-review-fixes.py
+
+      - name: Publicar correcciones
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/Services/Materiales/ServicioPrevisualizacionImportacionRecepcionMaterial.php resources/js/office-material-reception-import.js tests/Feature/Api/ImportacionProductosRecepcionMaterialApiTest.php tests/Feature/InterfazImportacionRecepcionMaterialesTest.php .github/scripts/apply-import-review-fixes.py
+          git commit -m "fix(materiales): asegurar previsualización importable"
+          git push origin HEAD:agent/corregir-importacion-recepciones-excel
