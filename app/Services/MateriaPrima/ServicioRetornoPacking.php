@@ -36,7 +36,7 @@ class ServicioRetornoPacking
         array $datos,
         User $usuario,
     ): LoteMateriaPrima {
-        $payload = $this->payload($datos);
+        $payload = $this->payload($datos, $entrega->id);
         $hash = $this->hash($payload);
 
         try {
@@ -52,28 +52,60 @@ class ServicioRetornoPacking
                     ->lockForUpdate()
                     ->first();
                 if ($existente) {
-                    return $this->resolverRetornoRepetido($existente, $entrega, $hash);
+                    return $this->resolverRetornoRepetido(
+                        $existente,
+                        $entrega,
+                        $payload,
+                        $hash,
+                    );
                 }
                 $this->asegurarOperacionDisponible($datos['operacion_id']);
 
-                $entrega = EntregaFrutaProceso::query()
+                $entregaIds = collect($payload['entregas'])
+                    ->pluck('entrega_fruta_proceso_id')
+                    ->sort()
+                    ->values();
+                $entregas = EntregaFrutaProceso::query()
+                    ->whereIn('id', $entregaIds)
                     ->lockForUpdate()
-                    ->findOrFail($entrega->id);
-                if ($entrega->anulado_at !== null) {
-                    throw new ConflictoOperacion('No se puede retornar una entrega anulada.');
-                }
-                $lote = $this->loteActivo($entrega->lote_materia_prima_id);
-                if (RetornoPacking::query()
-                    ->where('entrega_fruta_proceso_id', $entrega->id)
-                    ->whereNull('anulado_at')
-                    ->where('cierra_entrega', true)
-                    ->lockForUpdate()
-                    ->exists()) {
-                    throw new ConflictoOperacion(
-                        'El retorno de este viaje ya fue cerrado por Packing.',
-                    );
+                    ->get()
+                    ->keyBy('id');
+                if ($entregas->count() !== $entregaIds->count()) {
+                    throw ValidationException::withMessages([
+                        'entregas' => 'Una de las entregas seleccionadas ya no existe.',
+                    ]);
                 }
 
+                $loteIds = $entregas->pluck('lote_materia_prima_id')->unique()->sort()->values();
+                $lotes = collect();
+                foreach ($loteIds as $loteId) {
+                    $lote = $this->loteActivo($loteId);
+                    $lotes->put($lote->id, $lote);
+                }
+
+                foreach ($payload['entregas'] as $origen) {
+                    /** @var EntregaFrutaProceso $entregaOrigen */
+                    $entregaOrigen = $entregas->get($origen['entrega_fruta_proceso_id']);
+                    if ($entregaOrigen->anulado_at !== null) {
+                        throw new ConflictoOperacion(
+                            'No se puede retornar una entrega anulada.',
+                        );
+                    }
+                    if ($this->entregaCerrada($entregaOrigen->id)) {
+                        throw new ConflictoOperacion(sprintf(
+                            'El retorno del viaje %s ya fue cerrado por Packing.',
+                            $entregaOrigen->numero_orden,
+                        ));
+                    }
+                }
+
+                /** @var EntregaFrutaProceso $entregaPrincipal */
+                $entregaPrincipal = $entregas->get($entrega->id);
+                $origenPrincipal = collect($payload['entregas'])->firstWhere(
+                    'entrega_fruta_proceso_id',
+                    $entregaPrincipal->id,
+                );
+                $lotePrincipal = $lotes->get($entregaPrincipal->lote_materia_prima_id);
                 $tipos = $this->tiposResultado($payload['resultados']);
                 $token = $usuario->currentAccessToken();
                 $retorno = RetornoPacking::create([
@@ -83,8 +115,8 @@ class ServicioRetornoPacking
                         'RP-%06d',
                         $this->secuencias->reservarSiguiente('retornos_packing'),
                     ),
-                    'entrega_fruta_proceso_id' => $entrega->id,
-                    'cierra_entrega' => $payload['cierra_entrega'],
+                    'entrega_fruta_proceso_id' => $entregaPrincipal->id,
+                    'cierra_entrega' => (bool) $origenPrincipal['cierra_entrega'],
                     'observacion' => $payload['observacion'],
                     'registrado_por_user_id' => $usuario->id,
                     'dispositivo_id' => $token instanceof PersonalAccessToken
@@ -92,6 +124,17 @@ class ServicioRetornoPacking
                         : null,
                     'registrado_at' => now(),
                 ]);
+                $retorno->entregas()->attach(
+                    collect($payload['entregas'])->mapWithKeys(
+                        fn (array $origen): array => [
+                            $origen['entrega_fruta_proceso_id'] => [
+                                'cierra_entrega' => (bool) $origen['cierra_entrega'],
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ],
+                        ],
+                    )->all(),
+                );
 
                 $detalleEvento = [];
                 foreach ($payload['resultados'] as $resultado) {
@@ -120,20 +163,39 @@ class ServicioRetornoPacking
                 }
 
                 $this->registrarEvento(
-                    $lote,
+                    $lotePrincipal,
                     'retorno_packing_registrado',
                     $usuario,
                     $datos['operacion_id'],
                     [
                         'retorno_id' => $retorno->id,
                         'numero' => $retorno->numero,
-                        'entrega_id' => $entrega->id,
+                        'entrega_id' => $entregaPrincipal->id,
                         'cierra_entrega' => $retorno->cierra_entrega,
+                        'entregas' => collect($payload['entregas'])->map(
+                            function (array $origen) use ($entregas, $lotes): array {
+                                /** @var EntregaFrutaProceso $entregaOrigen */
+                                $entregaOrigen = $entregas->get(
+                                    $origen['entrega_fruta_proceso_id'],
+                                );
+                                $loteOrigen = $lotes->get(
+                                    $entregaOrigen->lote_materia_prima_id,
+                                );
+
+                                return [
+                                    'entrega_id' => $entregaOrigen->id,
+                                    'lote_id' => $loteOrigen->id,
+                                    'numero_lote' => $loteOrigen->numero_lote,
+                                    'numero_orden' => $entregaOrigen->numero_orden,
+                                    'cierra_entrega' => (bool) $origen['cierra_entrega'],
+                                ];
+                            },
+                        )->values()->all(),
                         'resultados' => $detalleEvento,
                     ],
                 );
 
-                return $this->cargarLote($lote);
+                return $this->cargarLote($lotePrincipal);
             }, attempts: 3);
         } catch (QueryException $excepcion) {
             $existente = RetornoPacking::query()
@@ -143,7 +205,12 @@ class ServicioRetornoPacking
                 throw $excepcion;
             }
 
-            return $this->resolverRetornoRepetido($existente, $entrega, $hash);
+            return $this->resolverRetornoRepetido(
+                $existente,
+                $entrega,
+                $payload,
+                $hash,
+            );
         }
     }
 
@@ -241,12 +308,16 @@ class ServicioRetornoPacking
             $usuario,
         ): LoteMateriaPrima {
             $retorno = RetornoPacking::query()
+                ->with(['entregas.lote', 'resultados'])
                 ->lockForUpdate()
                 ->findOrFail($retorno->id);
-            $entrega = EntregaFrutaProceso::query()
+            $entregaPrincipal = $retorno->entregas->firstWhere(
+                'id',
+                $retorno->entrega_fruta_proceso_id,
+            ) ?? EntregaFrutaProceso::query()
                 ->lockForUpdate()
                 ->findOrFail($retorno->entrega_fruta_proceso_id);
-            $lote = $this->loteActivo($entrega->lote_materia_prima_id);
+            $lote = $this->loteActivo($entregaPrincipal->lote_materia_prima_id);
 
             if ($retorno->anulado_at !== null) {
                 if ($retorno->operacion_anulacion_id !== $operacionId) {
@@ -278,7 +349,15 @@ class ServicioRetornoPacking
                 [
                     'retorno_id' => $retorno->id,
                     'numero' => $retorno->numero,
-                    'entrega_id' => $entrega->id,
+                    'entrega_id' => $entregaPrincipal->id,
+                    'entregas' => $retorno->entregas->map(
+                        fn (EntregaFrutaProceso $entrega): array => [
+                            'entrega_id' => $entrega->id,
+                            'lote_id' => $entrega->lote_materia_prima_id,
+                            'numero_orden' => $entrega->numero_orden,
+                            'cierra_entrega' => (bool) $entrega->pivot->cierra_entrega,
+                        ],
+                    )->values()->all(),
                     'motivo' => trim($motivo),
                 ],
             );
@@ -293,7 +372,9 @@ class ServicioRetornoPacking
             && $this->alcance->puedeEntregarFrutaProceso($usuario)
             && ! $entrega->retornos
                 ->whereNull('anulado_at')
-                ->contains(fn (RetornoPacking $retorno): bool => $retorno->cierra_entrega);
+                ->contains(fn (RetornoPacking $retorno): bool => (bool) (
+                    $retorno->pivot?->cierra_entrega ?? $retorno->cierra_entrega
+                ));
     }
 
     public function puedeUbicar(SubloteRetornoPacking $sublote, User $usuario): bool
@@ -324,20 +405,38 @@ class ServicioRetornoPacking
             return false;
         }
 
-        $ultimoRetornoVigenteId ??= RetornoPacking::query()
-            ->where('entrega_fruta_proceso_id', $retorno->entrega_fruta_proceso_id)
-            ->whereNull('anulado_at')
-            ->latest('registrado_at')
-            ->latest('created_at')
-            ->latest('id')
-            ->value('id');
+        $entregaIds = $retorno->relationLoaded('entregas')
+            ? $retorno->entregas->pluck('id')
+            : $retorno->entregas()->pluck('entregas_fruta_proceso.id');
+        if ($entregaIds->isEmpty()) {
+            $entregaIds = collect([$retorno->entrega_fruta_proceso_id]);
+        }
 
-        return $ultimoRetornoVigenteId === $retorno->id;
+        foreach ($entregaIds as $indice => $entregaId) {
+            $ultimoId = $entregaIds->count() === 1 && $indice === 0
+                ? $ultimoRetornoVigenteId
+                : null;
+            $ultimoId ??= RetornoPacking::query()
+                ->whereHas('entregas', fn ($consulta) => $consulta
+                    ->where('entregas_fruta_proceso.id', $entregaId))
+                ->whereNull('retornos_packing.anulado_at')
+                ->latest('retornos_packing.registrado_at')
+                ->latest('retornos_packing.created_at')
+                ->latest('retornos_packing.id')
+                ->value('retornos_packing.id');
+            if ($ultimoId !== $retorno->id) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function entregaTieneRetornos(EntregaFrutaProceso $entrega): bool
     {
-        return $entrega->retornos()->whereNull('anulado_at')->exists();
+        return $entrega->retornos()
+            ->whereNull('retornos_packing.anulado_at')
+            ->exists();
     }
 
     /** @param array<int, array<string, mixed>> $resultados */
@@ -379,19 +478,40 @@ class ServicioRetornoPacking
         return $personalizado ?? $tipo->nombre;
     }
 
+    /** @param array<string, mixed> $payload */
     private function resolverRetornoRepetido(
         RetornoPacking $retorno,
         EntregaFrutaProceso $entrega,
+        array $payload,
         string $hash,
     ): LoteMateriaPrima {
-        if ($retorno->entrega_fruta_proceso_id !== $entrega->id
-            || ! hash_equals($retorno->payload_hash, $hash)) {
+        $coincide = hash_equals($retorno->payload_hash, $hash);
+        if (! $coincide && count($payload['entregas']) === 1) {
+            $origen = $payload['entregas'][0];
+            $coincide = hash_equals($retorno->payload_hash, $this->hash([
+                'cierra_entrega' => (bool) $origen['cierra_entrega'],
+                'observacion' => $payload['observacion'],
+                'resultados' => $payload['resultados'],
+            ]));
+        }
+        if ($retorno->entrega_fruta_proceso_id !== $entrega->id || ! $coincide) {
             throw new ConflictoOperacion(
                 'El identificador de retorno ya fue utilizado con datos diferentes.',
             );
         }
 
         return $this->cargarLote($retorno->entrega->lote);
+    }
+
+    private function entregaCerrada(string $entregaId): bool
+    {
+        return DB::table('retorno_packing_entregas as origen')
+            ->join('retornos_packing as retorno', 'retorno.id', '=', 'origen.retorno_packing_id')
+            ->where('origen.entrega_fruta_proceso_id', $entregaId)
+            ->where('origen.cierra_entrega', true)
+            ->whereNull('retorno.anulado_at')
+            ->lockForUpdate()
+            ->exists();
     }
 
     private function asegurarOperacionDisponible(string $operacionId): void
@@ -415,10 +535,34 @@ class ServicioRetornoPacking
     }
 
     /** @param array<string, mixed> $datos */
-    private function payload(array $datos): array
+    private function payload(array $datos, string $entregaPrincipalId): array
     {
+        $entregas = collect($datos['entregas'] ?? [])
+            ->map(fn (array $origen): array => [
+                'entrega_fruta_proceso_id' => (string) $origen['entrega_fruta_proceso_id'],
+                'cierra_entrega' => (bool) $origen['cierra_entrega'],
+            ]);
+        if ($entregas->isEmpty()) {
+            $entregas = collect([[
+                'entrega_fruta_proceso_id' => $entregaPrincipalId,
+                'cierra_entrega' => (bool) $datos['cierra_entrega'],
+            ]]);
+        }
+        if (! $entregas->contains(
+            fn (array $origen): bool => (
+                $origen['entrega_fruta_proceso_id'] === $entregaPrincipalId
+            ),
+        )) {
+            throw ValidationException::withMessages([
+                'entregas' => 'El retorno debe incluir el viaje desde el que fue abierto.',
+            ]);
+        }
+
         return [
-            'cierra_entrega' => (bool) $datos['cierra_entrega'],
+            'entregas' => $entregas
+                ->sortBy('entrega_fruta_proceso_id')
+                ->values()
+                ->all(),
             'observacion' => filled($datos['observacion'] ?? null)
                 ? trim((string) $datos['observacion'])
                 : null,
@@ -483,6 +627,7 @@ class ServicioRetornoPacking
             'entregasProceso.retornos.registradoPor',
             'entregasProceso.retornos.anuladoPor',
             'entregasProceso.retornos.dispositivo',
+            'entregasProceso.retornos.entregas.lote',
             'entregasProceso.retornos.resultados.tipoResultado',
             'entregasProceso.retornos.resultados.camara',
             'entregasProceso.retornos.resultados.ubicadoPor',
