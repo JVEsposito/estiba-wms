@@ -43,6 +43,7 @@ type Action =
   | { type: 'annul-return'; lot: ProcessLot; movement: ProcessReturnMovement }
   | null;
 type ReturnResultDraft = { id: string; typeId: string; name: string; bins: string; kilos: string };
+type ReturnOriginDraft = { deliveryId: string; label: string; detail: string; selected: boolean; closes: boolean; primary: boolean };
 
 const EMPTY_SUMMARY: ProcessSummary = {
   temporada: null,
@@ -54,6 +55,8 @@ const EMPTY_SUMMARY: ProcessSummary = {
   bins_retornados: 0,
   kilos_recuperados: 0,
   sublotes_pendientes_ubicacion: 0,
+  retornos_registrados: 0,
+  desglose_resultados: [],
 };
 const EMPTY_CATALOGS: ProcessCatalogs = { tipos_resultado: [], camaras: [] };
 
@@ -80,7 +83,7 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
   const [observation, setObservation] = useState('');
   const [annulReason, setAnnulReason] = useState('');
   const [returnResults, setReturnResults] = useState<ReturnResultDraft[]>([]);
-  const [closeReturn, setCloseReturn] = useState(false);
+  const [returnOrigins, setReturnOrigins] = useState<ReturnOriginDraft[]>([]);
   const [cameraId, setCameraId] = useState('');
 
   useEffect(() => {
@@ -128,7 +131,18 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
   }
   function openReturn(lot: ProcessLot, delivery: ProcessDelivery) {
     setAction({ type: 'return', lot, delivery }); setOperationId(Crypto.randomUUID());
-    setReturnResults([newResult()]); setCloseReturn(false); setObservation(''); setError('');
+    setReturnResults([newResult()]);
+    setReturnOrigins(lots.flatMap((originLot) => originLot.entregas
+      .filter((origin) => !origin.anulado && origin.retorno.puede_registrar)
+      .map((origin) => ({
+        deliveryId: origin.id,
+        label: `${originLot.numero_lote} · ${origin.numero_orden}`,
+        detail: `${origin.linea_proceso} · turno ${origin.turno} · ${origin.cantidad_envases} bins`,
+        selected: origin.id === delivery.id,
+        closes: false,
+        primary: origin.id === delivery.id,
+      }))));
+    setObservation(''); setError('');
   }
   function openLocate(lot: ProcessLot, sublot: ProcessSublot) {
     setAction({ type: 'locate', lot, sublot }); setOperationId(Crypto.randomUUID());
@@ -146,6 +160,16 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
   }
   function updateResult(id: string, change: Partial<ReturnResultDraft>) {
     setReturnResults((current) => current.map((item) => item.id === id ? { ...item, ...change } : item));
+  }
+  function toggleReturnOrigin(id: string) {
+    setReturnOrigins((current) => current.map((origin) => origin.deliveryId !== id || origin.primary
+      ? origin
+      : { ...origin, selected: !origin.selected, closes: origin.selected ? false : origin.closes }));
+  }
+  function toggleReturnOriginClose(id: string) {
+    setReturnOrigins((current) => current.map((origin) => origin.deliveryId === id && origin.selected
+      ? { ...origin, closes: !origin.closes }
+      : origin));
   }
 
   async function submitAction() {
@@ -182,11 +206,13 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
       const other = catalogs.tipos_resultado.find((type) => type.codigo === 'otro');
       const invalid = returnResults.some((item) => !item.typeId || !Number.isInteger(Number(item.bins)) || Number(item.bins) < 1 || (item.typeId === other?.id && !item.name.trim()));
       if (!returnResults.length || invalid) { setError('Completa tipo, bins y el nombre cuando el resultado sea Otro.'); return; }
+      const selectedOrigins = returnOrigins.filter((origin) => origin.selected);
+      if (!selectedOrigins.length || !selectedOrigins.some((origin) => origin.deliveryId === action.delivery.id)) { setError('El retorno debe conservar el viaje principal y al menos un origen.'); return; }
       setActionBusy(true);
       try {
-        const updated = await createPackingReturn(baseUrl, auth.token, action.delivery.id, {
+        await createPackingReturn(baseUrl, auth.token, action.delivery.id, {
           operacion_id: operationId,
-          cierra_entrega: closeReturn,
+          entregas: selectedOrigins.map((origin) => ({ entrega_fruta_proceso_id: origin.deliveryId, cierra_entrega: origin.closes })),
           observacion: observation.trim() || null,
           resultados: returnResults.map((item) => ({
             tipo_resultado_packing_id: item.typeId,
@@ -195,8 +221,8 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
             kilos_netos: item.kilos.trim() ? Number(item.kilos) : null,
           })),
         });
-        replaceLot(updated); setAction(null); setMessage('Retorno registrado; sublotes pendientes de ubicación.');
-        setSummary(await getProcessSummary(baseUrl, auth.token));
+        setAction(null); setMessage('Retorno multiorigen registrado; sublotes pendientes de ubicación.');
+        await load();
       } catch (reason) { setError(errorMessage(reason)); }
       finally { setActionBusy(false); }
       return;
@@ -251,7 +277,7 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
       <Modal animationType="slide" onRequestClose={closeAction} transparent visible={action !== null}>
         <View style={styles.modalBackdrop}><View style={styles.modalCard}><ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
           {action?.type === 'deliver' ? <DeliveryForm available={action.lot.progreso.disponibles} kilos={sentKilos} line={line} observation={observation} onKilos={setSentKilos} onLine={setLine} onObservation={setObservation} onOrder={setOrderNumber} onQuantity={setQuantity} onShift={setShift} order={orderNumber} quantity={quantity} shift={shift} /> : null}
-          {action?.type === 'return' ? <ReturnForm catalogs={catalogs} closeReturn={closeReturn} delivery={action.delivery} onAdd={() => setReturnResults((current) => [...current, newResult()])} onCloseReturn={setCloseReturn} onObservation={setObservation} onRemove={(id) => setReturnResults((current) => current.length > 1 ? current.filter((item) => item.id !== id) : current)} onUpdate={updateResult} observation={observation} results={returnResults} /> : null}
+          {action?.type === 'return' ? <ReturnForm catalogs={catalogs} delivery={action.delivery} onAdd={() => setReturnResults((current) => [...current, newResult()])} onObservation={setObservation} onRemove={(id) => setReturnResults((current) => current.length > 1 ? current.filter((item) => item.id !== id) : current)} onToggleOrigin={toggleReturnOrigin} onToggleOriginClose={toggleReturnOriginClose} onUpdate={updateResult} observation={observation} origins={returnOrigins} results={returnResults} /> : null}
           {action?.type === 'locate' ? <LocateForm cameraId={cameraId} catalogs={catalogs} observation={observation} onCamera={setCameraId} onObservation={setObservation} sublot={action.sublot} /> : null}
           {action?.type === 'annul-delivery' || action?.type === 'annul-return' ? <><Text style={styles.eyebrow}>CORRECCIÓN TRAZABLE</Text><Text style={styles.modalTitle}>Anular {action.type === 'annul-delivery' ? 'entrega' : 'retorno'}</Text><Field label="Motivo obligatorio *"><TextInput multiline onChangeText={setAnnulReason} placeholder="Explica la corrección" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} value={annulReason} /></Field></> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -272,14 +298,15 @@ function DeliveryRow({ delivery, onAnnul, onReturn }: { delivery: ProcessDeliver
   return <View style={[styles.delivery, delivery.anulado && styles.deliveryVoid]}><View style={styles.deliveryText}><Text style={styles.deliveryQuantity}>{delivery.cantidad_envases} bins · {formatKilos(delivery.kilos_enviados)}</Text><Text style={styles.deliveryDestination}>{delivery.linea_proceso} · turno {delivery.turno} · orden {delivery.numero_orden}</Text><Text style={styles.deliveryMeta}>{delivery.entregado_por?.nombre} · {formatDate(delivery.entregado_at)} · {returnLabel(delivery.retorno.estado)}</Text></View><View style={styles.rowActions}>{delivery.retorno.puede_registrar ? <Pressable onPress={onReturn} style={styles.returnButton}><Text style={styles.returnButtonText}>Retorno</Text></Pressable> : null}{delivery.puede_anular ? <Pressable onPress={onAnnul} style={styles.annul}><Text style={styles.annulText}>Anular</Text></Pressable> : null}</View></View>;
 }
 function ReturnMovement({ movement, onLocate, onAnnul }: { movement: ProcessReturnMovement; onLocate: (sublot: ProcessSublot) => void; onAnnul: () => void }) {
-  return <View style={[styles.returnMovement, movement.anulado && styles.deliveryVoid]}><View style={styles.lotHeading}><View><Text style={styles.deliveryQuantity}>{movement.numero} · {movement.cierra_entrega ? 'Cierre' : 'Parcial'}</Text><Text style={styles.deliveryMeta}>{movement.registrado_por?.nombre} · {formatDate(movement.registrado_at)}</Text></View>{movement.puede_anular ? <Pressable onPress={onAnnul} style={styles.annul}><Text style={styles.annulText}>Anular</Text></Pressable> : null}</View>{movement.resultados.map((result) => <View key={result.id} style={styles.resultRow}><View style={styles.deliveryText}><Text style={styles.deliveryDestination}>{result.numero_sublote} · {result.nombre_resultado}</Text><Text style={styles.deliveryMeta}>{result.cantidad_bins} bins · {formatKilos(result.kilos_netos)} · {result.camara?.codigo ?? stateLabel(result.estado)}</Text></View>{result.puede_ubicar ? <Pressable onPress={() => onLocate(result)} style={styles.returnButton}><Text style={styles.returnButtonText}>Ubicar</Text></Pressable> : null}</View>)}</View>;
+  return <View style={[styles.returnMovement, movement.anulado && styles.deliveryVoid]}><View style={styles.lotHeading}><View><Text style={styles.deliveryQuantity}>{movement.numero} · {movement.cierra_entrega ? 'Cierre del viaje' : 'Retorno parcial'}</Text><Text style={styles.deliveryMeta}>{movement.registrado_por?.nombre} · {formatDate(movement.registrado_at)}</Text></View>{movement.puede_anular ? <Pressable onPress={onAnnul} style={styles.annul}><Text style={styles.annulText}>Anular</Text></Pressable> : null}</View>{movement.origenes?.length ? <Text style={styles.deliveryMeta}>Orígenes: {movement.origenes.map((origin) => `${origin.numero_lote ?? 'Lote'} · ${origin.numero_orden}${origin.cierra_entrega ? ' (cerrado)' : ' (abierto)'}`).join(' · ')}</Text> : null}{movement.resultados.map((result) => <View key={result.id} style={styles.resultRow}><View style={styles.deliveryText}><Text style={styles.deliveryDestination}>{result.numero_sublote} · {result.nombre_resultado}</Text><Text style={styles.deliveryMeta}>{result.cantidad_bins} bins · {formatKilos(result.kilos_netos)} · {result.camara?.codigo ?? stateLabel(result.estado)}</Text></View>{result.puede_ubicar ? <Pressable onPress={() => onLocate(result)} style={styles.returnButton}><Text style={styles.returnButtonText}>Ubicar</Text></Pressable> : null}</View>)}</View>;
 }
 function DeliveryForm({ available, quantity, kilos, line, shift, order, observation, onQuantity, onKilos, onLine, onShift, onOrder, onObservation }: { available: number; quantity: string; kilos: string; line: string; shift: 'A' | 'B' | ''; order: string; observation: string; onQuantity: (value: string) => void; onKilos: (value: string) => void; onLine: (value: string) => void; onShift: (value: 'A' | 'B') => void; onOrder: (value: string) => void; onObservation: (value: string) => void }) {
   return <><Text style={styles.eyebrow}>VIAJE FÍSICO A PACKING</Text><Text style={styles.modalTitle}>Registrar entrega</Text><Text style={styles.modalCopy}>{available} bins disponibles.</Text><Field label="Cantidad de bins *"><TextInput keyboardType="number-pad" onChangeText={onQuantity} placeholder="0" placeholderTextColor={colors.muted} style={styles.input} value={quantity} /></Field><Field label="Kilos enviados"><TextInput keyboardType="decimal-pad" onChangeText={onKilos} placeholder="Opcional" placeholderTextColor={colors.muted} style={styles.input} value={kilos} /></Field><Field label="Línea de proceso *"><TextInput onChangeText={onLine} placeholder="Ej. Línea 1" placeholderTextColor={colors.muted} style={styles.input} value={line} /></Field><Text style={styles.fieldLabel}>Turno *</Text><View style={styles.shiftRow}><FilterButton active={shift === 'A'} label="A" onPress={() => onShift('A')} /><FilterButton active={shift === 'B'} label="B" onPress={() => onShift('B')} /></View><Field label="N° de orden *"><TextInput onChangeText={onOrder} placeholder="Orden de Packing" placeholderTextColor={colors.muted} style={styles.input} value={order} /></Field><Field label="Observación"><TextInput multiline onChangeText={onObservation} placeholder="Opcional" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} value={observation} /></Field></>;
 }
-function ReturnForm({ delivery, catalogs, results, closeReturn, observation, onAdd, onRemove, onUpdate, onCloseReturn, onObservation }: { delivery: ProcessDelivery; catalogs: ProcessCatalogs; results: ReturnResultDraft[]; closeReturn: boolean; observation: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, change: Partial<ReturnResultDraft>) => void; onCloseReturn: (value: boolean) => void; onObservation: (value: string) => void }) {
-  return <><Text style={styles.eyebrow}>PACKING → CÁMARA MP</Text><Text style={styles.modalTitle}>Registrar retorno</Text><Text style={styles.modalCopy}>{delivery.cantidad_envases} bins enviados · {formatKilos(delivery.kilos_enviados)}.</Text>{results.map((result, index) => <View key={result.id} style={styles.resultDraft}><View style={styles.lotHeading}><Text style={styles.deliveryQuantity}>Resultado {index + 1}</Text>{results.length > 1 ? <Pressable onPress={() => onRemove(result.id)}><Text style={styles.annulText}>Quitar</Text></Pressable> : null}</View><Text style={styles.fieldLabel}>Clasificación *</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroller}>{catalogs.tipos_resultado.map((type) => <FilterButton active={result.typeId === type.id} key={type.id} label={type.nombre} onPress={() => onUpdate(result.id, { typeId: type.id })} />)}</ScrollView><Field label="Nombre específico"><TextInput onChangeText={(value) => onUpdate(result.id, { name: value })} placeholder="Obligatorio para Otro" placeholderTextColor={colors.muted} style={styles.input} value={result.name} /></Field><Field label="Cantidad de bins *"><TextInput keyboardType="number-pad" onChangeText={(value) => onUpdate(result.id, { bins: value })} placeholder="0" placeholderTextColor={colors.muted} style={styles.input} value={result.bins} /></Field><Field label="Kilos netos"><TextInput keyboardType="decimal-pad" onChangeText={(value) => onUpdate(result.id, { kilos: value })} placeholder="Opcional" placeholderTextColor={colors.muted} style={styles.input} value={result.kilos} /></Field></View>)}<Pressable onPress={onAdd} style={styles.secondary}><Text style={styles.secondaryText}>+ Agregar resultado</Text></Pressable><Pressable onPress={() => onCloseReturn(!closeReturn)} style={[styles.checkRow, closeReturn && styles.checkRowActive]}><Text style={styles.checkMark}>{closeReturn ? '✓' : '○'}</Text><View><Text style={styles.deliveryDestination}>Cerrar retorno de este viaje</Text><Text style={styles.deliveryMeta}>Packing no devolverá más fruta de esta entrega.</Text></View></Pressable><Field label="Observación"><TextInput multiline onChangeText={onObservation} placeholder="Opcional" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} value={observation} /></Field></>;
+function ReturnForm({ delivery, catalogs, results, origins, observation, onAdd, onRemove, onUpdate, onToggleOrigin, onToggleOriginClose, onObservation }: { delivery: ProcessDelivery; catalogs: ProcessCatalogs; results: ReturnResultDraft[]; origins: ReturnOriginDraft[]; observation: string; onAdd: () => void; onRemove: (id: string) => void; onUpdate: (id: string, change: Partial<ReturnResultDraft>) => void; onToggleOrigin: (id: string) => void; onToggleOriginClose: (id: string) => void; onObservation: (value: string) => void }) {
+  return <><Text style={styles.eyebrow}>PACKING → CÁMARA MP</Text><Text style={styles.modalTitle}>Registrar retorno</Text><Text style={styles.modalCopy}>{delivery.cantidad_envases} bins enviados · {formatKilos(delivery.kilos_enviados)}.</Text><Text style={styles.fieldLabel}>Viajes de origen *</Text>{origins.map((origin) => <View key={origin.deliveryId} style={styles.resultDraft}><Pressable onPress={() => onToggleOrigin(origin.deliveryId)} style={[styles.checkRow, origin.selected && styles.checkRowActive]}><Text style={styles.checkMark}>{origin.selected ? '✓' : '○'}</Text><View><Text style={styles.deliveryDestination}>{origin.label}{origin.primary ? ' · principal' : ''}</Text><Text style={styles.deliveryMeta}>{origin.detail}</Text></View></Pressable>{origin.selected ? <Pressable onPress={() => onToggleOriginClose(origin.deliveryId)} style={[styles.checkRow, origin.closes && styles.checkRowActive]}><Text style={styles.checkMark}>{origin.closes ? '✓' : '○'}</Text><View><Text style={styles.deliveryDestination}>Cerrar este viaje</Text><Text style={styles.deliveryMeta}>Packing no devolverá más fruta de este origen.</Text></View></Pressable> : null}</View>)}<Text style={styles.fieldLabel}>Resultados de Packing *</Text>{results.map((result, index) => <View key={result.id} style={styles.resultDraft}><View style={styles.lotHeading}><Text style={styles.deliveryQuantity}>Resultado {index + 1}</Text>{results.length > 1 ? <Pressable onPress={() => onRemove(result.id)}><Text style={styles.annulText}>Quitar</Text></Pressable> : null}</View><Text style={styles.fieldLabel}>Clasificación *</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroller}>{catalogs.tipos_resultado.map((type) => <FilterButton active={result.typeId === type.id} key={type.id} label={type.nombre} onPress={() => onUpdate(result.id, { typeId: type.id })} />)}</ScrollView><Field label="Nombre específico"><TextInput onChangeText={(value) => onUpdate(result.id, { name: value })} placeholder="Obligatorio para Otro" placeholderTextColor={colors.muted} style={styles.input} value={result.name} /></Field><Field label="Cantidad de bins *"><TextInput keyboardType="number-pad" onChangeText={(value) => onUpdate(result.id, { bins: value })} placeholder="0" placeholderTextColor={colors.muted} style={styles.input} value={result.bins} /></Field><Field label="Kilos netos"><TextInput keyboardType="decimal-pad" onChangeText={(value) => onUpdate(result.id, { kilos: value })} placeholder="Opcional" placeholderTextColor={colors.muted} style={styles.input} value={result.kilos} /></Field></View>)}<Pressable onPress={onAdd} style={styles.secondary}><Text style={styles.secondaryText}>+ Agregar resultado</Text></Pressable><Field label="Observación"><TextInput multiline onChangeText={onObservation} placeholder="Opcional" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} value={observation} /></Field></>;
 }
+
 function LocateForm({ sublot, catalogs, cameraId, observation, onCamera, onObservation }: { sublot: ProcessSublot; catalogs: ProcessCatalogs; cameraId: string; observation: string; onCamera: (id: string) => void; onObservation: (value: string) => void }) {
   return <><Text style={styles.eyebrow}>PENDIENTE DE UBICACIÓN</Text><Text style={styles.modalTitle}>Ubicar {sublot.numero_sublote}</Text><Text style={styles.modalCopy}>{sublot.nombre_resultado} · {sublot.cantidad_bins} bins.</Text><Text style={styles.fieldLabel}>Cámara de materia prima *</Text><View style={styles.cameraOptions}>{catalogs.camaras.map((camera) => <Pressable key={camera.id} onPress={() => onCamera(camera.id)} style={[styles.cameraOption, cameraId === camera.id && styles.cameraOptionActive]}><Text style={styles.deliveryDestination}>{camera.codigo} · {camera.nombre}</Text></Pressable>)}</View><Field label="Observación"><TextInput multiline onChangeText={onObservation} placeholder="Opcional" placeholderTextColor={colors.muted} style={[styles.input, styles.textarea]} value={observation} /></Field></>;
 }

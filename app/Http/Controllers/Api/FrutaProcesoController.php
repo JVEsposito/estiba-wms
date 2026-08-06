@@ -37,6 +37,8 @@ class FrutaProcesoController extends Controller
                 'bins_retornados' => 0,
                 'kilos_recuperados' => 0,
                 'sublotes_pendientes_ubicacion' => 0,
+                'retornos_registrados' => 0,
+                'desglose_resultados' => [],
             ]);
         }
 
@@ -52,11 +54,31 @@ class FrutaProcesoController extends Controller
                 ->where('activa', true));
         $sublotesVigentes = SubloteRetornoPacking::query()
             ->whereHas('retorno', fn (Builder $consulta) => $consulta
-                ->whereNull('anulado_at')
-                ->whereHas('entrega', fn (Builder $entrega) => $entrega
-                    ->whereNull('anulado_at')
+                ->whereNull('retornos_packing.anulado_at')
+                ->whereHas('entregas', fn (Builder $entrega) => $entrega
+                    ->whereNull('entregas_fruta_proceso.anulado_at')
                     ->whereHas('lote.temporada', fn (Builder $temporada) => $temporada
                         ->where('activa', true))));
+        $sublotesResumen = (clone $sublotesVigentes)
+            ->with('tipoResultado')
+            ->get();
+        $desgloseResultados = $sublotesResumen
+            ->groupBy('tipo_resultado_packing_id')
+            ->map(function ($grupo): array {
+                $primero = $grupo->first();
+
+                return [
+                    'tipo' => [
+                        'id' => $primero->tipoResultado?->id,
+                        'codigo' => $primero->tipoResultado?->codigo,
+                        'nombre' => $primero->tipoResultado?->nombre,
+                    ],
+                    'sublotes' => $grupo->count(),
+                    'bins' => (int) $grupo->sum('cantidad_bins'),
+                    'kilos' => round((float) $grupo->sum('kilos_netos'), 3),
+                ];
+            })
+            ->values();
 
         return response()->json([
             'temporada' => [
@@ -84,17 +106,22 @@ class FrutaProcesoController extends Controller
             'bins_entregados' => (int) $lotes->sum('cantidad_entregada'),
             'entregas_pendientes_retorno' => (clone $entregasVigentes)
                 ->whereDoesntHave('retornos', fn (Builder $consulta) => $consulta
-                    ->whereNull('anulado_at')
-                    ->where('cierra_entrega', true))
+                    ->whereNull('retornos_packing.anulado_at')
+                    ->where('retorno_packing_entregas.cierra_entrega', true))
                 ->count(),
-            'bins_retornados' => (int) (clone $sublotesVigentes)->sum('cantidad_bins'),
+            'bins_retornados' => (int) $sublotesResumen->sum('cantidad_bins'),
             'kilos_recuperados' => round(
-                (float) (clone $sublotesVigentes)->sum('kilos_netos'),
+                (float) $sublotesResumen->sum('kilos_netos'),
                 3,
             ),
-            'sublotes_pendientes_ubicacion' => (clone $sublotesVigentes)
+            'sublotes_pendientes_ubicacion' => $sublotesResumen
                 ->where('estado', 'pendiente_ubicacion')
                 ->count(),
+            'retornos_registrados' => $sublotesResumen
+                ->pluck('retorno_packing_id')
+                ->unique()
+                ->count(),
+            'desglose_resultados' => $desgloseResultados,
         ]);
     }
 
@@ -221,6 +248,7 @@ class FrutaProcesoController extends Controller
             'entregasProceso.retornos.registradoPor',
             'entregasProceso.retornos.anuladoPor',
             'entregasProceso.retornos.dispositivo',
+            'entregasProceso.retornos.entregas.lote',
             'entregasProceso.retornos.resultados.tipoResultado',
             'entregasProceso.retornos.resultados.camara',
             'entregasProceso.retornos.resultados.ubicadoPor',

@@ -11,6 +11,7 @@ use App\Models\CsgValidacion;
 use App\Models\EntregaFrutaProceso;
 use App\Models\EspecieValidacion;
 use App\Models\Temporada;
+use App\Models\TipoResultadoPacking;
 use App\Models\User;
 use App\Models\VariedadValidacion;
 use Carbon\CarbonImmutable;
@@ -703,6 +704,12 @@ class MateriaPrimaApiTest extends TestCase
             $resultadoPrecalibre['numero_sublote'],
         );
         $this->assertDatabaseCount('retornos_packing', 2);
+        $this->assertDatabaseCount('retorno_packing_entregas', 2);
+        $this->assertDatabaseHas('retorno_packing_entregas', [
+            'retorno_packing_id' => $respuesta['id'],
+            'entrega_fruta_proceso_id' => $entrega['id'],
+            'cierra_entrega' => true,
+        ]);
         $this->assertDatabaseCount('sublotes_retorno_packing', 4);
 
         $this->postJson(
@@ -741,6 +748,104 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('bins_retornados', 20)
             ->assertJsonPath('kilos_recuperados', 7200)
             ->assertJsonPath('sublotes_pendientes_ubicacion', 2);
+    }
+
+    public function test_retorno_multiorigen_cierra_cada_viaje_por_separado_y_no_duplica_el_resumen(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $camara = Camara::create([
+            'codigo' => 'MP-MULTIORIGEN',
+            'nombre' => 'Cámara multiorigen',
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-MULTIORIGEN',
+                'requiere_hidrocooler' => false,
+            ]))->assertCreated()->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/asignar-camara", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camara->id,
+        ])->assertOk();
+
+        $primera = $this->actingAs($camarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+                'operacion_id' => (string) Str::uuid(),
+                'cantidad_envases' => 20,
+                'kilos_enviados' => 7500,
+                'linea_proceso' => 'Línea 1',
+                'turno' => 'A',
+                'numero_orden' => 'OP-MULTI-001',
+            ])->assertOk()->json('data.entregas.0');
+        $segunda = $this->postJson(
+            "/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'cantidad_envases' => 10,
+                'kilos_enviados' => 3750,
+                'linea_proceso' => 'Línea 2',
+                'turno' => 'A',
+                'numero_orden' => 'OP-MULTI-002',
+            ],
+        )->assertOk()->json('data.entregas.0');
+        $tipo = TipoResultadoPacking::query()->where('codigo', 'comercial')->firstOrFail();
+
+        $respuesta = $this->postJson(
+            "/api/materia-prima/fruta-proceso/entregas/{$primera['id']}/retornos",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'entregas' => [
+                    [
+                        'entrega_fruta_proceso_id' => $primera['id'],
+                        'cierra_entrega' => true,
+                    ],
+                    [
+                        'entrega_fruta_proceso_id' => $segunda['id'],
+                        'cierra_entrega' => false,
+                    ],
+                ],
+                'resultados' => [[
+                    'tipo_resultado_packing_id' => $tipo->id,
+                    'cantidad_bins' => 8,
+                    'kilos_netos' => 3000,
+                ]],
+            ],
+        )->assertOk()->json('data');
+
+        $primeraActual = collect($respuesta['entregas'])->firstWhere('id', $primera['id']);
+        $segundaActual = collect($respuesta['entregas'])->firstWhere('id', $segunda['id']);
+        $this->assertSame('completado', $primeraActual['retorno']['estado']);
+        $this->assertSame('parcial', $segundaActual['retorno']['estado']);
+        $this->assertCount(2, $primeraActual['retorno']['movimientos'][0]['origenes']);
+        $this->assertDatabaseCount('retorno_packing_entregas', 2);
+        $this->assertDatabaseHas('retorno_packing_entregas', [
+            'entrega_fruta_proceso_id' => $primera['id'],
+            'cierra_entrega' => true,
+        ]);
+        $this->assertDatabaseHas('retorno_packing_entregas', [
+            'entrega_fruta_proceso_id' => $segunda['id'],
+            'cierra_entrega' => false,
+        ]);
+
+        $this->getJson('/api/materia-prima/fruta-proceso/resumen')
+            ->assertOk()
+            ->assertJsonPath('entregas_pendientes_retorno', 1)
+            ->assertJsonPath('retornos_registrados', 1)
+            ->assertJsonPath('bins_retornados', 8)
+            ->assertJsonPath('kilos_recuperados', 3000)
+            ->assertJsonPath('desglose_resultados.0.tipo.codigo', 'comercial')
+            ->assertJsonPath('desglose_resultados.0.bins', 8);
     }
 
     /** @return array<string, mixed> */

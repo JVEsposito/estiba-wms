@@ -99,7 +99,10 @@ class FrutaProcesoLoteResource extends JsonResource
         $retornosVigentes = $retornos->whereNull('anulado_at');
         $ultimoRetornoVigente = $retornosVigentes->first();
         $cerrado = $retornosVigentes->contains(
-            fn (RetornoPacking $retorno): bool => $retorno->cierra_entrega,
+            fn (RetornoPacking $retorno): bool => $this->cierraEntrega(
+                $retorno,
+                $entrega,
+            ),
         );
         $resultadosVigentes = $retornosVigentes->flatMap(
             fn (RetornoPacking $retorno) => $retorno->resultados,
@@ -165,6 +168,7 @@ class FrutaProcesoLoteResource extends JsonResource
                 'movimientos' => $retornos->map(
                     fn (RetornoPacking $retorno): array => $this->retorno(
                         $retorno,
+                        $entrega,
                         $request,
                         $servicioRetorno,
                         $ultimoRetornoVigente?->id,
@@ -177,6 +181,7 @@ class FrutaProcesoLoteResource extends JsonResource
     /** @return array<string, mixed> */
     private function retorno(
         RetornoPacking $retorno,
+        EntregaFrutaProceso $entrega,
         Request $request,
         ServicioRetornoPacking $servicio,
         ?string $ultimoRetornoVigenteId,
@@ -184,7 +189,18 @@ class FrutaProcesoLoteResource extends JsonResource
         return [
             'id' => $retorno->id,
             'numero' => $retorno->numero,
-            'cierra_entrega' => $retorno->cierra_entrega,
+            'cierra_entrega' => $this->cierraEntrega($retorno, $entrega),
+            'origenes' => $retorno->relationLoaded('entregas')
+                ? $retorno->entregas->map(fn (EntregaFrutaProceso $origen): array => [
+                    'entrega_id' => $origen->id,
+                    'lote_id' => $origen->lote_materia_prima_id,
+                    'numero_lote' => $origen->lote?->numero_lote,
+                    'linea_proceso' => $origen->linea_proceso,
+                    'turno' => $origen->turno,
+                    'numero_orden' => $origen->numero_orden,
+                    'cierra_entrega' => (bool) $origen->pivot->cierra_entrega,
+                ])->values()
+                : collect(),
             'observacion' => $retorno->observacion,
             'registrado_por' => $retorno->registradoPor ? [
                 'id' => $retorno->registradoPor->id,
@@ -237,5 +253,18 @@ class FrutaProcesoLoteResource extends JsonResource
                 ])
                 ->values(),
         ];
+    }
+
+    private function cierraEntrega(
+        RetornoPacking $retorno,
+        EntregaFrutaProceso $entrega,
+    ): bool {
+        if ($retorno->pivot
+            && $retorno->pivot->entrega_fruta_proceso_id === $entrega->id) {
+            return (bool) $retorno->pivot->cierra_entrega;
+        }
+
+        return $retorno->entrega_fruta_proceso_id === $entrega->id
+            && (bool) $retorno->cierra_entrega;
     }
 }
