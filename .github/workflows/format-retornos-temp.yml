@@ -5,12 +5,17 @@ on:
     branches:
       - agent/retornos-packing-por-bin
 
+permissions:
+  contents: write
+
 jobs:
   format:
     runs-on: ubuntu-latest
     steps:
       - name: Descargar código
         uses: actions/checkout@v7
+        with:
+          ref: agent/retornos-packing-por-bin
       - name: Preparar PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -19,10 +24,13 @@ jobs:
           coverage: none
       - name: Instalar dependencias
         run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Formatear servicio
-        run: vendor/bin/pint app/Services/MateriaPrima/ServicioBinRetornoPacking.php
-      - name: Mostrar archivo formateado
+      - name: Aplicar Pint y publicar si cambia
         run: |
-          echo '===ESTIBA_FORMATTED_FILE_BEGIN==='
-          cat app/Services/MateriaPrima/ServicioBinRetornoPacking.php
-          echo '===ESTIBA_FORMATTED_FILE_END==='
+          vendor/bin/pint app/Services/MateriaPrima/ServicioBinRetornoPacking.php
+          if ! git diff --quiet -- app/Services/MateriaPrima/ServicioBinRetornoPacking.php; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/Services/MateriaPrima/ServicioBinRetornoPacking.php
+            git commit -m "style(retornos): aplicar Pint al servicio por bin"
+            git push origin HEAD:agent/retornos-packing-por-bin
+          fi
