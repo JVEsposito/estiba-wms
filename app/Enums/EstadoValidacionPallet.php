@@ -6,4 +6,5 @@ enum EstadoValidacionPallet: string
 {
     case Aceptada = 'aceptada';
     case Conflicto = 'conflicto';
+    case Anulada = 'anulada';
 }
