@@ -1,0 +1,28 @@
+name: Formatear retorno temporal
+
+on:
+  push:
+    branches:
+      - agent/retornos-packing-por-bin
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+      - name: Preparar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, zip
+          coverage: none
+      - name: Instalar dependencias
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Formatear servicio
+        run: vendor/bin/pint app/Services/MateriaPrima/ServicioBinRetornoPacking.php
+      - name: Mostrar archivo formateado
+        run: |
+          echo '===ESTIBA_FORMATTED_FILE_BEGIN==='
+          cat app/Services/MateriaPrima/ServicioBinRetornoPacking.php
+          echo '===ESTIBA_FORMATTED_FILE_END==='
