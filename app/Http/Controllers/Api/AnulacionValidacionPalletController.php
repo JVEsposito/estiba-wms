@@ -12,6 +12,7 @@ use App\Services\Validacion\ServicioAnulacionValidacionPallet;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AnulacionValidacionPalletController extends Controller
 {
@@ -21,7 +22,11 @@ class AnulacionValidacionPalletController extends Controller
     ): JsonResponse {
         $filtros = $request->validate([
             'folio' => ['nullable', 'string', 'max:80'],
-            'motivo_categoria' => ['nullable', 'string', 'max:50'],
+            'motivo_categoria' => [
+                'nullable',
+                'string',
+                Rule::in(AnularValidacionPalletRequest::CATEGORIAS),
+            ],
         ]);
         $folio = mb_strtoupper(trim((string) ($filtros['folio'] ?? '')));
         $categoria = trim((string) ($filtros['motivo_categoria'] ?? ''));
@@ -63,7 +68,9 @@ class AnulacionValidacionPalletController extends Controller
             ->map(fn (AnulacionValidacionPallet $anulacion): array => $this->recursoAnulacion($anulacion))
             ->values();
 
-        $hoy = now(config('app.operational_timezone'))->toDateString();
+        $zona = config('app.operational_timezone');
+        $inicioHoy = now($zona)->startOfDay()->utc();
+        $finHoy = now($zona)->addDay()->startOfDay()->utc();
         $porCategoria = AnulacionValidacionPallet::query()
             ->selectRaw('motivo_categoria, COUNT(*) as total')
             ->groupBy('motivo_categoria')
@@ -77,7 +84,8 @@ class AnulacionValidacionPalletController extends Controller
             'resumen' => [
                 'total' => AnulacionValidacionPallet::query()->count(),
                 'hoy' => AnulacionValidacionPallet::query()
-                    ->whereDate('anulado_at', $hoy)
+                    ->where('anulado_at', '>=', $inicioHoy)
+                    ->where('anulado_at', '<', $finHoy)
                     ->count(),
                 'por_categoria' => $porCategoria,
             ],
