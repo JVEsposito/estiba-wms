@@ -2,9 +2,6 @@
 
 namespace Tests\Feature\Api;
 
-use App\Enums\CondicionTermicaFolio;
-use App\Enums\EstadoOperacionalFolio;
-use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -23,13 +20,9 @@ class AnulacionValidacionPalletApiTest extends TestCase
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-01');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-01');
-
-        $validacionId = $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0001'))
-            ->assertCreated()
-            ->json('data.id');
-
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0001');
         $operacionId = (string) Str::uuid();
+
         $respuesta = $this->conToken($tokenSupervisor)
             ->postJson("/api/validacion/pallets/{$validacionId}/anular", [
                 'operacion_id' => $operacionId,
@@ -41,7 +34,10 @@ class AnulacionValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.motivo_categoria', 'folio_incorrecto')
             ->assertJsonPath('data.folio.estado_operacional', 'anulado')
             ->assertJsonPath('data.folio.activo', false)
-            ->assertJsonPath('message', 'Pallet anulado. El folio quedó inactivo, bloqueado para toda operación y conservado para auditoría.');
+            ->assertJsonPath(
+                'message',
+                'Pallet anulado. El folio quedó inactivo, bloqueado para toda operación y conservado para auditoría.',
+            );
 
         $anulacionId = $respuesta->json('data.id');
 
@@ -69,11 +65,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
     public function test_validador_no_puede_anular_su_propio_pallet(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-02');
-
-        $validacionId = $this->conToken($token)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0002'))
-            ->assertCreated()
-            ->json('data.id');
+        $validacionId = $this->crearValidacion($token, $catalogo, 'PAL-ANU-0002');
 
         $this->conToken($token)
             ->postJson("/api/validacion/pallets/{$validacionId}/anular", [
@@ -97,11 +89,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-03');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-03');
-
-        $validacionId = $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0003'))
-            ->assertCreated()
-            ->json('data.id');
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0003');
         $payload = [
             'operacion_id' => (string) Str::uuid(),
             'motivo_categoria' => 'error_etiqueta',
@@ -121,20 +109,16 @@ class AnulacionValidacionPalletApiTest extends TestCase
         $this->assertDatabaseCount('anulaciones_validacion_pallet', 1);
     }
 
-    public function test_no_permite_anular_si_el_pallet_ya_avanzó_desde_pendiente_prefrio(): void
+    public function test_no_permite_anular_si_el_pallet_ya_avanzo_desde_pendiente_prefrio(): void
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-04');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-04');
-
-        $validacionId = $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0004'))
-            ->assertCreated()
-            ->json('data.id');
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0004');
 
         Folio::query()->where('numero_folio', 'PAL-ANU-0004')->update([
-            'estado_operacional' => EstadoOperacionalFolio::Disponible,
-            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
-            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'estado_operacional' => 'disponible',
+            'condicion_termica' => 'prefrio_aprobado',
+            'habilitacion_almacenamiento' => 'habilitado',
         ]);
 
         $this->conToken($tokenSupervisor)
@@ -155,11 +139,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-05');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-05');
-
-        $validacionId = $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0005'))
-            ->assertCreated()
-            ->json('data.id');
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0005');
 
         $this->conToken($tokenSupervisor)
             ->postJson("/api/validacion/pallets/{$validacionId}/anular", [
@@ -180,16 +160,8 @@ class AnulacionValidacionPalletApiTest extends TestCase
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-06');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-06');
-
-        $validacionA = $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-ANU-0006'))
-            ->assertCreated()
-            ->json('data.id');
-        $payloadB = $this->payload($catalogo, 'PAL-ANU-0007');
-        $payloadB['operacion_id'] = (string) Str::uuid();
-        $this->conToken($tokenValidador)
-            ->postJson('/api/validacion/pallets', $payloadB)
-            ->assertCreated();
+        $validacionA = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0006');
+        $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-0007');
 
         $this->conToken($tokenSupervisor)
             ->postJson("/api/validacion/pallets/{$validacionA}/anular", [
@@ -212,7 +184,9 @@ class AnulacionValidacionPalletApiTest extends TestCase
             ->assertJsonPath('anulaciones.0.folio.estado_operacional', 'anulado');
     }
 
-    /** @return array{array<string, string|int>, string} */
+    /**
+     * @return array{array<string, string|int>, string}
+     */
     private function contexto(RolUsuario $rol, string $codigo): array
     {
         $temporada = (string) Str::uuid();
@@ -279,7 +253,9 @@ class AnulacionValidacionPalletApiTest extends TestCase
         ], $token];
     }
 
-    /** @return array{User, string} */
+    /**
+     * @return array{User, string}
+     */
     private function acceso(RolUsuario $rol, string $codigo): array
     {
         $usuario = User::factory()->create(['rol' => $rol]);
@@ -295,7 +271,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
     }
 
     /**
-     * @param array<string, string|int> $catalogo
+     * @param  array<string, string|int>  $catalogo
      * @return array<string, mixed>
      */
     private function payload(array $catalogo, string $folio): array
@@ -313,6 +289,20 @@ class AnulacionValidacionPalletApiTest extends TestCase
             'observacion' => null,
             'generado_dispositivo_at' => now()->toAtomString(),
         ];
+    }
+
+    /**
+     * @param  array<string, string|int>  $catalogo
+     */
+    private function crearValidacion(string $token, array $catalogo, string $folio): string
+    {
+        $payload = $this->payload($catalogo, $folio);
+        $payload['operacion_id'] = (string) Str::uuid();
+
+        return $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertCreated()
+            ->json('data.id');
     }
 
     private function conToken(string $token): self
