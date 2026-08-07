@@ -20,6 +20,8 @@ class ServicioExportacionRegistroValidacion
 
     private const FILAS_POR_HOJA = 20;
 
+    private const COLUMNA_CATEGORIA = 'M';
+
     private const NS_HOJA = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
     private const NS_REL_DOCUMENTO = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -161,15 +163,17 @@ class ServicioExportacionRegistroValidacion
         $documento = $this->documento($xml);
         $xpath = new DOMXPath($documento);
         $xpath->registerNamespace('m', self::NS_HOJA);
+        $this->prepararColumnaCategoria($documento, $xpath);
 
         $this->texto($documento, $xpath, 'C5', $pagina['fecha']);
         $this->texto($documento, $xpath, 'C6', $pagina['encargado']);
         $this->texto($documento, $xpath, 'C7', $pagina['turno']);
         $this->texto($documento, $xpath, 'C8', (string) $pagina['linea']);
+        $this->texto($documento, $xpath, self::COLUMNA_CATEGORIA.'10', 'Categoría');
 
         for ($indice = 0; $indice < self::FILAS_POR_HOJA; $indice += 1) {
             $fila = self::FILA_INICIAL + $indice;
-            foreach (range('B', 'L') as $columna) {
+            foreach (range('B', self::COLUMNA_CATEGORIA) as $columna) {
                 $this->limpiar($xpath, $columna.$fila);
             }
 
@@ -181,6 +185,7 @@ class ServicioExportacionRegistroValidacion
 
             $articulo = $validacion->snapshot['articulo'] ?? [];
             $origen = $validacion->snapshot['origen'] ?? [];
+            $categoria = $validacion->snapshot['categoria'] ?? [];
             $this->texto($documento, $xpath, 'B'.$fila, $validacion->numero_folio);
             $this->texto($documento, $xpath, 'C'.$fila, $origen['marca'] ?? null);
             $this->texto($documento, $xpath, 'D'.$fila, $articulo['envase'] ?? null);
@@ -197,6 +202,12 @@ class ServicioExportacionRegistroValidacion
             }
 
             $this->texto($documento, $xpath, 'L'.$fila, $this->observacion($validacion));
+            $this->texto(
+                $documento,
+                $xpath,
+                self::COLUMNA_CATEGORIA.$fila,
+                $categoria['nombre'] ?? $categoria['codigo_externo'] ?? null,
+            );
         }
 
         $this->formula(
@@ -209,6 +220,80 @@ class ServicioExportacionRegistroValidacion
         $this->configurarImpresion($documento, $xpath);
 
         return $documento->saveXML() ?: throw new RuntimeException('No fue posible completar una hoja RRPP-01.');
+    }
+
+    private function prepararColumnaCategoria(DOMDocument $documento, DOMXPath $xpath): void
+    {
+        $this->asegurarCeldaDesde($xpath, self::COLUMNA_CATEGORIA.'10', 'H10');
+        foreach (range(self::FILA_INICIAL, self::FILA_INICIAL + self::FILAS_POR_HOJA - 1) as $fila) {
+            $this->asegurarCeldaDesde($xpath, self::COLUMNA_CATEGORIA.$fila, 'H'.$fila);
+        }
+
+        $dimension = $xpath->query('/m:worksheet/m:dimension')->item(0);
+        if ($dimension instanceof DOMElement) {
+            $referencia = $dimension->getAttribute('ref');
+            $actualizada = preg_replace(
+                '/[A-Z]+(\d+)$/',
+                self::COLUMNA_CATEGORIA.'$1',
+                $referencia,
+            );
+            if (is_string($actualizada) && $actualizada !== '') {
+                $dimension->setAttribute('ref', $actualizada);
+            }
+        }
+
+        $columnas = $xpath->query('/m:worksheet/m:cols')->item(0);
+        if (! $columnas instanceof DOMElement) {
+            return;
+        }
+
+        foreach ($xpath->query('/m:worksheet/m:cols/m:col') as $columna) {
+            if (! $columna instanceof DOMElement) {
+                continue;
+            }
+
+            $minimo = (int) $columna->getAttribute('min');
+            $maximo = (int) $columna->getAttribute('max');
+            if ($minimo <= 8 && $maximo >= 8) {
+                $nueva = $columna->cloneNode(true);
+                if ($nueva instanceof DOMElement) {
+                    $nueva->setAttribute('min', '13');
+                    $nueva->setAttribute('max', '13');
+                    $columnas->appendChild($nueva);
+                }
+
+                break;
+            }
+        }
+    }
+
+    private function asegurarCeldaDesde(
+        DOMXPath $xpath,
+        string $referencia,
+        string $referenciaModelo,
+    ): void {
+        if ($xpath->query("//m:c[@r='{$referencia}']")->length > 0) {
+            return;
+        }
+
+        $modelo = $this->celda($xpath, $referenciaModelo);
+        $filaNumero = (int) preg_replace('/\D+/', '', $referencia);
+        $fila = $xpath->query("//m:row[@r='{$filaNumero}']")->item(0);
+        if (! $fila instanceof DOMElement) {
+            throw new RuntimeException("La plantilla RRPP-01 no contiene la fila {$filaNumero}.");
+        }
+
+        $celda = $modelo->cloneNode(true);
+        if (! $celda instanceof DOMElement) {
+            throw new RuntimeException("No fue posible preparar la celda {$referencia}.");
+        }
+
+        $celda->setAttribute('r', $referencia);
+        while ($celda->firstChild) {
+            $celda->removeChild($celda->firstChild);
+        }
+        $celda->removeAttribute('t');
+        $fila->appendChild($celda);
     }
 
     private function configurarImpresion(DOMDocument $documento, DOMXPath $xpath): void
@@ -275,6 +360,19 @@ class ServicioExportacionRegistroValidacion
                 $numero === 1 ? 'rId1' : 'rId'.($numero + 3),
             );
             $hojas->appendChild($hoja);
+        }
+
+        foreach ($xpath->query('/m:workbook/m:definedNames/m:definedName') as $nombreDefinido) {
+            if (! $nombreDefinido instanceof DOMElement
+                || $nombreDefinido->getAttribute('name') !== '_xlnm.Print_Area') {
+                continue;
+            }
+
+            $nombreDefinido->nodeValue = preg_replace(
+                '/\$L\$(\d+)/',
+                '$'.self::COLUMNA_CATEGORIA.'$$1',
+                $nombreDefinido->textContent,
+            ) ?? $nombreDefinido->textContent;
         }
 
         foreach ($xpath->query('/m:workbook/*[local-name()="AlternateContent" or local-name()="revisionPtr"]') as $nodo) {
