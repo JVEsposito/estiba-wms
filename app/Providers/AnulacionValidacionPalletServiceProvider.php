@@ -43,25 +43,25 @@ class AnulacionValidacionPalletServiceProvider extends ServiceProvider
         Folio::updating(
             fn (Folio $folio) => $proteccion->asegurarMutable($folio),
         );
-        UbicacionActual::creating(
+        UbicacionActual::saving(
             fn (UbicacionActual $registro) => $proteccion->asegurarOperableId($registro->folio_id),
         );
-        Movimiento::creating(
+        Movimiento::saving(
             fn (Movimiento $registro) => $proteccion->asegurarOperableId($registro->folio_id),
         );
-        CargaFolio::creating(
+        CargaFolio::saving(
             fn (CargaFolio $registro) => $proteccion->asegurarOperableId($registro->folio_id),
         );
-        ReservaCargaFolio::creating(
+        ReservaCargaFolio::saving(
             fn (ReservaCargaFolio $registro) => $proteccion->asegurarOperableId($registro->folio_id),
         );
-        ProcesoPrefrioFolio::creating(
+        ProcesoPrefrioFolio::saving(
             fn (ProcesoPrefrioFolio $registro) => $proteccion->asegurarOperableId($registro->folio_id),
         );
-        RepaletizajeDetalle::creating(
+        RepaletizajeDetalle::saving(
             fn (RepaletizajeDetalle $registro) => $proteccion->asegurarOperableId($registro->folio_origen_id),
         );
-        Repaletizaje::creating(function (Repaletizaje $registro) use ($proteccion): void {
+        Repaletizaje::saving(function (Repaletizaje $registro) use ($proteccion): void {
             $proteccion->asegurarOperableId($registro->folio_resultante_id);
             $proteccion->asegurarOperableId($registro->folio_conservado_id);
         });
