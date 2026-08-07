@@ -44,6 +44,10 @@ class ServicioExportacionRegistroValidacionTest extends TestCase
                         'csg' => '105410',
                         'predio' => 'Predio prueba',
                     ],
+                    'categoria' => [
+                        'nombre' => $numero === 21 ? 'CAT-1' : 'CAT1',
+                        'codigo_externo' => null,
+                    ],
                 ],
             ]);
             $validacion->setRelation('usuario', $usuario);
@@ -63,6 +67,7 @@ class ServicioExportacionRegistroValidacionTest extends TestCase
 
             $segundaHoja = $zip->getFromName('xl/worksheets/sheet2.xml');
             $this->assertIsString($segundaHoja);
+            $this->assertSame('Categoría', $this->valorCelda($segundaHoja, 'M10'));
             $this->assertSame('PAL-0021', $this->valorCelda($segundaHoja, 'B11'));
             $this->assertSame('', $this->valorCelda($segundaHoja, 'J11'));
             $this->assertSame('', $this->valorCelda($segundaHoja, 'K11'));
@@ -70,6 +75,7 @@ class ServicioExportacionRegistroValidacionTest extends TestCase
                 'OBSERVADO: Etiqueta no coincide — Revisar impresión física.',
                 $this->valorCelda($segundaHoja, 'L11'),
             );
+            $this->assertSame('CAT-1', $this->valorCelda($segundaHoja, 'M11'));
             $this->assertSame('10', $this->valorCelda($segundaHoja, 'I31'));
         } finally {
             $zip->close();
