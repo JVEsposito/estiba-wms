@@ -147,7 +147,7 @@ class RepaletizajeApiTest extends TestCase
         $this->assertDatabaseCount('repaletizajes', 1);
 
         $supervisorToken = $this->token(RolUsuario::SupervisorFrio, 'SUP-REPA');
-        $this->withToken($supervisorToken)->postJson(
+        $this->conToken($supervisorToken)->postJson(
             "/api/validacion/repaletizajes/{$id}/anular",
             [
                 'operacion_id' => (string) Str::uuid(),
@@ -230,6 +230,13 @@ class RepaletizajeApiTest extends TestCase
         return $usuario
             ->crearTokenParaDispositivo($dispositivo, "test-{$codigo}")
             ->plainTextToken;
+    }
+
+    private function conToken(string $token): self
+    {
+        $this->app['auth']->forgetGuards();
+
+        return $this->withToken($token);
     }
 
     private function folio(
