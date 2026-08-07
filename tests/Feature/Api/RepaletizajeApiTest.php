@@ -147,13 +147,15 @@ class RepaletizajeApiTest extends TestCase
         $this->assertDatabaseCount('repaletizajes', 1);
 
         $supervisorToken = $this->token(RolUsuario::SupervisorFrio, 'SUP-REPA');
-        $this->withToken($supervisorToken)->postJson(
-            "/api/validacion/repaletizajes/{$id}/anular",
-            [
-                'operacion_id' => (string) Str::uuid(),
-                'motivo' => 'Error operacional confirmado.',
-            ],
-        )->assertOk()->assertJsonPath('data.estado', 'anulado');
+        $this->flushHeaders()
+            ->withToken($supervisorToken)
+            ->postJson(
+                "/api/validacion/repaletizajes/{$id}/anular",
+                [
+                    'operacion_id' => (string) Str::uuid(),
+                    'motivo' => 'Error operacional confirmado.',
+                ],
+            )->assertOk()->assertJsonPath('data.estado', 'anulado');
 
         $this->assertSame(
             60,
