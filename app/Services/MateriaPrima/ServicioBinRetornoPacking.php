@@ -11,7 +11,6 @@ use App\Models\LoteMateriaPrima;
 use App\Models\PersonalAccessToken;
 use App\Models\RegularizacionRetornoPackingLegacy;
 use App\Models\RetornoPacking;
-use App\Models\SubloteRetornoPacking;
 use App\Models\TipoResultadoPacking;
 use App\Models\User;
 use App\Services\Secuencias\ServicioSecuenciaDocumento;
@@ -326,7 +325,7 @@ class ServicioBinRetornoPacking
     }
 
     /**
-     * @param array<int, array<string, mixed>> $origenes
+     * @param  array<int, array<string, mixed>>  $origenes
      * @return Collection<int, array<string, mixed>>
      */
     private function validarOrigenes(array $origenes): Collection
@@ -376,7 +375,7 @@ class ServicioBinRetornoPacking
     }
 
     /**
-     * @param array<int, array<string, mixed>> $origenes
+     * @param  array<int, array<string, mixed>>  $origenes
      * @return Collection<int, array<string, mixed>>
      */
     private function validarOrigenesLegacy(RetornoPacking $retorno, array $origenes): Collection
