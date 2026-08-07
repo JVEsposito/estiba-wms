@@ -17,6 +17,8 @@
         ],
         'frigorifico' => [
             ['key' => 'validacion', 'module' => 'frigorifico.validacion', 'label' => 'Validación', 'href' => '/oficina/validacion', 'permissions' => ['puede_consultar_validaciones_pallet']],
+            ['key' => 'repaletizajes', 'module' => 'frigorifico.validacion', 'label' => 'Repaletizajes', 'href' => '/oficina/validacion/repaletizajes', 'permissions' => ['puede_consultar_validaciones_pallet']],
+            ['key' => 'anulaciones-validacion', 'module' => 'frigorifico.validacion', 'label' => 'Anulaciones', 'href' => '/oficina/validacion/anulaciones', 'permissions' => ['puede_consultar_validaciones_pallet']],
             ['key' => 'catalogo-validacion', 'module' => 'frigorifico.catalogos', 'label' => 'Catálogos PT', 'href' => '/oficina/validacion/catalogo', 'permissions' => ['puede_consultar_catalogos_validacion']],
             ['key' => 'prefrio', 'module' => 'frigorifico.prefrio', 'label' => 'Prefrío', 'href' => '/oficina/prefrio', 'permissions' => ['puede_consultar_prefrio']],
             ['key' => 'camaras', 'module' => 'frigorifico.camaras', 'label' => 'Cámaras', 'href' => '/oficina/frigorifico/camaras', 'permissions' => ['ambito_camaras_productos']],
