@@ -1,6 +1,7 @@
 <?php
 
 use App\Providers\AdministracionUsuarioServiceProvider;
+use App\Providers\AnulacionValidacionPalletServiceProvider;
 use App\Providers\AppServiceProvider;
 use App\Providers\ConsultaTrazabilidadServiceProvider;
 use App\Providers\CustodiaDistribuidaMaterialesServiceProvider;
@@ -11,5 +12,6 @@ return [
     AdministracionUsuarioServiceProvider::class,
     CustodiaDistribuidaMaterialesServiceProvider::class,
     RepaletizajeServiceProvider::class,
+    AnulacionValidacionPalletServiceProvider::class,
     ConsultaTrazabilidadServiceProvider::class,
 ];
