@@ -2,6 +2,7 @@
 
 use App\Providers\AdministracionUsuarioServiceProvider;
 use App\Providers\AppServiceProvider;
+use App\Providers\ConsultaTrazabilidadServiceProvider;
 use App\Providers\CustodiaDistribuidaMaterialesServiceProvider;
 use App\Providers\RepaletizajeServiceProvider;
 
@@ -10,4 +11,5 @@ return [
     AdministracionUsuarioServiceProvider::class,
     CustodiaDistribuidaMaterialesServiceProvider::class,
     RepaletizajeServiceProvider::class,
+    ConsultaTrazabilidadServiceProvider::class,
 ];
