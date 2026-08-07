@@ -29,6 +29,8 @@ export default defineConfig({
                 'resources/js/office-validation.js',
                 'resources/css/office-validation-catalog.css',
                 'resources/js/office-validation-catalog.js',
+                'resources/css/office-validation-annulments.css',
+                'resources/js/office-validation-annulments.js',
                 'resources/css/office-repalletizing.css',
                 'resources/js/office-repalletizing.js',
                 'resources/css/office-prefrio.css',
