@@ -29,16 +29,35 @@ class Navigation extends Component
                 return $html;
             }
 
-            $active = $this->office === 'repaletizajes' ? ' class="is-active"' : '';
-            $link = sprintf(
-                '<a%s data-office-key="repaletizajes" data-office-domain="frigorifico" data-navigation-permissions="puede_consultar_validaciones_pallet" data-navigation-module="frigorifico.validacion" href="/oficina/validacion/repaletizajes">Repaletizajes</a>',
-                $active,
-            );
+            $links = [
+                [
+                    'key' => 'repaletizajes',
+                    'label' => 'Repaletizajes',
+                    'href' => '/oficina/validacion/repaletizajes',
+                ],
+                [
+                    'key' => 'anulaciones-validacion',
+                    'label' => 'Anulaciones',
+                    'href' => '/oficina/validacion/anulaciones',
+                ],
+            ];
+
+            $extras = collect($links)->map(function (array $link): string {
+                $active = $this->office === $link['key'] ? ' class="is-active"' : '';
+
+                return sprintf(
+                    '<a%s data-office-key="%s" data-office-domain="frigorifico" data-navigation-permissions="puede_consultar_validaciones_pallet" data-navigation-module="frigorifico.validacion" href="%s">%s</a>',
+                    $active,
+                    $link['key'],
+                    $link['href'],
+                    $link['label'],
+                );
+            })->implode('');
             $position = strrpos($html, '</nav>');
 
             return $position === false
-                ? $html.$link
-                : substr($html, 0, $position).$link.substr($html, $position);
+                ? $html.$extras
+                : substr($html, 0, $position).$extras.substr($html, $position);
         };
     }
 }
