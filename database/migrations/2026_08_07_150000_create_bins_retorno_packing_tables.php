@@ -65,7 +65,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('operacion_id')->unique();
             $table->char('payload_hash', 64);
-            $table->uuid('retorno_packing_id')->unique();
+            $table->uuid('retorno_packing_id');
+            $table->unique('retorno_packing_id', 'reg_retorno_legacy_retorno_unique');
             $table->foreign(
                 'retorno_packing_id',
                 'reg_retorno_legacy_retorno_fk',
@@ -77,7 +78,11 @@ return new class extends Migration
             )->references('id')->on('bins_retorno_packing')->nullOnDelete();
             $table->string('accion', 30)->index();
             $table->text('motivo')->nullable();
-            $table->foreignId('registrado_por_user_id')->constrained('users');
+            $table->unsignedBigInteger('registrado_por_user_id');
+            $table->foreign(
+                'registrado_por_user_id',
+                'reg_retorno_legacy_user_fk',
+            )->references('id')->on('users')->restrictOnDelete();
             $table->timestamp('registrado_at');
             $table->timestamps(precision: 6);
         });
