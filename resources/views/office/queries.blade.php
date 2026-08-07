@@ -105,6 +105,14 @@
                 <div id="producerDialogBody"></div>
             </div>
         </dialog>
+
+        <dialog class="query-dialog query-dialog--folio" id="folioDialog">
+            <div class="query-dialog__shell">
+                <header><div><p class="eyebrow">EXPEDIENTE DE TRAZABILIDAD</p><h2 id="folioDialogTitle">Folio</h2></div><button id="closeFolioDialog" type="button" aria-label="Cerrar">×</button></header>
+                <div id="folioDialogBody"></div>
+            </div>
+        </dialog>
+
         <div class="loading is-hidden" id="officeLoading" role="status" aria-live="assertive" aria-hidden="true"><span aria-hidden="true"></span><strong id="officeLoadingText">Procesando…</strong></div>
         <div class="toast-region" id="officeToasts" aria-live="polite"></div>
     </body>

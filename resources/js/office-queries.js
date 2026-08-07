@@ -23,6 +23,10 @@ const elements = {
     producerDialogTitle: byId('producerDialogTitle'),
     producerDialogBody: byId('producerDialogBody'),
     closeProducerDialog: byId('closeProducerDialog'),
+    folioDialog: byId('folioDialog'),
+    folioDialogTitle: byId('folioDialogTitle'),
+    folioDialogBody: byId('folioDialogBody'),
+    closeFolioDialog: byId('closeFolioDialog'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -63,6 +67,16 @@ function label(value) {
         lotes: 'Lotes',
         productores: 'Productores',
         recepciones: 'Recepciones',
+        pallet: 'Pallet',
+        saldo: 'Saldo',
+        agotado: 'Agotado',
+        disponible: 'Disponible',
+        pendiente_prefrio: 'Pendiente de prefrío',
+        prefrio_aprobado: 'Prefrío aprobado',
+        agotado_por_repaletizaje: 'Agotado por repaletizaje',
+        aprobado: 'Aprobado',
+        observado: 'Observado',
+        rechazado: 'Rechazado',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
@@ -77,6 +91,11 @@ function formatDate(value, fallback = '—') {
 function formatWeight(value) {
     if (value === null || value === undefined) return '—';
     return `${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 3 }).format(Number(value))} kg`;
+}
+
+function formatBoxes(value, fallback = '—') {
+    if (value === null || value === undefined) return fallback;
+    return `${new Intl.NumberFormat('es-CL').format(Number(value))} cajas`;
 }
 
 function setBusy(active, message = 'Procesando…') {
@@ -188,7 +207,13 @@ function renderProducers() {
 function resultCard(type, item) {
     if (type === 'folios') {
         const location = item.ubicacion ? `${item.ubicacion.camara} · ${item.ubicacion.posicion}` : 'Sin ubicación actual';
-        return `<article class="result-card"><div class="result-card__head"><strong>${escapeHtml(item.numero)}</strong><span class="query-badge">${escapeHtml(label(item.estado))}</span></div><p>${escapeHtml([item.exportadora, item.marca, item.variedad, item.calibre].filter(Boolean).join(' · '))}</p><small>${escapeHtml(location)} · ${escapeHtml(formatDate(item.fecha_ingreso))}</small></article>`;
+        return `<article class="result-card result-card--folio">
+            <div class="result-card__head"><strong>${escapeHtml(item.numero)}</strong><span class="query-badge">${escapeHtml(label(item.estado))}</span></div>
+            <p>${escapeHtml([item.exportadora, item.marca, item.variedad, item.calibre].filter(Boolean).join(' · '))}</p>
+            <div class="folio-card-status"><span>${escapeHtml(label(item.tipo_bulto))}</span><span>${escapeHtml(label(item.condicion_termica))}</span></div>
+            <small>${escapeHtml(location)} · Ingreso ${escapeHtml(formatDate(item.fecha_ingreso))}</small>
+            <button type="button" class="trace-button" data-open-folio="${escapeHtml(item.id)}">Ver trazabilidad →</button>
+        </article>`;
     }
     if (type === 'lotes') {
         return `<article class="result-card"><div class="result-card__head"><strong>${escapeHtml(item.numero)}</strong><span class="query-badge">${escapeHtml(label(item.estado))}</span></div><p>${escapeHtml(item.cliente)} · CSG ${escapeHtml(item.csg)} · ${escapeHtml(item.especie)} ${escapeHtml(item.variedad)}</p><small>${escapeHtml(item.recepcion || 'Sin recepción')} · ${escapeHtml(formatWeight(item.kilos_netos))} · ${escapeHtml(item.camara || 'Sin cámara')}</small></article>`;
@@ -239,6 +264,78 @@ async function openProducer(id) {
             ${species(producer)}
             <table class="dossier-lots"><thead><tr><th>Lote</th><th>Temporada</th><th>Cliente</th><th>Producto</th><th>Estado</th><th>Neto</th><th>Cámara</th></tr></thead><tbody>${rows}</tbody></table>`;
         elements.producerDialog.showModal();
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+}
+
+function traceMeta(meta = {}) {
+    const entries = Object.entries(meta);
+    if (!entries.length) return '';
+    return `<div class="trace-event__meta">${entries.map(([key, value]) => `<span><small>${escapeHtml(key)}</small><strong>${escapeHtml(value)}</strong></span>`).join('')}</div>`;
+}
+
+function traceOrigins(origins = []) {
+    if (!origins.length) return '';
+    return `<div class="trace-origins"><small>COMPOSICIÓN / ORÍGENES</small>${origins.map((origin) => `<div><strong>${escapeHtml(origin.folio || 'Folio')}</strong><span>${escapeHtml(formatBoxes(origin.aporte))} aportadas · ${escapeHtml(formatBoxes(origin.antes))} → ${escapeHtml(formatBoxes(origin.despues))}</span></div>`).join('')}</div>`;
+}
+
+function traceTimeline(events = []) {
+    if (!events.length) return '<div class="query-empty">No hay eventos operacionales registrados para este folio.</div>';
+    return `<div class="trace-timeline">${events.map((event) => `
+        <article class="trace-event trace-event--${escapeHtml(event.tipo)}">
+            <div class="trace-event__rail"><span></span></div>
+            <div class="trace-event__body">
+                <time>${escapeHtml(formatDate(event.fecha))}</time>
+                <h4>${escapeHtml(event.titulo)}</h4>
+                <p>${escapeHtml(event.descripcion)}</p>
+                ${traceMeta(event.meta)}
+                ${traceOrigins(event.origenes)}
+            </div>
+        </article>`).join('')}</div>`;
+}
+
+function specificationGrid(specifications = {}) {
+    const labels = {
+        cliente: 'Cliente', especie: 'Especie', marca: 'Marca', variedad: 'Variedad', calibre: 'Calibre',
+        envase: 'Envase', categoria: 'Categoría', csg: 'CSG', predio: 'Predio', cuartel: 'Cuartel',
+    };
+    return Object.entries(labels).map(([key, title]) => `<div><span>${title}</span><strong>${escapeHtml(specifications[key] || '—')}</strong></div>`).join('');
+}
+
+async function openFolio(id) {
+    setBusy(true, 'Construyendo trazabilidad del folio…');
+    try {
+        const payload = await api(`/api/consultas/folios/${id}`);
+        const folio = payload.folio;
+        const currentLocation = folio.ubicacion ? `${folio.ubicacion.camara} · ${folio.ubicacion.posicion}` : 'Sin ubicación actual';
+        const originText = payload.validacion
+            ? `Validado ${formatDate(payload.validacion.fecha)} · ${formatBoxes(payload.validacion.cantidad_cajas)}`
+            : (payload.repaletizajes?.length ? `Origen trazado por ${payload.repaletizajes[0].codigo}` : 'Sin validación directa registrada');
+        const exhaustion = folio.repaletizaje_agotamiento
+            ? `<div class="trace-alert"><strong>AGOTADO POR REPALETIZAJE</strong><span>Este folio terminó su existencia física en ${escapeHtml(folio.repaletizaje_agotamiento)}.</span></div>`
+            : '';
+
+        elements.folioDialogTitle.textContent = folio.numero;
+        elements.folioDialogBody.innerHTML = `
+            ${exhaustion}
+            <section class="folio-dossier-hero">
+                <div><span>ESTADO ACTUAL</span><strong>${escapeHtml(label(folio.estado_explicado))}</strong><small>${escapeHtml(label(folio.condicion_termica))}</small></div>
+                <div><span>CANTIDAD ACTUAL</span><strong>${escapeHtml(formatBoxes(folio.cantidad_cajas))}</strong><small>${escapeHtml(label(folio.tipo_bulto))}</small></div>
+                <div><span>UBICACIÓN</span><strong>${escapeHtml(currentLocation)}</strong><small>${escapeHtml(folio.temporada || 'Sin temporada')}</small></div>
+                <div><span>ORIGEN</span><strong>${escapeHtml(originText)}</strong><small>Ingreso ${escapeHtml(formatDate(folio.fecha_ingreso))}</small></div>
+            </section>
+            <section class="folio-dossier-section">
+                <div class="folio-dossier-heading"><div><p class="eyebrow">ESPECIFICACIONES</p><h3>Identidad del producto</h3></div></div>
+                <div class="folio-spec-grid">${specificationGrid(folio.especificaciones)}</div>
+            </section>
+            <section class="folio-dossier-section">
+                <div class="folio-dossier-heading"><div><p class="eyebrow">HISTORIA OPERACIONAL</p><h3>Línea de tiempo</h3></div><div class="trace-counts"><span>${payload.totales.validaciones} validación</span><span>${payload.totales.procesos_prefrio} prefrío</span><span>${payload.totales.movimientos} movimientos</span><span>${payload.totales.repaletizajes} repas</span></div></div>
+                ${traceTimeline(payload.timeline)}
+            </section>`;
+        elements.folioDialog.showModal();
     } catch (error) {
         toast(error.message, true);
     } finally {
@@ -298,8 +395,13 @@ elements.producerFilters.addEventListener('submit', async (event) => {
 });
 
 document.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-open-producer]');
-    if (button) void openProducer(button.dataset.openProducer);
+    const producerButton = event.target.closest('[data-open-producer]');
+    if (producerButton) {
+        void openProducer(producerButton.dataset.openProducer);
+        return;
+    }
+    const folioButton = event.target.closest('[data-open-folio]');
+    if (folioButton) void openFolio(folioButton.dataset.openFolio);
 });
 
 document.addEventListener('submit', async (event) => {
@@ -318,6 +420,7 @@ document.addEventListener('submit', async (event) => {
 });
 
 elements.closeProducerDialog.addEventListener('click', () => elements.producerDialog.close());
+elements.closeFolioDialog.addEventListener('click', () => elements.folioDialog.close());
 
 async function boot() {
     if (!state.token || state.identity?.puede_consultar_oficina_consultas !== true) {
