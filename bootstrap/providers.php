@@ -7,6 +7,7 @@ use App\Providers\CustodiaDistribuidaMaterialesServiceProvider;
 use App\Providers\RepaletizajeServiceProvider;
 
 return [
+    \App\Providers\ConsultaTrazabilidadServiceProvider::class,
     AppServiceProvider::class,
     AdministracionUsuarioServiceProvider::class,
     CustodiaDistribuidaMaterialesServiceProvider::class,
