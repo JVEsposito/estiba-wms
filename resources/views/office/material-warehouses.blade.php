@@ -11,18 +11,6 @@
     @endif
 </head>
 <body>
-<section class="custody-login" id="custodyLogin">
-    <p class="eyebrow">ESTIBA WMS · MATERIALES</p>
-    <h1>Inventario CC</h1>
-    <p>Ingresa con una cuenta autorizada para consultar existencias y registrar consumos, devoluciones o transferencias.</p>
-    <form id="custodyLoginForm">
-        <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
-        <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
-        <p class="custody-error" id="custodyLoginError"></p>
-        <button class="primary-button" type="submit">Ingresar</button>
-    </form>
-</section>
-
 <main id="custodyApp" class="is-hidden">
     <x-office.navigation domain="materiales" office="custodia" context="INVENTARIO CC" icon="⌖" />
 

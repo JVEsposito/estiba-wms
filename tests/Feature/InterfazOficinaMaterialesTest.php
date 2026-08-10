@@ -93,7 +93,9 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertSee('data-active-office="custodia"', false)
             ->assertSee('Inventario CC')
             ->assertSee('id="custodyFilters"', false)
-            ->assertSee('id="custodyExport"', false);
+            ->assertSee('id="custodyExport"', false)
+            ->assertDontSee('id="custodyLoginForm"', false)
+            ->assertDontSee('Correo electrónico');
 
         $script = file_get_contents(resource_path('js/office-material-warehouses.js'));
         $styles = file_get_contents(resource_path('css/office-materials.css'));
@@ -108,10 +110,20 @@ class InterfazOficinaMaterialesTest extends TestCase
             $this->assertStringContainsString($filtro, $script);
         }
         $this->assertStringContainsString('/api/materiales/almacenes/exportar', $script);
+        $this->assertStringContainsString("const tokenKey = 'estiba_wms_office_token'", $script);
+        $this->assertStringContainsString("window.location.replace('/oficina/materiales')", $script);
+        $this->assertStringContainsString('error.status === 401', $script);
+        $this->assertStringContainsString(
+            "document.querySelector('[data-custody-filter-warehouse]')",
+            $script,
+        );
+        $this->assertStringNotContainsString("$('custodyLoginForm')", $script);
+        $this->assertStringNotContainsString("$('[data-custody-filter-warehouse]')", $script);
         $this->assertIsString($styles);
         $this->assertStringContainsString('.custody-filters', $styles);
         $this->assertStringContainsString('background: var(--panel)', $styles);
         $this->assertIsString($view);
+        $this->assertStringNotContainsString('custodyLoginForm', $view);
         $this->assertStringNotContainsString('<style>', $view);
         $this->assertStringNotContainsString('<script>', $view);
         $this->assertIsString($vite);
