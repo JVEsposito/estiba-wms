@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('bins_retorno_packing', function (Blueprint $table): void {
             $table->uuid('operacion_anulacion_id')->nullable()->unique()->after('regularizado_at');
             $table->string('payload_anulacion_hash', 64)->nullable()->after('operacion_anulacion_id');
-            $table->foreignUuid('anulado_por_user_id')->nullable()->after('payload_anulacion_hash')
+            $table->foreignId('anulado_por_user_id')->nullable()->after('payload_anulacion_hash')
                 ->constrained('users')->nullOnDelete();
             $table->timestamp('anulado_at')->nullable()->after('anulado_por_user_id');
             $table->text('motivo_anulacion')->nullable()->after('anulado_at');
