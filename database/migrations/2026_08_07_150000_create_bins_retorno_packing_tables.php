@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('bins_retorno_packing', function (Blueprint $table): void {
             $table->uuid('id')->primary();
+            $table->foreignUuid('temporada_id')->constrained('temporadas')->restrictOnDelete();
             $table->uuid('operacion_id')->unique();
             $table->char('payload_hash', 64);
             $table->string('folio_provisional', 80)->unique();
@@ -30,12 +31,16 @@ return new class extends Migration
             $table->foreignUuid('dispositivo_id')->nullable()->constrained('dispositivos')->nullOnDelete();
             $table->timestamp('registrado_at');
             $table->uuid('operacion_regularizacion_id')->nullable()->unique();
+            $table->char('payload_regularizacion_hash', 64)->nullable();
             $table->foreignId('regularizado_por_user_id')->nullable()->constrained('users');
             $table->timestamp('regularizado_at')->nullable();
             $table->text('observacion')->nullable();
             $table->timestamps(precision: 6);
 
-            $table->index(['estado', 'registrado_at'], 'bins_retorno_estado_fecha_index');
+            $table->index(
+                ['temporada_id', 'estado', 'registrado_at'],
+                'bins_retorno_temporada_estado_fecha_index',
+            );
         });
 
         Schema::create('bin_retorno_packing_origenes', function (Blueprint $table): void {
