@@ -31,7 +31,6 @@ class OfficeActionMenuTest extends TestCase
         }
     }
 
-
     public function test_material_inventory_keeps_its_dedicated_action_menu(): void
     {
         $navigation = file_get_contents(resource_path('js/office-navigation.js'));
