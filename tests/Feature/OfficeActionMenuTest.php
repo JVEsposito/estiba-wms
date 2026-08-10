@@ -50,6 +50,9 @@ class OfficeActionMenuTest extends TestCase
         $this->assertStringContainsString('data-office-action-menu', $script);
         $this->assertStringContainsString('data-migrate-legacy', $script);
         $this->assertStringContainsString('data-discard-legacy', $script);
+        $this->assertStringContainsString("can('puede_entregar_fruta_proceso')", $script);
+        $this->assertStringContainsString("can('puede_corregir_entregas_fruta_proceso')", $script);
+        $this->assertStringNotContainsString("can('puede_anular_entregas_fruta_proceso')", $script);
         $this->assertStringNotContainsString('<span>ACCIÓN</span><strong>', $script);
     }
 }
