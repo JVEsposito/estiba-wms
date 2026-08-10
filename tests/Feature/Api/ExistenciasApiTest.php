@@ -283,11 +283,15 @@ class ExistenciasApiTest extends TestCase
             ->assertSee('data-office-key="custodia"', false)
             ->assertSee('data-navigation-module="materiales.inventario"', false)
             ->assertDontSee('data-navigation-module="materiales.custodia"', false)
-            ->assertSee("can('puede_consultar_kardex_materiales')", false)
-            ->assertSee('const movementForm = event.currentTarget;', false)
-            ->assertSee('submitButton.disabled = true;', false)
-            ->assertDontSee('event.currentTarget.elements', false)
             ->assertSee('Existencia en centros de costo');
+
+        $script = file_get_contents(resource_path('js/office-material-warehouses.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString("can('puede_consultar_kardex_materiales')", $script);
+        $this->assertStringContainsString('const movementForm = event.currentTarget;', $script);
+        $this->assertStringContainsString('submitButton.disabled = true;', $script);
+        $this->assertStringNotContainsString('event.currentTarget.elements', $script);
     }
 
     /** @return array{User, string} */

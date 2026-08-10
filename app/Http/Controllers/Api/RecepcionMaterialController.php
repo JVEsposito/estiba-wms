@@ -208,7 +208,7 @@ class RecepcionMaterialController extends Controller
         );
 
         $ruta = $generador->generar($recepcionMaterial);
-        $guia = Str::slug($recepcionMaterial->numero_guia_despacho, '_');
+        $guia = Str::upper(Str::slug($recepcionMaterial->numero_guia_despacho, '_'));
         $archivo = 'Registro_Muestreo_'.($guia !== '' ? $guia : $recepcionMaterial->id).'.xlsx';
 
         return response()->download(
