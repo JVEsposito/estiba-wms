@@ -12,6 +12,7 @@ use App\Models\MovimientoAlmacenMaterial;
 use App\Models\SaldoMaterialAlmacen;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class ServicioConsultaAlmacenesMaterial
 {
@@ -81,6 +82,163 @@ class ServicioConsultaAlmacenesMaterial
                 'items' => $totalEmpresa->count(),
             ],
         ];
+    }
+
+    /**
+     * @param  array{q?:string|null,cliente_id?:string|null,item_id?:string|null,almacen_id?:string|null,camara_id?:string|null}  $filtros
+     * @return array{titulo:string,archivo:string,columnas:array<int,array{clave:string,titulo:string,ancho:int,tipo?:string}>,filas:Collection<int,array<string,mixed>>}
+     */
+    public function exportacion(string $perspectiva, array $filtros): array
+    {
+        $existencias = $this->existencias();
+        $filas = collect($existencias['perspectivas'][$perspectiva] ?? [])
+            ->filter(fn (array $fila): bool => $this->coincideConFiltros($fila, $perspectiva, $filtros))
+            ->values();
+
+        if ($perspectiva === 'total_empresa') {
+            return [
+                'titulo' => 'Inventario CC · Existencia total empresa',
+                'archivo' => 'Inventario_CC_Total_Empresa',
+                'columnas' => [
+                    ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 28],
+                    ['clave' => 'item', 'titulo' => 'Ítem', 'ancho' => 34],
+                    ['clave' => 'unidad_medida', 'titulo' => 'Unidad', 'ancho' => 14],
+                    ['clave' => 'en_bodega', 'titulo' => 'En Bodega Central', 'ancho' => 19, 'tipo' => 'numero'],
+                    ['clave' => 'en_centros_costo', 'titulo' => 'En centros de costo', 'ancho' => 21, 'tipo' => 'numero'],
+                    ['clave' => 'total_empresa', 'titulo' => 'Total empresa', 'ancho' => 18, 'tipo' => 'numero'],
+                    ['clave' => 'folios', 'titulo' => 'Folios', 'ancho' => 12, 'tipo' => 'numero'],
+                ],
+                'filas' => $filas->map(fn (array $fila): array => [
+                    'cliente' => $this->etiqueta($fila['cliente']),
+                    'item' => $this->etiqueta($fila['item']),
+                    'unidad_medida' => $fila['unidad_medida'],
+                    'en_bodega' => $fila['en_bodega'],
+                    'en_centros_costo' => $fila['en_centros_costo'],
+                    'total_empresa' => $fila['total_empresa'],
+                    'folios' => $fila['folios'],
+                ]),
+            ];
+        }
+
+        $esCentroCosto = $perspectiva === 'centros_costo';
+        $columnas = [
+            ['clave' => 'almacen', 'titulo' => $esCentroCosto ? 'Centro de costo / almacén' : 'Almacén', 'ancho' => 32],
+            ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 28],
+            ['clave' => 'item', 'titulo' => 'Ítem', 'ancho' => 34],
+            ['clave' => 'folio', 'titulo' => 'Folio', 'ancho' => 18],
+            ['clave' => 'lote', 'titulo' => 'Lote', 'ancho' => 18],
+            ['clave' => 'cantidad_actual', 'titulo' => 'Cantidad', 'ancho' => 15, 'tipo' => 'numero'],
+            ['clave' => 'unidad_medida', 'titulo' => 'Unidad', 'ancho' => 14],
+            ['clave' => 'cantidad_reservada', 'titulo' => 'Reservada', 'ancho' => 15, 'tipo' => 'numero'],
+            ['clave' => 'cantidad_disponible', 'titulo' => 'Disponible', 'ancho' => 15, 'tipo' => 'numero'],
+        ];
+        if (! $esCentroCosto) {
+            $columnas[] = ['clave' => 'camara', 'titulo' => 'Cámara', 'ancho' => 18];
+            $columnas[] = ['clave' => 'posicion', 'titulo' => 'Posición', 'ancho' => 18];
+        }
+        $columnas[] = ['clave' => 'estado', 'titulo' => 'Estado', 'ancho' => 16];
+
+        return [
+            'titulo' => $esCentroCosto
+                ? 'Inventario CC · Existencia en centros de costo'
+                : 'Inventario CC · Existencia en Bodega Central',
+            'archivo' => $esCentroCosto
+                ? 'Inventario_CC_Centros_Costo'
+                : 'Inventario_CC_Bodega_Central',
+            'columnas' => $columnas,
+            'filas' => $filas->map(function (array $fila) use ($esCentroCosto): array {
+                $exportada = [
+                    'almacen' => collect([
+                        $fila['almacen']['codigo'] ?? null,
+                        $fila['almacen']['nombre'] ?? null,
+                        $fila['almacen']['centro_costo'] ?? null,
+                    ])->filter()->implode(' · '),
+                    'cliente' => $this->etiqueta($fila['cliente']),
+                    'item' => $this->etiqueta($fila['item']),
+                    'folio' => $fila['numero_folio'],
+                    'lote' => $fila['lote'] ?: 'Sin lote',
+                    'cantidad_actual' => $fila['cantidad_actual'],
+                    'unidad_medida' => $fila['unidad_medida'],
+                    'cantidad_reservada' => $fila['cantidad_reservada'],
+                    'cantidad_disponible' => $fila['cantidad_disponible'],
+                    'estado' => $fila['bloqueado'] ? 'Bloqueado' : 'Disponible',
+                ];
+                if (! $esCentroCosto) {
+                    $exportada['camara'] = $this->etiqueta($fila['camara'] ?? []);
+                    $exportada['posicion'] = $fila['posicion']['etiqueta'] ?? 'Sin posición';
+                }
+
+                return $exportada;
+            }),
+        ];
+    }
+
+    /** @param array<string, mixed> $fila */
+    private function coincideConFiltros(array $fila, string $perspectiva, array $filtros): bool
+    {
+        foreach (['cliente_id' => 'cliente', 'item_id' => 'item', 'almacen_id' => 'almacen', 'camara_id' => 'camara'] as $filtro => $relacion) {
+            $valor = $filtros[$filtro] ?? null;
+            if ($valor && ($fila[$relacion]['id'] ?? null) !== $valor) {
+                return false;
+            }
+        }
+
+        $busqueda = $this->normalizar((string) ($filtros['q'] ?? ''));
+        if ($busqueda === '') {
+            return true;
+        }
+
+        $valores = $perspectiva === 'total_empresa'
+            ? [
+                ...array_values($fila['cliente'] ?? []),
+                ...array_values($fila['item'] ?? []),
+                $fila['unidad_medida'] ?? null,
+                $fila['en_bodega'] ?? null,
+                $this->cantidadBuscable($fila['en_bodega'] ?? 0),
+                $fila['en_centros_costo'] ?? null,
+                $this->cantidadBuscable($fila['en_centros_costo'] ?? 0),
+                $fila['total_empresa'] ?? null,
+                $this->cantidadBuscable($fila['total_empresa'] ?? 0),
+                $fila['folios'] ?? null,
+            ]
+            : [
+                ...array_values($fila['almacen'] ?? []),
+                ...array_values($fila['cliente'] ?? []),
+                ...array_values($fila['item'] ?? []),
+                $fila['numero_folio'] ?? null,
+                $fila['lote'] ?? null,
+                $fila['cantidad_actual'] ?? null,
+                $this->cantidadBuscable($fila['cantidad_actual'] ?? 0),
+                $fila['cantidad_reservada'] ?? null,
+                $this->cantidadBuscable($fila['cantidad_reservada'] ?? 0),
+                $fila['cantidad_disponible'] ?? null,
+                $this->cantidadBuscable($fila['cantidad_disponible'] ?? 0),
+                $fila['unidad_medida'] ?? null,
+                ...array_values($fila['camara'] ?? []),
+                ...array_values($fila['posicion'] ?? []),
+                ($fila['bloqueado'] ?? false) ? 'bloqueado' : 'disponible',
+            ];
+
+        return str_contains($this->normalizar(implode(' ', array_filter($valores, fn ($valor) => $valor !== null))), $busqueda);
+    }
+
+    /** @param array<string, mixed> $registro */
+    private function etiqueta(array $registro): string
+    {
+        return collect([
+            $registro['codigo'] ?? null,
+            $registro['nombre'] ?? null,
+        ])->filter()->implode(' · ');
+    }
+
+    private function normalizar(string $valor): string
+    {
+        return Str::lower(Str::ascii(trim($valor)));
+    }
+
+    private function cantidadBuscable(mixed $valor): string
+    {
+        return number_format((float) $valor, 3, ',', '.');
     }
 
     public function kardex(int $limite = 250): Collection

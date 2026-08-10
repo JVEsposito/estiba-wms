@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AccesoTabletController;
 use App\Http\Controllers\Api\AdministracionAccesoController;
 use App\Http\Controllers\Api\AdministracionTemporadaController;
 use App\Http\Controllers\Api\AdministracionValidacionController;
+use App\Http\Controllers\Api\AlmacenMaterialController;
 use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\BloqueoMaterialController;
 use App\Http\Controllers\Api\CamaraController;
@@ -264,12 +265,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/materiales/despachos/{despachoMaterial}/cancelar', [DespachoMaterialController::class, 'cancelar'])
         ->middleware('can:cancelar-despachos-materiales');
 
+    Route::middleware('can:consultar-despachos-materiales')->prefix('materiales/almacenes')->group(function () {
+        Route::get('/', [AlmacenMaterialController::class, 'index']);
+        Route::get('/exportar', [AlmacenMaterialController::class, 'exportar']);
+    });
+    Route::get('/materiales/almacenes/movimientos', [AlmacenMaterialController::class, 'movimientos'])
+        ->middleware('can:consultar-kardex-materiales');
+    Route::post('/materiales/almacenes/movimientos', [AlmacenMaterialController::class, 'store']);
+
     Route::prefix('materiales/recepciones')->group(function () {
         Route::middleware('can:consultar-recepciones-materiales')->group(function () {
             Route::get('/catalogos', [RecepcionMaterialController::class, 'catalogos']);
             Route::get('/folios-pendientes', [RecepcionMaterialController::class, 'foliosPendientes']);
             Route::get('/perfiles-impresion', [PerfilImpresionEtiquetaController::class, 'index']);
             Route::get('/', [RecepcionMaterialController::class, 'index']);
+            Route::get('/{recepcionMaterial}/registro-muestreo', [RecepcionMaterialController::class, 'registroMuestreo']);
             Route::get('/{recepcionMaterial}/impresiones', [ImpresionEtiquetaMaterialController::class, 'index']);
             Route::get('/{recepcionMaterial}', [RecepcionMaterialController::class, 'show']);
         });

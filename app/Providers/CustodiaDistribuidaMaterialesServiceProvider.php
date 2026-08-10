@@ -52,7 +52,5 @@ class CustodiaDistribuidaMaterialesServiceProvider extends ServiceProvider
         SaldoMaterialAlmacen::observe(SaldoMaterialAlmacenObserver::class);
         MovimientoAlmacenMaterial::observe(MovimientoAlmacenMaterialObserver::class);
         UbicacionActual::observe(UbicacionActualAlmacenObserver::class);
-
-        $this->loadRoutesFrom(base_path('routes/materiales-almacenes.php'));
     }
 }

@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
+use ZipArchive;
 
 class RecepcionMaterialApiTest extends TestCase
 {
@@ -1204,6 +1205,63 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertDatabaseHas('recepciones_materiales', ['id' => $creada['id']]);
         $this->assertDatabaseHas('folios', ['id' => $folioId]);
         $this->assertDatabaseCount('folios_materiales_liberados', 0);
+    }
+
+    public function test_genera_registro_de_muestreo_excel_solo_para_recepcion_confirmada(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                [
+                    ['cantidad' => 6, 'lote_proveedor' => 'LOTE-MUESTRA-01'],
+                    ['cantidad' => 4, 'lote_proveedor' => 'LOTE-MUESTRA-02'],
+                ],
+            ))
+            ->assertCreated()
+            ->json('data');
+
+        $this->conToken($token)
+            ->get("/api/materiales/recepciones/{$recepcion['id']}/registro-muestreo")
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El registro de muestreo solo está disponible para recepciones confirmadas.',
+            );
+
+        $this->conToken($token)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk();
+
+        $respuesta = $this->conToken($token)
+            ->get("/api/materiales/recepciones/{$recepcion['id']}/registro-muestreo")
+            ->assertOk()
+            ->assertHeader(
+                'content-type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+        $this->assertStringContainsString(
+            'Registro_Muestreo_GD_REC_001.xlsx',
+            (string) $respuesta->headers->get('content-disposition'),
+        );
+
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($respuesta->baseResponse->getFile()->getPathname()));
+        $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        $this->assertIsString($hoja);
+        $this->assertStringContainsString('Registro de muestreo de recepción de materiales', $hoja);
+        $this->assertStringContainsString('GD-REC-001', $hoja);
+        $this->assertStringContainsString('PROV-REC', $hoja);
+        $this->assertStringContainsString('FILM-REC', $hoja);
+        $this->assertStringContainsString('☒ Proveedor nuevo', $hoja);
+        $this->assertStringContainsString('<c r="H12" s="8"><v>1</v></c>', $hoja);
     }
 
     private function prepararCatalogo(): array

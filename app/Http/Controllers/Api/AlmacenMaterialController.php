@@ -10,12 +10,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Camara;
 use App\Models\MovimientoAlmacenMaterial;
 use App\Models\PersonalAccessToken;
+use App\Services\Existencias\GeneradorLibroXlsx;
 use App\Services\Materiales\ServicioConsultaAlmacenesMaterial;
 use App\Services\Materiales\ServicioMovimientoAlmacenMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class AlmacenMaterialController extends Controller
@@ -49,6 +51,40 @@ class AlmacenMaterialController extends Controller
             ...$existencias,
             'camaras' => $camaras,
         ]);
+    }
+
+    public function exportar(
+        Request $request,
+        ServicioConsultaAlmacenesMaterial $consulta,
+        GeneradorLibroXlsx $generador,
+    ): BinaryFileResponse {
+        Gate::authorize('consultar-despachos-materiales');
+        $datos = $request->validate([
+            'perspectiva' => ['required', Rule::in(['bodega', 'centros_costo', 'total_empresa'])],
+            'q' => ['nullable', 'string', 'max:200'],
+            'cliente_id' => ['nullable', 'uuid'],
+            'item_id' => ['nullable', 'uuid'],
+            'almacen_id' => ['nullable', 'uuid'],
+            'camara_id' => ['nullable', 'uuid'],
+        ]);
+        $exportacion = $consulta->exportacion($datos['perspectiva'], $datos);
+        $ruta = $generador->generar(
+            $exportacion['titulo'],
+            $exportacion['columnas'],
+            $exportacion['filas'],
+            [
+                'fecha_corte' => now()->toAtomString(),
+                'usuario' => $request->user()->name,
+                'temporada' => 'Temporada activa',
+            ],
+        );
+        $archivo = $exportacion['archivo'].'_'.now()->format('Y-m-d_Hi').'.xlsx';
+
+        return response()->download(
+            $ruta,
+            $archivo,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend();
     }
 
     public function movimientos(

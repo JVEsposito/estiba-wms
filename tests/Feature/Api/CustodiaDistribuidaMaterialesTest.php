@@ -19,6 +19,7 @@ use App\Models\ReservaMaterial;
 use App\Models\SaldoMaterialAlmacen;
 use App\Models\User;
 use App\Services\Existencias\ServicioExistencias;
+use App\Services\Materiales\ServicioConsultaAlmacenesMaterial;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -182,6 +183,27 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             ->assertJsonPath('perspectivas.centros_costo.0.numero_folio', 'FCU0000001')
             ->assertJsonPath('perspectivas.centros_costo.0.cantidad_actual', '7.000')
             ->assertJsonPath('perspectivas.total_empresa.0.total_empresa', '7.000');
+
+        $exportacion = $this->conToken($tokenOficina)
+            ->get('/api/materiales/almacenes/exportar?perspectiva=centros_costo&q=PACK-01')
+            ->assertOk()
+            ->assertHeader(
+                'content-type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+        $this->assertStringContainsString(
+            'Inventario_CC_Centros_Costo_',
+            (string) $exportacion->headers->get('content-disposition'),
+        );
+        $consultaInventarioCc = app(ServicioConsultaAlmacenesMaterial::class);
+        $this->assertCount(1, $consultaInventarioCc->exportacion(
+            'centros_costo',
+            ['q' => 'PACK-01'],
+        )['filas']);
+        $this->assertCount(0, $consultaInventarioCc->exportacion(
+            'centros_costo',
+            ['q' => 'folio inexistente'],
+        )['filas']);
 
         $filasExportacion = app(ServicioExistencias::class)
             ->filas(ServicioExistencias::MATERIALES)
