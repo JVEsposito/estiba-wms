@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AnularBinRetornoPackingRequest;
 use App\Http\Requests\DescartarRetornoPackingLegacyRequest;
 use App\Http\Requests\MigrarRetornoPackingLegacyRequest;
 use App\Http\Requests\RegistrarBinRetornoPackingRequest;
@@ -25,6 +26,7 @@ class BinRetornoPackingController extends Controller
         Gate::authorize('consultar-fruta-proceso');
 
         $bins = BinRetornoPacking::query()
+            ->whereNull('anulado_at')
             ->whereHas('temporada', fn (Builder $consulta) => $consulta->where('activa', true));
         $regularizados = (clone $bins)->where('estado', 'regularizado');
         $pendientes = (clone $bins)->where('estado', 'pendiente_regularizacion');
@@ -104,6 +106,7 @@ class BinRetornoPackingController extends Controller
                 'tipoResultado:id,codigo,nombre',
                 'registradoPor:id,name',
                 'regularizadoPor:id,name',
+                'anuladoPor:id,name',
                 'retornoLegacy:id,numero',
             ])
             ->when($estado !== '', fn (Builder $consulta) => $consulta->where('estado', $estado))
@@ -226,6 +229,21 @@ class BinRetornoPackingController extends Controller
         return response()->json(['data' => $this->bin($bin)]);
     }
 
+    public function anular(
+        AnularBinRetornoPackingRequest $request,
+        BinRetornoPacking $binRetornoPacking,
+        ServicioBinRetornoPacking $servicio,
+    ): JsonResponse {
+        Gate::authorize('anular-entregas-fruta-proceso');
+        $bin = $servicio->anular(
+            $binRetornoPacking,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->bin($bin)]);
+    }
+
     public function migrarLegacy(
         MigrarRetornoPackingLegacyRequest $request,
         RetornoPacking $retornoPacking,
@@ -291,6 +309,9 @@ class BinRetornoPackingController extends Controller
             'registrado_at' => $bin->registrado_at?->toAtomString(),
             'regularizado_por' => $bin->regularizadoPor?->name,
             'regularizado_at' => $bin->regularizado_at?->toAtomString(),
+            'anulado_por' => $bin->anuladoPor?->name,
+            'anulado_at' => $bin->anulado_at?->toAtomString(),
+            'motivo_anulacion' => $bin->motivo_anulacion,
             'retorno_legacy' => $bin->retornoLegacy?->numero,
             'observacion' => $bin->observacion,
         ];
