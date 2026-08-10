@@ -69,7 +69,7 @@ class ServicioRepaletizaje
 
             $temporadaActivaId = Temporada::query()
                 ->where('activa', true)
-                ->lockForShare()
+                ->sharedLock()
                 ->value('id');
             if (! $temporadaActivaId) {
                 throw new ConflictoOperacion(
