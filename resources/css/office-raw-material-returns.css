@@ -52,7 +52,7 @@
 .return-status { display: inline-flex; align-items: center; border: 1px solid #247a67; color: #60f0be; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 900; white-space: nowrap; }
 .return-status.is-warning { border-color: #796126; color: #f1cf72; }
 .bin-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.bin-facts div { border: 1px solid #263d4b; border-radius: 7px; padding: 10px; display: grid; gap: 3px; }
+.bin-facts > div { border: 1px solid #263d4b; border-radius: 7px; padding: 10px; display: grid; gap: 3px; }
 .bin-facts span { font-size: 9px; color: #769aaf; font-weight: 900; }
 .bin-origins { display: grid; gap: 6px; }
 .bin-origin { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #263d4b; padding-top: 7px; }
@@ -89,4 +89,13 @@
     .origin-row button { width: 100%; }
     .origin-balance { grid-template-columns: 1fr; }
     .origin-balance strong, .origin-balance small { justify-self: start; text-align: left; }
+}
+
+.legacy-action-fact .legacy-card__actions {
+    justify-content: stretch;
+}
+
+.legacy-action-fact .office-action-select {
+    width: 100% !important;
+    max-width: none;
 }

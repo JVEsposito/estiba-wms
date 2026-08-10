@@ -358,12 +358,123 @@ function initializeThemeSelector() {
     });
 }
 
+
+const officeActionHostSelector = [
+    '[data-office-action-menu]',
+    '.camera-item__actions',
+    '.admin-season-actions',
+    '#accessProfilesTableBody td:last-child',
+    '.material-reception-actions',
+    '#materialsInventoryBody td:last-child',
+    '.material-row',
+    '.dispatch-row__state',
+    '.materials-order-actions',
+    '#validationHistoryBody td:last-child',
+    '.validation-row',
+    '.validation-row__actions',
+    '.annulment-card',
+    '.repa-history-card',
+    '.tunnel-card__footer',
+    '.inventory-card__actions',
+    '.folio-action-cell',
+    '.incident-card',
+    '.container-weighing-row',
+    '.reservation-item',
+    '.table-actions',
+    '.guide-actions',
+    '.segment-card__actions',
+    '.lot-actions',
+    '.process-actions',
+    '.process-delivery-actions',
+    '.bin-card__actions',
+    '.legacy-card__actions',
+    '.producer-actions',
+    '.result-card',
+].join(', ');
+
+function officeActionItems(host) {
+    return [...host.children].filter((element) => (
+        element.matches('button, a[href]')
+        && !element.classList.contains('is-hidden')
+        && element.getAttribute('aria-hidden') !== 'true'
+    ));
+}
+
+function actionOptionLabel(action) {
+    return action.dataset.actionLabel
+        || action.getAttribute('aria-label')
+        || action.textContent.replace(/\s+/g, ' ').trim()
+        || 'Ejecutar acción';
+}
+
+function upgradeOfficeActionHost(host) {
+    if (host.dataset.officeActionMenuReady === 'true') return;
+
+    const actions = officeActionItems(host);
+    if (!actions.length) return;
+
+    host.dataset.officeActionMenuReady = 'true';
+
+    const select = document.createElement('select');
+    select.className = 'office-action-select';
+    select.setAttribute('aria-label', 'Seleccionar acción');
+    select.innerHTML = '<option value="">Seleccionar acción</option>';
+
+    actions.forEach((action, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = actionOptionLabel(action);
+        option.disabled = action.disabled || action.getAttribute('aria-disabled') === 'true';
+        select.append(option);
+    });
+
+    const sources = document.createElement('span');
+    sources.className = 'office-action-sources';
+    sources.hidden = true;
+    sources.append(...actions);
+
+    select.addEventListener('change', () => {
+        const selectedIndex = Number(select.value);
+        const action = actions[selectedIndex];
+        select.value = '';
+
+        if (!action || action.disabled || action.getAttribute('aria-disabled') === 'true') return;
+        action.click();
+    });
+
+    host.append(select, sources);
+}
+
+function upgradeOfficeActionMenus(root = document) {
+    const hosts = [];
+
+    if (root instanceof Element && root.matches(officeActionHostSelector)) hosts.push(root);
+    if (root.querySelectorAll) hosts.push(...root.querySelectorAll(officeActionHostSelector));
+
+    [...new Set(hosts)].forEach(upgradeOfficeActionHost);
+}
+
+function initializeOfficeActionMenus() {
+    upgradeOfficeActionMenus();
+
+    let scheduled = false;
+    new MutationObserver(() => {
+        if (scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(() => {
+            scheduled = false;
+            upgradeOfficeActionMenus();
+        });
+    }).observe(document.body, { childList: true, subtree: true });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme(storedTheme());
     initializeThemeSelector();
     refreshNavigation();
     observeApplication();
     initializeOfficePanelSwitchers();
+    initializeOfficeActionMenus();
     scrollToOfficeTarget();
 
     document.querySelectorAll('[data-domain-key]').forEach((link) => {
