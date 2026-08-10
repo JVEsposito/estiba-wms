@@ -62,6 +62,7 @@ class RepaletizajeController extends Controller
         $numero = mb_strtoupper(trim($numeroFolio));
         $folio = Folio::query()
             ->where('numero_folio', $numero)
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->with([
                 'ubicacionActual.camara:id,codigo,nombre',
                 'ubicacionActual.posicion:id,etiqueta',
