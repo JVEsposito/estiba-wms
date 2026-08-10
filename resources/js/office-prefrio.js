@@ -9,6 +9,8 @@ const elements = {
     detail: byId('processDetail'), detailTitle: byId('processDetailTitle'), detailSubtitle: byId('processDetailSubtitle'), detailMetrics: byId('processDetailMetrics'),
     tunnelMap: byId('processTunnelMap'), timeline: byId('processTimeline'), refreshProcess: byId('refreshProcessButton'), closeDetail: byId('closeProcessDetailButton'),
     decisionPanel: byId('decisionPanel'), decisionFolios: byId('decisionFolios'), decisionError: byId('decisionError'),
+    decisionOccurredAt: byId('decisionOccurredAt'), operationalPanel: byId('operationalPanel'), operationalForm: byId('operationalActionForm'),
+    operationalAction: byId('operationalActionSelect'), operationalTemperatureField: byId('operationalTemperatureField'), operationalError: byId('operationalActionError'),
     approve: byId('approveProcessButton'), reprocessButton: byId('reprocessProcessButton'), cancelProcess: byId('cancelProcessButton'),
     tunnelDialog: byId('tunnelDialog'), tunnelForm: byId('tunnelForm'), tunnelDialogTitle: byId('tunnelDialogTitle'), tunnelError: byId('tunnelFormError'), tunnelPreview: byId('tunnelPreview'), tunnelPreviewSummary: byId('tunnelPreviewSummary'),
     processDialog: byId('processDialog'), processForm: byId('processForm'), processError: byId('processFormError'),
@@ -29,6 +31,8 @@ function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'n
 function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 function errorMessage(data, fallback) { return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback; }
 function formatDate(value, fallback = 'Sin fecha') { if (!value) return fallback; const date = new Date(value); return Number.isNaN(date.getTime()) ? fallback : new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(date); }
+function localDateTimeValue(value = new Date()) { const date = new Date(value); const offset = date.getTimezoneOffset() * 60000; return new Date(date.getTime() - offset).toISOString().slice(0, 16); }
+function occurredAt(value) { const date = new Date(value); if (!value || Number.isNaN(date.getTime())) throw new ApiError('Ingresa una fecha y hora válida.', 422); return date.toISOString(); }
 function statusText(value) {
     const labels = {
         borrador: 'Borrador', cargando: 'Cargando', listo_para_iniciar: 'Listo para iniciar', en_proceso: 'En proceso', pendiente_verificacion: 'Pendiente de verificación',
@@ -146,7 +150,7 @@ function renderProcessDetail() {
     elements.detailMetrics.innerHTML = [
         ['ESTADO', statusText(process.estado)], ['POSICIONES', `${occupiedPositions}/${process.tunel?.capacidad_posiciones || '—'}`], ['FOLIOS', occupied.length], ['INICIO', formatDate(process.iniciado_at, 'No iniciado')], ['FINAL', formatDate(process.finalizado_at, 'Pendiente')],
     ].map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
-    renderTunnelMap(process, occupied); renderTimeline(process); renderDecisionPanel(process, occupied);
+    renderTunnelMap(process, occupied); renderTimeline(process); renderOperationalPanel(process); renderDecisionPanel(process, occupied);
 }
 function renderTunnelMap(process, occupied) {
     const byPosition = new Map();
@@ -183,7 +187,35 @@ function renderDecisionPanel(process, occupied) {
     elements.approve.classList.toggle('is-hidden', !pending); elements.reprocessButton.classList.toggle('is-hidden', !pending); elements.cancelProcess.classList.toggle('is-hidden', terminal);
     elements.decisionFolios.classList.toggle('is-hidden', !pending);
     elements.decisionFolios.innerHTML = occupied.map((item) => `<article class="decision-folio" data-decision-folio="${item.folio.id}"><div class="decision-folio__title"><strong>${escapeHtml(item.folio.numero_folio)}</strong><small>${escapeHtml(item.posicion?.etiqueta || '')}</small></div><div class="decision-folio__fields"><input name="temperatura_final" type="number" min="-20" max="50" step="0.1" value="${item.temperatura_final ?? ''}" placeholder="Temp. final"><input name="observacion" maxlength="1000" value="${escapeHtml(item.observacion || '')}" placeholder="Observación"></div></article>`).join('') || '<p class="empty-prefrio">El proceso no posee folios activos.</p>';
+    if (!elements.decisionOccurredAt.value) elements.decisionOccurredAt.value = localDateTimeValue();
     elements.decisionError.textContent = '';
+}
+function renderOperationalPanel(process) {
+    const canOperate = state.identity?.puede_operar_prefrio === true;
+    const actions = process.estado === 'borrador' || process.estado === 'cargando'
+        ? [{ value: 'confirmar_armado', label: 'Confirmar armado' }]
+        : process.estado === 'listo_para_iniciar'
+            ? [{ value: 'iniciar', label: 'Iniciar proceso' }]
+            : process.estado === 'en_proceso'
+                ? [
+                    { value: 'inversion_registrada', label: 'Registrar inversión' }, { value: 'pausa', label: 'Registrar pausa' },
+                    { value: 'reanudacion', label: 'Registrar reanudación' }, { value: 'deshielo', label: 'Registrar deshielo' },
+                    { value: 'lectura', label: 'Registrar lectura de temperatura' }, { value: 'verificar', label: 'Finalizar y enviar a verificación' },
+                ]
+                : [];
+    elements.operationalPanel.classList.toggle('is-hidden', !canOperate || !actions.length);
+    if (!canOperate || !actions.length) return;
+    elements.operationalAction.innerHTML = actions.map((action) => `<option value="${action.value}">${action.label}</option>`).join('');
+    elements.operationalForm.elements.ocurrido_at.value = localDateTimeValue();
+    elements.operationalForm.elements.observacion.value = '';
+    elements.operationalError.textContent = '';
+    syncOperationalTemperature();
+}
+function syncOperationalTemperature() {
+    const reading = elements.operationalAction.value === 'lectura';
+    elements.operationalTemperatureField.classList.toggle('is-hidden', !reading);
+    elements.operationalForm.elements.temperatura.required = reading;
+    if (!reading) elements.operationalForm.elements.temperatura.value = '';
 }
 function decisionResults() {
     return [...elements.decisionFolios.querySelectorAll('[data-decision-folio]')].map((node) => {
@@ -211,6 +243,7 @@ function renderTunnelPreview() {
 function openProcessDialog() {
     elements.processForm.reset(); elements.processError.textContent = ''; renderProcessFormOptions();
     const first = elements.processForm.elements.tunel_prefrio_id.options[1]; if (first) { elements.processForm.elements.tunel_prefrio_id.value = first.value; syncProcessSetpoint(); }
+    elements.processForm.elements.ocurrido_at.value = localDateTimeValue();
     elements.processDialog.showModal();
 }
 function syncProcessSetpoint() {
@@ -220,6 +253,7 @@ function syncProcessSetpoint() {
 function openReasonDialog(mode) {
     state.reasonMode = mode; elements.reasonForm.reset(); elements.reasonError.textContent = '';
     const reprocess = mode === 'reprocess'; elements.reasonEyebrow.textContent = reprocess ? 'REPROCESO' : 'CANCELACIÓN'; elements.reasonTitle.textContent = reprocess ? 'Enviar proceso a reproceso' : 'Cancelar proceso';
+    elements.reasonForm.elements.ocurrido_at.value = localDateTimeValue();
     elements.reasonDescription.textContent = reprocess ? 'Los folios quedarán retenidos y podrán incorporarse a un nuevo ciclo.' : 'La cancelación conserva el historial y retiene los folios cuando el ciclo ya había iniciado.';
     elements.confirmReason.textContent = reprocess ? 'Confirmar reproceso' : 'Confirmar cancelación'; elements.reasonDialog.showModal();
 }
@@ -234,7 +268,7 @@ async function saveTunnel() {
 }
 async function saveProcess() {
     const values = Object.fromEntries(new FormData(elements.processForm));
-    const payload = { operacion_id: operationUuid(), tunel_prefrio_id: values.tunel_prefrio_id, setpoint: Number(values.setpoint), duracion_objetivo_minutos: values.duracion_objetivo_minutos ? Number(values.duracion_objetivo_minutos) : null, formato_referencia: values.formato_referencia.trim() || null, observacion: values.observacion.trim() || null, ocurrido_at: new Date().toISOString() };
+    const payload = { operacion_id: operationUuid(), tunel_prefrio_id: values.tunel_prefrio_id, setpoint: Number(values.setpoint), duracion_objetivo_minutos: values.duracion_objetivo_minutos ? Number(values.duracion_objetivo_minutos) : null, formato_referencia: values.formato_referencia.trim() || null, observacion: values.observacion.trim() || null, ocurrido_at: occurredAt(values.ocurrido_at) };
     setBusy(true, 'Creando proceso…');
     try { const response = await api('/api/prefrio/procesos', { method: 'POST', body: JSON.stringify(payload) }); elements.processDialog.close(); toast(`Proceso ${response.data.codigo} creado.`); await loadAll(); await selectProcess(response.data.id); }
     catch (error) { elements.processError.textContent = error.message; } finally { setBusy(false); }
@@ -242,17 +276,40 @@ async function saveProcess() {
 async function approveProcess() {
     const process = state.selectedProcess; if (!process || !window.confirm(`¿Aprobar ${process.codigo} y habilitar sus folios para almacenamiento?`)) return;
     setBusy(true, 'Aprobando proceso…');
-    try { const response = await api(`/api/prefrio/procesos/${process.id}/aprobar`, { method: 'POST', body: JSON.stringify({ operacion_id: operationUuid(), version_conocida: process.version, resultados: decisionResults(), ocurrido_at: new Date().toISOString() }) }); state.selectedProcess = response.data; renderProcessDetail(); toast('Proceso aprobado y folios habilitados.'); await Promise.all([loadTunnels(), loadProcesses()]); }
+    try { const response = await api(`/api/prefrio/procesos/${process.id}/aprobar`, { method: 'POST', body: JSON.stringify({ operacion_id: operationUuid(), version_conocida: process.version, resultados: decisionResults(), ocurrido_at: occurredAt(elements.decisionOccurredAt.value) }) }); state.selectedProcess = response.data; renderProcessDetail(); toast('Proceso aprobado y folios habilitados.'); await Promise.all([loadTunnels(), loadProcesses()]); }
     catch (error) { elements.decisionError.textContent = error.message; } finally { setBusy(false); }
 }
 async function submitReason() {
     const process = state.selectedProcess; const values = Object.fromEntries(new FormData(elements.reasonForm)); const mode = state.reasonMode;
-    const payload = { operacion_id: operationUuid(), version_conocida: process.version, motivo: values.motivo.trim(), observacion: values.observacion.trim() || null, ocurrido_at: new Date().toISOString() };
+    const payload = { operacion_id: operationUuid(), version_conocida: process.version, motivo: values.motivo.trim(), observacion: values.observacion.trim() || null, ocurrido_at: occurredAt(values.ocurrido_at) };
     if (mode === 'reprocess') payload.resultados = decisionResults();
     const path = mode === 'reprocess' ? `/api/prefrio/procesos/${process.id}/reprocesar` : `/api/prefrio/procesos/${process.id}/cancelar`;
     setBusy(true, mode === 'reprocess' ? 'Registrando reproceso…' : 'Cancelando proceso…');
     try { const response = await api(path, { method: 'POST', body: JSON.stringify(payload) }); elements.reasonDialog.close(); state.selectedProcess = response.data; renderProcessDetail(); toast(mode === 'reprocess' ? 'Proceso enviado a reproceso.' : 'Proceso cancelado.'); await Promise.all([loadTunnels(), loadProcesses()]); }
     catch (error) { elements.reasonError.textContent = error.message; } finally { setBusy(false); }
+}
+
+async function submitOperationalAction() {
+    const process = state.selectedProcess; if (!process) return;
+    const values = Object.fromEntries(new FormData(elements.operationalForm));
+    const action = values.accion;
+    const eventTypes = new Set(['inversion_registrada', 'pausa', 'reanudacion', 'deshielo', 'lectura']);
+    const routes = {
+        confirmar_armado: `/api/prefrio/procesos/${process.id}/confirmar-armado`,
+        iniciar: `/api/prefrio/procesos/${process.id}/iniciar`,
+        verificar: `/api/prefrio/procesos/${process.id}/verificar`,
+    };
+    const path = eventTypes.has(action) ? `/api/prefrio/procesos/${process.id}/eventos/${action}` : routes[action];
+    if (!path) { elements.operationalError.textContent = 'La acción seleccionada no es válida.'; return; }
+    const payload = { operacion_id: operationUuid(), version_conocida: process.version, ocurrido_at: occurredAt(values.ocurrido_at), observacion: String(values.observacion || '').trim() || null };
+    if (action === 'lectura') payload.datos = { temperatura: Number(values.temperatura), unidad: '°C' };
+    setBusy(true, 'Registrando acción de prefrío…');
+    try {
+        const response = await api(path, { method: 'POST', body: JSON.stringify(payload) });
+        state.selectedProcess = response.data; renderProcessDetail(); toast('Acción registrada con su fecha y hora operacional.');
+        await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]);
+    } catch (error) { elements.operationalError.textContent = error.message; }
+    finally { setBusy(false); }
 }
 
 async function bootstrap() {
@@ -282,5 +339,7 @@ elements.refreshProcess.addEventListener('click', () => state.selectedProcess &&
 elements.closeDetail.addEventListener('click', () => { state.selectedProcess = null; elements.detail.classList.add('is-hidden'); });
 elements.approve.addEventListener('click', approveProcess); elements.reprocessButton.addEventListener('click', () => openReasonDialog('reprocess')); elements.cancelProcess.addEventListener('click', () => openReasonDialog('cancel'));
 elements.reasonForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.reasonDialog.close(); return; } if (!elements.reasonForm.reportValidity()) return; submitReason(); });
+elements.operationalAction.addEventListener('change', syncOperationalTemperature);
+elements.operationalForm.addEventListener('submit', (event) => { event.preventDefault(); if (!elements.operationalForm.reportValidity()) return; void submitOperationalAction(); });
 
 bootstrap();
