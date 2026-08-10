@@ -164,6 +164,7 @@ class MuestreoXlsx
             $detalle = $detalles->get($indice);
             if ($detalle === null) {
                 $filas[] = $this->emptyMaterialRow($fila);
+
                 continue;
             }
 
@@ -453,4 +454,3 @@ XML;
 XML;
     }
 }
-
