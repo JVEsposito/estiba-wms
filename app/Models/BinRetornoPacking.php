@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'temporada_id',
     'operacion_id',
     'payload_hash',
     'folio_provisional',
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'dispositivo_id',
     'registrado_at',
     'operacion_regularizacion_id',
+    'payload_regularizacion_hash',
     'regularizado_por_user_id',
     'regularizado_at',
     'observacion',
@@ -32,6 +34,11 @@ class BinRetornoPacking extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'bins_retorno_packing';
+
+    public function temporada(): BelongsTo
+    {
+        return $this->belongsTo(Temporada::class);
+    }
 
     public function origenes(): HasMany
     {
