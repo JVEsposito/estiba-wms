@@ -106,6 +106,13 @@ class PrefrioApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.id', $procesoId);
 
+        $payloadConOtraHora = $payload;
+        $payloadConOtraHora['ocurrido_at'] = now()->subMinute()->toAtomString();
+        $this->conToken($token)
+            ->postJson('/api/prefrio/procesos', $payloadConOtraHora)
+            ->assertStatus(409)
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
         $payloadDistinto = $payload;
         $payloadDistinto['setpoint'] = -2;
 
@@ -710,6 +717,96 @@ class PrefrioApiTest extends TestCase
         $this->conToken($token)->getJson('/api/cargas')->assertForbidden();
         $this->conToken($token)->getJson('/api/materiales/inventario')->assertForbidden();
         $this->conToken($token)->getJson('/api/validacion/pallets')->assertForbidden();
+    }
+
+    public function test_permite_hora_operacional_manual_y_rechaza_cronologia_invalida(): void
+    {
+        [$tunel, $posicion, $token] = $this->contexto();
+        $folio = $this->folioPendiente('PAL-PF-HORA-MANUAL');
+        $apertura = now()->subHours(5)->startOfMinute();
+        $carga = $apertura->addMinutes(15);
+        $armado = $apertura->addMinutes(30);
+        $inicio = $apertura->addHour();
+        $termino = $apertura->addHours(4);
+
+        $proceso = $this->conToken($token)
+            ->postJson('/api/prefrio/procesos', [
+                ...$this->payloadProceso($tunel->id, (string) Str::uuid()),
+                'ocurrido_at' => $apertura->toAtomString(),
+            ])
+            ->assertCreated()
+            ->json('data');
+        $proceso = $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 0,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $posicion->id,
+            'ocurrido_at' => $carga->toAtomString(),
+        ]);
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/confirmar-armado",
+            [
+                ...$this->payloadAccion(1),
+                'ocurrido_at' => $armado->toAtomString(),
+            ],
+        );
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/iniciar",
+            [
+                ...$this->payloadAccion(2),
+                'ocurrido_at' => $inicio->toAtomString(),
+            ],
+        );
+
+        $this->assertSame($inicio->toAtomString(), $proceso['iniciado_at']);
+        $this->conToken($token)
+            ->postJson("/api/prefrio/procesos/{$proceso['id']}/eventos/pausa", [
+                ...$this->payloadAccion(3),
+                'ocurrido_at' => $armado->subMinute()->toAtomString(),
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $proceso = $this->accion(
+            $token,
+            "/api/prefrio/procesos/{$proceso['id']}/verificar",
+            [
+                ...$this->payloadAccion(3),
+                'ocurrido_at' => $termino->toAtomString(),
+            ],
+        );
+
+        $this->assertSame('pendiente_verificacion', $proceso['estado']);
+        $this->assertSame($termino->toAtomString(), $proceso['pendiente_verificacion_at']);
+        $this->assertDatabaseHas('eventos_prefrio', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'tipo' => 'proceso_iniciado',
+            'ocurrido_at' => $inicio->format('Y-m-d H:i:s'),
+        ]);
+        $this->assertDatabaseHas('eventos_prefrio', [
+            'proceso_prefrio_id' => $proceso['id'],
+            'tipo' => 'verificacion_final',
+            'ocurrido_at' => $termino->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function test_oficina_y_pda_exponen_fecha_hora_manual_de_prefrio(): void
+    {
+        $this->get('/oficina/prefrio')
+            ->assertOk()
+            ->assertSee('Registrar acción con fecha y hora real')
+            ->assertSee('Fecha y hora de la acción');
+
+        $office = file_get_contents(resource_path('js/office-prefrio.js'));
+        $mobile = file_get_contents(base_path('mobile/src/screens/PrefrioScreen.tsx'));
+        $this->assertIsString($office);
+        $this->assertIsString($mobile);
+        $this->assertStringContainsString('localDateTimeValue', $office);
+        $this->assertStringContainsString('Finalizar y enviar a verificación', $office);
+        $this->assertStringContainsString('parseOperationalDateTime', $mobile);
+        $this->assertStringContainsString('DD-MM-AAAA HH:mm', $mobile);
     }
 
     /**
