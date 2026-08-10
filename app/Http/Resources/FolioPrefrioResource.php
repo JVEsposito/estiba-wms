@@ -21,6 +21,7 @@ class FolioPrefrioResource extends JsonResource
             'estado_operacional' => $this->estado_operacional->value,
             'condicion_termica' => $this->condicion_termica?->value,
             'habilitacion_almacenamiento' => $this->habilitacion_almacenamiento?->value,
+            'tiene_condicion_sag' => $this->condicion_sag_id !== null,
             'especie' => $datosExternos['especie'] ?? null,
             'variedad' => $this->variedad,
             'calibre' => $this->calibre,

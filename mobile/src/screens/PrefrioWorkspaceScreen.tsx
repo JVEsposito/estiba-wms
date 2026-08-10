@@ -47,6 +47,37 @@ type CandidateGroup = {
   items: PrefrioFolioCandidate[];
 };
 
+type FolioFilters = {
+  exportadora: string;
+  especie: string;
+  variedad: string;
+  condicionSag: '' | 'con' | 'sin';
+  csg: string;
+  fechaIngreso: string;
+  condicionTermica: string;
+};
+
+type FilterOption = {
+  value: string;
+  label: string;
+};
+
+const EMPTY_FILTERS: FolioFilters = {
+  exportadora: '',
+  especie: '',
+  variedad: '',
+  condicionSag: '',
+  csg: '',
+  fechaIngreso: '',
+  condicionTermica: '',
+};
+
+const THERMAL_FILTER_OPTIONS: FilterOption[] = [
+  { value: 'pendiente_prefrio', label: 'Pendiente de Prefrío' },
+  { value: 'requiere_reproceso', label: 'Requiere reproceso' },
+  { value: 'retenido', label: 'Retenido' },
+];
+
 const LOADABLE_PROCESS_STATES = new Set(['borrador', 'cargando', 'listo_para_iniciar']);
 
 export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorkspaceProps) {
@@ -60,7 +91,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
   const [folios, setFolios] = useState<PrefrioFolioCandidate[]>([]);
   const [processes, setProcesses] = useState<PrefrioProcess[]>([]);
   const [tunnels, setTunnels] = useState<PrefrioMobileCache['tunnels']>([]);
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<FolioFilters>({ ...EMPTY_FILTERS });
   const [selectedFolioId, setSelectedFolioId] = useState<string | null>(null);
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
@@ -96,22 +127,58 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
     () => selectedTunnel?.posiciones.filter((item) => item.activa && !occupiedPositionIds.has(item.id)) ?? [],
     [selectedTunnel, occupiedPositionIds],
   );
+  const hasRequiredFilters = filters.exportadora !== '' && filters.especie !== '';
+  const filterBase = useMemo(
+    () => folios.filter((item) => (
+      (filters.exportadora === '' || item.exportadora === filters.exportadora)
+      && (filters.especie === '' || item.especie === filters.especie)
+    )),
+    [folios, filters.exportadora, filters.especie],
+  );
   const filteredFolios = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return folios;
-    return folios.filter((item) => [
-      item.numero_folio,
-      item.tipo_bulto,
-      item.especie,
-      item.variedad,
-      item.calibre,
-      item.envase,
-      item.marca,
-      item.exportadora,
-      item.csg,
-      item.predio,
-    ].some((value) => String(value ?? '').toLowerCase().includes(query)));
-  }, [folios, search]);
+    if (!hasRequiredFilters) return [];
+
+    return filterBase.filter((item) => (
+      (filters.variedad === '' || item.variedad === filters.variedad)
+      && (
+        filters.condicionSag === ''
+        || (filters.condicionSag === 'con' ? item.tiene_condicion_sag : !item.tiene_condicion_sag)
+      )
+      && (filters.csg === '' || item.csg === filters.csg)
+      && (filters.fechaIngreso === '' || item.fecha_ingreso?.slice(0, 10) === filters.fechaIngreso)
+      && (filters.condicionTermica === '' || item.condicion_termica === filters.condicionTermica)
+    ));
+  }, [filterBase, filters, hasRequiredFilters]);
+  const exportadoraOptions = useMemo(
+    () => uniqueFilterOptions([...folios.map((item) => item.exportadora), filters.exportadora]),
+    [folios, filters.exportadora],
+  );
+  const especieOptions = useMemo(
+    () => uniqueFilterOptions(
+      [
+        ...folios
+          .filter((item) => filters.exportadora === '' || item.exportadora === filters.exportadora)
+          .map((item) => item.especie),
+        filters.especie,
+      ],
+    ),
+    [folios, filters.exportadora, filters.especie],
+  );
+  const variedadOptions = useMemo(
+    () => uniqueFilterOptions([...filterBase.map((item) => item.variedad), filters.variedad]),
+    [filterBase, filters.variedad],
+  );
+  const csgOptions = useMemo(
+    () => uniqueFilterOptions([...filterBase.map((item) => item.csg), filters.csg]),
+    [filterBase, filters.csg],
+  );
+  const dateOptions = useMemo(
+    () => uniqueFilterOptions(
+      [...filterBase.map((item) => item.fecha_ingreso?.slice(0, 10) ?? ''), filters.fechaIngreso],
+      formatFilterDate,
+    ),
+    [filterBase, filters.fechaIngreso],
+  );
   const groups = useMemo<CandidateGroup[]>(() => ([
     {
       key: 'pendiente_prefrio',
@@ -236,6 +303,34 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
     setTemperature('');
   }
 
+  function updateFilter<K extends keyof FolioFilters>(key: K, value: FolioFilters[K]) {
+    setFilters((current) => {
+      if (key === 'exportadora') {
+        return {
+          ...EMPTY_FILTERS,
+          exportadora: value as string,
+        };
+      }
+      if (key === 'especie') {
+        return {
+          ...current,
+          especie: value as string,
+          variedad: '',
+          condicionSag: '',
+          csg: '',
+          fechaIngreso: '',
+          condicionTermica: '',
+        };
+      }
+
+      return { ...current, [key]: value };
+    });
+  }
+
+  function clearFilters() {
+    setFilters({ ...EMPTY_FILTERS });
+  }
+
   async function loadSelectedFolio() {
     if (loadingFolio.current || busy) return;
     if (!selectedFolio || !selectedProcess || !selectedPositionId) {
@@ -351,15 +446,80 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
           <Metric label="PROCESOS CARGABLES" value={String(loadableProcesses.length)} />
         </View>
 
-        <TextInput
-          autoCapitalize="characters"
-          autoCorrect={false}
-          onChangeText={setSearch}
-          placeholder="Buscar por folio, variedad, calibre, cliente, marca, CSG o predio"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          value={search}
-        />
+        <View style={styles.filtersPanel}>
+          <View style={styles.filtersHeader}>
+            <View>
+              <Text style={styles.filtersTitle}>Filtrar folios</Text>
+              <Text style={styles.filtersHint}>Cliente/exportadora y especie son obligatorios. Los demás filtros son opcionales y combinables.</Text>
+            </View>
+            <Pressable disabled={busy} onPress={clearFilters} style={[styles.clearFiltersButton, busy && styles.disabled]}>
+              <Text style={styles.clearFiltersText}>Limpiar</Text>
+            </Pressable>
+          </View>
+          <View style={styles.filterGrid}>
+            <FilterSelect
+              disabled={busy}
+              label="1. Cliente / exportadora *"
+              onChange={(value) => updateFilter('exportadora', value)}
+              options={exportadoraOptions}
+              placeholder="Seleccionar cliente"
+              required
+              value={filters.exportadora}
+            />
+            <FilterSelect
+              disabled={busy || !filters.exportadora}
+              label="2. Especie *"
+              onChange={(value) => updateFilter('especie', value)}
+              options={especieOptions}
+              placeholder="Seleccionar especie"
+              required
+              value={filters.especie}
+            />
+            <FilterSelect
+              disabled={busy || !hasRequiredFilters}
+              label="3. Variedad"
+              onChange={(value) => updateFilter('variedad', value)}
+              options={variedadOptions}
+              placeholder="Todas las variedades"
+              value={filters.variedad}
+            />
+            <FilterSelect
+              disabled={busy || !hasRequiredFilters}
+              label="4. Condición SAG"
+              onChange={(value) => updateFilter('condicionSag', value as FolioFilters['condicionSag'])}
+              options={[
+                { value: 'con', label: 'Con condición' },
+                { value: 'sin', label: 'Sin condición' },
+              ]}
+              placeholder="Con o sin condición"
+              value={filters.condicionSag}
+            />
+            <FilterSelect
+              disabled={busy || !hasRequiredFilters}
+              label="5. CSG"
+              onChange={(value) => updateFilter('csg', value)}
+              options={csgOptions}
+              placeholder="Todos los CSG"
+              value={filters.csg}
+            />
+            <FilterSelect
+              disabled={busy || !hasRequiredFilters}
+              label="6. Fecha de ingreso"
+              onChange={(value) => updateFilter('fechaIngreso', value)}
+              options={dateOptions}
+              placeholder="Todas las fechas"
+              value={filters.fechaIngreso}
+            />
+            <FilterSelect
+              disabled={busy || !hasRequiredFilters}
+              label="7. Condición térmica"
+              onChange={(value) => updateFilter('condicionTermica', value)}
+              options={THERMAL_FILTER_OPTIONS}
+              placeholder="Todas las condiciones"
+              value={filters.condicionTermica}
+            />
+          </View>
+        </View>
 
         {groups.map((group) => group.items.length ? (
           <View key={group.key} style={styles.group}>
@@ -377,8 +537,20 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
 
         {!filteredFolios.length ? (
           <View style={styles.emptyPanel}>
-            <Text style={styles.emptyTitle}>{folios.length ? 'Sin coincidencias' : 'No existen folios esperando Prefrío'}</Text>
-            <Text style={styles.subtitle}>{folios.length ? 'Cambia el texto de búsqueda para ver otros resultados.' : 'Los pallets aprobados en Validación aparecerán aquí al sincronizar.'}</Text>
+            <Text style={styles.emptyTitle}>
+              {!hasRequiredFilters
+                ? 'Selecciona cliente/exportadora y especie'
+                : folios.length
+                  ? 'Sin coincidencias'
+                  : 'No existen folios esperando Prefrío'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {!hasRequiredFilters
+                ? 'Los filtros opcionales se habilitarán al completar las dos selecciones obligatorias.'
+                : folios.length
+                  ? 'Prueba otra combinación de filtros para llegar a los folios.'
+                  : 'Los pallets aprobados en Validación aparecerán aquí al sincronizar.'}
+            </Text>
           </View>
         ) : null}
       </ScrollView>
@@ -422,6 +594,101 @@ function WorkspaceTabs({ activeView, pendingCount, onChange }: { activeView: Wor
       <Pressable onPress={() => onChange('tuneles')} style={[styles.tab, activeView === 'tuneles' && styles.tabActive]}>
         <Text style={[styles.tabText, activeView === 'tuneles' && styles.tabTextActive]}>Túneles y procesos</Text>
       </Pressable>
+    </View>
+  );
+}
+
+function uniqueFilterOptions(
+  values: Array<string | null | undefined>,
+  labeler: (value: string) => string = (value) => value,
+): FilterOption[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))]
+    .sort((left, right) => left.localeCompare(right, 'es'))
+    .map((value) => ({ value, label: labeler(value) }));
+}
+
+function formatFilterDate(value: string): string {
+  const [year, month, day] = value.split('-');
+  return year && month && day ? day + '-' + month + '-' + year : value;
+}
+
+function FilterSelect({
+  disabled,
+  label,
+  onChange,
+  options,
+  placeholder,
+  required = false,
+  value,
+}: {
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  options: FilterOption[];
+  placeholder: string;
+  required?: boolean;
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <View style={styles.filterField}>
+      <Text style={styles.filterLabel}>{label}</Text>
+      <Pressable
+        disabled={disabled}
+        onPress={() => setOpen(true)}
+        style={[styles.filterTrigger, disabled && styles.disabled]}
+      >
+        <Text numberOfLines={1} style={[styles.filterTriggerText, !selected && styles.filterPlaceholder]}>
+          {selected?.label ?? placeholder}
+        </Text>
+        <Text style={styles.filterChevron}>⌄</Text>
+      </Pressable>
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setOpen(false)}
+        transparent
+        visible={open}
+      >
+        <View style={styles.filterModalBackdrop}>
+          <View style={styles.filterModal}>
+            <View style={styles.filterModalHeader}>
+              <Text style={styles.filterModalTitle}>{label}</Text>
+              <Pressable onPress={() => setOpen(false)}>
+                <Text style={styles.modalClose}>×</Text>
+              </Pressable>
+            </View>
+            {!required ? (
+              <Pressable
+                onPress={() => {
+                  onChange('');
+                  setOpen(false);
+                }}
+                style={[styles.filterOption, !value && styles.filterOptionSelected]}
+              >
+                <Text style={styles.filterOptionText}>{placeholder}</Text>
+              </Pressable>
+            ) : null}
+            <ScrollView contentContainerStyle={styles.filterOptions} keyboardShouldPersistTaps="handled">
+              {options.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                  style={[styles.filterOption, option.value === value && styles.filterOptionSelected]}
+                >
+                  <Text style={styles.filterOptionText}>{option.label}</Text>
+                  {option.value === value ? <Text style={styles.filterOptionCheck}>✓</Text> : null}
+                </Pressable>
+              ))}
+              {!options.length ? <Text style={styles.filterEmpty}>No existen opciones para los filtros actuales.</Text> : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -638,7 +905,29 @@ const styles = StyleSheet.create({
   metricWarning: { borderColor: colors.amber },
   metricValue: { color: colors.text, fontSize: 24, fontWeight: '900' },
   metricLabel: { color: colors.muted, fontSize: 10, fontWeight: '900', marginTop: 4 },
-  searchInput: { minHeight: 52, paddingHorizontal: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.cyanDark, color: colors.text, backgroundColor: colors.backgroundDeep, fontWeight: '800' },
+  filtersPanel: { gap: 13, padding: 16, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
+  filtersHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  filtersTitle: { color: colors.text, fontSize: 17, fontWeight: '900' },
+  filtersHint: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 4, maxWidth: 700 },
+  clearFiltersButton: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 9, borderWidth: 1, borderColor: colors.cyanDark },
+  clearFiltersText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
+  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  filterField: { flexGrow: 1, flexBasis: 220, minWidth: 190, gap: 5 },
+  filterLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', textTransform: 'uppercase' },
+  filterTrigger: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  filterTriggerText: { flex: 1, color: colors.text, fontSize: 11, fontWeight: '800' },
+  filterPlaceholder: { color: colors.muted },
+  filterChevron: { color: colors.cyan, fontSize: 17, fontWeight: '900' },
+  filterModalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.72)' },
+  filterModal: { maxHeight: '82%', padding: 18, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panelStrong },
+  filterModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  filterModalTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  filterOptions: { gap: 8, paddingBottom: 12 },
+  filterOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: 13, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  filterOptionSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  filterOptionText: { flex: 1, color: colors.text, fontWeight: '800' },
+  filterOptionCheck: { color: colors.cyan, fontSize: 18, fontWeight: '900' },
+  filterEmpty: { color: colors.muted, padding: 14, textAlign: 'center' },
   group: { gap: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   groupTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },

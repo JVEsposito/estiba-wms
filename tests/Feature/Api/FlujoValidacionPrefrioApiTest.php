@@ -53,6 +53,7 @@ class FlujoValidacionPrefrioApiTest extends TestCase
             ->assertJsonPath('data.0.numero_folio', 'PAL-VALIDADO-PF-001')
             ->assertJsonPath('data.0.condicion_termica', 'pendiente_prefrio')
             ->assertJsonPath('data.0.habilitacion_almacenamiento', 'no_habilitado')
+            ->assertJsonPath('data.0.tiene_condicion_sag', false)
             ->assertJsonPath('data.0.especie', 'Cereza')
             ->assertJsonPath('data.0.variedad', 'Santina')
             ->assertJsonPath('data.0.calibre', '2J')
