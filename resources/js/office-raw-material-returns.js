@@ -95,6 +95,10 @@ async function api(path, options = {}) {
 function can(capability) {
     return state.identity?.[capability] === true || state.identity?.capacidades?.[capability] === true;
 }
+function canResolveLegacyReturn() {
+    return can('puede_entregar_fruta_proceso')
+        || can('puede_corregir_entregas_fruta_proceso');
+}
 function showApp() {
     if (!can('puede_consultar_fruta_proceso')) return false;
     elements.access.classList.add('is-hidden'); elements.app.classList.remove('is-hidden');
@@ -164,7 +168,7 @@ function renderLegacy() {
     elements.legacyList.innerHTML = state.legacy.length ? state.legacy.map((item) => {
         const results = item.resultados.map((result) => `${result.numero_sublote || 'Resultado'} · ${result.cantidad_bins} bin(s)${result.kilos_netos === null ? '' : ` · ${formatKilos(result.kilos_netos)}`}`).join(' | ');
         const processes = item.procesos.map((process) => `<div class="bin-origin"><div><strong>${escapeHtml(process.numero_lote || 'Lote')} · ${escapeHtml(process.numero_orden)}</strong><small>${escapeHtml(process.linea_proceso)} · turno ${escapeHtml(process.turno)}</small></div></div>`).join('');
-        const actions = can('puede_anular_entregas_fruta_proceso')
+        const actions = canResolveLegacyReturn()
             ? `<div class="legacy-card__actions" data-office-action-menu>${item.migrable ? `<button data-migrate-legacy="${escapeHtml(item.id)}" type="button">Migrar</button>` : ''}<button data-discard-legacy="${escapeHtml(item.id)}" type="button">Descartar y reingresar</button></div>`
             : '';
         return `<article class="legacy-card"><div class="legacy-card__heading"><div><h3>${escapeHtml(item.numero)}</h3><p>${escapeHtml(formatDate(item.registrado_at))} · ${escapeHtml(item.registrado_por || 'Usuario')}</p></div><span class="return-status${item.migrable ? '' : ' is-warning'}">${item.migrable ? 'Migrable' : 'Reingreso requerido'}</span></div><div class="bin-facts"><div><span>RESULTADO ANTERIOR</span><strong>${escapeHtml(results)}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(item.procesos.length)}</strong></div><div class="legacy-action-fact"><span>ACCIÓN</span>${actions || '<strong>Sin acciones disponibles</strong>'}</div></div><div class="bin-origins">${processes}</div>${item.motivo_no_migrable ? `<small>${escapeHtml(item.motivo_no_migrable)}</small>` : ''}</article>`;

@@ -17,7 +17,6 @@ class OfficeActionMenuTest extends TestCase
         foreach ([
             '.admin-season-actions',
             '.material-reception-actions',
-            '#materialsInventoryBody td:last-child',
             '.validation-row',
             '.annulment-card',
             '.repa-history-card',
@@ -29,6 +28,26 @@ class OfficeActionMenuTest extends TestCase
             '.result-card',
         ] as $actionHost) {
             $this->assertStringContainsString($actionHost, $script);
+        }
+    }
+
+    public function test_material_inventory_keeps_its_dedicated_action_menu(): void
+    {
+        $navigation = file_get_contents(resource_path('js/office-navigation.js'));
+        $inventory = file_get_contents(resource_path('js/office-material-inventory-actions.js'));
+
+        $this->assertIsString($navigation);
+        $this->assertIsString($inventory);
+        $this->assertStringNotContainsString('#materialsInventoryBody td:last-child', $navigation);
+        $this->assertStringContainsString('material-inventory-action-toggle', $inventory);
+
+        foreach ([
+            'data-direct-dispatch',
+            'data-correct-material',
+            'data-block-material',
+            'data-release-material',
+        ] as $action) {
+            $this->assertStringContainsString($action, $inventory);
         }
     }
 
@@ -50,6 +69,9 @@ class OfficeActionMenuTest extends TestCase
         $this->assertStringContainsString('data-office-action-menu', $script);
         $this->assertStringContainsString('data-migrate-legacy', $script);
         $this->assertStringContainsString('data-discard-legacy', $script);
+        $this->assertStringContainsString("can('puede_entregar_fruta_proceso')", $script);
+        $this->assertStringContainsString("can('puede_corregir_entregas_fruta_proceso')", $script);
+        $this->assertStringNotContainsString("can('puede_anular_entregas_fruta_proceso')", $script);
         $this->assertStringNotContainsString('<span>ACCIÓN</span><strong>', $script);
     }
 }

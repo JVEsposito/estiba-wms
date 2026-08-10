@@ -365,7 +365,6 @@ const officeActionHostSelector = [
     '.admin-season-actions',
     '#accessProfilesTableBody td:last-child',
     '.material-reception-actions',
-    '#materialsInventoryBody td:last-child',
     '.material-row',
     '.dispatch-row__state',
     '.materials-order-actions',
