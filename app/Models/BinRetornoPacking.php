@@ -28,6 +28,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'payload_regularizacion_hash',
     'regularizado_por_user_id',
     'regularizado_at',
+    'operacion_anulacion_id',
+    'payload_anulacion_hash',
+    'anulado_por_user_id',
+    'anulado_at',
+    'motivo_anulacion',
     'observacion',
 ])]
 class BinRetornoPacking extends Model
@@ -66,6 +71,11 @@ class BinRetornoPacking extends Model
         return $this->belongsTo(User::class, 'regularizado_por_user_id');
     }
 
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por_user_id');
+    }
+
     public function dispositivo(): BelongsTo
     {
         return $this->belongsTo(Dispositivo::class);
@@ -78,6 +88,7 @@ class BinRetornoPacking extends Model
             'kilos_totales_definitivos' => 'decimal:3',
             'registrado_at' => 'datetime',
             'regularizado_at' => 'datetime',
+            'anulado_at' => 'datetime',
         ];
     }
 }
