@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -91,6 +92,11 @@ return new class extends Migration
             $table->timestamp('registrado_at');
             $table->timestamps(precision: 6);
         });
+
+        DB::table('secuencias_documentos')->updateOrInsert(
+            ['clave' => 'bins_retorno_packing'],
+            ['ultimo_numero' => 0],
+        );
     }
 
     public function down(): void
@@ -98,5 +104,9 @@ return new class extends Migration
         Schema::dropIfExists('regularizaciones_retorno_packing_legacy');
         Schema::dropIfExists('bin_retorno_packing_origenes');
         Schema::dropIfExists('bins_retorno_packing');
+
+        DB::table('secuencias_documentos')
+            ->where('clave', 'bins_retorno_packing')
+            ->delete();
     }
 };
