@@ -24,13 +24,18 @@ class BinRetornoPackingController extends Controller
     {
         Gate::authorize('consultar-fruta-proceso');
 
-        $bins = BinRetornoPacking::query();
+        $bins = BinRetornoPacking::query()
+            ->whereHas('temporada', fn (Builder $consulta) => $consulta->where('activa', true));
         $regularizados = (clone $bins)->where('estado', 'regularizado');
         $pendientes = (clone $bins)->where('estado', 'pendiente_regularizacion');
         $legadoResuelto = RegularizacionRetornoPackingLegacy::query()
             ->pluck('retorno_packing_id');
         $legadoPendiente = RetornoPacking::query()
             ->whereNull('anulado_at')
+            ->whereHas(
+                'entregas.lote.temporada',
+                fn (Builder $consulta) => $consulta->where('activa', true),
+            )
             ->whereNotIn('id', $legadoResuelto)
             ->count();
 
@@ -89,6 +94,7 @@ class BinRetornoPackingController extends Controller
         $estado = trim($request->string('estado')->value());
         $buscar = trim($request->string('buscar')->value());
         $bins = BinRetornoPacking::query()
+            ->whereHas('temporada', fn (Builder $consulta) => $consulta->where('activa', true))
             ->with([
                 'origenes.lote:id,numero_lote',
                 'tipoResultado:id,codigo,nombre',
@@ -122,6 +128,10 @@ class BinRetornoPackingController extends Controller
         $resueltos = RegularizacionRetornoPackingLegacy::query()
             ->pluck('retorno_packing_id');
         $retornos = RetornoPacking::query()
+            ->whereHas(
+                'entregas.lote.temporada',
+                fn (Builder $consulta) => $consulta->where('activa', true),
+            )
             ->with([
                 'entregas.lote:id,numero_lote',
                 'resultados.tipoResultado:id,codigo,nombre',
