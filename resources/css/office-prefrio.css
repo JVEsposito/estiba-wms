@@ -65,6 +65,7 @@
 .event-item strong { font-size: .72rem; }
 .event-item span, .event-item small { color: var(--muted); font-size: .63rem; line-height: 1.4; }
 .decision-panel { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 18px; }
+.decision-time { display: grid; gap: 6px; max-width: 320px; margin: 0 0 14px; color: #c5d4da; font-size: .76rem; font-weight: 800; }
 .decision-folios { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 14px 0; }
 .decision-folio { display: grid; gap: 9px; border: 1px solid var(--line); border-radius: 12px; background: var(--deep); padding: 12px; }
 .decision-folio__title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
