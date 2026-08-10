@@ -137,8 +137,39 @@ class ServicioBinRetornoPacking
                 ->where('activo', true)
                 ->findOrFail($payload['tipo_resultado_packing_id']);
 
+            $origenesPersistidos = $bin->origenes()
+                ->lockForUpdate()
+                ->get();
+            $origenesDefinitivos = collect($payload['origenes'])
+                ->keyBy('origen_id');
+            if ($origenesPersistidos->count() !== $origenesDefinitivos->count()
+                || $origenesPersistidos->contains(
+                    fn (BinRetornoPackingOrigen $origen): bool => ! $origenesDefinitivos->has($origen->id),
+                )) {
+                throw ValidationException::withMessages([
+                    'origenes' => 'Debes confirmar los kilos definitivos de todos los procesos originales del bin.',
+                ]);
+            }
+
+            $cuadraturaDefinitiva = $origenesPersistidos->map(
+                fn (BinRetornoPackingOrigen $origen): array => [
+                    'kilos_aportados' => $origenesDefinitivos[$origen->id]['kilos_aportados_definitivos'],
+                ],
+            );
+            $this->validarCuadratura(
+                $payload['kilos_totales_definitivos'],
+                $cuadraturaDefinitiva,
+            );
+
+            foreach ($origenesPersistidos as $origen) {
+                $origen->update([
+                    'kilos_aportados_definitivos' => $origenesDefinitivos[$origen->id]['kilos_aportados_definitivos'],
+                ]);
+            }
+
             $bin->update([
                 'folio_definitivo' => $payload['folio_definitivo'],
+                'kilos_totales_definitivos' => $payload['kilos_totales_definitivos'],
                 'tipo_resultado_packing_id' => $tipo->id,
                 'nombre_resultado' => $payload['nombre_resultado'] ?? $tipo->nombre,
                 'estado' => 'regularizado',
@@ -335,6 +366,17 @@ class ServicioBinRetornoPacking
             'nombre_resultado' => filled($datos['nombre_resultado'] ?? null)
                 ? trim((string) $datos['nombre_resultado'])
                 : null,
+            'kilos_totales_definitivos' => $this->decimal($datos['kilos_totales_definitivos']),
+            'origenes' => collect($datos['origenes'])
+                ->map(fn (array $origen): array => [
+                    'origen_id' => (string) $origen['origen_id'],
+                    'kilos_aportados_definitivos' => $this->decimal(
+                        $origen['kilos_aportados_definitivos'],
+                    ),
+                ])
+                ->sortBy('origen_id')
+                ->values()
+                ->all(),
         ];
     }
 

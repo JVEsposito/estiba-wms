@@ -35,10 +35,15 @@ class BinRetornoPackingApiTest extends TestCase
             'folio_provisional',
             'folio_definitivo',
             'kilos_totales',
+            'kilos_totales_definitivos',
             'estado',
             'payload_regularizacion_hash',
             'retorno_packing_legacy_id',
         ]));
+        $this->assertTrue(Schema::hasColumn(
+            'bin_retorno_packing_origenes',
+            'kilos_aportados_definitivos',
+        ));
 
         $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $this->actingAs($camarero, 'sanctum')
@@ -138,7 +143,7 @@ class BinRetornoPackingApiTest extends TestCase
             'version_catalogo' => 1,
         ]);
         $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
-        $vigente = $this->bin($temporadaActiva, $camarero, 'PR-ACTIVA');
+        $this->bin($temporadaActiva, $camarero, 'PR-ACTIVA');
         $this->bin($temporadaAnterior, $camarero, 'PR-HISTORICA');
 
         $this->actingAs($camarero, 'sanctum')
@@ -150,6 +155,17 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('bins_registrados', 1)
             ->assertJsonPath('pendientes_regularizacion', 1);
+
+        $contexto = $this->prepararEntrega('CUADRATURA', 'OP-CUAD-001');
+        $vigente = $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($contexto, (string) Str::uuid(), 412.125),
+            )
+            ->assertCreated()
+            ->assertJsonPath('data.kilos_totales_definitivos', null)
+            ->assertJsonPath('data.origenes.0.kilos_aportados_definitivos', null)
+            ->json('data');
 
         $tipo = TipoResultadoPacking::query()->firstOrCreate(
             ['codigo' => 'TEST-RETORNO'],
@@ -166,12 +182,27 @@ class BinRetornoPackingApiTest extends TestCase
             'folio_definitivo' => 'MP-RET-0001',
             'tipo_resultado_packing_id' => $tipo->id,
             'nombre_resultado' => 'Retorno comercial',
+            'kilos_totales_definitivos' => 410.375,
+            'origenes' => [[
+                'origen_id' => $vigente['origenes'][0]['id'],
+                'kilos_aportados_definitivos' => 410.375,
+            ]],
         ];
-        $ruta = "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$vigente->id}/regularizar";
+        $ruta = "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$vigente['id']}/regularizar";
+
+        $this->postJson($ruta, [
+            ...$payload,
+            'kilos_totales_definitivos' => 410,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('origenes');
 
         $this->postJson($ruta, $payload)
             ->assertOk()
             ->assertJsonPath('data.folio_definitivo', 'MP-RET-0001')
+            ->assertJsonPath('data.kilos_totales_verdes', 412.125)
+            ->assertJsonPath('data.kilos_totales_definitivos', 410.375)
+            ->assertJsonPath('data.origenes.0.kilos_aportados_verdes', 412.125)
+            ->assertJsonPath('data.origenes.0.kilos_aportados_definitivos', 410.375)
             ->assertJsonPath('data.estado', 'regularizado');
         $this->postJson($ruta, $payload)
             ->assertOk()
@@ -190,13 +221,31 @@ class BinRetornoPackingApiTest extends TestCase
             'tipo_resultado_packing_id' => $otroTipo->id,
         ])->assertStatus(409)
             ->assertJsonPath('message', 'El bin ya fue regularizado con otra operación o datos diferentes.');
+        $this->postJson($ruta, [
+            ...$payload,
+            'kilos_totales_definitivos' => 409.500,
+            'origenes' => [[
+                ...$payload['origenes'][0],
+                'kilos_aportados_definitivos' => 409.500,
+            ]],
+        ])->assertStatus(409)
+            ->assertJsonPath('message', 'El bin ya fue regularizado con otra operación o datos diferentes.');
 
         $this->assertDatabaseHas('bins_retorno_packing', [
-            'id' => $vigente->id,
+            'id' => $vigente['id'],
             'temporada_id' => $temporadaActiva->id,
             'folio_definitivo' => 'MP-RET-0001',
+            'kilos_totales' => 412.125,
+            'kilos_totales_definitivos' => 410.375,
         ]);
-        $this->assertNotNull($vigente->fresh()->payload_regularizacion_hash);
+        $this->assertDatabaseHas('bin_retorno_packing_origenes', [
+            'id' => $vigente['origenes'][0]['id'],
+            'kilos_aportados' => 412.125,
+            'kilos_aportados_definitivos' => 410.375,
+        ]);
+        $this->assertNotNull(
+            BinRetornoPacking::query()->findOrFail($vigente['id'])->payload_regularizacion_hash,
+        );
     }
 
     public function test_migra_y_descarta_legado_con_auditoria_cuadratura_e_idempotencia(): void
@@ -290,7 +339,15 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertSee('Registrar un bin')
             ->assertSee('Pendientes de regularizar')
             ->assertSee('Registros anteriores')
+            ->assertSee('Kilos totales definitivos')
+            ->assertSee('Cuadraturas debe confirmar folio, clasificación, kilos totales y kilos definitivos por proceso.')
             ->assertSee('folio provisional', false);
+
+        $script = file_get_contents(resource_path('js/office-raw-material-returns.js'));
+        $this->assertIsString($script);
+        $this->assertStringContainsString('kilos_totales_definitivos', $script);
+        $this->assertStringContainsString('kilos_aportados_definitivos', $script);
+        $this->assertStringContainsString('Regularizar folio y kilos', $script);
     }
 
     private function bin(

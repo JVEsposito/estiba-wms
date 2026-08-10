@@ -20,8 +20,8 @@
                 <div class="office-logo" aria-hidden="true">↩</div>
                 <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Registra lo que realmente vuelve desde Packing.</h1>
-                <p>Cada bin nace con un folio provisional y conserva la composición exacta de kilos por proceso.</p>
-                <div class="feature-row"><span>Bin individual</span><span>Multiorigen real</span><span>Regularización posterior</span></div>
+                <p>Cada bin nace con un folio provisional y kilos verdes. Cuadraturas confirma después su peso definitivo por proceso.</p>
+                <div class="feature-row"><span>Bin individual</span><span>Multiorigen real</span><span>Cuadratura definitiva</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
                 <div><p class="eyebrow">ACCESO DE OFICINA</p><h2>Ingresar a Retornos de Packing</h2><p>Disponible para operación, supervisión y administración autorizada.</p></div>
@@ -52,7 +52,7 @@
 
                 <div class="return-kpis">
                     <article><span>BINS REGISTRADOS</span><strong id="registeredBins">0</strong><small>Modelo individual</small></article>
-                    <article><span>KILOS REGISTRADOS</span><strong id="registeredKilos">0</strong><small>Peso físico de retorno</small></article>
+                    <article><span>KILOS VERDES REGISTRADOS</span><strong id="registeredKilos">0</strong><small>Peso provisorio informado al retornar</small></article>
                     <article><span>PENDIENTES DE REGULARIZAR</span><strong id="pendingBins">0</strong><small>Folio provisional vigente</small></article>
                     <article><span>RETORNOS ANTERIORES</span><strong id="legacyReturns">0</strong><small>Pendientes de migrar o descartar</small></article>
                 </div>
@@ -70,13 +70,13 @@
 
                     <form id="binReturnForm" class="bin-return-form" novalidate>
                         <div class="return-form-grid">
-                            <label><span>Kilos totales del bin *</span><input name="kilos_totales" id="binTotalKilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" required></label>
+                            <label><span>Kilos verdes totales del bin *</span><input name="kilos_totales" id="binTotalKilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" required></label>
                             <label class="field-wide"><span>Observación</span><textarea name="observacion" maxlength="2000" placeholder="Opcional"></textarea></label>
                         </div>
 
                         <div class="origin-builder">
                             <div class="origin-builder__heading">
-                                <div><strong>Composición por proceso</strong><small>Agrega cada proceso que aportó kilos al bin.</small></div>
+                                <div><strong>Composición verde por proceso</strong><small>Agrega cada proceso y los kilos provisorios que aportó al bin.</small></div>
                                 <div class="origin-add">
                                     <select id="processSelect" aria-label="Proceso de origen"></select>
                                     <button class="secondary-button" id="addOriginButton" type="button">+ Agregar proceso</button>
@@ -98,7 +98,7 @@
 
                 <section class="return-panel is-hidden" data-return-panel="pendientes">
                     <div class="return-panel__heading">
-                        <div><p class="eyebrow">REGULARIZACIÓN OBLIGATORIA</p><h2>Folios provisionales pendientes</h2><p>Todo PR-* debe convertirse posteriormente en el folio definitivo, sin perder su identidad de recepción.</p></div>
+                        <div><p class="eyebrow">REGULARIZACIÓN OBLIGATORIA</p><h2>Folios provisionales pendientes</h2><p>Cuadraturas debe confirmar folio, clasificación, kilos totales y kilos definitivos por proceso. El PR-* siempre conserva su identidad.</p></div>
                     </div>
                     <div class="bin-list" id="pendingBinList"></div>
                 </section>
@@ -113,7 +113,7 @@
             </section>
         </main>
 
-        <dialog class="return-dialog" id="regularizeDialog">
+        <dialog class="return-dialog return-dialog--wide" id="regularizeDialog">
             <form method="dialog" id="regularizeForm" novalidate>
                 <div class="return-dialog__heading"><div><p class="eyebrow">FOLIO PROVISIONAL</p><h2 id="regularizeTitle">Regularizar bin</h2><p id="regularizeDescription"></p></div><button value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <input name="bin_id" type="hidden">
@@ -122,8 +122,14 @@
                     <label><span>Clasificación *</span><select name="tipo_resultado_packing_id" required></select></label>
                     <label class="field-wide"><span>Nombre / detalle</span><input name="nombre_resultado" maxlength="100" autocomplete="off" placeholder="Opcional; usa el nombre del catálogo si queda vacío"></label>
                 </div>
+                <label class="migration-total"><span>Kilos totales definitivos *</span><input name="kilos_totales_definitivos" id="regularizeTotalKilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" required></label>
+                <div>
+                    <p class="eyebrow">DISTRIBUCIÓN DEFINITIVA POR PROCESO</p>
+                    <div class="migration-origins" id="regularizeOrigins"></div>
+                    <div class="origin-balance" id="regularizeBalance"><span>Distribuido</span><strong>0,000 / 0,000 kg</strong><small>Completa la cuadratura</small></div>
+                </div>
                 <p class="form-error" id="regularizeError" role="alert"></p>
-                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Guardar folio definitivo</button></div>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Confirmar folio y kilos definitivos</button></div>
             </form>
         </dialog>
 

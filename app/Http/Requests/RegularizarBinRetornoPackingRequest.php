@@ -25,6 +25,27 @@ class RegularizarBinRetornoPackingRequest extends FormRequest
                     ->where(fn ($consulta) => $consulta->where('activo', true)),
             ],
             'nombre_resultado' => ['nullable', 'string', 'max:100'],
+            'kilos_totales_definitivos' => [
+                'required',
+                'numeric',
+                'min:0.001',
+                'max:999999999.999',
+                'decimal:0,3',
+            ],
+            'origenes' => ['required', 'array', 'min:1'],
+            'origenes.*.origen_id' => [
+                'required',
+                'uuid',
+                'distinct',
+                Rule::exists('bin_retorno_packing_origenes', 'id'),
+            ],
+            'origenes.*.kilos_aportados_definitivos' => [
+                'required',
+                'numeric',
+                'min:0.001',
+                'max:999999999.999',
+                'decimal:0,3',
+            ],
         ];
     }
 }
