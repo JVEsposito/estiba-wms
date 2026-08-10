@@ -9,7 +9,7 @@ use RuntimeException;
 use Throwable;
 use ZipArchive;
 
-class GeneradorRegistroMuestreoRecepcionMaterial
+class MuestreoXlsx
 {
     public function generar(RecepcionMaterial $recepcion): string
     {
@@ -453,3 +453,4 @@ XML;
 XML;
     }
 }
+

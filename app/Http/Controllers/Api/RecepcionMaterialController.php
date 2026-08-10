@@ -18,7 +18,7 @@ use App\Models\ItemMaterial;
 use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
 use App\Models\TemporadaMaterial;
-use App\Services\Materiales\GeneradorRegistroMuestreoRecepcionMaterial;
+use App\Services\Materiales\MuestreoXlsx;
 use App\Services\Materiales\ServicioRecepcionMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -194,7 +194,7 @@ class RecepcionMaterialController extends Controller
     public function registroMuestreo(
         Request $request,
         RecepcionMaterial $recepcionMaterial,
-        GeneradorRegistroMuestreoRecepcionMaterial $generador,
+        MuestreoXlsx $generador,
     ): BinaryFileResponse {
         Gate::authorize('consultar-recepciones-materiales');
         abort_unless(
