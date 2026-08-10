@@ -1,8 +1,8 @@
 <?php
 
-namespace TestsFeature;
+namespace Tests\Feature;
 
-use TestsTestCase;
+use Tests\TestCase;
 
 class PrefrioFoliosFiltersInterfaceTest extends TestCase
 {
