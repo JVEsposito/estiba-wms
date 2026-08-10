@@ -56,7 +56,7 @@ function formatDate(value) {
 }
 function label(value) {
     const labels = {
-        pendiente_regularizacion: 'Pendiente de regularizar', regularizado: 'Regularizado',
+        pendiente_regularizacion: 'Pendiente de regularizar', regularizado: 'Regularizado', anulado: 'Anulado',
         administrador: 'Administrador', supervisor_frio: 'Supervisor de frío', camarero_frio: 'Camarero',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
@@ -159,7 +159,13 @@ function binOriginsMarkup(bin) {
     return `<div class="bin-origins">${bin.origenes.map((origin) => `<div class="bin-origin"><div><strong>${escapeHtml(origin.numero_lote || 'Lote')} · ${escapeHtml(origin.numero_orden)}</strong><small>${escapeHtml(origin.linea_proceso)} · turno ${escapeHtml(origin.turno)} · verde ${escapeHtml(formatKilos(origin.kilos_aportados_verdes ?? origin.kilos_aportados))}</small></div><strong>${origin.kilos_aportados_definitivos === null ? 'Definitivo pendiente' : `Definitivo ${escapeHtml(formatKilos(origin.kilos_aportados_definitivos))}`}</strong></div>`).join('')}</div>`;
 }
 function binCard(bin, pending = false) {
-    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO VERDE</span><strong>${escapeHtml(formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales))}</strong></div><div><span>PESO DEFINITIVO</span><strong>${bin.kilos_totales_definitivos === null ? 'Pendiente' : escapeHtml(formatKilos(bin.kilos_totales_definitivos))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${pending ? `<div class="bin-card__actions" data-office-action-menu><button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio y kilos</button></div>` : ''}</article>`;
+    const actions = [];
+    if (pending) actions.push(`<button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio y kilos</button>`);
+    if (canResolveLegacyReturn() && bin.estado !== 'anulado') actions.push(`<button data-annul-bin="${escapeHtml(bin.id)}" type="button">Anular retorno</button>`);
+    const audit = bin.anulado_at
+        ? `<div class="return-annulment"><strong>Anulado ${escapeHtml(formatDate(bin.anulado_at))}</strong><span>${escapeHtml(bin.anulado_por || 'Usuario')} · ${escapeHtml(bin.motivo_anulacion || 'Sin motivo')}</span></div>`
+        : '';
+    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO VERDE</span><strong>${escapeHtml(formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales))}</strong></div><div><span>PESO DEFINITIVO</span><strong>${bin.kilos_totales_definitivos === null ? 'Pendiente' : escapeHtml(formatKilos(bin.kilos_totales_definitivos))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${audit}${actions.length ? `<div class="bin-card__actions" data-office-action-menu>${actions.join('')}</div>` : ''}</article>`;
 }
 function renderBins() {
     elements.recentBins.innerHTML = state.bins.length ? state.bins.slice(0, 8).map((bin) => binCard(bin)).join('') : '<div class="return-empty">Todavía no hay bins registrados con el nuevo modelo.</div>';
@@ -297,6 +303,20 @@ async function discardLegacy(id) {
     finally { setBusy(false); }
 }
 
+async function annulBin(id) {
+    const bin = state.bins.find((item) => item.id === id); if (!bin || bin.estado === 'anulado') return;
+    const reason = window.prompt(`Motivo para anular ${bin.folio_provisional} (mínimo 5 caracteres):`);
+    if (reason === null) return;
+    if (reason.trim().length < 5) { toast('Ingresa un motivo de al menos 5 caracteres.', true); return; }
+    if (!window.confirm(`Se anulará operacionalmente ${bin.folio_provisional}. El historial se conservará y podrás reingresar el retorno correctamente. ¿Continuar?`)) return;
+    setBusy(true, 'Anulando retorno…');
+    try {
+        await api(`/api/materia-prima/fruta-proceso/retornos-bin/bins/${bin.id}/anular`, { method: 'POST', body: JSON.stringify({ operacion_id: uuid(), motivo: reason.trim() }) });
+        toast(`${bin.folio_provisional} quedó anulado.`); await load({ silent: true });
+    } catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
+}
+
 elements.login.addEventListener('submit', async (event) => {
     event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…');
     try {
@@ -319,7 +339,12 @@ elements.originRows.addEventListener('input', (event) => {
 });
 elements.totalKilos.addEventListener('input', renderBalance);
 elements.binForm.addEventListener('submit', (event) => { event.preventDefault(); void submitBin(); });
-elements.pendingList.addEventListener('click', (event) => { const button = event.target.closest('[data-regularize-bin]'); if (button) openRegularize(button.dataset.regularizeBin); });
+function handleBinAction(event) {
+    const regularize = event.target.closest('[data-regularize-bin]'); if (regularize) openRegularize(regularize.dataset.regularizeBin);
+    const annul = event.target.closest('[data-annul-bin]'); if (annul) void annulBin(annul.dataset.annulBin);
+}
+elements.recentBins.addEventListener('click', handleBinAction);
+elements.pendingList.addEventListener('click', handleBinAction);
 elements.regularizeOrigins.addEventListener('input', renderRegularizeBalance);
 elements.regularizeTotal.addEventListener('input', renderRegularizeBalance);
 elements.regularizeForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.regularizeDialog.close(); state.regularizationOperationId = null; return; } void submitRegularize(); });
