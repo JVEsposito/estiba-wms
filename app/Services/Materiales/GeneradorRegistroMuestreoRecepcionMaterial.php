@@ -45,7 +45,7 @@ class GeneradorRegistroMuestreoRecepcionMaterial
                 $this->sheet($recepcion, $condicion, $porcentaje),
             );
 
-            if (! $zip->close()) {
+            if ($zip->close() === false) {
                 throw new RuntimeException('No fue posible finalizar el registro de muestreo.');
             }
             $zip = null;
@@ -55,7 +55,9 @@ class GeneradorRegistroMuestreoRecepcionMaterial
             if ($zip instanceof ZipArchive) {
                 $zip->close();
             }
-            @unlink($ruta);
+            if (is_file($ruta)) {
+                unlink($ruta);
+            }
 
             throw $excepcion;
         }
@@ -161,7 +163,7 @@ class GeneradorRegistroMuestreoRecepcionMaterial
             $fila = $filaInicio + $indice;
             /** @var DetalleRecepcionMaterial|null $detalle */
             $detalle = $detalles->get($indice);
-            if (! $detalle) {
+            if ($detalle === null) {
                 $filas[] = $this->emptyMaterialRow($fila);
                 continue;
             }
@@ -325,7 +327,9 @@ class GeneradorRegistroMuestreoRecepcionMaterial
         if ($ruta === false) {
             throw new RuntimeException('No fue posible crear el archivo temporal.');
         }
-        @unlink($ruta);
+        if (is_file($ruta)) {
+            unlink($ruta);
+        }
 
         return $ruta.$extension;
     }
