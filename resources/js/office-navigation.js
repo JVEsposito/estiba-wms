@@ -391,12 +391,22 @@ const officeActionHostSelector = [
     '.result-card',
 ].join(', ');
 
+function officeActionElements(container) {
+    return [...container.children].filter((element) => element.matches('button, a[href]'));
+}
+
+function isVisibleOfficeAction(action) {
+    return !action.hidden
+        && !action.classList.contains('is-hidden')
+        && action.getAttribute('aria-hidden') !== 'true';
+}
+
 function officeActionItems(host) {
-    return [...host.children].filter((element) => (
-        element.matches('button, a[href]')
-        && !element.classList.contains('is-hidden')
-        && element.getAttribute('aria-hidden') !== 'true'
-    ));
+    const sources = host.querySelector(':scope > .office-action-sources');
+
+    return sources
+        ? officeActionElements(sources).filter(isVisibleOfficeAction)
+        : officeActionElements(host).filter(isVisibleOfficeAction);
 }
 
 function actionOptionLabel(action) {
@@ -406,18 +416,44 @@ function actionOptionLabel(action) {
         || 'Ejecutar acción';
 }
 
-function upgradeOfficeActionHost(host) {
-    if (host.dataset.officeActionMenuReady === 'true') return;
-
-    const actions = officeActionItems(host);
-    if (!actions.length) return;
-
-    host.dataset.officeActionMenuReady = 'true';
-
+function createOfficeActionSelect(host) {
     const select = document.createElement('select');
     select.className = 'office-action-select';
     select.setAttribute('aria-label', 'Seleccionar acción');
-    select.innerHTML = '<option value="">Seleccionar acción</option>';
+
+    ['pointerdown', 'mousedown', 'touchstart', 'click', 'input', 'keydown'].forEach((eventName) => {
+        select.addEventListener(eventName, (event) => event.stopPropagation());
+    });
+
+    select.addEventListener('change', (event) => {
+        event.stopPropagation();
+        const selectedIndex = Number(select.value);
+        const actions = officeActionItems(host);
+        const action = actions[selectedIndex];
+        select.value = '';
+
+        if (!action || action.disabled || action.getAttribute('aria-disabled') === 'true') return;
+        action.click();
+    });
+
+    return select;
+}
+
+function syncOfficeActionSelect(host, select) {
+    const actions = officeActionItems(host);
+    const signature = JSON.stringify(actions.map((action) => ({
+        label: actionOptionLabel(action),
+        disabled: action.disabled || action.getAttribute('aria-disabled') === 'true',
+    })));
+
+    if (select.dataset.officeActionSignature === signature) return;
+    select.dataset.officeActionSignature = signature;
+    select.replaceChildren();
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = actions.length ? 'Seleccionar acción' : 'Sin acciones disponibles';
+    select.append(placeholder);
 
     actions.forEach((action, index) => {
         const option = document.createElement('option');
@@ -427,21 +463,33 @@ function upgradeOfficeActionHost(host) {
         select.append(option);
     });
 
-    const sources = document.createElement('span');
-    sources.className = 'office-action-sources';
-    sources.hidden = true;
-    sources.append(...actions);
+    select.disabled = actions.length === 0 || actions.every((action) => (
+        action.disabled || action.getAttribute('aria-disabled') === 'true'
+    ));
+}
 
-    select.addEventListener('change', () => {
-        const selectedIndex = Number(select.value);
-        const action = actions[selectedIndex];
-        select.value = '';
+function upgradeOfficeActionHost(host) {
+    let sources = host.querySelector(':scope > .office-action-sources');
+    const pendingActions = officeActionElements(host);
 
-        if (!action || action.disabled || action.getAttribute('aria-disabled') === 'true') return;
-        action.click();
-    });
+    if (!sources && !pendingActions.some(isVisibleOfficeAction)) return;
 
-    host.append(select, sources);
+    if (!sources) {
+        sources = document.createElement('span');
+        sources.className = 'office-action-sources';
+        sources.hidden = true;
+        host.append(sources);
+    }
+    if (pendingActions.length) sources.append(...pendingActions);
+
+    let select = host.querySelector(':scope > .office-action-select');
+    if (!select) {
+        select = createOfficeActionSelect(host);
+        host.insertBefore(select, sources);
+    }
+
+    host.dataset.officeActionMenuReady = 'true';
+    syncOfficeActionSelect(host, select);
 }
 
 function upgradeOfficeActionMenus(root = document) {
@@ -464,7 +512,21 @@ function initializeOfficeActionMenus() {
             scheduled = false;
             upgradeOfficeActionMenus();
         });
-    }).observe(document.body, { childList: true, subtree: true });
+    }).observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: [
+            'class',
+            'disabled',
+            'hidden',
+            'aria-disabled',
+            'aria-hidden',
+            'aria-label',
+            'data-action-label',
+        ],
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

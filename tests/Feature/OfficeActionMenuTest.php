@@ -60,6 +60,32 @@ class OfficeActionMenuTest extends TestCase
         $this->assertStringContainsString('.office-action-sources[hidden]', $styles);
     }
 
+    public function test_action_selects_isolate_interaction_and_refresh_dynamic_options(): void
+    {
+        $script = file_get_contents(resource_path('js/office-navigation.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('event.stopPropagation()', $script);
+        $this->assertStringContainsString('syncOfficeActionSelect', $script);
+        $this->assertStringContainsString('characterData: true', $script);
+        $this->assertStringContainsString('attributes: true', $script);
+        $this->assertStringNotContainsString(
+            "if (host.dataset.officeActionMenuReady === 'true') return;",
+            $script,
+        );
+
+        foreach ([
+            'pointerdown',
+            'mousedown',
+            'touchstart',
+            'click',
+            'input',
+            'keydown',
+        ] as $eventName) {
+            $this->assertStringContainsString("'{$eventName}'", $script);
+        }
+    }
+
     public function test_legacy_returns_render_real_actions_inside_the_action_field(): void
     {
         $script = file_get_contents(resource_path('js/office-raw-material-returns.js'));
