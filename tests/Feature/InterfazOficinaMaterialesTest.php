@@ -98,6 +98,7 @@ class InterfazOficinaMaterialesTest extends TestCase
         $script = file_get_contents(resource_path('js/office-material-warehouses.js'));
         $styles = file_get_contents(resource_path('css/office-materials.css'));
         $view = file_get_contents(resource_path('views/office/material-warehouses.blade.php'));
+        $vite = file_get_contents(base_path('vite.config.js'));
         $provider = file_get_contents(
             app_path('Providers/CustodiaDistribuidaMaterialesServiceProvider.php'),
         );
@@ -113,6 +114,11 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertIsString($view);
         $this->assertStringNotContainsString('<style>', $view);
         $this->assertStringNotContainsString('<script>', $view);
+        $this->assertIsString($vite);
+        $this->assertStringContainsString(
+            'resources/js/office-material-warehouses.js',
+            $vite,
+        );
         $this->assertIsString($provider);
         $this->assertStringNotContainsString('loadRoutesFrom', $provider);
     }
