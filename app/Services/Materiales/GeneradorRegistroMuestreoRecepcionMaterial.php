@@ -5,7 +5,6 @@ namespace App\Services\Materiales;
 use App\Enums\EstadoRecepcionMaterial;
 use App\Models\DetalleRecepcionMaterial;
 use App\Models\RecepcionMaterial;
-use Illuminate\Support\Collection;
 use RuntimeException;
 use Throwable;
 use ZipArchive;
@@ -75,11 +74,11 @@ class GeneradorRegistroMuestreoRecepcionMaterial
                 fn ($consulta) => $consulta->where('confirmado_at', '<', $recepcion->confirmado_at),
             );
 
-        if ((clone $anteriores)->doesntExist()) {
+        if ($anteriores->doesntExist()) {
             return ['nuevo', 0.10];
         }
 
-        $conDiferencias = (clone $anteriores)
+        $conDiferencias = $anteriores
             ->whereHas('detalles', fn ($detalles) => $detalles
                 ->where('cantidad_rechazada', '>', 0))
             ->exists();
@@ -258,7 +257,6 @@ class GeneradorRegistroMuestreoRecepcionMaterial
 
     private function unidadEmbalaje(DetalleRecepcionMaterial $detalle): string
     {
-        /** @var Collection<int, float> $cantidades */
         $cantidades = $detalle->bultos
             ->map(fn ($bulto): float => round((float) $bulto->cantidad, 3))
             ->filter(fn (float $cantidad): bool => $cantidad > 0)
