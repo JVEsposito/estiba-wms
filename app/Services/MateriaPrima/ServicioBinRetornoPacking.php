@@ -11,6 +11,7 @@ use App\Models\LoteMateriaPrima;
 use App\Models\PersonalAccessToken;
 use App\Models\RegularizacionRetornoPackingLegacy;
 use App\Models\RetornoPacking;
+use App\Models\Temporada;
 use App\Models\TipoResultadoPacking;
 use App\Models\User;
 use App\Services\Secuencias\ServicioSecuenciaDocumento;
@@ -47,6 +48,7 @@ class ServicioBinRetornoPacking
                 return $this->cargar($existente);
             }
 
+            $temporadaActivaId = $this->temporadaActivaId();
             $origenes = $this->validarOrigenes($payload['origenes']);
             $this->validarCuadratura($payload['kilos_totales'], $origenes);
 
@@ -57,6 +59,7 @@ class ServicioBinRetornoPacking
             );
 
             $bin = BinRetornoPacking::create([
+                'temporada_id' => $temporadaActivaId,
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
                 'folio_provisional' => $folioProvisional,
@@ -82,20 +85,46 @@ class ServicioBinRetornoPacking
         array $datos,
         User $usuario,
     ): BinRetornoPacking {
-        return DB::transaction(function () use ($bin, $datos, $usuario): BinRetornoPacking {
+        $payload = $this->payloadRegularizacion($datos);
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use (
+            $bin,
+            $datos,
+            $usuario,
+            $payload,
+            $hash,
+        ): BinRetornoPacking {
             $bin = BinRetornoPacking::query()->lockForUpdate()->findOrFail($bin->id);
 
             if ($bin->regularizado_at !== null) {
-                if ($bin->operacion_regularizacion_id !== $datos['operacion_id']) {
-                    throw new ConflictoOperacion('El bin ya fue regularizado con otra operación.');
+                if ($bin->operacion_regularizacion_id !== $datos['operacion_id']
+                    || ! is_string($bin->payload_regularizacion_hash)
+                    || ! hash_equals($bin->payload_regularizacion_hash, $hash)) {
+                    throw new ConflictoOperacion('El bin ya fue regularizado con otra operación o datos diferentes.');
                 }
 
                 return $this->cargar($bin);
             }
 
-            $folio = mb_strtoupper(trim((string) $datos['folio_definitivo']));
+            if ($bin->temporada_id !== $this->temporadaActivaId()) {
+                throw new ConflictoOperacion(
+                    'El bin no pertenece a la temporada activa y no puede regularizarse.',
+                );
+            }
+
+            $operacionOcupada = BinRetornoPacking::query()
+                ->where('operacion_regularizacion_id', $datos['operacion_id'])
+                ->whereKeyNot($bin->id)
+                ->exists();
+            if ($operacionOcupada) {
+                throw new ConflictoOperacion(
+                    'El identificador de regularización ya fue utilizado en otro bin.',
+                );
+            }
+
             $ocupado = BinRetornoPacking::query()
-                ->where('folio_definitivo', $folio)
+                ->where('folio_definitivo', $payload['folio_definitivo'])
                 ->whereKeyNot($bin->id)
                 ->exists();
             if ($ocupado) {
@@ -106,16 +135,15 @@ class ServicioBinRetornoPacking
 
             $tipo = TipoResultadoPacking::query()
                 ->where('activo', true)
-                ->findOrFail($datos['tipo_resultado_packing_id']);
+                ->findOrFail($payload['tipo_resultado_packing_id']);
 
             $bin->update([
-                'folio_definitivo' => $folio,
+                'folio_definitivo' => $payload['folio_definitivo'],
                 'tipo_resultado_packing_id' => $tipo->id,
-                'nombre_resultado' => filled($datos['nombre_resultado'] ?? null)
-                    ? trim((string) $datos['nombre_resultado'])
-                    : $tipo->nombre,
+                'nombre_resultado' => $payload['nombre_resultado'] ?? $tipo->nombre,
                 'estado' => 'regularizado',
                 'operacion_regularizacion_id' => $datos['operacion_id'],
+                'payload_regularizacion_hash' => $hash,
                 'regularizado_por_user_id' => $usuario->id,
                 'regularizado_at' => now(),
             ]);
@@ -176,12 +204,14 @@ class ServicioBinRetornoPacking
             $this->validarCuadratura($payload['kilos_totales'], $origenes);
 
             $resultado = $retorno->resultados->first();
+            $temporadaActivaId = $this->temporadaActivaId();
             $token = $usuario->currentAccessToken();
             $folioProvisional = sprintf(
                 'PR-%06d',
                 $this->secuencias->reservarSiguiente('bins_retorno_packing'),
             );
             $bin = BinRetornoPacking::create([
+                'temporada_id' => $temporadaActivaId,
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
                 'folio_provisional' => $folioProvisional,
@@ -293,6 +323,18 @@ class ServicioBinRetornoPacking
                 ? trim((string) $datos['observacion'])
                 : null,
             'origenes' => $this->normalizarOrigenes($datos['origenes']),
+        ];
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function payloadRegularizacion(array $datos): array
+    {
+        return [
+            'folio_definitivo' => mb_strtoupper(trim((string) $datos['folio_definitivo'])),
+            'tipo_resultado_packing_id' => (string) $datos['tipo_resultado_packing_id'],
+            'nombre_resultado' => filled($datos['nombre_resultado'] ?? null)
+                ? trim((string) $datos['nombre_resultado'])
+                : null,
         ];
     }
 
@@ -446,6 +488,21 @@ class ServicioBinRetornoPacking
             mb_strtoupper(trim((string) $origen['linea_proceso'])),
             mb_strtoupper(trim((string) $origen['turno'])),
         ]));
+    }
+
+    private function temporadaActivaId(): string
+    {
+        $temporadaId = Temporada::query()
+            ->where('activa', true)
+            ->sharedLock()
+            ->value('id');
+        if (! is_string($temporadaId) || $temporadaId === '') {
+            throw new ConflictoOperacion(
+                'No existe una temporada activa para registrar retornos de Packing.',
+            );
+        }
+
+        return $temporadaId;
     }
 
     private function decimal(mixed $valor): string
