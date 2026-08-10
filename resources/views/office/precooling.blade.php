@@ -89,9 +89,21 @@
                             <div class="event-timeline" id="processTimeline"></div>
                         </div>
                     </div>
+                    <section class="decision-panel is-hidden" id="operationalPanel">
+                        <div class="prefrio-panel__heading"><div><p class="eyebrow">OPERACIÓN MANUAL</p><h3>Registrar acción con fecha y hora real</h3></div><span>La hora indicada queda en la trazabilidad</span></div>
+                        <form class="prefrio-form-grid" id="operationalActionForm">
+                            <label><span>Acción *</span><select name="accion" id="operationalActionSelect" required></select></label>
+                            <label><span>Fecha y hora de la acción *</span><input name="ocurrido_at" type="datetime-local" required></label>
+                            <label class="is-hidden" id="operationalTemperatureField"><span>Temperatura °C *</span><input name="temperatura" type="number" min="-20" max="50" step="0.1"></label>
+                            <label class="prefrio-field-wide"><span>Observación</span><textarea name="observacion" maxlength="2000" placeholder="Opcional"></textarea></label>
+                            <p class="form-error prefrio-field-wide" id="operationalActionError" role="alert"></p>
+                            <div class="dialog-actions prefrio-field-wide"><button class="primary-button" type="submit">Registrar acción</button></div>
+                        </form>
+                    </section>
                     <section class="decision-panel is-hidden" id="decisionPanel">
                         <div class="prefrio-panel__heading"><div><p class="eyebrow">VERIFICACIÓN FINAL</p><h3>Resultado por folio</h3></div><span>Supervisor de frío o administrador</span></div>
                         <div class="decision-folios" id="decisionFolios"></div>
+                        <label class="decision-time"><span>Fecha y hora de la decisión *</span><input id="decisionOccurredAt" type="datetime-local" required></label>
                         <div class="decision-actions">
                             <button class="primary-button" id="approveProcessButton" type="button">Aprobar proceso</button>
                             <button class="secondary-button" id="reprocessProcessButton" type="button">Enviar a reproceso</button>
@@ -133,6 +145,7 @@
                     <label><span>Setpoint *</span><input name="setpoint" type="number" min="-20" max="20" step="0.1" value="-1.5" required></label>
                     <label><span>Duración objetivo (min)</span><input name="duracion_objetivo_minutos" type="number" min="1" max="4320" value="720"></label>
                     <label><span>Formato de referencia</span><input name="formato_referencia" maxlength="100" placeholder="Granel 5 kg"></label>
+                    <label><span>Fecha y hora de apertura *</span><input name="ocurrido_at" type="datetime-local" required></label>
                     <label class="prefrio-field-wide"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
                 </div>
                 <p class="form-error" id="processFormError" role="alert"></p>
@@ -145,6 +158,7 @@
                 <div class="prefrio-dialog__heading"><div><p class="eyebrow" id="reasonEyebrow">DECISIÓN</p><h2 id="reasonTitle">Registrar motivo</h2><p id="reasonDescription"></p></div><button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button></div>
                 <label><span>Motivo *</span><input name="motivo" maxlength="100" required></label>
                 <label><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>
+                <label><span>Fecha y hora de la decisión *</span><input name="ocurrido_at" type="datetime-local" required></label>
                 <p class="form-error" id="reasonError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="danger-button" id="confirmReasonButton" value="default" type="submit">Confirmar</button></div>
             </form>

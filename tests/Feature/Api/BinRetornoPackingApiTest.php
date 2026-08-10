@@ -38,6 +38,11 @@ class BinRetornoPackingApiTest extends TestCase
             'kilos_totales_definitivos',
             'estado',
             'payload_regularizacion_hash',
+            'operacion_anulacion_id',
+            'payload_anulacion_hash',
+            'anulado_por_user_id',
+            'anulado_at',
+            'motivo_anulacion',
             'retorno_packing_legacy_id',
         ]));
         $this->assertTrue(Schema::hasColumn(
@@ -248,6 +253,56 @@ class BinRetornoPackingApiTest extends TestCase
         );
     }
 
+    public function test_anula_retorno_sin_borrarlo_y_exige_idempotencia_estricta(): void
+    {
+        $contexto = $this->prepararEntrega('ANULAR', 'OP-BIN-ANULAR');
+        $bin = $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($contexto, (string) Str::uuid(), 412.125),
+            )
+            ->assertCreated()
+            ->json('data');
+        $operacion = (string) Str::uuid();
+        $ruta = "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$bin['id']}/anular";
+        $payload = [
+            'operacion_id' => $operacion,
+            'motivo' => 'Peso verde ingresado en el proceso equivocado.',
+        ];
+
+        $this->actingAs($contexto['supervisor'], 'sanctum')
+            ->postJson($ruta, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'anulado')
+            ->assertJsonPath('data.motivo_anulacion', $payload['motivo']);
+
+        $this->postJson($ruta, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'anulado');
+
+        $this->postJson($ruta, [
+            ...$payload,
+            'motivo' => 'Se intenta cambiar el motivo después de anular.',
+        ])->assertStatus(409)
+            ->assertJsonPath(
+                'message',
+                'El bin ya fue anulado con otra operación o un motivo diferente.',
+            );
+
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $bin['id'],
+            'estado' => 'anulado',
+            'operacion_anulacion_id' => $operacion,
+            'anulado_por_user_id' => $contexto['supervisor']->id,
+            'motivo_anulacion' => $payload['motivo'],
+        ]);
+        $this->assertDatabaseCount('bins_retorno_packing', 1);
+        $this->getJson('/api/materia-prima/fruta-proceso/retornos-bin/resumen')
+            ->assertOk()
+            ->assertJsonPath('bins_registrados', 0)
+            ->assertJsonPath('kilos_registrados', 0);
+    }
+
     public function test_migra_y_descarta_legado_con_auditoria_cuadratura_e_idempotencia(): void
     {
         $contexto = $this->prepararEntrega('LEGADO', 'OP-LEG-001');
@@ -348,6 +403,8 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('kilos_totales_definitivos', $script);
         $this->assertStringContainsString('kilos_aportados_definitivos', $script);
         $this->assertStringContainsString('Regularizar folio y kilos', $script);
+        $this->assertStringContainsString('Anular retorno', $script);
+        $this->assertStringContainsString('data-annul-bin', $script);
     }
 
     private function bin(

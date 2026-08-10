@@ -34,6 +34,10 @@ class BinRetornoPackingServiceProvider extends ServiceProvider
                     '/bins/{binRetornoPacking}/regularizar',
                     [BinRetornoPackingController::class, 'regularizar'],
                 )->middleware('can:entregar-fruta-proceso');
+                Route::post(
+                    '/bins/{binRetornoPacking}/anular',
+                    [BinRetornoPackingController::class, 'anular'],
+                )->middleware('can:anular-entregas-fruta-proceso');
 
                 Route::post(
                     '/legacy/{retornoPacking}/migrar',

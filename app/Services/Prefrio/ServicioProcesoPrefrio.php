@@ -56,8 +56,12 @@ class ServicioProcesoPrefrio
             'duracion_objetivo_minutos' => $datos['duracion_objetivo_minutos'] ?? null,
             'formato_referencia' => $datos['formato_referencia'] ?? null,
             'observacion' => $datos['observacion'] ?? null,
+            'ocurrido_at' => CarbonImmutable::parse($datos['ocurrido_at'])->toAtomString(),
         ]);
         $payloadHash = $this->calcularHash($payload);
+        $payloadCompatible = $payload;
+        unset($payloadCompatible['ocurrido_at']);
+        $payloadHashCompatible = $this->calcularHash($payloadCompatible);
 
         return DB::transaction(function () use (
             $datos,
@@ -66,7 +70,9 @@ class ServicioProcesoPrefrio
             $operacionId,
             $payload,
             $payloadHash,
+            $payloadHashCompatible,
         ): ProcesoPrefrio {
+            $momento = $this->validarMomentoOperacion($datos['ocurrido_at']);
             $existente = ProcesoPrefrio::query()
                 ->where('operacion_id', $operacionId)
                 ->lockForUpdate()
@@ -78,6 +84,7 @@ class ServicioProcesoPrefrio
                     $usuario,
                     $dispositivo,
                     $payloadHash,
+                    $payloadHashCompatible,
                 );
 
                 return $this->cargar($existente);
@@ -114,7 +121,7 @@ class ServicioProcesoPrefrio
                 'tipo' => TipoEventoPrefrio::CargaIniciada,
                 'user_id' => $usuario->id,
                 'dispositivo_id' => $dispositivo?->id,
-                'ocurrido_at' => CarbonImmutable::parse($datos['ocurrido_at']),
+                'ocurrido_at' => $momento,
                 'datos' => $payload,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
             ]);
@@ -676,6 +683,8 @@ class ServicioProcesoPrefrio
                 throw new ConflictoOperacion('La versión conocida del proceso de prefrío está desactualizada.');
             }
 
+            $momento = $this->validarMomentoOperacion($datos['ocurrido_at'], $procesoBloqueado);
+
             $asignacion = $accion($procesoBloqueado);
             $procesoBloqueado->increment('version');
 
@@ -687,7 +696,7 @@ class ServicioProcesoPrefrio
                 'tipo' => $tipo,
                 'user_id' => $usuario->id,
                 'dispositivo_id' => $dispositivo?->id,
-                'ocurrido_at' => CarbonImmutable::parse($datos['ocurrido_at']),
+                'ocurrido_at' => $momento,
                 'datos' => $payload,
                 'observacion' => $this->textoOpcional($datos['observacion'] ?? null),
             ]);
@@ -715,6 +724,37 @@ class ServicioProcesoPrefrio
             ->update(['ultimo_numero' => $numero, 'updated_at' => now()]);
 
         return sprintf('PF-%d-%06d', $anio, $numero);
+    }
+
+    private function validarMomentoOperacion(
+        string $valor,
+        ?ProcesoPrefrio $proceso = null,
+    ): CarbonImmutable {
+        $momento = CarbonImmutable::parse($valor);
+        if ($momento->greaterThan(now()->addMinutes(5))) {
+            throw new ConflictoOperacion(
+                'La fecha y hora de la acción no puede quedar en el futuro.',
+            );
+        }
+
+        if ($proceso === null) {
+            return $momento;
+        }
+
+        $ultimoEvento = EventoPrefrio::query()
+            ->where('proceso_prefrio_id', $proceso->id)
+            ->latest('ocurrido_at')
+            ->latest('created_at')
+            ->lockForUpdate()
+            ->first();
+        if ($ultimoEvento?->ocurrido_at?->greaterThan($momento)) {
+            throw new ConflictoOperacion(sprintf(
+                'La fecha y hora debe ser igual o posterior al último evento (%s).',
+                $ultimoEvento->ocurrido_at->format('d-m-Y H:i'),
+            ));
+        }
+
+        return $momento;
     }
 
     private function validarFolioParaCarga(Folio $folio): void
@@ -799,10 +839,14 @@ class ServicioProcesoPrefrio
         User $usuario,
         ?Dispositivo $dispositivo,
         string $payloadHash,
+        ?string $payloadHashCompatible = null,
     ): void {
+        $coincidePayload = hash_equals($proceso->payload_hash, $payloadHash)
+            || ($payloadHashCompatible !== null
+                && hash_equals($proceso->payload_hash, $payloadHashCompatible));
         if ($proceso->creado_por_user_id !== $usuario->id
             || $proceso->dispositivo_id !== $dispositivo?->id
-            || ! hash_equals($proceso->payload_hash, $payloadHash)) {
+            || ! $coincidePayload) {
             throw new ConflictoOperacion('El UUID del proceso ya fue utilizado con datos diferentes.');
         }
     }
