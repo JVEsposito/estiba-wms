@@ -61,6 +61,8 @@
 .bin-card__actions button, .legacy-card__actions button { border: 1px solid #2e826e; background: #10251f; color: #65ecc2; border-radius: 7px; padding: 8px 12px; font-weight: 800; }
 .legacy-card__actions button[data-discard-legacy] { border-color: #70434a; color: #ff9da7; background: #27171b; }
 .legacy-notice { margin: 14px 20px 0; border: 1px solid #695827; background: #251f0e; color: #e4c96f; border-radius: 8px; padding: 11px 13px; }
+.return-annulment { margin-top: 12px; border: 1px solid rgba(248, 113, 113, .38); background: rgba(127, 29, 29, .16); color: #fecaca; border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; }
+.return-annulment span { color: #fca5a5; font-size: .85rem; }
 .return-empty { padding: 26px; text-align: center; color: #7fa1b4; border: 1px dashed #294456; border-radius: 8px; }
 .return-dialog { width: min(620px, calc(100vw - 24px)); border: 1px solid #315064; background: #101c25; color: #eef9ff; border-radius: 12px; padding: 0; }
 .return-dialog--wide { width: min(900px, calc(100vw - 24px)); }
