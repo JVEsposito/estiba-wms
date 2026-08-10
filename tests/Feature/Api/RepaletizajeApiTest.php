@@ -169,6 +169,101 @@ class RepaletizajeApiTest extends TestCase
         );
     }
 
+    public function test_rechaza_folios_que_no_pertenecen_a_la_temporada_activa(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $temporadaAnterior = Temporada::create([
+            'codigo' => '2025-2026',
+            'nombre' => 'Temporada anterior',
+            'activa' => false,
+            'version_catalogo' => 1,
+        ]);
+        $vigente = $this->folio($temporada, 'SAL-VIGENTE', 30);
+        $historico = $this->folio($temporadaAnterior, 'SAL-HISTORICO', 30);
+
+        $this->withToken($token)
+            ->getJson("/api/validacion/repaletizajes/folios/{$historico->numero_folio}")
+            ->assertOk()
+            ->assertJsonPath('existe', false);
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'tipo_resultado' => 'saldo',
+            'estrategia_folio' => 'nuevo',
+            'numero_folio_resultante' => 'SAL-CRUZADO',
+            'cantidad_objetivo' => 120,
+            'origenes' => [
+                ['folio_id' => $vigente->id, 'cantidad_aportada' => 30],
+                ['folio_id' => $historico->id, 'cantidad_aportada' => 30],
+            ],
+        ])->assertStatus(409)
+            ->assertJsonPath(
+                'message',
+                'El folio SAL-HISTORICO no pertenece a la temporada activa.',
+            );
+
+        $this->assertDatabaseMissing('folios', [
+            'numero_folio' => 'SAL-CRUZADO',
+        ]);
+    }
+
+    public function test_impide_anular_si_un_folio_participa_en_un_repaletizaje_posterior(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $primero = $this->folio($temporada, 'SAL-CADENA-1', 20);
+        $segundo = $this->folio($temporada, 'SAL-CADENA-2', 20);
+        $tercero = $this->folio($temporada, 'SAL-CADENA-3', 20);
+
+        $primeraRespuesta = $this->withToken($token)
+            ->postJson('/api/validacion/repaletizajes', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo_resultado' => 'saldo',
+                'estrategia_folio' => 'nuevo',
+                'numero_folio_resultante' => 'SAL-CADENA-A',
+                'cantidad_objetivo' => 120,
+                'origenes' => [
+                    ['folio_id' => $primero->id, 'cantidad_aportada' => 20],
+                    ['folio_id' => $segundo->id, 'cantidad_aportada' => 20],
+                ],
+            ])->assertOk();
+        $primeraRepaId = $primeraRespuesta->json('data.id');
+        $resultadoPrimeroId = $primeraRespuesta->json('data.folio_resultante.id');
+
+        $this->withToken($token)
+            ->postJson('/api/validacion/repaletizajes', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo_resultado' => 'saldo',
+                'estrategia_folio' => 'nuevo',
+                'numero_folio_resultante' => 'SAL-CADENA-B',
+                'cantidad_objetivo' => 120,
+                'origenes' => [
+                    ['folio_id' => $resultadoPrimeroId, 'cantidad_aportada' => 40],
+                    ['folio_id' => $tercero->id, 'cantidad_aportada' => 20],
+                ],
+            ])->assertOk();
+
+        $supervisorToken = $this->token(RolUsuario::SupervisorFrio, 'SUP-CADENA');
+        $this->conToken($supervisorToken)
+            ->postJson("/api/validacion/repaletizajes/{$primeraRepaId}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Intento de revertir una genealogía ya utilizada.',
+            ])->assertStatus(409)
+            ->assertJsonPath(
+                'message',
+                'No se puede anular porque uno de sus folios ya participa en un repaletizaje posterior.',
+            );
+
+        $this->assertDatabaseHas('repaletizajes', [
+            'id' => $primeraRepaId,
+            'estado' => 'confirmado',
+        ]);
+        $this->assertDatabaseHas('folios', [
+            'id' => $primero->id,
+            'activo' => false,
+            'estado_operacional' => 'agotado',
+        ]);
+    }
+
     /** @param array<string, mixed> $cambio */
     private function assertIncompatibilidad(string $campo, array $cambio): void
     {

@@ -106,6 +106,25 @@ class ConsultaFolioTrazabilidadApiTest extends TestCase
         $this->assertSame('Agotado por repaletizaje', $evento['titulo']);
         $this->assertStringContainsString('40 cajas → 0', $evento['descripcion']);
         $this->assertStringContainsString('6000031569', $evento['descripcion']);
+
+        $repa->update([
+            'estado' => 'anulado',
+            'operacion_anulacion_id' => (string) Str::uuid(),
+            'anulado_por_user_id' => $usuario->id,
+            'anulado_at' => now()->addMinute(),
+            'motivo_anulacion' => 'Corrección de la composición.',
+        ]);
+
+        $respuestaAnulada = $this->actingAs($usuario, 'sanctum')
+            ->getJson("/api/consultas/folios/{$agotado->id}")
+            ->assertOk()
+            ->assertJsonPath('repaletizajes.0.estado', 'anulado');
+        $eventoAnulado = collect($respuestaAnulada->json('timeline'))
+            ->firstWhere('tipo', 'repaletizaje_anulado');
+
+        $this->assertSame('Repaletizaje anulado', $eventoAnulado['titulo']);
+        $this->assertSame('Corrección de la composición.', $eventoAnulado['meta']['Motivo']);
+        $this->assertSame($usuario->name, $eventoAnulado['meta']['Anulado por']);
     }
 
     private function folio(
