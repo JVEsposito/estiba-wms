@@ -73,7 +73,7 @@ class GeneradorRegistroMuestreoRecepcionMaterial
                 fn ($consulta) => $consulta->where('confirmado_at', '<', $recepcion->confirmado_at),
             );
 
-        if (! (clone $anteriores)->exists()) {
+        if ((clone $anteriores)->doesntExist()) {
             return ['nuevo', 0.10];
         }
 
@@ -451,4 +451,3 @@ XML;
 XML;
     }
 }
-
