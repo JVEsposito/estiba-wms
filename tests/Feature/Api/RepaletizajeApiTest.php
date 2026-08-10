@@ -300,14 +300,9 @@ class RepaletizajeApiTest extends TestCase
     /** @return array{string, Temporada} */
     private function contexto(): array
     {
-        $temporada = Temporada::query()->firstOrCreate(
-            ['codigo' => '2026-2027'],
-            [
-                'nombre' => 'Temporada',
-                'activa' => true,
-                'version_catalogo' => 1,
-            ],
-        );
+        $temporada = Temporada::query()
+            ->where('activa', true)
+            ->firstOrFail();
 
         return [$this->token(RolUsuario::Validador, 'VAL-'.Str::random(6)), $temporada];
     }

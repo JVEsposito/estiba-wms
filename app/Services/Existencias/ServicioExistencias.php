@@ -10,6 +10,7 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Models\AlmacenMaterial;
+use App\Models\BinRetornoPacking;
 use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
 use App\Models\SaldoMaterialAlmacen;
@@ -102,12 +103,17 @@ class ServicioExistencias
             self::MATERIA_PRIMA => [
                 'tipo' => self::MATERIA_PRIMA,
                 'titulo' => 'Existencia de materia prima',
-                'descripcion' => 'Lotes vigentes de materia prima, hidrocooler y cámara asignada.',
+                'descripcion' => 'Lotes vigentes con saldo disponible y bins retornados desde Packing.',
                 'archivo' => 'Existencia_Materia_Prima',
                 'columnas' => [
                     ['clave' => 'temporada', 'titulo' => 'Temporada', 'ancho' => 18],
+                    ['clave' => 'tipo_existencia', 'titulo' => 'Tipo de existencia', 'ancho' => 22],
+                    ['clave' => 'folio_existencia', 'titulo' => 'Lote / folio', 'ancho' => 22],
                     ['clave' => 'numero_lote', 'titulo' => 'Número de lote', 'ancho' => 22],
+                    ['clave' => 'clasificacion_retorno', 'titulo' => 'Clasificación retorno Packing', 'ancho' => 28],
                     ['clave' => 'estado', 'titulo' => 'Estado', 'ancho' => 22],
+                    ['clave' => 'estado_entrega', 'titulo' => 'Estado de entrega a Packing', 'ancho' => 27],
+                    ['clave' => 'avance_entrega', 'titulo' => 'Avance entregado / total', 'ancho' => 24],
                     ['clave' => 'numero_recepcion', 'titulo' => 'Número de recepción', 'ancho' => 22],
                     ['clave' => 'guia_despacho', 'titulo' => 'Guía de despacho', 'ancho' => 20],
                     ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 24],
@@ -122,12 +128,19 @@ class ServicioExistencias
                     ['clave' => 'cuartel', 'titulo' => 'Cuartel', 'ancho' => 16],
                     ['clave' => 'tipo_producto', 'titulo' => 'Tipo de producto', 'ancho' => 20],
                     ['clave' => 'envase_primario', 'titulo' => 'Envase primario', 'ancho' => 18],
-                    ['clave' => 'cantidad_primarios', 'titulo' => 'Cantidad envases primarios', 'ancho' => 24, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_primarios_inicial', 'titulo' => 'Envases primarios iniciales', 'ancho' => 25, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_primarios_entregada', 'titulo' => 'Envases enviados a Packing', 'ancho' => 26, 'tipo' => 'numero'],
+                    ['clave' => 'cantidad_primarios', 'titulo' => 'Envases primarios disponibles', 'ancho' => 27, 'tipo' => 'numero'],
                     ['clave' => 'envase_secundario', 'titulo' => 'Envase secundario', 'ancho' => 20],
                     ['clave' => 'cantidad_secundarios', 'titulo' => 'Cantidad envases secundarios', 'ancho' => 26, 'tipo' => 'numero'],
                     ['clave' => 'kilos_brutos', 'titulo' => 'Kilos brutos', 'ancho' => 16, 'tipo' => 'numero'],
                     ['clave' => 'kilos_netos_calculados', 'titulo' => 'Kilos netos calculados', 'ancho' => 22, 'tipo' => 'numero'],
-                    ['clave' => 'kilos_netos_confirmados', 'titulo' => 'Kilos netos confirmados', 'ancho' => 23, 'tipo' => 'numero'],
+                    ['clave' => 'kilos_netos_confirmados', 'titulo' => 'Kilos netos recibidos', 'ancho' => 22, 'tipo' => 'numero'],
+                    ['clave' => 'kilos_enviados_packing', 'titulo' => 'Kilos enviados a Packing', 'ancho' => 24, 'tipo' => 'numero'],
+                    ['clave' => 'kilos_existencia_actual', 'titulo' => 'Kilos en existencia actual', 'ancho' => 25, 'tipo' => 'numero'],
+                    ['clave' => 'estado_kilos_existencia', 'titulo' => 'Estado del saldo en kilos', 'ancho' => 34],
+                    ['clave' => 'kilos_retorno_verdes', 'titulo' => 'Kilos verdes del retorno', 'ancho' => 24, 'tipo' => 'numero'],
+                    ['clave' => 'kilos_retorno_definitivos', 'titulo' => 'Kilos definitivos del retorno', 'ancho' => 27, 'tipo' => 'numero'],
                     ['clave' => 'diferencia_peso', 'titulo' => 'Diferencia de peso', 'ancho' => 19, 'tipo' => 'numero'],
                     ['clave' => 'requiere_hidrocooler', 'titulo' => 'Requiere hidrocooler', 'ancho' => 21],
                     ['clave' => 'estado_hidrocooler', 'titulo' => 'Estado hidrocooler', 'ancho' => 21],
@@ -135,6 +148,10 @@ class ServicioExistencias
                     ['clave' => 'termino_hidrocooler', 'titulo' => 'Término hidrocooler', 'ancho' => 22],
                     ['clave' => 'temperatura_hidrocooler', 'titulo' => 'Temperatura hidrocooler °C', 'ancho' => 25, 'tipo' => 'numero'],
                     ['clave' => 'camara', 'titulo' => 'Cámara asignada', 'ancho' => 20],
+                    ['clave' => 'lotes_origen', 'titulo' => 'Lotes de origen', 'ancho' => 28],
+                    ['clave' => 'procesos_origen', 'titulo' => 'Procesos de origen', 'ancho' => 42],
+                    ['clave' => 'registrado_at', 'titulo' => 'Fecha de retorno', 'ancho' => 22, 'tipo' => 'fecha_hora'],
+                    ['clave' => 'regularizado_at', 'titulo' => 'Fecha de regularización', 'ancho' => 23, 'tipo' => 'fecha_hora'],
                     ['clave' => 'asignado_at', 'titulo' => 'Fecha de asignación', 'ancho' => 22],
                     ['clave' => 'confirmado_at', 'titulo' => 'Fecha de confirmación', 'ancho' => 22],
                 ],
@@ -366,13 +383,14 @@ class ServicioExistencias
     /** @return LazyCollection<int, array<string, mixed>> */
     private function materiaPrima(): LazyCollection
     {
-        return LoteMateriaPrima::query()
+        $lotes = LoteMateriaPrima::query()
             ->with([
                 'temporada:id,codigo,nombre,activa',
                 'cliente:id,codigo,nombre',
                 'recepcion:id,numero_recepcion,numero_guia_despacho',
                 'hidrocooler',
                 'asignacionCamara.camara:id,codigo,nombre',
+                'entregasProceso:id,lote_materia_prima_id,cantidad_envases,kilos_enviados,anulado_at',
             ])
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->where('estado', '!=', 'anulado')
@@ -385,11 +403,31 @@ class ServicioExistencias
                 $camara = $asignacion?->camara;
                 $calculados = (float) $lote->kilos_netos_calculados;
                 $confirmados = (float) $lote->kilos_netos_confirmados;
+                $entregas = $lote->entregasProceso->whereNull('anulado_at');
+                $cantidadInicial = (int) $lote->cantidad_envases_primarios;
+                $cantidadEntregada = (int) $entregas->sum('cantidad_envases');
+                $cantidadDisponible = max(0, $cantidadInicial - $cantidadEntregada);
+                $entregasSinKilos = $entregas->whereNull('kilos_enviados')->count();
+                $kilosEnviados = round((float) $entregas->sum(
+                    fn ($entrega): float => (float) ($entrega->kilos_enviados ?? 0),
+                ), 3);
+                $kilosDisponibles = $entregasSinKilos === 0
+                    ? max(0, round($confirmados - $kilosEnviados, 3))
+                    : null;
 
                 return [
                     'temporada' => $lote->temporada?->codigo,
+                    'tipo_existencia' => 'Lote recibido',
+                    'folio_existencia' => $lote->numero_lote,
                     'numero_lote' => $lote->numero_lote,
+                    'clasificacion_retorno' => null,
                     'estado' => $this->humanizar($lote->estado->value),
+                    'estado_entrega' => match (true) {
+                        $cantidadEntregada === 0 => 'Sin entregas',
+                        $cantidadDisponible === 0 => 'Entregado a Packing',
+                        default => 'Entrega parcial',
+                    },
+                    'avance_entrega' => $cantidadEntregada.'/'.$cantidadInicial,
                     'numero_recepcion' => $lote->recepcion?->numero_recepcion,
                     'guia_despacho' => $lote->recepcion?->numero_guia_despacho,
                     'cliente' => $lote->cliente?->nombre,
@@ -404,12 +442,21 @@ class ServicioExistencias
                     'cuartel' => $lote->cuartel,
                     'tipo_producto' => $this->humanizar($lote->tipo_producto->value),
                     'envase_primario' => $this->humanizar($lote->envase_primario->value),
-                    'cantidad_primarios' => $lote->cantidad_envases_primarios,
+                    'cantidad_primarios_inicial' => $cantidadInicial,
+                    'cantidad_primarios_entregada' => $cantidadEntregada,
+                    'cantidad_primarios' => $cantidadDisponible,
                     'envase_secundario' => $this->humanizar($lote->envase_secundario?->value),
                     'cantidad_secundarios' => $lote->cantidad_envases_secundarios,
                     'kilos_brutos' => (float) $lote->kilos_brutos,
                     'kilos_netos_calculados' => $calculados,
                     'kilos_netos_confirmados' => $confirmados,
+                    'kilos_enviados_packing' => $kilosEnviados,
+                    'kilos_existencia_actual' => $kilosDisponibles,
+                    'estado_kilos_existencia' => $entregasSinKilos > 0
+                        ? $entregasSinKilos.' entrega(s) sin kilos informados'
+                        : 'Saldo calculado con entregas vigentes',
+                    'kilos_retorno_verdes' => null,
+                    'kilos_retorno_definitivos' => null,
                     'diferencia_peso' => $confirmados - $calculados,
                     'requiere_hidrocooler' => $lote->requiere_hidrocooler ? 'Sí' : 'No',
                     'estado_hidrocooler' => $this->humanizar($hidrocooler?->estado?->value),
@@ -419,10 +466,139 @@ class ServicioExistencias
                         ? (float) $hidrocooler->temperatura_c
                         : null,
                     'camara' => $camara ? trim($camara->codigo.' · '.$camara->nombre) : null,
+                    'lotes_origen' => $lote->numero_lote,
+                    'procesos_origen' => null,
+                    'registrado_at' => null,
+                    'regularizado_at' => null,
                     'asignado_at' => $asignacion?->asignado_at?->toAtomString(),
                     'confirmado_at' => $lote->confirmado_at?->toAtomString(),
                 ];
             });
+
+        $retornos = BinRetornoPacking::query()
+            ->with([
+                'temporada:id,codigo,nombre,activa',
+                'tipoResultado:id,codigo,nombre',
+                'origenes.lote.cliente:id,codigo,nombre',
+                'origenes.lote.recepcion:id,numero_recepcion,numero_guia_despacho',
+            ])
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
+            ->whereNull('anulado_at')
+            ->orderBy('folio_provisional')
+            ->orderBy('id')
+            ->lazy(200)
+            ->map(fn (BinRetornoPacking $bin): array => $this->filaRetornoPacking($bin));
+
+        return $lotes->concat($retornos);
+    }
+
+    /** @return array<string, mixed> */
+    private function filaRetornoPacking(BinRetornoPacking $bin): array
+    {
+        $origenes = $bin->origenes;
+        $lotes = $origenes
+            ->map(fn ($origen) => $origen->lote)
+            ->filter();
+        $folio = $bin->folio_definitivo ?: $bin->folio_provisional;
+        $kilosVerdes = (float) $bin->kilos_totales;
+        $kilosDefinitivos = $bin->kilos_totales_definitivos !== null
+            ? (float) $bin->kilos_totales_definitivos
+            : null;
+        $kilosExistencia = $kilosDefinitivos ?? $kilosVerdes;
+
+        return [
+            'temporada' => $bin->temporada?->codigo,
+            'tipo_existencia' => 'Retorno de Packing',
+            'folio_existencia' => $folio,
+            'numero_lote' => $folio,
+            'clasificacion_retorno' => $bin->tipoResultado?->nombre
+                ?: $bin->nombre_resultado
+                ?: 'Pendiente de regularización',
+            'estado' => $this->humanizar($bin->estado),
+            'estado_entrega' => 'Retornado desde Packing',
+            'avance_entrega' => '0/1',
+            'numero_recepcion' => $this->valoresUnicos(
+                $lotes->map(fn ($lote) => $lote->recepcion?->numero_recepcion),
+            ),
+            'guia_despacho' => $this->valoresUnicos(
+                $lotes->map(fn ($lote) => $lote->recepcion?->numero_guia_despacho),
+            ),
+            'cliente' => $this->valoresUnicos(
+                $lotes->map(fn ($lote) => $lote->cliente?->nombre),
+            ),
+            'csg' => $this->valoresUnicos($lotes->pluck('csg_snapshot')),
+            'predio' => $this->valoresUnicos($lotes->pluck('predio')),
+            'ggn' => $this->valoresUnicos($lotes->pluck('ggn')),
+            'sdp' => $this->valoresUnicos($lotes->pluck('sdp')),
+            'fecha_cosecha' => $this->valorUnico(
+                $lotes->map(fn ($lote) => $lote->fecha_cosecha?->toDateString()),
+            ),
+            'especie' => $this->valoresUnicos($lotes->pluck('especie_snapshot')),
+            'variedad' => $this->valoresUnicos($lotes->pluck('variedad_snapshot')),
+            'calibre' => $this->valoresUnicos($lotes->pluck('calibre_snapshot')),
+            'cuartel' => $this->valoresUnicos($lotes->pluck('cuartel')),
+            'tipo_producto' => 'Retorno de Packing',
+            'envase_primario' => 'Bins',
+            'cantidad_primarios_inicial' => 1,
+            'cantidad_primarios_entregada' => 0,
+            'cantidad_primarios' => 1,
+            'envase_secundario' => null,
+            'cantidad_secundarios' => 0,
+            'kilos_brutos' => null,
+            'kilos_netos_calculados' => null,
+            'kilos_netos_confirmados' => $kilosExistencia,
+            'kilos_enviados_packing' => 0,
+            'kilos_existencia_actual' => $kilosExistencia,
+            'estado_kilos_existencia' => $kilosDefinitivos !== null
+                ? 'Kilos definitivos confirmados por Cuadraturas'
+                : 'Kilos verdes pendientes de Cuadraturas',
+            'kilos_retorno_verdes' => $kilosVerdes,
+            'kilos_retorno_definitivos' => $kilosDefinitivos,
+            'diferencia_peso' => $kilosDefinitivos !== null
+                ? round($kilosDefinitivos - $kilosVerdes, 3)
+                : null,
+            'requiere_hidrocooler' => null,
+            'estado_hidrocooler' => null,
+            'inicio_hidrocooler' => null,
+            'termino_hidrocooler' => null,
+            'temperatura_hidrocooler' => null,
+            'camara' => null,
+            'lotes_origen' => $this->valoresUnicos($origenes->map(
+                fn ($origen) => $origen->numero_lote ?: $origen->lote?->numero_lote,
+            )),
+            'procesos_origen' => $this->valoresUnicos($origenes->map(
+                fn ($origen) => implode(' · ', array_filter([
+                    $origen->numero_orden,
+                    $origen->linea_proceso,
+                    $origen->turno ? 'Turno '.$origen->turno : null,
+                ])),
+            )),
+            'registrado_at' => $bin->registrado_at?->toAtomString(),
+            'regularizado_at' => $bin->regularizado_at?->toAtomString(),
+            'asignado_at' => null,
+            'confirmado_at' => $bin->regularizado_at?->toAtomString(),
+        ];
+    }
+
+    private function valoresUnicos(iterable $valores): ?string
+    {
+        $unicos = collect($valores)
+            ->filter(fn ($valor): bool => $valor !== null && $valor !== '')
+            ->map(fn ($valor): string => (string) $valor)
+            ->unique()
+            ->values();
+
+        return $unicos->isEmpty() ? null : $unicos->implode(' | ');
+    }
+
+    private function valorUnico(iterable $valores): ?string
+    {
+        $unicos = collect($valores)
+            ->filter(fn ($valor): bool => $valor !== null && $valor !== '')
+            ->unique()
+            ->values();
+
+        return $unicos->count() === 1 ? (string) $unicos->first() : null;
     }
 
     private function etapaProducto(
