@@ -8,6 +8,14 @@ const state = {
     tab: 'bodega',
 };
 const $ = (id) => document.getElementById(id);
+class ApiError extends Error {
+    constructor(message, status = 0) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+    }
+}
+
 const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -54,20 +62,51 @@ async function api(path, options = {}) {
     headers.set('Accept', 'application/json');
     if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
     if (options.body) headers.set('Content-Type', 'application/json');
-    const response = await fetch(path, { ...options, headers });
-    const data = await response.json().catch(() => ({}));
+    let response;
+    try {
+        response = await fetch(path, { ...options, headers });
+    } catch {
+        throw new ApiError('No fue posible conectar con Laravel.');
+    }
+    const data = response.status === 204
+        ? null
+        : await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(
-            Object.values(data.errors || {}).flat()[0]
-            || data.message
+        throw new ApiError(
+            Object.values(data?.errors || {}).flat()[0]
+            || data?.message
             || 'No fue posible completar la operación.',
+            response.status,
         );
     }
     return data;
 }
 
+function redirectToMaterialsAccess() {
+    window.location.replace('/oficina/materiales');
+}
+
+function clearSession() {
+    state.token = null;
+    state.identity = null;
+    localStorage.removeItem(tokenKey);
+    localStorage.removeItem(identityKey);
+    window.dispatchEvent(new CustomEvent('estiba:office-session', {
+        detail: { authenticated: false },
+    }));
+    redirectToMaterialsAccess();
+}
+
+function handleAuthenticationError(error) {
+    if (error instanceof ApiError && error.status === 401) {
+        clearSession();
+        return true;
+    }
+
+    return false;
+}
+
 function showApp() {
-    $('custodyLogin').classList.add('is-hidden');
     $('custodyApp').classList.remove('is-hidden');
     const name = state.identity?.nombre || state.identity?.name || 'Usuario';
     const userName = $('officeUserName');
@@ -81,10 +120,13 @@ function showApp() {
     }
     const logout = $('officeLogoutButton');
     if (logout) {
-        logout.onclick = () => {
-            localStorage.removeItem(tokenKey);
-            localStorage.removeItem(identityKey);
-            location.reload();
+        logout.onclick = async () => {
+            logout.disabled = true;
+            try {
+                await api('/api/acceso-oficina', { method: 'DELETE' });
+            } finally {
+                clearSession();
+            }
         };
     }
 }
@@ -272,8 +314,8 @@ function visibleRows() {
 }
 
 function renderFilterVisibility() {
-    const warehouseFilter = $('[data-custody-filter-warehouse]');
-    const cameraFilter = $('[data-custody-filter-camera]');
+    const warehouseFilter = document.querySelector('[data-custody-filter-warehouse]');
+    const cameraFilter = document.querySelector('[data-custody-filter-camera]');
     const form = $('custodyFilters');
     const total = state.tab === 'total_empresa';
     const centers = state.tab === 'centros_costo';
@@ -341,7 +383,10 @@ async function exportInventory() {
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            throw new Error(data.message || 'No fue posible exportar Inventario CC.');
+            throw new ApiError(
+                data.message || 'No fue posible exportar Inventario CC.',
+                response.status,
+            );
         }
         const blob = await response.blob();
         const disposition = response.headers.get('content-disposition') || '';
@@ -356,6 +401,7 @@ async function exportInventory() {
         link.remove();
         URL.revokeObjectURL(url);
     } catch (downloadError) {
+        if (handleAuthenticationError(downloadError)) return;
         error.textContent = downloadError.message;
     } finally {
         button.disabled = visibleRows().length === 0;
@@ -412,29 +458,6 @@ function renderKardex() {
     </article>`).join('') || '<p>Sin movimientos distribuidos registrados.</p>';
 }
 
-$('custodyLoginForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    $('custodyLoginError').textContent = '';
-    const form = new FormData(event.currentTarget);
-    try {
-        const response = await api('/api/acceso-oficina', {
-            method: 'POST',
-            body: JSON.stringify({
-                email: form.get('email'),
-                password: form.get('password'),
-            }),
-        });
-        state.token = response.token;
-        state.identity = response.usuario;
-        localStorage.setItem(tokenKey, response.token);
-        localStorage.setItem(identityKey, JSON.stringify(response.usuario));
-        showApp();
-        await load();
-    } catch (error) {
-        $('custodyLoginError').textContent = error.message;
-    }
-});
-
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
     state.tab = button.dataset.tab;
     document.querySelectorAll('[data-tab]').forEach((candidate) => {
@@ -451,7 +474,10 @@ $('custodyFiltersReset').addEventListener('click', () => {
 });
 $('custodyExport').addEventListener('click', exportInventory);
 $('custodyReload').addEventListener('click', () => {
-    load().catch((error) => { $('custodyFilterError').textContent = error.message; });
+    load().catch((error) => {
+        if (handleAuthenticationError(error)) return;
+        $('custodyFilterError').textContent = error.message;
+    });
 });
 $('custodyMovementForm').elements.folio_id.addEventListener('change', inferOrigin);
 $('custodyMovementForm').elements.camara_destino_id.addEventListener('change', renderPositions);
@@ -477,18 +503,27 @@ $('custodyMovementForm').addEventListener('submit', async (event) => {
         movementForm.elements.motivo.value = '';
         await load();
     } catch (error) {
+        if (handleAuthenticationError(error)) return;
         $('custodyMovementError').textContent = error.message;
     } finally {
         if (submitButton) submitButton.disabled = false;
     }
 });
 
-if (state.token) {
+async function boot() {
+    if (!state.token || !state.identity) {
+        redirectToMaterialsAccess();
+        return;
+    }
+
     showApp();
-    load().catch(() => {
-        localStorage.removeItem(tokenKey);
-        localStorage.removeItem(identityKey);
-        location.reload();
-    });
+    try {
+        await load();
+    } catch (error) {
+        if (handleAuthenticationError(error)) return;
+        $('custodyFilterError').textContent = error.message;
+    }
 }
+
+void boot();
 
