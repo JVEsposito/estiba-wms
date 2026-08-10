@@ -25,7 +25,8 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertSee('Catálogos')
             ->assertSee('Recepciones')
             ->assertSee('Etiquetas')
-            ->assertSee('Inventario')
+            ->assertSee('Inventario BC')
+            ->assertSee('Inventario CC')
             ->assertSee('Despachos')
             ->assertSee('Recetas')
             ->assertSee('Órdenes')
@@ -81,6 +82,39 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertStringContainsString('/administrar', $script);
         $this->assertStringContainsString("method: 'DELETE'", $script);
         $this->assertStringContainsString('Math.ceil(accepted / packageSize)', $script);
+        $this->assertStringContainsString('Registro de muestreo', $script);
+        $this->assertStringContainsString('/registro-muestreo', $script);
+    }
+
+    public function test_inventario_cc_esta_integrado_a_materiales_con_tema_filtros_y_exportacion_propios(): void
+    {
+        $this->get('/oficina/materiales/almacenes')
+            ->assertOk()
+            ->assertSee('data-active-office="custodia"', false)
+            ->assertSee('Inventario CC')
+            ->assertSee('id="custodyFilters"', false)
+            ->assertSee('id="custodyExport"', false);
+
+        $script = file_get_contents(resource_path('js/office-material-warehouses.js'));
+        $styles = file_get_contents(resource_path('css/office-materials.css'));
+        $view = file_get_contents(resource_path('views/office/material-warehouses.blade.php'));
+        $provider = file_get_contents(
+            app_path('Providers/CustodiaDistribuidaMaterialesServiceProvider.php'),
+        );
+
+        $this->assertIsString($script);
+        foreach (['q', 'cliente_id', 'item_id', 'almacen_id', 'camara_id'] as $filtro) {
+            $this->assertStringContainsString($filtro, $script);
+        }
+        $this->assertStringContainsString('/api/materiales/almacenes/exportar', $script);
+        $this->assertIsString($styles);
+        $this->assertStringContainsString('.custody-filters', $styles);
+        $this->assertStringContainsString('background: var(--panel)', $styles);
+        $this->assertIsString($view);
+        $this->assertStringNotContainsString('<style>', $view);
+        $this->assertStringNotContainsString('<script>', $view);
+        $this->assertIsString($provider);
+        $this->assertStringNotContainsString('loadRoutesFrom', $provider);
     }
 
     public function test_despacho_directo_se_opera_desde_inventario_y_no_se_crea_en_pda(): void

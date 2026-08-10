@@ -24,9 +24,9 @@
                 'description' => 'Registra, consulta y controla los ingresos de materiales por guía y folio.',
             ],
             'inventario' => [
-                'eyebrow' => 'INVENTARIO',
-                'title' => 'Existencias por folio y cliente',
-                'description' => 'Consulta cantidades, ubicación, reservas y bloqueos del inventario físico.',
+                'eyebrow' => 'INVENTARIO BC · BODEGA CENTRAL',
+                'title' => 'Inventario físico por folio y cliente',
+                'description' => 'Consulta cantidades, ubicación, reservas y bloqueos de la Bodega Central.',
             ],
             'despachos' => [
                 'eyebrow' => 'DESPACHOS INTERNOS',
@@ -112,7 +112,12 @@
                     </a>
                     <a class="materials-module-card" href="/oficina/materiales/inventario" data-navigation-module="materiales.inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
                         <span aria-hidden="true">▦</span>
-                        <div><p class="eyebrow">EXISTENCIA</p><h2>Inventario</h2><p>Saldo por cliente, folio, ítem, estado y ubicación.</p></div>
+                        <div><p class="eyebrow">BODEGA CENTRAL</p><h2>Inventario BC</h2><p>Saldo físico por cliente, folio, ítem, estado y ubicación.</p></div>
+                        <strong aria-hidden="true">→</strong>
+                    </a>
+                    <a class="materials-module-card" href="/oficina/materiales/almacenes" data-navigation-module="materiales.inventario" data-navigation-permissions="puede_consultar_despachos_materiales">
+                        <span aria-hidden="true">⌖</span>
+                        <div><p class="eyebrow">CENTROS DE COSTO</p><h2>Inventario CC</h2><p>Custodia, transferencias, consumos y existencias distribuidas por centro de costo.</p></div>
                         <strong aria-hidden="true">→</strong>
                     </a>
                     <a class="materials-module-card" href="/oficina/materiales/despachos" data-navigation-module="materiales.despachos" data-navigation-permissions="puede_consultar_despachos_materiales">

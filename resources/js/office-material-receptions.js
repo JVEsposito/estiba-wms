@@ -113,6 +113,36 @@ async function receptionApi(path, options = {}) {
     return data;
 }
 
+async function downloadReceptionSampling(record) {
+    receptionElements.error.textContent = '';
+    const response = await fetch(
+        `/api/materiales/recepciones/${record.id}/registro-muestreo`,
+        {
+            headers: {
+                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                Authorization: `Bearer ${receptionToken()}`,
+            },
+        },
+    );
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(receptionError(data, 'No fue posible generar el registro de muestreo.'));
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+        || `Registro_Muestreo_${record.numero_guia_despacho}.xlsx`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
 function receptionStatus(value) {
     return ({ borrador: 'Borrador', confirmada: 'Confirmada', anulada: 'Anulada' })[value] || value;
 }
@@ -149,6 +179,9 @@ function renderReceptionList() {
         const adminActions = admin
             ? `${record.estado !== 'anulada' ? `<button data-action="edit" data-id="${record.id}" type="button">Editar</button>` : ''}<button data-action="delete" data-id="${record.id}" type="button">Eliminar</button>`
             : '';
+        const samplingAction = record.estado === 'confirmada'
+            ? `<button data-action="sampling" data-id="${record.id}" type="button">Registro de muestreo</button>`
+            : '';
         return `
             <tr>
                 <td><strong>${receptionEscape(record.numero_guia_despacho)}</strong><small>${receptionEscape(record.orden_compra || 'Sin OC')}</small></td>
@@ -156,7 +189,7 @@ function renderReceptionList() {
                 <td>${receptionEscape(receptionDate(record.fecha_documento))}</td>
                 <td><span class="material-reception-state material-reception-state--${receptionEscape(record.estado)}">${receptionEscape(receptionStatus(record.estado))}</span></td>
                 <td>${receptionEscape(record.detalles_count ?? '—')} ítems · ${receptionFolioCount(record)} folios</td>
-                <td><div class="material-reception-actions"><button data-action="view" data-id="${record.id}" type="button">Ver expediente</button>${adminActions}</div></td>
+                <td><div class="material-reception-actions"><button data-action="view" data-id="${record.id}" type="button">Ver expediente</button>${samplingAction}${adminActions}</div></td>
             </tr>
         `;
     }).join('') || '<tr><td colspan="6"><p class="empty-state">No existen recepciones para los filtros seleccionados.</p></td></tr>';
@@ -523,11 +556,18 @@ if (receptionElements.workspace) {
     });
     receptionElements.previous.addEventListener('click', () => loadReceptions(receptionState.page - 1));
     receptionElements.next.addEventListener('click', () => loadReceptions(receptionState.page + 1));
-    receptionElements.list.addEventListener('click', (event) => {
+    receptionElements.list.addEventListener('click', async (event) => {
         const button = event.target.closest('button[data-action]');
         if (!button) return;
         const record = receptionState.records.find((item) => item.id === button.dataset.id);
         if (button.dataset.action === 'view') openReception(record.id, 'view');
+        if (button.dataset.action === 'sampling') {
+            try {
+                await downloadReceptionSampling(record);
+            } catch (error) {
+                receptionElements.error.textContent = error.message;
+            }
+        }
         if (button.dataset.action === 'edit' && receptionCanAdminister()) openReception(record.id, 'edit');
         if (button.dataset.action === 'delete' && receptionCanAdminister()) openReceptionDelete(record);
     });

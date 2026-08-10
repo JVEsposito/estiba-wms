@@ -18,11 +18,14 @@ use App\Models\ItemMaterial;
 use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
 use App\Models\TemporadaMaterial;
+use App\Services\Materiales\GeneradorRegistroMuestreoRecepcionMaterial;
 use App\Services\Materiales\ServicioRecepcionMaterial;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 class RecepcionMaterialController extends Controller
@@ -186,6 +189,33 @@ class RecepcionMaterialController extends Controller
         return new RecepcionMaterialResource(
             app(ServicioRecepcionMaterial::class)->cargar($recepcionMaterial),
         );
+    }
+
+    public function registroMuestreo(
+        Request $request,
+        RecepcionMaterial $recepcionMaterial,
+        GeneradorRegistroMuestreoRecepcionMaterial $generador,
+    ): BinaryFileResponse {
+        Gate::authorize('consultar-recepciones-materiales');
+        abort_unless(
+            $this->puedeVerRecepcion($request, $recepcionMaterial),
+            Response::HTTP_NOT_FOUND,
+        );
+        abort_unless(
+            $recepcionMaterial->estado === EstadoRecepcionMaterial::Confirmada,
+            Response::HTTP_UNPROCESSABLE_ENTITY,
+            'El registro de muestreo solo está disponible para recepciones confirmadas.',
+        );
+
+        $ruta = $generador->generar($recepcionMaterial);
+        $guia = Str::slug($recepcionMaterial->numero_guia_despacho, '_');
+        $archivo = 'Registro_Muestreo_'.($guia !== '' ? $guia : $recepcionMaterial->id).'.xlsx';
+
+        return response()->download(
+            $ruta,
+            $archivo,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend();
     }
 
     public function store(

@@ -13,6 +13,7 @@ class ApiRoutesConventionTest extends TestCase
             ['GET', 'api/materiales/recepciones/catalogos', 'can:consultar-recepciones-materiales'],
             ['GET', 'api/materiales/recepciones/folios-pendientes', 'can:consultar-recepciones-materiales'],
             ['GET', 'api/materiales/recepciones', 'can:consultar-recepciones-materiales'],
+            ['GET', 'api/materiales/recepciones/{recepcionMaterial}/registro-muestreo', 'can:consultar-recepciones-materiales'],
             ['GET', 'api/materiales/recepciones/{recepcionMaterial}', 'can:consultar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones', 'can:gestionar-recepciones-materiales'],
             ['POST', 'api/materiales/recepciones/importaciones/previsualizar', 'can:gestionar-recepciones-materiales'],
@@ -22,6 +23,9 @@ class ApiRoutesConventionTest extends TestCase
             ['DELETE', 'api/materiales/recepciones/{recepcionMaterial}', 'can:administrar-recepciones-materiales'],
             ['POST', 'api/materiales/inventario/{folioMaterial}/bloquear', 'can:gestionar-bloqueos-materiales'],
             ['POST', 'api/materiales/inventario/{folioMaterial}/liberar-bloqueo', 'can:gestionar-bloqueos-materiales'],
+            ['GET', 'api/materiales/almacenes', 'can:consultar-despachos-materiales'],
+            ['GET', 'api/materiales/almacenes/exportar', 'can:consultar-despachos-materiales'],
+            ['GET', 'api/materiales/almacenes/movimientos', 'can:consultar-kardex-materiales'],
             ['GET', 'api/materiales/transformaciones/recetas', 'can:consultar-transformaciones-materiales'],
             ['GET', 'api/materiales/transformaciones/ordenes', 'can:consultar-transformaciones-materiales'],
             ['GET', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}', 'can:consultar-transformaciones-materiales'],
@@ -67,9 +71,16 @@ class ApiRoutesConventionTest extends TestCase
         $this->assertFileDoesNotExist(app_path('Providers/ImportacionRecepcionesMaterialesServiceProvider.php'));
         $this->assertFileDoesNotExist(app_path('Providers/RecepcionMaterialServiceProvider.php'));
         $this->assertFileDoesNotExist(app_path('Providers/TransformacionMaterialServiceProvider.php'));
+        $this->assertFileDoesNotExist(base_path('routes/materiales-almacenes.php'));
 
         $proveedorUsuarios = file_get_contents(app_path('Providers/AdministracionUsuarioServiceProvider.php'));
         $this->assertIsString($proveedorUsuarios);
         $this->assertStringNotContainsString('Route::', $proveedorUsuarios);
+
+        $proveedorCustodia = file_get_contents(
+            app_path('Providers/CustodiaDistribuidaMaterialesServiceProvider.php'),
+        );
+        $this->assertIsString($proveedorCustodia);
+        $this->assertStringNotContainsString('loadRoutesFrom', $proveedorCustodia);
     }
 }
