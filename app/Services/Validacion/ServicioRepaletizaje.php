@@ -12,6 +12,7 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
+use App\Models\Temporada;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -64,6 +65,26 @@ class ServicioRepaletizaje
 
             if ($folios->count() !== $ids->count()) {
                 throw new DomainException('Uno de los folios ya no existe.');
+            }
+
+            $temporadaActivaId = Temporada::query()
+                ->where('activa', true)
+                ->lockForShare()
+                ->value('id');
+            if (! $temporadaActivaId) {
+                throw new ConflictoOperacion(
+                    'No existe una temporada activa para registrar el repaletizaje.',
+                );
+            }
+
+            $folioFueraTemporada = $folios->first(
+                fn (Folio $folio): bool => $folio->temporada_id !== $temporadaActivaId,
+            );
+            if ($folioFueraTemporada) {
+                throw new ConflictoOperacion(sprintf(
+                    'El folio %s no pertenece a la temporada activa.',
+                    $folioFueraTemporada->numero_folio,
+                ));
             }
 
             $origenes = collect($payload['origenes'])->map(function (array $origen) use ($folios): array {
@@ -330,6 +351,21 @@ class ServicioRepaletizaje
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
+
+            $participacionPosterior = RepaletizajeDetalle::query()
+                ->whereIn('folio_origen_id', $folioIds)
+                ->whereHas('repaletizaje', function ($consulta) use ($repa): void {
+                    $consulta
+                        ->where('id', '!=', $repa->id)
+                        ->where('estado', 'confirmado')
+                        ->where('codigo', '>', $repa->codigo);
+                })
+                ->exists();
+            if ($participacionPosterior) {
+                throw new ConflictoOperacion(
+                    'No se puede anular porque uno de sus folios ya participa en un repaletizaje posterior.',
+                );
+            }
 
             foreach ($folios as $folio) {
                 if ($folio->asignacionCargaActual()->exists()
