@@ -408,37 +408,121 @@ async function exportInventory() {
     }
 }
 
-function renderSelectors() {
-    const rows = [
-        ...state.data.perspectivas.bodega,
-        ...state.data.perspectivas.centros_costo,
-    ];
-    const folios = [...new Map(rows.map((row) => [row.folio_id, row])).values()];
-    const warehouses = state.data.almacenes || [];
-    const form = $('custodyMovementForm');
-    form.elements.folio_id.innerHTML = folios.map((row) => `<option value="${row.folio_id}">${escapeHtml(row.numero_folio)} · ${escapeHtml(row.item.codigo)} · ${escapeHtml(row.item.nombre)}</option>`).join('');
-    const warehouseOptions = '<option value="">Seleccionar</option>'
-        + warehouses.map((row) => `<option value="${row.id}">${escapeHtml(row.codigo || '')} · ${escapeHtml(row.nombre)}</option>`).join('');
-    form.elements.almacen_origen_id.innerHTML = warehouseOptions;
-    form.elements.almacen_destino_id.innerHTML = warehouseOptions;
-    form.elements.camara_destino_id.innerHTML = '<option value="">No aplica / conservar</option>'
-        + (state.data.camaras || []).map((row) => `<option value="${row.id}">${escapeHtml(row.codigo)} · ${escapeHtml(row.nombre)}</option>`).join('');
-    renderPositions();
-    inferOrigin();
+function movementRows() {
+    const warehouses = new Map(
+        (state.data?.almacenes || []).map((warehouse) => [warehouse.id, warehouse]),
+    );
+
+    return [
+        ...(state.data?.perspectivas?.bodega || []),
+        ...(state.data?.perspectivas?.centros_costo || []),
+    ].filter((row) => {
+        const warehouse = warehouses.get(row.almacen?.id);
+        const hasOperationalLocation = warehouse?.tipo === 'virtual'
+            || !warehouse?.requiere_ubicacion_fisica
+            || Boolean(row.camara?.id);
+
+        return Number(row.cantidad_disponible) > 0
+            && row.bloqueado !== true
+            && hasOperationalLocation;
+    });
 }
 
-function inferOrigin() {
+function warehouseLabel(warehouse) {
+    return [
+        warehouse.codigo,
+        warehouse.nombre,
+        warehouse.centro_costo,
+    ].filter(Boolean).join(' · ');
+}
+
+function renderSelectors() {
     const form = $('custodyMovementForm');
-    const folioId = form.elements.folio_id.value;
-    const rows = [
-        ...state.data.perspectivas.centros_costo,
-        ...state.data.perspectivas.bodega,
-    ];
-    const row = rows.find((candidate) => (
-        candidate.folio_id === folioId
-        && Number(candidate.cantidad_disponible) > 0
+    const availableWarehouseIds = new Set(
+        movementRows().map((row) => row.almacen.id),
+    );
+    const originWarehouses = (state.data.almacenes || [])
+        .filter((warehouse) => availableWarehouseIds.has(warehouse.id));
+    const selectedOrigin = form.elements.almacen_origen_id.value;
+
+    form.elements.almacen_origen_id.innerHTML = '<option value="">Seleccione el almacén de origen</option>'
+        + originWarehouses.map((warehouse) => `<option value="${warehouse.id}">${escapeHtml(warehouseLabel(warehouse))}</option>`).join('');
+    if (originWarehouses.some((warehouse) => warehouse.id === selectedOrigin)) {
+        form.elements.almacen_origen_id.value = selectedOrigin;
+    }
+
+    form.elements.camara_destino_id.innerHTML = '<option value="">No aplica / conservar</option>'
+        + (state.data.camaras || []).map((row) => `<option value="${row.id}">${escapeHtml(row.codigo)} · ${escapeHtml(row.nombre)}</option>`).join('');
+    renderFoliosForOrigin();
+    renderDestinationWarehouses();
+    renderPositions();
+}
+
+function renderFoliosForOrigin() {
+    const form = $('custodyMovementForm');
+    const originId = form.elements.almacen_origen_id.value;
+    const previousFolio = form.elements.folio_id.value;
+    const rows = movementRows()
+        .filter((row) => row.almacen.id === originId)
+        .sort((left, right) => String(left.numero_folio).localeCompare(
+            String(right.numero_folio),
+            'es',
+            { numeric: true },
+        ));
+    const placeholder = originId
+        ? (rows.length
+            ? 'Seleccione un folio disponible'
+            : 'Sin folios disponibles en este almacén')
+        : 'Seleccione primero el almacén de origen';
+
+    form.elements.folio_id.innerHTML = `<option value="">${placeholder}</option>`
+        + rows.map((row) => {
+            const location = row.almacen?.tipo === 'virtual'
+                ? (row.almacen.centro_costo || 'Centro de costo')
+                : [row.camara?.codigo, row.posicion?.etiqueta].filter(Boolean).join(' · ');
+            const label = [
+                row.numero_folio,
+                row.item.codigo,
+                row.item.nombre,
+                `Disponible: ${qty(row.cantidad_disponible)} ${row.unidad_medida}`,
+                location,
+            ].filter(Boolean).join(' · ');
+
+            return `<option value="${row.folio_id}">${escapeHtml(label)}</option>`;
+        }).join('');
+    form.elements.folio_id.disabled = !originId || rows.length === 0;
+
+    if (rows.some((row) => row.folio_id === previousFolio)) {
+        form.elements.folio_id.value = previousFolio;
+    }
+
+    const selected = rows.find((row) => row.folio_id === form.elements.folio_id.value);
+    form.elements.cantidad.max = selected ? Number(selected.cantidad_disponible) : '';
+    form.elements.cantidad.placeholder = selected
+        ? `Máximo disponible: ${qty(selected.cantidad_disponible)}`
+        : 'Seleccione un folio';
+
+    $('custodyOriginSummary').textContent = originId
+        ? `${rows.length} folio(s) con saldo operacional disponible en el almacén seleccionado.`
+        : 'Seleccione un almacén para consultar únicamente su existencia disponible.';
+}
+
+function renderDestinationWarehouses() {
+    const form = $('custodyMovementForm');
+    const type = form.elements.tipo.value;
+    const originId = form.elements.almacen_origen_id.value;
+    const requiresDestination = ['devolucion', 'transferencia'].includes(type);
+    const warehouses = (state.data.almacenes || []).filter((warehouse) => (
+        warehouse.id !== originId
+        && (type !== 'devolucion' || warehouse.tipo === 'fisica')
     ));
-    if (row) form.elements.almacen_origen_id.value = row.almacen.id;
+
+    form.elements.almacen_destino_id.innerHTML = '<option value="">'
+        + (requiresDestination ? 'Seleccione el almacén destino' : 'No aplica')
+        + '</option>'
+        + warehouses.map((warehouse) => `<option value="${warehouse.id}">${escapeHtml(warehouseLabel(warehouse))}</option>`).join('');
+    form.elements.almacen_destino_id.disabled = !requiresDestination;
+    form.elements.almacen_destino_id.required = requiresDestination;
 }
 
 function renderPositions() {
@@ -479,7 +563,12 @@ $('custodyReload').addEventListener('click', () => {
         $('custodyFilterError').textContent = error.message;
     });
 });
-$('custodyMovementForm').elements.folio_id.addEventListener('change', inferOrigin);
+$('custodyMovementForm').elements.tipo.addEventListener('change', renderDestinationWarehouses);
+$('custodyMovementForm').elements.almacen_origen_id.addEventListener('change', () => {
+    renderFoliosForOrigin();
+    renderDestinationWarehouses();
+});
+$('custodyMovementForm').elements.folio_id.addEventListener('change', renderFoliosForOrigin);
 $('custodyMovementForm').elements.camara_destino_id.addEventListener('change', renderPositions);
 $('custodyMovementForm').addEventListener('submit', async (event) => {
     event.preventDefault();

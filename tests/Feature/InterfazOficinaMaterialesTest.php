@@ -110,6 +110,17 @@ class InterfazOficinaMaterialesTest extends TestCase
             $this->assertStringContainsString($filtro, $script);
         }
         $this->assertStringContainsString('/api/materiales/almacenes/exportar', $script);
+        $this->assertStringContainsString('function movementRows()', $script);
+        $this->assertStringContainsString('function renderFoliosForOrigin()', $script);
+        $this->assertStringContainsString('Disponible:', $script);
+        $this->assertStringContainsString('row.almacen.id === originId', $script);
+        $this->assertStringContainsString('Number(row.cantidad_disponible) > 0', $script);
+        $this->assertStringNotContainsString('function inferOrigin()', $script);
+        $this->assertLessThan(
+            strpos($view, 'Folio disponible en el almacén'),
+            strpos($view, 'Almacén origen'),
+        );
+        $this->assertStringContainsString('id="custodyOriginSummary"', $view);
         $this->assertStringContainsString("const tokenKey = 'estiba_wms_office_token'", $script);
         $this->assertStringContainsString("window.location.replace('/oficina/materiales')", $script);
         $this->assertStringContainsString('error.status === 401', $script);

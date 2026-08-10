@@ -82,11 +82,16 @@
                             <option value="ajuste">Ajustar diferencia</option>
                         </select>
                     </label>
-                    <label>Folio
-                        <select name="folio_id" required></select>
-                    </label>
                     <label>Almacén origen
-                        <select name="almacen_origen_id"></select>
+                        <select name="almacen_origen_id" required>
+                            <option value="">Seleccione el almacén de origen</option>
+                        </select>
+                        <small id="custodyOriginSummary">Seleccione un almacén para consultar únicamente su existencia disponible.</small>
+                    </label>
+                    <label>Folio disponible en el almacén
+                        <select name="folio_id" aria-describedby="custodyOriginSummary" required disabled>
+                            <option value="">Seleccione primero el almacén de origen</option>
+                        </select>
                     </label>
                     <label>Almacén destino
                         <select name="almacen_destino_id"></select>
