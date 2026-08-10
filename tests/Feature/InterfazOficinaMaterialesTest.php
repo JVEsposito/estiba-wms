@@ -114,7 +114,7 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertStringContainsString('function renderFoliosForOrigin()', $script);
         $this->assertStringContainsString('Disponible:', $script);
         $this->assertStringContainsString('row.almacen.id === originId', $script);
-        $this->assertStringContainsString("Number(row.cantidad_disponible) > 0", $script);
+        $this->assertStringContainsString('Number(row.cantidad_disponible) > 0', $script);
         $this->assertStringNotContainsString('function inferOrigin()', $script);
         $this->assertLessThan(
             strpos($view, 'Folio disponible en el almacén'),
