@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'folio_provisional',
     'folio_definitivo',
     'kilos_totales',
+    'kilos_totales_definitivos',
     'tipo_resultado_packing_id',
     'nombre_resultado',
     'estado',
@@ -74,6 +75,7 @@ class BinRetornoPacking extends Model
     {
         return [
             'kilos_totales' => 'decimal:3',
+            'kilos_totales_definitivos' => 'decimal:3',
             'registrado_at' => 'datetime',
             'regularizado_at' => 'datetime',
         ];

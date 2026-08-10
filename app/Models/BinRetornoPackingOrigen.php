@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'turno',
     'clave_proceso',
     'kilos_aportados',
+    'kilos_aportados_definitivos',
 ])]
 class BinRetornoPackingOrigen extends Model
 {
@@ -37,6 +38,7 @@ class BinRetornoPackingOrigen extends Model
     {
         return [
             'kilos_aportados' => 'decimal:3',
+            'kilos_aportados_definitivos' => 'decimal:3',
         ];
     }
 }

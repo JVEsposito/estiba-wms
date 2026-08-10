@@ -10,6 +10,7 @@ const elements = {
     binError: byId('binReturnError'), recentBins: byId('recentBins'), pendingList: byId('pendingBinList'), legacyList: byId('legacyList'),
     regularizeDialog: byId('regularizeDialog'), regularizeForm: byId('regularizeForm'), regularizeTitle: byId('regularizeTitle'),
     regularizeDescription: byId('regularizeDescription'), regularizeError: byId('regularizeError'),
+    regularizeTotal: byId('regularizeTotalKilos'), regularizeOrigins: byId('regularizeOrigins'), regularizeBalance: byId('regularizeBalance'),
     migrationDialog: byId('legacyMigrationDialog'), migrationForm: byId('legacyMigrationForm'), migrationTitle: byId('legacyMigrationTitle'),
     migrationDescription: byId('legacyMigrationDescription'), migrationTotal: byId('migrationTotalKilos'), migrationOrigins: byId('migrationOrigins'),
     migrationBalance: byId('migrationBalance'), migrationError: byId('legacyMigrationError'), loading: byId('officeLoading'),
@@ -20,6 +21,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), section: 'recepcion',
     summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], selectedBin: null, selectedLegacy: null,
+    regularizationOperationId: null,
 };
 
 class ApiError extends Error {
@@ -154,10 +156,10 @@ function addOrigin() {
 }
 
 function binOriginsMarkup(bin) {
-    return `<div class="bin-origins">${bin.origenes.map((origin) => `<div class="bin-origin"><div><strong>${escapeHtml(origin.numero_lote || 'Lote')} · ${escapeHtml(origin.numero_orden)}</strong><small>${escapeHtml(origin.linea_proceso)} · turno ${escapeHtml(origin.turno)}</small></div><strong>${escapeHtml(formatKilos(origin.kilos_aportados))}</strong></div>`).join('')}</div>`;
+    return `<div class="bin-origins">${bin.origenes.map((origin) => `<div class="bin-origin"><div><strong>${escapeHtml(origin.numero_lote || 'Lote')} · ${escapeHtml(origin.numero_orden)}</strong><small>${escapeHtml(origin.linea_proceso)} · turno ${escapeHtml(origin.turno)} · verde ${escapeHtml(formatKilos(origin.kilos_aportados_verdes ?? origin.kilos_aportados))}</small></div><strong>${origin.kilos_aportados_definitivos === null ? 'Definitivo pendiente' : `Definitivo ${escapeHtml(formatKilos(origin.kilos_aportados_definitivos))}`}</strong></div>`).join('')}</div>`;
 }
 function binCard(bin, pending = false) {
-    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO TOTAL</span><strong>${escapeHtml(formatKilos(bin.kilos_totales))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${pending ? `<div class="bin-card__actions"><button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio</button></div>` : ''}</article>`;
+    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO VERDE</span><strong>${escapeHtml(formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales))}</strong></div><div><span>PESO DEFINITIVO</span><strong>${bin.kilos_totales_definitivos === null ? 'Pendiente' : escapeHtml(formatKilos(bin.kilos_totales_definitivos))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${pending ? `<div class="bin-card__actions" data-office-action-menu><button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio y kilos</button></div>` : ''}</article>`;
 }
 function renderBins() {
     elements.recentBins.innerHTML = state.bins.length ? state.bins.slice(0, 8).map((bin) => binCard(bin)).join('') : '<div class="return-empty">Todavía no hay bins registrados con el nuevo modelo.</div>';
@@ -213,19 +215,42 @@ async function submitBin() {
 function openRegularize(id) {
     const bin = state.bins.find((item) => item.id === id); if (!bin) return;
     state.selectedBin = bin; elements.regularizeForm.reset(); elements.regularizeForm.elements.bin_id.value = bin.id;
+    state.regularizationOperationId = uuid();
     elements.regularizeTitle.textContent = `Regularizar ${bin.folio_provisional}`;
-    elements.regularizeDescription.textContent = `${formatKilos(bin.kilos_totales)} · ${bin.origenes.length} proceso(s). El folio provisional se conservará en la trazabilidad.`;
+    elements.regularizeDescription.textContent = `Peso verde registrado: ${formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales)}. Cuadraturas debe confirmar el total y cada proceso; el folio provisional se conservará.`;
     elements.regularizeForm.elements.tipo_resultado_packing_id.innerHTML = `<option value="">Seleccionar</option>${state.catalogs.tipos_resultado.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.codigo)} · ${escapeHtml(type.nombre)}</option>`).join('')}`;
+    elements.regularizeTotal.value = bin.kilos_totales_definitivos ?? bin.kilos_totales;
+    elements.regularizeOrigins.innerHTML = bin.origenes.map((origin) => `<div class="migration-origin" data-regularize-origin-id="${escapeHtml(origin.id)}"><div class="migration-origin__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>Kilos verdes registrados: ${escapeHtml(formatKilos(origin.kilos_aportados_verdes ?? origin.kilos_aportados))}</small></div><input data-regularize-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_definitivos ?? origin.kilos_aportados)}" aria-label="Kilos definitivos de ${escapeHtml(processLabel(origin))}"></div>`).join('');
+    renderRegularizeBalance();
     elements.regularizeError.textContent = ''; elements.regularizeDialog.showModal();
+}
+function regularizeOriginsPayload() {
+    if (!state.selectedBin) return [];
+    return state.selectedBin.origenes.map((origin) => {
+        const row = elements.regularizeOrigins.querySelector(`[data-regularize-origin-id="${CSS.escape(origin.id)}"]`);
+        return {
+            origen_id: origin.id,
+            kilos_aportados_definitivos: Number(row?.querySelector('[data-regularize-kilos]')?.value || 0),
+        };
+    });
+}
+function renderRegularizeBalance() {
+    const origins = regularizeOriginsPayload().map((origin) => ({
+        kilos_aportados: origin.kilos_aportados_definitivos,
+    }));
+    paintBalance(elements.regularizeBalance, balance(elements.regularizeTotal.value, origins));
 }
 async function submitRegularize() {
     if (!state.selectedBin) return;
     const data = new FormData(elements.regularizeForm); const folio = String(data.get('folio_definitivo') || '').trim(); const type = String(data.get('tipo_resultado_packing_id') || '');
     if (!folio || !type) { elements.regularizeError.textContent = 'Completa el folio definitivo y la clasificación.'; return; }
-    setBusy(true, 'Regularizando folio…');
+    const origins = regularizeOriginsPayload();
+    const balanceData = balance(data.get('kilos_totales_definitivos'), origins.map((origin) => ({ kilos_aportados: origin.kilos_aportados_definitivos })));
+    if (origins.some((origin) => origin.kilos_aportados_definitivos <= 0) || !balanceData.ok) { elements.regularizeError.textContent = 'Confirma los kilos definitivos de todos los procesos y cuádralos exactamente con el total.'; return; }
+    setBusy(true, 'Confirmando cuadratura definitiva…');
     try {
-        await api(`/api/materia-prima/fruta-proceso/retornos-bin/bins/${state.selectedBin.id}/regularizar`, { method: 'POST', body: JSON.stringify({ operacion_id: uuid(), folio_definitivo: folio, tipo_resultado_packing_id: type, nombre_resultado: String(data.get('nombre_resultado') || '').trim() || null }) });
-        elements.regularizeDialog.close(); toast(`${state.selectedBin.folio_provisional} quedó regularizado.`); await load({ silent: true });
+        await api(`/api/materia-prima/fruta-proceso/retornos-bin/bins/${state.selectedBin.id}/regularizar`, { method: 'POST', body: JSON.stringify({ operacion_id: state.regularizationOperationId, folio_definitivo: folio, tipo_resultado_packing_id: type, nombre_resultado: String(data.get('nombre_resultado') || '').trim() || null, kilos_totales_definitivos: Number(data.get('kilos_totales_definitivos')), origenes: origins }) });
+        elements.regularizeDialog.close(); toast(`${state.selectedBin.folio_provisional} quedó regularizado con sus kilos definitivos.`); state.regularizationOperationId = null; await load({ silent: true });
     } catch (error) { elements.regularizeError.textContent = error.message; }
     finally { setBusy(false); }
 }
@@ -295,7 +320,9 @@ elements.originRows.addEventListener('input', (event) => {
 elements.totalKilos.addEventListener('input', renderBalance);
 elements.binForm.addEventListener('submit', (event) => { event.preventDefault(); void submitBin(); });
 elements.pendingList.addEventListener('click', (event) => { const button = event.target.closest('[data-regularize-bin]'); if (button) openRegularize(button.dataset.regularizeBin); });
-elements.regularizeForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.regularizeDialog.close(); return; } void submitRegularize(); });
+elements.regularizeOrigins.addEventListener('input', renderRegularizeBalance);
+elements.regularizeTotal.addEventListener('input', renderRegularizeBalance);
+elements.regularizeForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.regularizeDialog.close(); state.regularizationOperationId = null; return; } void submitRegularize(); });
 elements.legacyList.addEventListener('click', (event) => {
     const migrate = event.target.closest('[data-migrate-legacy]'); if (migrate) openMigration(migrate.dataset.migrateLegacy);
     const discard = event.target.closest('[data-discard-legacy]'); if (discard) void discardLegacy(discard.dataset.discardLegacy);

@@ -42,6 +42,10 @@ class BinRetornoPackingController extends Controller
         return response()->json([
             'bins_registrados' => (clone $bins)->count(),
             'kilos_registrados' => round((float) (clone $bins)->sum('kilos_totales'), 3),
+            'kilos_definitivos' => round(
+                (float) (clone $regularizados)->sum('kilos_totales_definitivos'),
+                3,
+            ),
             'pendientes_regularizacion' => $pendientes->count(),
             'regularizados' => $regularizados->count(),
             'retornos_anteriores_pendientes' => $legadoPendiente,
@@ -259,6 +263,10 @@ class BinRetornoPackingController extends Controller
             'folio_provisional' => $bin->folio_provisional,
             'folio_definitivo' => $bin->folio_definitivo,
             'kilos_totales' => (float) $bin->kilos_totales,
+            'kilos_totales_verdes' => (float) $bin->kilos_totales,
+            'kilos_totales_definitivos' => $bin->kilos_totales_definitivos !== null
+                ? (float) $bin->kilos_totales_definitivos
+                : null,
             'estado' => $bin->estado,
             'tipo_resultado' => $bin->tipoResultado ? [
                 'id' => $bin->tipoResultado->id,
@@ -267,12 +275,17 @@ class BinRetornoPackingController extends Controller
             ] : null,
             'nombre_resultado' => $bin->nombre_resultado,
             'origenes' => $bin->origenes->map(fn ($origen): array => [
+                'id' => $origen->id,
                 'lote_materia_prima_id' => $origen->lote_materia_prima_id,
                 'numero_lote' => $origen->numero_lote ?: $origen->lote?->numero_lote,
                 'numero_orden' => $origen->numero_orden,
                 'linea_proceso' => $origen->linea_proceso,
                 'turno' => $origen->turno,
                 'kilos_aportados' => (float) $origen->kilos_aportados,
+                'kilos_aportados_verdes' => (float) $origen->kilos_aportados,
+                'kilos_aportados_definitivos' => $origen->kilos_aportados_definitivos !== null
+                    ? (float) $origen->kilos_aportados_definitivos
+                    : null,
             ])->values(),
             'registrado_por' => $bin->registradoPor?->name,
             'registrado_at' => $bin->registrado_at?->toAtomString(),
