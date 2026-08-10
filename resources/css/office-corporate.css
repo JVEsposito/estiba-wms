@@ -1329,3 +1329,57 @@ canvas {
         font-size: 0.72rem;
     }
 }
+
+
+/* Menús desplegables para acciones contextuales de registros */
+.office-action-select {
+    width: min(100%, 220px) !important;
+    min-width: 158px;
+    min-height: 38px !important;
+    border: 1px solid var(--corporate-border, #284352) !important;
+    border-radius: 8px !important;
+    background-color: var(--corporate-card, #0c202b) !important;
+    color: var(--corporate-text, #f4f8fb) !important;
+    padding: 0 34px 0 11px !important;
+    font-size: .74rem !important;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.office-action-select:hover {
+    border-color: var(--corporate-blue, #36aeea) !important;
+    background-color: var(--surface-hover, #12303d) !important;
+}
+
+.office-action-select:focus-visible {
+    outline: 2px solid var(--corporate-blue, #36aeea) !important;
+    outline-offset: 2px;
+}
+
+.office-action-select:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.office-action-sources[hidden] {
+    display: none !important;
+}
+
+td > .office-action-select,
+.folio-action-cell > .office-action-select {
+    width: 100% !important;
+    max-width: 200px;
+}
+
+@media (max-width: 720px) {
+    .office-action-select {
+        min-width: 142px;
+        font-size: .7rem !important;
+    }
+}
+
+@media print {
+    .office-action-select {
+        display: none !important;
+    }
+}
