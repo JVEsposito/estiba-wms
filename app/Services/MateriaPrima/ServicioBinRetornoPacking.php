@@ -97,6 +97,10 @@ class ServicioBinRetornoPacking
         ): BinRetornoPacking {
             $bin = BinRetornoPacking::query()->lockForUpdate()->findOrFail($bin->id);
 
+            if ($bin->anulado_at !== null) {
+                throw new ConflictoOperacion('El bin está anulado y no puede regularizarse.');
+            }
+
             if ($bin->regularizado_at !== null) {
                 if ($bin->operacion_regularizacion_id !== $datos['operacion_id']
                     || ! is_string($bin->payload_regularizacion_hash)
@@ -125,6 +129,7 @@ class ServicioBinRetornoPacking
 
             $ocupado = BinRetornoPacking::query()
                 ->where('folio_definitivo', $payload['folio_definitivo'])
+                ->whereNull('anulado_at')
                 ->whereKeyNot($bin->id)
                 ->exists();
             if ($ocupado) {
@@ -177,6 +182,59 @@ class ServicioBinRetornoPacking
                 'payload_regularizacion_hash' => $hash,
                 'regularizado_por_user_id' => $usuario->id,
                 'regularizado_at' => now(),
+            ]);
+
+            return $this->cargar($bin);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function anular(
+        BinRetornoPacking $bin,
+        array $datos,
+        User $usuario,
+    ): BinRetornoPacking {
+        $payload = ['motivo' => trim((string) $datos['motivo'])];
+        $hash = $this->hash($payload);
+
+        return DB::transaction(function () use ($bin, $datos, $usuario, $payload, $hash): BinRetornoPacking {
+            $bin = BinRetornoPacking::query()->lockForUpdate()->findOrFail($bin->id);
+
+            if ($bin->anulado_at !== null) {
+                if ($bin->operacion_anulacion_id !== $datos['operacion_id']
+                    || ! is_string($bin->payload_anulacion_hash)
+                    || ! hash_equals($bin->payload_anulacion_hash, $hash)) {
+                    throw new ConflictoOperacion(
+                        'El bin ya fue anulado con otra operación o un motivo diferente.',
+                    );
+                }
+
+                return $this->cargar($bin);
+            }
+
+            if ($bin->temporada_id !== $this->temporadaActivaId()) {
+                throw new ConflictoOperacion(
+                    'El bin no pertenece a la temporada activa y no puede anularse.',
+                );
+            }
+
+            $operacionOcupada = BinRetornoPacking::query()
+                ->where('operacion_anulacion_id', $datos['operacion_id'])
+                ->whereKeyNot($bin->id)
+                ->exists();
+            if ($operacionOcupada) {
+                throw new ConflictoOperacion(
+                    'El identificador de anulación ya fue utilizado en otro bin.',
+                );
+            }
+
+            $bin->update([
+                'estado' => 'anulado',
+                'operacion_anulacion_id' => $datos['operacion_id'],
+                'payload_anulacion_hash' => $hash,
+                'anulado_por_user_id' => $usuario->id,
+                'anulado_at' => now(),
+                'motivo_anulacion' => $payload['motivo'],
             ]);
 
             return $this->cargar($bin);
@@ -341,6 +399,7 @@ class ServicioBinRetornoPacking
             'tipoResultado:id,codigo,nombre',
             'registradoPor:id,name',
             'regularizadoPor:id,name',
+            'anuladoPor:id,name',
             'retornoLegacy:id,numero',
         ]);
     }
