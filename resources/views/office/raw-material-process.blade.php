@@ -50,7 +50,7 @@
 
                 <nav class="process-section-tabs" aria-label="Etapas de Fruta a proceso">
                     <button class="is-active" data-process-section="entregas" type="button">1. Entregas a Packing</button>
-                    <button data-process-section="retornos" type="button">2. Retornos de Packing</button>
+                    <button onclick="window.location.href='/oficina/materia-prima/retornos-packing'" type="button">2. Retornos de Packing</button>
                 </nav>
 
                 <section class="panel process-panel">

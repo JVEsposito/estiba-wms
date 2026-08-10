@@ -1,0 +1,307 @@
+const byId = (id) => document.getElementById(id);
+const elements = {
+    access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
+    loginError: byId('officeLoginError'), logout: byId('officeLogoutButton'),
+    userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'),
+    reload: byId('reloadButton'), registeredBins: byId('registeredBins'), registeredKilos: byId('registeredKilos'),
+    pendingBins: byId('pendingBins'), legacyReturns: byId('legacyReturns'), sections: [...document.querySelectorAll('[data-return-section]')],
+    panels: [...document.querySelectorAll('[data-return-panel]')], binForm: byId('binReturnForm'), totalKilos: byId('binTotalKilos'),
+    processSelect: byId('processSelect'), addOrigin: byId('addOriginButton'), originRows: byId('originRows'), originBalance: byId('originBalance'),
+    binError: byId('binReturnError'), recentBins: byId('recentBins'), pendingList: byId('pendingBinList'), legacyList: byId('legacyList'),
+    regularizeDialog: byId('regularizeDialog'), regularizeForm: byId('regularizeForm'), regularizeTitle: byId('regularizeTitle'),
+    regularizeDescription: byId('regularizeDescription'), regularizeError: byId('regularizeError'),
+    migrationDialog: byId('legacyMigrationDialog'), migrationForm: byId('legacyMigrationForm'), migrationTitle: byId('legacyMigrationTitle'),
+    migrationDescription: byId('legacyMigrationDescription'), migrationTotal: byId('migrationTotalKilos'), migrationOrigins: byId('migrationOrigins'),
+    migrationBalance: byId('migrationBalance'), migrationError: byId('legacyMigrationError'), loading: byId('officeLoading'),
+    loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
+};
+
+const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
+const state = {
+    token: localStorage.getItem(keys.token), identity: readJson(keys.identity), section: 'recepcion',
+    summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], selectedBin: null, selectedLegacy: null,
+};
+
+class ApiError extends Error {
+    constructor(message, status = 0) { super(message); this.status = status; }
+}
+
+function readJson(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+function escapeHtml(value) {
+    return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+function errorMessage(data, fallback) {
+    return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback;
+}
+function uuid() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    const values = crypto.getRandomValues(new Uint8Array(16));
+    values[6] = (values[6] & 15) | 64; values[8] = (values[8] & 63) | 128;
+    const hex = [...values].map((item) => item.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function formatNumber(value, digits = 0) {
+    return new Intl.NumberFormat('es-CL', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value || 0));
+}
+function formatKilos(value) { return `${formatNumber(value, 3)} kg`; }
+function formatDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+function label(value) {
+    const labels = {
+        pendiente_regularizacion: 'Pendiente de regularizar', regularizado: 'Regularizado',
+        administrador: 'Administrador', supervisor_frio: 'Supervisor de frío', camarero_frio: 'Camarero',
+    };
+    return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
+}
+function setBusy(active, text = 'Procesando…') {
+    elements.loadingText.textContent = text;
+    elements.loading.classList.toggle('is-hidden', !active);
+    elements.loading.setAttribute('aria-hidden', String(!active));
+}
+function toast(message, error = false) {
+    const item = document.createElement('div');
+    item.className = `toast${error ? ' toast--error' : ''}`;
+    item.textContent = message; elements.toasts.append(item); window.setTimeout(() => item.remove(), 5000);
+}
+function persist(payload) {
+    state.token = payload.token; state.identity = payload.usuario;
+    localStorage.setItem(keys.token, payload.token); localStorage.setItem(keys.identity, JSON.stringify(payload.usuario));
+}
+function clearSession() {
+    state.token = null; state.identity = null;
+    localStorage.removeItem(keys.token); localStorage.removeItem(keys.identity);
+    elements.app.classList.add('is-hidden'); elements.access.classList.remove('is-hidden');
+}
+async function api(path, options = {}) {
+    const headers = new Headers(options.headers || {}); headers.set('Accept', 'application/json');
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    if (options.body) headers.set('Content-Type', 'application/json');
+    let response;
+    try { response = await fetch(path, { ...options, headers }); }
+    catch { throw new ApiError('No fue posible conectar con Laravel.'); }
+    const data = response.status === 204 ? null : await response.json().catch(() => ({}));
+    if (!response.ok) {
+        if (response.status === 401 && path !== '/api/acceso-oficina') clearSession();
+        throw new ApiError(errorMessage(data, 'No fue posible completar la operación.'), response.status);
+    }
+    return data;
+}
+function can(capability) {
+    return state.identity?.[capability] === true || state.identity?.capacidades?.[capability] === true;
+}
+function showApp() {
+    if (!can('puede_consultar_fruta_proceso')) return false;
+    elements.access.classList.add('is-hidden'); elements.app.classList.remove('is-hidden');
+    const name = state.identity?.nombre || 'Usuario';
+    elements.userName.textContent = name; elements.userRole.textContent = label(state.identity?.rol);
+    elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+    return true;
+}
+
+function renderSummary() {
+    elements.registeredBins.textContent = formatNumber(state.summary.bins_registrados);
+    elements.registeredKilos.textContent = formatNumber(state.summary.kilos_registrados, 3);
+    elements.pendingBins.textContent = formatNumber(state.summary.pendientes_regularizacion);
+    elements.legacyReturns.textContent = formatNumber(state.summary.retornos_anteriores_pendientes);
+}
+function processLabel(process) {
+    return `${process.numero_lote || 'Lote'} · ${process.numero_orden} · ${process.linea_proceso} · turno ${process.turno}`;
+}
+function renderProcessSelect() {
+    const selectedKeys = new Set(state.origins.map((origin) => origin.clave));
+    const available = state.processes.filter((process) => !selectedKeys.has(process.clave));
+    elements.processSelect.innerHTML = available.length
+        ? `<option value="">Seleccionar proceso</option>${available.map((process) => `<option value="${escapeHtml(process.clave)}">${escapeHtml(processLabel(process))} · ${formatNumber(process.bins_enviados)} bins enviados</option>`).join('')}`
+        : '<option value="">No quedan procesos disponibles</option>';
+}
+function renderOriginRows() {
+    elements.originRows.innerHTML = state.origins.length
+        ? state.origins.map((origin) => `<div class="origin-row" data-origin-key="${escapeHtml(origin.clave)}"><div class="origin-row__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>${origin.viajes} viaje(s) · enviados ${formatNumber(origin.bins_enviados)} bins${origin.kilos_enviados === null ? '' : ` · ${escapeHtml(formatKilos(origin.kilos_enviados))}`}</small></div><input data-origin-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" placeholder="Kilos aportados" value="${escapeHtml(origin.kilos_aportados ?? '')}"><button data-remove-origin type="button" aria-label="Quitar proceso">×</button></div>`).join('')
+        : '<div class="return-empty">Agrega al menos un proceso de origen.</div>';
+    renderProcessSelect(); renderBalance();
+}
+function originPayload() {
+    return state.origins.map((origin) => ({
+        lote_materia_prima_id: origin.lote_materia_prima_id,
+        numero_orden: origin.numero_orden,
+        linea_proceso: origin.linea_proceso,
+        turno: origin.turno,
+        kilos_aportados: Number(origin.kilos_aportados || 0),
+    }));
+}
+function balance(total, origins) {
+    const totalValue = Number(total || 0); const distributed = origins.reduce((sum, origin) => sum + Number(origin.kilos_aportados || 0), 0);
+    return { total: totalValue, distributed, difference: totalValue - distributed, ok: totalValue > 0 && Math.abs(totalValue - distributed) < 0.0005 };
+}
+function paintBalance(element, data) {
+    element.classList.toggle('is-balanced', data.ok);
+    element.innerHTML = `<span>Distribuido</span><strong>${formatKilos(data.distributed)} / ${formatKilos(data.total)}</strong><small>${data.ok ? 'Cuadratura correcta ✓' : `${data.difference >= 0 ? 'Faltan' : 'Exceden'} ${formatKilos(Math.abs(data.difference))}`}</small>`;
+}
+function renderBalance() { paintBalance(elements.originBalance, balance(elements.totalKilos.value, state.origins)); }
+function addOrigin() {
+    const process = state.processes.find((item) => item.clave === elements.processSelect.value); if (!process) return;
+    state.origins.push({ ...process, kilos_aportados: '' }); renderOriginRows();
+}
+
+function binOriginsMarkup(bin) {
+    return `<div class="bin-origins">${bin.origenes.map((origin) => `<div class="bin-origin"><div><strong>${escapeHtml(origin.numero_lote || 'Lote')} · ${escapeHtml(origin.numero_orden)}</strong><small>${escapeHtml(origin.linea_proceso)} · turno ${escapeHtml(origin.turno)}</small></div><strong>${escapeHtml(formatKilos(origin.kilos_aportados))}</strong></div>`).join('')}</div>`;
+}
+function binCard(bin, pending = false) {
+    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO TOTAL</span><strong>${escapeHtml(formatKilos(bin.kilos_totales))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${pending ? `<div class="bin-card__actions"><button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio</button></div>` : ''}</article>`;
+}
+function renderBins() {
+    elements.recentBins.innerHTML = state.bins.length ? state.bins.slice(0, 8).map((bin) => binCard(bin)).join('') : '<div class="return-empty">Todavía no hay bins registrados con el nuevo modelo.</div>';
+    const pending = state.bins.filter((bin) => bin.estado === 'pendiente_regularizacion');
+    elements.pendingList.innerHTML = pending.length ? pending.map((bin) => binCard(bin, true)).join('') : '<div class="return-empty">No hay folios provisionales pendientes. La bandeja está al día.</div>';
+}
+function renderLegacy() {
+    elements.legacyList.innerHTML = state.legacy.length ? state.legacy.map((item) => {
+        const results = item.resultados.map((result) => `${result.numero_sublote || 'Resultado'} · ${result.cantidad_bins} bin(s)${result.kilos_netos === null ? '' : ` · ${formatKilos(result.kilos_netos)}`}`).join(' | ');
+        const processes = item.procesos.map((process) => `<div class="bin-origin"><div><strong>${escapeHtml(process.numero_lote || 'Lote')} · ${escapeHtml(process.numero_orden)}</strong><small>${escapeHtml(process.linea_proceso)} · turno ${escapeHtml(process.turno)}</small></div></div>`).join('');
+        const actions = can('puede_anular_entregas_fruta_proceso')
+            ? `<div class="legacy-card__actions">${item.migrable ? `<button data-migrate-legacy="${escapeHtml(item.id)}" type="button">Migrar</button>` : ''}<button data-discard-legacy="${escapeHtml(item.id)}" type="button">Descartar y reingresar</button></div>`
+            : '';
+        return `<article class="legacy-card"><div class="legacy-card__heading"><div><h3>${escapeHtml(item.numero)}</h3><p>${escapeHtml(formatDate(item.registrado_at))} · ${escapeHtml(item.registrado_por || 'Usuario')}</p></div><span class="return-status${item.migrable ? '' : ' is-warning'}">${item.migrable ? 'Migrable' : 'Reingreso requerido'}</span></div><div class="bin-facts"><div><span>RESULTADO ANTERIOR</span><strong>${escapeHtml(results)}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(item.procesos.length)}</strong></div><div><span>ACCIÓN</span><strong>${escapeHtml(item.migrable ? 'Migrar o descartar' : 'Descartar y reingresar')}</strong></div></div><div class="bin-origins">${processes}</div>${item.motivo_no_migrable ? `<small>${escapeHtml(item.motivo_no_migrable)}</small>` : ''}${actions}</article>`;
+    }).join('') : '<div class="return-empty">No quedan retornos del modelo anterior pendientes de resolver.</div>';
+}
+function renderSection() {
+    elements.sections.forEach((button) => button.classList.toggle('is-active', button.dataset.returnSection === state.section));
+    elements.panels.forEach((panel) => panel.classList.toggle('is-hidden', panel.dataset.returnPanel !== state.section));
+}
+
+async function load({ silent = false } = {}) {
+    if (!silent) setBusy(true, 'Actualizando retornos…');
+    try {
+        const [summary, processes, catalogs, bins, legacy] = await Promise.all([
+            api('/api/materia-prima/fruta-proceso/retornos-bin/resumen'),
+            api('/api/materia-prima/fruta-proceso/retornos-bin/procesos'),
+            api('/api/materia-prima/fruta-proceso/retornos-bin/catalogos'),
+            api('/api/materia-prima/fruta-proceso/retornos-bin/bins'),
+            api('/api/materia-prima/fruta-proceso/retornos-bin/legacy'),
+        ]);
+        state.summary = summary || {}; state.processes = processes.data || []; state.catalogs = catalogs || { tipos_resultado: [] };
+        state.bins = bins.data || []; state.legacy = legacy.data || [];
+        renderSummary(); renderProcessSelect(); renderOriginRows(); renderBins(); renderLegacy(); renderSection();
+    } catch (error) { toast(error.message, true); }
+    finally { if (!silent) setBusy(false); }
+}
+
+async function submitBin() {
+    const data = new FormData(elements.binForm); const balanceData = balance(data.get('kilos_totales'), state.origins);
+    if (!state.origins.length) { elements.binError.textContent = 'Agrega al menos un proceso de origen.'; return; }
+    if (state.origins.some((origin) => Number(origin.kilos_aportados || 0) <= 0)) { elements.binError.textContent = 'Informa los kilos aportados por cada proceso.'; return; }
+    if (!balanceData.ok) { elements.binError.textContent = 'Los kilos por proceso deben cuadrar exactamente con el peso total del bin.'; return; }
+    const payload = { operacion_id: uuid(), kilos_totales: Number(data.get('kilos_totales')), observacion: String(data.get('observacion') || '').trim() || null, origenes: originPayload() };
+    setBusy(true, 'Registrando bin retornado…'); elements.binError.textContent = '';
+    try {
+        const response = await api('/api/materia-prima/fruta-proceso/retornos-bin/bins', { method: 'POST', body: JSON.stringify(payload) });
+        elements.binForm.reset(); state.origins = []; renderOriginRows(); toast(`Bin registrado como ${response.data.folio_provisional}.`); await load({ silent: true });
+    } catch (error) { elements.binError.textContent = error.message; }
+    finally { setBusy(false); }
+}
+
+function openRegularize(id) {
+    const bin = state.bins.find((item) => item.id === id); if (!bin) return;
+    state.selectedBin = bin; elements.regularizeForm.reset(); elements.regularizeForm.elements.bin_id.value = bin.id;
+    elements.regularizeTitle.textContent = `Regularizar ${bin.folio_provisional}`;
+    elements.regularizeDescription.textContent = `${formatKilos(bin.kilos_totales)} · ${bin.origenes.length} proceso(s). El folio provisional se conservará en la trazabilidad.`;
+    elements.regularizeForm.elements.tipo_resultado_packing_id.innerHTML = `<option value="">Seleccionar</option>${state.catalogs.tipos_resultado.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.codigo)} · ${escapeHtml(type.nombre)}</option>`).join('')}`;
+    elements.regularizeError.textContent = ''; elements.regularizeDialog.showModal();
+}
+async function submitRegularize() {
+    if (!state.selectedBin) return;
+    const data = new FormData(elements.regularizeForm); const folio = String(data.get('folio_definitivo') || '').trim(); const type = String(data.get('tipo_resultado_packing_id') || '');
+    if (!folio || !type) { elements.regularizeError.textContent = 'Completa el folio definitivo y la clasificación.'; return; }
+    setBusy(true, 'Regularizando folio…');
+    try {
+        await api(`/api/materia-prima/fruta-proceso/retornos-bin/bins/${state.selectedBin.id}/regularizar`, { method: 'POST', body: JSON.stringify({ operacion_id: uuid(), folio_definitivo: folio, tipo_resultado_packing_id: type, nombre_resultado: String(data.get('nombre_resultado') || '').trim() || null }) });
+        elements.regularizeDialog.close(); toast(`${state.selectedBin.folio_provisional} quedó regularizado.`); await load({ silent: true });
+    } catch (error) { elements.regularizeError.textContent = error.message; }
+    finally { setBusy(false); }
+}
+
+function openMigration(id) {
+    const legacy = state.legacy.find((item) => item.id === id); if (!legacy || !legacy.migrable) return;
+    state.selectedLegacy = legacy; elements.migrationForm.reset(); elements.migrationForm.elements.retorno_id.value = legacy.id;
+    elements.migrationTitle.textContent = `Migrar ${legacy.numero}`;
+    elements.migrationDescription.textContent = 'Asigna los kilos reales de este bin a uno o más procesos originales.';
+    elements.migrationTotal.value = legacy.kilos_sugeridos ?? '';
+    elements.migrationOrigins.innerHTML = legacy.procesos.map((process) => `<div class="migration-origin" data-migration-key="${escapeHtml(process.clave)}"><div class="migration-origin__identity"><strong>${escapeHtml(processLabel(process))}</strong><small>Proceso disponible en el retorno anterior</small></div><input data-migration-kilos type="number" min="0" step="0.001" inputmode="decimal" placeholder="Kilos de este proceso"></div>`).join('');
+    if (legacy.procesos.length === 1 && legacy.kilos_sugeridos) elements.migrationOrigins.querySelector('[data-migration-kilos]').value = legacy.kilos_sugeridos;
+    elements.migrationError.textContent = ''; renderMigrationBalance(); elements.migrationDialog.showModal();
+}
+function migrationOriginsPayload() {
+    if (!state.selectedLegacy) return [];
+    return state.selectedLegacy.procesos.map((process) => {
+        const row = elements.migrationOrigins.querySelector(`[data-migration-key="${CSS.escape(process.clave)}"]`);
+        return { ...process, kilos_aportados: Number(row?.querySelector('[data-migration-kilos]')?.value || 0) };
+    }).filter((origin) => origin.kilos_aportados > 0).map((origin) => ({ lote_materia_prima_id: origin.lote_materia_prima_id, numero_orden: origin.numero_orden, linea_proceso: origin.linea_proceso, turno: origin.turno, kilos_aportados: origin.kilos_aportados }));
+}
+function renderMigrationBalance() { paintBalance(elements.migrationBalance, balance(elements.migrationTotal.value, migrationOriginsPayload())); }
+async function submitMigration() {
+    if (!state.selectedLegacy) return;
+    const data = new FormData(elements.migrationForm); const origins = migrationOriginsPayload(); const balanceData = balance(data.get('kilos_totales'), origins);
+    if (!origins.length || !balanceData.ok) { elements.migrationError.textContent = 'Distribuye exactamente el peso total entre los procesos que aportaron kilos.'; return; }
+    setBusy(true, 'Migrando retorno anterior…');
+    try {
+        const response = await api(`/api/materia-prima/fruta-proceso/retornos-bin/legacy/${state.selectedLegacy.id}/migrar`, { method: 'POST', body: JSON.stringify({ operacion_id: uuid(), kilos_totales: Number(data.get('kilos_totales')), motivo: String(data.get('motivo') || '').trim() || null, origenes: origins }) });
+        elements.migrationDialog.close(); toast(`${state.selectedLegacy.numero} migrado como ${response.data.folio_provisional}.`); await load({ silent: true });
+    } catch (error) { elements.migrationError.textContent = error.message; }
+    finally { setBusy(false); }
+}
+async function discardLegacy(id) {
+    const legacy = state.legacy.find((item) => item.id === id); if (!legacy) return;
+    const reason = window.prompt(`Motivo para descartar ${legacy.numero} y volver a ingresar sus bins (mínimo 5 caracteres):`);
+    if (reason === null) return; if (reason.trim().length < 5) { toast('Ingresa un motivo de al menos 5 caracteres.', true); return; }
+    if (!window.confirm(`Se anulará operacionalmente ${legacy.numero}. Luego debes reingresar cada bin por separado. ¿Continuar?`)) return;
+    setBusy(true, 'Descartando retorno anterior…');
+    try {
+        await api(`/api/materia-prima/fruta-proceso/retornos-bin/legacy/${legacy.id}/descartar`, { method: 'POST', body: JSON.stringify({ operacion_id: uuid(), motivo: reason.trim() }) });
+        toast(`${legacy.numero} quedó descartado para reingreso.`); await load({ silent: true });
+    } catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
+}
+
+elements.login.addEventListener('submit', async (event) => {
+    event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…');
+    try {
+        const data = new FormData(elements.login); const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) });
+        persist(payload); if (!showApp()) { clearSession(); throw new ApiError('Tu perfil no tiene acceso a Fruta a proceso.', 403); } await load({ silent: true });
+    } catch (error) { elements.loginError.textContent = error.message; }
+    finally { setBusy(false); }
+});
+elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
+elements.reload.addEventListener('click', () => void load());
+elements.sections.forEach((button) => button.addEventListener('click', () => { state.section = button.dataset.returnSection; renderSection(); }));
+elements.addOrigin.addEventListener('click', addOrigin);
+elements.originRows.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-origin]'); if (!remove) return;
+    const row = remove.closest('[data-origin-key]'); state.origins = state.origins.filter((origin) => origin.clave !== row.dataset.originKey); renderOriginRows();
+});
+elements.originRows.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-origin-kilos]'); if (!input) return;
+    const row = input.closest('[data-origin-key]'); const origin = state.origins.find((item) => item.clave === row.dataset.originKey); if (origin) origin.kilos_aportados = input.value; renderBalance();
+});
+elements.totalKilos.addEventListener('input', renderBalance);
+elements.binForm.addEventListener('submit', (event) => { event.preventDefault(); void submitBin(); });
+elements.pendingList.addEventListener('click', (event) => { const button = event.target.closest('[data-regularize-bin]'); if (button) openRegularize(button.dataset.regularizeBin); });
+elements.regularizeForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.regularizeDialog.close(); return; } void submitRegularize(); });
+elements.legacyList.addEventListener('click', (event) => {
+    const migrate = event.target.closest('[data-migrate-legacy]'); if (migrate) openMigration(migrate.dataset.migrateLegacy);
+    const discard = event.target.closest('[data-discard-legacy]'); if (discard) void discardLegacy(discard.dataset.discardLegacy);
+});
+elements.migrationOrigins.addEventListener('input', renderMigrationBalance);
+elements.migrationTotal.addEventListener('input', renderMigrationBalance);
+elements.migrationForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.migrationDialog.close(); return; } void submitMigration(); });
+
+if (state.token && state.identity && showApp()) void load(); else clearSession();
+window.setInterval(() => {
+    if (!state.token || elements.app.classList.contains('is-hidden') || elements.regularizeDialog.open || elements.migrationDialog.open) return;
+    void load({ silent: true });
+}, 30000);
