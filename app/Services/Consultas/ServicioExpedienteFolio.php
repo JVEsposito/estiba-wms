@@ -49,7 +49,7 @@ class ServicioExpedienteFolio
                     ->orWhereHas('detalles', fn ($detalles) => $detalles
                         ->where('folio_origen_id', $folio->id));
             })
-            ->with(['folioResultante', 'detalles.folioOrigen', 'usuario'])
+            ->with(['folioResultante', 'detalles.folioOrigen', 'usuario', 'anuladoPor'])
             ->orderBy('confirmado_at')
             ->get();
 
@@ -233,6 +233,29 @@ class ServicioExpedienteFolio
         return $repaletizajes->map(function (Repaletizaje $repa) use ($folio): array {
             $detalle = $repa->detalles->firstWhere('folio_origen_id', $folio->id);
             $esResultado = $repa->folio_resultante_id === $folio->id;
+
+            if ($repa->estado === 'anulado') {
+                return [
+                    'tipo' => 'repaletizaje_anulado',
+                    'fecha' => $this->fecha($repa->anulado_at ?? $repa->confirmado_at),
+                    'titulo' => 'Repaletizaje anulado',
+                    'descripcion' => sprintf(
+                        '%s · operación revertida',
+                        $repa->codigo,
+                    ),
+                    'meta' => array_filter([
+                        'Resultado' => $repa->folioResultante?->numero_folio,
+                        'Motivo' => $repa->motivo_anulacion,
+                        'Anulado por' => $repa->anuladoPor?->name,
+                    ], fn (mixed $valor): bool => $valor !== null && $valor !== ''),
+                    'origenes' => $repa->detalles->map(fn ($origen): array => [
+                        'folio' => $origen->folioOrigen?->numero_folio,
+                        'aporte' => $origen->cajas_aportadas,
+                        'antes' => $origen->cajas_antes,
+                        'despues' => $origen->cajas_despues,
+                    ])->values()->all(),
+                ];
+            }
 
             if ($esResultado && $detalle) {
                 $titulo = 'Repaletizaje · folio conservado';
