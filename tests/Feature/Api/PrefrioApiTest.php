@@ -723,7 +723,7 @@ class PrefrioApiTest extends TestCase
     {
         [$tunel, $posicion, $token] = $this->contexto();
         $folio = $this->folioPendiente('PAL-PF-HORA-MANUAL');
-        $apertura = now()->subHours(5)->startOfMinute();
+        $apertura = now()->toImmutable()->subHours(5)->startOfMinute();
         $carga = $apertura->addMinutes(15);
         $armado = $apertura->addMinutes(30);
         $inicio = $apertura->addHour();
