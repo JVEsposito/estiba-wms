@@ -16,6 +16,7 @@ use App\Models\Temporada;
 use App\Models\TipoResultadoPacking;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Existencias\ServicioExistencias;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -405,6 +406,74 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('Regularizar folio y kilos', $script);
         $this->assertStringContainsString('Anular retorno', $script);
         $this->assertStringContainsString('data-annul-bin', $script);
+    }
+
+    public function test_existencia_materia_prima_descuenta_entregas_e_incluye_retornos_clasificados(): void
+    {
+        $contexto = $this->prepararEntrega('EXISTENCIAS', 'OP-EXIST-001');
+
+        foreach ([
+            'comercial' => [412.125, 410.375],
+            'precalibre' => [401.500, 399.750],
+            'descarte' => [388.250, 386.000],
+        ] as $codigo => [$kilosVerdes, $kilosDefinitivos]) {
+            $tipo = TipoResultadoPacking::query()->where('codigo', $codigo)->firstOrFail();
+            $bin = $this->actingAs($contexto['camarero'], 'sanctum')
+                ->postJson(
+                    '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                    $this->payloadBin($contexto, (string) Str::uuid(), $kilosVerdes),
+                )
+                ->assertCreated()
+                ->json('data');
+
+            $this->postJson("/api/materia-prima/fruta-proceso/retornos-bin/bins/{$bin['id']}/regularizar", [
+                'operacion_id' => (string) Str::uuid(),
+                'folio_definitivo' => 'RET-EX-'.strtoupper($codigo),
+                'tipo_resultado_packing_id' => $tipo->id,
+                'nombre_resultado' => $tipo->nombre,
+                'kilos_totales_definitivos' => $kilosDefinitivos,
+                'origenes' => [[
+                    'origen_id' => $bin['origenes'][0]['id'],
+                    'kilos_aportados_definitivos' => $kilosDefinitivos,
+                ]],
+            ])->assertOk();
+        }
+
+        $filas = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::MATERIA_PRIMA)
+            ->collect();
+        $lote = $filas->firstWhere('folio_existencia', 'LOTE-EXISTENCIAS');
+
+        $this->assertNotNull($lote);
+        $this->assertSame('Lote recibido', $lote['tipo_existencia']);
+        $this->assertSame('Entrega parcial', $lote['estado_entrega']);
+        $this->assertSame('20/48', $lote['avance_entrega']);
+        $this->assertSame(48, $lote['cantidad_primarios_inicial']);
+        $this->assertSame(20, $lote['cantidad_primarios_entregada']);
+        $this->assertSame(28, $lote['cantidad_primarios']);
+        $this->assertSame(7500.0, $lote['kilos_enviados_packing']);
+        $this->assertSame(10500.0, $lote['kilos_existencia_actual']);
+
+        $retornos = $filas->where('tipo_existencia', 'Retorno de Packing')->values();
+
+        $this->assertCount(3, $retornos);
+        $this->assertEqualsCanonicalizing(
+            TipoResultadoPacking::query()
+                ->whereIn('codigo', ['comercial', 'precalibre', 'descarte'])
+                ->pluck('nombre')
+                ->all(),
+            $retornos->pluck('clasificacion_retorno')->all(),
+        );
+        $this->assertSame([1], $retornos->pluck('cantidad_primarios')->unique()->values()->all());
+        $this->assertEqualsCanonicalizing(
+            [410.375, 399.75, 386.0],
+            $retornos->pluck('kilos_existencia_actual')->all(),
+        );
+        $this->assertTrue($retornos->every(
+            fn (array $fila): bool => $fila['estado_kilos_existencia'] === 'Kilos definitivos confirmados por Cuadraturas'
+                && $fila['lotes_origen'] === 'LOTE-EXISTENCIAS'
+                && str_contains($fila['procesos_origen'], 'OP-EXIST-001'),
+        ));
     }
 
     private function bin(
