@@ -2,11 +2,20 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\BinRetornoPacking;
+use App\Models\CalibreValidacion;
+use App\Models\Camara;
+use App\Models\Cliente;
+use App\Models\CsgValidacion;
+use App\Models\EspecieValidacion;
+use App\Models\RegularizacionRetornoPackingLegacy;
+use App\Models\RetornoPacking;
 use App\Models\Temporada;
 use App\Models\TipoResultadoPacking;
 use App\Models\User;
+use App\Models\VariedadValidacion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -64,6 +73,61 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertJsonValidationErrors('origenes.0.lote_materia_prima_id');
     }
 
+    public function test_registra_bin_real_exige_cuadratura_y_rechaza_reintento_con_payload_distinto(): void
+    {
+        $contexto = $this->prepararEntrega('REGISTRO', 'OP-BIN-001');
+        $operacion = (string) Str::uuid();
+        $payload = $this->payloadBin($contexto, $operacion, 412.125);
+
+        $respuesta = $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson('/api/materia-prima/fruta-proceso/retornos-bin/bins', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.kilos_totales', 412.125)
+            ->assertJsonPath('data.estado', 'pendiente_regularizacion')
+            ->assertJsonPath('data.origenes.0.numero_orden', 'OP-BIN-001')
+            ->assertJsonPath('data.origenes.0.kilos_aportados', 412.125)
+            ->json('data');
+
+        $this->assertMatchesRegularExpression('/^PR-\d{6}$/', $respuesta['folio_provisional']);
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $respuesta['id'],
+            'temporada_id' => $contexto['temporada']->id,
+            'operacion_id' => $operacion,
+            'kilos_totales' => 412.125,
+        ]);
+        $this->assertDatabaseHas('bin_retorno_packing_origenes', [
+            'bin_retorno_packing_id' => $respuesta['id'],
+            'lote_materia_prima_id' => $contexto['lote']['id'],
+            'numero_orden' => 'OP-BIN-001',
+            'kilos_aportados' => 412.125,
+        ]);
+
+        $this->postJson('/api/materia-prima/fruta-proceso/retornos-bin/bins', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.id', $respuesta['id']);
+        $this->assertDatabaseCount('bins_retorno_packing', 1);
+        $this->assertDatabaseCount('bin_retorno_packing_origenes', 1);
+
+        $this->postJson('/api/materia-prima/fruta-proceso/retornos-bin/bins', [
+            ...$payload,
+            'kilos_totales' => 413.125,
+            'origenes' => [[
+                ...$payload['origenes'][0],
+                'kilos_aportados' => 413.125,
+            ]],
+        ])->assertStatus(409);
+
+        $this->postJson('/api/materia-prima/fruta-proceso/retornos-bin/bins', [
+            ...$payload,
+            'operacion_id' => (string) Str::uuid(),
+            'origenes' => [[
+                ...$payload['origenes'][0],
+                'kilos_aportados' => 400,
+            ]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('origenes');
+    }
+
     public function test_aisla_bins_por_temporada_y_valida_idempotencia_de_regularizacion(): void
     {
         $temporadaActiva = Temporada::query()->where('activa', true)->firstOrFail();
@@ -117,6 +181,15 @@ class BinRetornoPackingApiTest extends TestCase
             'folio_definitivo' => 'MP-RET-0002',
         ])->assertStatus(409)
             ->assertJsonPath('message', 'El bin ya fue regularizado con otra operación o datos diferentes.');
+        $otroTipo = TipoResultadoPacking::query()
+            ->whereKeyNot($tipo->id)
+            ->where('activo', true)
+            ->firstOrFail();
+        $this->postJson($ruta, [
+            ...$payload,
+            'tipo_resultado_packing_id' => $otroTipo->id,
+        ])->assertStatus(409)
+            ->assertJsonPath('message', 'El bin ya fue regularizado con otra operación o datos diferentes.');
 
         $this->assertDatabaseHas('bins_retorno_packing', [
             'id' => $vigente->id,
@@ -124,6 +197,90 @@ class BinRetornoPackingApiTest extends TestCase
             'folio_definitivo' => 'MP-RET-0001',
         ]);
         $this->assertNotNull($vigente->fresh()->payload_regularizacion_hash);
+    }
+
+    public function test_migra_y_descarta_legado_con_auditoria_cuadratura_e_idempotencia(): void
+    {
+        $contexto = $this->prepararEntrega('LEGADO', 'OP-LEG-001');
+        $tipo = TipoResultadoPacking::query()
+            ->where('codigo', 'precalibre')
+            ->firstOrFail();
+        $retornoMigrable = $this->registrarRetornoLegacy(
+            $contexto,
+            $tipo,
+            1,
+            400,
+        );
+
+        $operacionMigracion = (string) Str::uuid();
+        $payloadMigracion = [
+            'operacion_id' => $operacionMigracion,
+            'kilos_totales' => 400,
+            'motivo' => 'Conversión controlada al modelo por bin.',
+            'origenes' => [$this->origen($contexto, 400)],
+        ];
+        $rutaMigracion = "/api/materia-prima/fruta-proceso/retornos-bin/legacy/{$retornoMigrable->id}/migrar";
+        $migrado = $this->actingAs($contexto['supervisor'], 'sanctum')
+            ->postJson($rutaMigracion, $payloadMigracion)
+            ->assertCreated()
+            ->assertJsonPath('data.kilos_totales', 400)
+            ->assertJsonPath('data.retorno_legacy', $retornoMigrable->numero)
+            ->json('data');
+
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $migrado['id'],
+            'temporada_id' => $contexto['temporada']->id,
+            'retorno_packing_legacy_id' => $retornoMigrable->id,
+        ]);
+        $this->assertDatabaseHas('regularizaciones_retorno_packing_legacy', [
+            'operacion_id' => $operacionMigracion,
+            'retorno_packing_id' => $retornoMigrable->id,
+            'bin_retorno_packing_id' => $migrado['id'],
+            'accion' => 'migrado',
+        ]);
+
+        $this->postJson($rutaMigracion, $payloadMigracion)
+            ->assertCreated()
+            ->assertJsonPath('data.id', $migrado['id']);
+        $this->postJson($rutaMigracion, [
+            ...$payloadMigracion,
+            'kilos_totales' => 401,
+            'origenes' => [$this->origen($contexto, 401)],
+        ])->assertStatus(409);
+
+        $retornoDescartable = $this->registrarRetornoLegacy(
+            $contexto,
+            $tipo,
+            2,
+            780,
+        );
+        $operacionDescarte = (string) Str::uuid();
+        $rutaDescarte = "/api/materia-prima/fruta-proceso/retornos-bin/legacy/{$retornoDescartable->id}/descartar";
+        $payloadDescarte = [
+            'operacion_id' => $operacionDescarte,
+            'motivo' => 'El retorno agrupó dos bins y debe reingresarse individualmente.',
+        ];
+
+        $this->postJson($rutaDescarte, $payloadDescarte)
+            ->assertOk()
+            ->assertJsonPath('message', 'Retorno anterior descartado. Reingresa sus bins individualmente.');
+        $this->postJson($rutaDescarte, $payloadDescarte)->assertOk();
+        $this->postJson($rutaDescarte, [
+            ...$payloadDescarte,
+            'motivo' => 'Motivo contradictorio para el mismo UUID.',
+        ])->assertStatus(409);
+
+        $this->assertDatabaseHas('regularizaciones_retorno_packing_legacy', [
+            'operacion_id' => $operacionDescarte,
+            'retorno_packing_id' => $retornoDescartable->id,
+            'accion' => 'descartado',
+        ]);
+        $this->assertNotNull($retornoDescartable->fresh()->anulado_at);
+        $this->assertDatabaseMissing('sublotes_retorno_packing', [
+            'retorno_packing_id' => $retornoDescartable->id,
+            'estado' => 'pendiente_ubicacion',
+        ]);
+        $this->assertSame(2, RegularizacionRetornoPackingLegacy::query()->count());
     }
 
     public function test_oficina_presenta_recepcion_regularizacion_y_legado(): void
@@ -151,5 +308,235 @@ class BinRetornoPackingApiTest extends TestCase
             'registrado_por_user_id' => $usuario->id,
             'registrado_at' => now(),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function prepararEntrega(string $sufijo, string $numeroOrden): array
+    {
+        $contexto = $this->prepararRecepcionValidada($sufijo);
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $camara = Camara::create([
+            'codigo' => "MP-BIN-{$sufijo}",
+            'nombre' => "Cámara retorno {$sufijo}",
+            'tipo' => 'almacenaje',
+            'contenido' => ContenidoCamara::MateriaPrima,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => "LOTE-{$sufijo}",
+                'requiere_hidrocooler' => false,
+            ]))
+            ->assertCreated()
+            ->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/asignar-camara", [
+            'operacion_id' => (string) Str::uuid(),
+            'camara_id' => $camara->id,
+        ])->assertOk();
+
+        $entrega = $this->actingAs($camarero, 'sanctum')
+            ->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+                'operacion_id' => (string) Str::uuid(),
+                'cantidad_envases' => 20,
+                'kilos_enviados' => 7500,
+                'linea_proceso' => 'Línea 2',
+                'turno' => 'A',
+                'numero_orden' => $numeroOrden,
+            ])
+            ->assertOk()
+            ->json('data.entregas.0');
+
+        return [
+            ...$contexto,
+            'lote' => $lote,
+            'entrega' => $entrega,
+            'camarero' => $camarero,
+            'supervisor' => $supervisor,
+            'numero_orden' => $numeroOrden,
+            'linea_proceso' => 'Línea 2',
+            'turno' => 'A',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function prepararRecepcionValidada(string $sufijo): array
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $cliente = Cliente::create([
+            'codigo' => "EXP-{$sufijo}",
+            'nombre' => "Exportadora {$sufijo}",
+            'activo' => true,
+        ]);
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
+        $recepcion = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', [
+                'operacion_id' => (string) Str::uuid(),
+                'temporada_id' => $temporada->id,
+                'cliente_id' => $cliente->id,
+                'tipo_recepcion' => 'fruta_con_envases',
+                'tipo_servicio' => 'proceso',
+                'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad' => 48],
+                    ['tipo_envase' => 'totes', 'cantidad' => 10],
+                ],
+                'numero_guia_despacho' => "GD-{$sufijo}",
+                'patente_camion' => 'ABCD12',
+                'rut_conductor' => '12.345.678-5',
+                'nombre_conductor' => 'Transportista MP',
+                'peso_bruto' => 28000,
+            ])
+            ->assertCreated()
+            ->json('data');
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/confirmar-ingreso", [
+            'operacion_id' => (string) Str::uuid(),
+        ])->assertOk();
+        $this->postJson("/api/romana/recepciones/{$recepcion['id']}/cerrar", [
+            'operacion_id' => (string) Str::uuid(),
+            'peso_tara' => 10000,
+            'tipo_envase_calculo_neto' => 'bins',
+        ])->assertOk();
+
+        $especie = EspecieValidacion::create([
+            'temporada_id' => $temporada->id,
+            'nombre' => "Cereza {$sufijo}",
+            'activo' => true,
+        ]);
+        $variedad = VariedadValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => "Santina {$sufijo}",
+            'activo' => true,
+        ]);
+        $calibre = CalibreValidacion::create([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => '28 mm',
+            'activo' => true,
+        ]);
+        $csg = CsgValidacion::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => "CSG-{$sufijo}",
+            'predio' => "Fundo {$sufijo}",
+            'activo' => true,
+        ]);
+
+        $validacion = $this->actingAs($validador, 'sanctum')
+            ->postJson("/api/validacion-mp/recepciones/{$recepcion['id']}/tomar", [
+                'operacion_id' => (string) Str::uuid(),
+            ])->assertOk()->json('data');
+        $segmentoId = $this->postJson(
+            "/api/validacion-mp/validaciones/{$validacion['id']}/confirmar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'envases' => [
+                    ['tipo_envase' => 'bins', 'cantidad_validada' => 48],
+                    ['tipo_envase' => 'totes', 'cantidad_validada' => 10],
+                ],
+                'tarjas_verificadas' => true,
+                'requiere_segregacion' => false,
+            ],
+        )->assertOk()->json('data.segmentos.0.id');
+
+        return [
+            'temporada' => $temporada,
+            'cliente' => $cliente,
+            'segmento_id' => $segmentoId,
+            'csg_id' => $csg->id,
+            'especie_id' => $especie->id,
+            'variedad_id' => $variedad->id,
+            'calibre_id' => $calibre->id,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexto
+     * @param  array<string, mixed>  $reemplazos
+     * @return array<string, mixed>
+     */
+    private function payloadLote(array $contexto, array $reemplazos = []): array
+    {
+        return [
+            'operacion_id' => (string) Str::uuid(),
+            'segmento_validacion_mp_id' => $contexto['segmento_id'],
+            'numero_lote' => 'LOTE-BIN-RETORNO',
+            'csg_validacion_id' => $contexto['csg_id'],
+            'sdp' => '987654321',
+            'ggn' => '1234567890123',
+            'fecha_cosecha' => '2026-08-09',
+            'predio' => 'Fundo de prueba',
+            'especie_validacion_id' => $contexto['especie_id'],
+            'variedad_validacion_id' => $contexto['variedad_id'],
+            'calibre_validacion_id' => $contexto['calibre_id'],
+            'cuartel' => 'C-12',
+            'tipo_producto' => 'materia_prima',
+            'envase_primario' => 'bins',
+            'envase_secundario' => 'totes',
+            'cantidad_envases_primarios' => 48,
+            'cantidad_envases_secundarios' => 10,
+            'kilos_brutos' => 19000,
+            'kilos_netos_confirmados' => 18000,
+            'requiere_hidrocooler' => false,
+            ...$reemplazos,
+        ];
+    }
+
+    /** @param array<string, mixed> $contexto */
+    private function payloadBin(array $contexto, string $operacion, float $kilos): array
+    {
+        return [
+            'operacion_id' => $operacion,
+            'kilos_totales' => $kilos,
+            'observacion' => 'Retorno físico individual.',
+            'origenes' => [$this->origen($contexto, $kilos)],
+        ];
+    }
+
+    /** @param array<string, mixed> $contexto */
+    private function origen(array $contexto, float $kilos): array
+    {
+        return [
+            'lote_materia_prima_id' => $contexto['lote']['id'],
+            'numero_orden' => $contexto['numero_orden'],
+            'linea_proceso' => $contexto['linea_proceso'],
+            'turno' => $contexto['turno'],
+            'kilos_aportados' => $kilos,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $contexto
+     */
+    private function registrarRetornoLegacy(
+        array $contexto,
+        TipoResultadoPacking $tipo,
+        int $bins,
+        float $kilos,
+    ): RetornoPacking {
+        $operacion = (string) Str::uuid();
+        $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson(
+                "/api/materia-prima/fruta-proceso/entregas/{$contexto['entrega']['id']}/retornos",
+                [
+                    'operacion_id' => $operacion,
+                    'cierra_entrega' => false,
+                    'resultados' => [[
+                        'tipo_resultado_packing_id' => $tipo->id,
+                        'cantidad_bins' => $bins,
+                        'kilos_netos' => $kilos,
+                    ]],
+                ],
+            )->assertOk();
+
+        return RetornoPacking::query()
+            ->where('operacion_id', $operacion)
+            ->firstOrFail();
     }
 }
