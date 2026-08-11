@@ -603,10 +603,7 @@
     "iso_alpha2": "IR",
     "iso_alpha3": "IRN",
     "iso_numerico": "364",
-    "nombre_es": [
-      "Irán",
-      "República Islámica de Irán"
-    ]
+    "nombre_es": "Irán"
   },
   {
     "iso_alpha2": "IQ",
@@ -1503,4 +1500,3 @@
     "nombre_es": "Kosovo"
   }
 ]
-
