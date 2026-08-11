@@ -6,11 +6,11 @@ use Tests\TestCase;
 
 class InterfazOficinaCatalogoValidacionTest extends TestCase
 {
-    public function test_publica_la_configuracion_jerarquica_de_validacion(): void
+    public function test_publica_los_maestros_jerarquicos_de_temporada(): void
     {
-        $this->get('/oficina/validacion/catalogo')
+        $this->get('/oficina/administracion/maestros-temporada')
             ->assertOk()
-            ->assertSee('Catálogo jerárquico')
+            ->assertSee('Maestros de temporada')
             ->assertSee('Clientes')
             ->assertSee('Marcas')
             ->assertSee('Categorías')
@@ -33,16 +33,17 @@ class InterfazOficinaCatalogoValidacionTest extends TestCase
                 'id="varietyForm"',
                 'maxlength="100"',
             ], false);
-        $this->get('/oficina/validacion/catalogo')
+        $this->get('/oficina/administracion/maestros-temporada')
             ->assertSee('id="categoryForm"', false)
             ->assertSee('Guardar categoría');
     }
 
-    public function test_validacion_enlaza_el_catalogo_para_administradores(): void
+    public function test_validacion_no_publica_la_administracion_del_maestro(): void
     {
         $this->get('/oficina/validacion')
             ->assertOk()
-            ->assertSee('/oficina/validacion/catalogo', false)
-            ->assertSee('Configurar catálogo');
+            ->assertDontSee('/oficina/validacion/catalogo', false)
+            ->assertDontSee('Configurar catálogo')
+            ->assertDontSee('Importar planilla');
     }
 }

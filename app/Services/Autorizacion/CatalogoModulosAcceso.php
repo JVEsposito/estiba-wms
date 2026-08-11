@@ -7,6 +7,10 @@ use App\Models\User;
 
 class CatalogoModulosAcceso
 {
+    public const OFICINA_MAESTROS_TEMPORADA = 'administracion.maestros-temporada';
+
+    public const OFICINA_CATALOGOS_VALIDACION_LEGADO = 'frigorifico.catalogos';
+
     public const TABLET_OPERACION_FRIGORIFICO = 'operacion';
 
     public const TABLET_RECEPCION_MATERIALES = 'recepcion_materiales';
@@ -51,7 +55,6 @@ class CatalogoModulosAcceso
                 'descripcion' => 'Validación, prefrío, cámaras y despacho de producto terminado.',
                 'modulos' => [
                     $this->modulo('frigorifico.validacion', 'Validación PT', 'Validación y observación de pallets.'),
-                    $this->modulo('frigorifico.catalogos', 'Catálogos PT', 'Maestros utilizados por Validación PT.'),
                     $this->modulo('frigorifico.inspeccion-sag', 'Inspección SAG', 'Muestreos, inspecciones, fumigaciones y cambios de mercado.'),
                     $this->modulo('frigorifico.prefrio', 'Prefrío', 'Túneles, procesos y verificaciones de prefrío.'),
                     $this->modulo('frigorifico.camaras', 'Cámaras PT', 'Plano, movimientos y sesiones de producto terminado.'),
@@ -90,6 +93,7 @@ class CatalogoModulosAcceso
                 'modulos' => [
                     $this->modulo('gerencia.panel', 'Panel gerencial', 'Indicadores, ocupación y disponibilidad operacional.'),
                     $this->modulo('administracion.accesos', 'Accesos y temporadas', 'Usuarios, perfiles, tablets y maestros globales.'),
+                    $this->modulo(self::OFICINA_MAESTROS_TEMPORADA, 'Maestros de temporada', 'Base transversal consumida por los módulos operacionales.'),
                     $this->modulo('administracion.camaras', 'Configuración de cámaras', 'Creación y estructura física de cámaras.'),
                 ],
             ],
@@ -103,6 +107,8 @@ class CatalogoModulosAcceso
     {
         return collect($this->macromodulos())
             ->flatMap(fn (array $macromodulo): array => array_column($macromodulo['modulos'], 'clave'))
+            ->push(self::OFICINA_CATALOGOS_VALIDACION_LEGADO)
+            ->unique()
             ->values()
             ->all();
     }
@@ -394,7 +400,13 @@ class CatalogoModulosAcceso
             return [];
         }
 
-        return array_values(array_intersect($perfil->modulos, $this->claves()));
+        $modulos = array_values(array_intersect($perfil->modulos, $this->claves()));
+
+        if (in_array(self::OFICINA_CATALOGOS_VALIDACION_LEGADO, $modulos, true)) {
+            $modulos[] = self::OFICINA_MAESTROS_TEMPORADA;
+        }
+
+        return array_values(array_unique($modulos));
     }
 
     public function usuarioTieneModulo(User $usuario, string|array $modulos): bool

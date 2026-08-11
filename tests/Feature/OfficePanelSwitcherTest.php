@@ -21,9 +21,9 @@ class OfficePanelSwitcherTest extends TestCase
                 'group' => 'materials-catalog',
                 'panels' => ['season', 'clients', 'providers', 'items', 'destinations'],
             ],
-            '/oficina/validacion/catalogo' => [
+            '/oficina/administracion/maestros-temporada' => [
                 'group' => 'validation-catalog',
-                'panels' => ['clients', 'brands', 'categories', 'species', 'varieties', 'calibers', 'packages', 'csg'],
+                'panels' => ['clients', 'brands', 'categories', 'species', 'varieties', 'calibers', 'packages', 'csg', 'imports'],
             ],
             '/oficina/envases/cuenta-corriente' => [
                 'group' => 'container-accounts',

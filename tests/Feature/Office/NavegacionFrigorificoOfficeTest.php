@@ -14,15 +14,13 @@ class NavegacionFrigorificoOfficeTest extends TestCase
         $validacion = strpos($html, 'data-office-key="validacion"');
         $repaletizajes = strpos($html, 'data-office-key="repaletizajes"');
         $anulaciones = strpos($html, 'data-office-key="anulaciones-validacion"');
-        $catalogos = strpos($html, 'data-office-key="catalogo-validacion"');
 
         $this->assertNotFalse($validacion);
         $this->assertNotFalse($repaletizajes);
         $this->assertNotFalse($anulaciones);
-        $this->assertNotFalse($catalogos);
+        $this->assertStringNotContainsString('data-office-key="catalogo-validacion"', $html);
         $this->assertTrue($validacion < $repaletizajes);
         $this->assertTrue($repaletizajes < $anulaciones);
-        $this->assertTrue($anulaciones < $catalogos);
         $this->assertSame(1, substr_count($html, 'data-office-key="repaletizajes"'));
         $this->assertSame(1, substr_count($html, 'data-office-key="anulaciones-validacion"'));
         $this->assertMatchesRegularExpression(

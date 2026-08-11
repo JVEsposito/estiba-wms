@@ -25,7 +25,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertOk()
             ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('Validación')
-            ->assertSee('Catálogos PT')
+            ->assertDontSee('Catálogos PT')
             ->assertSee('Prefrío')
             ->assertSee('Cargas &amp; Despachos', false)
             ->assertSee('data-navigation-permissions="ambito_camaras_productos"', false)
@@ -38,17 +38,19 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertOk()
             ->assertSee('data-active-domain="administracion"', false)
             ->assertSee('Configuración de cámaras')
+            ->assertSee('Maestros de temporada')
             ->assertSee('data-camera-mode="configuracion"', false);
 
         $this->get('/oficina/camaras')
             ->assertRedirect('/oficina/frigorifico/camaras');
     }
 
-    public function test_catalogo_pt_y_despacho_de_envases_tienen_seleccion_independiente(): void
+    public function test_maestros_de_temporada_y_despacho_de_envases_tienen_seleccion_independiente(): void
     {
-        $this->get('/oficina/validacion/catalogo')
+        $this->get('/oficina/administracion/maestros-temporada')
             ->assertOk()
-            ->assertSee('data-active-office="catalogo-validacion"', false);
+            ->assertSee('data-active-office="maestros-temporada"', false)
+            ->assertSee('data-active-domain="administracion"', false);
 
         $this->get('/oficina/envases/despachos')
             ->assertOk()

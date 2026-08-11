@@ -5,6 +5,9 @@ const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
 const themeKey = 'estiba_wms_office_theme';
 const defaultTheme = 'dark-industrial';
+const moduleAliases = {
+    'administracion.maestros-temporada': ['frigorifico.catalogos'],
+};
 const availableThemes = new Set([
     defaultTheme,
     'light-professional',
@@ -93,7 +96,8 @@ function hasModule(identity, module) {
     const modules = capabilities(identity).modulos_acceso;
     if (!Array.isArray(modules)) return true;
 
-    return modules.includes(module);
+    return modules.includes(module)
+        || (moduleAliases[module] || []).some((alias) => modules.includes(alias));
 }
 
 function hasAnyPermission(identity, permissions) {
