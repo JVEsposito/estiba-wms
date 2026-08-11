@@ -27,6 +27,8 @@ const elements = {
     destinationOptions: document.getElementById('destinationOptions'),
     selectedDestinationPills: document.getElementById('selectedDestinationPills'),
     destinationSearch: document.getElementById('destinationSearch'),
+    singleFolioSearch: document.getElementById('singleFolioSearch'),
+    searchSingleFolioButton: document.getElementById('searchSingleFolioButton'),
     detail: document.getElementById('sagLotDetail'),
     detailError: document.getElementById('detailError'),
     detailActions: document.getElementById('detailActionSelect'),
@@ -264,6 +266,40 @@ async function searchFolios() {
     } catch (error) { elements.builderError.textContent = error.message; }
 }
 
+async function searchSingleFolio() {
+    elements.builderError.textContent = '';
+    const folioNumber = elements.singleFolioSearch.value.trim();
+    if (!folioNumber) {
+        elements.builderError.textContent = 'Escribe o escanea el número del pallet que quieres agregar.';
+        elements.singleFolioSearch.focus();
+        return;
+    }
+
+    elements.searchSingleFolioButton.disabled = true;
+    try {
+        const params = new URLSearchParams({ folio: folioNumber, per_page: '1' });
+        const payload = await api(`/inspeccion-sag/folios?${params}`);
+        const folio = payload.data?.[0];
+        if (!folio) throw new Error('El folio no existe o no está elegible para una inspección SAG.');
+
+        const selectedClientId = state.eligibleFolios
+            .find((entry) => state.selectedFolioIds.has(entry.id))?.cliente_id;
+        if (selectedClientId && folio.cliente_id !== selectedClientId) {
+            throw new Error('El pallet pertenece a otro cliente/exportadora. Cada lote SAG admite un solo cliente.');
+        }
+
+        state.eligibleFolios = [folio, ...state.eligibleFolios.filter((entry) => entry.id !== folio.id)];
+        state.selectedFolioIds.add(folio.id);
+        elements.singleFolioSearch.value = '';
+        renderEligibleFolios();
+        elements.singleFolioSearch.focus();
+    } catch (error) {
+        elements.builderError.textContent = error.message;
+    } finally {
+        elements.searchSingleFolioButton.disabled = false;
+    }
+}
+
 function renderEligibleFolios() {
     const body = elements.eligibleBody;
     if (!state.eligibleFolios.length) {
@@ -423,6 +459,12 @@ document.querySelectorAll('[data-sag-panel]').forEach((button) => button.addEven
 elements.builder.elements.cliente.addEventListener('change', () => refreshCatalogHierarchy({ resetSpecies: true, resetOptional: true }));
 elements.builder.elements.especie.addEventListener('change', () => refreshCatalogHierarchy({ resetOptional: true }));
 document.getElementById('searchSagFoliosButton').addEventListener('click', searchFolios);
+elements.searchSingleFolioButton.addEventListener('click', searchSingleFolio);
+elements.singleFolioSearch.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    searchSingleFolio();
+});
 elements.builder.addEventListener('submit', createLot);
 elements.eligibleBody.addEventListener('change', (event) => {
     const checkbox = event.target.closest('[data-folio-id]'); if (!checkbox) return;

@@ -193,6 +193,17 @@ class InspeccionSagApiTest extends TestCase
         $ue = BloqueMercado::query()->where('codigo', 'UE')->firstOrFail();
         $francia = Pais::query()->where('iso_alpha2', 'FR')->firstOrFail();
 
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/inspeccion-sag/folios?'.http_build_query([
+                'folio' => 'SAG-SIN-UBICACION',
+                'per_page' => 1,
+            ]))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $sinUbicacion->id)
+            ->assertJsonPath('data.0.camara', null)
+            ->assertJsonPath('data.0.posicion', null);
+
         $respuesta = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/inspeccion-sag/lotes', [
                 'tipo' => 'muestreo_usda',

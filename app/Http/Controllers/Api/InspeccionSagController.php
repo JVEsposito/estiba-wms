@@ -173,8 +173,19 @@ class InspeccionSagController extends Controller
     public function folios(Request $request, ServicioEstadoSagFolio $estadoSag): JsonResponse
     {
         $datos = $request->validate([
-            'cliente' => ['required', 'uuid', Rule::exists('clientes', 'id')->where('activo', true)],
-            'especie' => ['required', 'uuid', Rule::exists('especies_validacion', 'id')->where('activo', true)],
+            'folio' => ['nullable', 'string', 'max:100'],
+            'cliente' => [
+                'required_without:folio',
+                'nullable',
+                'uuid',
+                Rule::exists('clientes', 'id')->where('activo', true),
+            ],
+            'especie' => [
+                'required_without:folio',
+                'nullable',
+                'uuid',
+                Rule::exists('especies_validacion', 'id')->where('activo', true),
+            ],
             'variedad' => ['nullable', 'uuid', Rule::exists('variedades_validacion', 'id')->where('activo', true)],
             'condicion_sag' => ['nullable', Rule::in(['con', 'sin'])],
             'csg' => ['nullable', 'uuid', Rule::exists('csg_validacion', 'id')->where('activo', true)],
@@ -184,8 +195,14 @@ class InspeccionSagController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $folios = $this->consultaElegibles()
-            ->whereHas('validacionPallet', function (Builder $validacion) use ($datos): void {
+        $consulta = $this->consultaElegibles();
+
+        if (filled($datos['folio'] ?? null)) {
+            $consulta
+                ->where('numero_folio', trim($datos['folio']))
+                ->whereHas('validacionPallet.origen.clienteCatalogo.cliente');
+        } else {
+            $consulta->whereHas('validacionPallet', function (Builder $validacion) use ($datos): void {
                 $validacion
                     ->whereHas('origen.clienteCatalogo', fn (Builder $cliente): Builder => $cliente
                         ->where('cliente_id', $datos['cliente']))
@@ -197,15 +214,20 @@ class InspeccionSagController extends Controller
                     ->when($datos['csg'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
                         ->whereHas('origen', fn (Builder $origen): Builder => $origen
                             ->where('csg_validacion_id', $valor)));
-            })
-            ->when(($datos['condicion_sag'] ?? null) === 'con', fn (Builder $consulta): Builder => $consulta
-                ->whereNotNull('condicion_sag_id'))
-            ->when(($datos['condicion_sag'] ?? null) === 'sin', fn (Builder $consulta): Builder => $consulta
-                ->whereNull('condicion_sag_id'))
-            ->when($datos['fecha_ingreso'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
-                ->whereDate('fecha_ingreso', $valor))
-            ->when($datos['condicion_termica'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
-                ->where('condicion_termica', $valor))
+            });
+
+            $consulta
+                ->when(($datos['condicion_sag'] ?? null) === 'con', fn (Builder $consulta): Builder => $consulta
+                    ->whereNotNull('condicion_sag_id'))
+                ->when(($datos['condicion_sag'] ?? null) === 'sin', fn (Builder $consulta): Builder => $consulta
+                    ->whereNull('condicion_sag_id'))
+                ->when($datos['fecha_ingreso'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
+                    ->whereDate('fecha_ingreso', $valor))
+                ->when($datos['condicion_termica'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
+                    ->where('condicion_termica', $valor));
+        }
+
+        $folios = $consulta
             ->with($this->relacionesFolio())
             ->orderBy('numero_folio')
             ->paginate($datos['per_page'] ?? 50);
