@@ -15,9 +15,9 @@
             <div class="office-access__brand annulment-access-brand">
                 <div class="office-logo" aria-hidden="true">⊘</div>
                 <p class="eyebrow">ESTIBA WMS · AUDITORÍA</p>
-                <h1 id="officeAccessTitle">Anula errores sin borrar su historia.</h1>
-                <p>Un pallet anulado queda inactivo e inutilizable, pero su validación, motivo, operador y snapshot permanecen disponibles para auditoría.</p>
-                <div class="feature-row"><span>Sin eliminación</span><span>Bloqueo total</span><span>Error medible</span></div>
+                <h1 id="officeAccessTitle">Corrige o anula sin borrar la historia.</h1>
+                <p>La corrección actualiza los datos con auditoría. La anulación invalida el intento, conserva su historia y libera el número para ingresarlo nuevamente.</p>
+                <div class="feature-row"><span>Sin eliminación</span><span>Folio reutilizable</span><span>Error medible</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
                 <div><p class="eyebrow">ACCESO DE OFICINA</p><h2>Ingresar a anulaciones</h2></div>
@@ -36,7 +36,7 @@
                     <div>
                         <p class="eyebrow">CONTROL DE ERRORES DE VALIDACIÓN</p>
                         <h1>Anulaciones de pallets</h1>
-                        <p>Solo pueden anularse pallets aprobados que continúan pendientes de prefrío y que jamás han sido ubicados, cargados, movidos, enfriados ni repaletizados.</p>
+                        <p>Corrige los datos de un pallet aprobado o anula su validación mientras continúa pendiente de prefrío y sin actividad posterior. El folio anulado podrá validarse nuevamente.</p>
                     </div>
                     <button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button>
                 </header>
@@ -85,7 +85,7 @@
                     <div><p class="eyebrow">ANULACIÓN IRREVERSIBLE</p><h2 id="annulmentDialogTitle">Anular pallet</h2></div>
                     <button class="annulment-close" id="cancelAnnulment" type="button" aria-label="Cerrar">×</button>
                 </div>
-                <p class="annulment-warning">El folio quedará inactivo y no podrá usarse en ubicación, cargas, prefrío, movimientos ni repaletizajes.</p>
+                <p class="annulment-warning">Este intento quedará anulado. El número de folio podrá ingresarse nuevamente en Validación, pero no avanzará a otras operaciones hasta ser aprobado otra vez.</p>
                 <label><span>Tipo de error *</span>
                     <select name="motivo_categoria" required>
                         <option value="">Selecciona un motivo</option>
@@ -103,6 +103,34 @@
                 <div class="annulment-actions">
                     <button class="secondary-button" id="cancelAnnulmentBottom" type="button">Cancelar</button>
                     <button class="danger-button" type="submit">Confirmar anulación</button>
+                </div>
+            </form>
+        </dialog>
+
+        <dialog class="annulment-dialog annulment-correction-dialog" id="annulmentCorrectionDialog">
+            <form id="annulmentCorrectionForm" novalidate>
+                <div class="annulment-dialog-heading">
+                    <div>
+                        <p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p>
+                        <h2 id="annulmentCorrectionTitle">Corregir validación</h2>
+                    </div>
+                    <button class="annulment-close" id="cancelAnnulmentCorrection" type="button" aria-label="Cerrar">×</button>
+                </div>
+                <p class="annulment-correction-state" id="annulmentCorrectionState"></p>
+                <div class="annulment-correction-grid">
+                    <label><span>Tipo de bulto *</span><select name="tipo_bulto" required><option value="pallet">Pallet completo</option><option value="saldo">Saldo</option></select></label>
+                    <label><span>Cantidad de cajas *</span><input name="cantidad_cajas" type="number" min="1" required></label>
+                    <label><span>Línea *</span><select name="linea_proceso" required><option value="1">Línea 1</option><option value="2">Línea 2</option><option value="3">Línea 3</option></select></label>
+                    <label><span>Turno *</span><select name="turno" required><option value="A">Turno A</option><option value="B">Turno B</option></select></label>
+                </div>
+                <label><span>Artículo / embalaje *</span><select name="articulo_validacion_id" required></select></label>
+                <label><span>Origen autorizado *</span><select name="origen_validacion_id" required></select></label>
+                <label><span>Categoría *</span><select name="categoria_validacion_id" required></select></label>
+                <label><span>Motivo de la corrección *</span><textarea name="motivo_correccion" rows="3" maxlength="1000" placeholder="Ej.: se ingresaron 129 cajas y físicamente corresponden 120" required></textarea></label>
+                <p class="form-error" id="annulmentCorrectionError" role="alert"></p>
+                <div class="annulment-actions">
+                    <button class="secondary-button" id="cancelAnnulmentCorrectionBottom" type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Guardar corrección</button>
                 </div>
             </form>
         </dialog>

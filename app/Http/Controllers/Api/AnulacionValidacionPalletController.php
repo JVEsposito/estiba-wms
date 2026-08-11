@@ -105,7 +105,7 @@ class AnulacionValidacionPalletController extends Controller
 
         return response()->json([
             'data' => $this->recursoAnulacion($anulacion),
-            'message' => 'Pallet anulado. El folio quedó inactivo, bloqueado para toda operación y conservado para auditoría.',
+            'message' => 'Validación anulada. El número de folio quedó disponible para ingresarlo nuevamente.',
         ]);
     }
 
@@ -119,6 +119,9 @@ class AnulacionValidacionPalletController extends Controller
             'cantidad_cajas' => $validacion->cantidad_cajas,
             'linea_proceso' => $validacion->linea_proceso,
             'turno' => $validacion->turno,
+            'articulo_validacion_id' => $validacion->articulo_validacion_id,
+            'origen_validacion_id' => $validacion->origen_validacion_id,
+            'categoria_validacion_id' => $validacion->categoria_validacion_id,
             'validador' => $validacion->usuario ? [
                 'id' => $validacion->usuario->id,
                 'nombre' => $validacion->usuario->name,

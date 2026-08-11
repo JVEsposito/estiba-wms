@@ -40,6 +40,26 @@ class ProteccionFolioAnulado
         }
     }
 
+    /**
+     * Reactiva exclusivamente un folio liberado por una nueva validación aprobada.
+     *
+     * @param  array<string, mixed>  $atributos
+     */
+    public function reactivarDesdeNuevaValidacion(Folio $folio, array $atributos): Folio
+    {
+        if (! $this->esAnuladoPorValidacion($folio)) {
+            throw new DomainException(
+                "El folio {$folio->numero_folio} no está liberado por una anulación de Validación.",
+            );
+        }
+
+        Folio::withoutEvents(function () use ($folio, $atributos): void {
+            $folio->forceFill($atributos)->save();
+        });
+
+        return $folio->refresh();
+    }
+
     public function esAnuladoPorValidacion(Folio $folio): bool
     {
         return $folio->estado_operacional === EstadoOperacionalFolio::Anulado

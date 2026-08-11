@@ -30,7 +30,7 @@
 .annulment-history-card span { color: #fda4af; font-size: 12px; font-weight: 900; }
 .annulment-history-card p { margin: 0; color: #d8e4ea; }
 .annulment-history-card small { color: #8098a5; }
-.annulment-locked { color: #fda4af !important; font-weight: 800; }
+.annulment-released { color: #6ee7b7 !important; font-weight: 800; }
 .annulment-empty { margin: 0; padding: 22px; border: 1px dashed rgba(111, 190, 216, .18); border-radius: 12px; color: #78909d; text-align: center; }
 .annulment-dialog { width: min(620px, calc(100vw - 32px)); padding: 0; border: 1px solid rgba(251, 113, 133, .38); border-radius: 18px; background: #091923; color: #eef9ff; }
 .annulment-dialog::backdrop { background: rgba(0, 7, 12, .78); }
@@ -42,6 +42,11 @@
 .annulment-dialog label { display: grid; gap: 7px; }
 .annulment-dialog label span { color: #9bb0bc; font-size: 12px; font-weight: 900; }
 .annulment-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.annulment-correction-dialog { width: min(720px, calc(100vw - 32px)); border-color: rgba(111, 190, 216, .38); }
+.annulment-correction-state { margin: 0; padding: 12px 14px; border: 1px solid rgba(111, 190, 216, .25); border-radius: 10px; background: rgba(31, 111, 139, .12); color: #b9ddea; }
+.annulment-correction-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.annulment-dialog input, .annulment-dialog select, .annulment-dialog textarea { width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid rgba(111, 190, 216, .25); border-radius: 10px; background: #07151e; color: #eef9ff; }
+.annulment-dialog textarea { resize: vertical; }
 
 @media (max-width: 900px) {
     .annulment-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -49,6 +54,7 @@
     .annulment-card { grid-template-columns: 1fr; }
     .annulment-state { text-align: left; }
     .annulment-filter { min-width: 0; width: 100%; }
+    .annulment-correction-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
