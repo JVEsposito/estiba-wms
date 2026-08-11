@@ -108,7 +108,19 @@ El motor operativo local también permite:
 - rechazar operaciones con una versión antigua del plano;
 - aceptar reintentos idénticos sin duplicar movimientos y rechazar UUID reutilizados con otro contenido.
 
-El botón **Restaurar escenario** reinicia conjuntamente maestros, folios, cámaras, posiciones, sesiones, movimientos y auditoría local.
+El flujo local de cargas de frío permite además:
+
+- crear borradores `CAR-xxxxxx` desde **Administración Demo** con hasta 26 folios ubicados;
+- mantener cada folio en una única carga activa y liberarlo al cancelar;
+- publicar la carga para que recién entonces aparezca en la bandeja operacional;
+- cambiar su prioridad con incremento de versión y trazabilidad;
+- recibir banner, badge y notificaciones locales al publicar o cambiar una prioridad;
+- abrir el detalle, la secuencia de extracción y los folios resaltados en el plano;
+- conservar la asignación `CAR-xxxxxx` al reubicar o trasladar un folio;
+- reportar incidencias y enviar folios a un andén con operaciones idempotentes;
+- conservar cargas, alertas e historial después de cerrar o reiniciar la APK.
+
+El botón **Restaurar escenario** reinicia conjuntamente maestros, folios, cámaras, posiciones, sesiones, movimientos, cargas, notificaciones y auditoría local.
 
 Credenciales sugeridas —el modo local sólo exige que los tres campos estén completos—:
 
@@ -143,6 +155,18 @@ Prueba manual mínima del motor local:
 4. Muévelo a otra posición y comprueba el historial.
 5. Cierra por completo la aplicación, vuelve a entrar y confirma que la ubicación y el historial permanecen.
 6. Regresa a **Administración Demo** y utiliza **Restaurar escenario** para recuperar los datos iniciales.
+
+Prueba manual del flujo de cargas local:
+
+1. En **Administración Demo**, selecciona entre 1 y 26 folios ubicados y crea un borrador.
+2. Confirma que el borrador no aparece todavía en **Operación frigorífico → Cargas**.
+3. Publica la carga y entra en **Operación frigorífico**.
+4. Comprueba el banner, el badge de alertas y el acceso directo a la nueva `CAR-xxxxxx`.
+5. Abre la carga y verifica su detalle, ruta y folios resaltados con el código CAR en el plano.
+6. Mueve uno de sus folios dentro de la cámara o hacia otra cámara y confirma que conserva la misma carga.
+7. Cambia la prioridad desde Administración Demo y comprueba que la versión y la alerta se actualizan.
+8. Crea otra carga, cancélala antes de despachar y confirma que sus folios vuelven a estar disponibles.
+9. Cierra completamente la aplicación, vuelve a entrar y comprueba que cargas y notificaciones permanecen.
 
 ## Validaciones
 

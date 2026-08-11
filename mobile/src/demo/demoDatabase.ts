@@ -8,7 +8,7 @@ import {
 } from './demoOperationalSeed';
 
 const DATABASE_NAME = 'estiba-wms-demo.db';
-const SEED_VERSION = '1';
+const SEED_VERSION = '2';
 
 export type DemoDatabaseExecutor = Pick<
   SQLiteDatabase,
@@ -40,6 +40,7 @@ export type DemoFolio = {
 export type DemoDataset = {
   clients: DemoClient[];
   folios: DemoFolio[];
+  activeLoads: number;
   auditEntries: number;
   operationalMovements: number;
 };
@@ -169,12 +170,83 @@ async function seed(executor: DemoDatabaseExecutor): Promise<void> {
     'seed_version',
     SEED_VERSION,
   );
+  const operationalState = createInitialOperationalState();
   await executor.runAsync(
     `INSERT INTO demo_operational_state (key, state_json, updated_at)
      VALUES (?, ?, ?)`,
     DEMO_OPERATIONAL_STATE_KEY,
-    JSON.stringify(createInitialOperationalState()),
+    JSON.stringify(operationalState),
     createdAt,
+  );
+  await seedLoads(executor, operationalState, createdAt);
+}
+
+async function seedLoads(
+  executor: DemoDatabaseExecutor,
+  state: DemoOperationalState,
+  createdAt: string,
+): Promise<void> {
+  const existing = await executor.getFirstAsync<{ total: number }>(
+    'SELECT COUNT(*) AS total FROM demo_loads',
+  );
+  if ((existing?.total ?? 0) > 0) return;
+
+  const selected = state.plans
+    .filter((plan) => plan.acceso.modo !== 'solo_lectura')
+    .slice(0, 2)
+    .flatMap((plan) => plan.posiciones
+      .filter((position) => position.folio)
+      .slice(0, 2)
+      .map((position) => position.folio!));
+  if (!selected.length) return;
+
+  const loadId = 'load-demo-01';
+  await executor.runAsync(
+    `INSERT INTO demo_loads
+      (id, code, external_order, status, priority, observation, version,
+       published_at, cancelled_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    loadId,
+    'CAR-000001',
+    'OC-DEMO-001',
+    'published',
+    'alta',
+    'Carga ficticia inicial para demostración',
+    1,
+    createdAt,
+    createdAt,
+    createdAt,
+  );
+
+  for (const folio of selected) {
+    await executor.runAsync(
+      `INSERT INTO demo_load_assignments
+        (id, load_id, folio_id, folio_number, status, dock_id,
+         incident_type, incident_description, assigned_at, sent_at)
+       VALUES (?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, NULL)`,
+      `assignment-${loadId}-${folio.id}`,
+      loadId,
+      folio.id,
+      folio.numero_folio,
+      createdAt,
+    );
+  }
+
+  await executor.runAsync(
+    `INSERT INTO demo_notifications
+      (id, type, severity, title, message, load_id, folio_id, data_json,
+       read_at, confirmed_at, created_at, updated_at)
+     VALUES (?, 'carga_publicada', 'advertencia', ?, ?, ?, NULL, ?, NULL, NULL, ?, ?)`,
+    'notification-demo-load-01',
+    'Nueva carga publicada',
+    `CAR-000001 está disponible con ${selected.length} folios.`,
+    loadId,
+    JSON.stringify({ priority: 'alta', total: selected.length }),
+    createdAt,
+    createdAt,
+  );
+  await executor.runAsync(
+    `INSERT OR REPLACE INTO demo_meta (key, value) VALUES ('load_sequence', '1')`,
   );
 }
 
@@ -228,8 +300,63 @@ export async function initializeDemoDatabase(): Promise<void> {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS demo_loads (
+        id TEXT PRIMARY KEY NOT NULL,
+        code TEXT NOT NULL UNIQUE,
+        external_order TEXT,
+        status TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        observation TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        published_at TEXT,
+        cancelled_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS demo_load_assignments (
+        id TEXT PRIMARY KEY NOT NULL,
+        load_id TEXT NOT NULL,
+        folio_id TEXT NOT NULL,
+        folio_number TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        dock_id TEXT,
+        incident_type TEXT,
+        incident_description TEXT,
+        assigned_at TEXT NOT NULL,
+        sent_at TEXT,
+        FOREIGN KEY (load_id) REFERENCES demo_loads(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS demo_load_operations (
+        operation_id TEXT PRIMARY KEY NOT NULL,
+        fingerprint TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS demo_notifications (
+        id TEXT PRIMARY KEY NOT NULL,
+        type TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        load_id TEXT,
+        folio_id TEXT,
+        data_json TEXT,
+        read_at TEXT,
+        confirmed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (load_id) REFERENCES demo_loads(id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS demo_folios_client_idx ON demo_folios(client_id);
       CREATE INDEX IF NOT EXISTS demo_audit_created_idx ON demo_audit(created_at);
+      CREATE INDEX IF NOT EXISTS demo_loads_status_idx ON demo_loads(status, updated_at);
+      CREATE INDEX IF NOT EXISTS demo_load_assignments_load_idx ON demo_load_assignments(load_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS demo_load_assignments_active_folio_unique
+        ON demo_load_assignments(folio_id) WHERE status != 'cancelled';
+      CREATE INDEX IF NOT EXISTS demo_notifications_created_idx ON demo_notifications(created_at);
     `);
 
     const version = await db.getFirstAsync<{ value: string }>(
@@ -240,6 +367,28 @@ export async function initializeDemoDatabase(): Promise<void> {
     if (!version) {
       await db.withExclusiveTransactionAsync(async (transaction) => {
         await seed(transaction);
+      });
+    } else if (version.value !== SEED_VERSION) {
+      await db.withExclusiveTransactionAsync(async (transaction) => {
+        const operational = await transaction.getFirstAsync<{ state_json: string }>(
+          'SELECT state_json FROM demo_operational_state WHERE key = ?',
+          DEMO_OPERATIONAL_STATE_KEY,
+        );
+        if (operational?.state_json) {
+          try {
+            await seedLoads(
+              transaction,
+              JSON.parse(operational.state_json) as DemoOperationalState,
+              nowIso(),
+            );
+          } catch {
+            // Los datos maestros existentes se conservan aunque el ejemplo de cargas no pueda sembrarse.
+          }
+        }
+        await transaction.runAsync(
+          `INSERT OR REPLACE INTO demo_meta (key, value) VALUES ('seed_version', ?)`,
+          SEED_VERSION,
+        );
       });
     }
 
@@ -262,7 +411,7 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
   await initializeDemoDatabase();
   const db = await database();
 
-  const [clientRows, folioRows, auditRow, operationalRow] = await Promise.all([
+  const [clientRows, folioRows, loadRow, auditRow, operationalRow] = await Promise.all([
     db.getAllAsync<ClientRow>('SELECT * FROM demo_clients ORDER BY name ASC'),
     db.getAllAsync<FolioRow>(`
       SELECT
@@ -280,6 +429,9 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       INNER JOIN demo_clients c ON c.id = f.client_id
       ORDER BY f.created_at DESC, f.number DESC
     `),
+    db.getFirstAsync<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM demo_loads WHERE status != 'cancelled'`,
+    ),
     db.getFirstAsync<{ total: number }>('SELECT COUNT(*) AS total FROM demo_audit'),
     db.getFirstAsync<{ state_json: string }>(
       'SELECT state_json FROM demo_operational_state WHERE key = ?',
@@ -308,6 +460,7 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       status: row.status,
       createdAt: row.created_at,
     })),
+    activeLoads: loadRow?.total ?? 0,
     auditEntries: auditRow?.total ?? 0,
     operationalMovements: operationalMovementCount(operationalRow?.state_json),
   };
@@ -418,9 +571,18 @@ export async function deleteDemoClient(id: string): Promise<void> {
   await initializeDemoDatabase();
   const db = await database();
   await db.withExclusiveTransactionAsync(async (transaction) => {
-    const [folios, operational] = await Promise.all([
+    const [folios, assigned, operational] = await Promise.all([
       transaction.getAllAsync<{ number: string }>(
         'SELECT number FROM demo_folios WHERE client_id = ?',
+        id,
+      ),
+      transaction.getFirstAsync<{ id: string }>(
+        `SELECT a.id
+         FROM demo_load_assignments a
+         INNER JOIN demo_loads l ON l.id = a.load_id
+         INNER JOIN demo_folios f ON f.id = a.folio_id
+         WHERE f.client_id = ? AND l.status != 'cancelled' AND a.status != 'cancelled'
+         LIMIT 1`,
         id,
       ),
       transaction.getFirstAsync<{ state_json: string }>(
@@ -432,6 +594,9 @@ export async function deleteDemoClient(id: string): Promise<void> {
     if (folios.some((folio) => located.has(folio.number))) {
       throw new Error('No puedes eliminar un cliente que posee folios ubicados en cámaras Demo.');
     }
+    if (assigned) {
+      throw new Error('No puedes eliminar un cliente que posee folios asignados a una carga Demo.');
+    }
     const result = await transaction.runAsync('DELETE FROM demo_clients WHERE id = ?', id);
     if (!result.changes) throw new Error('El cliente ya no existe.');
     await writeDemoAudit(transaction, 'eliminar', 'cliente', id, 'Cliente y sus folios asociados');
@@ -442,8 +607,16 @@ export async function deleteDemoFolio(id: string): Promise<void> {
   await initializeDemoDatabase();
   const db = await database();
   await db.withExclusiveTransactionAsync(async (transaction) => {
-    const [folio, operational] = await Promise.all([
+    const [folio, assigned, operational] = await Promise.all([
       transaction.getFirstAsync<{ number: string }>('SELECT number FROM demo_folios WHERE id = ?', id),
+      transaction.getFirstAsync<{ id: string }>(
+        `SELECT a.id
+         FROM demo_load_assignments a
+         INNER JOIN demo_loads l ON l.id = a.load_id
+         WHERE a.folio_id = ? AND l.status != 'cancelled' AND a.status != 'cancelled'
+         LIMIT 1`,
+        id,
+      ),
       transaction.getFirstAsync<{ state_json: string }>(
         'SELECT state_json FROM demo_operational_state WHERE key = ?',
         DEMO_OPERATIONAL_STATE_KEY,
@@ -451,6 +624,9 @@ export async function deleteDemoFolio(id: string): Promise<void> {
     ]);
     if (folio && locatedFolioNumbers(operational?.state_json).has(folio.number)) {
       throw new Error('No puedes eliminar un folio mientras permanezca ubicado en una cámara Demo.');
+    }
+    if (assigned) {
+      throw new Error('No puedes eliminar un folio mientras esté asignado a una carga Demo.');
     }
     const result = await transaction.runAsync('DELETE FROM demo_folios WHERE id = ?', id);
     if (!result.changes) throw new Error('El folio ya no existe.');
@@ -464,6 +640,10 @@ export async function resetDemoDatabase(): Promise<void> {
   await db.withExclusiveTransactionAsync(async (transaction) => {
     await transaction.execAsync(`
       DELETE FROM demo_audit;
+      DELETE FROM demo_notifications;
+      DELETE FROM demo_load_operations;
+      DELETE FROM demo_load_assignments;
+      DELETE FROM demo_loads;
       DELETE FROM demo_operational_state;
       DELETE FROM demo_folios;
       DELETE FROM demo_clients;

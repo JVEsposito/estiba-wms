@@ -40,6 +40,18 @@ import {
   openDemoSession,
 } from '../demo/demoOperationalEngine';
 import { demoSagConditions } from '../demo/demoOperationalSeed';
+import {
+  confirmDemoOperationalNotification,
+  decorateDemoPlanWithLoads,
+  getDemoExtractionPlan,
+  getDemoOperationalNotificationSummary,
+  listDemoDocks,
+  listDemoOperationalNotifications,
+  listDemoRefrigeratedLoads,
+  readDemoOperationalNotification,
+  reportDemoLoadIncident,
+  sendDemoLoadFolioToDock,
+} from '../demo/demoLoadEngine';
 import { ApiError } from './apiError';
 import type { EstibaApi } from './estibaApi';
 
@@ -61,7 +73,7 @@ const demoIdentity: AuthSession = {
       puede_operar_materiales: true,
       puede_consultar_cargas: true,
       puede_consultar_catalogo_cargas: false,
-      puede_gestionar_cargas: false,
+      puede_gestionar_cargas: true,
       puede_gestionar_andenes: false,
       puede_consultar_despachos_materiales: false,
       puede_gestionar_despachos_materiales: false,
@@ -129,44 +141,53 @@ export class DemoEstibaApi implements EstibaApi {
   }
 
   async listRefrigeratedLoads(_token: string): Promise<RefrigeratedLoad[]> {
-    return [];
+    return listDemoRefrigeratedLoads();
   }
 
   async getExtractionPlan(_token: string, loadId: string): Promise<ExtractionPlan> {
-    return {
-      carga_id: loadId,
-      carga_codigo: 'CAR-DEMO',
-      generado_at: new Date().toISOString(),
-      resumen: { pendientes: 0, planificables: 0, bloqueados: 0, sin_ubicacion: 0, con_incidencia: 0 },
-      siguiente: null,
-      items: [],
-    };
+    return getDemoExtractionPlan(loadId);
   }
 
   async listDocks(_token: string): Promise<Dock[]> {
-    return [{ id: 'dock-demo', codigo: 'AND-01', nombre: 'Andén 01', activo: true }];
+    return listDemoDocks();
   }
 
-  async reportLoadIncident(): Promise<void> {}
+  async reportLoadIncident(
+    _token: string,
+    assignmentId: string,
+    payload: Parameters<typeof reportDemoLoadIncident>[1],
+  ): Promise<void> {
+    return reportDemoLoadIncident(assignmentId, payload);
+  }
 
-  async sendLoadFolioToDock(): Promise<RefrigeratedLoad> {
-    throw new ApiError('No existen cargas publicadas en el modo de demostración.', 422);
+  async sendLoadFolioToDock(
+    _token: string,
+    assignmentId: string,
+    payload: Parameters<typeof sendDemoLoadFolioToDock>[1],
+  ): Promise<RefrigeratedLoad> {
+    return sendDemoLoadFolioToDock(assignmentId, payload);
   }
 
   async listOperationalNotifications(): Promise<OperationalNotificationFeed> {
-    return { items: [], unread: 0, syncedAt: new Date().toISOString() };
+    return listDemoOperationalNotifications();
   }
 
   async getOperationalNotificationSummary() {
-    return { unread: 0, syncedAt: new Date().toISOString() };
+    return getDemoOperationalNotificationSummary();
   }
 
-  async readOperationalNotification(): Promise<OperationalNotification> {
-    throw new ApiError('No existen notificaciones en el modo de demostración.', 404);
+  async readOperationalNotification(
+    _token: string,
+    notificationId: string,
+  ): Promise<OperationalNotification> {
+    return readDemoOperationalNotification(notificationId);
   }
 
-  async confirmOperationalNotification(): Promise<OperationalNotification> {
-    throw new ApiError('No existen notificaciones en el modo de demostración.', 404);
+  async confirmOperationalNotification(
+    _token: string,
+    notificationId: string,
+  ): Promise<OperationalNotification> {
+    return confirmDemoOperationalNotification(notificationId);
   }
 
   async createMaterialDispatch(_token: string, _payload: CreateMaterialDispatchPayload): Promise<MaterialDispatch> {
@@ -253,7 +274,7 @@ export class DemoEstibaApi implements EstibaApi {
   }
 
   async getPlan(_token: string, cameraId: string) {
-    return getDemoPlan(cameraId);
+    return decorateDemoPlanWithLoads(await getDemoPlan(cameraId));
   }
 
   async refreshPlan(token: string, cameraId: string) {

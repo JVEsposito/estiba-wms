@@ -39,6 +39,7 @@ type Props = {
   onOpenPosition: (cameraId: string, positionId: string) => void;
   onConnectionFailure: (reason: unknown) => void;
   onSessionsChanged: () => void;
+  preferredLoadId?: string | null;
 };
 
 const INCIDENT_TYPES: Array<{ value: ReportLoadIncidentPayload['tipo']; label: string }> = [
@@ -60,6 +61,7 @@ export function RefrigeratedLoadOperation({
   onConnectionFailure,
   onOpenPosition,
   onSessionsChanged,
+  preferredLoadId = null,
 }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < 1080;
@@ -105,6 +107,12 @@ export function RefrigeratedLoadOperation({
   useEffect(() => {
     void initialize();
   }, []);
+
+  useEffect(() => {
+    if (!preferredLoadId || busy || preferredLoadId === selectedLoadId) return;
+    const preferred = loads.find((load) => load.id === preferredLoadId);
+    if (preferred) void selectLoad(preferred);
+  }, [preferredLoadId, loads, busy, selectedLoadId]);
 
   useEffect(() => {
     if (busy || incidentVisible) return;
@@ -171,7 +179,7 @@ export function RefrigeratedLoadOperation({
       ]);
       setLoads(loadedLoads);
       setDocks(loadedDocks);
-      const initial = loadedLoads[0] ?? null;
+      const initial = loadedLoads.find((load) => load.id === preferredLoadId) ?? loadedLoads[0] ?? null;
       setSelectedLoadId(initial?.id ?? null);
       setSelectedDockId(initial?.anden_previsto?.id ?? loadedDocks[0]?.id ?? null);
       if (initial) await loadDetail(initial.id);

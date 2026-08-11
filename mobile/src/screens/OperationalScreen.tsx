@@ -70,6 +70,8 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   const [moveVisible, setMoveVisible] = useState(false);
   const [materialDispatchVisible, setMaterialDispatchVisible] = useState(false);
   const [activeModule, setActiveModule] = useState<'camaras' | 'cargas' | 'materiales' | 'transformacion'>('camaras');
+  const [preferredLoadId, setPreferredLoadId] = useState<string | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -677,11 +679,15 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
                 api={api}
                 auth={auth}
                 onFailure={(reason) => reportFailure(reason, setError)}
-                onOpenLoads={canUseLoads ? () => setActiveModule('cargas') : undefined}
+                onOpenLoads={canUseLoads ? (loadId) => {
+                  setPreferredLoadId(loadId ?? null);
+                  setActiveModule('cargas');
+                } : undefined}
                 onOpenMaterialDispatches={canUseMaterials
                   ? () => setActiveModule('materiales')
                   : undefined}
                 onSuccess={() => setConnectionState('connected')}
+                onUnreadChanged={setUnreadNotifications}
               />
             )}
           </View>
@@ -711,6 +717,21 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           </Pressable>
         ) : null}
 
+        {api.mode === 'demo' && canUseLoads && unreadNotifications > 0 && activeModule !== 'cargas' ? (
+          <Pressable
+            onPress={() => setActiveModule('cargas')}
+            style={styles.demoLoadBanner}
+          >
+            <View>
+              <Text style={styles.demoLoadBannerTitle}>NUEVA ACTIVIDAD DE CARGAS</Text>
+              <Text style={styles.demoLoadBannerText}>
+                Tienes {unreadNotifications} aviso(s) local(es). Abre la bandeja para ver la orden y sus folios.
+              </Text>
+            </View>
+            <Text style={styles.demoLoadBannerAction}>ABRIR CARGAS →</Text>
+          </Pressable>
+        ) : null}
+
         {activeModule === 'cargas' && canUseLoads ? (
           <RefrigeratedLoadOperation
             api={api}
@@ -718,6 +739,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
             onConnectionFailure={(reason) => reportFailure(reason, setError)}
             onOpenPosition={(cameraId, positionId) => void openPositionFromLoad(cameraId, positionId)}
             onSessionsChanged={() => void refreshCurrent({ quiet: true })}
+            preferredLoadId={preferredLoadId}
           />
         ) : activeModule === 'materiales' && canUseMaterials ? (
           <MaterialDispatchOperation
@@ -1014,6 +1036,22 @@ const styles = StyleSheet.create({
   },
   noticeText: { flex: 1, color: colors.text, fontSize: 9, fontWeight: '800' },
   noticeClose: { color: colors.text, fontSize: 16 },
+  demoLoadBanner: {
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.amber,
+    backgroundColor: colors.amberDark,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  demoLoadBannerTitle: { color: colors.amber, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  demoLoadBannerText: { marginTop: 3, color: colors.text, fontSize: 9 },
+  demoLoadBannerAction: { color: colors.amber, fontSize: 9, fontWeight: '900' },
   workspace: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   workspaceCompact: { flexDirection: 'column' },
   cameraPanel: {

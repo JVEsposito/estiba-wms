@@ -79,6 +79,9 @@ export function PositionMap({
                 : 'Pallet'}
           />
           {plan.contenido === 'productos' && <Legend color={colors.saldo} border={colors.saldoBorder} label="Saldo" />}
+          {plan.contenido === 'productos'
+            && plan.posiciones.some((position) => position.folio?.carga_actual)
+            && <Legend color={colors.cyanDark} border={colors.cyan} label="Asignado a carga CAR" />}
           <Legend color={colors.blocked} border={colors.blockedBorder} label="Bloqueada" />
         </View>
         <View style={styles.levelPicker}>
@@ -187,6 +190,11 @@ function Band({
                 ? `${position.folios?.length} ítems · ${position.folio?.material?.item.cliente.nombre ?? ''}`
                 : position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
             </Text>
+            {position.folio?.carga_actual ? (
+              <Text numberOfLines={1} style={styles.loadCode}>
+                {position.folio.carga_actual.codigo}
+              </Text>
+            ) : null}
             <View style={styles.cellMetaRow}>
               <Text numberOfLines={1} style={styles.cellMeta}>
                 {position.folio?.material
@@ -317,6 +325,21 @@ const styles = StyleSheet.create({
     borderColor: colors.freeBorder,
     backgroundColor: colors.free,
     justifyContent: 'space-between',
+  },
+  loadCode: {
+    position: 'absolute',
+    top: 25,
+    right: 6,
+    maxWidth: 82,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.cyan,
+    backgroundColor: colors.cyanDark,
+    color: colors.cyan,
+    fontSize: 6,
+    fontWeight: '900',
   },
   occupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
   saldo: { borderColor: colors.saldoBorder, backgroundColor: colors.saldo },

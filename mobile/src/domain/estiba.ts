@@ -154,6 +154,13 @@ export type Folio = {
   exportadora: string | null;
   material: FolioMaterial | null;
   ubicado_at: string | null;
+  carga_actual?: {
+    id: string;
+    codigo: string;
+    estado: string;
+    prioridad: 'normal' | 'alta' | 'urgente';
+    version: number;
+  } | null;
 };
 
 export type FolioLookup = {

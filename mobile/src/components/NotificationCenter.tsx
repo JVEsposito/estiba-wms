@@ -19,9 +19,10 @@ type Props = {
   api: EstibaApi;
   auth: AuthSession;
   onFailure: (reason: unknown) => void;
-  onOpenLoads?: () => void;
+  onOpenLoads?: (loadId?: string) => void;
   onOpenMaterialDispatches?: () => void;
   onSuccess: () => void;
+  onUnreadChanged?: (unread: number) => void;
 };
 
 export function NotificationCenter({
@@ -31,6 +32,7 @@ export function NotificationCenter({
   onOpenLoads,
   onOpenMaterialDispatches,
   onSuccess,
+  onUnreadChanged,
 }: Props) {
   const [items, setItems] = useState<OperationalNotification[]>([]);
   const [unread, setUnread] = useState(0);
@@ -68,6 +70,7 @@ export function NotificationCenter({
     try {
       const summary = await api.getOperationalNotificationSummary(auth.token);
       setUnread(summary.unread);
+      onUnreadChanged?.(summary.unread);
       setLastSync(summary.syncedAt);
       onSuccess();
     } catch (reason) {
@@ -85,6 +88,7 @@ export function NotificationCenter({
       const feed = await api.listOperationalNotifications(auth.token);
       setItems(feed.items);
       setUnread(feed.unread);
+      onUnreadChanged?.(feed.unread);
       setLastSync(feed.syncedAt);
       onSuccess();
     } catch (reason) {
@@ -112,7 +116,11 @@ export function NotificationCenter({
     try {
       const updated = await api.readOperationalNotification(auth.token, notification.id);
       replace(updated);
-      setUnread((current) => Math.max(0, current - 1));
+      setUnread((current) => {
+        const next = Math.max(0, current - 1);
+        onUnreadChanged?.(next);
+        return next;
+      });
     } catch (reason) {
       onFailure(reason);
     } finally {
@@ -125,7 +133,11 @@ export function NotificationCenter({
     try {
       const updated = await api.confirmOperationalNotification(auth.token, notification.id);
       replace(updated);
-      if (!notification.leida_at) setUnread((current) => Math.max(0, current - 1));
+      if (!notification.leida_at) setUnread((current) => {
+        const next = Math.max(0, current - 1);
+        onUnreadChanged?.(next);
+        return next;
+      });
     } catch (reason) {
       onFailure(reason);
     } finally {
@@ -194,8 +206,9 @@ export function NotificationCenter({
                       {notification.carga && onOpenLoads && (
                         <Pressable
                           onPress={() => {
+                            void read(notification);
                             close();
-                            onOpenLoads();
+                            onOpenLoads(notification.carga?.id);
                           }}
                           style={styles.loadLink}
                         >

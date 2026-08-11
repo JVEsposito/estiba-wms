@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,13 +23,28 @@ import {
   loadDemoDataset,
   resetDemoDatabase,
 } from '../demo/demoDatabase';
+import {
+  cancelDemoLoad,
+  changeDemoLoadPriority,
+  createDemoLoad,
+  CreateDemoLoadInput,
+  DemoLoadAdministration,
+  loadDemoLoadAdministration,
+  publishDemoLoad,
+} from '../demo/demoLoadEngine';
 import { colors } from '../theme/colors';
 
 const emptyDataset: DemoDataset = {
   clients: [],
   folios: [],
+  activeLoads: 0,
   auditEntries: 0,
   operationalMovements: 0,
+};
+
+const emptyLoadAdministration: DemoLoadAdministration = {
+  loads: [],
+  candidates: [],
 };
 
 type DemoDataScreenProps = {
@@ -39,6 +55,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const [dataset, setDataset] = useState<DemoDataset>(emptyDataset);
+  const [loadAdministration, setLoadAdministration] = useState<DemoLoadAdministration>(emptyLoadAdministration);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -54,14 +71,26 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
   const [variety, setVariety] = useState('');
   const [boxes, setBoxes] = useState('');
 
+  const [loadExternalOrder, setLoadExternalOrder] = useState('');
+  const [loadObservation, setLoadObservation] = useState('');
+  const [loadPriority, setLoadPriority] = useState<CreateDemoLoadInput['priority']>('normal');
+  const [selectedLoadFolios, setSelectedLoadFolios] = useState<string[]>([]);
+
   const reload = useCallback(async () => {
-    const next = await loadDemoDataset();
+    const [next, nextLoads] = await Promise.all([
+      loadDemoDataset(),
+      loadDemoLoadAdministration(),
+    ]);
     setDataset(next);
+    setLoadAdministration(nextLoads);
     setSelectedClientId((current) => (
       next.clients.some((client) => client.id === current)
         ? current
         : next.clients[0]?.id ?? ''
     ));
+    setSelectedLoadFolios((current) => current.filter((id) => (
+      nextLoads.candidates.some((candidate) => candidate.folioId === id)
+    )));
   }, []);
 
   useEffect(() => {
@@ -107,6 +136,46 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
       setVariety('');
       setBoxes('');
     }, 'Folio guardado en la tablet.');
+  }
+
+  function toggleLoadFolio(folioId: string) {
+    setSelectedLoadFolios((current) => current.includes(folioId)
+      ? current.filter((id) => id !== folioId)
+      : current.length >= 26 ? current : [...current, folioId]);
+  }
+
+  async function addLoad() {
+    await mutate(async () => {
+      await createDemoLoad({
+        operationId: Crypto.randomUUID(),
+        externalOrder: loadExternalOrder,
+        priority: loadPriority,
+        observation: loadObservation,
+        folioIds: selectedLoadFolios,
+      });
+      setLoadExternalOrder('');
+      setLoadObservation('');
+      setLoadPriority('normal');
+      setSelectedLoadFolios([]);
+    }, 'Carga creada como borrador. Publícala cuando quieras mostrarla en Operación.');
+  }
+
+  function confirmLoadCancellation(id: string, code: string) {
+    Alert.alert(
+      'Cancelar carga demo',
+      `${code} dejará de aparecer en Operación y sus folios quedarán disponibles para otra carga.`,
+      [
+        { text: 'Volver', style: 'cancel' },
+        {
+          text: 'Cancelar carga',
+          style: 'destructive',
+          onPress: () => void mutate(
+            () => cancelDemoLoad(id, Crypto.randomUUID()),
+            `${code} cancelada y folios liberados.`,
+          ),
+        },
+      ],
+    );
   }
 
   function confirmClientDeletion(id: string, name: string) {
@@ -174,7 +243,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
             <Text style={styles.eyebrow}>ESTIBA WMS DEMO · ADMINISTRACIÓN LOCAL</Text>
             <Text style={styles.title}>Datos para tu presentación</Text>
             <Text style={styles.intro}>
-              Crea clientes y folios propios. Todo queda únicamente en la memoria interna de esta tablet.
+              Crea clientes, folios y cargas propias. Todo queda únicamente en la memoria interna de esta tablet.
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -191,6 +260,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
         <View style={styles.metrics}>
           <Metric label="Clientes" value={dataset.clients.length} />
           <Metric label="Folios" value={dataset.folios.length} />
+          <Metric label="Cargas activas" value={dataset.activeLoads} />
           <Metric label="Movimientos" value={dataset.operationalMovements} />
           <Metric label="Acciones locales" value={dataset.auditEntries} />
         </View>
@@ -227,7 +297,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
           <View style={styles.card}>
             <Text style={styles.cardEyebrow}>OPERACIÓN DEMO</Text>
             <Text style={styles.cardTitle}>Nuevo folio</Text>
-            <Text style={styles.cardCopy}>El folio queda disponible para los módulos locales que sumaremos después.</Text>
+            <Text style={styles.cardCopy}>El folio queda disponible para ubicarlo en Cámaras y luego asignarlo a una carga local.</Text>
             <DemoField
               label="Número de folio"
               onChangeText={setFolioNumber}
@@ -269,6 +339,144 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
               </View>
             </View>
             <PrimaryButton busy={busy} label="Guardar folio" onPress={() => void addFolio()} />
+          </View>
+        </View>
+
+        <View style={[styles.loadWorkspace, wide && styles.loadWorkspaceWide]}>
+          <View style={styles.loadCreator}>
+            <Text style={styles.cardEyebrow}>OFICINA DEMO · CARGAS DE FRÍO</Text>
+            <Text style={styles.cardTitle}>Nueva carga CAR</Text>
+            <Text style={styles.cardCopy}>
+              Selecciona folios ya ubicados. El borrador no aparecerá en Operación hasta que lo publiques.
+            </Text>
+            <DemoField
+              label="Orden externa (opcional)"
+              onChangeText={setLoadExternalOrder}
+              placeholder="OC-CLIENTE-001"
+              value={loadExternalOrder}
+            />
+            <DemoField
+              label="Observación (opcional)"
+              onChangeText={setLoadObservation}
+              placeholder="Despacho demostración"
+              value={loadObservation}
+            />
+            <Text style={styles.fieldLabel}>Prioridad</Text>
+            <View style={styles.choiceRow}>
+              {(['normal', 'alta', 'urgente'] as const).map((priority) => (
+                <Pressable
+                  key={priority}
+                  onPress={() => setLoadPriority(priority)}
+                  style={[styles.choice, loadPriority === priority && styles.choiceSelected]}
+                >
+                  <Text style={[styles.choiceText, loadPriority === priority && styles.choiceTextSelected]}>
+                    {priority.toUpperCase()}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.selectionHeading}>
+              <Text style={styles.fieldLabel}>Folios ubicados disponibles</Text>
+              <Text style={styles.selectionCount}>{selectedLoadFolios.length}/26</Text>
+            </View>
+            <ScrollView
+              contentContainerStyle={styles.folioChoices}
+              nestedScrollEnabled
+              style={styles.folioChoicesScroll}
+            >
+              {loadAdministration.candidates.map((candidate) => {
+                const selected = selectedLoadFolios.includes(candidate.folioId);
+                return (
+                  <Pressable
+                    key={candidate.folioId}
+                    onPress={() => toggleLoadFolio(candidate.folioId)}
+                    style={[styles.folioChoice, selected && styles.folioChoiceSelected]}
+                  >
+                    <Text style={[styles.folioChoiceTitle, selected && styles.folioChoiceTitleSelected]}>
+                      {selected ? '✓ ' : ''}{candidate.number}
+                    </Text>
+                    <Text style={styles.folioChoiceMeta}>
+                      {candidate.cameraCode} · {candidate.positionLabel} · {candidate.variety ?? 'Sin variedad'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {!loadAdministration.candidates.length ? (
+                <Text style={styles.emptyCopy}>
+                  No hay folios ubicados libres. Ubica uno en Cámaras o cancela una carga sin despachos.
+                </Text>
+              ) : null}
+            </ScrollView>
+            <PrimaryButton busy={busy} label="Crear borrador CAR" onPress={() => void addLoad()} />
+          </View>
+
+          <View style={styles.loadListPanel}>
+            <View style={styles.listHeader}>
+              <View>
+                <Text style={styles.cardEyebrow}>TRAZABILIDAD LOCAL</Text>
+                <Text style={styles.listTitle}>Cargas Demo</Text>
+              </View>
+              <Text style={styles.count}>{loadAdministration.loads.length}</Text>
+            </View>
+            {loadAdministration.loads.map((load) => (
+              <View key={load.id} style={styles.loadRow}>
+                <View style={styles.loadRowTop}>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowTitle}>{load.code} · {load.priority.toUpperCase()}</Text>
+                    <Text style={styles.rowMeta}>
+                      {load.externalOrder ?? 'Sin orden externa'} · {load.folios.length} folios · v{load.version}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.statusChip,
+                    load.status === 'published' && styles.statusPublished,
+                    load.status === 'cancelled' && styles.statusCancelled,
+                  ]}>
+                    <Text style={styles.statusText}>{loadStatusLabel(load.status)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.loadFolios}>
+                  {load.folios.map((folio) => folio.number).join(' · ')}
+                </Text>
+                {load.observation ? <Text style={styles.loadObservation}>{load.observation}</Text> : null}
+                {load.status !== 'cancelled' ? (
+                  <View style={styles.loadActions}>
+                    {load.status === 'draft' ? (
+                      <Pressable
+                        disabled={busy}
+                        onPress={() => void mutate(
+                          () => publishDemoLoad(load.id, Crypto.randomUUID()),
+                          `${load.code} publicada; la tablet mostrará una nueva alerta.`,
+                        )}
+                        style={styles.publishButton}
+                      >
+                        <Text style={styles.publishButtonText}>Publicar</Text>
+                      </Pressable>
+                    ) : null}
+                    {(['normal', 'alta', 'urgente'] as const).map((priority) => (
+                      <Pressable
+                        disabled={busy || load.priority === priority}
+                        key={priority}
+                        onPress={() => void mutate(
+                          () => changeDemoLoadPriority(load.id, priority, Crypto.randomUUID()),
+                          `${load.code} ahora tiene prioridad ${priority}.`,
+                        )}
+                        style={[styles.miniAction, load.priority === priority && styles.miniActionActive]}
+                      >
+                        <Text style={styles.miniActionText}>{priority}</Text>
+                      </Pressable>
+                    ))}
+                    <Pressable
+                      disabled={busy}
+                      onPress={() => confirmLoadCancellation(load.id, load.code)}
+                      style={styles.cancelLoadButton}
+                    >
+                      <Text style={styles.cancelLoadButtonText}>Cancelar</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ))}
           </View>
         </View>
 
@@ -342,6 +550,10 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
 
 function messageFrom(reason: unknown): string {
   return reason instanceof Error ? reason.message : 'No fue posible actualizar la base demo.';
+}
+
+function loadStatusLabel(status: 'draft' | 'published' | 'cancelled') {
+  return { draft: 'BORRADOR', published: 'PUBLICADA', cancelled: 'CANCELADA' }[status];
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -436,6 +648,41 @@ const styles = StyleSheet.create({
   primaryButton: { height: 46, marginTop: 18, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.cyan, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: colors.accentText, fontSize: 11, fontWeight: '900' },
   disabled: { opacity: 0.5 },
+  loadWorkspace: { gap: 16 },
+  loadWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  loadCreator: { flex: 1, padding: 20, borderWidth: 1, borderColor: colors.cyanDark, borderRadius: 16, backgroundColor: colors.panel },
+  loadListPanel: { flex: 1, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.panel },
+  choiceRow: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  choice: { paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 8, backgroundColor: colors.backgroundDeep },
+  choiceSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  choiceText: { color: colors.muted, fontSize: 9, fontWeight: '900' },
+  choiceTextSelected: { color: colors.cyan },
+  selectionHeading: { marginTop: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectionCount: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
+  folioChoicesScroll: { maxHeight: 260, marginTop: 8 },
+  folioChoices: { gap: 7 },
+  folioChoice: { padding: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 9, backgroundColor: colors.backgroundDeep },
+  folioChoiceSelected: { borderColor: colors.cyan, backgroundColor: colors.selected },
+  folioChoiceTitle: { color: colors.text, fontSize: 10, fontWeight: '900' },
+  folioChoiceTitleSelected: { color: colors.cyan },
+  folioChoiceMeta: { marginTop: 3, color: colors.muted, fontSize: 8 },
+  emptyCopy: { padding: 11, color: colors.muted, fontSize: 10, lineHeight: 15 },
+  loadRow: { padding: 14, gap: 8, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  loadRowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  statusChip: { paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: colors.amber, borderRadius: 7, backgroundColor: colors.amberDark },
+  statusPublished: { borderColor: colors.green, backgroundColor: colors.greenDark },
+  statusCancelled: { borderColor: colors.red, backgroundColor: '#421B21' },
+  statusText: { color: colors.text, fontSize: 7, fontWeight: '900' },
+  loadFolios: { color: colors.text, fontSize: 9, lineHeight: 14 },
+  loadObservation: { color: colors.muted, fontSize: 8, fontStyle: 'italic' },
+  loadActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  publishButton: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.cyan },
+  publishButtonText: { color: colors.accentText, fontSize: 8, fontWeight: '900' },
+  miniAction: { paddingHorizontal: 8, paddingVertical: 7, borderWidth: 1, borderColor: colors.border, borderRadius: 7 },
+  miniActionActive: { borderColor: colors.cyan, backgroundColor: colors.selected, opacity: 0.7 },
+  miniActionText: { color: colors.text, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' },
+  cancelLoadButton: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 7, borderWidth: 1, borderColor: colors.red, borderRadius: 7 },
+  cancelLoadButtonText: { color: colors.red, fontSize: 8, fontWeight: '900' },
   tables: { gap: 16 },
   tablesWide: { flexDirection: 'row', alignItems: 'flex-start' },
   listCard: { flex: 1, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.panel },
