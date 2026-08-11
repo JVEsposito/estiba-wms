@@ -5,17 +5,30 @@ namespace Tests\Feature\Api;
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoValidacionPallet;
 use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Enums\ResultadoValidacionPallet;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Models\ArticuloValidacion;
 use App\Models\BloqueMercado;
 use App\Models\Camara;
+use App\Models\CategoriaValidacion;
+use App\Models\Cliente;
+use App\Models\ClienteValidacion;
+use App\Models\CombinacionValidacion;
 use App\Models\CondicionSag;
+use App\Models\CsgValidacion;
+use App\Models\Dispositivo;
+use App\Models\EspecieValidacion;
 use App\Models\Folio;
+use App\Models\OrigenValidacion;
 use App\Models\Pais;
 use App\Models\Posicion;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Models\ValidacionPallet;
+use App\Models\VariedadValidacion;
 use App\Services\Existencias\ServicioExistencias;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,6 +53,11 @@ class InspeccionSagApiTest extends TestCase
             ->assertJsonCount(250, 'paises')
             ->assertJsonPath('bloques.0.codigo', 'UE')
             ->assertJsonCount(27, 'bloques.0.paises')
+            ->assertJsonCount(4, 'tipos_lote')
+            ->assertJsonFragment(['value' => 'muestreo_usda', 'label' => 'Muestreo USDA', 'tipo_aprobacion' => 'AU'])
+            ->assertJsonFragment(['value' => 'inspeccion_origen', 'label' => 'Inspección Origen', 'tipo_aprobacion' => 'AO'])
+            ->assertJsonFragment(['value' => 'fumigacion', 'label' => 'Fumigación', 'tipo_aprobacion' => 'AF'])
+            ->assertJsonFragment(['value' => 'cambio_mercado', 'label' => 'Cambio de mercado', 'tipo_aprobacion' => null])
             ->assertJsonFragment(['value' => 'AO', 'label' => 'Aprobado Origen'])
             ->assertJsonFragment(['value' => 'AU', 'label' => 'Aprobado USDA'])
             ->assertJsonFragment(['value' => 'AF', 'label' => 'Aprobado Fumigación']);
@@ -67,6 +85,24 @@ class InspeccionSagApiTest extends TestCase
             'tipo_bulto' => TipoBulto::Saldo,
             'datos_externos' => ['especie' => 'Cereza', 'csg' => 'CSG-001'],
         ]);
+        $esperado->load([
+            'validacionPallet.articulo.especieCatalogo',
+            'validacionPallet.articulo.variedadCatalogo',
+            'validacionPallet.origen.clienteCatalogo.cliente',
+            'validacionPallet.origen.csgCatalogo',
+        ]);
+        $clienteId = $esperado->validacionPallet->origen->clienteCatalogo->cliente->id;
+        $especieId = $esperado->validacionPallet->articulo->especieCatalogo->id;
+        $variedadId = $esperado->validacionPallet->articulo->variedadCatalogo->id;
+        $csgId = $esperado->validacionPallet->origen->csgCatalogo->id;
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/inspeccion-sag/folios/opciones')
+            ->assertOk()
+            ->assertJsonPath('clientes.0.id', $clienteId)
+            ->assertJsonPath('clientes.0.especies.0.id', $especieId)
+            ->assertJsonFragment(['id' => $variedadId, 'nombre' => 'Regina'])
+            ->assertJsonFragment(['id' => $csgId, 'codigo' => 'CSG-001']);
 
         $this->actingAs($administrador, 'sanctum')
             ->getJson('/api/inspeccion-sag/folios')
@@ -75,11 +111,11 @@ class InspeccionSagApiTest extends TestCase
 
         $this->actingAs($administrador, 'sanctum')
             ->getJson('/api/inspeccion-sag/folios?'.http_build_query([
-                'cliente' => 'EX-01',
-                'especie' => 'Cereza',
-                'variedad' => 'Regina',
+                'cliente' => $clienteId,
+                'especie' => $especieId,
+                'variedad' => $variedadId,
                 'condicion_sag' => 'con',
-                'csg' => 'CSG-001',
+                'csg' => $csgId,
                 'fecha_ingreso' => '2026-08-11',
                 'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado->value,
             ]))
@@ -89,7 +125,7 @@ class InspeccionSagApiTest extends TestCase
             ->assertJsonPath('data.0.sag.estado', 'SI');
     }
 
-    public function test_cambio_de_mercado_agrega_destino_y_salida_sin_resolucion_conserva_aprobaciones_previas(): void
+    public function test_cambio_de_mercado_agrega_destino_y_resultados_no_aprobatorios_conservan_aprobaciones_previas(): void
     {
         $administrador = $this->administradorConTemporada();
         $folio = $this->crearFolioUbicado('SAG-MERCADO-001', [
@@ -99,14 +135,17 @@ class InspeccionSagApiTest extends TestCase
         $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
         $usa = Pais::query()->where('iso_alpha2', 'US')->firstOrFail();
 
-        $primerLote = $this->crearLote($administrador, $folio, 'segregacion', 'pais', $chile->id);
-        $this->resolverLote($administrador, $primerLote, 'aprobado', 'AO');
+        $primerLote = $this->crearLote($administrador, $folio, 'inspeccion_origen', 'pais', $chile->id);
+        $this->resolverLote($administrador, $primerLote, 'aprobado');
 
         $segundoLote = $this->crearLote($administrador, $folio, 'cambio_mercado', 'pais', $usa->id);
         $this->resolverLote($administrador, $segundoLote, 'aprobado', 'AU');
 
-        $tercerLote = $this->crearLote($administrador, $folio, 'segregacion', 'pais', $usa->id);
+        $tercerLote = $this->crearLote($administrador, $folio, 'muestreo_usda', 'pais', $usa->id);
         $this->resolverLote($administrador, $tercerLote, 'sin_resolucion');
+
+        $cuartoLote = $this->crearLote($administrador, $folio, 'fumigacion', 'pais', $chile->id);
+        $this->resolverLote($administrador, $cuartoLote, 'segregado');
 
         $this->assertDatabaseCount('autorizaciones_sag_folio', 2);
         $this->assertDatabaseHas('autorizaciones_sag_folio', [
@@ -154,7 +193,7 @@ class InspeccionSagApiTest extends TestCase
 
         $respuesta = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/inspeccion-sag/lotes', [
-                'tipo' => 'segregacion',
+                'tipo' => 'muestreo_usda',
                 'folios' => [$ubicado->id],
                 'destinos' => [
                     ['tipo' => 'bloque', 'id' => $ue->id],
@@ -168,7 +207,7 @@ class InspeccionSagApiTest extends TestCase
 
         $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/inspeccion-sag/lotes', [
-                'tipo' => 'segregacion',
+                'tipo' => 'muestreo_usda',
                 'folios' => [$sinUbicacion->id],
                 'destinos' => [['tipo' => 'bloque', 'id' => $ue->id]],
             ])
@@ -224,8 +263,106 @@ class InspeccionSagApiTest extends TestCase
             'movimiento_id' => null,
             'ubicado_at' => now(),
         ]);
+        $this->vincularCatalogoValidacion($folio);
 
         return $folio;
+    }
+
+    private function vincularCatalogoValidacion(Folio $folio): void
+    {
+        $datos = $folio->datos_externos ?? [];
+        $especieNombre = (string) ($datos['especie'] ?? 'Cereza');
+        $variedadNombre = (string) ($folio->variedad ?? 'Estándar');
+        $csgCodigo = (string) ($datos['csg'] ?? 'CSG-SAG');
+        $cliente = Cliente::query()->firstOrCreate([
+            'codigo' => (string) $folio->exportadora,
+        ], [
+            'nombre' => (string) $folio->exportadora,
+            'activo' => true,
+        ]);
+        $clienteCatalogo = ClienteValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'cliente_id' => $cliente->id,
+        ], [
+            'nombre' => $cliente->nombre,
+            'activo' => true,
+        ]);
+        $especie = EspecieValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'nombre' => $especieNombre,
+        ], ['activo' => true]);
+        $variedad = VariedadValidacion::query()->firstOrCreate([
+            'especie_validacion_id' => $especie->id,
+            'nombre' => $variedadNombre,
+        ], ['activo' => true]);
+        $csg = CsgValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'codigo' => $csgCodigo,
+        ], ['activo' => true]);
+        $csg->variedades()->syncWithoutDetaching([$variedad->id]);
+        $articulo = ArticuloValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'cliente_validacion_id' => $clienteCatalogo->id,
+            'especie' => $especieNombre,
+            'variedad' => $variedadNombre,
+            'calibre' => (string) ($folio->calibre ?? 'S/C'),
+            'envase' => (string) ($datos['envase'] ?? 'Pallet'),
+        ], [
+            'especie_validacion_id' => $especie->id,
+            'variedad_validacion_id' => $variedad->id,
+            'activo' => true,
+        ]);
+        $origen = OrigenValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'cliente' => $cliente->nombre,
+            'marca' => (string) ($folio->marca ?? 'Marca SAG'),
+            'csg' => $csgCodigo,
+        ], [
+            'cliente_validacion_id' => $clienteCatalogo->id,
+            'csg_validacion_id' => $csg->id,
+            'activo' => true,
+        ]);
+        CombinacionValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'articulo_validacion_id' => $articulo->id,
+            'origen_validacion_id' => $origen->id,
+        ], ['activo' => true]);
+        $categoria = CategoriaValidacion::query()->firstOrCreate([
+            'temporada_id' => $folio->temporada_id,
+            'nombre' => 'Exportación',
+        ], ['activo' => true]);
+        $dispositivo = Dispositivo::query()->firstOrCreate([
+            'codigo' => 'SAG-TEST',
+        ], [
+            'nombre' => 'PDA SAG Test',
+            'plataforma' => 'android',
+            'activo' => true,
+        ]);
+
+        ValidacionPallet::query()->create([
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', $folio->numero_folio),
+            'numero_folio' => $folio->numero_folio,
+            'numero_intento' => 1,
+            'tipo_bulto' => $folio->tipo_bulto->value,
+            'cantidad_cajas' => (int) ($datos['cantidad_cajas'] ?? 60),
+            'linea_proceso' => 1,
+            'turno' => 'A',
+            'temporada_id' => $folio->temporada_id,
+            'articulo_validacion_id' => $articulo->id,
+            'origen_validacion_id' => $origen->id,
+            'categoria_validacion_id' => $categoria->id,
+            'resultado' => ResultadoValidacionPallet::Aprobado,
+            'estado' => EstadoValidacionPallet::Aceptada,
+            'catalogo_version_dispositivo' => 1,
+            'catalogo_version_servidor' => 1,
+            'snapshot' => [],
+            'user_id' => User::query()->value('id'),
+            'dispositivo_id' => $dispositivo->id,
+            'folio_id' => $folio->id,
+            'generado_dispositivo_at' => now(),
+            'recibido_servidor_at' => now(),
+        ]);
     }
 
     private function crearLote(User $usuario, Folio $folio, string $tipo, string $tipoDestino, string $destinoId): array

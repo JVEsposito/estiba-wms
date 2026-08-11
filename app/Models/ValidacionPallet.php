@@ -36,6 +36,16 @@ class ValidacionPallet extends Model
         return $this->belongsTo(Temporada::class);
     }
 
+    public function articulo(): BelongsTo
+    {
+        return $this->belongsTo(ArticuloValidacion::class, 'articulo_validacion_id');
+    }
+
+    public function origen(): BelongsTo
+    {
+        return $this->belongsTo(OrigenValidacion::class, 'origen_validacion_id');
+    }
+
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
