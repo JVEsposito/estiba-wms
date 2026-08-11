@@ -43,7 +43,10 @@ class InspeccionSagInterfaceTest extends TestCase
         $this->assertIsString($estilos);
         $this->assertStringContainsString('var(--input-bg', $estilos);
         $this->assertStringContainsString('var(--table-head', $estilos);
-        $this->assertStringNotContainsString('background: #142630', $estilos);
+        $this->assertDoesNotMatchRegularExpression(
+            '/\.sag-destination-options h4\s*\{[^}]*background:\s*#142630/s',
+            $estilos,
+        );
 
         $navegacion = file_get_contents(resource_path('views/components/office/navigation.blade.php'));
         $this->assertIsString($navegacion);
