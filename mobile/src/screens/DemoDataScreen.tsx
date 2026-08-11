@@ -24,7 +24,12 @@ import {
 } from '../demo/demoDatabase';
 import { colors } from '../theme/colors';
 
-const emptyDataset: DemoDataset = { clients: [], folios: [], auditEntries: 0 };
+const emptyDataset: DemoDataset = {
+  clients: [],
+  folios: [],
+  auditEntries: 0,
+  operationalMovements: 0,
+};
 
 type DemoDataScreenProps = {
   onLogout: () => void;
@@ -186,6 +191,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
         <View style={styles.metrics}>
           <Metric label="Clientes" value={dataset.clients.length} />
           <Metric label="Folios" value={dataset.folios.length} />
+          <Metric label="Movimientos" value={dataset.operationalMovements} />
           <Metric label="Acciones locales" value={dataset.auditEntries} />
         </View>
 
