@@ -9,13 +9,16 @@ const state = {
     categories: [],
     species: [],
     csg: [],
+    imports: [],
+    preview: null,
     projection: { articulos: 0, origenes: 0, combinaciones: 0 },
     showInactive: false,
 };
 const elements = {
-    user: byId('catalogUserName'), initials: byId('catalogInitials'), logout: byId('catalogLogout'),
+    user: byId('officeUserName'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     selector: byId('catalogSeasonSelector'), reload: byId('catalogReload'),
     toggleInactive: byId('catalogToggleInactive'),
+    importForm: byId('importForm'), importError: byId('importError'), importPreview: byId('importPreview'), importList: byId('importList'),
     loading: byId('catalogLoading'), loadingText: byId('catalogLoadingText'), toasts: byId('catalogToasts'),
 };
 
@@ -34,6 +37,8 @@ class ApiError extends Error {
 }
 function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
 function escapeHtml(value) { return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+function statusText(value) { return String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()); }
+function formatDate(value, fallback = 'Sin fecha') { if (!value) return fallback; const date = new Date(value); return Number.isNaN(date.getTime()) ? fallback : new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short' }).format(date); }
 function errorMessage(data, fallback) { return Object.values(data?.errors || {}).flat()[0] || data?.message || fallback; }
 function setBusy(active, message = 'Procesando…') { elements.loadingText.textContent = message; elements.loading.classList.toggle('is-hidden', !active); elements.loading.setAttribute('aria-hidden', String(!active)); }
 function toast(message, error = false) { const node = document.createElement('div'); node.className = `toast${error ? ' toast--error' : ''}`; node.textContent = message; elements.toasts.append(node); window.setTimeout(() => node.remove(), 4500); }
@@ -43,7 +48,7 @@ async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${state.token}`);
-    if (options.body) headers.set('Content-Type', 'application/json');
+    if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
     let response;
     try { response = await fetch(path, { ...options, headers }); } catch { throw new ApiError('No fue posible conectar con Laravel.', 0); }
     const data = await response.json().catch(() => ({}));
@@ -57,20 +62,15 @@ async function api(path, options = {}) {
 function leave() {
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
-    window.location.assign('/oficina/validacion');
+    window.location.assign('/oficina/accesos');
 }
 
 function verifyAccess() {
-    const canConsult = state.identity?.puede_consultar_catalogos_validacion === true;
-    if (!state.token || !state.identity || !canConsult) {
-        window.location.replace('/oficina/validacion');
+    const canManage = state.identity?.puede_administrar_catalogos_validacion === true;
+    if (!state.token || !state.identity || !canManage) {
+        window.location.replace('/oficina/accesos');
         return false;
     }
-    const readOnly = state.identity.puede_administrar_catalogos_validacion !== true;
-    document.querySelectorAll('.catalog-form').forEach((form) => {
-        form.classList.toggle('is-hidden', readOnly);
-    });
-    document.body.classList.toggle('catalog-read-only', readOnly);
     const name = state.identity.nombre || 'Usuario';
     elements.user.textContent = name;
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
@@ -82,6 +82,7 @@ async function fetchCatalog(seasonId) {
     const admin = await api(`/api/administracion/validacion${suffix}`);
     state.seasons = admin.temporadas || [];
     state.season = admin.temporada || null;
+    state.imports = admin.importaciones || [];
     if (state.season) {
         const hierarchy = await api(`/api/administracion/validacion/temporadas/${state.season.id}/catalogo`);
         state.clients = hierarchy.clientes || [];
@@ -139,6 +140,7 @@ function render() {
     byId('projectionArticleCount').textContent = state.projection.articulos || 0;
     byId('projectionOriginCount').textContent = state.projection.origenes || 0;
     byId('projectionCombinationCount').textContent = state.projection.combinaciones || 0;
+    elements.importList.innerHTML = state.imports.map((item) => `<article class="validation-row"><div><strong>${escapeHtml(item.nombre_archivo)}</strong><small>${escapeHtml(statusText(item.estado))} · ${escapeHtml(formatDate(item.created_at))} · ${item.resumen?.filas_validas || 0} filas válidas</small></div>${item.estado === 'borrador' ? `<button data-confirm-import="${item.id}" type="button">Confirmar</button>` : ''}</article>`).join('') || '<p class="empty-validation">Sin importaciones recientes para esta temporada.</p>';
 
     elements.selector.innerHTML = state.seasons.map((season) => option(season.id, `${season.codigo} · ${season.nombre}${season.activa ? ' (activa)' : ''}`)).join('') || '<option value="">Sin temporadas</option>';
     elements.selector.value = state.season?.id || '';
@@ -291,6 +293,53 @@ async function remove(type, id) {
     }
 }
 
+function renderImportPreview(item) {
+    state.preview = item;
+    const summary = item.resumen || {};
+    const errors = item.errores || [];
+    elements.importPreview.classList.remove('is-hidden');
+    elements.importPreview.innerHTML = `<strong>${escapeHtml(item.nombre_archivo)}</strong><div class="import-preview__metrics"><span><strong>${summary.filas_validas || 0}</strong><br>filas válidas</span><span><strong>${summary.combinaciones_detectadas || 0}</strong><br>combinaciones</span><span><strong>${summary.filas_con_error || 0}</strong><br>errores</span></div>${errors.length ? `<div class="import-errors">${errors.map((error) => `<p>Fila ${error.fila}: ${escapeHtml(error.mensaje)}</p>`).join('')}</div>` : '<p>La previsualización no detectó errores bloqueantes.</p>'}${item.estado === 'borrador' ? `<button class="primary-button" id="confirmPreviewImport" type="button">Confirmar e importar</button>` : ''}`;
+    byId('confirmPreviewImport')?.addEventListener('click', () => void confirmImport(item.id));
+}
+
+async function confirmImport(id) {
+    setBusy(true, 'Confirmando importación…');
+    elements.importError.textContent = '';
+    try {
+        await api(`/api/administracion/validacion/importaciones/${id}/confirmar`, { method: 'POST' });
+        state.preview = null;
+        elements.importPreview.classList.add('is-hidden');
+        await load(state.season?.id);
+        toast('Datos maestros importados y versión actualizada.');
+    } catch (error) {
+        elements.importError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+}
+
+async function submitImport(event) {
+    event.preventDefault();
+    elements.importError.textContent = '';
+    if (!state.season) {
+        elements.importError.textContent = 'No existe una temporada transversal. Debes crearla en Accesos.';
+        return;
+    }
+    const data = new FormData(elements.importForm);
+    data.set('temporada_id', state.season.id);
+    setBusy(true, 'Leyendo y validando planilla…');
+    try {
+        const response = await api('/api/administracion/validacion/importaciones/previsualizar', { method: 'POST', body: data });
+        renderImportPreview(response.data);
+        await fetchCatalog(state.season.id);
+        render();
+    } catch (error) {
+        elements.importError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+}
+
 for (const [type, config] of Object.entries(entityConfig)) {
     byId(config.form).addEventListener('submit', (event) => { event.preventDefault(); void save(type); });
 }
@@ -301,6 +350,8 @@ document.addEventListener('click', (event) => {
     if (deleteTarget) void remove(deleteTarget.dataset.deleteType, deleteTarget.dataset.deleteId);
     const resetTarget = event.target.closest('[data-reset-form]');
     if (resetTarget) resetForm(byId(resetTarget.dataset.resetForm));
+    const confirmImportTarget = event.target.closest('[data-confirm-import]');
+    if (confirmImportTarget) void confirmImport(confirmImportTarget.dataset.confirmImport);
 });
 
 elements.selector.addEventListener('change', () => void load(elements.selector.value));
@@ -309,6 +360,7 @@ elements.toggleInactive.addEventListener('click', () => {
     state.showInactive = !state.showInactive;
     render();
 });
+elements.importForm.addEventListener('submit', (event) => { void submitImport(event); });
 elements.logout.addEventListener('click', async () => {
     try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch { /* limpia igualmente */ }
     leave();

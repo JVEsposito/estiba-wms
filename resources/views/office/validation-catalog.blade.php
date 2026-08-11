@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="dark">
-        <title>Estiba WMS · Catálogo jerárquico</title>
+        <title>Estiba WMS · Maestros de temporada</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-validation.css', 'resources/css/office-validation-catalog.css', 'resources/js/office-validation-catalog.js'])
         @endif
@@ -13,12 +13,12 @@
     <body>
         <main class="office-app" id="catalogApp">
             
-            <x-office.navigation domain="frigorifico" office="catalogo-validacion" context="FRIGORÍFICO · PT" icon="✓" />
+            <x-office.navigation domain="administracion" office="maestros-temporada" context="ADMINISTRACIÓN · MAESTROS" icon="MT" />
 
 
             <section class="catalog-workspace">
                 <header class="validation-heading panel">
-                    <div><p class="eyebrow">CONFIGURACIÓN MAESTRA</p><h1>Catálogo jerárquico</h1><p>Los elementos se crean individualmente. La proyección para la PDA se actualiza automáticamente al guardar.</p></div>
+                    <div><p class="eyebrow">CONFIGURACIÓN MAESTRA</p><h1>Maestros de temporada</h1><p>Base transversal consumida por Validación, Materia Prima, Inspección SAG y los demás módulos operacionales.</p></div>
                     <div class="validation-heading__actions">
                         <label><span>Temporada</span><select id="catalogSeasonSelector"></select></label>
                         <button class="secondary-button" id="catalogToggleInactive" type="button">Mostrar eliminados</button>
@@ -27,8 +27,8 @@
                 </header>
 
                 <section class="panel catalog-season-panel">
-                    <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Catálogo de la temporada seleccionada</h2></div><span>Solo lectura del ciclo global</span></div>
-                    <p class="validation-help">Las temporadas se crean y activan en la oficina Accesos. Al eliminar un elemento se retira del catálogo operativo y de la PDA, pero se conserva su trazabilidad histórica.</p>
+                    <div class="validation-panel__heading"><div><p class="eyebrow">TEMPORADA TRANSVERSAL</p><h2>Datos maestros de la temporada seleccionada</h2></div><span>Administración TI</span></div>
+                    <p class="validation-help">Las temporadas se crean y activan en Accesos. Aquí TI administra sus datos maestros e importaciones; al eliminar un elemento se retira de la operación, pero se conserva su trazabilidad histórica.</p>
                 </section>
 
                 <section aria-labelledby="catalogProjectionTitle">
@@ -45,7 +45,7 @@
 
                 <x-office.panel-switcher
                     id="validation-catalog"
-                    label="Maestros del catálogo jerárquico"
+                    label="Datos maestros de la temporada"
                     default="clients"
                     :panels="[
                         'clients' => ['label' => 'Clientes', 'icon' => '◇'],
@@ -56,13 +56,26 @@
                         'calibers' => ['label' => 'Calibres', 'icon' => '↔'],
                         'packages' => ['label' => 'Envases', 'icon' => '▣'],
                         'csg' => ['label' => 'CSG', 'icon' => '⌖'],
+                        'imports' => ['label' => 'Importación', 'icon' => '⇧'],
                     ]"
                 />
+
+                <section class="panel validation-panel validation-import-panel office-panel-workspace" id="validation-catalog-panel-imports" data-office-panel-group="validation-catalog" data-office-panel-id="imports" role="tabpanel" aria-labelledby="validation-catalog-tab-imports">
+                    <div class="validation-panel__heading"><div><p class="eyebrow">CARGA MASIVA</p><h2>Importar planilla de temporada</h2></div><span>CSV o XLSX · 10 MB</span></div>
+                    <p class="validation-help">Columnas obligatorias: especie, variedad, calibre, envase, cliente, marca y CSG. Categoría, predio y códigos externos son opcionales; la previsualización no publica cambios hasta confirmar.</p>
+                    <form class="validation-form" id="importForm" enctype="multipart/form-data">
+                        <label class="validation-file"><span>Archivo de temporada *</span><input name="archivo" type="file" accept=".csv,.txt,.xlsx" required></label>
+                        <p class="form-error" id="importError" role="alert"></p>
+                        <div class="validation-actions"><button class="primary-button" type="submit">Previsualizar importación</button></div>
+                    </form>
+                    <div class="import-preview is-hidden" id="importPreview"></div>
+                    <div class="validation-list" id="importList"></div>
+                </section>
 
                 <div class="catalog-columns catalog-columns--three office-panel-workspace">
                     <section class="panel catalog-card" id="validation-catalog-panel-clients" data-office-panel-group="validation-catalog" data-office-panel-id="clients" role="tabpanel" aria-labelledby="validation-catalog-tab-clients">
                         <div class="validation-panel__heading"><div><p class="eyebrow">MAESTRO TRANSVERSAL</p><h2>Clientes</h2></div><span id="clientCount">0</span></div>
-                        <p class="validation-help">Los clientes se crean y modifican exclusivamente en Accesos. Validación los consume para asociar sus marcas dentro de la temporada.</p>
+                        <p class="validation-help">Los clientes se crean y modifican exclusivamente en Accesos. Los módulos operacionales los consumen para asociar sus marcas dentro de la temporada.</p>
                         <div class="validation-list" id="clientList"></div>
                     </section>
 

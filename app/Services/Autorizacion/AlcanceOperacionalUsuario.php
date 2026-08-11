@@ -494,7 +494,10 @@ class AlcanceOperacionalUsuario
         return $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador, RolUsuario::Consulta],
-            'frigorifico.catalogos',
+            [
+                CatalogoModulosAcceso::OFICINA_MAESTROS_TEMPORADA,
+                CatalogoModulosAcceso::OFICINA_CATALOGOS_VALIDACION_LEGADO,
+            ],
         );
     }
 
@@ -503,7 +506,10 @@ class AlcanceOperacionalUsuario
         return $this->rolActivoEnModulo(
             $usuario,
             [RolUsuario::Administrador],
-            'frigorifico.catalogos',
+            [
+                CatalogoModulosAcceso::OFICINA_MAESTROS_TEMPORADA,
+                CatalogoModulosAcceso::OFICINA_CATALOGOS_VALIDACION_LEGADO,
+            ],
         );
     }
 
