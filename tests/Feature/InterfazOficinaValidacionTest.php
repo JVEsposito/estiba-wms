@@ -11,27 +11,27 @@ class InterfazOficinaValidacionTest extends TestCase
         $this->get('/oficina/validacion')
             ->assertOk()
             ->assertSee('Validación de pallets')
-            ->assertSee('Importar planilla')
-            ->assertSee('Configuración de solo lectura')
+            ->assertDontSee('Importar planilla')
+            ->assertDontSee('Configuración de solo lectura')
             ->assertDontSee('Guardar temporada')
             ->assertDontSee('Nueva temporada')
-            ->assertSee('Combinaciones artículo–origen habilitadas')
+            ->assertDontSee('Combinaciones artículo–origen habilitadas')
             ->assertSee('validationHistoryBody', false)
             ->assertSee('Descargar RRPP-01')
             ->assertSee('validationUserFilter', false)
-            ->assertSee('importPreview', false)
+            ->assertDontSee('importPreview', false)
             ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('/oficina/frigorifico/camaras', false)
             ->assertSee('/oficina/cargas', false)
             ->assertSee('aria-live="assertive"', false);
     }
 
-    public function test_el_catalogo_de_validacion_no_crea_temporadas(): void
+    public function test_los_maestros_administrativos_no_crean_temporadas(): void
     {
-        $this->get('/oficina/validacion/catalogo')
+        $this->get('/oficina/administracion/maestros-temporada')
             ->assertOk()
-            ->assertSee('Catálogo de la temporada seleccionada')
-            ->assertSee('Las temporadas se crean y activan en la oficina Accesos.')
+            ->assertSee('Datos maestros de la temporada seleccionada')
+            ->assertSee('Las temporadas se crean y activan en Accesos.')
             ->assertDontSee('catalogSeasonForm', false)
             ->assertDontSee('Crear temporada');
     }
