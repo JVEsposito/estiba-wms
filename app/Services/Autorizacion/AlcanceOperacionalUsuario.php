@@ -526,6 +526,23 @@ class AlcanceOperacionalUsuario
         ], 'frigorifico.prefrio');
     }
 
+    public function puedeConsultarInspeccionSag(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Consulta,
+        ], 'frigorifico.inspeccion-sag');
+    }
+
+    public function puedeGestionarInspeccionSag(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ], 'frigorifico.inspeccion-sag');
+    }
+
     public function puedeOperarPrefrio(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -804,6 +821,8 @@ class AlcanceOperacionalUsuario
             'puede_consultar_accesos' => $this->puedeConsultarAccesos($usuario),
             'puede_consultar_configuracion_camaras' => $this->puedeConsultarConfiguracionCamaras($usuario),
             'puede_consultar_prefrio' => $this->puedeConsultarPrefrio($usuario),
+            'puede_consultar_inspeccion_sag' => $this->puedeConsultarInspeccionSag($usuario),
+            'puede_gestionar_inspeccion_sag' => $this->puedeGestionarInspeccionSag($usuario),
             'puede_operar_prefrio' => $this->puedeOperarPrefrio($usuario),
             'puede_supervisar_prefrio' => $this->puedeSupervisarPrefrio($usuario),
             'puede_administrar_tuneles_prefrio' => $this->puedeAdministrarTunelesPrefrio($usuario),

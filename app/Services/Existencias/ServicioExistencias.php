@@ -16,11 +16,14 @@ use App\Models\LoteMateriaPrima;
 use App\Models\SaldoMaterialAlmacen;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\InspeccionSag\ServicioEstadoSagFolio;
 use DomainException;
 use Illuminate\Support\LazyCollection;
 
 class ServicioExistencias
 {
+    public function __construct(private readonly ServicioEstadoSagFolio $estadoSag) {}
+
     public const PRODUCTO_TERMINADO = 'producto-terminado';
 
     public const MATERIALES = 'materiales';
@@ -51,6 +54,8 @@ class ServicioExistencias
                     ['clave' => 'envase', 'titulo' => 'Envase', 'ancho' => 22],
                     ['clave' => 'categoria', 'titulo' => 'Categoría', 'ancho' => 18],
                     ['clave' => 'csg', 'titulo' => 'CSG', 'ancho' => 15],
+                    ['clave' => 'estado_sag', 'titulo' => 'Estado SAG', 'ancho' => 22],
+                    ['clave' => 'destinos_sag', 'titulo' => 'Destinos SAG aprobados', 'ancho' => 34],
                     ['clave' => 'predio', 'titulo' => 'Predio', 'ancho' => 20],
                     ['clave' => 'condicion_termica', 'titulo' => 'Condición térmica', 'ancho' => 22],
                     ['clave' => 'habilitacion_almacenamiento', 'titulo' => 'Habilitación almacenamiento', 'ancho' => 28],
@@ -213,6 +218,9 @@ class ServicioExistencias
                 'procesosPrefrio.proceso.tunel',
                 'asignacionCargaActual.carga',
                 'asignacionCargaActual.anden',
+                'autorizacionesSagActivas',
+                'inspeccionesSag.lote',
+                'inspeccionesSag.resultados.destino',
             ])
             ->where('activo', true)
             ->whereDoesntHave('material')
@@ -239,6 +247,7 @@ class ServicioExistencias
                     && $folio->habilitacion_almacenamiento === HabilitacionAlmacenamientoFolio::Habilitado;
                 $asignacionCarga = $folio->asignacionCargaActual;
                 $carga = $asignacionCarga?->carga;
+                $estadoSag = $this->estadoSag->resumir($folio);
 
                 return [
                     'temporada' => $folio->temporada?->codigo,
@@ -262,6 +271,8 @@ class ServicioExistencias
                     'envase' => $datos['envase'] ?? null,
                     'categoria' => $datos['categoria'] ?? null,
                     'csg' => $datos['csg'] ?? null,
+                    'estado_sag' => $estadoSag['etiqueta'],
+                    'destinos_sag' => implode(' · ', $estadoSag['destinos']),
                     'predio' => $datos['predio'] ?? null,
                     'condicion_termica' => $this->humanizar($folio->condicion_termica->value),
                     'habilitacion_almacenamiento' => $this->humanizar($folio->habilitacion_almacenamiento->value),

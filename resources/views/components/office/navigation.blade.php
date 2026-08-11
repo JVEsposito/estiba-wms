@@ -20,6 +20,7 @@
             ['key' => 'repaletizajes', 'module' => 'frigorifico.validacion', 'label' => 'Repaletizajes', 'href' => '/oficina/validacion/repaletizajes', 'permissions' => ['puede_consultar_validaciones_pallet']],
             ['key' => 'anulaciones-validacion', 'module' => 'frigorifico.validacion', 'label' => 'Anulaciones', 'href' => '/oficina/validacion/anulaciones', 'permissions' => ['puede_consultar_validaciones_pallet']],
             ['key' => 'catalogo-validacion', 'module' => 'frigorifico.catalogos', 'label' => 'Catálogos PT', 'href' => '/oficina/validacion/catalogo', 'permissions' => ['puede_consultar_catalogos_validacion']],
+            ['key' => 'inspeccion-sag', 'module' => 'frigorifico.inspeccion-sag', 'label' => 'Inspección SAG', 'href' => '/oficina/frigorifico/inspeccion-sag', 'permissions' => ['puede_consultar_inspeccion_sag']],
             ['key' => 'prefrio', 'module' => 'frigorifico.prefrio', 'label' => 'Prefrío', 'href' => '/oficina/prefrio', 'permissions' => ['puede_consultar_prefrio']],
             ['key' => 'camaras', 'module' => 'frigorifico.camaras', 'label' => 'Cámaras', 'href' => '/oficina/frigorifico/camaras', 'permissions' => ['ambito_camaras_productos']],
             ['key' => 'cargas', 'module' => 'frigorifico.cargas', 'label' => 'Cargas & Despachos', 'href' => '/oficina/cargas', 'permissions' => ['puede_consultar_cargas']],

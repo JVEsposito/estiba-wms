@@ -57,6 +57,7 @@ Route::redirect('/oficina/materiales/existencias', '/oficina/existencias');
 Route::view('/oficina/validacion', 'office.validation');
 Route::view('/oficina/validacion/catalogo', 'office.validation-catalog');
 Route::view('/oficina/prefrio', 'office.precooling');
+Route::view('/oficina/frigorifico/inspeccion-sag', 'office.sag-inspections');
 Route::view('/oficina/gerencia', 'office.management');
 Route::redirect('/oficina/existencias', '/oficina/materiales/exportaciones');
 Route::view('/oficina/frigorifico/existencias', 'office.inventory-exports', [

@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\ImportacionProductosRecepcionMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
+use App\Http\Controllers\Api\InspeccionSagController;
 use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
@@ -112,6 +113,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
+
+    Route::middleware('can:consultar-inspeccion-sag')->prefix('inspeccion-sag')->group(function () {
+        Route::get('/resumen', [InspeccionSagController::class, 'resumen']);
+        Route::get('/catalogos', [InspeccionSagController::class, 'catalogos']);
+        Route::get('/folios/opciones', [InspeccionSagController::class, 'opcionesFolios']);
+        Route::get('/folios', [InspeccionSagController::class, 'folios']);
+        Route::get('/lotes', [InspeccionSagController::class, 'index']);
+        Route::get('/lotes/{loteInspeccionSag}', [InspeccionSagController::class, 'show']);
+    });
+    Route::middleware('can:gestionar-inspeccion-sag')->prefix('inspeccion-sag')->group(function () {
+        Route::post('/lotes', [InspeccionSagController::class, 'store']);
+        Route::post('/lotes/{loteInspeccionSag}/iniciar', [InspeccionSagController::class, 'iniciar']);
+        Route::post('/lotes/{loteInspeccionSag}/resultados/{resultado}/resolver', [InspeccionSagController::class, 'resolver']);
+        Route::post('/lotes/{loteInspeccionSag}/finalizar', [InspeccionSagController::class, 'finalizar']);
+        Route::post('/lotes/{loteInspeccionSag}/cancelar', [InspeccionSagController::class, 'cancelar']);
+    });
 
     Route::middleware('can:consultar-prefrio')->group(function () {
         Route::get('/prefrio/tuneles', [TunelPrefrioController::class, 'index']);

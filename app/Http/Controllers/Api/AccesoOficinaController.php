@@ -93,6 +93,8 @@ class AccesoOficinaController extends Controller
                 'puede_administrar_catalogos_validacion' => $capacidades['puede_administrar_catalogos_validacion'],
                 'puede_consultar_catalogos_validacion' => $capacidades['puede_consultar_catalogos_validacion'],
                 'puede_consultar_prefrio' => $capacidades['puede_consultar_prefrio'],
+                'puede_consultar_inspeccion_sag' => $capacidades['puede_consultar_inspeccion_sag'],
+                'puede_gestionar_inspeccion_sag' => $capacidades['puede_gestionar_inspeccion_sag'],
                 'puede_operar_prefrio' => $capacidades['puede_operar_prefrio'],
                 'puede_supervisar_prefrio' => $capacidades['puede_supervisar_prefrio'],
                 'puede_administrar_tuneles_prefrio' => $capacidades['puede_administrar_tuneles_prefrio'],
