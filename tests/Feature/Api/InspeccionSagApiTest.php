@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\BloqueMercado;
@@ -142,6 +143,7 @@ class InspeccionSagApiTest extends TestCase
             'tipo_bulto' => TipoBulto::Pallet,
             'estado_operacional' => EstadoOperacionalFolio::Disponible,
             'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fecha_ingreso' => now(),
             'activo' => true,
             'exportadora' => 'EX-UE',
@@ -208,6 +210,7 @@ class InspeccionSagApiTest extends TestCase
             'tipo_bulto' => TipoBulto::Pallet,
             'estado_operacional' => EstadoOperacionalFolio::Disponible,
             'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fecha_ingreso' => now(),
             'activo' => true,
             'exportadora' => 'EX-SAG',
