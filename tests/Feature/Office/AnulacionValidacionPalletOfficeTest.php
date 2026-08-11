@@ -12,6 +12,15 @@ class AnulacionValidacionPalletOfficeTest extends TestCase
             ->assertOk()
             ->assertSee('Anulaciones de pallets')
             ->assertSee('Pallets aún anulables')
-            ->assertSee('Registro de anulaciones');
+            ->assertSee('Registro de anulaciones')
+            ->assertSee('annulmentCorrectionDialog', false)
+            ->assertSee('Cantidad de cajas');
+
+        $script = file_get_contents(resource_path('js/office-validation-annulments.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('Corregir datos', $script);
+        $this->assertStringContainsString('/corregir', $script);
+        $this->assertStringContainsString('puede_corregir_validaciones_pallet', $script);
     }
 }

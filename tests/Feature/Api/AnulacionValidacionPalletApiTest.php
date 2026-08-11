@@ -36,7 +36,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.folio.activo', false)
             ->assertJsonPath(
                 'message',
-                'Pallet anulado. El folio quedó inactivo, bloqueado para toda operación y conservado para auditoría.',
+                'Validación anulada. El número de folio quedó disponible para ingresarlo nuevamente.',
             );
 
         $anulacionId = $respuesta->json('data.id');
@@ -135,7 +135,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
         ]);
     }
 
-    public function test_folio_anulado_es_inmutable_y_no_puede_reactivarse(): void
+    public function test_folio_anulado_no_puede_reactivarse_fuera_de_una_nueva_validacion(): void
     {
         [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-05');
         [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-05');
@@ -154,6 +154,61 @@ class AnulacionValidacionPalletApiTest extends TestCase
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('fue anulado en Validación y es inmutable');
         $folio->update(['activo' => true]);
+    }
+
+    public function test_folio_anulado_puede_ingresarse_nuevamente_y_conserva_la_auditoria(): void
+    {
+        [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-REINGRESO');
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-REINGRESO');
+        $validacionOriginalId = $this->crearValidacion(
+            $tokenValidador,
+            $catalogo,
+            'PAL-ANU-REINGRESO',
+        );
+        $folioOriginal = Folio::query()
+            ->where('numero_folio', 'PAL-ANU-REINGRESO')
+            ->firstOrFail();
+
+        $anulacionId = $this->conToken($tokenSupervisor)
+            ->postJson("/api/validacion/pallets/{$validacionOriginalId}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo_categoria' => 'cantidad_cajas_incorrecta',
+                'motivo' => 'Se ingresaron 129 cajas y correspondían 120.',
+            ])
+            ->assertOk()
+            ->json('data.id');
+
+        $reingreso = $this->payload($catalogo, 'PAL-ANU-REINGRESO');
+        $reingreso['cantidad_cajas'] = 120;
+
+        $validacionNuevaId = $this->conToken($tokenValidador)
+            ->postJson('/api/validacion/pallets', $reingreso)
+            ->assertCreated()
+            ->assertJsonPath('data.numero_intento', 2)
+            ->assertJsonPath('data.estado', 'aceptada')
+            ->assertJsonPath('data.resultado', 'aprobado')
+            ->assertJsonPath('data.cantidad_cajas', 120)
+            ->assertJsonPath('data.folio.activo', true)
+            ->assertJsonPath('data.folio.estado_operacional', 'pendiente_prefrio')
+            ->json('data.id');
+
+        $folioReingresado = Folio::query()
+            ->where('numero_folio', 'PAL-ANU-REINGRESO')
+            ->firstOrFail();
+
+        $this->assertSame($folioOriginal->id, $folioReingresado->id);
+        $this->assertSame($validacionNuevaId, $folioReingresado->datos_externos['validacion_id']);
+        $this->assertArrayNotHasKey('anulacion_validacion_id', $folioReingresado->datos_externos);
+        $this->assertDatabaseCount('folios', 1);
+        $this->assertDatabaseHas('validaciones_pallet', [
+            'id' => $validacionOriginalId,
+            'estado' => 'anulada',
+        ]);
+        $this->assertDatabaseHas('anulaciones_validacion_pallet', [
+            'id' => $anulacionId,
+            'validacion_pallet_id' => $validacionOriginalId,
+            'folio_id' => $folioOriginal->id,
+        ]);
     }
 
     public function test_oficina_lista_candidatos_y_auditoria_de_anulaciones(): void
@@ -179,6 +234,9 @@ class AnulacionValidacionPalletApiTest extends TestCase
             ->assertJsonPath('resumen.por_categoria.cantidad_cajas_incorrecta', 1)
             ->assertJsonCount(1, 'candidatas')
             ->assertJsonPath('candidatas.0.numero_folio', 'PAL-ANU-0007')
+            ->assertJsonPath('candidatas.0.articulo_validacion_id', $catalogo['articulo_validacion_id'])
+            ->assertJsonPath('candidatas.0.origen_validacion_id', $catalogo['origen_validacion_id'])
+            ->assertJsonPath('candidatas.0.categoria_validacion_id', $catalogo['categoria_validacion_id'])
             ->assertJsonCount(1, 'anulaciones')
             ->assertJsonPath('anulaciones.0.numero_folio', 'PAL-ANU-0006')
             ->assertJsonPath('anulaciones.0.folio.estado_operacional', 'anulado');

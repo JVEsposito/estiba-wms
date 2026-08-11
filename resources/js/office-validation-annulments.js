@@ -7,6 +7,7 @@ const elements = {
     total: byId('totalAnnulled'), today: byId('todayAnnulled'), candidateCount: byId('candidateCount'), topReason: byId('topReason'),
     dialog: byId('annulmentDialog'), form: byId('annulmentForm'), dialogTitle: byId('annulmentDialogTitle'), error: byId('annulmentError'),
     cancel: byId('cancelAnnulment'), cancelBottom: byId('cancelAnnulmentBottom'),
+    correctionDialog: byId('annulmentCorrectionDialog'), correctionForm: byId('annulmentCorrectionForm'), correctionTitle: byId('annulmentCorrectionTitle'), correctionState: byId('annulmentCorrectionState'), correctionError: byId('annulmentCorrectionError'), correctionCancel: byId('cancelAnnulmentCorrection'), correctionCancelBottom: byId('cancelAnnulmentCorrectionBottom'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
@@ -16,8 +17,14 @@ const state = {
     candidates: [],
     history: [],
     summary: {},
+    articles: [],
+    origins: [],
+    categories: [],
+    combinations: [],
     target: null,
     operationId: null,
+    correctionTarget: null,
+    correctionOperationId: null,
 };
 const reasonLabels = {
     folio_incorrecto: 'Folio incorrecto',
@@ -66,9 +73,12 @@ function showApp() {
     if (elements.userRole) elements.userRole.textContent = statusText(state.identity?.rol);
     if (elements.initials) elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
     const canAnnul = state.identity?.puede_rechazar_pallets === true;
-    elements.permissionNotice.textContent = canAnnul
-        ? 'Puedes anular únicamente mientras el pallet no tenga ninguna actividad posterior a su validación.'
-        : 'Modo consulta: la anulación requiere permiso de supervisor de frío o administrador.';
+    const canCorrect = state.identity?.puede_corregir_validaciones_pallet === true;
+    elements.permissionNotice.textContent = canCorrect
+        ? 'Puedes corregir los datos auditados o anular la validación. Un folio anulado podrá ingresarse nuevamente desde la PDA.'
+        : canAnnul
+            ? 'Puedes anular únicamente mientras el pallet no tenga actividad posterior. El número quedará disponible para una nueva validación.'
+            : 'Modo consulta: corregir requiere administración y anular requiere supervisor de frío o administración.';
 }
 
 async function loadData() {
@@ -76,15 +86,25 @@ async function loadData() {
     const filter = Object.fromEntries(new FormData(elements.filter));
     if (String(filter.folio || '').trim()) params.set('folio', String(filter.folio).trim());
     if (elements.categoryFilter.value) params.set('motivo_categoria', elements.categoryFilter.value);
-    const response = await api(`/api/validacion/anulaciones?${params}`);
+    const [response, catalog] = await Promise.all([
+        api(`/api/validacion/anulaciones?${params}`),
+        state.identity?.puede_corregir_validaciones_pallet === true
+            ? api('/api/administracion/validacion')
+            : Promise.resolve(null),
+    ]);
     state.candidates = response.candidatas || [];
     state.history = response.anulaciones || [];
     state.summary = response.resumen || {};
+    state.articles = catalog?.articulos || [];
+    state.origins = catalog?.origenes || [];
+    state.categories = catalog?.categorias || [];
+    state.combinations = catalog?.combinaciones || [];
     render();
 }
 
 function render() {
     const canAnnul = state.identity?.puede_rechazar_pallets === true;
+    const canCorrect = state.identity?.puede_corregir_validaciones_pallet === true;
     elements.candidateCount.textContent = String(state.candidates.length);
     elements.total.textContent = String(state.summary.total || 0);
     elements.today.textContent = String(state.summary.hoy || 0);
@@ -99,7 +119,9 @@ function render() {
                 <small>Validado por ${escapeHtml(item.validador?.nombre || '—')} · ${escapeHtml(item.dispositivo?.codigo || '—')} · ${escapeHtml(formatDate(item.validado_at))}</small>
             </div>
             <div class="annulment-state"><span>PENDIENTE PRE-FRÍO</span><small>Sin actividad posterior</small></div>
-            ${canAnnul ? `<button class="danger-button" data-annul="${escapeHtml(item.id)}" type="button">Anular pallet</button>` : '<span class="annulment-readonly">Solo consulta</span>'}
+            ${canCorrect ? `<button class="secondary-button" data-correct="${escapeHtml(item.id)}" type="button">Corregir datos</button>` : ''}
+            ${canAnnul ? `<button class="danger-button" data-annul="${escapeHtml(item.id)}" type="button">Anular pallet</button>` : ''}
+            ${!canCorrect && !canAnnul ? '<span class="annulment-readonly">Solo consulta</span>' : ''}
         </article>
     `).join('') : '<p class="annulment-empty">No hay pallets que cumplan las condiciones estrictas de anulación.</p>';
 
@@ -108,9 +130,76 @@ function render() {
             <div><strong>${escapeHtml(item.numero_folio)}</strong><span>${escapeHtml(reasonLabels[item.motivo_categoria] || statusText(item.motivo_categoria))}</span></div>
             <p>${escapeHtml(item.motivo)}</p>
             <small>Validado por ${escapeHtml(item.validacion?.validador?.nombre || '—')} · anulado por ${escapeHtml(item.anulado_por?.nombre || '—')} · ${escapeHtml(formatDate(item.anulado_at))}</small>
-            <small class="annulment-locked">Folio: ${escapeHtml(item.folio?.estado_operacional || 'anulado')} · activo: ${item.folio?.activo ? 'sí' : 'no'}</small>
+            <small class="annulment-released">${item.folio?.activo ? `Folio reingresado · ${escapeHtml(statusText(item.folio.estado_operacional))}` : 'Número de folio disponible para una nueva validación'}</small>
         </article>
     `).join('') : '<p class="annulment-empty">Todavía no existen anulaciones para esta selección.</p>';
+}
+
+function renderCorrectionOrigins(selectedId = '') {
+    const articleId = elements.correctionForm.elements.articulo_validacion_id.value;
+    const allowed = new Set(state.combinations
+        .filter((item) => item.activo && item.articulo_validacion_id === articleId)
+        .map((item) => item.origen_validacion_id));
+    const origins = state.origins.filter((item) => item.activo && allowed.has(item.id));
+    elements.correctionForm.elements.origen_validacion_id.innerHTML = `<option value="">Selecciona un origen autorizado</option>${origins.map((item) => `<option value="${item.id}">${escapeHtml(item.cliente)} · ${escapeHtml(item.marca)} · CSG ${escapeHtml(item.csg)}</option>`).join('')}`;
+    if (origins.some((item) => item.id === selectedId)) elements.correctionForm.elements.origen_validacion_id.value = selectedId;
+}
+
+function openCorrection(id) {
+    if (state.identity?.puede_corregir_validaciones_pallet !== true) return;
+    const target = state.candidates.find((item) => item.id === id);
+    if (!target) return;
+    state.correctionTarget = target;
+    state.correctionOperationId = uuid();
+    elements.correctionTitle.textContent = `Corregir ${target.numero_folio}`;
+    elements.correctionState.textContent = 'Se actualizarán la validación y el folio, sin cambiar su estado pendiente de prefrío.';
+    const form = elements.correctionForm;
+    const activeArticles = state.articles.filter((item) => item.activo);
+    const activeCategories = state.categories.filter((item) => item.activo);
+    form.elements.articulo_validacion_id.innerHTML = `<option value="">Selecciona un artículo</option>${activeArticles.map((item) => `<option value="${item.id}">${escapeHtml(item.especie)} · ${escapeHtml(item.variedad)} · ${escapeHtml(item.calibre)} · ${escapeHtml(item.envase)}</option>`).join('')}`;
+    form.elements.categoria_validacion_id.innerHTML = `<option value="">Selecciona una categoría</option>${activeCategories.map((item) => `<option value="${item.id}">${escapeHtml(item.nombre)}</option>`).join('')}`;
+    form.elements.tipo_bulto.value = target.tipo_bulto || 'pallet';
+    form.elements.cantidad_cajas.value = target.cantidad_cajas || 1;
+    form.elements.linea_proceso.value = target.linea_proceso || 1;
+    form.elements.turno.value = target.turno || 'A';
+    form.elements.articulo_validacion_id.value = target.articulo_validacion_id || '';
+    form.elements.categoria_validacion_id.value = target.categoria_validacion_id || '';
+    renderCorrectionOrigins(target.origen_validacion_id || '');
+    form.elements.motivo_correccion.value = '';
+    elements.correctionError.textContent = '';
+    elements.correctionDialog.showModal();
+}
+
+function closeCorrection() {
+    if (elements.correctionDialog.open) elements.correctionDialog.close();
+    elements.correctionForm.reset();
+    elements.correctionError.textContent = '';
+    state.correctionTarget = null;
+    state.correctionOperationId = null;
+}
+
+async function submitCorrection(event) {
+    event.preventDefault();
+    if (!state.correctionTarget || !state.correctionOperationId) return;
+    const payload = Object.fromEntries(new FormData(elements.correctionForm));
+    payload.operacion_id = state.correctionOperationId;
+    payload.cantidad_cajas = Number(payload.cantidad_cajas);
+    payload.linea_proceso = Number(payload.linea_proceso);
+    elements.correctionError.textContent = '';
+    setBusy(true, `Corrigiendo ${state.correctionTarget.numero_folio}…`);
+    try {
+        const response = await api(`/api/validacion/pallets/${state.correctionTarget.id}/corregir`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        closeCorrection();
+        await loadData();
+        toast(response.message || 'Validación y folio corregidos correctamente.');
+    } catch (error) {
+        elements.correctionError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
 }
 
 function openAnnulment(id) {
@@ -154,7 +243,7 @@ async function submitAnnulment(event) {
         });
         closeAnnulment();
         await loadData();
-        toast(response.message || 'Pallet anulado y bloqueado para toda operación.');
+        toast(response.message || 'Validación anulada y folio disponible para reingreso.');
     } catch (error) {
         elements.error.textContent = error.message;
     } finally {
@@ -187,11 +276,21 @@ elements.logout?.addEventListener('click', async () => { try { await api('/api/a
 elements.reload.addEventListener('click', () => { setBusy(true, 'Actualizando anulaciones…'); void loadData().catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 elements.filter.addEventListener('submit', (event) => { event.preventDefault(); setBusy(true, 'Buscando pallets…'); void loadData().catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
 elements.categoryFilter.addEventListener('change', () => { setBusy(true, 'Filtrando auditoría…'); void loadData().catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
-elements.candidates.addEventListener('click', (event) => { const button = event.target.closest('[data-annul]'); if (button) openAnnulment(button.dataset.annul); });
+elements.candidates.addEventListener('click', (event) => {
+    const correction = event.target.closest('[data-correct]');
+    if (correction) { openCorrection(correction.dataset.correct); return; }
+    const annulment = event.target.closest('[data-annul]');
+    if (annulment) openAnnulment(annulment.dataset.annul);
+});
 elements.form.addEventListener('submit', (event) => { void submitAnnulment(event); });
 elements.cancel.addEventListener('click', closeAnnulment);
 elements.cancelBottom.addEventListener('click', closeAnnulment);
 elements.dialog.addEventListener('cancel', (event) => { event.preventDefault(); closeAnnulment(); });
+elements.correctionForm.addEventListener('submit', (event) => { void submitCorrection(event); });
+elements.correctionForm.elements.articulo_validacion_id.addEventListener('change', () => renderCorrectionOrigins());
+elements.correctionCancel.addEventListener('click', closeCorrection);
+elements.correctionCancelBottom.addEventListener('click', closeCorrection);
+elements.correctionDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeCorrection(); });
 
 if (state.token && state.identity?.puede_consultar_validaciones_pallet === true) {
     showApp();

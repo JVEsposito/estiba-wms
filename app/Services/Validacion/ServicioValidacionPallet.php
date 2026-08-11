@@ -24,6 +24,7 @@ class ServicioValidacionPallet
 {
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly ProteccionFolioAnulado $proteccionFolioAnulado,
     ) {}
 
     /**
@@ -118,6 +119,8 @@ class ServicioValidacionPallet
                 ->where('numero_folio', $numeroFolio)
                 ->lockForUpdate()
                 ->first();
+            $folioLiberadoPorAnulacion = $folioExistente !== null
+                && $this->proteccionFolioAnulado->esAnuladoPorValidacion($folioExistente);
             $decisionFinalPrevia = ValidacionPallet::query()
                 ->where('numero_folio', $numeroFolio)
                 ->whereIn('resultado', [
@@ -128,7 +131,8 @@ class ServicioValidacionPallet
                 ->latest('created_at')
                 ->lockForUpdate()
                 ->first();
-            $hayConflicto = $folioExistente !== null || $decisionFinalPrevia !== null;
+            $hayConflicto = ($folioExistente !== null && ! $folioLiberadoPorAnulacion)
+                || $decisionFinalPrevia !== null;
 
             $snapshot = [
                 'temporada' => ['codigo' => $temporada->codigo, 'nombre' => $temporada->nombre],
@@ -188,7 +192,7 @@ class ServicioValidacionPallet
             ]);
 
             if ($resultado === ResultadoValidacionPallet::Aprobado && ! $hayConflicto) {
-                $folio = Folio::create([
+                $atributosFolio = [
                     'temporada_id' => $temporada->id,
                     'numero_folio' => $numeroFolio,
                     'tipo_bulto' => TipoBulto::from($datos['tipo_bulto']),
@@ -214,7 +218,13 @@ class ServicioValidacionPallet
                         'validacion_id' => $validacion->id,
                         'combinacion_validacion_id' => $combinacion->id,
                     ],
-                ]);
+                ];
+                $folio = $folioLiberadoPorAnulacion
+                    ? $this->proteccionFolioAnulado->reactivarDesdeNuevaValidacion(
+                        $folioExistente,
+                        $atributosFolio,
+                    )
+                    : Folio::create($atributosFolio);
                 $validacion->update(['folio_id' => $folio->id]);
             }
 
