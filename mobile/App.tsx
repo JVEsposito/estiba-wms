@@ -206,7 +206,7 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
           <Pressable onPress={() => onSelect('demo_administracion')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>◎</Text>
             <Text style={styles.selectorCardTitle}>Administración Demo</Text>
-            <Text style={styles.selectorCardCopy}>Crear clientes, folios y cargas CAR locales; publicar órdenes y restaurar el escenario.</Text>
+            <Text style={styles.selectorCardCopy}>Gestionar maestros, clientes, folios y cargas CAR locales; preparar y restaurar escenarios.</Text>
           </Pressable>
         ) : null}
         {modules.includes('validacion') ? (
