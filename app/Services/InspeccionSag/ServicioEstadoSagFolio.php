@@ -2,7 +2,6 @@
 
 namespace App\Services\InspeccionSag;
 
-use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\ResultadoInspeccionSag;
 use App\Models\Folio;
 

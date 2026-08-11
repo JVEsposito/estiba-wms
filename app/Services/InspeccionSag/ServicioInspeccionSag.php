@@ -14,10 +14,8 @@ use App\Enums\TipoDestinoSag;
 use App\Enums\TipoLoteInspeccionSag;
 use App\Models\AutorizacionSagFolio;
 use App\Models\BloqueMercado;
-use App\Models\DestinoLoteInspeccionSag;
 use App\Models\Folio;
 use App\Models\LoteInspeccionSag;
-use App\Models\LoteInspeccionSagFolio;
 use App\Models\Pais;
 use App\Models\ResultadoDestinoInspeccionSag;
 use App\Models\Temporada;
@@ -275,7 +273,7 @@ class ServicioInspeccionSag
     }
 
     /**
-     * @param array<int, array{tipo: string, id: string}> $seleccionados
+     * @param  array<int, array{tipo: string, id: string}>  $seleccionados
      * @return array<int, array<string, mixed>>
      */
     private function resolverDestinos(array $seleccionados): array
