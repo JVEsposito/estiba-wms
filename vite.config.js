@@ -36,6 +36,8 @@ export default defineConfig({
                 'resources/js/office-repalletizing.js',
                 'resources/css/office-prefrio.css',
                 'resources/js/office-prefrio.js',
+                'resources/css/office-sag-inspections.css',
+                'resources/js/office-sag-inspections.js',
                 'resources/css/office-management.css',
                 'resources/js/office-management.js',
                 'resources/css/office-inventory-exports.css',

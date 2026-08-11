@@ -52,6 +52,7 @@ class CatalogoModulosAcceso
                 'modulos' => [
                     $this->modulo('frigorifico.validacion', 'Validación PT', 'Validación y observación de pallets.'),
                     $this->modulo('frigorifico.catalogos', 'Catálogos PT', 'Maestros utilizados por Validación PT.'),
+                    $this->modulo('frigorifico.inspeccion-sag', 'Inspección SAG', 'Segregaciones, reinspecciones y cambios de mercado.'),
                     $this->modulo('frigorifico.prefrio', 'Prefrío', 'Túneles, procesos y verificaciones de prefrío.'),
                     $this->modulo('frigorifico.camaras', 'Cámaras PT', 'Plano, movimientos y sesiones de producto terminado.'),
                     $this->modulo('frigorifico.cargas', 'Cargas y despachos', 'Órdenes, separación, andenes e incidencias.'),
@@ -282,6 +283,7 @@ class CatalogoModulosAcceso
                 'materia-prima.digitacion',
                 'materia-prima.fruta-proceso',
                 'frigorifico.validacion',
+                'frigorifico.inspeccion-sag',
                 'frigorifico.prefrio',
                 'frigorifico.camaras',
                 'frigorifico.cargas',
@@ -358,6 +360,7 @@ class CatalogoModulosAcceso
                 'materia-prima.fruta-proceso',
                 'materia-prima.cuenta-envases',
                 'frigorifico.prefrio',
+                'frigorifico.inspeccion-sag',
                 'frigorifico.camaras',
                 'frigorifico.cargas',
                 'materiales.resumen',

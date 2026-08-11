@@ -105,6 +105,21 @@ class Folio extends Model
         return $this->hasMany(ProcesoPrefrioFolio::class);
     }
 
+    public function inspeccionesSag(): HasMany
+    {
+        return $this->hasMany(LoteInspeccionSagFolio::class);
+    }
+
+    public function autorizacionesSag(): HasMany
+    {
+        return $this->hasMany(AutorizacionSagFolio::class);
+    }
+
+    public function autorizacionesSagActivas(): HasMany
+    {
+        return $this->autorizacionesSag()->where('activa', true);
+    }
+
     public function historialHabilitacionesAlmacenamiento(): HasMany
     {
         return $this->hasMany(RegistroHabilitacionAlmacenamiento::class);
