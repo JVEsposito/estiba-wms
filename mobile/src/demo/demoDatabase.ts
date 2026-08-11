@@ -1,10 +1,19 @@
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import {
+  createInitialOperationalState,
+  DEMO_OPERATIONAL_STATE_KEY,
+  DemoOperationalState,
+} from './demoOperationalSeed';
+
 const DATABASE_NAME = 'estiba-wms-demo.db';
 const SEED_VERSION = '1';
 
-type DatabaseExecutor = Pick<SQLiteDatabase, 'execAsync' | 'getFirstAsync' | 'runAsync'>;
+export type DemoDatabaseExecutor = Pick<
+  SQLiteDatabase,
+  'execAsync' | 'getAllAsync' | 'getFirstAsync' | 'runAsync'
+>;
 
 export type DemoClient = {
   id: string;
@@ -32,6 +41,7 @@ export type DemoDataset = {
   clients: DemoClient[];
   folios: DemoFolio[];
   auditEntries: number;
+  operationalMovements: number;
 };
 
 export type CreateDemoClientInput = {
@@ -93,8 +103,8 @@ function normalizedCode(value: string, label: string): string {
   return required(value, label).toUpperCase().replace(/\s+/g, '-');
 }
 
-async function writeAudit(
-  executor: DatabaseExecutor,
+export async function writeDemoAudit(
+  executor: DemoDatabaseExecutor,
   action: string,
   entityType: string,
   entityId: string,
@@ -112,7 +122,7 @@ async function writeAudit(
   );
 }
 
-async function seed(executor: DatabaseExecutor): Promise<void> {
+async function seed(executor: DemoDatabaseExecutor): Promise<void> {
   const createdAt = nowIso();
   const clients = [
     ['client-demo-01', 'AGRO-SUR', 'Agrícola Sur Demo', 'AS'],
@@ -158,6 +168,13 @@ async function seed(executor: DatabaseExecutor): Promise<void> {
     'INSERT INTO demo_meta (key, value) VALUES (?, ?)',
     'seed_version',
     SEED_VERSION,
+  );
+  await executor.runAsync(
+    `INSERT INTO demo_operational_state (key, state_json, updated_at)
+     VALUES (?, ?, ?)`,
+    DEMO_OPERATIONAL_STATE_KEY,
+    JSON.stringify(createInitialOperationalState()),
+    createdAt,
   );
 }
 
@@ -205,6 +222,12 @@ export async function initializeDemoDatabase(): Promise<void> {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS demo_operational_state (
+        key TEXT PRIMARY KEY NOT NULL,
+        state_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS demo_folios_client_idx ON demo_folios(client_id);
       CREATE INDEX IF NOT EXISTS demo_audit_created_idx ON demo_audit(created_at);
     `);
@@ -219,6 +242,14 @@ export async function initializeDemoDatabase(): Promise<void> {
         await seed(transaction);
       });
     }
+
+    await db.runAsync(
+      `INSERT OR IGNORE INTO demo_operational_state (key, state_json, updated_at)
+       VALUES (?, ?, ?)`,
+      DEMO_OPERATIONAL_STATE_KEY,
+      JSON.stringify(createInitialOperationalState()),
+      nowIso(),
+    );
   })().catch((error) => {
     initializationPromise = null;
     throw error;
@@ -231,7 +262,7 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
   await initializeDemoDatabase();
   const db = await database();
 
-  const [clientRows, folioRows, auditRow] = await Promise.all([
+  const [clientRows, folioRows, auditRow, operationalRow] = await Promise.all([
     db.getAllAsync<ClientRow>('SELECT * FROM demo_clients ORDER BY name ASC'),
     db.getAllAsync<FolioRow>(`
       SELECT
@@ -250,6 +281,10 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       ORDER BY f.created_at DESC, f.number DESC
     `),
     db.getFirstAsync<{ total: number }>('SELECT COUNT(*) AS total FROM demo_audit'),
+    db.getFirstAsync<{ state_json: string }>(
+      'SELECT state_json FROM demo_operational_state WHERE key = ?',
+      DEMO_OPERATIONAL_STATE_KEY,
+    ),
   ]);
 
   return {
@@ -274,7 +309,37 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       createdAt: row.created_at,
     })),
     auditEntries: auditRow?.total ?? 0,
+    operationalMovements: operationalMovementCount(operationalRow?.state_json),
   };
+}
+
+export async function openDemoDatabase(): Promise<SQLiteDatabase> {
+  await initializeDemoDatabase();
+  return database();
+}
+
+function operationalMovementCount(serialized: string | undefined): number {
+  if (!serialized) return 0;
+  try {
+    const state = JSON.parse(serialized) as Partial<DemoOperationalState>;
+    return Array.isArray(state.movements) ? state.movements.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function locatedFolioNumbers(serialized: string | undefined): Set<string> {
+  if (!serialized) return new Set();
+  try {
+    const state = JSON.parse(serialized) as Partial<DemoOperationalState>;
+    return new Set((state.plans ?? []).flatMap((plan) => (
+      plan.posiciones
+        .map((position) => position.folio?.numero_folio)
+        .filter((number): number is string => Boolean(number))
+    )));
+  } catch {
+    return new Set();
+  }
 }
 
 export async function createDemoClient(input: CreateDemoClientInput): Promise<void> {
@@ -300,7 +365,7 @@ export async function createDemoClient(input: CreateDemoClientInput): Promise<vo
       folioPrefix,
       nowIso(),
     );
-    await writeAudit(transaction, 'crear', 'cliente', id, `${code} · ${name}`);
+    await writeDemoAudit(transaction, 'crear', 'cliente', id, `${code} · ${name}`);
   });
 }
 
@@ -316,12 +381,19 @@ export async function createDemoFolio(input: CreateDemoFolioInput): Promise<void
     throw new Error('Las cajas deben ser un número entero mayor que cero.');
   }
 
-  const [client, existing] = await Promise.all([
+  const [client, existing, operational] = await Promise.all([
     db.getFirstAsync<{ id: string }>('SELECT id FROM demo_clients WHERE id = ?', clientId),
     db.getFirstAsync<{ id: string }>('SELECT id FROM demo_folios WHERE number = ?', number),
+    db.getFirstAsync<{ state_json: string }>(
+      'SELECT state_json FROM demo_operational_state WHERE key = ?',
+      DEMO_OPERATIONAL_STATE_KEY,
+    ),
   ]);
   if (!client) throw new Error('Selecciona un cliente existente.');
   if (existing) throw new Error(`El folio ${number} ya existe en esta demo.`);
+  if (locatedFolioNumbers(operational?.state_json).has(number)) {
+    throw new Error(`El folio ${number} ya existe en la operación de cámaras Demo.`);
+  }
 
   const id = Crypto.randomUUID();
   await db.withExclusiveTransactionAsync(async (transaction) => {
@@ -338,7 +410,7 @@ export async function createDemoFolio(input: CreateDemoFolioInput): Promise<void
       'pendiente',
       nowIso(),
     );
-    await writeAudit(transaction, 'crear', 'folio', id, `${number} · ${boxes} cajas`);
+    await writeDemoAudit(transaction, 'crear', 'folio', id, `${number} · ${boxes} cajas`);
   });
 }
 
@@ -346,9 +418,23 @@ export async function deleteDemoClient(id: string): Promise<void> {
   await initializeDemoDatabase();
   const db = await database();
   await db.withExclusiveTransactionAsync(async (transaction) => {
+    const [folios, operational] = await Promise.all([
+      transaction.getAllAsync<{ number: string }>(
+        'SELECT number FROM demo_folios WHERE client_id = ?',
+        id,
+      ),
+      transaction.getFirstAsync<{ state_json: string }>(
+        'SELECT state_json FROM demo_operational_state WHERE key = ?',
+        DEMO_OPERATIONAL_STATE_KEY,
+      ),
+    ]);
+    const located = locatedFolioNumbers(operational?.state_json);
+    if (folios.some((folio) => located.has(folio.number))) {
+      throw new Error('No puedes eliminar un cliente que posee folios ubicados en cámaras Demo.');
+    }
     const result = await transaction.runAsync('DELETE FROM demo_clients WHERE id = ?', id);
     if (!result.changes) throw new Error('El cliente ya no existe.');
-    await writeAudit(transaction, 'eliminar', 'cliente', id, 'Cliente y sus folios asociados');
+    await writeDemoAudit(transaction, 'eliminar', 'cliente', id, 'Cliente y sus folios asociados');
   });
 }
 
@@ -356,9 +442,19 @@ export async function deleteDemoFolio(id: string): Promise<void> {
   await initializeDemoDatabase();
   const db = await database();
   await db.withExclusiveTransactionAsync(async (transaction) => {
+    const [folio, operational] = await Promise.all([
+      transaction.getFirstAsync<{ number: string }>('SELECT number FROM demo_folios WHERE id = ?', id),
+      transaction.getFirstAsync<{ state_json: string }>(
+        'SELECT state_json FROM demo_operational_state WHERE key = ?',
+        DEMO_OPERATIONAL_STATE_KEY,
+      ),
+    ]);
+    if (folio && locatedFolioNumbers(operational?.state_json).has(folio.number)) {
+      throw new Error('No puedes eliminar un folio mientras permanezca ubicado en una cámara Demo.');
+    }
     const result = await transaction.runAsync('DELETE FROM demo_folios WHERE id = ?', id);
     if (!result.changes) throw new Error('El folio ya no existe.');
-    await writeAudit(transaction, 'eliminar', 'folio', id, 'Folio demo eliminado');
+    await writeDemoAudit(transaction, 'eliminar', 'folio', id, 'Folio demo eliminado');
   });
 }
 
@@ -368,11 +464,12 @@ export async function resetDemoDatabase(): Promise<void> {
   await db.withExclusiveTransactionAsync(async (transaction) => {
     await transaction.execAsync(`
       DELETE FROM demo_audit;
+      DELETE FROM demo_operational_state;
       DELETE FROM demo_folios;
       DELETE FROM demo_clients;
       DELETE FROM demo_meta;
     `);
     await seed(transaction);
-    await writeAudit(transaction, 'reiniciar', 'demo', 'local', 'Escenario inicial restaurado');
+    await writeDemoAudit(transaction, 'reiniciar', 'demo', 'local', 'Escenario inicial restaurado');
   });
 }

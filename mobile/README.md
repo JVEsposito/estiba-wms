@@ -98,6 +98,18 @@ Incluye un escenario ficticio inicial y una administración local desde la que s
 - conservar los cambios después de cerrar o reiniciar la app;
 - restaurar el escenario inicial antes de otra presentación.
 
+El motor operativo local también permite:
+
+- abrir y cerrar sesiones de estiba sin Laravel;
+- buscar en cámaras los folios creados en Administración Demo;
+- ubicar folios en posiciones libres;
+- reubicar dentro de una cámara o trasladar entre cámaras;
+- conservar planos, sesiones e historial de movimientos después de reiniciar la app;
+- rechazar operaciones con una versión antigua del plano;
+- aceptar reintentos idénticos sin duplicar movimientos y rechazar UUID reutilizados con otro contenido.
+
+El botón **Restaurar escenario** reinicia conjuntamente maestros, folios, cámaras, posiciones, sesiones, movimientos y auditoría local.
+
 Credenciales sugeridas —el modo local sólo exige que los tres campos estén completos—:
 
 ```text
@@ -122,6 +134,15 @@ npm run build:apk:demo
 ```
 
 `expo-sqlite` es una dependencia nativa. La primera instalación de esta variante requiere generar una APK nueva; no puede agregarse a una APK anterior por OTA. Al desinstalar **Estiba WMS Demo**, Android también elimina su base local.
+
+Prueba manual mínima del motor local:
+
+1. Crea un cliente y un folio desde **Administración Demo**.
+2. Cambia a **Operación frigorífico** y abre `CAM-01`.
+3. Selecciona una posición libre, busca el folio creado y confirma su ubicación.
+4. Muévelo a otra posición y comprueba el historial.
+5. Cierra por completo la aplicación, vuelve a entrar y confirma que la ubicación y el historial permanecen.
+6. Regresa a **Administración Demo** y utiliza **Restaurar escenario** para recuperar los datos iniciales.
 
 ## Validaciones
 
