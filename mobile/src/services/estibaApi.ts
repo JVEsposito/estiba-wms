@@ -44,6 +44,7 @@ import {
   MaterialPrintJob,
   MaterialPrintOutcomePayload,
 } from '../domain/materialReception';
+import { isDemoRuntime } from '../config/appVariant';
 
 export interface EstibaApi {
   readonly mode: ApiMode;
@@ -524,9 +525,7 @@ class HttpEstibaApi implements EstibaApi {
 export function createEstibaApi(
   runtimeUrl: string | null = process.env.EXPO_PUBLIC_API_URL?.trim() || null,
 ): EstibaApi {
-  const demoEnabled = process.env.EXPO_PUBLIC_DEMO_MODE?.trim().toLowerCase() === 'true';
-
-  if (demoEnabled) return new DemoEstibaApi();
+  if (isDemoRuntime) return new DemoEstibaApi();
 
   if (!runtimeUrl) {
     return createUnavailableApi(

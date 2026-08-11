@@ -31,9 +31,9 @@ export function LoginScreen({
   onSaveBaseUrl,
 }: LoginScreenProps) {
   const unconfigured = mode === 'unconfigured';
-  const [email, setEmail] = useState(mode === 'demo' ? 'operador@estiba.local' : '');
+  const [email, setEmail] = useState(mode === 'demo' ? 'administrador@estiba.demo' : '');
   const [password, setPassword] = useState(mode === 'demo' ? 'password' : '');
-  const [deviceCode, setDeviceCode] = useState(mode === 'demo' ? 'TABLET-01' : '');
+  const [deviceCode, setDeviceCode] = useState(mode === 'demo' ? 'DEMO-01' : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [serverVisible, setServerVisible] = useState(false);
@@ -180,7 +180,7 @@ export function LoginScreen({
 
           <Text style={styles.help}>
             {mode === 'demo'
-              ? 'Este modo no necesita Laravel. Los cambios viven solo durante esta ejecución.'
+              ? 'No necesita Laravel ni internet. Los datos se guardan en la memoria interna de esta tablet.'
               : unconfigured
                 ? 'Configura la IP del equipo que ejecuta Laravel para habilitar el acceso.'
                 : 'La dirección queda guardada en esta tablet y puede cambiarse sin reinstalar la APK.'}

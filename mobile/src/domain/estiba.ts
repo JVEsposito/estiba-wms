@@ -8,6 +8,7 @@ export type MovementType =
   | 'reversion';
 
 export type TabletModule =
+  | 'demo_administracion'
   | 'operacion'
   | 'recepcion_materiales'
   | 'validacion'

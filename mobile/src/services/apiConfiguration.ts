@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { isDemoOnlyBuild } from '../config/appVariant';
+
 const API_URL_STORAGE_KEY = 'estiba_wms_api_url';
 
 export function normalizeApiBaseUrl(value: string): string {
@@ -28,6 +30,8 @@ export function normalizeApiBaseUrl(value: string): string {
 }
 
 export async function loadApiBaseUrl(): Promise<string | null> {
+  if (isDemoOnlyBuild) return null;
+
   const stored = await AsyncStorage.getItem(API_URL_STORAGE_KEY);
   const fallback = process.env.EXPO_PUBLIC_API_URL?.trim() || null;
   const configured = stored || fallback;
@@ -42,6 +46,10 @@ export async function loadApiBaseUrl(): Promise<string | null> {
 }
 
 export async function saveApiBaseUrl(value: string): Promise<string> {
+  if (isDemoOnlyBuild) {
+    throw new Error('La APK Demo no admite conexiones a servidores externos.');
+  }
+
   const normalized = normalizeApiBaseUrl(value);
   await AsyncStorage.setItem(API_URL_STORAGE_KEY, normalized);
   return normalized;

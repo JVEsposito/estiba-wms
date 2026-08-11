@@ -5,6 +5,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthSession, LoginPayload, TabletModule } from './src/domain/estiba';
+import { isDemoRuntime } from './src/config/appVariant';
+import { initializeDemoDatabase } from './src/demo/demoDatabase';
+import { DemoDataScreen } from './src/screens/DemoDataScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
@@ -27,11 +30,20 @@ export default function App() {
   const api = useMemo(() => createEstibaApi(baseUrl), [baseUrl]);
 
   useEffect(() => {
-    void loadApiBaseUrl()
-      .then(setBaseUrl)
-      .catch(() => setBaseUrl(null))
-      .finally(() => setConfigurationLoaded(true));
-    void applyAvailableUpdate();
+    async function prepareApplication() {
+      try {
+        if (isDemoRuntime) await initializeDemoDatabase();
+        setBaseUrl(await loadApiBaseUrl());
+      } catch {
+        setBaseUrl(null);
+      } finally {
+        setConfigurationLoaded(true);
+      }
+
+      if (!isDemoRuntime) void applyAvailableUpdate();
+    }
+
+    void prepareApplication();
   }, []);
 
   useEffect(() => {
@@ -103,6 +115,8 @@ export default function App() {
                 onSelect={setActiveModule}
                 userName={auth.usuario.nombre}
               />
+            ) : activeModule === 'demo_administracion' ? (
+              <DemoDataScreen onLogout={() => void logoutPersistentModule()} />
             ) : activeModule === 'validacion' ? (
               <ValidationWorkspaceScreen
                 auth={auth}
@@ -145,6 +159,7 @@ export default function App() {
 
 function availableModules(auth: AuthSession): MobileModule[] {
   const supported: MobileModule[] = [
+    'demo_administracion',
     'operacion',
     'operacion_materiales',
     'recepcion_materiales',
@@ -163,7 +178,9 @@ function defaultModule(auth: AuthSession): MobileModule | null {
 }
 
 function moduleLabel(module: MobileModule) {
-  return module === 'validacion'
+  return module === 'demo_administracion'
+    ? 'Administración Demo'
+    : module === 'validacion'
     ? 'Validación'
     : module === 'validacion_mp'
       ? 'Validación MP'
@@ -185,6 +202,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
       <Text style={styles.selectorTitle}>Selecciona el área de trabajo</Text>
       <Text style={styles.selectorCopy}>{userName}, tu perfil posee acceso a más de un módulo.</Text>
       <View style={styles.selectorCards}>
+        {modules.includes('demo_administracion') ? (
+          <Pressable onPress={() => onSelect('demo_administracion')} style={styles.selectorCard}>
+            <Text style={styles.selectorIcon}>◎</Text>
+            <Text style={styles.selectorCardTitle}>Administración Demo</Text>
+            <Text style={styles.selectorCardCopy}>Crear clientes y folios locales, revisar datos y restaurar el escenario.</Text>
+          </Pressable>
+        ) : null}
         {modules.includes('validacion') ? (
           <Pressable onPress={() => onSelect('validacion')} style={styles.selectorCard}>
             <Text style={styles.selectorIcon}>✓</Text>
