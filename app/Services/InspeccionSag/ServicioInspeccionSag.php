@@ -2,8 +2,6 @@
 
 namespace App\Services\InspeccionSag;
 
-use App\Enums\ContenidoCamara;
-use App\Enums\EstadoCamara;
 use App\Enums\EstadoFolioInspeccionSag;
 use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\EstadoOperacionalFolio;
@@ -15,13 +13,13 @@ use App\Enums\TipoLoteInspeccionSag;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\AutorizacionSagFolio;
 use App\Models\BloqueMercado;
+use App\Models\Cliente;
 use App\Models\Folio;
 use App\Models\LoteInspeccionSag;
 use App\Models\Pais;
 use App\Models\ResultadoDestinoInspeccionSag;
 use App\Models\Temporada;
 use App\Models\User;
-use App\Services\Secuencias\ServicioSecuenciaDocumento;
 use DomainException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +29,7 @@ class ServicioInspeccionSag
 {
     public function __construct(
         private readonly ServicioEstadoSagFolio $estadoSag,
-        private readonly ServicioSecuenciaDocumento $secuencias,
+        private readonly ServicioCorrelativoInspeccionSag $correlativos,
     ) {}
 
     /** @param array<string, mixed> $datos */
@@ -60,6 +58,7 @@ class ServicioInspeccionSag
 
             $folios = $this->consultaFoliosElegibles()
                 ->whereIn('id', $folioIds)
+                ->with('validacionPallet.origen.clienteCatalogo.cliente')
                 ->lockForUpdate()
                 ->get();
 
@@ -67,19 +66,45 @@ class ServicioInspeccionSag
                 throw new ConflictoOperacion('Uno o más pallets ya no están disponibles para esta inspección.');
             }
 
+            $clientes = $folios
+                ->map(fn (Folio $folio): ?Cliente => $folio->validacionPallet?->origen?->clienteCatalogo?->cliente)
+                ->filter()
+                ->unique('id')
+                ->values();
+
+            if ($clientes->count() !== 1) {
+                throw new DomainException(
+                    'Todos los pallets del lote deben pertenecer al mismo cliente/exportadora.',
+                );
+            }
+
+            $cliente = $clientes->first();
+
             $destinos = $this->resolverDestinos($datos['destinos']);
-            $numero = $this->secuencias->reservarSiguiente('lotes_inspeccion_sag');
+            $correlativo = $this->correlativos->siguiente($cliente);
+            $tipo = TipoLoteInspeccionSag::from($datos['tipo']);
+            $automatico = $tipo->apruebaAutomaticamente();
+            $ahora = now();
             $lote = LoteInspeccionSag::query()->create([
                 'temporada_id' => $temporada->id,
-                'codigo' => 'SAG-'.now()->format('Y').'-'.str_pad((string) $numero, 6, '0', STR_PAD_LEFT),
+                'cliente_id' => $cliente->id,
+                'codigo' => $correlativo['codigo'],
+                'numero_correlativo' => $correlativo['numero'],
+                'numero_inspeccion_sag' => $datos['numero_inspeccion_sag'] ?? null,
                 'operacion_id' => $operacionId,
                 'payload_hash' => $hash,
-                'tipo' => TipoLoteInspeccionSag::from($datos['tipo']),
-                'estado' => EstadoLoteInspeccionSag::Preparacion,
+                'tipo' => $tipo,
+                'estado' => $automatico
+                    ? EstadoLoteInspeccionSag::Finalizado
+                    : EstadoLoteInspeccionSag::Preparacion,
                 'cantidad_solicitada' => count($folioIds),
                 'referencia_correo' => $datos['referencia_correo'] ?? null,
                 'observacion' => $datos['observacion'] ?? null,
                 'creado_por_user_id' => $usuario->id,
+                'iniciado_por_user_id' => $automatico ? $usuario->id : null,
+                'finalizado_por_user_id' => $automatico ? $usuario->id : null,
+                'iniciado_at' => $automatico ? $ahora : null,
+                'finalizado_at' => $automatico ? $ahora : null,
             ]);
 
             $destinosCreados = collect($destinos)->map(fn (array $destino) => $lote->destinos()->create($destino));
@@ -87,15 +112,35 @@ class ServicioInspeccionSag
             foreach ($folios as $folio) {
                 $asignacion = $lote->folios()->create([
                     'folio_id' => $folio->id,
-                    'estado' => EstadoFolioInspeccionSag::Pendiente,
+                    'estado' => $automatico
+                        ? EstadoFolioInspeccionSag::Resuelto
+                        : EstadoFolioInspeccionSag::Pendiente,
                     'estado_sag_anterior' => $this->estadoSag->resumir($folio),
+                    'resuelto_por_user_id' => $automatico ? $usuario->id : null,
+                    'resuelto_at' => $automatico ? $ahora : null,
                 ]);
 
                 foreach ($destinosCreados as $destino) {
-                    $asignacion->resultados()->create([
+                    $resultado = $asignacion->resultados()->create([
                         'destino_lote_inspeccion_sag_id' => $destino->id,
-                        'resultado' => ResultadoInspeccionSag::Pendiente,
+                        'resultado' => $automatico
+                            ? ResultadoInspeccionSag::Aprobado
+                            : ResultadoInspeccionSag::Pendiente,
+                        'tipo_aprobacion' => $automatico
+                            ? $tipo->aprobacionPredeterminada()
+                            : null,
+                        'resuelto_por_user_id' => $automatico ? $usuario->id : null,
+                        'resuelto_at' => $automatico ? $ahora : null,
                     ]);
+
+                    if ($automatico) {
+                        $this->registrarAutorizacion(
+                            $resultado,
+                            $tipo->aprobacionPredeterminada(),
+                            $usuario,
+                            $ahora,
+                        );
+                    }
                 }
             }
 
@@ -173,21 +218,7 @@ class ServicioInspeccionSag
             ]);
 
             if ($decision === ResultadoInspeccionSag::Aprobado) {
-                $destino = $resultado->destino;
-                AutorizacionSagFolio::query()->firstOrCreate([
-                    'folio_id' => $resultado->asignacion->folio_id,
-                    'tipo_aprobacion' => $tipoAprobacion,
-                    'tipo_destino' => $destino->tipo_destino,
-                    'pais_id' => $destino->pais_id,
-                    'bloque_mercado_id' => $destino->bloque_mercado_id,
-                    'activa' => true,
-                ], [
-                    'resultado_origen_id' => $resultado->id,
-                    'destino_snapshot' => $destino->destino_snapshot,
-                    'miembros_snapshot' => $destino->miembros_snapshot,
-                    'aprobado_por_user_id' => $usuario->id,
-                    'aprobado_at' => now(),
-                ]);
+                $this->registrarAutorizacion($resultado, $tipoAprobacion, $usuario);
             }
 
             $asignacion = $resultado->asignacion;
@@ -252,6 +283,7 @@ class ServicioInspeccionSag
     {
         return $lote->load([
             'temporada:id,codigo,nombre',
+            'cliente:id,codigo,nombre,codigo_folio_materiales',
             'creadoPor:id,name',
             'destinos',
             'folios.folio.ubicacionActual.camara',
@@ -281,11 +313,32 @@ class ServicioInspeccionSag
             ->whereNotIn('estado_operacional', $estadosTerminales)
             ->whereDoesntHave('material')
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
-            ->whereHas('ubicacionActual.camara', fn ($consulta) => $consulta
-                ->where('contenido', ContenidoCamara::Productos)
-                ->where('estado', EstadoCamara::Activa))
             ->whereDoesntHave('inspeccionesSag.lote', fn ($consulta) => $consulta
                 ->whereIn('estado', $estadosLoteActivos));
+    }
+
+    private function registrarAutorizacion(
+        ResultadoDestinoInspeccionSag $resultado,
+        TipoAprobacionSag $tipoAprobacion,
+        User $usuario,
+    ): void {
+        $resultado->loadMissing(['asignacion', 'destino']);
+        $destino = $resultado->destino;
+
+        AutorizacionSagFolio::query()->firstOrCreate([
+            'folio_id' => $resultado->asignacion->folio_id,
+            'tipo_aprobacion' => $tipoAprobacion,
+            'tipo_destino' => $destino->tipo_destino,
+            'pais_id' => $destino->pais_id,
+            'bloque_mercado_id' => $destino->bloque_mercado_id,
+            'activa' => true,
+        ], [
+            'resultado_origen_id' => $resultado->id,
+            'destino_snapshot' => $destino->destino_snapshot,
+            'miembros_snapshot' => $destino->miembros_snapshot,
+            'aprobado_por_user_id' => $usuario->id,
+            'aprobado_at' => $resultado->resuelto_at ?? now(),
+        ]);
     }
 
     /**

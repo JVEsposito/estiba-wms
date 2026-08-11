@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\CondicionTermicaFolio;
-use App\Enums\ContenidoCamara;
-use App\Enums\EstadoCamara;
 use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\ResultadoInspeccionSag;
@@ -230,7 +228,7 @@ class InspeccionSagController extends Controller
             ->when($datos['estado'] ?? null, fn (Builder $consulta, string $estado): Builder => $consulta->where('estado', $estado))
             ->when($datos['tipo'] ?? null, fn (Builder $consulta, string $tipo): Builder => $consulta->where('tipo', $tipo))
             ->withCount('folios')
-            ->with(['destinos', 'creadoPor:id,name'])
+            ->with(['destinos', 'creadoPor:id,name', 'cliente:id,codigo,nombre'])
             ->latest()
             ->paginate($datos['per_page'] ?? 25);
         $lotes->through(fn (LoteInspeccionSag $lote): array => $this->serializarLote($lote, false));
@@ -249,6 +247,7 @@ class InspeccionSagController extends Controller
             'operacion_id' => ['nullable', 'uuid'],
             'tipo' => ['required', Rule::enum(TipoLoteInspeccionSag::class)],
             'cantidad_solicitada' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'numero_inspeccion_sag' => ['nullable', 'string', 'max:100'],
             'referencia_correo' => ['nullable', 'string', 'max:250'],
             'observacion' => ['nullable', 'string', 'max:2000'],
             'folios' => ['required', 'array', 'min:1', 'max:1000'],
@@ -316,9 +315,6 @@ class InspeccionSagController extends Controller
             ->whereNotIn('estado_operacional', $estadosTerminales)
             ->whereDoesntHave('material')
             ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta->where('activa', true))
-            ->whereHas('ubicacionActual.camara', fn (Builder $consulta): Builder => $consulta
-                ->where('contenido', ContenidoCamara::Productos)
-                ->where('estado', EstadoCamara::Activa))
             ->whereDoesntHave('inspeccionesSag.lote', fn (Builder $consulta): Builder => $consulta
                 ->whereIn('estado', $estadosLoteActivos));
     }
@@ -375,6 +371,12 @@ class InspeccionSagController extends Controller
         $base = [
             'id' => $lote->id,
             'codigo' => $lote->codigo,
+            'numero_inspeccion_sag' => $lote->numero_inspeccion_sag,
+            'cliente' => $lote->cliente ? [
+                'id' => $lote->cliente->id,
+                'codigo' => $lote->cliente->codigo,
+                'nombre' => $lote->cliente->nombre,
+            ] : null,
             'tipo' => $lote->tipo->value,
             'estado' => $lote->estado->value,
             'cantidad_solicitada' => $lote->cantidad_solicitada,

@@ -24,7 +24,8 @@ const elements = {
     builder: document.getElementById('sagBuilderForm'),
     builderError: document.getElementById('builderError'),
     eligibleBody: document.getElementById('eligibleFoliosBody'),
-    destinationSelect: document.getElementById('destinationSelect'),
+    destinationOptions: document.getElementById('destinationOptions'),
+    selectedDestinationPills: document.getElementById('selectedDestinationPills'),
     destinationSearch: document.getElementById('destinationSearch'),
     detail: document.getElementById('sagLotDetail'),
     detailError: document.getElementById('detailError'),
@@ -44,6 +45,7 @@ function escapeHtml(value) {
 function humanize(value) {
     const labels = {
         muestreo_usda: 'Muestreo USDA', inspeccion_origen: 'Inspección Origen',
+        inspeccion_linea: 'Inspección en línea',
         fumigacion: 'Fumigación', cambio_mercado: 'Cambio de mercado', preparacion: 'Preparación',
         en_inspeccion: 'En inspección', resultado_parcial: 'Resultado parcial', finalizado: 'Finalizado',
         cancelado: 'Cancelado', sin_resolucion: 'Sin resolución', aprobado: 'Aprobado',
@@ -162,11 +164,22 @@ function renderDestinationOptions() {
     const matches = (entry) => !query || `${entry.codigo} ${entry.nombre}`.toLocaleLowerCase('es').includes(query);
     const blocks = state.catalogs.bloques.filter(matches);
     const countries = state.catalogs.paises.filter(matches);
-    elements.destinationSelect.innerHTML = [
-        blocks.length ? `<optgroup label="Bloques de mercado">${blocks.map((entry) => `<option value="bloque:${entry.id}">${escapeHtml(entry.codigo)} · ${escapeHtml(entry.nombre)} (${entry.paises.length} países)</option>`).join('')}</optgroup>` : '',
-        countries.length ? `<optgroup label="Países">${countries.map((entry) => `<option value="pais:${entry.id}">${escapeHtml(entry.codigo)} · ${escapeHtml(entry.nombre)}</option>`).join('')}</optgroup>` : '',
-    ].join('');
-    [...elements.destinationSelect.options].forEach((option) => { option.selected = state.selectedDestinationValues.has(option.value); });
+    const option = (value, code, name, detail = '') => `<label class="sag-destination-option">
+        <input type="checkbox" data-destination-value="${escapeHtml(value)}" ${state.selectedDestinationValues.has(value) ? 'checked' : ''}>
+        <span><strong>${escapeHtml(code)} · ${escapeHtml(name)}</strong>${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</span>
+    </label>`;
+    elements.destinationOptions.innerHTML = [
+        blocks.length ? `<section><h4>Bloques de mercado</h4>${blocks.map((entry) => option(`bloque:${entry.id}`, entry.codigo, entry.nombre, `${entry.paises.length} países`)).join('')}</section>` : '',
+        countries.length ? `<section><h4>Países</h4>${countries.map((entry) => option(`pais:${entry.id}`, entry.codigo, entry.nombre)).join('')}</section>` : '',
+    ].join('') || '<p class="empty-cell">No hay destinos que coincidan con la búsqueda.</p>';
+    elements.selectedDestinationPills.innerHTML = [...state.selectedDestinationValues]
+        .map((value) => {
+            const [type, id] = value.split(':');
+            const entry = type === 'bloque'
+                ? state.catalogs.bloques.find((item) => item.id === id)
+                : state.catalogs.paises.find((item) => item.id === id);
+            return entry ? `<span class="sag-pill sag-pill--active">${escapeHtml(entry.codigo)} · ${escapeHtml(entry.nombre)}</span>` : '';
+        }).join('') || '<small>Sin destinos seleccionados.</small>';
 }
 
 function refreshFilterAvailability() {
@@ -202,7 +215,7 @@ function actionSelect(lot) {
 }
 
 function lotRow(lot, dateField = 'creado_at') {
-    return `<tr><td><strong>${escapeHtml(lot.codigo)}</strong><br><small>${escapeHtml(lot.referencia_correo || 'Sin referencia')}</small></td><td>${escapeHtml(humanize(lot.tipo))}</td><td>${statePill(lot.estado)}</td><td>${escapeHtml(lot.cantidad_folios)}</td><td>${destinationPills(lot.destinos)}</td><td>${dateTime(lot[dateField] || lot.creado_at)}${lot.creado_por ? `<br><small>${escapeHtml(lot.creado_por)}</small>` : ''}</td><td>${actionSelect(lot)}</td></tr>`;
+    return `<tr><td><strong>${escapeHtml(lot.codigo)}</strong><br><small>SAG: ${escapeHtml(lot.numero_inspeccion_sag || 'Sin número')}</small><br><small>${escapeHtml(lot.referencia_correo || 'Sin referencia')}</small></td><td>${escapeHtml(humanize(lot.tipo))}</td><td>${statePill(lot.estado)}</td><td>${escapeHtml(lot.cantidad_folios)}</td><td>${destinationPills(lot.destinos)}</td><td>${dateTime(lot[dateField] || lot.creado_at)}${lot.creado_por ? `<br><small>${escapeHtml(lot.creado_por)}</small>` : ''}</td><td>${actionSelect(lot)}</td></tr>`;
 }
 
 function renderLots() {
@@ -256,7 +269,7 @@ function renderEligibleFolios() {
     if (!state.eligibleFolios.length) {
         body.innerHTML = '<tr><td colspan="8" class="empty-cell">No se encontraron pallets elegibles con estos filtros.</td></tr>';
     } else {
-        body.innerHTML = state.eligibleFolios.map((folio) => `<tr><td><input type="checkbox" data-folio-id="${folio.id}" ${state.selectedFolioIds.has(folio.id) ? 'checked' : ''}></td><td><strong>${escapeHtml(folio.folio)}</strong><br><small>${escapeHtml(folio.cliente)}</small></td><td>${escapeHtml(folio.variedad || '—')}</td><td>${escapeHtml(folio.csg || '—')}</td><td>${escapeHtml(humanize(folio.condicion_termica))}</td><td>${escapeHtml(folio.camara || '—')}<br><small>${escapeHtml(folio.posicion || 'Sin posición')}</small></td><td>${folio.sag.en_inspeccion ? '<span class="sag-pill sag-pill--warning">En inspección</span>' : ''}<span class="sag-pill sag-pill--active">${escapeHtml(folio.sag.estado)}</span></td><td>${(folio.sag.destinos || []).map((destination) => `<span class="sag-pill">${escapeHtml(destination)}</span>`).join('') || '—'}</td></tr>`).join('');
+        body.innerHTML = state.eligibleFolios.map((folio) => `<tr><td><input type="checkbox" data-folio-id="${folio.id}" ${state.selectedFolioIds.has(folio.id) ? 'checked' : ''}></td><td><strong>${escapeHtml(folio.folio)}</strong><br><small>${escapeHtml(folio.cliente)}</small></td><td>${escapeHtml(folio.variedad || '—')}</td><td>${escapeHtml(folio.csg || '—')}</td><td>${escapeHtml(humanize(folio.condicion_termica))}</td><td>${folio.camara ? `${escapeHtml(folio.camara)}<br><small>${escapeHtml(folio.posicion || 'Sin posición')}</small>` : '<span class="sag-pill sag-pill--warning">Sin ubicación</span>'}</td><td>${folio.sag.en_inspeccion ? '<span class="sag-pill sag-pill--warning">En inspección</span>' : ''}<span class="sag-pill sag-pill--active">${escapeHtml(folio.sag.estado)}</span></td><td>${(folio.sag.destinos || []).map((destination) => `<span class="sag-pill">${escapeHtml(destination)}</span>`).join('') || '—'}</td></tr>`).join('');
     }
     document.getElementById('folioSelectionTitle').textContent = `${state.eligibleFolios.length} pallets encontrados`;
     updateBuilderSummary();
@@ -288,6 +301,7 @@ async function createLot(event) {
     const data = new FormData(elements.builder);
     const body = {
         tipo: data.get('tipo'),
+        numero_inspeccion_sag: data.get('numero_inspeccion_sag') || null,
         cantidad_solicitada: Number(data.get('cantidad_solicitada')),
         referencia_correo: data.get('referencia_correo') || null,
         observacion: data.get('observacion') || null,
@@ -303,7 +317,7 @@ async function createLot(event) {
         state.selectedDestinationValues.clear();
         renderDestinationOptions();
         await openLot(lot.id);
-        selectPanel('activos');
+        selectPanel(lot.estado === 'finalizado' ? 'historial' : 'activos');
     } catch (error) { elements.builderError.textContent = error.message; }
 }
 
@@ -317,7 +331,7 @@ async function openLot(id) {
     state.selectedLot = await api(`/inspeccion-sag/lotes/${id}`);
     const lot = state.selectedLot;
     document.getElementById('sagDetailTitle').textContent = `${lot.codigo} · ${humanize(lot.tipo)}`;
-    document.getElementById('sagDetailSubtitle').textContent = `${humanize(lot.estado)} · ${lot.cantidad_folios} pallets · creado ${dateTime(lot.creado_at)}`;
+    document.getElementById('sagDetailSubtitle').textContent = `${humanize(lot.estado)} · ${lot.cantidad_folios} pallets · SAG ${lot.numero_inspeccion_sag || 'sin número'} · creado ${dateTime(lot.creado_at)}`;
     document.getElementById('sagDetailDestinations').innerHTML = destinationPills(lot.destinos);
     renderDetailActions(lot);
     renderResults(lot);
@@ -416,10 +430,11 @@ elements.eligibleBody.addEventListener('change', (event) => {
     updateBuilderSummary();
 });
 elements.destinationSearch.addEventListener('input', renderDestinationOptions);
-elements.destinationSelect.addEventListener('change', () => {
-    [...elements.destinationSelect.options].forEach((option) => {
-        if (option.selected) state.selectedDestinationValues.add(option.value); else state.selectedDestinationValues.delete(option.value);
-    });
+elements.destinationOptions.addEventListener('change', (event) => {
+    const option = event.target.closest('[data-destination-value]');
+    if (!option) return;
+    if (option.checked) state.selectedDestinationValues.add(option.dataset.destinationValue);
+    else state.selectedDestinationValues.delete(option.dataset.destinationValue);
     normalizeEuropeanSelection(); renderDestinationOptions(); updateBuilderSummary();
 });
 document.addEventListener('change', async (event) => {

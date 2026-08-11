@@ -53,9 +53,10 @@ class InspeccionSagApiTest extends TestCase
             ->assertJsonCount(250, 'paises')
             ->assertJsonPath('bloques.0.codigo', 'UE')
             ->assertJsonCount(27, 'bloques.0.paises')
-            ->assertJsonCount(4, 'tipos_lote')
+            ->assertJsonCount(5, 'tipos_lote')
             ->assertJsonFragment(['value' => 'muestreo_usda', 'label' => 'Muestreo USDA', 'tipo_aprobacion' => 'AU'])
             ->assertJsonFragment(['value' => 'inspeccion_origen', 'label' => 'Inspección Origen', 'tipo_aprobacion' => 'AO'])
+            ->assertJsonFragment(['value' => 'inspeccion_linea', 'label' => 'Inspección en línea', 'tipo_aprobacion' => 'AO'])
             ->assertJsonFragment(['value' => 'fumigacion', 'label' => 'Fumigación', 'tipo_aprobacion' => 'AF'])
             ->assertJsonFragment(['value' => 'cambio_mercado', 'label' => 'Cambio de mercado', 'tipo_aprobacion' => null])
             ->assertJsonFragment(['value' => 'AO', 'label' => 'Aprobado Origen'])
@@ -169,7 +170,7 @@ class InspeccionSagApiTest extends TestCase
         $this->assertStringContainsString('Estados Unidos', $fila['destinos_sag']);
     }
 
-    public function test_bloque_ue_reemplaza_paises_miembro_redundantes_y_no_admite_folio_sin_ubicacion(): void
+    public function test_bloque_ue_reemplaza_paises_miembro_y_admite_folio_sin_ubicacion_o_prefrio(): void
     {
         $administrador = $this->administradorConTemporada();
         $ubicado = $this->crearFolioUbicado('SAG-UE-001', [
@@ -180,14 +181,15 @@ class InspeccionSagApiTest extends TestCase
             'temporada_id' => $ubicado->temporada_id,
             'numero_folio' => 'SAG-SIN-UBICACION',
             'tipo_bulto' => TipoBulto::Pallet,
-            'estado_operacional' => EstadoOperacionalFolio::Disponible,
-            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fecha_ingreso' => now(),
             'activo' => true,
             'exportadora' => 'EX-UE',
             'datos_externos' => ['especie' => 'Arándano'],
         ]);
+        $this->vincularCatalogoValidacion($sinUbicacion);
         $ue = BloqueMercado::query()->where('codigo', 'UE')->firstOrFail();
         $francia = Pais::query()->where('iso_alpha2', 'FR')->firstOrFail();
 
@@ -211,7 +213,51 @@ class InspeccionSagApiTest extends TestCase
                 'folios' => [$sinUbicacion->id],
                 'destinos' => [['tipo' => 'bloque', 'id' => $ue->id]],
             ])
-            ->assertStatus(409);
+            ->assertCreated()
+            ->assertJsonPath('folios.0.folio.numero', 'SAG-SIN-UBICACION')
+            ->assertJsonPath('folios.0.folio.camara', null)
+            ->assertJsonPath('folios.0.folio.posicion', null);
+    }
+
+    public function test_inspeccion_en_linea_aprueba_automaticamente_y_genera_ambos_numeros(): void
+    {
+        $administrador = $this->administradorConTemporada();
+        $folio = Folio::create([
+            'numero_folio' => 'SAG-LINEA-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'exportadora' => 'MC-001',
+            'variedad' => 'Hayward',
+            'datos_externos' => ['especie' => 'Kiwi', 'csg' => '123225'],
+        ]);
+        $this->vincularCatalogoValidacion($folio);
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/inspeccion-sag/lotes', [
+                'tipo' => 'inspeccion_linea',
+                'numero_inspeccion_sag' => 'SAG-2026-7788',
+                'folios' => [$folio->id],
+                'destinos' => [['tipo' => 'pais', 'id' => $chile->id]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('codigo', 'IMC0000001')
+            ->assertJsonPath('numero_inspeccion_sag', 'SAG-2026-7788')
+            ->assertJsonPath('estado', 'finalizado')
+            ->assertJsonPath('folios.0.estado', 'resuelto')
+            ->assertJsonPath('folios.0.resultados.0.resultado', 'aprobado')
+            ->assertJsonPath('folios.0.resultados.0.tipo_aprobacion', 'AO');
+
+        $this->assertDatabaseHas('autorizaciones_sag_folio', [
+            'folio_id' => $folio->id,
+            'tipo_aprobacion' => 'AO',
+            'pais_id' => $chile->id,
+            'activa' => true,
+        ]);
     }
 
     private function administradorConTemporada(): User
@@ -280,6 +326,8 @@ class InspeccionSagApiTest extends TestCase
             'nombre' => (string) $folio->exportadora,
             'activo' => true,
         ]);
+        $codigoCliente = substr((string) preg_replace('/[^A-Z]/', '', mb_strtoupper($cliente->codigo)), 0, 2);
+        $cliente->update(['codigo_folio_materiales' => $codigoCliente]);
         $clienteCatalogo = ClienteValidacion::query()->firstOrCreate([
             'temporada_id' => $folio->temporada_id,
             'cliente_id' => $cliente->id,
