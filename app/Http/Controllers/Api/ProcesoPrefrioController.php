@@ -11,6 +11,7 @@ use App\Http\Requests\AgregarFolioProcesoPrefrioRequest;
 use App\Http\Requests\AprobarProcesoPrefrioRequest;
 use App\Http\Requests\CancelarProcesoPrefrioRequest;
 use App\Http\Requests\ConsultarProcesosPrefrioRequest;
+use App\Http\Requests\CorregirProcesoPrefrioRequest;
 use App\Http\Requests\CrearProcesoPrefrioRequest;
 use App\Http\Requests\ReprocesarProcesoPrefrioRequest;
 use App\Http\Resources\ProcesoPrefrioResource;
@@ -18,6 +19,7 @@ use App\Models\Dispositivo;
 use App\Models\PersonalAccessToken;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
+use App\Services\Prefrio\ServicioCorreccionProcesoPrefrio;
 use App\Services\Prefrio\ServicioProcesoPrefrio;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -240,6 +242,18 @@ class ProcesoPrefrioController extends Controller
             $request->validated(),
             $request->user(),
             $this->dispositivo($request),
+        ));
+    }
+
+    public function corregir(
+        CorregirProcesoPrefrioRequest $request,
+        ProcesoPrefrio $procesoPrefrio,
+        ServicioCorreccionProcesoPrefrio $servicio,
+    ): ProcesoPrefrioResource {
+        return new ProcesoPrefrioResource($servicio->corregir(
+            $procesoPrefrio,
+            $request->validated(),
+            $request->user(),
         ));
     }
 
