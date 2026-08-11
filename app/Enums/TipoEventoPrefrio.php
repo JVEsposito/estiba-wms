@@ -18,4 +18,5 @@ enum TipoEventoPrefrio: string
     case Aprobacion = 'aprobacion';
     case Reproceso = 'reproceso';
     case Cancelacion = 'cancelacion';
+    case CorreccionAdministrativa = 'correccion_administrativa';
 }

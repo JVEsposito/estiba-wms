@@ -274,6 +274,11 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeAdministrarTunelesPrefrio($usuario),
         );
         Gate::define(
+            'corregir-procesos-prefrio',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
+        );
+        Gate::define(
             'consultar-panel-gerencial',
             fn (User $usuario): bool => $alcance->puedeConsultarPanelGerencial($usuario),
         );

@@ -74,7 +74,7 @@
                 <section class="panel process-detail is-hidden" id="processDetail">
                     <div class="process-detail__heading">
                         <div><p class="eyebrow">DETALLE DEL CICLO</p><h2 id="processDetailTitle">Proceso</h2><p id="processDetailSubtitle"></p></div>
-                        <div class="process-detail__actions"><button class="secondary-button" id="refreshProcessButton" type="button">↻ Actualizar</button><button class="secondary-button" id="closeProcessDetailButton" type="button">Cerrar</button></div>
+                        <div class="process-detail__actions"><button class="secondary-button is-hidden" id="correctProcessButton" type="button">Corregir historial</button><button class="secondary-button" id="refreshProcessButton" type="button">↻ Actualizar</button><button class="secondary-button" id="closeProcessDetailButton" type="button">Cerrar</button></div>
                     </div>
                     <div class="process-detail__metrics" id="processDetailMetrics"></div>
                     <div class="process-detail__layout">
@@ -161,6 +161,57 @@
                 <label><span>Fecha y hora de la decisión *</span><input name="ocurrido_at" type="datetime-local" required></label>
                 <p class="form-error" id="reasonError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="danger-button" id="confirmReasonButton" value="default" type="submit">Confirmar</button></div>
+            </form>
+        </dialog>
+
+
+        <dialog class="prefrio-dialog prefrio-dialog--history" id="correctionDialog">
+            <form method="dialog" class="prefrio-dialog__shell" id="correctionForm">
+                <div class="prefrio-dialog__heading">
+                    <div>
+                        <p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p>
+                        <h2 id="correctionDialogTitle">Corregir historial de Prefrío</h2>
+                        <p>Solo administrador. El sistema conserva el valor anterior, el nuevo valor, el responsable y el motivo.</p>
+                    </div>
+                    <button class="dialog-close" value="cancel" type="submit" aria-label="Cerrar">×</button>
+                </div>
+                <div class="history-warning">
+                    Esta acción corrige el expediente del túnel. No elimina registros ni revierte silenciosamente ubicaciones o movimientos posteriores de los folios.
+                </div>
+                <section>
+                    <div class="prefrio-panel__heading"><div><p class="eyebrow">PROCESO</p><h3>Datos generales</h3></div></div>
+                    <div class="prefrio-form-grid">
+                        <label><span>Setpoint °C *</span><input name="setpoint" type="number" min="-20" max="20" step="0.1" required></label>
+                        <label><span>Duración objetivo (min)</span><input name="duracion_objetivo_minutos" type="number" min="1" max="4320"></label>
+                        <label><span>Formato de referencia</span><input name="formato_referencia" maxlength="100"></label>
+                        <label class="prefrio-field-wide"><span>Observación del proceso</span><textarea name="observacion" maxlength="2000"></textarea></label>
+                    </div>
+                </section>
+                <section>
+                    <div class="prefrio-panel__heading"><div><p class="eyebrow">CRONOLOGÍA</p><h3>Horas registradas</h3></div><span>Inicio, inversión, cierre y demás eventos</span></div>
+                    <div class="history-editor-list" id="correctionEvents"></div>
+                </section>
+                <section>
+                    <div class="prefrio-panel__heading"><div><p class="eyebrow">COMPOSICIÓN</p><h3>Folios del proceso</h3></div><span>Desmarca para sacar un folio del expediente</span></div>
+                    <div class="history-editor-list" id="correctionFolios"></div>
+                </section>
+                <section class="history-new-folio">
+                    <div class="prefrio-panel__heading"><div><p class="eyebrow">AGREGAR FOLIO OMITIDO</p><h3>Incorporación histórica opcional</h3></div></div>
+                    <div class="prefrio-form-grid">
+                        <label><span>Número de folio</span><input name="nuevo_numero_folio" maxlength="100" placeholder="Déjalo vacío si no agregarás uno"></label>
+                        <label><span>Posición</span><select name="nuevo_posicion_tunel_prefrio_id" id="correctionNewPosition"></select></label>
+                        <label><span>Fecha y hora de carga</span><input name="nuevo_cargado_at" type="datetime-local"></label>
+                        <label><span>Temperatura inicial °C</span><input name="nuevo_temperatura_inicial" type="number" min="-20" max="50" step="0.1"></label>
+                        <label><span>Temperatura final °C</span><input name="nuevo_temperatura_final" type="number" min="-20" max="50" step="0.1"></label>
+                        <label><span>Observación</span><input name="nuevo_observacion" maxlength="2000"></label>
+                    </div>
+                </section>
+                <label><span>Motivo de la corrección *</span><textarea name="motivo" maxlength="500" required placeholder="Indica el documento o verificación física que respalda el cambio."></textarea></label>
+                <p class="form-error" id="correctionError" role="alert"></p>
+                <div class="dialog-actions">
+                    <button class="secondary-button" value="cancel" type="submit">Cancelar</button>
+                    <button class="danger-button" value="default" type="submit">Guardar corrección auditada</button>
+                </div>
             </form>
         </dialog>
 

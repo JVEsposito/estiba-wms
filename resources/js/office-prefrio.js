@@ -15,6 +15,7 @@ const elements = {
     tunnelDialog: byId('tunnelDialog'), tunnelForm: byId('tunnelForm'), tunnelDialogTitle: byId('tunnelDialogTitle'), tunnelError: byId('tunnelFormError'), tunnelPreview: byId('tunnelPreview'), tunnelPreviewSummary: byId('tunnelPreviewSummary'),
     processDialog: byId('processDialog'), processForm: byId('processForm'), processError: byId('processFormError'),
     reasonDialog: byId('reasonDialog'), reasonForm: byId('reasonForm'), reasonTitle: byId('reasonTitle'), reasonDescription: byId('reasonDescription'), reasonEyebrow: byId('reasonEyebrow'), reasonError: byId('reasonError'), confirmReason: byId('confirmReasonButton'),
+    correctProcess: byId('correctProcessButton'), correctionDialog: byId('correctionDialog'), correctionForm: byId('correctionForm'), correctionTitle: byId('correctionDialogTitle'), correctionEvents: byId('correctionEvents'), correctionFolios: byId('correctionFolios'), correctionNewPosition: byId('correctionNewPosition'), correctionError: byId('correctionError'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
@@ -39,7 +40,7 @@ function statusText(value) {
         aprobado: 'Aprobado', requiere_reproceso: 'Requiere reproceso', cancelado: 'Cancelado', operativo: 'Operativo', mantenimiento: 'Mantenimiento', fuera_de_servicio: 'Fuera de servicio',
         activo: 'Activo', inactivo: 'Inactivo', carga_iniciada: 'Carga iniciada', pallet_agregado: 'Pallet agregado', pallet_retirado: 'Pallet retirado', armado_confirmado: 'Armado confirmado',
         proceso_iniciado: 'Proceso iniciado', inversion_registrada: 'Inversión registrada', pausa: 'Pausa', reanudacion: 'Reanudación', deshielo: 'Deshielo', lectura: 'Lectura',
-        verificacion_final: 'Verificación final', aprobacion: 'Aprobación', reproceso: 'Reproceso', cancelacion: 'Cancelación',
+        verificacion_final: 'Verificación final', aprobacion: 'Aprobación', reproceso: 'Reproceso', cancelacion: 'Cancelación', correccion_administrativa: 'Corrección administrativa',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
@@ -150,6 +151,7 @@ function renderProcessDetail() {
     elements.detailMetrics.innerHTML = [
         ['ESTADO', statusText(process.estado)], ['POSICIONES', `${occupiedPositions}/${process.tunel?.capacidad_posiciones || '—'}`], ['FOLIOS', occupied.length], ['INICIO', formatDate(process.iniciado_at, 'No iniciado')], ['FINAL', formatDate(process.finalizado_at, 'Pendiente')],
     ].map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join('');
+    elements.correctProcess.classList.toggle('is-hidden', state.identity?.rol !== 'administrador');
     renderTunnelMap(process, occupied); renderTimeline(process); renderOperationalPanel(process); renderDecisionPanel(process, occupied);
 }
 function renderTunnelMap(process, occupied) {
@@ -223,6 +225,123 @@ function decisionResults() {
         const observation = node.querySelector('[name="observacion"]').value.trim();
         return { folio_id: node.dataset.decisionFolio, temperatura_final: temperature === '' ? null : Number(temperature), observation: observation || null };
     }).map(({ observation, ...item }) => ({ ...item, observacion: observation }));
+}
+
+
+function correctionPositionOptions(process, selected = '') {
+    const tunnel = state.tunnels.find((item) => item.id === process.tunel?.id);
+    const positions = (tunnel?.posiciones || []).filter((item) => item.activa || item.id === selected);
+    return `<option value="">Seleccionar posición</option>${positions.map((item) => `<option value="${item.id}"${item.id === selected ? ' selected' : ''}>${escapeHtml(item.etiqueta || `P${String(item.numero).padStart(2, '0')}`)}</option>`).join('')}`;
+}
+function correctionNullableNumber(value) {
+    return value === '' || value === null || value === undefined ? null : Number(value);
+}
+function openCorrectionDialog() {
+    const process = state.selectedProcess;
+    if (!process || state.identity?.rol !== 'administrador') return;
+    elements.correctionForm.reset();
+    elements.correctionError.textContent = '';
+    elements.correctionTitle.textContent = `${process.codigo} · Corregir historial`;
+    elements.correctionForm.elements.setpoint.value = process.setpoint ?? '';
+    elements.correctionForm.elements.duracion_objetivo_minutos.value = process.duracion_objetivo_minutos ?? '';
+    elements.correctionForm.elements.formato_referencia.value = process.formato_referencia ?? '';
+    elements.correctionForm.elements.observacion.value = process.observacion ?? '';
+    const editableEvents = (process.eventos || []).filter((event) => event.tipo !== 'correccion_administrativa');
+    elements.correctionEvents.innerHTML = editableEvents.map((event) => `
+        <article class="history-editor-row" data-correction-event="${event.id}">
+            <div class="history-editor-row__identity"><strong>${escapeHtml(statusText(event.tipo))}</strong><small>${escapeHtml(event.usuario?.nombre || 'Usuario')}</small></div>
+            <label><span>Fecha y hora *</span><input name="ocurrido_at" type="datetime-local" value="${event.ocurrido_at ? localDateTimeValue(event.ocurrido_at) : ''}" required></label>
+            <label><span>Observación</span><input name="observacion" maxlength="2000" value="${escapeHtml(event.observacion || '')}"></label>
+        </article>`).join('') || '<p class="empty-prefrio">No existen eventos editables.</p>';
+    elements.correctionFolios.innerHTML = (process.folios || []).map((item) => {
+        const included = !['retirado', 'cancelado'].includes(item.estado);
+        return `
+        <article class="history-editor-row history-editor-row--folio" data-correction-folio="${item.id}">
+            <div class="history-editor-row__identity"><strong>${escapeHtml(item.folio?.numero_folio || 'Folio')}</strong><small>${escapeHtml(statusText(item.estado))}</small><label class="history-editor-row__toggle"><input data-included type="checkbox"${included ? ' checked' : ''}><span>Incluir</span></label></div>
+            <label><span>Posición</span><select name="posicion_tunel_prefrio_id">${correctionPositionOptions(process, item.posicion?.id || '')}</select></label>
+            <label><span>Fecha de carga</span><input name="cargado_at" type="datetime-local" value="${item.cargado_at ? localDateTimeValue(item.cargado_at) : ''}"></label>
+            <label><span>Temp. inicial</span><input name="temperatura_inicial" type="number" min="-20" max="50" step="0.1" value="${item.temperatura_inicial ?? ''}"></label>
+            <label><span>Temp. final</span><input name="temperatura_final" type="number" min="-20" max="50" step="0.1" value="${item.temperatura_final ?? ''}"></label>
+            <label><span>Observación</span><input name="observacion" maxlength="2000" value="${escapeHtml(item.observacion || '')}"></label>
+        </article>`;
+    }).join('') || '<p class="empty-prefrio">El proceso no posee folios.</p>';
+    elements.correctionNewPosition.innerHTML = correctionPositionOptions(process);
+    elements.correctionForm.elements.nuevo_cargado_at.value = process.iniciado_at
+        ? localDateTimeValue(process.iniciado_at)
+        : '';
+    elements.correctionDialog.showModal();
+}
+function correctionPayload() {
+    const process = state.selectedProcess;
+    const form = elements.correctionForm;
+    const newNumber = form.elements.nuevo_numero_folio.value.trim();
+    const events = [...elements.correctionEvents.querySelectorAll('[data-correction-event]')].map((node) => ({
+        id: node.dataset.correctionEvent,
+        ocurrido_at: occurredAt(node.querySelector('[name="ocurrido_at"]').value),
+        observacion: node.querySelector('[name="observacion"]').value.trim() || null,
+    }));
+    const folios = [...elements.correctionFolios.querySelectorAll('[data-correction-folio]')].map((node) => {
+        const included = node.querySelector('[data-included]').checked;
+        const loadedAt = node.querySelector('[name="cargado_at"]').value;
+        return {
+            id: node.dataset.correctionFolio,
+            incluido: included,
+            posicion_tunel_prefrio_id: node.querySelector('[name="posicion_tunel_prefrio_id"]').value || null,
+            cargado_at: loadedAt ? occurredAt(loadedAt) : null,
+            temperatura_inicial: correctionNullableNumber(node.querySelector('[name="temperatura_inicial"]').value),
+            temperatura_final: correctionNullableNumber(node.querySelector('[name="temperatura_final"]').value),
+            observacion: node.querySelector('[name="observacion"]').value.trim() || null,
+        };
+    });
+    let newFolio = null;
+    if (newNumber) {
+        if (!form.elements.nuevo_posicion_tunel_prefrio_id.value || !form.elements.nuevo_cargado_at.value) {
+            throw new ApiError('Para agregar un folio indica su posición y fecha de carga.', 422);
+        }
+        newFolio = {
+            numero_folio: newNumber,
+            posicion_tunel_prefrio_id: form.elements.nuevo_posicion_tunel_prefrio_id.value,
+            cargado_at: occurredAt(form.elements.nuevo_cargado_at.value),
+            temperatura_inicial: correctionNullableNumber(form.elements.nuevo_temperatura_inicial.value),
+            temperatura_final: correctionNullableNumber(form.elements.nuevo_temperatura_final.value),
+            observacion: form.elements.nuevo_observacion.value.trim() || null,
+        };
+    }
+    return {
+        operacion_id: operationUuid(),
+        version_conocida: process.version,
+        motivo: form.elements.motivo.value.trim(),
+        proceso: {
+            setpoint: Number(form.elements.setpoint.value),
+            duracion_objetivo_minutos: correctionNullableNumber(form.elements.duracion_objetivo_minutos.value),
+            formato_referencia: form.elements.formato_referencia.value.trim() || null,
+            observacion: form.elements.observacion.value.trim() || null,
+        },
+        eventos: events,
+        folios,
+        nuevo_folio: newFolio,
+    };
+}
+async function saveCorrection() {
+    const process = state.selectedProcess;
+    elements.correctionError.textContent = '';
+    setBusy(true, 'Guardando corrección auditada…');
+    try {
+        const payload = correctionPayload();
+        const response = await api(`/api/administracion/prefrio/procesos/${process.id}/corregir`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        state.selectedProcess = response.data;
+        elements.correctionDialog.close();
+        renderProcessDetail();
+        toast('Historial corregido. Se conservó la auditoría completa.');
+        await Promise.all([loadProcesses(), loadTunnels(), loadSummary()]);
+    } catch (error) {
+        elements.correctionError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
 }
 
 function openTunnelDialog(tunnel = null) {
@@ -336,6 +455,8 @@ elements.tunnelForm.addEventListener('submit', (event) => { event.preventDefault
 elements.processForm.elements.tunel_prefrio_id.addEventListener('change', syncProcessSetpoint);
 elements.processForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.processDialog.close(); return; } if (!elements.processForm.reportValidity()) return; saveProcess(); });
 elements.refreshProcess.addEventListener('click', () => state.selectedProcess && selectProcess(state.selectedProcess.id, false));
+elements.correctProcess.addEventListener('click', openCorrectionDialog);
+elements.correctionForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.correctionDialog.close(); return; } if (!elements.correctionForm.reportValidity()) return; void saveCorrection(); });
 elements.closeDetail.addEventListener('click', () => { state.selectedProcess = null; elements.detail.classList.add('is-hidden'); });
 elements.approve.addEventListener('click', approveProcess); elements.reprocessButton.addEventListener('click', () => openReasonDialog('reprocess')); elements.cancelProcess.addEventListener('click', () => openReasonDialog('cancel'));
 elements.reasonForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.reasonDialog.close(); return; } if (!elements.reasonForm.reportValidity()) return; submitReason(); });

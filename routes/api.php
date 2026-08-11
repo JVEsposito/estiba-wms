@@ -152,6 +152,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/prefrio/procesos/{procesoPrefrio}/reprocesar', [ProcesoPrefrioController::class, 'reprocesar']);
         Route::post('/prefrio/procesos/{procesoPrefrio}/cancelar', [ProcesoPrefrioController::class, 'cancelar']);
     });
+    Route::put(
+        '/administracion/prefrio/procesos/{procesoPrefrio}/corregir',
+        [ProcesoPrefrioController::class, 'corregir'],
+    )->middleware('can:corregir-procesos-prefrio');
     Route::middleware('can:administrar-tuneles-prefrio')->group(function () {
         Route::get('/administracion/prefrio/tuneles/siguiente-codigo', [TunelPrefrioController::class, 'siguienteCodigo']);
         Route::post('/administracion/prefrio/tuneles', [TunelPrefrioController::class, 'store']);
