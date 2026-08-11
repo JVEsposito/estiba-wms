@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\CorreccionItemMaterialController;
 use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
+use App\Http\Controllers\Api\EmbarqueController;
 use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\FrutaProcesoController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
@@ -366,11 +367,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
         ->middleware('can:gestionar-cargas');
     Route::middleware('can:consultar-catalogo-cargas')->group(function () {
+        Route::get('/embarques', [EmbarqueController::class, 'index']);
+        Route::get('/embarques/{embarque}', [EmbarqueController::class, 'show']);
         Route::get('/cargas/incidencias', [DespachoFrigorificoController::class, 'incidencias']);
         Route::get('/cargas', [CargaController::class, 'index']);
         Route::get('/cargas/{carga}', [CargaController::class, 'show']);
     });
     Route::middleware('can:gestionar-cargas')->group(function () {
+        Route::post('/embarques', [EmbarqueController::class, 'store']);
+        Route::put('/embarques/{embarque}', [EmbarqueController::class, 'update']);
+        Route::post('/embarques/{embarque}/confirmar', [EmbarqueController::class, 'confirmar']);
+        Route::post('/embarques/{embarque}/cancelar', [EmbarqueController::class, 'cancelar']);
         Route::post('/cargas', [CargaController::class, 'store']);
         Route::put('/cargas/{carga}', [CargaController::class, 'update']);
         Route::post('/cargas/{carga}/folios', [CargaController::class, 'agregarFolios']);

@@ -69,6 +69,7 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_accesos' => $capacidades['puede_consultar_accesos'],
                 'puede_consultar_configuracion_camaras' => $capacidades['puede_consultar_configuracion_camaras'],
                 'puede_gestionar_cargas' => $capacidades['puede_gestionar_cargas'],
+                'puede_autorizar_sobrecupo_embarques' => $capacidades['puede_autorizar_sobrecupo_embarques'],
                 'puede_consultar_cargas' => $capacidades['puede_consultar_cargas'],
                 'puede_consultar_catalogo_cargas' => $capacidades['puede_consultar_catalogo_cargas'],
                 'puede_resolver_comercialmente_carga' => $capacidades['puede_resolver_comercialmente_carga'],

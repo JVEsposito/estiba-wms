@@ -325,6 +325,7 @@ class CargaController extends Controller
             'temporada:id,codigo,nombre,activa',
             'camaraObjetivo:id,codigo,nombre',
             'andenPrevisto:id,codigo,nombre',
+            'embarque:id,carga_id,codigo,fecha_programada,hora_programada,modalidad,estado',
             'creadaPor:id,name',
             'actualizadaPor:id,name',
             'publicadaPor:id,name',

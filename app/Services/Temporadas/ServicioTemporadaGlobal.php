@@ -39,6 +39,9 @@ class ServicioTemporadaGlobal
                 'fecha_inicio' => $datos['fecha_inicio'] ?? null,
                 'fecha_fin' => $datos['fecha_fin'] ?? null,
                 'activa' => (bool) ($datos['activa'] ?? false),
+                'intervalo_embarques_minutos' => (int) ($datos['intervalo_embarques_minutos']
+                    ?? $temporada->intervalo_embarques_minutos
+                    ?? 60),
             ]);
             $temporada->save();
 

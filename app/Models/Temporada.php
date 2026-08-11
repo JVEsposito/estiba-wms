@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'fecha_fin',
     'activa',
     'version_catalogo',
+    'intervalo_embarques_minutos',
 ])]
 class Temporada extends Model
 {
@@ -34,6 +35,11 @@ class Temporada extends Model
     public function folios(): HasMany
     {
         return $this->hasMany(Folio::class);
+    }
+
+    public function embarques(): HasMany
+    {
+        return $this->hasMany(Embarque::class);
     }
 
     public function migracionesRecibidas(): HasMany
@@ -88,6 +94,7 @@ class Temporada extends Model
             'fecha_fin' => 'date',
             'activa' => 'boolean',
             'version_catalogo' => 'integer',
+            'intervalo_embarques_minutos' => 'integer',
         ];
     }
 }

@@ -18,6 +18,7 @@ Route::view('/oficina/administracion/camaras', 'office.cameras', [
     'cameraMode' => 'configuracion',
 ]);
 Route::view('/oficina/cargas', 'office.loads');
+Route::view('/oficina/frigorifico/calendario-embarques', 'office.shipment-calendar');
 Route::view('/oficina/accesos', 'office.accesses');
 Route::view('/oficina/materiales', 'office.materials', [
     'navigationOffice' => 'resumen',

@@ -216,6 +216,9 @@ class ServicioReinicioOperacional
                 'folios' => (clone $folios)->count(),
                 'validaciones_pallet' => $this->validacionesPallet($temporada)->count(),
                 'cargas' => (clone $cargas)->count(),
+                'embarques' => DB::table('embarques')
+                    ->where('temporada_id', $temporada->id)
+                    ->count(),
                 'asignaciones_carga' => DB::table('carga_folios')
                     ->whereIn('carga_id', clone $cargas)
                     ->count(),
@@ -335,6 +338,18 @@ class ServicioReinicioOperacional
             ->delete();
         $eliminados['reservas_carga'] = DB::table('reservas_carga_folio')
             ->whereIn('carga_folio_id', clone $asignacionesCarga)
+            ->delete();
+        $embarques = DB::table('embarques')
+            ->select('id')
+            ->where('temporada_id', $temporada->id);
+        $eliminados['eventos_embarque'] = DB::table('eventos_embarque')
+            ->whereIn('embarque_id', clone $embarques)
+            ->delete();
+        $eliminados['instructivos_embarque'] = DB::table('instructivos_embarque')
+            ->whereIn('embarque_id', clone $embarques)
+            ->delete();
+        $eliminados['embarques'] = DB::table('embarques')
+            ->where('temporada_id', $temporada->id)
             ->delete();
         $eliminados['eventos_carga'] = DB::table('eventos_carga')
             ->whereIn('carga_id', clone $cargas)

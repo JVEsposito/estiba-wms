@@ -142,6 +142,10 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeGestionarCargas($usuario),
         );
         Gate::define(
+            'autorizar-sobrecupo-embarques',
+            fn (User $usuario): bool => $alcance->puedeAutorizarSobrecupoEmbarques($usuario),
+        );
+        Gate::define(
             'consultar-cargas-operacion',
             fn (User $usuario): bool => $alcance->puedeConsultarCargas($usuario),
         );

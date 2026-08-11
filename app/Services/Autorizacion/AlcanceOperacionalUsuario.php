@@ -197,6 +197,14 @@ class AlcanceOperacionalUsuario
         ], 'frigorifico.cargas');
     }
 
+    public function puedeAutorizarSobrecupoEmbarques(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+        ], 'frigorifico.cargas');
+    }
+
     public function puedeConsultarCargas(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -795,6 +803,7 @@ class AlcanceOperacionalUsuario
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),
             'puede_consultar_catalogo_cargas' => $this->puedeConsultarCatalogoCargas($usuario),
             'puede_gestionar_cargas' => $this->puedeGestionarCargas($usuario),
+            'puede_autorizar_sobrecupo_embarques' => $this->puedeAutorizarSobrecupoEmbarques($usuario),
             'puede_reportar_incidencias_carga' => $this->puedeReportarIncidenciasCarga($usuario),
             'puede_resolver_comercialmente_carga' => $this->puedeResolverComercialmenteCarga($usuario),
             'puede_resolver_reparacion_carga' => $this->puedeResolverReparacionCarga($usuario),
