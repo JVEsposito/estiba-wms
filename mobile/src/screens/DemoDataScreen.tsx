@@ -17,12 +17,21 @@ import {
 import {
   createDemoClient,
   createDemoFolio,
+  createDemoMaster,
   deleteDemoClient,
   deleteDemoFolio,
+  deleteDemoMaster,
   DemoDataset,
   loadDemoDataset,
   resetDemoDatabase,
+  resetDemoOperationalData,
+  setDemoMasterActive,
 } from '../demo/demoDatabase';
+import {
+  DEMO_MASTER_CATEGORIES,
+  DEMO_MASTER_CATEGORY_LABELS,
+  DemoMasterCategory,
+} from '../demo/demoMasterCatalog';
 import {
   cancelDemoLoad,
   changeDemoLoadPriority,
@@ -37,6 +46,9 @@ import { colors } from '../theme/colors';
 const emptyDataset: DemoDataset = {
   clients: [],
   folios: [],
+  masters: [],
+  activeMasters: 0,
+  localMasters: 0,
   activeLoads: 0,
   auditEntries: 0,
   operationalMovements: 0,
@@ -70,6 +82,11 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
   const [species, setSpecies] = useState('Cereza');
   const [variety, setVariety] = useState('');
   const [boxes, setBoxes] = useState('');
+
+  const [masterCategory, setMasterCategory] = useState<DemoMasterCategory>('especies');
+  const [masterCode, setMasterCode] = useState('');
+  const [masterName, setMasterName] = useState('');
+  const [masterDetail, setMasterDetail] = useState('');
 
   const [loadExternalOrder, setLoadExternalOrder] = useState('');
   const [loadObservation, setLoadObservation] = useState('');
@@ -136,6 +153,20 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
       setVariety('');
       setBoxes('');
     }, 'Folio guardado en la tablet.');
+  }
+
+  async function addMaster() {
+    await mutate(async () => {
+      await createDemoMaster({
+        category: masterCategory,
+        code: masterCode,
+        name: masterName,
+        detail: masterDetail,
+      });
+      setMasterCode('');
+      setMasterName('');
+      setMasterDetail('');
+    }, `${DEMO_MASTER_CATEGORY_LABELS[masterCategory]}: registro guardado en la tablet.`);
   }
 
   function toggleLoadFolio(folioId: string) {
@@ -208,14 +239,31 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
     );
   }
 
-  function confirmReset() {
+  function confirmOperationalReset() {
     Alert.alert(
-      'Restaurar escenario inicial',
-      'Se borrarán todos los datos que ingresaste en esta APK y volverán los ejemplos iniciales.',
+      'Preparar nueva demostración',
+      'Se restaurará el escenario ficticio de folios, cámaras y cargas. Tus clientes y maestros locales se conservarán.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Restaurar',
+          text: 'Preparar demo',
+          onPress: () => void mutate(
+            resetDemoOperationalData,
+            'Nueva demostración preparada; la base maestra fue conservada.',
+          ),
+        },
+      ],
+    );
+  }
+
+  function confirmFullReset() {
+    Alert.alert(
+      'Restaurar toda la base inicial',
+      'También se borrarán los clientes y maestros que agregaste en esta tablet. Los ejemplos precargados volverán a su estado original.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Restaurar todo',
           style: 'destructive',
           onPress: () => void mutate(resetDemoDatabase, 'Escenario inicial restaurado.'),
         },
@@ -258,6 +306,8 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
         </View>
 
         <View style={styles.metrics}>
+          <Metric label="Datos maestros" value={dataset.masters.length + dataset.clients.length} />
+          <Metric label="Maestros agregados" value={dataset.localMasters} />
           <Metric label="Clientes" value={dataset.clients.length} />
           <Metric label="Folios" value={dataset.folios.length} />
           <Metric label="Cargas activas" value={dataset.activeLoads} />
@@ -267,6 +317,91 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
 
         {error ? <Message tone="error" text={error} /> : null}
         {notice ? <Message tone="success" text={notice} /> : null}
+
+        <View style={styles.privacyPanel}>
+          <View style={styles.privacyIcon}><Text style={styles.privacyIconText}>✓</Text></View>
+          <View style={styles.privacyCopy}>
+            <Text style={styles.privacyTitle}>Base maestra segura y persistente</Text>
+            <Text style={styles.privacyText}>
+              La APK incluye catálogos ficticios editables y conserva tus cambios en SQLite. No contiene usuarios,
+              contraseñas, folios, inventario, recepciones, procesos, cargas ni movimientos de la operación real.
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.masterWorkspace, wide && styles.masterWorkspaceWide]}>
+          <View style={styles.masterCreator}>
+            <Text style={styles.cardEyebrow}>BASE MAESTRA DEMO</Text>
+            <Text style={styles.cardTitle}>Agregar dato maestro</Text>
+            <Text style={styles.cardCopy}>
+              Los registros que agregues quedan disponibles para los módulos Demo actuales y siguientes.
+            </Text>
+            <Text style={styles.fieldLabel}>Tipo de maestro</Text>
+            <View style={styles.choiceRow}>
+              {DEMO_MASTER_CATEGORIES.map((category) => (
+                <Pressable
+                  key={category}
+                  onPress={() => setMasterCategory(category)}
+                  style={[styles.choice, masterCategory === category && styles.choiceSelected]}
+                >
+                  <Text style={[styles.choiceText, masterCategory === category && styles.choiceTextSelected]}>
+                    {DEMO_MASTER_CATEGORY_LABELS[category]}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <DemoField label="Código" onChangeText={setMasterCode} placeholder="COD-DEMO" value={masterCode} />
+            <DemoField label="Nombre" onChangeText={setMasterName} placeholder="Nombre demostrativo" value={masterName} />
+            <DemoField label="Detalle" onChangeText={setMasterDetail} placeholder="Unidad, capacidad u observación" value={masterDetail} />
+            <PrimaryButton busy={busy} label="Guardar dato maestro" onPress={() => void addMaster()} />
+          </View>
+
+          <View style={styles.masterListPanel}>
+            <View style={styles.listHeader}>
+              <View>
+                <Text style={styles.cardEyebrow}>PRECARGADOS + LOCALES</Text>
+                <Text style={styles.listTitle}>{DEMO_MASTER_CATEGORY_LABELS[masterCategory]}</Text>
+              </View>
+              <Text style={styles.count}>
+                {dataset.masters.filter((record) => record.category === masterCategory).length}
+              </Text>
+            </View>
+            {dataset.masters
+              .filter((record) => record.category === masterCategory)
+              .map((record) => (
+                <View key={record.id} style={[styles.listRow, !record.active && styles.inactiveRow]}>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowTitle}>{record.code} · {record.name}</Text>
+                    <Text style={styles.rowMeta}>
+                      {record.detail || 'Sin detalle'} · {record.source === 'preloaded' ? 'precargado' : 'creado en tablet'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void mutate(
+                      () => setDemoMasterActive(record.id, !record.active),
+                      `${record.code} quedó ${record.active ? 'inactivo' : 'activo'}.`,
+                    )}
+                    style={styles.toggleButton}
+                  >
+                    <Text style={styles.toggleButtonText}>{record.active ? 'Desactivar' : 'Activar'}</Text>
+                  </Pressable>
+                  {record.source === 'local' ? (
+                    <Pressable
+                      disabled={busy}
+                      onPress={() => void mutate(
+                        () => deleteDemoMaster(record.id),
+                        `${record.code} eliminado de la base local.`,
+                      )}
+                      style={styles.deleteButton}
+                    >
+                      <Text style={styles.deleteButtonText}>Eliminar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+          </View>
+        </View>
 
         <View style={[styles.forms, wide && styles.formsWide]}>
           <View style={styles.card}>
@@ -537,11 +672,18 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
         <View style={styles.resetPanel}>
           <View style={styles.resetCopy}>
             <Text style={styles.resetTitle}>¿Terminaste una demostración?</Text>
-            <Text style={styles.resetText}>Restaura los datos ficticios iniciales y deja la tablet lista para la próxima.</Text>
+            <Text style={styles.resetText}>
+              Prepara nuevamente folios, cámaras y cargas ficticias sin borrar clientes ni maestros.
+            </Text>
           </View>
-          <Pressable disabled={busy} onPress={confirmReset} style={styles.resetButton}>
-            <Text style={styles.resetButtonText}>Restaurar escenario</Text>
-          </Pressable>
+          <View style={styles.resetActions}>
+            <Pressable disabled={busy} onPress={confirmOperationalReset} style={styles.resetButton}>
+              <Text style={styles.resetButtonText}>Preparar nueva demo</Text>
+            </Pressable>
+            <Pressable disabled={busy} onPress={confirmFullReset} style={styles.fullResetButton}>
+              <Text style={styles.fullResetButtonText}>Restaurar todo</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -628,6 +770,16 @@ const styles = StyleSheet.create({
   messageError: { borderColor: colors.red, backgroundColor: '#421B21' },
   messageSuccess: { borderColor: colors.greenDark, backgroundColor: '#10261B' },
   messageText: { color: colors.text, fontSize: 11, fontWeight: '800' },
+  privacyPanel: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16, borderWidth: 1, borderColor: colors.greenDark, borderRadius: 14, backgroundColor: '#10261B' },
+  privacyIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: colors.green },
+  privacyIconText: { color: colors.accentText, fontSize: 17, fontWeight: '900' },
+  privacyCopy: { flex: 1 },
+  privacyTitle: { color: colors.text, fontSize: 13, fontWeight: '900' },
+  privacyText: { marginTop: 3, color: colors.muted, fontSize: 10, lineHeight: 15 },
+  masterWorkspace: { gap: 16 },
+  masterWorkspaceWide: { flexDirection: 'row', alignItems: 'flex-start' },
+  masterCreator: { flex: 1, padding: 20, borderWidth: 1, borderColor: colors.greenDark, borderRadius: 16, backgroundColor: colors.panel },
+  masterListPanel: { flex: 1, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.panel },
   forms: { gap: 16 },
   formsWide: { flexDirection: 'row' },
   card: { flex: 1, padding: 20, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.panel },
@@ -690,15 +842,21 @@ const styles = StyleSheet.create({
   listTitle: { marginTop: 4, color: colors.text, fontSize: 18, fontWeight: '900' },
   count: { color: colors.cyan, fontSize: 25, fontWeight: '900' },
   listRow: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  inactiveRow: { opacity: 0.55 },
   rowCopy: { flex: 1 },
   rowTitle: { color: colors.text, fontSize: 11, fontWeight: '900' },
   rowMeta: { marginTop: 4, color: colors.muted, fontSize: 9 },
   deleteButton: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: colors.red, borderRadius: 8 },
   deleteButtonText: { color: colors.red, fontSize: 9, fontWeight: '900' },
+  toggleButton: { paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderColor: colors.cyanDark, borderRadius: 8 },
+  toggleButtonText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
   resetPanel: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: 18, borderWidth: 1, borderColor: colors.amberDark, borderRadius: 15, backgroundColor: '#241B10' },
   resetCopy: { flex: 1, minWidth: 240 },
   resetTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
   resetText: { marginTop: 4, color: colors.muted, fontSize: 10 },
   resetButton: { paddingHorizontal: 15, paddingVertical: 11, borderWidth: 1, borderColor: colors.amber, borderRadius: 9 },
   resetButtonText: { color: colors.amber, fontSize: 10, fontWeight: '900' },
+  resetActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  fullResetButton: { paddingHorizontal: 15, paddingVertical: 11, borderWidth: 1, borderColor: colors.red, borderRadius: 9 },
+  fullResetButtonText: { color: colors.red, fontSize: 10, fontWeight: '900' },
 });

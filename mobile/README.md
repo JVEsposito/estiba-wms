@@ -93,10 +93,31 @@ La variante **Estiba WMS Demo** utiliza el paquete Android `cl.estiba.wms.demo`,
 
 Incluye un escenario ficticio inicial y una administración local desde la que se pueden:
 
+- consultar y ampliar una base maestra precargada con temporadas, proveedores, especies,
+  variedades, calibres, envases, materiales, destinos, túneles y perfiles de impresión;
 - crear y eliminar clientes;
 - crear y eliminar folios con especie, variedad y cajas;
 - conservar los cambios después de cerrar o reiniciar la app;
-- restaurar el escenario inicial antes de otra presentación.
+- preparar otra demostración sin borrar los maestros agregados;
+- restaurar toda la base inicial cuando se necesite borrar también las personalizaciones.
+
+### Política de datos comerciales
+
+La precarga conserva la **estructura útil de los maestros**, pero utiliza identidades ficticias.
+La APK Demo no incorpora una copia de los datos operativos de Laravel/MySQL.
+
+| Se conserva en SQLite Demo | Se excluye siempre de la precarga |
+| --- | --- |
+| temporadas y catálogos de producto | usuarios, correos, contraseñas y tokens |
+| especies, variedades, calibres y envases | folios reales y sus ubicaciones actuales |
+| materiales, destinos y centros de costo ficticios | inventario, saldos y deudas reales |
+| configuración ficticia de túneles e impresión | recepciones, validaciones y procesos activos |
+| clientes y maestros creados en la propia tablet | cargas, despachos, retornos y movimientos reales |
+
+Los registros agregados desde **Administración Demo** quedan marcados como locales y persisten
+entre cierres y reinicios. **Preparar nueva demo** restaura únicamente el escenario operacional
+ficticio y conserva esos maestros. **Restaurar todo** elimina también las personalizaciones y
+regresa al catálogo seguro incluido en la APK.
 
 El motor operativo local también permite:
 
@@ -120,7 +141,9 @@ El flujo local de cargas de frío permite además:
 - reportar incidencias y enviar folios a un andén con operaciones idempotentes;
 - conservar cargas, alertas e historial después de cerrar o reiniciar la APK.
 
-El botón **Restaurar escenario** reinicia conjuntamente maestros, folios, cámaras, posiciones, sesiones, movimientos, cargas, notificaciones y auditoría local.
+El botón **Preparar nueva demo** reinicia folios, cámaras, posiciones, sesiones, movimientos,
+cargas, notificaciones y auditoría local, pero conserva clientes y maestros. El botón
+**Restaurar todo** reinicia además clientes y catálogos personalizados.
 
 Credenciales sugeridas —el modo local sólo exige que los tres campos estén completos—:
 
@@ -147,14 +170,16 @@ npm run build:apk:demo
 
 `expo-sqlite` es una dependencia nativa. La primera instalación de esta variante requiere generar una APK nueva; no puede agregarse a una APK anterior por OTA. Al desinstalar **Estiba WMS Demo**, Android también elimina su base local.
 
-Prueba manual mínima del motor local:
+Prueba manual mínima de persistencia comercial y del motor local:
 
-1. Crea un cliente y un folio desde **Administración Demo**.
-2. Cambia a **Operación frigorífico** y abre `CAM-01`.
+1. Agrega un dato maestro y un cliente desde **Administración Demo**.
+2. Crea un folio, cambia a **Operación frigorífico** y abre `CAM-01`.
 3. Selecciona una posición libre, busca el folio creado y confirma su ubicación.
 4. Muévelo a otra posición y comprueba el historial.
-5. Cierra por completo la aplicación, vuelve a entrar y confirma que la ubicación y el historial permanecen.
-6. Regresa a **Administración Demo** y utiliza **Restaurar escenario** para recuperar los datos iniciales.
+5. Cierra por completo la aplicación, vuelve a entrar y confirma que los datos permanecen.
+6. Regresa a **Administración Demo** y utiliza **Preparar nueva demo**.
+7. Confirma que volvió el escenario operativo inicial y que el maestro y el cliente agregados siguen presentes.
+8. Utiliza **Restaurar todo** y confirma que las personalizaciones desaparecen.
 
 Prueba manual del flujo de cargas local:
 

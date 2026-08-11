@@ -6,9 +6,14 @@ import {
   DEMO_OPERATIONAL_STATE_KEY,
   DemoOperationalState,
 } from './demoOperationalSeed';
+import {
+  DEMO_MASTER_CATALOG_VERSION,
+  DEMO_MASTER_SEED,
+  DemoMasterCategory,
+} from './demoMasterCatalog';
 
 const DATABASE_NAME = 'estiba-wms-demo.db';
-const SEED_VERSION = '2';
+const SEED_VERSION = '3';
 
 export type DemoDatabaseExecutor = Pick<
   SQLiteDatabase,
@@ -37,9 +42,23 @@ export type DemoFolio = {
   createdAt: string;
 };
 
+export type DemoMasterRecord = {
+  id: string;
+  category: DemoMasterCategory;
+  code: string;
+  name: string;
+  detail: string;
+  active: boolean;
+  source: 'preloaded' | 'local';
+  createdAt: string;
+};
+
 export type DemoDataset = {
   clients: DemoClient[];
   folios: DemoFolio[];
+  masters: DemoMasterRecord[];
+  activeMasters: number;
+  localMasters: number;
   activeLoads: number;
   auditEntries: number;
   operationalMovements: number;
@@ -57,6 +76,13 @@ export type CreateDemoFolioInput = {
   species: string;
   variety: string;
   boxes: number;
+};
+
+export type CreateDemoMasterInput = {
+  category: DemoMasterCategory;
+  code: string;
+  name: string;
+  detail: string;
 };
 
 type ClientRow = {
@@ -78,6 +104,17 @@ type FolioRow = {
   variety: string;
   boxes: number;
   status: string;
+  created_at: string;
+};
+
+type MasterRow = {
+  id: string;
+  category: DemoMasterCategory;
+  code: string;
+  name: string;
+  detail: string;
+  active: number;
+  source: 'preloaded' | 'local';
   created_at: string;
 };
 
@@ -123,8 +160,7 @@ export async function writeDemoAudit(
   );
 }
 
-async function seed(executor: DemoDatabaseExecutor): Promise<void> {
-  const createdAt = nowIso();
+async function seedClients(executor: DemoDatabaseExecutor, createdAt: string): Promise<void> {
   const clients = [
     ['client-demo-01', 'AGRO-SUR', 'Agrícola Sur Demo', 'AS'],
     ['client-demo-02', 'FRUTOS-ANDINOS', 'Frutos Andinos Demo', 'FA'],
@@ -133,7 +169,7 @@ async function seed(executor: DemoDatabaseExecutor): Promise<void> {
 
   for (const [id, code, name, prefix] of clients) {
     await executor.runAsync(
-      `INSERT INTO demo_clients (id, code, name, folio_prefix, active, created_at)
+      `INSERT OR IGNORE INTO demo_clients (id, code, name, folio_prefix, active, created_at)
        VALUES (?, ?, ?, ?, 1, ?)`,
       id,
       code,
@@ -142,7 +178,9 @@ async function seed(executor: DemoDatabaseExecutor): Promise<void> {
       createdAt,
     );
   }
+}
 
+async function seedFolios(executor: DemoDatabaseExecutor, createdAt: string): Promise<void> {
   const folios = [
     ['folio-demo-01', 'DEMO-000001', 'client-demo-01', 'Cereza', 'Lapins', 120, 'pendiente'],
     ['folio-demo-02', 'DEMO-000002', 'client-demo-01', 'Cereza', 'Santina', 96, 'validado'],
@@ -164,12 +202,37 @@ async function seed(executor: DemoDatabaseExecutor): Promise<void> {
       createdAt,
     );
   }
+}
+
+async function seedMasterCatalog(executor: DemoDatabaseExecutor, createdAt: string): Promise<void> {
+  for (const record of DEMO_MASTER_SEED) {
+    await executor.runAsync(
+      `INSERT OR IGNORE INTO demo_master_records
+        (id, category, code, name, detail, active, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 1, 'preloaded', ?, ?)`,
+      record.id,
+      record.category,
+      record.code,
+      record.name,
+      record.detail,
+      createdAt,
+      createdAt,
+    );
+  }
 
   await executor.runAsync(
-    'INSERT INTO demo_meta (key, value) VALUES (?, ?)',
-    'seed_version',
-    SEED_VERSION,
+    `INSERT OR REPLACE INTO demo_meta (key, value) VALUES ('master_catalog_version', ?)`,
+    DEMO_MASTER_CATALOG_VERSION,
   );
+}
+
+async function seedOperationalScenario(
+  executor: DemoDatabaseExecutor,
+  createdAt: string,
+): Promise<void> {
+  await seedClients(executor, createdAt);
+  await seedFolios(executor, createdAt);
+
   const operationalState = createInitialOperationalState();
   await executor.runAsync(
     `INSERT INTO demo_operational_state (key, state_json, updated_at)
@@ -179,6 +242,17 @@ async function seed(executor: DemoDatabaseExecutor): Promise<void> {
     createdAt,
   );
   await seedLoads(executor, operationalState, createdAt);
+}
+
+async function seed(executor: DemoDatabaseExecutor): Promise<void> {
+  const createdAt = nowIso();
+  await seedMasterCatalog(executor, createdAt);
+  await seedOperationalScenario(executor, createdAt);
+  await executor.runAsync(
+    'INSERT INTO demo_meta (key, value) VALUES (?, ?)',
+    'seed_version',
+    SEED_VERSION,
+  );
 }
 
 async function seedLoads(
@@ -285,6 +359,19 @@ export async function initializeDemoDatabase(): Promise<void> {
         FOREIGN KEY (client_id) REFERENCES demo_clients(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS demo_master_records (
+        id TEXT PRIMARY KEY NOT NULL,
+        category TEXT NOT NULL,
+        code TEXT NOT NULL,
+        name TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '',
+        active INTEGER NOT NULL DEFAULT 1,
+        source TEXT NOT NULL DEFAULT 'local',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (category, code)
+      );
+
       CREATE TABLE IF NOT EXISTS demo_audit (
         id TEXT PRIMARY KEY NOT NULL,
         action TEXT NOT NULL,
@@ -351,6 +438,8 @@ export async function initializeDemoDatabase(): Promise<void> {
       );
 
       CREATE INDEX IF NOT EXISTS demo_folios_client_idx ON demo_folios(client_id);
+      CREATE INDEX IF NOT EXISTS demo_master_records_category_idx
+        ON demo_master_records(category, active, name);
       CREATE INDEX IF NOT EXISTS demo_audit_created_idx ON demo_audit(created_at);
       CREATE INDEX IF NOT EXISTS demo_loads_status_idx ON demo_loads(status, updated_at);
       CREATE INDEX IF NOT EXISTS demo_load_assignments_load_idx ON demo_load_assignments(load_id);
@@ -370,6 +459,7 @@ export async function initializeDemoDatabase(): Promise<void> {
       });
     } else if (version.value !== SEED_VERSION) {
       await db.withExclusiveTransactionAsync(async (transaction) => {
+        await seedMasterCatalog(transaction, nowIso());
         const operational = await transaction.getFirstAsync<{ state_json: string }>(
           'SELECT state_json FROM demo_operational_state WHERE key = ?',
           DEMO_OPERATIONAL_STATE_KEY,
@@ -411,7 +501,7 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
   await initializeDemoDatabase();
   const db = await database();
 
-  const [clientRows, folioRows, loadRow, auditRow, operationalRow] = await Promise.all([
+  const [clientRows, folioRows, masterRows, loadRow, auditRow, operationalRow] = await Promise.all([
     db.getAllAsync<ClientRow>('SELECT * FROM demo_clients ORDER BY name ASC'),
     db.getAllAsync<FolioRow>(`
       SELECT
@@ -429,6 +519,9 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       INNER JOIN demo_clients c ON c.id = f.client_id
       ORDER BY f.created_at DESC, f.number DESC
     `),
+    db.getAllAsync<MasterRow>(
+      'SELECT * FROM demo_master_records ORDER BY category ASC, active DESC, name ASC',
+    ),
     db.getFirstAsync<{ total: number }>(
       `SELECT COUNT(*) AS total FROM demo_loads WHERE status != 'cancelled'`,
     ),
@@ -460,10 +553,103 @@ export async function loadDemoDataset(): Promise<DemoDataset> {
       status: row.status,
       createdAt: row.created_at,
     })),
+    masters: masterRows.map((row) => ({
+      id: row.id,
+      category: row.category,
+      code: row.code,
+      name: row.name,
+      detail: row.detail,
+      active: row.active === 1,
+      source: row.source,
+      createdAt: row.created_at,
+    })),
+    activeMasters: masterRows.filter((row) => row.active === 1).length,
+    localMasters: masterRows.filter((row) => row.source === 'local').length,
     activeLoads: loadRow?.total ?? 0,
     auditEntries: auditRow?.total ?? 0,
     operationalMovements: operationalMovementCount(operationalRow?.state_json),
   };
+}
+
+export async function createDemoMaster(input: CreateDemoMasterInput): Promise<void> {
+  await initializeDemoDatabase();
+  const db = await database();
+  const category = required(input.category, 'La categoría') as DemoMasterCategory;
+  const code = normalizedCode(input.code, 'El código');
+  const name = required(input.name, 'El nombre');
+  const detail = input.detail.trim();
+  const existing = await db.getFirstAsync<{ id: string }>(
+    'SELECT id FROM demo_master_records WHERE category = ? AND code = ?',
+    category,
+    code,
+  );
+  if (existing) throw new Error(`Ya existe ${code} en este maestro.`);
+
+  const id = Crypto.randomUUID();
+  const createdAt = nowIso();
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.runAsync(
+      `INSERT INTO demo_master_records
+        (id, category, code, name, detail, active, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 1, 'local', ?, ?)`,
+      id,
+      category,
+      code,
+      name,
+      detail,
+      createdAt,
+      createdAt,
+    );
+    await writeDemoAudit(transaction, 'crear', `maestro:${category}`, id, `${code} · ${name}`);
+  });
+}
+
+export async function setDemoMasterActive(id: string, active: boolean): Promise<void> {
+  await initializeDemoDatabase();
+  const db = await database();
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    const record = await transaction.getFirstAsync<Pick<MasterRow, 'category' | 'code' | 'name'>>(
+      'SELECT category, code, name FROM demo_master_records WHERE id = ?',
+      id,
+    );
+    if (!record) throw new Error('El registro maestro ya no existe.');
+    await transaction.runAsync(
+      'UPDATE demo_master_records SET active = ?, updated_at = ? WHERE id = ?',
+      active ? 1 : 0,
+      nowIso(),
+      id,
+    );
+    await writeDemoAudit(
+      transaction,
+      active ? 'activar' : 'desactivar',
+      `maestro:${record.category}`,
+      id,
+      `${record.code} · ${record.name}`,
+    );
+  });
+}
+
+export async function deleteDemoMaster(id: string): Promise<void> {
+  await initializeDemoDatabase();
+  const db = await database();
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    const record = await transaction.getFirstAsync<Pick<MasterRow, 'source' | 'category' | 'code' | 'name'>>(
+      'SELECT source, category, code, name FROM demo_master_records WHERE id = ?',
+      id,
+    );
+    if (!record) throw new Error('El registro maestro ya no existe.');
+    if (record.source === 'preloaded') {
+      throw new Error('Los registros precargados se desactivan; solo los creados en la tablet se pueden eliminar.');
+    }
+    await transaction.runAsync('DELETE FROM demo_master_records WHERE id = ?', id);
+    await writeDemoAudit(
+      transaction,
+      'eliminar',
+      `maestro:${record.category}`,
+      id,
+      `${record.code} · ${record.name}`,
+    );
+  });
 }
 
 export async function openDemoDatabase(): Promise<SQLiteDatabase> {
@@ -647,9 +833,35 @@ export async function resetDemoDatabase(): Promise<void> {
       DELETE FROM demo_operational_state;
       DELETE FROM demo_folios;
       DELETE FROM demo_clients;
+      DELETE FROM demo_master_records;
       DELETE FROM demo_meta;
     `);
     await seed(transaction);
     await writeDemoAudit(transaction, 'reiniciar', 'demo', 'local', 'Escenario inicial restaurado');
+  });
+}
+
+export async function resetDemoOperationalData(): Promise<void> {
+  await initializeDemoDatabase();
+  const db = await database();
+  await db.withExclusiveTransactionAsync(async (transaction) => {
+    await transaction.execAsync(`
+      DELETE FROM demo_audit;
+      DELETE FROM demo_notifications;
+      DELETE FROM demo_load_operations;
+      DELETE FROM demo_load_assignments;
+      DELETE FROM demo_loads;
+      DELETE FROM demo_operational_state;
+      DELETE FROM demo_folios;
+      DELETE FROM demo_meta WHERE key = 'load_sequence';
+    `);
+    await seedOperationalScenario(transaction, nowIso());
+    await writeDemoAudit(
+      transaction,
+      'reiniciar_operacion',
+      'demo',
+      'local',
+      'Escenario operativo restaurado; maestros y clientes conservados',
+    );
   });
 }
