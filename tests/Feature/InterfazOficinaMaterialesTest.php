@@ -94,6 +94,9 @@ class InterfazOficinaMaterialesTest extends TestCase
             ->assertSee('Inventario CC')
             ->assertSee('id="custodyFilters"', false)
             ->assertSee('id="custodyExport"', false)
+            ->assertSee('id="custodyHistoryFilters"', false)
+            ->assertSee('id="custodyHistoryExport"', false)
+            ->assertSee('Movimientos: entregas, devoluciones y transferencias')
             ->assertDontSee('id="custodyLoginForm"', false)
             ->assertDontSee('Correo electrónico');
 
@@ -110,6 +113,11 @@ class InterfazOficinaMaterialesTest extends TestCase
             $this->assertStringContainsString($filtro, $script);
         }
         $this->assertStringContainsString('/api/materiales/almacenes/exportar', $script);
+        $this->assertStringContainsString(
+            '/api/materiales/almacenes/movimientos/exportar',
+            $script,
+        );
+        $this->assertStringContainsString('historyExportParameters()', $script);
         $this->assertStringContainsString('function movementRows()', $script);
         $this->assertStringContainsString('function renderFoliosForOrigin()', $script);
         $this->assertStringContainsString('Disponible:', $script);
