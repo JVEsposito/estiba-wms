@@ -7,6 +7,7 @@ use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\TipoAlmacenMaterial;
+use App\Enums\TipoMovimientoAlmacenMaterial;
 use App\Models\AlmacenMaterial;
 use App\Models\MovimientoAlmacenMaterial;
 use App\Models\SaldoMaterialAlmacen;
@@ -243,6 +244,115 @@ class ServicioConsultaAlmacenesMaterial
 
     public function kardex(int $limite = 250): Collection
     {
+        return $this->consultaKardex()
+            ->limit($limite)
+            ->get()
+            ->map(fn (MovimientoAlmacenMaterial $movimiento): array => $this->movimientoKardex(
+                $movimiento,
+            ));
+    }
+
+    /**
+     * @param  array{categoria?:string|null,desde?:string|null,hasta?:string|null}  $filtros
+     * @return array{titulo:string,archivo:string,columnas:array<int,array{clave:string,titulo:string,ancho:int,tipo?:string}>,filas:Collection<int,array<string,mixed>>}
+     */
+    public function exportacionKardex(array $filtros): array
+    {
+        $categoria = $filtros['categoria'] ?? 'todos';
+        $etiquetaCategoria = match ($categoria) {
+            'movimientos' => 'Movimientos',
+            'consumos' => 'Consumos',
+            'ajustes' => 'Ajustes',
+            default => 'Historial completo',
+        };
+
+        return [
+            'titulo' => "Inventario CC · {$etiquetaCategoria}",
+            'archivo' => 'Inventario_CC_'.str_replace(' ', '_', $etiquetaCategoria),
+            'columnas' => [
+                ['clave' => 'fecha_hora', 'titulo' => 'Fecha y hora', 'ancho' => 20, 'tipo' => 'fecha_hora'],
+                ['clave' => 'tipo', 'titulo' => 'Tipo', 'ancho' => 16],
+                ['clave' => 'folio', 'titulo' => 'Folio', 'ancho' => 18],
+                ['clave' => 'lote', 'titulo' => 'Lote', 'ancho' => 18],
+                ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 28],
+                ['clave' => 'item', 'titulo' => 'Ítem', 'ancho' => 34],
+                ['clave' => 'cantidad', 'titulo' => 'Cantidad', 'ancho' => 15, 'tipo' => 'numero'],
+                ['clave' => 'unidad_medida', 'titulo' => 'Unidad', 'ancho' => 14],
+                ['clave' => 'almacen_origen', 'titulo' => 'Almacén origen', 'ancho' => 30],
+                ['clave' => 'almacen_destino', 'titulo' => 'Almacén destino', 'ancho' => 30],
+                ['clave' => 'saldo_origen_anterior', 'titulo' => 'Saldo origen anterior', 'ancho' => 20, 'tipo' => 'numero'],
+                ['clave' => 'saldo_origen_resultante', 'titulo' => 'Saldo origen resultante', 'ancho' => 22, 'tipo' => 'numero'],
+                ['clave' => 'saldo_destino_anterior', 'titulo' => 'Saldo destino anterior', 'ancho' => 21, 'tipo' => 'numero'],
+                ['clave' => 'saldo_destino_resultante', 'titulo' => 'Saldo destino resultante', 'ancho' => 23, 'tipo' => 'numero'],
+                ['clave' => 'total_empresa_anterior', 'titulo' => 'Total empresa anterior', 'ancho' => 21, 'tipo' => 'numero'],
+                ['clave' => 'total_empresa_resultante', 'titulo' => 'Total empresa resultante', 'ancho' => 23, 'tipo' => 'numero'],
+                ['clave' => 'centro_costo', 'titulo' => 'Centro de costo', 'ancho' => 20],
+                ['clave' => 'documento_relacionado', 'titulo' => 'Documento relacionado', 'ancho' => 24],
+                ['clave' => 'motivo', 'titulo' => 'Motivo / operación', 'ancho' => 36],
+                ['clave' => 'motivo_excepcion_fifo', 'titulo' => 'Justificación excepción FIFO', 'ancho' => 36],
+                ['clave' => 'usuario', 'titulo' => 'Usuario', 'ancho' => 24],
+                ['clave' => 'dispositivo', 'titulo' => 'Dispositivo', 'ancho' => 24],
+                ['clave' => 'operacion_id', 'titulo' => 'ID operación', 'ancho' => 38],
+            ],
+            'filas' => $this->consultaKardex($filtros)
+                ->get()
+                ->map(fn (MovimientoAlmacenMaterial $movimiento): array => [
+                    'fecha_hora' => $movimiento->ocurrido_at,
+                    'tipo' => match ($movimiento->tipo) {
+                        TipoMovimientoAlmacenMaterial::Entrega => 'Entrega',
+                        TipoMovimientoAlmacenMaterial::Transferencia => 'Transferencia',
+                        TipoMovimientoAlmacenMaterial::Devolucion => 'Devolución',
+                        TipoMovimientoAlmacenMaterial::Consumo => 'Consumo',
+                        TipoMovimientoAlmacenMaterial::Ajuste => 'Ajuste',
+                    },
+                    'folio' => $movimiento->folioMaterial->folio->numero_folio,
+                    'lote' => $movimiento->folioMaterial->lote ?: 'Sin lote',
+                    'cliente' => $this->etiqueta([
+                        'codigo' => $movimiento->item->cliente->codigo,
+                        'nombre' => $movimiento->item->cliente->nombre,
+                    ]),
+                    'item' => $this->etiqueta([
+                        'codigo' => $movimiento->item->codigo,
+                        'nombre' => $movimiento->item->nombre,
+                    ]),
+                    'cantidad' => $movimiento->cantidad,
+                    'unidad_medida' => $movimiento->folioMaterial->unidad_medida,
+                    'almacen_origen' => $this->etiquetaAlmacenMovimiento($movimiento->almacenOrigen),
+                    'almacen_destino' => $this->etiquetaAlmacenMovimiento($movimiento->almacenDestino),
+                    'saldo_origen_anterior' => $movimiento->saldo_origen_anterior,
+                    'saldo_origen_resultante' => $movimiento->saldo_origen_resultante,
+                    'saldo_destino_anterior' => $movimiento->saldo_destino_anterior,
+                    'saldo_destino_resultante' => $movimiento->saldo_destino_resultante,
+                    'total_empresa_anterior' => data_get($movimiento->metadatos, 'total_empresa_anterior'),
+                    'total_empresa_resultante' => data_get($movimiento->metadatos, 'total_empresa_resultante'),
+                    'centro_costo' => $movimiento->centro_costo,
+                    'documento_relacionado' => $movimiento->documento_relacionado,
+                    'motivo' => $movimiento->motivo,
+                    'motivo_excepcion_fifo' => data_get($movimiento->metadatos, 'motivo_excepcion_fifo'),
+                    'usuario' => $movimiento->usuario?->name,
+                    'dispositivo' => collect([
+                        $movimiento->dispositivo?->codigo,
+                        $movimiento->dispositivo?->nombre,
+                    ])->filter()->implode(' · '),
+                    'operacion_id' => $movimiento->operacion_id,
+                ]),
+        ];
+    }
+
+    /** @param array{categoria?:string|null,desde?:string|null,hasta?:string|null} $filtros */
+    private function consultaKardex(array $filtros = []): Builder
+    {
+        $tipos = match ($filtros['categoria'] ?? 'todos') {
+            'movimientos' => [
+                TipoMovimientoAlmacenMaterial::Entrega->value,
+                TipoMovimientoAlmacenMaterial::Transferencia->value,
+                TipoMovimientoAlmacenMaterial::Devolucion->value,
+            ],
+            'consumos' => [TipoMovimientoAlmacenMaterial::Consumo->value],
+            'ajustes' => [TipoMovimientoAlmacenMaterial::Ajuste->value],
+            default => null,
+        };
+
         return MovimientoAlmacenMaterial::query()
             ->with([
                 'folioMaterial.folio:id,numero_folio',
@@ -255,36 +365,53 @@ class ServicioConsultaAlmacenesMaterial
             ->whereHas('folioMaterial.folio', fn (Builder $folios) => $folios
                 ->whereHas('temporada', fn (Builder $temporadas) => $temporadas
                     ->where('activa', true)))
+            ->when($tipos !== null, fn (Builder $consulta) => $consulta->whereIn('tipo', $tipos))
+            ->when($filtros['desde'] ?? null, fn (Builder $consulta, string $desde) => $consulta
+                ->whereDate('ocurrido_at', '>=', $desde))
+            ->when($filtros['hasta'] ?? null, fn (Builder $consulta, string $hasta) => $consulta
+                ->whereDate('ocurrido_at', '<=', $hasta))
             ->latest('ocurrido_at')
-            ->limit($limite)
-            ->get()
-            ->map(fn (MovimientoAlmacenMaterial $movimiento): array => [
-                'id' => $movimiento->id,
-                'operacion_id' => $movimiento->operacion_id,
-                'tipo' => $movimiento->tipo->value,
-                'folio' => [
-                    'id' => $movimiento->folio_id,
-                    'numero_folio' => $movimiento->folioMaterial->folio->numero_folio,
-                ],
-                'item' => [
-                    'id' => $movimiento->item->id,
-                    'codigo' => $movimiento->item->codigo,
-                    'nombre' => $movimiento->item->nombre,
-                ],
-                'almacen_origen' => $this->almacenMovimiento($movimiento->almacenOrigen),
-                'almacen_destino' => $this->almacenMovimiento($movimiento->almacenDestino),
-                'cantidad' => $movimiento->cantidad,
-                'saldo_origen_anterior' => $movimiento->saldo_origen_anterior,
-                'saldo_origen_resultante' => $movimiento->saldo_origen_resultante,
-                'saldo_destino_anterior' => $movimiento->saldo_destino_anterior,
-                'saldo_destino_resultante' => $movimiento->saldo_destino_resultante,
-                'centro_costo' => $movimiento->centro_costo,
-                'motivo' => $movimiento->motivo,
-                'documento_relacionado' => $movimiento->documento_relacionado,
-                'usuario' => $movimiento->usuario?->name,
-                'dispositivo' => $movimiento->dispositivo?->codigo,
-                'ocurrido_at' => $movimiento->ocurrido_at?->toAtomString(),
-            ]);
+            ->latest('id');
+    }
+
+    private function movimientoKardex(MovimientoAlmacenMaterial $movimiento): array
+    {
+        return [
+            'id' => $movimiento->id,
+            'operacion_id' => $movimiento->operacion_id,
+            'tipo' => $movimiento->tipo->value,
+            'folio' => [
+                'id' => $movimiento->folio_id,
+                'numero_folio' => $movimiento->folioMaterial->folio->numero_folio,
+            ],
+            'item' => [
+                'id' => $movimiento->item->id,
+                'codigo' => $movimiento->item->codigo,
+                'nombre' => $movimiento->item->nombre,
+            ],
+            'almacen_origen' => $this->almacenMovimiento($movimiento->almacenOrigen),
+            'almacen_destino' => $this->almacenMovimiento($movimiento->almacenDestino),
+            'cantidad' => $movimiento->cantidad,
+            'saldo_origen_anterior' => $movimiento->saldo_origen_anterior,
+            'saldo_origen_resultante' => $movimiento->saldo_origen_resultante,
+            'saldo_destino_anterior' => $movimiento->saldo_destino_anterior,
+            'saldo_destino_resultante' => $movimiento->saldo_destino_resultante,
+            'centro_costo' => $movimiento->centro_costo,
+            'motivo' => $movimiento->motivo,
+            'documento_relacionado' => $movimiento->documento_relacionado,
+            'usuario' => $movimiento->usuario?->name,
+            'dispositivo' => $movimiento->dispositivo?->codigo,
+            'ocurrido_at' => $movimiento->ocurrido_at?->toAtomString(),
+        ];
+    }
+
+    private function etiquetaAlmacenMovimiento(?AlmacenMaterial $almacen): string
+    {
+        return $almacen
+            ? collect([$almacen->codigo, $almacen->nombre, $almacen->centro_costo])
+                ->filter()
+                ->implode(' · ')
+            : '';
     }
 
     private function filaSaldo(SaldoMaterialAlmacen $saldo): array

@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -99,6 +100,51 @@ class AlmacenMaterialController extends Controller
         return response()->json([
             'data' => $consulta->kardex((int) ($datos['limite'] ?? 250)),
         ]);
+    }
+
+    public function exportarMovimientos(
+        Request $request,
+        ServicioConsultaAlmacenesMaterial $consulta,
+        GeneradorLibroXlsx $generador,
+    ): BinaryFileResponse {
+        Gate::authorize('consultar-kardex-materiales');
+        $datos = $request->validate([
+            'categoria' => ['nullable', Rule::in(['todos', 'movimientos', 'consumos', 'ajustes'])],
+            'desde' => ['nullable', 'date'],
+            'hasta' => ['nullable', 'date'],
+        ]);
+        if (($datos['desde'] ?? null)
+            && ($datos['hasta'] ?? null)
+            && $datos['hasta'] < $datos['desde']) {
+            throw ValidationException::withMessages([
+                'hasta' => 'La fecha hasta debe ser igual o posterior a la fecha desde.',
+            ]);
+        }
+        $datos['categoria'] ??= 'todos';
+        $exportacion = $consulta->exportacionKardex($datos);
+        $periodo = collect([
+            $datos['desde'] ?? null,
+            $datos['hasta'] ?? null,
+        ])->filter()->implode(' a ');
+        $ruta = $generador->generar(
+            $exportacion['titulo'],
+            $exportacion['columnas'],
+            $exportacion['filas'],
+            [
+                'fecha_corte' => now()->toAtomString(),
+                'usuario' => $request->user()->name,
+                'temporada' => $periodo !== ''
+                    ? 'Temporada activa · Período '.$periodo
+                    : 'Temporada activa · Sin límite de fecha',
+            ],
+        );
+        $archivo = $exportacion['archivo'].'_'.now()->format('Y-m-d_Hi').'.xlsx';
+
+        return response()->download(
+            $ruta,
+            $archivo,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend();
     }
 
     public function store(

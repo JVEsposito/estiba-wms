@@ -408,6 +408,67 @@ async function exportInventory() {
     }
 }
 
+function historyExportParameters() {
+    const form = $('custodyHistoryFilters');
+    const params = new URLSearchParams({ categoria: form.elements.categoria.value });
+    for (const name of ['desde', 'hasta']) {
+        const value = form.elements[name].value;
+        if (value) params.set(name, value);
+    }
+
+    return params;
+}
+
+async function exportHistory() {
+    const form = $('custodyHistoryFilters');
+    const button = $('custodyHistoryExport');
+    const error = $('custodyHistoryError');
+    error.textContent = '';
+
+    if (form.elements.desde.value
+        && form.elements.hasta.value
+        && form.elements.desde.value > form.elements.hasta.value) {
+        error.textContent = 'La fecha desde no puede ser posterior a la fecha hasta.';
+        return;
+    }
+
+    button.disabled = true;
+    try {
+        const response = await fetch(`/api/materiales/almacenes/movimientos/exportar?${historyExportParameters()}`, {
+            headers: {
+                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                Authorization: `Bearer ${state.token}`,
+            },
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new ApiError(
+                Object.values(data?.errors || {}).flat()[0]
+                || data.message
+                || 'No fue posible exportar el historial de Inventario CC.',
+                response.status,
+            );
+        }
+        const blob = await response.blob();
+        const disposition = response.headers.get('content-disposition') || '';
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const fileName = match?.[1] || `Inventario_CC_Historial_${form.elements.categoria.value}.xlsx`;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    } catch (downloadError) {
+        if (handleAuthenticationError(downloadError)) return;
+        error.textContent = downloadError.message;
+    } finally {
+        button.disabled = false;
+    }
+}
+
 function movementRows() {
     const warehouses = new Map(
         (state.data?.almacenes || []).map((warehouse) => [warehouse.id, warehouse]),
@@ -557,6 +618,7 @@ $('custodyFiltersReset').addEventListener('click', () => {
     renderTable();
 });
 $('custodyExport').addEventListener('click', exportInventory);
+$('custodyHistoryExport').addEventListener('click', exportHistory);
 $('custodyReload').addEventListener('click', () => {
     load().catch((error) => {
         if (handleAuthenticationError(error)) return;

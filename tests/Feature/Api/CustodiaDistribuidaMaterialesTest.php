@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Services\Existencias\ServicioExistencias;
 use App\Services\Materiales\ServicioConsultaAlmacenesMaterial;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use LogicException;
@@ -298,6 +299,122 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         MovimientoAlmacenMaterial::query()->findOrFail($movimientoId)->update([
             'motivo' => 'Intento de modificación histórica',
         ]);
+    }
+
+    public function test_exporta_movimientos_consumos_y_ajustes_con_rango_de_fechas(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        $cliente = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail();
+        $item = $this->crearItem($administrador, $cliente);
+        $origen = $this->crearDestino($administrador, 'Packing Línea 1', 'PACK-01');
+        $destino = $this->crearDestino($administrador, 'Frigorífico', 'FRIO-01');
+        $folio = $this->crearFolio($item, 10);
+        $bodega = AlmacenMaterial::query()
+            ->where('codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
+            ->firstOrFail();
+        SaldoMaterialAlmacen::query()
+            ->where('folio_id', $folio->id)
+            ->where('almacen_material_id', $bodega->id)
+            ->update(['cantidad_actual' => 0]);
+        SaldoMaterialAlmacen::create([
+            'folio_id' => $folio->id,
+            'almacen_material_id' => $origen->id,
+            'cantidad_actual' => 10,
+            'cantidad_reservada' => 0,
+        ]);
+
+        Carbon::setTestNow('2026-08-09 09:00:00');
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo' => 'consumo',
+                'folio_id' => $folio->id,
+                'almacen_origen_id' => $origen->id,
+                'cantidad' => 2,
+                'motivo' => 'Consumo de prueba exportable',
+                'documento_relacionado' => 'CONSUMO-01',
+            ])
+            ->assertCreated();
+
+        Carbon::setTestNow('2026-08-10 10:00:00');
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo' => 'ajuste',
+                'folio_id' => $folio->id,
+                'almacen_origen_id' => $origen->id,
+                'cantidad' => -1,
+                'motivo' => 'Ajuste de prueba exportable',
+                'documento_relacionado' => 'AJUSTE-01',
+            ])
+            ->assertCreated();
+
+        Carbon::setTestNow('2026-08-11 11:00:00');
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo' => 'transferencia',
+                'folio_id' => $folio->id,
+                'almacen_origen_id' => $origen->id,
+                'almacen_destino_id' => $destino->id,
+                'cantidad' => 3,
+                'documento_relacionado' => 'TRANSFERENCIA-01',
+            ])
+            ->assertCreated();
+
+        $consulta = app(ServicioConsultaAlmacenesMaterial::class);
+        $this->assertSame(
+            ['Consumo'],
+            $consulta->exportacionKardex(['categoria' => 'consumos'])['filas']
+                ->pluck('tipo')
+                ->all(),
+        );
+        $this->assertSame(
+            ['Ajuste'],
+            $consulta->exportacionKardex(['categoria' => 'ajustes'])['filas']
+                ->pluck('tipo')
+                ->all(),
+        );
+        $this->assertSame(
+            ['Transferencia'],
+            $consulta->exportacionKardex(['categoria' => 'movimientos'])['filas']
+                ->pluck('tipo')
+                ->all(),
+        );
+        $this->assertSame(
+            ['Ajuste'],
+            $consulta->exportacionKardex([
+                'categoria' => 'todos',
+                'desde' => '2026-08-10',
+                'hasta' => '2026-08-10',
+            ])['filas']->pluck('tipo')->all(),
+        );
+
+        foreach ([
+            'todos' => 'Inventario_CC_Historial_completo_',
+            'movimientos' => 'Inventario_CC_Movimientos_',
+            'consumos' => 'Inventario_CC_Consumos_',
+            'ajustes' => 'Inventario_CC_Ajustes_',
+        ] as $categoria => $archivo) {
+            $respuesta = $this->conToken($tokenOficina)
+                ->get("/api/materiales/almacenes/movimientos/exportar?categoria={$categoria}")
+                ->assertOk()
+                ->assertHeader(
+                    'content-type',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                );
+            $this->assertStringContainsString(
+                $archivo,
+                (string) $respuesta->headers->get('content-disposition'),
+            );
+        }
+
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/almacenes/movimientos/exportar?desde=2026-08-11&hasta=2026-08-10')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('hasta');
+
+        Carbon::setTestNow();
     }
 
     public function test_esquema_vincula_todas_las_reservas_al_saldo_concreto(): void

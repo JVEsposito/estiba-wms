@@ -124,6 +124,27 @@
             <aside class="custody-card" id="custodyKardexPanel">
                 <p class="eyebrow">TRAZABILIDAD</p>
                 <h2>Kardex por almacén</h2>
+                <p>Consulta en pantalla los últimos 100 eventos o descarga el historial completo según tipo y período.</p>
+                <form class="custody-form" id="custodyHistoryFilters">
+                    <label class="wide">Historial a exportar
+                        <select name="categoria">
+                            <option value="todos">Todos los registros</option>
+                            <option value="movimientos">Movimientos: entregas, devoluciones y transferencias</option>
+                            <option value="consumos">Consumos</option>
+                            <option value="ajustes">Ajustes</option>
+                        </select>
+                    </label>
+                    <label>Desde
+                        <input name="desde" type="date">
+                    </label>
+                    <label>Hasta
+                        <input name="hasta" type="date">
+                    </label>
+                    <p class="custody-error" id="custodyHistoryError" role="alert"></p>
+                    <div class="custody-actions">
+                        <button class="primary-button" id="custodyHistoryExport" type="button">⇩ Exportar historial</button>
+                    </div>
+                </form>
                 <div class="custody-kardex" id="custodyKardex"></div>
             </aside>
         </div>

@@ -292,6 +292,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/materiales/almacenes/movimientos', [AlmacenMaterialController::class, 'movimientos'])
         ->middleware('can:consultar-kardex-materiales');
+    Route::get('/materiales/almacenes/movimientos/exportar', [AlmacenMaterialController::class, 'exportarMovimientos'])
+        ->middleware('can:consultar-kardex-materiales');
     Route::post('/materiales/almacenes/movimientos', [AlmacenMaterialController::class, 'store']);
 
     Route::prefix('materiales/recepciones')->group(function () {
