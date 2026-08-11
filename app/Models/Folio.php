@@ -5,8 +5,10 @@ namespace App\Models;
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoValidacionPallet;
 use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use DomainException;
@@ -103,6 +105,13 @@ class Folio extends Model
     public function procesosPrefrio(): HasMany
     {
         return $this->hasMany(ProcesoPrefrioFolio::class);
+    }
+
+    public function validacionPallet(): HasOne
+    {
+        return $this->hasOne(ValidacionPallet::class)
+            ->where('estado', EstadoValidacionPallet::Aceptada)
+            ->where('resultado', ResultadoValidacionPallet::Aprobado);
     }
 
     public function inspeccionesSag(): HasMany

@@ -14,10 +14,12 @@ use App\Enums\TipoDestinoSag;
 use App\Enums\TipoLoteInspeccionSag;
 use App\Http\Controllers\Controller;
 use App\Models\BloqueMercado;
+use App\Models\CombinacionValidacion;
 use App\Models\Folio;
 use App\Models\LoteInspeccionSag;
 use App\Models\Pais;
 use App\Models\ResultadoDestinoInspeccionSag;
+use App\Models\Temporada;
 use App\Services\InspeccionSag\ServicioEstadoSagFolio;
 use App\Services\InspeccionSag\ServicioInspeccionSag;
 use Illuminate\Database\Eloquent\Builder;
@@ -61,7 +63,8 @@ class InspeccionSagController extends Controller
         return response()->json([
             'tipos_lote' => collect(TipoLoteInspeccionSag::cases())->map(fn ($tipo): array => [
                 'value' => $tipo->value,
-                'label' => $tipo === TipoLoteInspeccionSag::Segregacion ? 'Segregación' : 'Cambio de mercado',
+                'label' => $tipo->etiqueta(),
+                'tipo_aprobacion' => $tipo->aprobacionPredeterminada()?->value,
             ])->all(),
             'tipos_aprobacion' => collect(TipoAprobacionSag::cases())->map(fn ($tipo): array => [
                 'value' => $tipo->value,
@@ -89,16 +92,79 @@ class InspeccionSagController extends Controller
 
     public function opcionesFolios(): JsonResponse
     {
-        $folios = $this->consultaElegibles()->get([
-            'id', 'exportadora', 'variedad', 'condicion_sag_id', 'condicion_termica',
-            'fecha_ingreso', 'datos_externos',
-        ]);
+        $temporadaId = Temporada::query()->where('activa', true)->value('id');
+        $combinaciones = $temporadaId
+            ? CombinacionValidacion::query()
+                ->where('temporada_id', $temporadaId)
+                ->where('activo', true)
+                ->whereHas('articulo', fn (Builder $consulta): Builder => $consulta
+                    ->where('activo', true)
+                    ->whereHas('especieCatalogo', fn (Builder $especie): Builder => $especie
+                        ->where('activo', true))
+                    ->whereHas('variedadCatalogo', fn (Builder $variedad): Builder => $variedad
+                        ->where('activo', true)))
+                ->whereHas('origen', fn (Builder $consulta): Builder => $consulta
+                    ->where('activo', true)
+                    ->whereHas('clienteCatalogo', fn (Builder $catalogo): Builder => $catalogo
+                        ->where('activo', true)
+                        ->whereHas('cliente', fn (Builder $cliente): Builder => $cliente
+                            ->where('activo', true))))
+                ->with([
+                    'articulo.especieCatalogo:id,nombre',
+                    'articulo.variedadCatalogo:id,especie_validacion_id,nombre',
+                    'origen.clienteCatalogo.cliente:id,codigo,nombre',
+                    'origen.csgCatalogo:id,codigo',
+                ])
+                ->get()
+            : collect();
+
+        $clientes = $combinaciones
+            ->filter(fn (CombinacionValidacion $combinacion): bool => filled(
+                $combinacion->origen?->clienteCatalogo?->cliente?->id,
+            ))
+            ->groupBy(fn (CombinacionValidacion $combinacion): string => (string) $combinacion
+                ->origen->clienteCatalogo->cliente->id)
+            ->map(function ($asociadas): array {
+                $cliente = $asociadas->first()->origen->clienteCatalogo->cliente;
+                $especies = $asociadas
+                    ->groupBy(fn (CombinacionValidacion $combinacion): string => (string) $combinacion
+                        ->articulo->especieCatalogo->id)
+                    ->map(function ($porEspecie): array {
+                        $especie = $porEspecie->first()->articulo->especieCatalogo;
+
+                        return [
+                            'id' => $especie->id,
+                            'nombre' => $especie->nombre,
+                            'variedades' => $porEspecie
+                                ->map(fn (CombinacionValidacion $combinacion): array => [
+                                    'id' => $combinacion->articulo->variedadCatalogo->id,
+                                    'nombre' => $combinacion->articulo->variedadCatalogo->nombre,
+                                ])
+                                ->unique('id')->sortBy('nombre')->values(),
+                            'csg' => $porEspecie
+                                ->filter(fn (CombinacionValidacion $combinacion): bool => filled(
+                                    $combinacion->origen?->csgCatalogo?->id,
+                                ))
+                                ->map(fn (CombinacionValidacion $combinacion): array => [
+                                    'id' => $combinacion->origen->csgCatalogo->id,
+                                    'codigo' => $combinacion->origen->csgCatalogo->codigo,
+                                ])
+                                ->unique('id')->sortBy('codigo')->values(),
+                        ];
+                    })
+                    ->sortBy('nombre')->values();
+
+                return [
+                    'id' => $cliente->id,
+                    'codigo' => $cliente->codigo,
+                    'nombre' => $cliente->nombre,
+                    'especies' => $especies,
+                ];
+            })
+            ->sortBy('nombre')->values();
 
         return response()->json([
-            'clientes' => $folios->pluck('exportadora')->filter()->unique()->sort()->values(),
-            'especies' => $folios->pluck('datos_externos')->pluck('especie')->filter()->unique()->sort()->values(),
-            'variedades' => $folios->pluck('variedad')->filter()->unique()->sort()->values(),
-            'csg' => $folios->pluck('datos_externos')->pluck('csg')->filter()->unique()->sort()->values(),
+            'clientes' => $clientes,
             'condiciones_termicas' => collect(CondicionTermicaFolio::cases())->map(fn ($condicion): array => [
                 'value' => $condicion->value,
                 'label' => str($condicion->value)->replace('_', ' ')->title()->toString(),
@@ -109,11 +175,11 @@ class InspeccionSagController extends Controller
     public function folios(Request $request, ServicioEstadoSagFolio $estadoSag): JsonResponse
     {
         $datos = $request->validate([
-            'cliente' => ['required', 'string', 'max:150'],
-            'especie' => ['required', 'string', 'max:150'],
-            'variedad' => ['nullable', 'string', 'max:150'],
+            'cliente' => ['required', 'uuid', Rule::exists('clientes', 'id')->where('activo', true)],
+            'especie' => ['required', 'uuid', Rule::exists('especies_validacion', 'id')->where('activo', true)],
+            'variedad' => ['nullable', 'uuid', Rule::exists('variedades_validacion', 'id')->where('activo', true)],
             'condicion_sag' => ['nullable', Rule::in(['con', 'sin'])],
-            'csg' => ['nullable', 'string', 'max:100'],
+            'csg' => ['nullable', 'uuid', Rule::exists('csg_validacion', 'id')->where('activo', true)],
             'fecha_ingreso' => ['nullable', 'date'],
             'condicion_termica' => ['nullable', Rule::enum(CondicionTermicaFolio::class)],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -121,16 +187,23 @@ class InspeccionSagController extends Controller
         ]);
 
         $folios = $this->consultaElegibles()
-            ->where('exportadora', $datos['cliente'])
-            ->where('datos_externos->especie', $datos['especie'])
-            ->when($datos['variedad'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
-                ->where('variedad', $valor))
+            ->whereHas('validacionPallet', function (Builder $validacion) use ($datos): void {
+                $validacion
+                    ->whereHas('origen.clienteCatalogo', fn (Builder $cliente): Builder => $cliente
+                        ->where('cliente_id', $datos['cliente']))
+                    ->whereHas('articulo', function (Builder $articulo) use ($datos): void {
+                        $articulo->where('especie_validacion_id', $datos['especie'])
+                            ->when($datos['variedad'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
+                                ->where('variedad_validacion_id', $valor));
+                    })
+                    ->when($datos['csg'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
+                        ->whereHas('origen', fn (Builder $origen): Builder => $origen
+                            ->where('csg_validacion_id', $valor)));
+            })
             ->when(($datos['condicion_sag'] ?? null) === 'con', fn (Builder $consulta): Builder => $consulta
                 ->whereNotNull('condicion_sag_id'))
             ->when(($datos['condicion_sag'] ?? null) === 'sin', fn (Builder $consulta): Builder => $consulta
                 ->whereNull('condicion_sag_id'))
-            ->when($datos['csg'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
-                ->where('datos_externos->csg', $valor))
             ->when($datos['fecha_ingreso'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
                 ->whereDate('fecha_ingreso', $valor))
             ->when($datos['condicion_termica'] ?? null, fn (Builder $consulta, string $valor): Builder => $consulta
@@ -203,6 +276,7 @@ class InspeccionSagController extends Controller
         $datos = $request->validate([
             'resultado' => ['required', Rule::in([
                 ResultadoInspeccionSag::Aprobado->value,
+                ResultadoInspeccionSag::Segregado->value,
                 ResultadoInspeccionSag::Rechazado->value,
                 ResultadoInspeccionSag::SinResolucion->value,
             ])],
@@ -259,6 +333,10 @@ class InspeccionSagController extends Controller
             'autorizacionesSagActivas',
             'inspeccionesSag.lote',
             'inspeccionesSag.resultados.destino',
+            'validacionPallet.articulo.especieCatalogo:id,nombre',
+            'validacionPallet.articulo.variedadCatalogo:id,especie_validacion_id,nombre',
+            'validacionPallet.origen.clienteCatalogo.cliente:id,codigo,nombre',
+            'validacionPallet.origen.csgCatalogo:id,codigo',
         ];
     }
 
@@ -266,15 +344,22 @@ class InspeccionSagController extends Controller
     private function serializarFolio(Folio $folio, ServicioEstadoSagFolio $estadoSag): array
     {
         $datos = $folio->datos_externos ?? [];
+        $articulo = $folio->validacionPallet?->articulo;
+        $origen = $folio->validacionPallet?->origen;
+        $cliente = $origen?->clienteCatalogo?->cliente;
 
         return [
             'id' => $folio->id,
             'folio' => $folio->numero_folio,
-            'cliente' => $folio->exportadora,
-            'especie' => $datos['especie'] ?? null,
-            'variedad' => $folio->variedad,
+            'cliente_id' => $cliente?->id,
+            'cliente' => $cliente?->nombre ?? $folio->exportadora,
+            'especie_id' => $articulo?->especieCatalogo?->id,
+            'especie' => $articulo?->especieCatalogo?->nombre ?? ($datos['especie'] ?? null),
+            'variedad_id' => $articulo?->variedadCatalogo?->id,
+            'variedad' => $articulo?->variedadCatalogo?->nombre ?? $folio->variedad,
             'condicion_sag_origen' => $folio->condicionSag?->nombre,
-            'csg' => $datos['csg'] ?? null,
+            'csg_id' => $origen?->csgCatalogo?->id,
+            'csg' => $origen?->csgCatalogo?->codigo ?? ($datos['csg'] ?? null),
             'fecha_ingreso' => $folio->fecha_ingreso?->toDateString(),
             'condicion_termica' => $folio->condicion_termica->value,
             'cantidad_cajas' => $datos['cantidad_cajas'] ?? null,

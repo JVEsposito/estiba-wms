@@ -16,7 +16,7 @@
                 <div class="office-logo" aria-hidden="true">SAG</div>
                 <p class="eyebrow">ESTIBA WMS · FRIGORÍFICO</p>
                 <h1 id="officeAccessTitle">Inspecciones y mercados con trazabilidad por pallet.</h1>
-                <p>Prepara segregaciones, reinspecciones y cambios de mercado sin perder las autorizaciones anteriores.</p>
+                <p>Prepara muestreos USDA, inspecciones de origen, fumigaciones y cambios de mercado sin perder las autorizaciones anteriores.</p>
                 <div class="feature-row"><span>AO · AU · AF</span><span>País o bloque UE</span><span>Historial acumulativo</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
@@ -58,7 +58,7 @@
                 <section class="sag-panel" data-sag-section="resumen">
                     <div class="sag-summary-grid">
                         <article class="panel sag-rule-card"><p class="eyebrow">NOMENCLATURA</p><h2>Estado SAG visible</h2><div class="sag-code-grid"><span><strong>SI</strong> Sin inspección activa</span><span><strong>AO</strong> Aprobado Origen</span><span><strong>AU</strong> Aprobado USDA</span><span><strong>AF</strong> Aprobado Fumigación</span></div></article>
-                        <article class="panel sag-rule-card"><p class="eyebrow">REGLA DE MERCADO</p><h2>Las aprobaciones se acumulan</h2><p>Un rechazo o salida sin resolución no revoca mercados anteriores. En cambio de mercado, el destino aprobado se agrega al pallet.</p></article>
+                        <article class="panel sag-rule-card"><p class="eyebrow">REGLA DE MERCADO</p><h2>Las aprobaciones se acumulan</h2><p>Segregar, rechazar o salir sin resolución no revoca mercados anteriores. En cambio de mercado, el destino aprobado se agrega al pallet.</p></article>
                         <article class="panel sag-rule-card"><p class="eyebrow">EXCEPCIÓN UE</p><h2>País individual o bloque completo</h2><p>Seleccionar UE cubre transversalmente a sus 27 miembros y guarda una fotografía histórica de esa composición.</p></article>
                     </div>
                     <div class="panel sag-table-panel"><div class="sag-panel-heading"><div><p class="eyebrow">OPERACIÓN ACTUAL</p><h2>Últimos lotes</h2></div></div><div class="table-scroll"><table><thead><tr><th>Lote</th><th>Tipo</th><th>Estado</th><th>Pallets</th><th>Destinos</th><th>Creación</th><th>Acción</th></tr></thead><tbody id="recentLotsBody"></tbody></table></div></div>
@@ -68,7 +68,7 @@
                     <form class="panel sag-builder" id="sagBuilderForm">
                         <div class="sag-panel-heading"><div><p class="eyebrow">PREPARACIÓN</p><h2>Armar lote de inspección</h2><p>Cliente/exportadora y especie son obligatorios. Los filtros 3 al 7 son combinables y opcionales.</p></div></div>
                         <div class="sag-form-grid sag-form-grid--lot">
-                            <label><span>Tipo de lote *</span><select name="tipo" required><option value="segregacion">Segregación</option><option value="cambio_mercado">Cambio de mercado</option></select></label>
+                            <label><span>Tipo de inspección *</span><select name="tipo" required><option value="">Seleccionar tipo de inspección</option></select></label>
                             <label><span>Referencia de correo</span><input name="referencia_correo" maxlength="250" placeholder="Asunto, remitente o correlativo"></label>
                             <label><span>Cantidad solicitada</span><input name="cantidad_solicitada" type="number" min="1" max="1000" placeholder="Se completa con la selección"></label>
                             <label class="sag-wide"><span>Observación</span><input name="observacion" maxlength="2000" placeholder="Antecedentes de la solicitud"></label>

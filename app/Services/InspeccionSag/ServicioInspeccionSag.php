@@ -141,17 +141,32 @@ class ServicioInspeccionSag
             }
 
             $decision = ResultadoInspeccionSag::from($datos['resultado']);
-            $tipoAprobacion = isset($datos['tipo_aprobacion'])
+            $tipoAprobacionSolicitado = isset($datos['tipo_aprobacion'])
                 ? TipoAprobacionSag::from($datos['tipo_aprobacion'])
                 : null;
+            $tipoAprobacion = $lote->tipo->aprobacionPredeterminada()
+                ?? $tipoAprobacionSolicitado;
 
             if ($decision === ResultadoInspeccionSag::Aprobado && $tipoAprobacion === null) {
-                throw new DomainException('Una aprobación SAG debe indicar AO, AU o AF.');
+                throw new DomainException(
+                    'En un cambio de mercado, la aprobación debe indicar AO, AU o AF.',
+                );
+            }
+
+            if ($decision === ResultadoInspeccionSag::Aprobado
+                && $tipoAprobacionSolicitado !== null
+                && $lote->tipo->aprobacionPredeterminada() !== null
+                && $tipoAprobacionSolicitado !== $lote->tipo->aprobacionPredeterminada()) {
+                throw new DomainException(
+                    'El tipo de aprobación no corresponde al tipo de inspección seleccionado.',
+                );
             }
 
             $resultado->update([
                 'resultado' => $decision,
-                'tipo_aprobacion' => $tipoAprobacion,
+                'tipo_aprobacion' => $decision === ResultadoInspeccionSag::Aprobado
+                    ? $tipoAprobacion
+                    : null,
                 'observacion' => $datos['observacion'] ?? null,
                 'resuelto_por_user_id' => $usuario->id,
                 'resuelto_at' => now(),

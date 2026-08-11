@@ -7,7 +7,7 @@ const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
     summary: {},
-    catalogs: { bloques: [], paises: [], tipos_aprobacion: [] },
+    catalogs: { bloques: [], paises: [], tipos_aprobacion: [], tipos_lote: [] },
     options: {},
     lots: [],
     eligibleFolios: [],
@@ -43,10 +43,11 @@ function escapeHtml(value) {
 
 function humanize(value) {
     const labels = {
-        segregacion: 'Segregación', cambio_mercado: 'Cambio de mercado', preparacion: 'Preparación',
+        muestreo_usda: 'Muestreo USDA', inspeccion_origen: 'Inspección Origen',
+        fumigacion: 'Fumigación', cambio_mercado: 'Cambio de mercado', preparacion: 'Preparación',
         en_inspeccion: 'En inspección', resultado_parcial: 'Resultado parcial', finalizado: 'Finalizado',
         cancelado: 'Cancelado', sin_resolucion: 'Sin resolución', aprobado: 'Aprobado',
-        rechazado: 'Rechazado', pendiente: 'Pendiente',
+        segregado: 'Segregado', rechazado: 'Rechazado', pendiente: 'Pendiente',
     };
     return labels[value] || String(value || '').replaceAll('_', ' ');
 }
@@ -107,17 +108,52 @@ function fillSelect(select, values, placeholder, mapper = (value) => ({ value, l
 }
 
 function setupOptions() {
-    fillSelect(elements.builder.elements.cliente, state.options.clientes, 'Seleccionar');
-    fillSelect(elements.builder.elements.especie, state.options.especies, 'Seleccionar');
-    fillSelect(elements.builder.elements.variedad, state.options.variedades, 'Todas');
-    fillSelect(elements.builder.elements.csg, state.options.csg, 'Todos');
+    fillSelect(
+        elements.builder.elements.tipo,
+        state.catalogs.tipos_lote,
+        'Seleccionar tipo de inspección',
+        (entry) => ({ value: entry.value, label: entry.label }),
+    );
+    fillSelect(
+        elements.builder.elements.cliente,
+        state.options.clientes,
+        'Seleccionar',
+        (entry) => ({ value: entry.id, label: `${entry.codigo} · ${entry.nombre}` }),
+    );
     fillSelect(
         elements.builder.elements.condicion_termica,
         state.options.condiciones_termicas,
         'Todas',
         (entry) => ({ value: entry.value, label: entry.label }),
     );
+    refreshCatalogHierarchy({ resetSpecies: true, resetOptional: true });
     renderDestinationOptions();
+}
+
+function refreshCatalogHierarchy({ resetSpecies = false, resetOptional = false } = {}) {
+    const clienteSelect = elements.builder.elements.cliente;
+    const especieSelect = elements.builder.elements.especie;
+    const variedadSelect = elements.builder.elements.variedad;
+    const csgSelect = elements.builder.elements.csg;
+    const cliente = (state.options.clientes || []).find((entry) => entry.id === clienteSelect.value);
+    const especieAnterior = resetSpecies ? '' : especieSelect.value;
+
+    fillSelect(
+        especieSelect,
+        cliente?.especies || [],
+        cliente ? 'Seleccionar' : 'Selecciona primero el cliente',
+        (entry) => ({ value: entry.id, label: entry.nombre }),
+    );
+    if ((cliente?.especies || []).some((entry) => entry.id === especieAnterior)) especieSelect.value = especieAnterior;
+
+    const especie = (cliente?.especies || []).find((entry) => entry.id === especieSelect.value);
+    const variedadAnterior = resetOptional ? '' : variedadSelect.value;
+    const csgAnterior = resetOptional ? '' : csgSelect.value;
+    fillSelect(variedadSelect, especie?.variedades || [], 'Todas', (entry) => ({ value: entry.id, label: entry.nombre }));
+    fillSelect(csgSelect, especie?.csg || [], 'Todos', (entry) => ({ value: entry.id, label: entry.codigo }));
+    if ((especie?.variedades || []).some((entry) => entry.id === variedadAnterior)) variedadSelect.value = variedadAnterior;
+    if ((especie?.csg || []).some((entry) => entry.id === csgAnterior)) csgSelect.value = csgAnterior;
+
     refreshFilterAvailability();
 }
 
@@ -300,11 +336,37 @@ function renderDetailActions(lot) {
 
 function renderResults(lot) {
     const editable = canManage() && ['en_inspeccion', 'resultado_parcial'].includes(lot.estado);
+    const lotType = state.catalogs.tipos_lote.find((type) => type.value === lot.tipo);
+    const fixedApproval = lotType?.tipo_aprobacion || '';
     const approvalOptions = state.catalogs.tipos_aprobacion.map((type) => `<option value="${type.value}">${escapeHtml(type.value)} · ${escapeHtml(type.label)}</option>`).join('');
-    document.getElementById('sagResultList').innerHTML = lot.folios.map((entry) => `<article class="sag-result-card"><div class="sag-result-card__heading"><div><strong>${escapeHtml(entry.folio.numero)}</strong><p>${escapeHtml(entry.folio.cliente || '—')} · ${escapeHtml(entry.folio.especie || '—')} · ${escapeHtml(entry.folio.variedad || '—')} · ${escapeHtml(entry.folio.camara || '—')} / ${escapeHtml(entry.folio.posicion || 'Sin posición')}</p></div><span class="sag-pill ${entry.estado === 'resuelto' ? 'sag-pill--active' : 'sag-pill--warning'}">${escapeHtml(humanize(entry.estado))}</span></div><div class="sag-result-grid">${entry.resultados.map((result) => `<div class="sag-resolution" data-result-id="${result.id}"><label>Destino<strong>${escapeHtml(result.destino.codigo)} · ${escapeHtml(result.destino.nombre)}</strong></label><label>Resultado<select data-decision ${editable ? '' : 'disabled'}><option value="pendiente" ${result.resultado === 'pendiente' ? 'selected' : ''}>Pendiente</option><option value="aprobado" ${result.resultado === 'aprobado' ? 'selected' : ''}>Aprobado</option><option value="sin_resolucion" ${result.resultado === 'sin_resolucion' ? 'selected' : ''}>Sale sin resolución</option><option value="rechazado" ${result.resultado === 'rechazado' ? 'selected' : ''}>Rechazado</option></select></label><label>Tipo de aprobación<select data-approval ${editable && result.resultado === 'aprobado' ? '' : 'disabled'}><option value="">Seleccionar</option>${approvalOptions}</select></label>${editable ? '<button class="secondary-button" data-save-result type="button">Guardar</button>' : ''}</div>`).join('')}</div></article>`).join('') || '<p class="empty-cell">El lote no contiene pallets.</p>';
+    document.getElementById('sagResultList').innerHTML = lot.folios.map((entry) => `<article class="sag-result-card">
+        <div class="sag-result-card__heading">
+            <div><strong>${escapeHtml(entry.folio.numero)}</strong><p>${escapeHtml(entry.folio.cliente || '—')} · ${escapeHtml(entry.folio.especie || '—')} · ${escapeHtml(entry.folio.variedad || '—')} · ${escapeHtml(entry.folio.camara || '—')} / ${escapeHtml(entry.folio.posicion || 'Sin posición')}</p></div>
+            <span class="sag-pill ${entry.estado === 'resuelto' ? 'sag-pill--active' : 'sag-pill--warning'}">${escapeHtml(humanize(entry.estado))}</span>
+        </div>
+        <div class="sag-result-grid">${entry.resultados.map((result) => {
+            const approvalDisabled = fixedApproval || !editable || result.resultado !== 'aprobado';
+            const options = fixedApproval
+                ? `<option value="${fixedApproval}">${escapeHtml(fixedApproval)} · Determinado por la inspección</option>`
+                : `<option value="">Seleccionar</option>${approvalOptions}`;
+
+            return `<div class="sag-resolution" data-result-id="${result.id}" data-fixed-approval="${escapeHtml(fixedApproval)}">
+                <label>Destino<strong>${escapeHtml(result.destino.codigo)} · ${escapeHtml(result.destino.nombre)}</strong></label>
+                <label>Resultado<select data-decision ${editable ? '' : 'disabled'}>
+                    <option value="pendiente" ${result.resultado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                    <option value="aprobado" ${result.resultado === 'aprobado' ? 'selected' : ''}>Aprobado</option>
+                    <option value="segregado" ${result.resultado === 'segregado' ? 'selected' : ''}>Segregado</option>
+                    <option value="sin_resolucion" ${result.resultado === 'sin_resolucion' ? 'selected' : ''}>Sale sin resolución</option>
+                    <option value="rechazado" ${result.resultado === 'rechazado' ? 'selected' : ''}>Rechazado</option>
+                </select></label>
+                <label>Aprobación resultante<select data-approval ${approvalDisabled ? 'disabled' : ''}>${options}</select></label>
+                ${editable ? '<button class="secondary-button" data-save-result type="button">Guardar</button>' : ''}
+            </div>`;
+        }).join('')}</div>
+    </article>`).join('') || '<p class="empty-cell">El lote no contiene pallets.</p>';
     document.querySelectorAll('[data-result-id]').forEach((row) => {
         const result = lot.folios.flatMap((entry) => entry.resultados).find((item) => item.id === row.dataset.resultId);
-        if (result?.tipo_aprobacion) row.querySelector('[data-approval]').value = result.tipo_aprobacion;
+        if (result?.tipo_aprobacion || fixedApproval) row.querySelector('[data-approval]').value = result?.tipo_aprobacion || fixedApproval;
     });
 }
 
@@ -344,8 +406,8 @@ elements.login.addEventListener('submit', async (event) => {
 });
 
 document.querySelectorAll('[data-sag-panel]').forEach((button) => button.addEventListener('click', () => selectPanel(button.dataset.sagPanel)));
-elements.builder.elements.cliente.addEventListener('change', refreshFilterAvailability);
-elements.builder.elements.especie.addEventListener('change', refreshFilterAvailability);
+elements.builder.elements.cliente.addEventListener('change', () => refreshCatalogHierarchy({ resetSpecies: true, resetOptional: true }));
+elements.builder.elements.especie.addEventListener('change', () => refreshCatalogHierarchy({ resetOptional: true }));
 document.getElementById('searchSagFoliosButton').addEventListener('click', searchFolios);
 elements.builder.addEventListener('submit', createLot);
 elements.eligibleBody.addEventListener('change', (event) => {
@@ -364,7 +426,10 @@ document.addEventListener('change', async (event) => {
     const action = event.target.closest('.lot-action');
     if (action) { const value = action.value; action.value = ''; await executeLotAction(action.dataset.lotId, value); }
     const decision = event.target.closest('[data-decision]');
-    if (decision) decision.closest('[data-result-id]').querySelector('[data-approval]').disabled = decision.value !== 'aprobado';
+    if (decision) {
+        const result = decision.closest('[data-result-id]');
+        result.querySelector('[data-approval]').disabled = Boolean(result.dataset.fixedApproval) || decision.value !== 'aprobado';
+    }
 });
 document.getElementById('sagResultList').addEventListener('click', (event) => { const button = event.target.closest('[data-save-result]'); if (button) saveResult(button); });
 elements.detailActions.addEventListener('change', async () => { const action = elements.detailActions.value; elements.detailActions.value = ''; await executeLotAction(state.selectedLot.id, action); });
