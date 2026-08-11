@@ -72,7 +72,7 @@ La impresión directa de etiquetas utiliza un módulo Android local que abre una
 
 ## Modo demostración explícito
 
-El simulador local sigue disponible, pero debe habilitarse deliberadamente:
+El simulador local de desarrollo sigue disponible, pero debe habilitarse deliberadamente:
 
 ```bash
 EXPO_PUBLIC_DEMO_MODE=true
@@ -85,7 +85,43 @@ Después de cambiar el modo, reinicia Metro:
 npm run start:clear
 ```
 
-Los cambios del modo demo viven únicamente durante esa ejecución y nunca llegan a MySQL.
+Los clientes y folios creados en el modo demo quedan almacenados en SQLite dentro del dispositivo y nunca llegan a MySQL.
+
+## APK autónoma para demostraciones
+
+La variante **Estiba WMS Demo** utiliza el paquete Android `cl.estiba.wms.demo`, por lo que puede instalarse junto a la APK productiva. No permite configurar una URL de Laravel, deshabilita EAS Update y guarda sus datos exclusivamente en `estiba-wms-demo.db` dentro de la memoria privada de la tablet.
+
+Incluye un escenario ficticio inicial y una administración local desde la que se pueden:
+
+- crear y eliminar clientes;
+- crear y eliminar folios con especie, variedad y cajas;
+- conservar los cambios después de cerrar o reiniciar la app;
+- restaurar el escenario inicial antes de otra presentación.
+
+Credenciales sugeridas —el modo local sólo exige que los tres campos estén completos—:
+
+```text
+Correo: administrador@estiba.demo
+Contraseña: password
+Tablet: DEMO-01
+```
+
+Para ejecutar la variante en desarrollo:
+
+```bash
+cd mobile
+npm ci
+npm run start:demo
+```
+
+Para validar el bundle autónomo o solicitar una APK interna a EAS:
+
+```bash
+npm run export:demo
+npm run build:apk:demo
+```
+
+`expo-sqlite` es una dependencia nativa. La primera instalación de esta variante requiere generar una APK nueva; no puede agregarse a una APK anterior por OTA. Al desinstalar **Estiba WMS Demo**, Android también elimina su base local.
 
 ## Validaciones
 
@@ -103,7 +139,7 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 - Dirección de Laravel configurable y persistente en cada tablet.
 - APK independiente con perfil de distribución interna.
 - Actualización OTA automática para interfaz y lógica compatible.
-- Demo únicamente por activación explícita durante desarrollo.
+- APK Demo separada, sin servidor externo, con clientes y folios persistentes en SQLite.
 - Confirmación visual después de guardar una ubicación o movimiento en el servidor.
 - Errores operacionales visibles dentro de los modales.
 - Actualización automática del plano cada 30 segundos y al volver a la aplicación.
@@ -123,4 +159,4 @@ GitHub Actions ejecuta ambas validaciones en cada pull request.
 - Perfiles ZPL por fabricante, modelo, formato y DPI para equipos Zebra y Bixolon compatibles.
 - Impresora por IP configurable y persistente por dispositivo, con prueba de conexión y resultado auditable.
 
-Todavía no incluye lectura real de códigos de barras, persistencia offline ni sincronización diferida. Durante una interrupción se conserva el último estado descargado, pero las operaciones nuevas continúan requiriendo conexión con Laravel. Un envío de impresión que pierde confirmación después de comenzar se marca como indeterminado y nunca se reintenta automáticamente.
+La APK conectada todavía no incluye persistencia offline general ni sincronización diferida. Durante una interrupción conserva el último estado descargado, pero las operaciones nuevas continúan requiriendo conexión con Laravel. La persistencia SQLite descrita arriba corresponde exclusivamente a la variante Demo y se ampliará módulo por módulo. Un envío de impresión que pierde confirmación después de comenzar se marca como indeterminado y nunca se reintenta automáticamente.

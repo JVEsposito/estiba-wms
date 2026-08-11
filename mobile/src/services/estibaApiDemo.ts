@@ -52,15 +52,17 @@ const demoIdentity: AuthSession = {
   token_type: 'Bearer',
   usuario: {
     id: 'user-demo',
-    nombre: 'Operador de prueba',
-    email: 'operador@demo.invalid',
-    rol: 'camarero_frio',
-    ambito_camaras: 'productos',
+    nombre: 'Administrador Demo',
+    email: 'administrador@estiba.demo',
+    rol: 'administrador',
+    ambito_camaras: 'ambos',
+    modulos_tablet: ['demo_administracion', 'operacion'],
     capacidades: {
-      ambito_camaras: 'productos',
-      puede_supervisar: false,
+      modulos_tablet: ['demo_administracion', 'operacion'],
+      ambito_camaras: 'ambos',
+      puede_supervisar: true,
       puede_operar_productos: true,
-      puede_operar_materiales: false,
+      puede_operar_materiales: true,
       puede_consultar_cargas: true,
       puede_consultar_catalogo_cargas: false,
       puede_gestionar_cargas: false,
@@ -77,8 +79,8 @@ const demoIdentity: AuthSession = {
   },
   dispositivo: {
     id: 'device-demo',
-    codigo: 'DEMO-LOCAL',
-    nombre: 'Tablet cámara 01',
+    codigo: 'DEMO-01',
+    nombre: 'Tablet autónoma Demo',
   },
 };
 

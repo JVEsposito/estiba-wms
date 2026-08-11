@@ -4,6 +4,19 @@
     "appVersionSource": "local"
   },
   "build": {
+    "apk-demo": {
+      "distribution": "internal",
+      "channel": "demo",
+      "env": {
+        "ESTIBA_APP_VARIANT": "demo",
+        "EXPO_PUBLIC_DEMO_MODE": "true",
+        "EXPO_PUBLIC_DEMO_ONLY": "true",
+        "EXPO_PUBLIC_API_URL": ""
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "apk-camaras": {
       "distribution": "internal",
       "channel": "production",
