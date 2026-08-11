@@ -22,6 +22,8 @@ class InspeccionSagInterfaceTest extends TestCase
             ->assertSee('AU')
             ->assertSee('AF')
             ->assertSee('Número de inspección SAG')
+            ->assertSee('Buscar pallet individual')
+            ->assertSee('Buscar y agregar')
             ->assertSee('no necesitas mantener Ctrl/Cmd')
             ->assertSee('País individual o bloque completo');
 
@@ -34,7 +36,14 @@ class InspeccionSagInterfaceTest extends TestCase
         $this->assertStringContainsString("cambio_mercado: 'Cambio de mercado'", $interfaz);
         $this->assertStringContainsString('value="segregado"', $interfaz);
         $this->assertStringContainsString('data-destination-value', $interfaz);
+        $this->assertStringContainsString('searchSingleFolio', $interfaz);
         $this->assertStringNotContainsString('destinationSelect', $interfaz);
+
+        $estilos = file_get_contents(resource_path('css/office-sag-inspections.css'));
+        $this->assertIsString($estilos);
+        $this->assertStringContainsString('var(--input-bg', $estilos);
+        $this->assertStringContainsString('var(--table-head', $estilos);
+        $this->assertStringNotContainsString('background: #142630', $estilos);
 
         $navegacion = file_get_contents(resource_path('views/components/office/navigation.blade.php'));
         $this->assertIsString($navegacion);

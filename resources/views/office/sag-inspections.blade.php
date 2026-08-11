@@ -87,7 +87,15 @@
                         </div></fieldset>
 
                         <div class="sag-selection-layout">
-                            <section><div class="sag-panel-heading sag-panel-heading--compact"><div><p class="eyebrow">PALLETS ELEGIBLES</p><h3 id="folioSelectionTitle">Define cliente y especie</h3></div><span id="selectedFoliosCount">0 seleccionados</span></div><div class="table-scroll sag-folio-scroll"><table><thead><tr><th></th><th>Folio</th><th>Variedad</th><th>CSG</th><th>Condición térmica</th><th>Ubicación</th><th>Estado SAG</th><th>Destinos aprobados</th></tr></thead><tbody id="eligibleFoliosBody"><tr><td colspan="8" class="empty-cell">Los dos primeros filtros son obligatorios.</td></tr></tbody></table></div></section>
+                            <section>
+                                <div class="sag-panel-heading sag-panel-heading--compact"><div><p class="eyebrow">PALLETS ELEGIBLES</p><h3 id="folioSelectionTitle">Define cliente y especie o busca un folio</h3></div><span id="selectedFoliosCount">0 seleccionados</span></div>
+                                <div class="sag-direct-search">
+                                    <label for="singleFolioSearch"><span>Buscar pallet individual</span><small>Escribe o escanea el número de folio exacto para agregarlo sin cargar una lista masiva.</small></label>
+                                    <input id="singleFolioSearch" type="search" maxlength="100" autocomplete="off" placeholder="Número de folio">
+                                    <button class="secondary-button" id="searchSingleFolioButton" type="button">Buscar y agregar</button>
+                                </div>
+                                <div class="table-scroll sag-folio-scroll"><table><thead><tr><th></th><th>Folio</th><th>Variedad</th><th>CSG</th><th>Condición térmica</th><th>Ubicación</th><th>Estado SAG</th><th>Destinos aprobados</th></tr></thead><tbody id="eligibleFoliosBody"><tr><td colspan="8" class="empty-cell">Usa los filtros para listar pallets o busca un folio individual.</td></tr></tbody></table></div>
+                            </section>
                             <aside class="sag-destinations"><div><p class="eyebrow">MERCADO DE INSPECCIÓN</p><h3>Destino país o bloque</h3><p>UE reemplaza automáticamente selecciones individuales de sus miembros.</p></div><input id="destinationSearch" type="search" placeholder="Buscar país o bloque"><div class="sag-destination-options" id="destinationOptions" role="group" aria-label="Destinos de inspección"></div><div class="sag-selected-destinations" id="selectedDestinationPills"></div><small>Marca uno o varios destinos; no necesitas mantener Ctrl/Cmd.</small></aside>
                         </div>
                         <p class="form-error" id="builderError" role="alert"></p>
