@@ -86,6 +86,18 @@ export async function removePrefrioCommand(
   return items;
 }
 
+export async function removePrefrioProcessCommands(
+  userId: string,
+  deviceId: string,
+  processId: string,
+  exceptOperationId?: string,
+): Promise<PrefrioQueuedCommand[]> {
+  const items = (await loadPrefrioOutbox(userId, deviceId))
+    .filter((item) => item.process_id !== processId || item.id === exceptOperationId);
+  await saveOutbox(userId, deviceId, items);
+  return items;
+}
+
 export async function markPrefrioCommand(
   userId: string,
   deviceId: string,

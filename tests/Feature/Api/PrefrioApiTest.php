@@ -809,6 +809,25 @@ class PrefrioApiTest extends TestCase
         $this->assertStringContainsString('DD-MM-AAAA HH:mm', $mobile);
     }
 
+    public function test_pda_bloquea_duplicados_y_recupera_conflictos_de_la_bandeja_offline(): void
+    {
+        $mobile = file_get_contents(base_path('mobile/src/screens/PrefrioScreen.tsx'));
+        $store = file_get_contents(base_path('mobile/src/services/prefrioOfflineStore.ts'));
+
+        $this->assertIsString($mobile);
+        $this->assertIsString($store);
+        $this->assertStringContainsString('hasEquivalentPendingCommand', $mobile);
+        $this->assertStringContainsString('processHasBlockingIssue', $mobile);
+        $this->assertStringContainsString('operationInFlight', $mobile);
+        $this->assertStringContainsString('fue confirmado por el servidor', $mobile);
+        $this->assertStringContainsString('quedó guardado en la bandeja y se enviará automáticamente', $mobile);
+        $this->assertStringContainsString('Descartar operaciones y refrescar', $mobile);
+        $this->assertStringContainsString('Las operaciones posteriores de este proceso fueron descartadas', $mobile);
+        $this->assertStringContainsString('removePrefrioProcessCommands', $mobile);
+        $this->assertStringContainsString('removePrefrioProcessCommands', $store);
+        $this->assertStringNotContainsString('quedó registrado${baseUrl', $mobile);
+    }
+
     /**
      * @return array{TunelPrefrio, PosicionTunelPrefrio, string}
      */
