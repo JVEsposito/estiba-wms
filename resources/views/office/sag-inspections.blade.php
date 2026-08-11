@@ -16,7 +16,7 @@
                 <div class="office-logo" aria-hidden="true">SAG</div>
                 <p class="eyebrow">ESTIBA WMS · FRIGORÍFICO</p>
                 <h1 id="officeAccessTitle">Inspecciones y mercados con trazabilidad por pallet.</h1>
-                <p>Prepara muestreos USDA, inspecciones de origen, fumigaciones y cambios de mercado sin perder las autorizaciones anteriores.</p>
+                <p>Prepara muestreos USDA, inspecciones de origen o en línea, fumigaciones y cambios de mercado sin perder las autorizaciones anteriores.</p>
                 <div class="feature-row"><span>AO · AU · AF</span><span>País o bloque UE</span><span>Historial acumulativo</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
@@ -69,6 +69,7 @@
                         <div class="sag-panel-heading"><div><p class="eyebrow">PREPARACIÓN</p><h2>Armar lote de inspección</h2><p>Cliente/exportadora y especie son obligatorios. Los filtros 3 al 7 son combinables y opcionales.</p></div></div>
                         <div class="sag-form-grid sag-form-grid--lot">
                             <label><span>Tipo de inspección *</span><select name="tipo" required><option value="">Seleccionar tipo de inspección</option></select></label>
+                            <label><span>Número de inspección SAG</span><input name="numero_inspeccion_sag" maxlength="100" placeholder="Número informado por SAG"></label>
                             <label><span>Referencia de correo</span><input name="referencia_correo" maxlength="250" placeholder="Asunto, remitente o correlativo"></label>
                             <label><span>Cantidad solicitada</span><input name="cantidad_solicitada" type="number" min="1" max="1000" placeholder="Se completa con la selección"></label>
                             <label class="sag-wide"><span>Observación</span><input name="observacion" maxlength="2000" placeholder="Antecedentes de la solicitud"></label>
@@ -87,7 +88,7 @@
 
                         <div class="sag-selection-layout">
                             <section><div class="sag-panel-heading sag-panel-heading--compact"><div><p class="eyebrow">PALLETS ELEGIBLES</p><h3 id="folioSelectionTitle">Define cliente y especie</h3></div><span id="selectedFoliosCount">0 seleccionados</span></div><div class="table-scroll sag-folio-scroll"><table><thead><tr><th></th><th>Folio</th><th>Variedad</th><th>CSG</th><th>Condición térmica</th><th>Ubicación</th><th>Estado SAG</th><th>Destinos aprobados</th></tr></thead><tbody id="eligibleFoliosBody"><tr><td colspan="8" class="empty-cell">Los dos primeros filtros son obligatorios.</td></tr></tbody></table></div></section>
-                            <aside class="sag-destinations"><div><p class="eyebrow">MERCADO DE INSPECCIÓN</p><h3>Destino país o bloque</h3><p>UE reemplaza automáticamente selecciones individuales de sus miembros.</p></div><input id="destinationSearch" type="search" placeholder="Buscar país o bloque"><select id="destinationSelect" multiple size="12" aria-label="Destinos de inspección"></select><small>Usa Ctrl/Cmd para seleccionar varios destinos.</small></aside>
+                            <aside class="sag-destinations"><div><p class="eyebrow">MERCADO DE INSPECCIÓN</p><h3>Destino país o bloque</h3><p>UE reemplaza automáticamente selecciones individuales de sus miembros.</p></div><input id="destinationSearch" type="search" placeholder="Buscar país o bloque"><div class="sag-destination-options" id="destinationOptions" role="group" aria-label="Destinos de inspección"></div><div class="sag-selected-destinations" id="selectedDestinationPills"></div><small>Marca uno o varios destinos; no necesitas mantener Ctrl/Cmd.</small></aside>
                         </div>
                         <p class="form-error" id="builderError" role="alert"></p>
                         <div class="sag-builder-actions"><span id="builderSummary">Selecciona pallets y destinos.</span><button class="primary-button" id="createSagLotButton" type="submit">Crear lote en preparación</button></div>

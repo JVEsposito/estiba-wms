@@ -21,15 +21,20 @@ class InspeccionSagInterfaceTest extends TestCase
             ->assertSee('AO')
             ->assertSee('AU')
             ->assertSee('AF')
+            ->assertSee('Número de inspección SAG')
+            ->assertSee('no necesitas mantener Ctrl/Cmd')
             ->assertSee('País individual o bloque completo');
 
         $interfaz = file_get_contents(resource_path('js/office-sag-inspections.js'));
         $this->assertIsString($interfaz);
         $this->assertStringContainsString("muestreo_usda: 'Muestreo USDA'", $interfaz);
         $this->assertStringContainsString("inspeccion_origen: 'Inspección Origen'", $interfaz);
+        $this->assertStringContainsString("inspeccion_linea: 'Inspección en línea'", $interfaz);
         $this->assertStringContainsString("fumigacion: 'Fumigación'", $interfaz);
         $this->assertStringContainsString("cambio_mercado: 'Cambio de mercado'", $interfaz);
         $this->assertStringContainsString('value="segregado"', $interfaz);
+        $this->assertStringContainsString('data-destination-value', $interfaz);
+        $this->assertStringNotContainsString('destinationSelect', $interfaz);
 
         $navegacion = file_get_contents(resource_path('views/components/office/navigation.blade.php'));
         $this->assertIsString($navegacion);

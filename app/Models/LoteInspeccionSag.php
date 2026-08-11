@@ -12,8 +12,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'temporada_id', 'codigo', 'operacion_id', 'payload_hash', 'tipo', 'estado',
-    'cantidad_solicitada', 'referencia_correo', 'observacion', 'creado_por_user_id',
+    'temporada_id', 'cliente_id', 'codigo', 'numero_correlativo', 'numero_inspeccion_sag',
+    'operacion_id', 'payload_hash', 'tipo', 'estado', 'cantidad_solicitada',
+    'referencia_correo', 'observacion', 'creado_por_user_id',
     'iniciado_por_user_id', 'finalizado_por_user_id', 'cancelado_por_user_id',
     'iniciado_at', 'finalizado_at', 'cancelado_at',
 ])]
@@ -26,6 +27,11 @@ class LoteInspeccionSag extends Model
     public function temporada(): BelongsTo
     {
         return $this->belongsTo(Temporada::class);
+    }
+
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class);
     }
 
     public function destinos(): HasMany
@@ -49,6 +55,7 @@ class LoteInspeccionSag extends Model
             'tipo' => TipoLoteInspeccionSag::class,
             'estado' => EstadoLoteInspeccionSag::class,
             'cantidad_solicitada' => 'integer',
+            'numero_correlativo' => 'integer',
             'iniciado_at' => 'datetime',
             'finalizado_at' => 'datetime',
             'cancelado_at' => 'datetime',
