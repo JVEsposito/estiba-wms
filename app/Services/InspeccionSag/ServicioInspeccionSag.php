@@ -12,6 +12,7 @@ use App\Enums\TipoAprobacionSag;
 use App\Enums\TipoBulto;
 use App\Enums\TipoDestinoSag;
 use App\Enums\TipoLoteInspeccionSag;
+use App\Exceptions\ConflictoOperacion;
 use App\Models\AutorizacionSagFolio;
 use App\Models\BloqueMercado;
 use App\Models\Folio;
@@ -63,7 +64,7 @@ class ServicioInspeccionSag
                 ->get();
 
             if ($folios->count() !== count($folioIds)) {
-                throw new DomainException('Uno o más pallets ya no están disponibles para esta inspección.');
+                throw new ConflictoOperacion('Uno o más pallets ya no están disponibles para esta inspección.');
             }
 
             $destinos = $this->resolverDestinos($datos['destinos']);
