@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'temporada_id',
@@ -49,6 +50,19 @@ class BinRetornoPacking extends Model
     public function origenes(): HasMany
     {
         return $this->hasMany(BinRetornoPackingOrigen::class, 'bin_retorno_packing_id');
+    }
+
+    public function modificaciones(): HasMany
+    {
+        return $this->hasMany(ModificacionBinRetornoPacking::class, 'bin_retorno_packing_id');
+    }
+
+    public function ultimaModificacion(): HasOne
+    {
+        return $this->hasOne(
+            ModificacionBinRetornoPacking::class,
+            'bin_retorno_packing_id',
+        )->latestOfMany('modificado_at');
     }
 
     public function tipoResultado(): BelongsTo

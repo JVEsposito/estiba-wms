@@ -10,6 +10,7 @@ use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
+use App\Models\ModificacionBinRetornoPacking;
 use App\Models\RegularizacionRetornoPackingLegacy;
 use App\Models\RetornoPacking;
 use App\Models\Temporada;
@@ -31,6 +32,7 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertTrue(Schema::hasTable('bins_retorno_packing'));
         $this->assertTrue(Schema::hasTable('bin_retorno_packing_origenes'));
         $this->assertTrue(Schema::hasTable('regularizaciones_retorno_packing_legacy'));
+        $this->assertTrue(Schema::hasTable('modificaciones_bin_retorno_packing'));
         $this->assertTrue(Schema::hasColumns('bins_retorno_packing', [
             'temporada_id',
             'folio_provisional',
@@ -254,6 +256,138 @@ class BinRetornoPackingApiTest extends TestCase
         );
     }
 
+    public function test_listado_incluye_todos_los_retornos_de_la_temporada_sin_recorte(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $usuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+
+        foreach (range(1, 305) as $numero) {
+            $this->bin($temporada, $usuario, sprintf('PR-LISTA-%03d', $numero));
+        }
+
+        $this->actingAs($usuario, 'sanctum')
+            ->getJson('/api/materia-prima/fruta-proceso/retornos-bin/bins')
+            ->assertOk()
+            ->assertJsonCount(305, 'data');
+    }
+
+    public function test_modifica_retorno_pendiente_y_regularizado_con_historial_auditable(): void
+    {
+        $contexto = $this->prepararEntrega('MODIFICAR', 'OP-BIN-MOD');
+        $bin = $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($contexto, (string) Str::uuid(), 412.125),
+            )
+            ->assertCreated()
+            ->json('data');
+        $ruta = "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$bin['id']}";
+        $operacionPendiente = (string) Str::uuid();
+        $payloadPendiente = [
+            'operacion_id' => $operacionPendiente,
+            'motivo' => 'Se corrigió el peso verde y el folio informado en la observación.',
+            'kilos_totales' => 410.125,
+            'observacion' => 'Folio del bin: BIN-77',
+            'origenes' => [[
+                'origen_id' => $bin['origenes'][0]['id'],
+                'kilos_aportados' => 410.125,
+            ]],
+        ];
+
+        $this->actingAs($contexto['supervisor'], 'sanctum')
+            ->putJson($ruta, $payloadPendiente)
+            ->assertOk()
+            ->assertJsonPath('data.kilos_totales', 410.125)
+            ->assertJsonPath('data.observacion', 'Folio del bin: BIN-77')
+            ->assertJsonPath('data.modificado_por', $contexto['supervisor']->name)
+            ->assertJsonPath(
+                'data.motivo_ultima_modificacion',
+                $payloadPendiente['motivo'],
+            );
+
+        $this->putJson($ruta, $payloadPendiente)
+            ->assertOk()
+            ->assertJsonPath('data.kilos_totales', 410.125);
+        $this->assertDatabaseCount('modificaciones_bin_retorno_packing', 1);
+
+        $this->putJson($ruta, [
+            ...$payloadPendiente,
+            'kilos_totales' => 411.125,
+            'origenes' => [[
+                ...$payloadPendiente['origenes'][0],
+                'kilos_aportados' => 411.125,
+            ]],
+        ])->assertStatus(409)
+            ->assertJsonPath(
+                'message',
+                'El identificador de modificación ya fue utilizado con datos diferentes.',
+            );
+
+        $primeraModificacion = ModificacionBinRetornoPacking::query()
+            ->where('operacion_id', $operacionPendiente)
+            ->firstOrFail();
+        $this->assertSame('412.125', $primeraModificacion->datos_anteriores['kilos_totales']);
+        $this->assertSame('410.125', $primeraModificacion->datos_nuevos['kilos_totales']);
+
+        $tipo = TipoResultadoPacking::query()
+            ->where('activo', true)
+            ->firstOrFail();
+        $this->actingAs($contexto['camarero'], 'sanctum')
+            ->postJson("{$ruta}/regularizar", [
+                'operacion_id' => (string) Str::uuid(),
+                'folio_definitivo' => 'MP-MOD-0001',
+                'tipo_resultado_packing_id' => $tipo->id,
+                'nombre_resultado' => 'Resultado antes de corregir',
+                'kilos_totales_definitivos' => 409.750,
+                'origenes' => [[
+                    'origen_id' => $bin['origenes'][0]['id'],
+                    'kilos_aportados_definitivos' => 409.750,
+                ]],
+            ])->assertOk();
+
+        $operacionRegularizado = (string) Str::uuid();
+        $payloadRegularizado = [
+            'operacion_id' => $operacionRegularizado,
+            'motivo' => 'Se corrigieron el folio y los pesos definitivos digitados.',
+            'kilos_totales' => 409.500,
+            'observacion' => 'Folio del bin: BIN-77 corregido',
+            'folio_definitivo' => 'MP-MOD-0002',
+            'tipo_resultado_packing_id' => $tipo->id,
+            'nombre_resultado' => 'Resultado corregido',
+            'kilos_totales_definitivos' => 408.500,
+            'origenes' => [[
+                'origen_id' => $bin['origenes'][0]['id'],
+                'kilos_aportados' => 409.500,
+                'kilos_aportados_definitivos' => 408.500,
+            ]],
+        ];
+
+        $this->actingAs($contexto['supervisor'], 'sanctum')
+            ->putJson($ruta, $payloadRegularizado)
+            ->assertOk()
+            ->assertJsonPath('data.folio_provisional', $bin['folio_provisional'])
+            ->assertJsonPath('data.folio_definitivo', 'MP-MOD-0002')
+            ->assertJsonPath('data.kilos_totales_verdes', 409.5)
+            ->assertJsonPath('data.kilos_totales_definitivos', 408.5)
+            ->assertJsonPath('data.origenes.0.kilos_aportados_verdes', 409.5)
+            ->assertJsonPath('data.origenes.0.kilos_aportados_definitivos', 408.5);
+
+        $this->assertDatabaseCount('modificaciones_bin_retorno_packing', 2);
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $bin['id'],
+            'folio_provisional' => $bin['folio_provisional'],
+            'folio_definitivo' => 'MP-MOD-0002',
+            'kilos_totales' => 409.500,
+            'kilos_totales_definitivos' => 408.500,
+        ]);
+        $this->assertDatabaseHas('modificaciones_bin_retorno_packing', [
+            'bin_retorno_packing_id' => $bin['id'],
+            'operacion_id' => $operacionRegularizado,
+            'modificado_por_user_id' => $contexto['supervisor']->id,
+            'motivo' => $payloadRegularizado['motivo'],
+        ]);
+    }
+
     public function test_anula_retorno_sin_borrarlo_y_exige_idempotencia_estricta(): void
     {
         $contexto = $this->prepararEntrega('ANULAR', 'OP-BIN-ANULAR');
@@ -393,6 +527,10 @@ class BinRetornoPackingApiTest extends TestCase
         $this->get('/oficina/materia-prima/retornos-packing')
             ->assertOk()
             ->assertSee('Registrar un bin')
+            ->assertSee('Todos los bins registrados')
+            ->assertSee('Folio, observación, lote u orden')
+            ->assertSee('Guardar modificación')
+            ->assertSee('Motivo de la corrección')
             ->assertSee('Pendientes de regularizar')
             ->assertSee('Registros anteriores')
             ->assertSee('Kilos totales definitivos')
@@ -410,6 +548,9 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('bin.observacion', $script);
         $this->assertStringContainsString('Anular retorno', $script);
         $this->assertStringContainsString('data-annul-bin', $script);
+        $this->assertStringContainsString('data-edit-bin', $script);
+        $this->assertStringContainsString("method: 'PUT'", $script);
+        $this->assertStringNotContainsString('state.bins.slice(0, 8)', $script);
     }
 
     public function test_existencia_materia_prima_descuenta_entregas_e_incluye_retornos_clasificados(): void

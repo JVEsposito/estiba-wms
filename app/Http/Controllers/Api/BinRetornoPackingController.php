@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AnularBinRetornoPackingRequest;
 use App\Http\Requests\DescartarRetornoPackingLegacyRequest;
 use App\Http\Requests\MigrarRetornoPackingLegacyRequest;
+use App\Http\Requests\ModificarBinRetornoPackingRequest;
 use App\Http\Requests\RegistrarBinRetornoPackingRequest;
 use App\Http\Requests\RegularizarBinRetornoPackingRequest;
 use App\Models\BinRetornoPacking;
@@ -108,6 +109,7 @@ class BinRetornoPackingController extends Controller
                 'regularizadoPor:id,name',
                 'anuladoPor:id,name',
                 'retornoLegacy:id,numero',
+                'ultimaModificacion.modificadoPor:id,name',
             ])
             ->when($estado !== '', fn (Builder $consulta) => $consulta->where('estado', $estado))
             ->when($buscar !== '', function (Builder $consulta) use ($buscar): void {
@@ -115,13 +117,13 @@ class BinRetornoPackingController extends Controller
                     $subconsulta
                         ->where('folio_provisional', 'like', "%{$buscar}%")
                         ->orWhere('folio_definitivo', 'like', "%{$buscar}%")
+                        ->orWhere('observacion', 'like', "%{$buscar}%")
                         ->orWhereHas('origenes', fn (Builder $origenes) => $origenes
                             ->where('numero_lote', 'like', "%{$buscar}%")
                             ->orWhere('numero_orden', 'like', "%{$buscar}%"));
                 });
             })
             ->latest('registrado_at')
-            ->limit(300)
             ->get()
             ->map(fn (BinRetornoPacking $bin): array => $this->bin($bin));
 
@@ -212,6 +214,21 @@ class BinRetornoPackingController extends Controller
         $bin = $servicio->registrar($request->validated(), $request->user());
 
         return response()->json(['data' => $this->bin($bin)], 201);
+    }
+
+    public function modificar(
+        ModificarBinRetornoPackingRequest $request,
+        BinRetornoPacking $binRetornoPacking,
+        ServicioBinRetornoPacking $servicio,
+    ): JsonResponse {
+        Gate::authorize('anular-entregas-fruta-proceso');
+        $bin = $servicio->modificar(
+            $binRetornoPacking,
+            $request->validated(),
+            $request->user(),
+        );
+
+        return response()->json(['data' => $this->bin($bin)]);
     }
 
     public function regularizar(
@@ -314,6 +331,9 @@ class BinRetornoPackingController extends Controller
             'motivo_anulacion' => $bin->motivo_anulacion,
             'retorno_legacy' => $bin->retornoLegacy?->numero,
             'observacion' => $bin->observacion,
+            'modificado_por' => $bin->ultimaModificacion?->modificadoPor?->name,
+            'modificado_at' => $bin->ultimaModificacion?->modificado_at?->toAtomString(),
+            'motivo_ultima_modificacion' => $bin->ultimaModificacion?->motivo,
         ];
     }
 
