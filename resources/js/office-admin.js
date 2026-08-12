@@ -270,6 +270,7 @@ function dateOnly(value, fallback = 'Sin fecha') {
 function resetSeasonForm() {
     elements.seasonForm.reset();
     elements.seasonForm.elements.id.value = '';
+    elements.seasonForm.elements.intervalo_embarques_minutos.value = '60';
     elements.seasonError.textContent = '';
     elements.seasonCancel.classList.add('is-hidden');
 }
@@ -306,7 +307,7 @@ function renderSeasons() {
     elements.seasonsSummary.textContent = `${state.seasons.length} ${state.seasons.length === 1 ? 'registrada' : 'registradas'}`;
 
     if (!state.seasons.length) {
-        elements.seasonsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="4">No existen temporadas. Crea la primera configuración transversal.</td></tr>';
+        elements.seasonsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="5">No existen temporadas. Crea la primera configuración transversal.</td></tr>';
         return;
     }
 
@@ -314,6 +315,7 @@ function renderSeasons() {
         <tr>
             <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>Versión de catálogo ${Number(season.version_catalogo || 1)} · ${Number(season.migraciones_recibidas || 0)} migraciones recibidas</small></td>
             <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
+            <td><strong>${Number(season.intervalo_embarques_minutos || 60)} min</strong><small>24 horas · flujo global</small></td>
             <td>${statusBadge(season.activa)}</td>
             <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? `<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>` : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
         </tr>
@@ -389,7 +391,7 @@ function renderClients() {
         return `
             <tr>
                 <td><strong>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}</strong><small>Maestro transversal${aliasDetail}</small></td>
-                <td>${client.codigo_folio_materiales ? `F${escapeHtml(client.codigo_folio_materiales)}0000001` : 'Pendiente'}</td>
+                <td>${client.codigo_folio_materiales ? `<strong>${escapeHtml(client.codigo_folio_materiales)}</strong><small>F / I / E + 7 dígitos</small>` : 'Pendiente'}</td>
                 <td>${escapeHtml(client.codigo_externo || '—')}</td>
                 <td>${escapeHtml(presence)}</td>
                 <td>${statusBadge(client.activo)}</td>
@@ -566,7 +568,7 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
     if (edit) {
         const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
         if (!season) return;
-        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin']) {
+        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin', 'intervalo_embarques_minutos']) {
             elements.seasonForm.elements[field].value = season[field] || '';
         }
         elements.seasonForm.elements.activa.checked = season.activa;

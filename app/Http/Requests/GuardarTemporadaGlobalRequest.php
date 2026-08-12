@@ -31,16 +31,23 @@ class GuardarTemporadaGlobalRequest extends FormRequest
             'fecha_inicio' => ['nullable', 'date'],
             'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
             'activa' => ['sometimes', 'boolean'],
+            'intervalo_embarques_minutos' => ['sometimes', 'integer', 'min:15', 'max:240'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        $this->merge([
+        $normalizados = [
             'codigo' => mb_strtoupper(trim((string) $this->input('codigo'))),
             'nombre' => trim((string) $this->input('nombre')),
             'fecha_inicio' => $this->filled('fecha_inicio') ? $this->input('fecha_inicio') : null,
             'fecha_fin' => $this->filled('fecha_fin') ? $this->input('fecha_fin') : null,
-        ]);
+        ];
+
+        if ($this->has('intervalo_embarques_minutos')) {
+            $normalizados['intervalo_embarques_minutos'] = $this->integer('intervalo_embarques_minutos');
+        }
+
+        $this->merge($normalizados);
     }
 }

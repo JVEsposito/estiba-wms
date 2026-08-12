@@ -114,6 +114,7 @@ class AdministracionTemporadaController extends Controller
             'fecha_fin' => $temporada->fecha_fin?->toDateString(),
             'activa' => $temporada->activa,
             'version_catalogo' => $temporada->version_catalogo,
+            'intervalo_embarques_minutos' => $temporada->intervalo_embarques_minutos,
             'migraciones_recibidas' => (int) ($temporada->migraciones_recibidas_count ?? 0),
             'created_at' => $temporada->created_at?->toAtomString(),
             'updated_at' => $temporada->updated_at?->toAtomString(),

@@ -14,6 +14,8 @@ export default defineConfig({
                 'resources/js/office-cameras.js',
                 'resources/css/office-loads.css',
                 'resources/js/office-loads.js',
+                'resources/css/office-shipment-calendar.css',
+                'resources/js/office-shipment-calendar.js',
                 'resources/css/office-admin.css',
                 'resources/js/office-admin.js',
                 'resources/js/office-access-profiles.js',

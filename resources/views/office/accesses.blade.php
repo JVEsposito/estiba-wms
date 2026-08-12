@@ -97,6 +97,8 @@
                             <label class="field"><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada cerezas 2026–2027" required></label>
                             <label class="field"><span>Inicio</span><input name="fecha_inicio" type="date"></label>
                             <label class="field"><span>Término</span><input name="fecha_fin" type="date"></label>
+                            <label class="field"><span>Intervalo global de embarques *</span><input name="intervalo_embarques_minutos" type="number" min="15" max="240" step="5" value="60" list="shipmentIntervals" required><small>Minutos entre inicios de carga; aplica durante las 24 horas.</small></label>
+                            <datalist id="shipmentIntervals"><option value="30"></option><option value="45"></option><option value="60"></option></datalist>
                         </div>
                         <label class="admin-check"><input name="activa" type="checkbox"><span>Dejar como temporada activa para todas las oficinas</span></label>
                         <p class="admin-form__hint">La activación es global. Las oficinas operacionales solo consultan esta configuración y mantienen sus flujos separados.</p>
@@ -109,7 +111,7 @@
 
                     <div class="admin-table-scroll admin-season-list">
                         <table class="admin-table">
-                            <thead><tr><th>Temporada</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <thead><tr><th>Temporada</th><th>Vigencia</th><th>Calendario</th><th>Estado</th><th>Acciones</th></tr></thead>
                             <tbody id="seasonsTableBody"></tbody>
                         </table>
                     </div>
@@ -145,10 +147,10 @@
                             <label class="field"><span>Código *</span><input name="codigo" maxlength="80" placeholder="AG-001" required></label>
                             <label class="field"><span>Nombre *</span><input name="nombre" maxlength="180" placeholder="LA AGUADA" required></label>
                             <label class="field"><span>Código ERP futuro</span><input name="codigo_externo" maxlength="150"></label>
-                            <label class="field"><span>Letras para folio de materiales</span><input name="codigo_folio_materiales" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" placeholder="AG"></label>
+                            <label class="field"><span>Sigla documental (2 letras)</span><input name="codigo_folio_materiales" minlength="2" maxlength="2" pattern="[A-Za-z]{2}" placeholder="AG"></label>
                             <label class="admin-check"><input name="activo" type="checkbox" checked><span>Cliente activo para todas las oficinas</span></label>
                         </div>
-                        <p class="admin-form__hint">Este es el único lugar para crear o modificar clientes. El folio de materiales usa F + 2 letras configuradas para el cliente + 7 dígitos (por ejemplo, para GE: FGE0000001).</p>
+                        <p class="admin-form__hint">Este es el único lugar para crear o modificar clientes. La sigla se reutiliza en folios de materiales (FGE0000001), inspecciones (IGE0000001) y embarques (EGE0000001).</p>
                         <p class="form-error" id="globalClientError" role="alert"></p>
                         <div class="admin-form__actions">
                             <button class="secondary-button is-hidden" id="cancelGlobalClientEdit" type="button">Nuevo cliente</button>
@@ -158,7 +160,7 @@
 
                     <div class="admin-table-scroll">
                         <table class="admin-table">
-                            <thead><tr><th>Cliente</th><th>Folio materiales</th><th>Código ERP</th><th>Presencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <thead><tr><th>Cliente</th><th>Sigla documental</th><th>Código ERP</th><th>Presencia</th><th>Estado</th><th>Acciones</th></tr></thead>
                             <tbody id="globalClientsTableBody"></tbody>
                         </table>
                     </div>
