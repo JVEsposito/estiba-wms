@@ -185,13 +185,23 @@ class ServicioExportacionRegistroValidacion
 
             $articulo = $validacion->snapshot['articulo'] ?? [];
             $origen = $validacion->snapshot['origen'] ?? [];
+            $csgs = collect($validacion->snapshot['composicion'] ?? [])
+                ->pluck('csg')
+                ->filter()
+                ->unique()
+                ->implode(' / ');
             $categoria = $validacion->snapshot['categoria'] ?? [];
             $this->texto($documento, $xpath, 'B'.$fila, $validacion->numero_folio);
             $this->texto($documento, $xpath, 'C'.$fila, $origen['marca'] ?? null);
             $this->texto($documento, $xpath, 'D'.$fila, $articulo['envase'] ?? null);
             $this->texto($documento, $xpath, 'E'.$fila, $articulo['especie'] ?? null);
             $this->texto($documento, $xpath, 'F'.$fila, $articulo['variedad'] ?? null);
-            $this->texto($documento, $xpath, 'G'.$fila, $origen['csg'] ?? null);
+            $this->texto(
+                $documento,
+                $xpath,
+                'G'.$fila,
+                $csgs !== '' ? $csgs : ($origen['csg'] ?? null),
+            );
             $this->texto($documento, $xpath, 'H'.$fila, $articulo['calibre'] ?? null);
             $this->numero($documento, $xpath, 'I'.$fila, (int) $validacion->cantidad_cajas);
 

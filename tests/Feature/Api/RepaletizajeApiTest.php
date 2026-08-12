@@ -20,6 +20,164 @@ class RepaletizajeApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_cambia_un_pallet_o_saldo_a_un_folio_nuevo_sin_alterar_su_composicion(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio($temporada, 'SAL-CAMBIO', 60);
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'cambio_folio',
+            'origenes' => [[
+                'folio_id' => $origen->id,
+                'cantidad_aportada' => 60,
+            ]],
+            'resultados' => [[
+                'numero_folio' => 'SAL-CAMBIO-NUEVO',
+                'tipo_resultado' => 'saldo',
+                'cantidad_objetivo' => 120,
+                'cantidad_resultante' => 60,
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.modalidad', 'cambio_folio')
+            ->assertJsonPath('data.resultados.0.folio.numero_folio', 'SAL-CAMBIO-NUEVO')
+            ->assertJsonPath('data.resultados.0.cantidad_resultante', 60);
+
+        $this->assertDatabaseHas('folios', [
+            'id' => $origen->id,
+            'activo' => false,
+            'estado_operacional' => 'agotado',
+        ]);
+        $nuevo = Folio::query()->where('numero_folio', 'SAL-CAMBIO-NUEVO')->firstOrFail();
+        $this->assertSame(60, $nuevo->datos_externos['cantidad_cajas']);
+        $this->assertSame('111', $nuevo->datos_externos['composicion'][0]['csg']);
+    }
+
+    public function test_divide_un_folio_en_dos_y_anular_restaura_el_origen_completo(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio($temporada, 'PAL-DIVIDIR', 60, tipo: TipoBulto::Pallet);
+        $datos = $origen->datos_externos;
+        $datos['composicion'] = [
+            ['csg' => '111', 'predio' => 'Predio', 'fecha_embalaje' => '2026-08-10', 'cantidad_cajas' => 30],
+            ['csg' => '222', 'predio' => 'Predio', 'fecha_embalaje' => '2026-08-11', 'cantidad_cajas' => 30],
+        ];
+        $origen->update(['datos_externos' => $datos]);
+        $lineas = collect($this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes/folios/PAL-DIVIDIR')
+            ->assertOk()->json('composicion'));
+
+        $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'division',
+            'origenes' => [[
+                'folio_id' => $origen->id,
+                'cantidad_aportada' => 60,
+            ]],
+            'resultados' => [
+                [
+                    'numero_folio' => 'SAL-DIV-A',
+                    'tipo_resultado' => 'saldo',
+                    'cantidad_objetivo' => 120,
+                    'cantidad_resultante' => 30,
+                    'composicion' => $lineas->map(fn (array $linea): array => [
+                        'clave' => $linea['clave'],
+                        'cantidad_cajas' => $linea['csg'] === '111' ? 20 : 10,
+                    ])->all(),
+                ],
+                [
+                    'numero_folio' => 'SAL-DIV-B',
+                    'tipo_resultado' => 'saldo',
+                    'cantidad_objetivo' => 120,
+                    'cantidad_resultante' => 30,
+                    'composicion' => $lineas->map(fn (array $linea): array => [
+                        'clave' => $linea['clave'],
+                        'cantidad_cajas' => $linea['csg'] === '111' ? 10 : 20,
+                    ])->all(),
+                ],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.modalidad', 'division')
+            ->assertJsonCount(2, 'data.resultados');
+
+        $repaId = $respuesta->json('data.id');
+        $this->assertDatabaseCount('repaletizaje_resultados', 2);
+        $this->assertSame(30, Folio::query()->where('numero_folio', 'SAL-DIV-A')->firstOrFail()->datos_externos['cantidad_cajas']);
+
+        $supervisorToken = $this->token(RolUsuario::SupervisorFrio, 'SUP-DIVISION');
+        $this->conToken($supervisorToken)->postJson("/api/validacion/repaletizajes/{$repaId}/anular", [
+            'operacion_id' => (string) Str::uuid(),
+            'motivo' => 'División registrada por error.',
+        ])->assertOk()->assertJsonPath('data.estado', 'anulado');
+
+        $origen->refresh();
+        $this->assertTrue($origen->activo);
+        $this->assertSame(60, $origen->datos_externos['cantidad_cajas']);
+        $this->assertFalse(Folio::query()->where('numero_folio', 'SAL-DIV-A')->firstOrFail()->activo);
+        $this->assertFalse(Folio::query()->where('numero_folio', 'SAL-DIV-B')->firstOrFail()->activo);
+    }
+
+    public function test_distribuye_un_saldo_mixto_por_csg_y_fecha_sin_perder_el_residual(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $mixto = $this->folio($temporada, 'SAL-MIXTO', 60, csg: 'MIX');
+        $datos = $mixto->datos_externos;
+        $datos['composicion'] = [
+            ['csg' => '111', 'predio' => 'Predio A', 'fecha_embalaje' => '2026-08-10', 'cantidad_cajas' => 30],
+            ['csg' => '111', 'predio' => 'Predio A', 'fecha_embalaje' => '2026-08-11', 'cantidad_cajas' => 30],
+        ];
+        $mixto->update(['datos_externos' => $datos]);
+        $simple = $this->folio($temporada, 'SAL-SIMPLE', 40, csg: '222');
+
+        $composicion = $this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes/folios/SAL-MIXTO')
+            ->assertOk()
+            ->json('composicion');
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'tipo_resultado' => 'saldo',
+            'estrategia_folio' => 'nuevo',
+            'numero_folio_resultante' => 'SAL-SIN-DISTRIBUCION',
+            'cantidad_objetivo' => 120,
+            'origenes' => [
+                ['folio_id' => $mixto->id, 'cantidad_aportada' => 40],
+                ['folio_id' => $simple->id, 'cantidad_aportada' => 40],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'El folio SAL-MIXTO posee más de un CSG o fecha. Indica cuántas cajas aporta cada composición.',
+            );
+
+        $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'tipo_resultado' => 'saldo',
+            'estrategia_folio' => 'nuevo',
+            'numero_folio_resultante' => 'SAL-RESULTADO-MIX',
+            'cantidad_objetivo' => 120,
+            'origenes' => [
+                [
+                    'folio_id' => $mixto->id,
+                    'cantidad_aportada' => 40,
+                    'composicion' => collect($composicion)->map(fn (array $linea): array => [
+                        'clave' => $linea['clave'],
+                        'cantidad_aportada' => 20,
+                    ])->all(),
+                ],
+                ['folio_id' => $simple->id, 'cantidad_aportada' => 40],
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.folio_resultante.csg', 'MIX')
+            ->assertJsonCount(3, 'data.folio_resultante.composicion');
+
+        $residual = Folio::query()->findOrFail($mixto->id)->datos_externos;
+        $this->assertSame(20, $residual['cantidad_cajas']);
+        $this->assertCount(2, $residual['composicion']);
+        $this->assertSame([10, 10], collect($residual['composicion'])->pluck('cantidad_cajas')->all());
+        $this->assertContains('fecha_embalaje', $respuesta->json('data.campos_mix'));
+    }
+
     public function test_crea_pallet_nuevo_con_mix_y_conserva_saldo_residual(): void
     {
         [$token, $temporada] = $this->contexto();
@@ -340,11 +498,12 @@ class RepaletizajeApiTest extends TestCase
         string $csg = '111',
         CondicionTermicaFolio $condicion = CondicionTermicaFolio::PendientePrefrio,
         EstadoOperacionalFolio $estado = EstadoOperacionalFolio::PendientePrefrio,
+        TipoBulto $tipo = TipoBulto::Saldo,
     ): Folio {
         return Folio::create([
             'temporada_id' => $temporada->id,
             'numero_folio' => mb_strtoupper($numero),
-            'tipo_bulto' => TipoBulto::Saldo,
+            'tipo_bulto' => $tipo,
             'estado_operacional' => $estado,
             'condicion_termica' => $condicion,
             'habilitacion_almacenamiento' => $condicion === CondicionTermicaFolio::PrefrioAprobado

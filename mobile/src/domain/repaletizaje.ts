@@ -17,23 +17,46 @@ export type RepalletizingFolio = {
   csg: string | null;
   predio: string | null;
   cuartel: string | null;
+  composicion: RepalletizingComposition[];
+};
+
+export type RepalletizingComposition = {
+  clave: string;
+  origen_validacion_id: string | null;
+  csg: string;
+  predio: string | null;
+  fecha_embalaje: string | null;
+  cantidad_cajas: number;
 };
 
 export type CreateRepalletizing = {
   operacion_id: string;
-  tipo_resultado: 'pallet' | 'saldo';
-  estrategia_folio: 'conservar' | 'nuevo';
-  numero_folio_resultante: string;
-  folio_conservado_id: string | null;
-  cantidad_objetivo: number | null;
-  origenes: Array<{ folio_id: string; cantidad_aportada: number }>;
+  modalidad: 'consolidacion' | 'cambio_folio' | 'division';
+  tipo_resultado?: 'pallet' | 'saldo';
+  estrategia_folio?: 'conservar' | 'nuevo';
+  numero_folio_resultante?: string;
+  folio_conservado_id?: string | null;
+  cantidad_objetivo?: number | null;
+  origenes: Array<{
+    folio_id: string;
+    cantidad_aportada: number;
+    composicion: Array<{ clave: string; cantidad_aportada: number }>;
+  }>;
+  resultados?: Array<{
+    numero_folio: string;
+    tipo_resultado: 'pallet' | 'saldo';
+    cantidad_objetivo: number | null;
+    cantidad_resultante: number;
+    composicion: Array<{ clave: string; cantidad_cajas: number }>;
+  }>;
   observacion: string | null;
 };
 
 export type Repalletizing = {
   id: string;
   codigo: string;
-  tipo_resultado: 'pallet' | 'saldo';
+  modalidad: 'consolidacion' | 'cambio_folio' | 'division';
+  tipo_resultado: 'pallet' | 'saldo' | 'division';
   estrategia_folio: 'conservar' | 'nuevo';
   cantidad_objetivo: number | null;
   cantidad_resultante: number;
@@ -48,7 +71,22 @@ export type Repalletizing = {
     cantidad_cajas: number;
     estado_operacional: string;
     condicion_termica: string;
+    composicion: RepalletizingComposition[];
   };
+  resultados: Array<{
+    id: string;
+    orden: number;
+    tipo_resultado: 'pallet' | 'saldo';
+    cantidad_objetivo: number | null;
+    cantidad_resultante: number;
+    folio: {
+      id: string;
+      numero_folio: string;
+      tipo_bulto: string;
+      cantidad_cajas: number;
+      composicion: RepalletizingComposition[];
+    };
+  }>;
   origenes: Array<{
     id: string;
     orden: number;

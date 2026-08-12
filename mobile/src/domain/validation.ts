@@ -78,6 +78,11 @@ export type RegisterValidationPayload = {
   catalogo_version: number;
   articulo_validacion_id: string;
   origen_validacion_id: string;
+  fecha_embalaje: string;
+  composicion: Array<{
+    origen_validacion_id: string;
+    cantidad_cajas: number;
+  }>;
   categoria_validacion_id: string;
   resultado: ValidationResult;
   motivo?: string;
@@ -109,6 +114,15 @@ export type ValidationAttempt = {
     temporada: { codigo: string; nombre: string } | null;
     articulo: { especie: string; variedad: string; calibre: string; envase: string } | null;
     origen: { cliente: string; marca: string; csg: string; predio: string | null } | null;
+    fecha_embalaje: string | null;
+    composicion: Array<{
+      origen_validacion_id: string;
+      combinacion_validacion_id: string;
+      csg: string;
+      predio: string | null;
+      fecha_embalaje: string | null;
+      cantidad_cajas: number;
+    }> | null;
     categoria: { id: string; nombre: string; codigo_externo: string | null } | null;
   };
   folio: { id: string; numero_folio: string; estado_operacional: string } | null;

@@ -27,6 +27,8 @@ class RepaletizajeController extends Controller
                     $subconsulta
                         ->whereHas('folioResultante', fn ($folios) => $folios
                             ->where('numero_folio', 'like', "%{$folio}%"))
+                        ->orWhereHas('resultados.folio', fn ($folios) => $folios
+                            ->where('numero_folio', 'like', "%{$folio}%"))
                         ->orWhereHas('detalles.folioOrigen', fn ($folios) => $folios
                             ->where('numero_folio', 'like', "%{$folio}%"));
                 });
@@ -95,6 +97,7 @@ class RepaletizajeController extends Controller
             'csg' => $folio->datos_externos['csg'] ?? null,
             'predio' => $folio->datos_externos['predio'] ?? null,
             'cuartel' => $folio->datos_externos['cuartel'] ?? null,
+            'composicion' => $this->composicionFolio($folio),
             'ubicacion' => $folio->ubicacionActual ? [
                 'camara' => $folio->ubicacionActual->camara?->only([
                     'id',
@@ -148,6 +151,7 @@ class RepaletizajeController extends Controller
         return [
             'folioResultante',
             'folioConservado',
+            'resultados.folio',
             'detalles.folioOrigen',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
@@ -161,6 +165,7 @@ class RepaletizajeController extends Controller
         return [
             'id' => $repa->id,
             'codigo' => $repa->codigo,
+            'modalidad' => $repa->modalidad ?? 'consolidacion',
             'tipo_resultado' => $repa->tipo_resultado,
             'estrategia_folio' => $repa->estrategia_folio,
             'cantidad_objetivo' => $repa->cantidad_objetivo,
@@ -185,7 +190,25 @@ class RepaletizajeController extends Controller
                 'calibre' => $repa->folioResultante->calibre,
                 'csg' => $repa->folioResultante->datos_externos['csg'] ?? null,
                 'predio' => $repa->folioResultante->datos_externos['predio'] ?? null,
+                'fecha_embalaje' => $repa->folioResultante->datos_externos['fecha_embalaje'] ?? null,
+                'fechas_embalaje' => $repa->folioResultante->datos_externos['fechas_embalaje'] ?? [],
+                'composicion' => $this->composicionFolio($repa->folioResultante),
             ] : null,
+            'resultados' => $repa->resultados->map(fn ($resultado): array => [
+                'id' => $resultado->id,
+                'orden' => $resultado->orden,
+                'tipo_resultado' => $resultado->tipo_resultado,
+                'cantidad_objetivo' => $resultado->cantidad_objetivo,
+                'cantidad_resultante' => $resultado->cantidad_resultante,
+                'hereda_ubicacion' => $resultado->hereda_ubicacion,
+                'folio' => $resultado->folio ? [
+                    'id' => $resultado->folio->id,
+                    'numero_folio' => $resultado->folio->numero_folio,
+                    'tipo_bulto' => $resultado->folio->tipo_bulto?->value,
+                    'cantidad_cajas' => (int) ($resultado->folio->datos_externos['cantidad_cajas'] ?? 0),
+                    'composicion' => $this->composicionFolio($resultado->folio),
+                ] : null,
+            ])->values(),
             'origenes' => $repa->detalles->map(
                 fn (RepaletizajeDetalle $detalle): array => [
                     'id' => $detalle->id,
@@ -203,6 +226,8 @@ class RepaletizajeController extends Controller
                     'estado_antes' => $detalle->estado_antes,
                     'estado_despues' => $detalle->estado_despues,
                     'especificaciones' => $detalle->snapshot_antes['especificaciones'] ?? [],
+                    'composicion_antes' => $detalle->snapshot_antes['atributos']['datos_externos']['composicion'] ?? [],
+                    'composicion_despues' => $detalle->snapshot_despues['atributos']['datos_externos']['composicion'] ?? [],
                 ],
             )->values(),
             'operador' => $repa->usuario ? [
@@ -220,5 +245,36 @@ class RepaletizajeController extends Controller
             'motivo_anulacion' => $repa->motivo_anulacion,
             'puede_anular' => $repa->estado === 'confirmado',
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function composicionFolio(Folio $folio): array
+    {
+        $datos = $folio->datos_externos ?? [];
+        $lineas = collect($datos['composicion'] ?? [])
+            ->filter(fn (mixed $linea): bool => is_array($linea)
+                && array_key_exists('cantidad_cajas', $linea)
+                && array_key_exists('csg', $linea));
+
+        if ($lineas->isEmpty() && (int) ($datos['cantidad_cajas'] ?? 0) > 0) {
+            $lineas->push([
+                'origen_validacion_id' => null,
+                'csg' => $datos['csg'] ?? 'SIN CSG',
+                'predio' => $datos['predio'] ?? null,
+                'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+                'cantidad_cajas' => (int) $datos['cantidad_cajas'],
+            ]);
+        }
+
+        return $lineas->map(function (array $linea): array {
+            $linea['clave'] = hash('sha256', implode('|', [
+                mb_strtoupper(trim((string) ($linea['csg'] ?? ''))),
+                mb_strtoupper(trim((string) ($linea['predio'] ?? ''))),
+                (string) ($linea['fecha_embalaje'] ?? ''),
+            ]));
+            $linea['cantidad_cajas'] = (int) $linea['cantidad_cajas'];
+
+            return $linea;
+        })->values()->all();
     }
 }

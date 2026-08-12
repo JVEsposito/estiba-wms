@@ -8,10 +8,12 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Exceptions\ConflictoOperacion;
+use App\Models\AutorizacionSagFolio;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
+use App\Models\RepaletizajeResultado;
 use App\Models\Temporada;
 use App\Models\User;
 use DomainException;
@@ -50,6 +52,16 @@ class ServicioRepaletizaje
                 }
 
                 return $this->cargar($existente);
+            }
+
+            if ($payload['modalidad'] !== 'consolidacion') {
+                return $this->registrarTransformacion(
+                    $datos,
+                    $payload,
+                    $hash,
+                    $usuario,
+                    $dispositivo,
+                );
             }
 
             $ids = collect($payload['origenes'])
@@ -102,11 +114,17 @@ class ServicioRepaletizaje
                     ));
                 }
 
+                [$composicionAntes, $composicionAportada, $composicionDespues] =
+                    $this->resolverAporteComposicion($folio, $origen, $aporte);
+
                 return [
                     'folio' => $folio,
                     'cantidad_antes' => $cantidadAntes,
                     'cantidad_aportada' => $aporte,
                     'cantidad_despues' => $cantidadAntes - $aporte,
+                    'composicion_antes' => $composicionAntes,
+                    'composicion_aportada' => $composicionAportada,
+                    'composicion_despues' => $composicionDespues,
                 ];
             });
 
@@ -149,10 +167,21 @@ class ServicioRepaletizaje
                 }
             }
 
+            $composicionResultado = $this->agruparComposicion(
+                $origenes->flatMap(fn (array $origen): array => $origen['composicion_aportada']),
+            );
             $especificaciones = $this->especificacionesResultado($origenes->pluck('folio'));
+            $especificaciones['csg'] = $this->valorComun($composicionResultado->pluck('csg'));
+            $especificaciones['predio'] = $this->valorComun($composicionResultado->pluck('predio'));
             $camposMix = collect($especificaciones)
                 ->filter(fn (mixed $valor): bool => $valor === 'MIX')
                 ->keys()
+                ->values()
+                ->when(
+                    $composicionResultado->pluck('fecha_embalaje')->unique()->count() > 1,
+                    fn (Collection $campos): Collection => $campos->push('fecha_embalaje'),
+                )
+                ->unique()
                 ->values()
                 ->all();
             /** @var Folio $primero */
@@ -165,10 +194,11 @@ class ServicioRepaletizaje
                 ? HabilitacionAlmacenamientoFolio::NoHabilitado
                 : HabilitacionAlmacenamientoFolio::Habilitado;
             $codigo = $this->siguienteCodigo();
-            $composicion = $origenes->map(fn (array $origen): array => [
+            $genealogia = $origenes->map(fn (array $origen): array => [
                 'folio_id' => $origen['folio']->id,
                 'numero_folio' => $origen['folio']->numero_folio,
                 'cajas_aportadas' => $origen['cantidad_aportada'],
+                'composicion_aportada' => $origen['composicion_aportada'],
                 'especificaciones' => $this->especificaciones($origen['folio']),
             ])->values()->all();
             $snapshotResultado = [
@@ -178,7 +208,8 @@ class ServicioRepaletizaje
                     'campo' => $campo,
                     'mensaje' => 'Se está generando un MIX de '.mb_strtoupper($campo).'.',
                 ])->values()->all(),
-                'composicion' => $composicion,
+                'composicion' => $composicionResultado->values()->all(),
+                'genealogia' => $genealogia,
             ];
 
             $folioResultado = $folioConservado ?? Folio::create([
@@ -202,12 +233,17 @@ class ServicioRepaletizaje
                     'categoria' => $especificaciones['categoria'],
                     'envase' => $especificaciones['envase'],
                     'csg' => $especificaciones['csg'],
+                    'csgs' => $composicionResultado->pluck('csg')->unique()->values()->all(),
                     'predio' => $especificaciones['predio'],
+                    'fecha_embalaje' => $this->valorComunFecha($composicionResultado),
+                    'fechas_embalaje' => $composicionResultado->pluck('fecha_embalaje')
+                        ->filter()->unique()->values()->all(),
                     'cuartel' => $especificaciones['cuartel'],
                     'cantidad_cajas' => $cantidadResultado,
                     'repaletizaje_codigo' => $codigo,
                     'campos_mix' => $camposMix,
-                    'composicion' => $composicion,
+                    'composicion' => $composicionResultado->values()->all(),
+                    'genealogia_repaletizaje' => $genealogia,
                 ],
             ]);
 
@@ -215,6 +251,7 @@ class ServicioRepaletizaje
                 'operacion_id' => $datos['operacion_id'],
                 'payload_hash' => $hash,
                 'codigo' => $codigo,
+                'modalidad' => 'consolidacion',
                 'tipo_resultado' => $payload['tipo_resultado'],
                 'estrategia_folio' => $payload['estrategia_folio'],
                 'folio_resultante_id' => $folioResultado->id,
@@ -229,6 +266,17 @@ class ServicioRepaletizaje
                 'user_id' => $usuario->id,
                 'dispositivo_id' => $dispositivo?->id,
                 'confirmado_at' => now(),
+            ]);
+
+            RepaletizajeResultado::create([
+                'repaletizaje_id' => $repa->id,
+                'folio_id' => $folioResultado->id,
+                'orden' => 1,
+                'tipo_resultado' => $payload['tipo_resultado'],
+                'cantidad_objetivo' => $payload['cantidad_objetivo'],
+                'cantidad_resultante' => $cantidadResultado,
+                'hereda_ubicacion' => $folioConservado === null,
+                'snapshot' => $snapshotResultado,
             ]);
 
             $ubicacionTransferida = false;
@@ -248,7 +296,8 @@ class ServicioRepaletizaje
                         $especificaciones,
                         $codigo,
                         $camposMix,
-                        $composicion,
+                        $composicionResultado->values()->all(),
+                        $genealogia,
                     );
                 } elseif ($origen['cantidad_despues'] === 0) {
                     if (! $folioConservado && ! $ubicacionTransferida && $folio->ubicacionActual) {
@@ -259,6 +308,7 @@ class ServicioRepaletizaje
                     }
                     $datosExternos = $folio->datos_externos ?? [];
                     $datosExternos['cantidad_cajas'] = 0;
+                    $datosExternos['composicion'] = [];
                     $datosExternos['consumido_en_repaletizaje'] = $codigo;
                     $folio->update([
                         'tipo_bulto' => TipoBulto::Saldo,
@@ -269,6 +319,8 @@ class ServicioRepaletizaje
                 } else {
                     $datosExternos = $folio->datos_externos ?? [];
                     $datosExternos['cantidad_cajas'] = $origen['cantidad_despues'];
+                    $datosExternos['composicion'] = $origen['composicion_despues'];
+                    $this->actualizarResumenComposicion($datosExternos);
                     $datosExternos['ultimo_repaletizaje'] = $codigo;
                     $folio->update([
                         'tipo_bulto' => TipoBulto::Saldo,
@@ -307,6 +359,225 @@ class ServicioRepaletizaje
         }, attempts: 3);
     }
 
+    /**
+     * Registra un cambio de folio 1→1 o una división física 1→2.
+     *
+     * @param  array<string, mixed>  $datos
+     * @param  array<string, mixed>  $payload
+     */
+    private function registrarTransformacion(
+        array $datos,
+        array $payload,
+        string $hash,
+        User $usuario,
+        ?Dispositivo $dispositivo,
+    ): Repaletizaje {
+        $origenPayload = $payload['origenes'][0];
+        $folio = Folio::query()
+            ->whereKey($origenPayload['folio_id'])
+            ->with('ubicacionActual')
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $temporadaActivaId = Temporada::query()->where('activa', true)->sharedLock()->value('id');
+        if (! $temporadaActivaId || $folio->temporada_id !== $temporadaActivaId) {
+            throw new ConflictoOperacion('El folio no pertenece a la temporada activa.');
+        }
+        $this->validarFolioTransformable($folio);
+
+        $cantidadAntes = $this->cantidad($folio);
+        if ((int) $origenPayload['cantidad_aportada'] !== $cantidadAntes) {
+            throw new DomainException('El cambio o división debe consumir la totalidad del folio original.');
+        }
+        $composicionAntes = collect($this->composicionFolio($folio))->keyBy('clave');
+        if ((int) $composicionAntes->sum('cantidad_cajas') !== $cantidadAntes) {
+            throw new DomainException('La composición del folio no coincide con su total. Requiere regularización.');
+        }
+
+        $resultados = collect($payload['resultados'])->map(function (array $resultado) use (
+            $payload,
+            $composicionAntes,
+        ): array {
+            $composicion = $payload['modalidad'] === 'cambio_folio'
+                ? $composicionAntes->values()
+                : collect($resultado['composicion'] ?? [])->map(function (array $linea) use ($composicionAntes): array {
+                    $origen = $composicionAntes->get($linea['clave']);
+                    if (! $origen) {
+                        throw new DomainException('Una composición seleccionada ya no existe en el folio original.');
+                    }
+
+                    return [...$origen, 'cantidad_cajas' => (int) $linea['cantidad_cajas']];
+                });
+            if ($composicion->pluck('clave')->duplicates()->isNotEmpty()) {
+                throw new DomainException('Un resultado contiene composiciones repetidas.');
+            }
+            $cantidad = (int) $resultado['cantidad_resultante'];
+            if ((int) $composicion->sum('cantidad_cajas') !== $cantidad) {
+                throw new DomainException('La composición de cada resultado debe sumar su cantidad de cajas.');
+            }
+            $this->validarCantidadResultado($resultado, $cantidad);
+
+            return [
+                ...$resultado,
+                'numero_folio' => mb_strtoupper(trim((string) $resultado['numero_folio'])),
+                'cantidad_objetivo' => isset($resultado['cantidad_objetivo'])
+                    ? (int) $resultado['cantidad_objetivo']
+                    : null,
+                'cantidad_resultante' => $cantidad,
+                'composicion' => $composicion->values()->all(),
+            ];
+        })->values();
+
+        if ($resultados->pluck('numero_folio')->duplicates()->isNotEmpty()) {
+            throw new DomainException('Los folios resultantes deben ser diferentes.');
+        }
+        if ((int) $resultados->sum('cantidad_resultante') !== $cantidadAntes) {
+            throw new DomainException('Los resultados deben distribuir el 100% de las cajas del folio original.');
+        }
+        $distribucion = $resultados->flatMap(fn (array $resultado): array => $resultado['composicion'])
+            ->groupBy('clave')->map(fn (Collection $lineas): int => (int) $lineas->sum('cantidad_cajas'));
+        foreach ($composicionAntes as $clave => $linea) {
+            if (($distribucion[$clave] ?? 0) !== (int) $linea['cantidad_cajas']) {
+                throw new DomainException('Cada CSG y fecha debe distribuirse completamente entre los resultados.');
+            }
+        }
+        if (Folio::query()->whereIn('numero_folio', $resultados->pluck('numero_folio'))->lockForUpdate()->exists()) {
+            throw new ConflictoOperacion('Uno de los números de folio resultantes ya existe.');
+        }
+
+        $codigo = $this->siguienteCodigo();
+        $snapshotAntes = $this->snapshotFolio($folio);
+        $genealogia = [[
+            'folio_id' => $folio->id,
+            'numero_folio' => $folio->numero_folio,
+            'cajas_aportadas' => $cantidadAntes,
+            'composicion_aportada' => $composicionAntes->values()->all(),
+            'especificaciones' => $this->especificaciones($folio),
+        ]];
+        $foliosResultado = $resultados->map(function (array $resultado, int $indice) use (
+            $folio,
+            $codigo,
+            $datos,
+            $genealogia,
+        ): array {
+            $datosExternos = array_merge($folio->datos_externos ?? [], [
+                'cantidad_cajas' => $resultado['cantidad_resultante'],
+                'composicion' => $resultado['composicion'],
+                'repaletizaje_codigo' => $codigo,
+                'genealogia_repaletizaje' => $genealogia,
+            ]);
+            $this->actualizarResumenComposicion($datosExternos);
+            $nuevo = Folio::create([
+                'temporada_id' => $folio->temporada_id,
+                'numero_folio' => $resultado['numero_folio'],
+                'tipo_bulto' => TipoBulto::from($resultado['tipo_resultado']),
+                'condicion_sag_id' => $folio->condicion_sag_id,
+                'estado_operacional' => $folio->estado_operacional,
+                'condicion_termica' => $folio->condicion_termica,
+                'habilitacion_almacenamiento' => $folio->habilitacion_almacenamiento,
+                'fuente_habilitacion_almacenamiento' => $folio->fuente_habilitacion_almacenamiento,
+                'habilitado_almacenamiento_at' => $folio->habilitado_almacenamiento_at,
+                'habilitado_almacenamiento_por_user_id' => $folio->habilitado_almacenamiento_por_user_id,
+                'fecha_ingreso' => $folio->fecha_ingreso,
+                'activo' => true,
+                'variedad' => $folio->variedad,
+                'calibre' => $folio->calibre,
+                'marca' => $folio->marca,
+                'exportadora' => $folio->exportadora,
+                'origen_sistema' => 'repaletizaje',
+                'identificador_externo' => $datos['operacion_id'].':'.($indice + 1),
+                'estado_integracion' => EstadoIntegracionFolio::NoVinculado,
+                'datos_externos' => $datosExternos,
+            ]);
+            $this->heredarAutorizacionesSag($folio, $nuevo);
+
+            return [...$resultado, 'folio' => $nuevo];
+        });
+
+        /** @var Folio $primero */
+        $primero = $foliosResultado->first()['folio'];
+        $snapshotRepa = [
+            'modalidad' => $payload['modalidad'],
+            'genealogia' => $genealogia,
+            'resultados' => $foliosResultado->map(fn (array $resultado): array => [
+                'folio_id' => $resultado['folio']->id,
+                'numero_folio' => $resultado['folio']->numero_folio,
+                'tipo_resultado' => $resultado['tipo_resultado'],
+                'cantidad_resultante' => $resultado['cantidad_resultante'],
+                'composicion' => $resultado['composicion'],
+            ])->values()->all(),
+            'advertencias' => [],
+        ];
+        $repa = Repaletizaje::create([
+            'operacion_id' => $datos['operacion_id'],
+            'payload_hash' => $hash,
+            'codigo' => $codigo,
+            'modalidad' => $payload['modalidad'],
+            'tipo_resultado' => $payload['modalidad'] === 'division' ? 'division' : $resultados->first()['tipo_resultado'],
+            'estrategia_folio' => 'nuevo',
+            'folio_resultante_id' => $primero->id,
+            'folio_conservado_id' => null,
+            'cantidad_objetivo' => null,
+            'cantidad_resultante' => $cantidadAntes,
+            'condicion_termica' => $folio->condicion_termica->value,
+            'campos_mix' => [],
+            'snapshot' => $snapshotRepa,
+            'estado' => 'confirmado',
+            'observacion' => $payload['observacion'],
+            'user_id' => $usuario->id,
+            'dispositivo_id' => $dispositivo?->id,
+            'confirmado_at' => now(),
+        ]);
+
+        foreach ($foliosResultado as $indice => $resultado) {
+            RepaletizajeResultado::create([
+                'repaletizaje_id' => $repa->id,
+                'folio_id' => $resultado['folio']->id,
+                'orden' => $indice + 1,
+                'tipo_resultado' => $resultado['tipo_resultado'],
+                'cantidad_objetivo' => $resultado['cantidad_objetivo'],
+                'cantidad_resultante' => $resultado['cantidad_resultante'],
+                'hereda_ubicacion' => $indice === 0,
+                'snapshot' => ['composicion' => $resultado['composicion']],
+            ]);
+            $externos = $resultado['folio']->datos_externos;
+            $externos['repaletizaje_id'] = $repa->id;
+            $resultado['folio']->update(['datos_externos' => $externos]);
+        }
+
+        if ($folio->ubicacionActual) {
+            $folio->ubicacionActual->update(['folio_id' => $primero->id]);
+        }
+        $externosOrigen = $folio->datos_externos ?? [];
+        $externosOrigen['cantidad_cajas'] = 0;
+        $externosOrigen['composicion'] = [];
+        $externosOrigen['consumido_en_repaletizaje'] = $codigo;
+        $folio->update([
+            'tipo_bulto' => TipoBulto::Saldo,
+            'estado_operacional' => EstadoOperacionalFolio::Agotado,
+            'activo' => false,
+            'datos_externos' => $externosOrigen,
+        ]);
+        $folio->refresh();
+        RepaletizajeDetalle::create([
+            'repaletizaje_id' => $repa->id,
+            'folio_origen_id' => $folio->id,
+            'orden' => 1,
+            'es_folio_conservado' => false,
+            'cajas_antes' => $cantidadAntes,
+            'cajas_aportadas' => $cantidadAntes,
+            'cajas_despues' => 0,
+            'tipo_bulto_antes' => $snapshotAntes['atributos']['tipo_bulto'],
+            'tipo_bulto_despues' => $folio->tipo_bulto->value,
+            'estado_antes' => $snapshotAntes['atributos']['estado_operacional'],
+            'estado_despues' => $folio->estado_operacional->value,
+            'snapshot_antes' => $snapshotAntes,
+            'snapshot_despues' => $this->snapshotFolio($folio),
+        ]);
+
+        return $this->cargar($repa->refresh());
+    }
+
     public function anular(
         Repaletizaje $repaletizaje,
         string $operacionId,
@@ -320,7 +591,7 @@ class ServicioRepaletizaje
             $usuario,
         ): Repaletizaje {
             $repa = Repaletizaje::query()
-                ->with(['detalles.folioOrigen', 'folioResultante'])
+                ->with(['detalles.folioOrigen', 'folioResultante', 'resultados.folio'])
                 ->lockForUpdate()
                 ->findOrFail($repaletizaje->id);
 
@@ -343,6 +614,7 @@ class ServicioRepaletizaje
 
             $folioIds = $repa->detalles
                 ->pluck('folio_origen_id')
+                ->merge($repa->resultados->pluck('folio_id'))
                 ->push($repa->folio_resultante_id)
                 ->unique();
             $folios = Folio::query()
@@ -391,12 +663,25 @@ class ServicioRepaletizaje
             }
 
             if ($repa->estrategia_folio === 'nuevo') {
-                /** @var Folio $folioResultado */
-                $folioResultado = $folios->get($repa->folio_resultante_id);
-                $folioResultado->update([
-                    'estado_operacional' => EstadoOperacionalFolio::Anulado,
-                    'activo' => false,
-                ]);
+                $resultadoIds = $repa->resultados->pluck('folio_id');
+                if ($resultadoIds->isEmpty()) {
+                    $resultadoIds->push($repa->folio_resultante_id);
+                }
+                $resultadoIds->each(function (string $folioId) use ($folios): void {
+                    $folios->get($folioId)?->update([
+                        'estado_operacional' => EstadoOperacionalFolio::Anulado,
+                        'activo' => false,
+                    ]);
+                });
+                AutorizacionSagFolio::query()
+                    ->whereIn('folio_id', $resultadoIds)
+                    ->where('activa', true)
+                    ->update([
+                        'activa' => false,
+                        'motivo_revocacion' => 'Repaletizaje anulado',
+                        'revocado_por_user_id' => $usuario->id,
+                        'revocado_at' => now(),
+                    ]);
             }
 
             $repa->update([
@@ -416,6 +701,7 @@ class ServicioRepaletizaje
         return $repaletizaje->load([
             'folioResultante',
             'folioConservado',
+            'resultados.folio',
             'detalles.folioOrigen',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
@@ -427,10 +713,11 @@ class ServicioRepaletizaje
     private function normalizar(array $datos): array
     {
         return [
-            'tipo_resultado' => $datos['tipo_resultado'],
-            'estrategia_folio' => $datos['estrategia_folio'],
+            'modalidad' => $datos['modalidad'] ?? 'consolidacion',
+            'tipo_resultado' => $datos['tipo_resultado'] ?? null,
+            'estrategia_folio' => $datos['estrategia_folio'] ?? null,
             'numero_folio_resultante' => mb_strtoupper(
-                trim((string) $datos['numero_folio_resultante']),
+                trim((string) ($datos['numero_folio_resultante'] ?? '')),
             ),
             'folio_conservado_id' => $datos['folio_conservado_id'] ?? null,
             'cantidad_objetivo' => isset($datos['cantidad_objetivo'])
@@ -439,6 +726,26 @@ class ServicioRepaletizaje
             'origenes' => collect($datos['origenes'])->map(fn (array $origen): array => [
                 'folio_id' => $origen['folio_id'],
                 'cantidad_aportada' => (int) $origen['cantidad_aportada'],
+                'composicion' => collect($origen['composicion'] ?? [])->map(
+                    fn (array $linea): array => [
+                        'clave' => (string) $linea['clave'],
+                        'cantidad_aportada' => (int) $linea['cantidad_aportada'],
+                    ],
+                )->values()->all(),
+            ])->values()->all(),
+            'resultados' => collect($datos['resultados'] ?? [])->map(fn (array $resultado): array => [
+                'numero_folio' => mb_strtoupper(trim((string) $resultado['numero_folio'])),
+                'tipo_resultado' => $resultado['tipo_resultado'],
+                'cantidad_objetivo' => isset($resultado['cantidad_objetivo'])
+                    ? (int) $resultado['cantidad_objetivo']
+                    : null,
+                'cantidad_resultante' => (int) $resultado['cantidad_resultante'],
+                'composicion' => collect($resultado['composicion'] ?? [])->map(
+                    fn (array $linea): array => [
+                        'clave' => (string) $linea['clave'],
+                        'cantidad_cajas' => (int) $linea['cantidad_cajas'],
+                    ],
+                )->values()->all(),
             ])->values()->all(),
             'observacion' => filled($datos['observacion'] ?? null)
                 ? trim((string) $datos['observacion'])
@@ -490,6 +797,28 @@ class ServicioRepaletizaje
             throw new ConflictoOperacion(
                 "El folio {$folio->numero_folio} participa en un proceso de prefrío activo.",
             );
+        }
+    }
+
+    private function validarFolioTransformable(Folio $folio): void
+    {
+        if (! $folio->activo || ! in_array($folio->tipo_bulto, [TipoBulto::Pallet, TipoBulto::Saldo], true)) {
+            throw new DomainException("El folio {$folio->numero_folio} no es un pallet o saldo activo.");
+        }
+        if ($this->cantidad($folio) < 1) {
+            throw new DomainException("El folio {$folio->numero_folio} no posee cajas disponibles.");
+        }
+        if (! in_array($folio->condicion_termica, [
+            CondicionTermicaFolio::PendientePrefrio,
+            CondicionTermicaFolio::PrefrioAprobado,
+        ], true)) {
+            throw new DomainException("El folio {$folio->numero_folio} posee un estado térmico transitorio o retenido.");
+        }
+        if ($folio->asignacionCargaActual()->exists() || $folio->reservaCargaActual()->exists()) {
+            throw new ConflictoOperacion("El folio {$folio->numero_folio} está reservado o asignado a una carga.");
+        }
+        if ($folio->procesosPrefrio()->whereIn('estado', ['cargado', 'en_proceso'])->exists()) {
+            throw new ConflictoOperacion("El folio {$folio->numero_folio} participa en un proceso de prefrío activo.");
         }
     }
 
@@ -606,6 +935,200 @@ class ServicioRepaletizaje
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $origen
+     * @return array{array<int, array<string, mixed>>, array<int, array<string, mixed>>, array<int, array<string, mixed>>}
+     */
+    private function resolverAporteComposicion(
+        Folio $folio,
+        array $origen,
+        int $aporte,
+    ): array {
+        $antes = collect($this->composicionFolio($folio))->keyBy('clave');
+        $solicitada = collect($origen['composicion'] ?? []);
+        if ((int) $antes->sum('cantidad_cajas') !== $this->cantidad($folio)) {
+            throw new DomainException(sprintf(
+                'La composición registrada del folio %s no coincide con su total de cajas. Requiere regularización.',
+                $folio->numero_folio,
+            ));
+        }
+
+        if ($solicitada->isEmpty()) {
+            if ($antes->count() > 1 && $aporte < $this->cantidad($folio)) {
+                throw new DomainException(sprintf(
+                    'El folio %s posee más de un CSG o fecha. Indica cuántas cajas aporta cada composición.',
+                    $folio->numero_folio,
+                ));
+            }
+
+            $restante = $aporte;
+            $solicitada = $antes->values()->map(function (array $linea) use (&$restante): array {
+                $cantidad = min($restante, (int) $linea['cantidad_cajas']);
+                $restante -= $cantidad;
+
+                return [
+                    'clave' => $linea['clave'],
+                    'cantidad_aportada' => $cantidad,
+                ];
+            })->filter(fn (array $linea): bool => $linea['cantidad_aportada'] > 0);
+        }
+
+        if ((int) $solicitada->sum('cantidad_aportada') !== $aporte) {
+            throw new DomainException(sprintf(
+                'La composición seleccionada del folio %s no coincide con su aporte total.',
+                $folio->numero_folio,
+            ));
+        }
+        if ($solicitada->pluck('clave')->duplicates()->isNotEmpty()) {
+            throw new DomainException(sprintf(
+                'La composición del folio %s contiene líneas repetidas.',
+                $folio->numero_folio,
+            ));
+        }
+
+        $aportadas = collect();
+        $despues = $antes->map(function (array $linea) use (
+            $solicitada,
+            $folio,
+            $aportadas,
+        ): array {
+            $seleccion = $solicitada->firstWhere('clave', $linea['clave']);
+            $cantidad = (int) ($seleccion['cantidad_aportada'] ?? 0);
+            if ($cantidad > (int) $linea['cantidad_cajas']) {
+                throw new DomainException(sprintf(
+                    'La composición %s del folio %s solo dispone de %d cajas.',
+                    $linea['csg'],
+                    $folio->numero_folio,
+                    (int) $linea['cantidad_cajas'],
+                ));
+            }
+            if ($cantidad > 0) {
+                $aportadas->push([...$linea, 'cantidad_cajas' => $cantidad]);
+            }
+
+            return [
+                ...$linea,
+                'cantidad_cajas' => (int) $linea['cantidad_cajas'] - $cantidad,
+            ];
+        });
+
+        $desconocidas = $solicitada->pluck('clave')->diff($antes->keys());
+        if ($desconocidas->isNotEmpty()) {
+            throw new DomainException(
+                "La composición indicada para {$folio->numero_folio} ya no se encuentra disponible.",
+            );
+        }
+
+        return [
+            $antes->values()->all(),
+            $aportadas->values()->all(),
+            $despues->filter(fn (array $linea): bool => $linea['cantidad_cajas'] > 0)
+                ->values()->all(),
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function composicionFolio(Folio $folio): array
+    {
+        $datos = $folio->datos_externos ?? [];
+        $lineas = collect($datos['composicion'] ?? [])
+            ->filter(fn (mixed $linea): bool => is_array($linea)
+                && array_key_exists('cantidad_cajas', $linea)
+                && array_key_exists('csg', $linea))
+            ->map(fn (array $linea): array => $this->normalizarLineaComposicion($linea));
+
+        if ($lineas->isEmpty()) {
+            $lineas->push($this->normalizarLineaComposicion([
+                'origen_validacion_id' => null,
+                'csg' => $datos['csg'] ?? 'SIN CSG',
+                'predio' => $datos['predio'] ?? null,
+                'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+                'cantidad_cajas' => $this->cantidad($folio),
+            ]));
+        }
+
+        return $this->agruparComposicion($lineas)->values()->all();
+    }
+
+    /** @param array<string, mixed> $linea */
+    private function normalizarLineaComposicion(array $linea): array
+    {
+        $normalizada = [
+            'origen_validacion_id' => $linea['origen_validacion_id'] ?? null,
+            'csg' => filled($linea['csg'] ?? null) ? trim((string) $linea['csg']) : 'SIN CSG',
+            'predio' => filled($linea['predio'] ?? null) ? trim((string) $linea['predio']) : null,
+            'fecha_embalaje' => filled($linea['fecha_embalaje'] ?? null)
+                ? (string) $linea['fecha_embalaje']
+                : null,
+            'cantidad_cajas' => max(0, (int) ($linea['cantidad_cajas'] ?? 0)),
+        ];
+        $normalizada['clave'] = $this->claveComposicion($normalizada);
+
+        return $normalizada;
+    }
+
+    /** @param Collection<int, array<string, mixed>> $lineas */
+    private function agruparComposicion(Collection $lineas): Collection
+    {
+        return $lineas
+            ->map(fn (array $linea): array => $this->normalizarLineaComposicion($linea))
+            ->groupBy(fn (array $linea): string => $linea['clave'])
+            ->map(function (Collection $grupo): array {
+                $primera = $grupo->first();
+                $primera['cantidad_cajas'] = (int) $grupo->sum('cantidad_cajas');
+
+                return $primera;
+            })
+            ->filter(fn (array $linea): bool => $linea['cantidad_cajas'] > 0)
+            ->values();
+    }
+
+    /** @param array<string, mixed> $linea */
+    private function claveComposicion(array $linea): string
+    {
+        return hash('sha256', implode('|', [
+            mb_strtoupper(trim((string) ($linea['csg'] ?? ''))),
+            mb_strtoupper(trim((string) ($linea['predio'] ?? ''))),
+            (string) ($linea['fecha_embalaje'] ?? ''),
+        ]));
+    }
+
+    /** @param array<string, mixed> $datosExternos */
+    private function actualizarResumenComposicion(array &$datosExternos): void
+    {
+        $composicion = collect($datosExternos['composicion'] ?? []);
+        $datosExternos['csg'] = $this->valorComun($composicion->pluck('csg'));
+        $datosExternos['csgs'] = $composicion->pluck('csg')->unique()->values()->all();
+        $datosExternos['predio'] = $this->valorComun($composicion->pluck('predio'));
+        $datosExternos['fecha_embalaje'] = $this->valorComunFecha($composicion);
+        $datosExternos['fechas_embalaje'] = $composicion->pluck('fecha_embalaje')
+            ->filter()->unique()->values()->all();
+        $camposMix = collect($datosExternos['campos_mix'] ?? [])
+            ->reject(fn (string $campo): bool => in_array(
+                $campo,
+                ['csg', 'predio', 'fecha_embalaje'],
+                true,
+            ));
+        if ($datosExternos['csg'] === 'MIX') {
+            $camposMix->push('csg');
+        }
+        if ($datosExternos['predio'] === 'MIX') {
+            $camposMix->push('predio');
+        }
+        if ($composicion->pluck('fecha_embalaje')->unique()->count() > 1) {
+            $camposMix->push('fecha_embalaje');
+        }
+        $datosExternos['campos_mix'] = $camposMix->unique()->values()->all();
+    }
+
+    /** @param Collection<int, array<string, mixed>> $composicion */
+    private function valorComunFecha(Collection $composicion): ?string
+    {
+        $fechas = $composicion->pluck('fecha_embalaje')->unique();
+
+        return $fechas->count() === 1 ? $fechas->first() : null;
+    }
+
     private function cantidad(Folio $folio): int
     {
         return max(0, (int) ($folio->datos_externos['cantidad_cajas'] ?? 0));
@@ -621,18 +1144,24 @@ class ServicioRepaletizaje
         string $codigo,
         array $camposMix,
         array $composicion,
+        array $genealogia,
     ): void {
         $datosExternos = array_merge($folio->datos_externos ?? [], [
             'especie' => $especificaciones['especie'],
             'categoria' => $especificaciones['categoria'],
             'envase' => $especificaciones['envase'],
             'csg' => $especificaciones['csg'],
+            'csgs' => collect($composicion)->pluck('csg')->unique()->values()->all(),
             'predio' => $especificaciones['predio'],
+            'fecha_embalaje' => $this->valorComunFecha(collect($composicion)),
+            'fechas_embalaje' => collect($composicion)->pluck('fecha_embalaje')
+                ->filter()->unique()->values()->all(),
             'cuartel' => $especificaciones['cuartel'],
             'cantidad_cajas' => $cantidad,
             'repaletizaje_codigo' => $codigo,
             'campos_mix' => $camposMix,
             'composicion' => $composicion,
+            'genealogia_repaletizaje' => $genealogia,
         ]);
 
         $folio->update([
@@ -648,6 +1177,25 @@ class ServicioRepaletizaje
             'identificador_externo' => $codigo,
             'datos_externos' => $datosExternos,
         ]);
+    }
+
+    private function heredarAutorizacionesSag(Folio $origen, Folio $resultado): void
+    {
+        $origen->autorizacionesSagActivas()->get()->each(
+            fn (AutorizacionSagFolio $autorizacion) => AutorizacionSagFolio::create([
+                'folio_id' => $resultado->id,
+                'tipo_aprobacion' => $autorizacion->tipo_aprobacion,
+                'tipo_destino' => $autorizacion->tipo_destino,
+                'pais_id' => $autorizacion->pais_id,
+                'bloque_mercado_id' => $autorizacion->bloque_mercado_id,
+                'resultado_origen_id' => $autorizacion->resultado_origen_id,
+                'destino_snapshot' => $autorizacion->destino_snapshot,
+                'miembros_snapshot' => $autorizacion->miembros_snapshot,
+                'activa' => true,
+                'aprobado_por_user_id' => $autorizacion->aprobado_por_user_id,
+                'aprobado_at' => $autorizacion->aprobado_at,
+            ]),
+        );
     }
 
     private function snapshotFolio(Folio $folio): array

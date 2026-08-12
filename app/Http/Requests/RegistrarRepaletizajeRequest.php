@@ -4,9 +4,15 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class RegistrarRepaletizajeRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['modalidad' => $this->input('modalidad', 'consolidacion')]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -17,9 +23,10 @@ class RegistrarRepaletizajeRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
-            'tipo_resultado' => ['required', Rule::in(['pallet', 'saldo'])],
-            'estrategia_folio' => ['required', Rule::in(['conservar', 'nuevo'])],
-            'numero_folio_resultante' => ['required', 'string', 'max:80'],
+            'modalidad' => ['required', Rule::in(['consolidacion', 'cambio_folio', 'division'])],
+            'tipo_resultado' => ['nullable', 'required_if:modalidad,consolidacion', Rule::in(['pallet', 'saldo'])],
+            'estrategia_folio' => ['nullable', 'required_if:modalidad,consolidacion', Rule::in(['conservar', 'nuevo'])],
+            'numero_folio_resultante' => ['nullable', 'required_if:modalidad,consolidacion', 'string', 'max:80'],
             'folio_conservado_id' => [
                 'nullable',
                 'uuid',
@@ -33,7 +40,7 @@ class RegistrarRepaletizajeRequest extends FormRequest
                 'max:100000',
                 'required_if:tipo_resultado,pallet',
             ],
-            'origenes' => ['required', 'array', 'min:2', 'max:20'],
+            'origenes' => ['required', 'array', 'min:1', 'max:20'],
             'origenes.*.folio_id' => [
                 'required',
                 'uuid',
@@ -41,7 +48,47 @@ class RegistrarRepaletizajeRequest extends FormRequest
                 Rule::exists('folios', 'id'),
             ],
             'origenes.*.cantidad_aportada' => ['required', 'integer', 'min:1', 'max:100000'],
+            'origenes.*.composicion' => ['nullable', 'array', 'min:1', 'max:100'],
+            'origenes.*.composicion.*.clave' => [
+                'required_with:origenes.*.composicion',
+                'string',
+                'max:500',
+            ],
+            'origenes.*.composicion.*.cantidad_aportada' => [
+                'required_with:origenes.*.composicion',
+                'integer',
+                'min:1',
+                'max:100000',
+            ],
+            'resultados' => ['nullable', 'required_unless:modalidad,consolidacion', 'array', 'min:1', 'max:2'],
+            'resultados.*.numero_folio' => ['required_with:resultados', 'string', 'max:80', 'distinct'],
+            'resultados.*.tipo_resultado' => ['required_with:resultados', Rule::in(['pallet', 'saldo'])],
+            'resultados.*.cantidad_objetivo' => ['nullable', 'integer', 'min:2', 'max:100000'],
+            'resultados.*.cantidad_resultante' => ['required_with:resultados', 'integer', 'min:1', 'max:100000'],
+            'resultados.*.composicion' => ['nullable', 'array', 'min:1', 'max:100'],
+            'resultados.*.composicion.*.clave' => ['required_with:resultados.*.composicion', 'string', 'max:500'],
+            'resultados.*.composicion.*.cantidad_cajas' => ['required_with:resultados.*.composicion', 'integer', 'min:1', 'max:100000'],
             'observacion' => ['nullable', 'string', 'max:2000'],
         ];
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $modalidad = $this->input('modalidad', 'consolidacion');
+            $origenes = $this->input('origenes', []);
+            $resultados = $this->input('resultados', []);
+
+            if ($modalidad === 'consolidacion' && count($origenes) < 2) {
+                $validator->errors()->add('origenes', 'La consolidación requiere al menos dos folios de origen.');
+            }
+            if ($modalidad !== 'consolidacion' && count($origenes) !== 1) {
+                $validator->errors()->add('origenes', 'Esta modalidad requiere exactamente un folio de origen.');
+            }
+            $esperados = $modalidad === 'division' ? 2 : ($modalidad === 'cambio_folio' ? 1 : null);
+            if ($esperados !== null && count($resultados) !== $esperados) {
+                $validator->errors()->add('resultados', "La modalidad seleccionada requiere {$esperados} resultado(s).");
+            }
+        }];
     }
 }

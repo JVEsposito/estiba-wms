@@ -48,6 +48,53 @@ class ValidacionPalletApiTest extends TestCase
         $this->assertDatabaseCount('validaciones_pallet', 1);
     }
 
+    public function test_aprueba_un_bulto_con_varios_csg_y_una_sola_fecha(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-MIX-CSG');
+        $segundoOrigen = (string) Str::uuid();
+        DB::table('origenes_validacion')->insert([
+            'id' => $segundoOrigen,
+            'temporada_id' => $catalogo['temporada_id'],
+            'cliente' => 'DIS',
+            'marca' => 'ATLAS',
+            'csg' => '105411',
+            'predio' => 'OLM 2',
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('combinaciones_validacion')->insert([
+            'id' => (string) Str::uuid(),
+            'temporada_id' => $catalogo['temporada_id'],
+            'articulo_validacion_id' => $catalogo['articulo_validacion_id'],
+            'origen_validacion_id' => $segundoOrigen,
+            'activo' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $payload = [
+            ...$this->payload($catalogo, 'PAL-MIX-CSG'),
+            'fecha_embalaje' => '2026-08-12',
+            'composicion' => [
+                ['origen_validacion_id' => $catalogo['origen_validacion_id'], 'cantidad_cajas' => 70],
+                ['origen_validacion_id' => $segundoOrigen, 'cantidad_cajas' => 50],
+            ],
+        ];
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.catalogo.origen.csg', 'MIX')
+            ->assertJsonPath('data.catalogo.fecha_embalaje', '2026-08-12')
+            ->assertJsonCount(2, 'data.catalogo.composicion');
+
+        $folio = Folio::query()->where('numero_folio', 'PAL-MIX-CSG')->firstOrFail();
+        $this->assertSame('MIX', $folio->datos_externos['csg']);
+        $this->assertSame('2026-08-12', $folio->datos_externos['fecha_embalaje']);
+        $this->assertSame([70, 50], collect($folio->datos_externos['composicion'])->pluck('cantidad_cajas')->all());
+    }
+
     public function test_observa_sin_crear_folio_y_la_aprobacion_posterior_es_otro_intento(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-02');

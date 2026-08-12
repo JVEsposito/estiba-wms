@@ -34,7 +34,7 @@
             <section class="repa-workspace">
                 <header class="repa-heading">
                     <div>
-                        <p class="eyebrow">CONSOLIDACIÓN DE SALDOS</p>
+                        <p class="eyebrow">CONSOLIDACIÓN DE SALDOS Y TRANSFORMACIONES</p>
                         <h1>Repaletizajes</h1>
                         <p>Cliente, especie, marca y estado térmico nunca se mezclan. Las demás diferencias se informan y quedan trazadas como MIX.</p>
                     </div>
@@ -49,6 +49,17 @@
                         </div>
                         <form id="repaForm" novalidate>
                             <div class="repa-grid">
+                                <label>
+                                    <span>Modalidad *</span>
+                                    <select name="modalidad">
+                                        <option value="consolidacion">Consolidar saldos (N → 1)</option>
+                                        <option value="cambio_folio">Cambiar folio (1 → 1)</option>
+                                        <option value="division">Dividir bulto (1 → 2)</option>
+                                    </select>
+                                    <small>El cambio y la división consumen completamente el folio original.</small>
+                                </label>
+                            </div>
+                            <div class="repa-grid" id="consolidationFields">
                                 <label>
                                     <span>Tipo de resultado *</span>
                                     <select name="tipo_resultado">
@@ -76,6 +87,34 @@
                                     <input name="cantidad_objetivo" type="number" min="2" max="100000" value="120">
                                     <small>Obligatoria para pallet; en saldo evita que se confirme como saldo una cantidad completa.</small>
                                 </label>
+                            </div>
+                            <div class="repa-grid is-hidden" id="transformFields">
+                                <label>
+                                    <span>Nuevo folio 1 *</span>
+                                    <input name="resultado_1_numero" maxlength="80" autocomplete="off" placeholder="Escanear o escribir">
+                                </label>
+                                <label>
+                                    <span>Tipo resultado 1 *</span>
+                                    <select name="resultado_1_tipo"><option value="pallet">Pallet</option><option value="saldo">Saldo</option></select>
+                                </label>
+                                <label>
+                                    <span>Capacidad resultado 1</span>
+                                    <input name="resultado_1_objetivo" type="number" min="2" max="100000" value="120">
+                                </label>
+                                <label class="is-hidden" id="secondResultNumberField">
+                                    <span>Nuevo folio 2 *</span>
+                                    <input name="resultado_2_numero" maxlength="80" autocomplete="off" placeholder="Escanear o escribir">
+                                </label>
+                                <label class="is-hidden" id="secondResultTypeField">
+                                    <span>Tipo resultado 2 *</span>
+                                    <select name="resultado_2_tipo"><option value="saldo">Saldo</option><option value="pallet">Pallet</option></select>
+                                </label>
+                                <label class="is-hidden" id="secondResultTargetField">
+                                    <span>Capacidad resultado 2</span>
+                                    <input name="resultado_2_objetivo" type="number" min="2" max="100000" value="120">
+                                </label>
+                            </div>
+                            <div class="repa-grid">
                                 <label>
                                     <span>Observación</span>
                                     <textarea name="observacion" maxlength="2000" rows="3"></textarea>
@@ -84,10 +123,10 @@
 
                             <div class="source-entry">
                                 <label>
-                                    <span>Agregar saldo por folio</span>
+                                    <span id="sourceInputLabel">Agregar saldo por folio</span>
                                     <input id="sourceFolioInput" maxlength="80" autocomplete="off" placeholder="Escanear o escribir folio">
                                 </label>
-                                <button class="secondary-button" id="addSourceButton" type="button">+ Agregar saldo</button>
+                                <button class="secondary-button" id="addSourceButton" type="button">+ Agregar folio</button>
                             </div>
                             <p class="form-error" id="sourceError" role="alert"></p>
 
@@ -97,6 +136,8 @@
                             </div>
                             <div class="mix-warnings is-hidden" id="mixWarnings"></div>
                             <div class="source-list" id="sourceList"><p class="empty-copy">Agrega al menos dos folios tipo saldo.</p></div>
+
+                            <div class="source-list is-hidden" id="divisionEditor"></div>
 
                             <section class="result-preview">
                                 <div><span>RESULTADO</span><strong id="previewFolio">Sin definir</strong></div>

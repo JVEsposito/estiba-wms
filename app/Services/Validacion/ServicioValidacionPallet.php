@@ -18,6 +18,7 @@ use App\Models\ValidacionPallet;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ServicioValidacionPallet
@@ -73,31 +74,83 @@ class ServicioValidacionPallet
                 ->where('temporada_id', $temporada->id)
                 ->where('activo', true)
                 ->first();
-            $origen = DB::table('origenes_validacion')
-                ->where('id', $datos['origen_validacion_id'])
+            $composicionSolicitada = collect($payload['composicion']);
+            $origenIds = $composicionSolicitada
+                ->pluck('origen_validacion_id')
+                ->unique()
+                ->values();
+            $origenes = DB::table('origenes_validacion')
+                ->whereIn('id', $origenIds)
                 ->where('temporada_id', $temporada->id)
                 ->where('activo', true)
-                ->first();
+                ->get()
+                ->keyBy('id');
             $categoria = DB::table('categorias_validacion')
                 ->where('id', $datos['categoria_validacion_id'])
                 ->where('temporada_id', $temporada->id)
                 ->where('activo', true)
                 ->first();
 
-            if (! $articulo || ! $origen || ! $categoria) {
+            if (! $articulo || $origenes->count() !== $origenIds->count() || ! $categoria) {
                 throw new DomainException('El artículo, el origen o la categoría no pertenecen al catálogo activo de la temporada.');
             }
 
-            $combinacion = DB::table('combinaciones_validacion')
+            $clientes = $origenes->pluck('cliente')->map(
+                fn (mixed $valor): string => mb_strtoupper(trim((string) $valor)),
+            )->unique();
+            $marcas = $origenes->pluck('marca')->map(
+                fn (mixed $valor): string => mb_strtoupper(trim((string) $valor)),
+            )->unique();
+            if ($clientes->count() !== 1 || $marcas->count() !== 1) {
+                throw new DomainException(
+                    'Todos los CSG del bulto deben pertenecer al mismo cliente y marca.',
+                );
+            }
+
+            $combinaciones = DB::table('combinaciones_validacion')
                 ->where('temporada_id', $temporada->id)
                 ->where('articulo_validacion_id', $articulo->id)
-                ->where('origen_validacion_id', $origen->id)
+                ->whereIn('origen_validacion_id', $origenIds)
                 ->where('activo', true)
-                ->first();
+                ->get()
+                ->keyBy('origen_validacion_id');
 
-            if (! $combinacion) {
-                throw new DomainException('La combinación de artículo y origen no se encuentra habilitada.');
+            if ($combinaciones->count() !== $origenIds->count()) {
+                throw new DomainException(
+                    'Una de las combinaciones de artículo y CSG no se encuentra habilitada.',
+                );
             }
+
+            $totalComposicion = (int) $composicionSolicitada->sum('cantidad_cajas');
+            if ($totalComposicion !== (int) $datos['cantidad_cajas']) {
+                throw new DomainException(sprintf(
+                    'La composición por CSG suma %d cajas y el bulto declara %d.',
+                    $totalComposicion,
+                    (int) $datos['cantidad_cajas'],
+                ));
+            }
+
+            $composicion = $composicionSolicitada->map(function (array $linea) use (
+                $origenes,
+                $combinaciones,
+                $payload,
+            ): array {
+                $origen = $origenes->get($linea['origen_validacion_id']);
+                $combinacion = $combinaciones->get($linea['origen_validacion_id']);
+
+                return [
+                    'origen_validacion_id' => $origen->id,
+                    'combinacion_validacion_id' => $combinacion->id,
+                    'csg' => $origen->csg,
+                    'predio' => $origen->predio,
+                    'fecha_embalaje' => $payload['fecha_embalaje'],
+                    'cantidad_cajas' => (int) $linea['cantidad_cajas'],
+                ];
+            })->values();
+            $origen = $origenes->get($composicion->first()['origen_validacion_id']);
+            $combinacion = $combinaciones->get($origen->id);
+            $csgResumen = $this->valorComun($composicion->pluck('csg'));
+            $predioResumen = $this->valorComun($composicion->pluck('predio'));
 
             $numeroFolio = $payload['numero_folio'];
             DB::table('secuencias_validacion_folio')->insertOrIgnore([
@@ -145,9 +198,11 @@ class ServicioValidacionPallet
                 'origen' => [
                     'cliente' => $origen->cliente,
                     'marca' => $origen->marca,
-                    'csg' => $origen->csg,
-                    'predio' => $origen->predio,
+                    'csg' => $csgResumen,
+                    'predio' => $predioResumen,
                 ],
+                'fecha_embalaje' => $payload['fecha_embalaje'],
+                'composicion' => $composicion->all(),
                 'categoria' => [
                     'id' => $categoria->id,
                     'nombre' => $categoria->nombre,
@@ -212,8 +267,14 @@ class ServicioValidacionPallet
                         'especie' => $articulo->especie,
                         'categoria' => $categoria->nombre,
                         'envase' => $articulo->envase,
-                        'csg' => $origen->csg,
-                        'predio' => $origen->predio,
+                        'csg' => $csgResumen,
+                        'csgs' => $composicion->pluck('csg')->unique()->values()->all(),
+                        'predio' => $predioResumen,
+                        'fecha_embalaje' => $payload['fecha_embalaje'],
+                        'fechas_embalaje' => $payload['fecha_embalaje']
+                            ? [$payload['fecha_embalaje']]
+                            : [],
+                        'composicion' => $composicion->all(),
                         'cantidad_cajas' => $datos['cantidad_cajas'],
                         'validacion_id' => $validacion->id,
                         'combinacion_validacion_id' => $combinacion->id,
@@ -247,6 +308,14 @@ class ServicioValidacionPallet
             'catalogo_version' => (int) $datos['catalogo_version'],
             'articulo_validacion_id' => $datos['articulo_validacion_id'],
             'origen_validacion_id' => $datos['origen_validacion_id'],
+            'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+            'composicion' => collect($datos['composicion'] ?? [[
+                'origen_validacion_id' => $datos['origen_validacion_id'],
+                'cantidad_cajas' => (int) $datos['cantidad_cajas'],
+            ]])->map(fn (array $linea): array => [
+                'origen_validacion_id' => $linea['origen_validacion_id'],
+                'cantidad_cajas' => (int) $linea['cantidad_cajas'],
+            ])->values()->all(),
             'categoria_validacion_id' => $datos['categoria_validacion_id'],
             'resultado' => $datos['resultado'],
             'motivo' => $datos['motivo'] ?? null,
@@ -263,5 +332,17 @@ class ServicioValidacionPallet
             'dispositivo:id,codigo,nombre',
             'conflictoCon:id,numero_folio,numero_intento,resultado',
         ]);
+    }
+
+    private function valorComun(Collection $valores): ?string
+    {
+        $limpios = $valores->map(
+            fn (mixed $valor): ?string => filled($valor) ? trim((string) $valor) : null,
+        );
+        $unicos = $limpios
+            ->map(fn (?string $valor): string => mb_strtoupper((string) $valor))
+            ->unique();
+
+        return $unicos->count() === 1 ? $limpios->first() : 'MIX';
     }
 }
