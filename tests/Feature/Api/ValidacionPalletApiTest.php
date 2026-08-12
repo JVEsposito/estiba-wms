@@ -52,7 +52,7 @@ class ValidacionPalletApiTest extends TestCase
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-FECHA');
         $payload = $this->payload($catalogo, 'PAL-FECHA-VALIDACION');
-        $payload['generado_dispositivo_at'] = '2026-08-08T23:30:00-04:00';
+        $payload['generado_dispositivo_at'] = '2026-08-09T02:30:00Z';
 
         $this->conToken($token)
             ->postJson('/api/validacion/pallets', $payload)
