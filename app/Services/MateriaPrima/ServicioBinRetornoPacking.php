@@ -626,8 +626,7 @@ class ServicioBinRetornoPacking
                     'linea_proceso' => $origen->linea_proceso,
                     'turno' => $origen->turno,
                     'kilos_aportados' => $this->decimal($origen->kilos_aportados),
-                    'kilos_aportados_definitivos' =>
-                        $origen->kilos_aportados_definitivos !== null
+                    'kilos_aportados_definitivos' => $origen->kilos_aportados_definitivos !== null
                             ? $this->decimal($origen->kilos_aportados_definitivos)
                             : null,
                 ])
