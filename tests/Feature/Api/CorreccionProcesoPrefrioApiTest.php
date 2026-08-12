@@ -11,6 +11,7 @@ use App\Models\Folio;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -169,9 +170,9 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
         ]);
 
         // Simula el dato heredado que ya fue corregido en el proceso, pero no en el folio.
-        $folioAgregado->update([
-            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
-            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
+        DB::table('folios')->where('id', $folioAgregado->id)->update([
+            'condicion_termica' => 'pendiente_prefrio',
+            'habilitacion_almacenamiento' => 'no_habilitado',
             'fuente_habilitacion_almacenamiento' => null,
             'habilitado_almacenamiento_at' => null,
             'habilitado_almacenamiento_por_user_id' => null,
