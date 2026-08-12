@@ -11,6 +11,7 @@ use App\Models\Folio;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -151,6 +152,48 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
             'folio_id' => $folioAgregado->id,
             'estado' => 'aprobado',
         ]);
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioAgregado->id,
+            'estado_operacional' => 'pendiente_prefrio',
+            'condicion_termica' => 'prefrio_aprobado',
+            'habilitacion_almacenamiento' => 'habilitado',
+            'fuente_habilitacion_almacenamiento' => 'prefrio_aprobado',
+        ]);
+        $this->assertDatabaseHas('historial_habilitaciones_almacenamiento', [
+            'folio_id' => $folioAgregado->id,
+            'estado_resultante' => 'habilitado',
+            'condicion_termica' => 'prefrio_aprobado',
+            'fuente' => 'prefrio_aprobado',
+            'proceso_origen' => 'prefrio',
+            'referencia_origen' => $proceso['id'],
+            'user_id' => $administrador->id,
+        ]);
+
+        // Simula el dato heredado que ya fue corregido en el proceso, pero no en el folio.
+        DB::table('folios')->where('id', $folioAgregado->id)->update([
+            'condicion_termica' => 'pendiente_prefrio',
+            'habilitacion_almacenamiento' => 'no_habilitado',
+            'fuente_habilitacion_almacenamiento' => null,
+            'habilitado_almacenamiento_at' => null,
+            'habilitado_almacenamiento_por_user_id' => null,
+        ]);
+        $migracion = require database_path(
+            'migrations/2026_08_12_190000_sincronizar_folios_omitidos_prefrio.php',
+        );
+        $migracion->up();
+
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioAgregado->id,
+            'condicion_termica' => 'prefrio_aprobado',
+            'habilitacion_almacenamiento' => 'habilitado',
+            'fuente_habilitacion_almacenamiento' => 'prefrio_aprobado',
+        ]);
+        $this->assertDatabaseHas('historial_habilitaciones_almacenamiento', [
+            'folio_id' => $folioAgregado->id,
+            'proceso_origen' => 'prefrio',
+            'referencia_origen' => $proceso['id'],
+            'motivo' => 'Regularización automática de folio omitido en el registro de prefrío.',
+        ]);
         $this->assertDatabaseHas('eventos_prefrio', [
             'proceso_prefrio_id' => $proceso['id'],
             'operacion_id' => $operacionId,
@@ -168,6 +211,30 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
         $this->actingAs($supervisor, 'sanctum')
             ->putJson("/api/administracion/prefrio/procesos/{$proceso['id']}/corregir", $payload)
             ->assertForbidden();
+
+        $folioCompatible = $this->folioPendiente('SAL-HIST-003', TipoBulto::Saldo);
+        $folioCompatible->update([
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'fuente_habilitacion_almacenamiento' => 'prefrio_aprobado',
+        ]);
+        $folioAgregado->refresh();
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/validacion/repaletizajes', [
+                'operacion_id' => (string) Str::uuid(),
+                'modalidad' => 'consolidacion',
+                'tipo_resultado' => 'saldo',
+                'estrategia_folio' => 'nuevo',
+                'numero_folio_resultante' => 'SAL-HIST-REPA',
+                'cantidad_objetivo' => 120,
+                'origenes' => [
+                    ['folio_id' => $folioAgregado->id, 'cantidad_aportada' => 10],
+                    ['folio_id' => $folioCompatible->id, 'cantidad_aportada' => 10],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.folio_resultante.condicion_termica', 'prefrio_aprobado');
     }
 
     private function folioPendiente(
@@ -180,6 +247,13 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
             'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
             'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
+            'exportadora' => 'MACE',
+            'marca' => 'MACE',
+            'datos_externos' => [
+                'especie' => 'KIWI',
+                'cantidad_cajas' => 76,
+                'csg' => '123225',
+            ],
             'fecha_ingreso' => now(),
             'activo' => true,
         ]);
