@@ -25,7 +25,9 @@ type Props = {
   onLogout: () => void;
 };
 
-type Source = RepalletizingFolio & { aporte: string };
+type Source = Omit<RepalletizingFolio, 'composicion'> & {
+  composicion: Array<RepalletizingFolio['composicion'][number] & { aporte: string }>;
+};
 type ResultType = 'pallet' | 'saldo';
 type FolioStrategy = 'conservar' | 'nuevo';
 type HardField = 'cliente' | 'especie' | 'marca' | 'condicion_termica';
@@ -67,9 +69,10 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
   }, []);
 
   const total = useMemo(
-    () => sources.reduce((sum, source) => sum + numeric(source.aporte), 0),
+    () => sources.reduce((sum, source) => sum + sourceTotal(source), 0),
     [sources],
   );
+  const resultComposition = useMemo(() => aggregateComposition(sources), [sources]);
 
   const hardMismatches = useMemo(
     () => HARD_FIELDS.filter(({ key }) => distinctCount(sources, key) > 1),
@@ -129,7 +132,10 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
         : source.cantidad_cajas;
       setSources((current) => [
         ...current,
-        { ...source, aporte: String(contribution) },
+        {
+          ...source,
+          composicion: allocateComposition(source.composicion, contribution),
+        },
       ]);
       if (!keptId) {
         setKeptId(source.id);
@@ -142,9 +148,14 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
     }
   }
 
-  function updateContribution(id: string, value: string) {
+  function updateContribution(id: string, key: string, value: string) {
     setSources((current) => current.map((source) => source.id === id
-      ? { ...source, aporte: value.replace(/[^0-9]/g, '') }
+      ? {
+        ...source,
+        composicion: source.composicion.map((line) => line.clave === key
+          ? { ...line, aporte: value.replace(/[^0-9]/g, '') }
+          : line),
+      }
       : source));
   }
 
@@ -181,7 +192,9 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
       return;
     }
     if (sources.some((source) => (
-      numeric(source.aporte) < 1 || numeric(source.aporte) > source.cantidad_cajas
+      sourceTotal(source) < 1 || source.composicion.some((line) => (
+        numeric(line.aporte) > line.cantidad_cajas
+      ))
     ))) {
       setError('Revisa las cajas aportadas por cada saldo.');
       return;
@@ -197,7 +210,7 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
 
     const kept = sources.find((source) => source.id === keptId);
     if (strategy === 'conservar'
-      && (!kept || numeric(kept.aporte) !== kept.cantidad_cajas)) {
+      && (!kept || sourceTotal(kept) !== kept.cantidad_cajas)) {
       setError('El folio conservado debe aportar todas sus cajas.');
       return;
     }
@@ -206,6 +219,7 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
     try {
       const result = await createRepalletizing(baseUrl, auth.token, {
         operacion_id: Crypto.randomUUID(),
+        modalidad: 'consolidacion',
         tipo_resultado: resultType,
         estrategia_folio: strategy,
         numero_folio_resultante: actualResultNumber,
@@ -213,7 +227,13 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
         cantidad_objetivo: target || null,
         origenes: sources.map((source) => ({
           folio_id: source.id,
-          cantidad_aportada: numeric(source.aporte),
+          cantidad_aportada: sourceTotal(source),
+          composicion: source.composicion
+            .filter((line) => numeric(line.aporte) > 0)
+            .map((line) => ({
+              clave: line.clave,
+              cantidad_aportada: numeric(line.aporte),
+            })),
         })),
         observacion: null,
       });
@@ -327,19 +347,27 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
                 {source.cantidad_cajas} cajas · {source.cliente} · {source.especie}
               </Text>
               <Text style={styles.sourceMeta}>
-                {source.marca} · {source.calibre} · CSG {source.csg} · {source.condicion_termica}
+                {source.marca} · {source.calibre} · {source.condicion_termica}
               </Text>
             </View>
-            <Field label="Aporta">
-              <TextInput
-                keyboardType="number-pad"
-                onChangeText={(value) => updateContribution(source.id, value)}
-                style={styles.contributionInput}
-                value={source.aporte}
-              />
-            </Field>
+            {source.composicion.map((line) => (
+              <View key={line.clave} style={styles.compositionLine}>
+                <View style={styles.sourceCopy}>
+                  <Text style={styles.sourceMeta}>CSG {line.csg} · {line.fecha_embalaje ?? 'Sin fecha'}</Text>
+                  <Text style={styles.sourceMeta}>{line.cantidad_cajas} cajas disponibles</Text>
+                </View>
+                <Field label="Aporta">
+                  <TextInput
+                    keyboardType="number-pad"
+                    onChangeText={(value) => updateContribution(source.id, line.clave, value)}
+                    style={styles.contributionInput}
+                    value={line.aporte}
+                  />
+                </Field>
+              </View>
+            ))}
             <Text style={styles.remaining}>
-              Queda {Math.max(0, source.cantidad_cajas - numeric(source.aporte))}
+              Queda {Math.max(0, source.cantidad_cajas - sourceTotal(source))}
             </Text>
             <Pressable onPress={() => removeSource(source.id)}>
               <Text style={styles.remove}>Quitar</Text>
@@ -354,6 +382,12 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
             {resultType === 'pallet' ? `${total}/${capacity || '—'} cajas` : `${total} cajas`}
             {' · '}{sources[0]?.condicion_termica ?? '—'}
           </Text>
+          {resultComposition.map((line) => (
+            <View key={`${line.csg}-${line.fecha_embalaje}-${line.predio}`} style={styles.previewCompositionLine}>
+              <Text style={styles.previewCompositionText}>CSG {line.csg} · {line.fecha_embalaje ?? 'Sin fecha'}</Text>
+              <Text style={styles.previewCompositionQuantity}>{line.cantidad_cajas} cajas</Text>
+            </View>
+          ))}
         </View>
 
         {message ? <Text style={styles.message}>{message}</Text> : null}
@@ -380,7 +414,7 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
               {repa.codigo} · {repa.folio_resultante.numero_folio}
             </Text>
             <Text style={styles.sourceMeta}>
-              {repa.tipo_resultado === 'pallet' ? 'Pallet completo' : 'Saldo'} · {repa.cantidad_resultante} cajas · {repa.condicion_termica}
+              {repa.tipo_resultado === 'pallet' ? 'Pallet completo' : (repa.tipo_resultado === 'division' ? 'División' : 'Saldo')} · {repa.cantidad_resultante} cajas · {repa.condicion_termica}
             </Text>
             {repa.campos_mix.length ? (
               <Text style={styles.historyWarning}>MIX: {repa.campos_mix.join(' · ')}</Text>
@@ -403,6 +437,50 @@ function normalize(value: unknown): string {
 function numeric(value: string): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sourceTotal(source: Source): number {
+  return source.composicion.reduce((sum, line) => sum + numeric(line.aporte), 0);
+}
+
+function allocateComposition(
+  composition: RepalletizingFolio['composicion'],
+  requested: number,
+): Source['composicion'] {
+  let remaining = requested;
+  return composition.map((line) => {
+    const amount = Math.min(line.cantidad_cajas, remaining);
+    remaining -= amount;
+    return { ...line, aporte: String(amount) };
+  });
+}
+
+function aggregateComposition(sources: Source[]): Array<{
+  csg: string;
+  predio: string | null;
+  fecha_embalaje: string | null;
+  cantidad_cajas: number;
+}> {
+  const grouped = new Map<string, {
+    csg: string;
+    predio: string | null;
+    fecha_embalaje: string | null;
+    cantidad_cajas: number;
+  }>();
+  sources.flatMap((source) => source.composicion).forEach((line) => {
+    const amount = numeric(line.aporte);
+    if (!amount) return;
+    const key = `${line.csg}|${line.predio ?? ''}|${line.fecha_embalaje ?? ''}`;
+    const current = grouped.get(key) ?? {
+      csg: line.csg,
+      predio: line.predio,
+      fecha_embalaje: line.fecha_embalaje,
+      cantidad_cajas: 0,
+    };
+    current.cantidad_cajas += amount;
+    grouped.set(key, current);
+  });
+  return [...grouped.values()];
 }
 
 function messageOf(reason: unknown): string {
@@ -525,6 +603,16 @@ const styles = StyleSheet.create({
   sourceCopy: { flex: 1 },
   sourceNumber: { color: colors.text, fontWeight: '900' },
   sourceMeta: { color: colors.muted, fontSize: 10, marginTop: 2 },
+  compositionLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 9,
+    backgroundColor: colors.backgroundDeep,
+  },
   keepButton: {
     alignSelf: 'flex-start',
     borderWidth: 1,
@@ -556,6 +644,9 @@ const styles = StyleSheet.create({
   previewLabel: { color: colors.muted, fontSize: 9, fontWeight: '900' },
   previewNumber: { color: colors.cyan, fontSize: 22, fontWeight: '900', marginTop: 4 },
   previewMeta: { color: colors.muted, marginTop: 3 },
+  previewCompositionLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingTop: 8, marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  previewCompositionText: { flex: 1, color: colors.text, fontSize: 10, fontWeight: '800' },
+  previewCompositionQuantity: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
   message: { color: colors.green, fontWeight: '800' },
   error: { color: colors.red, fontWeight: '800' },
   confirmActions: { flexDirection: 'row', gap: 8 },

@@ -38,6 +38,8 @@ class ValidacionPalletResource extends JsonResource
                 'temporada' => $this->snapshot['temporada'] ?? null,
                 'articulo' => $this->snapshot['articulo'] ?? null,
                 'origen' => $this->snapshot['origen'] ?? null,
+                'composicion' => $this->snapshot['composicion'] ?? null,
+                'fecha_embalaje' => $this->snapshot['fecha_embalaje'] ?? null,
                 'categoria' => $this->snapshot['categoria'] ?? null,
             ],
             'folio' => $this->whenLoaded('folio', fn () => $this->folio ? [

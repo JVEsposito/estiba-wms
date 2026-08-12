@@ -68,6 +68,8 @@ type FolioReview = {
   attempt: ValidationAttempt | null;
 };
 
+type OriginDraft = { key: string; originId: string; boxes: string };
+
 export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenProps) {
   const { height, width } = useWindowDimensions();
   const compact = width < 700 || width < height;
@@ -99,7 +101,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   const [categoryId, setCategoryId] = useState('');
   const [client, setClient] = useState('');
   const [brand, setBrand] = useState('');
-  const [csg, setCsg] = useState('');
+  const [packingDate, setPackingDate] = useState(todayLocal());
+  const [originDrafts, setOriginDrafts] = useState<OriginDraft[]>([newOriginDraft()]);
   const [observation, setObservation] = useState<ObservationDraft | null>(null);
 
   const userId = auth.usuario.id;
@@ -180,20 +183,29 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     () => eligibleOrigins
       .filter((item) => (!client || item.cliente === client) && (!brand || item.marca === brand))
       .map((item) => ({
-        value: item.csg,
+        value: item.id,
         label: `${item.csg}${item.predio ? ` — ${item.predio}` : ''}`,
         search: `${item.csg} ${item.predio ?? ''}`,
       })),
     [eligibleOrigins, client, brand],
   );
-  const selectedOrigin = useMemo(
-    () => eligibleOrigins.find((item) => item.cliente === client && item.marca === brand && item.csg === csg) ?? null,
-    [eligibleOrigins, client, brand, csg],
+  const selectedOrigins = useMemo(
+    () => originDrafts.map((draft) => eligibleOrigins.find((item) => (
+      item.id === draft.originId && item.cliente === client && item.marca === brand
+    )) ?? null),
+    [eligibleOrigins, client, brand, originDrafts],
   );
-  const selectedCombination = useMemo(
-    () => catalog?.combinaciones.find((item) => item.articulo_validacion_id === selectedArticle?.id && item.origen_validacion_id === selectedOrigin?.id) ?? null,
-    [catalog, selectedArticle, selectedOrigin],
+  const selectedCombinations = useMemo(
+    () => selectedOrigins.map((origin) => catalog?.combinaciones.find((item) => (
+      item.articulo_validacion_id === selectedArticle?.id
+      && item.origen_validacion_id === origin?.id
+    )) ?? null),
+    [catalog, selectedArticle, selectedOrigins],
   );
+  const compositionBoxes = originDrafts.reduce((sum, draft) => sum + Number(draft.boxes || 0), 0);
+  const selectedCombination = originDrafts.length > 0
+    && selectedOrigins.every(Boolean)
+    && selectedCombinations.every(Boolean);
 
   useEffect(() => {
     void initialize();
@@ -343,7 +355,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   }
 
   function clearOrigin() {
-    setClient(''); setBrand(''); setCsg('');
+    setClient(''); setBrand(''); setOriginDrafts([newOriginDraft()]);
   }
 
   function handleFolioChange(value: string) {
@@ -386,7 +398,24 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     setPackageName(article.envase);
     setClient(origin.cliente);
     setBrand(origin.marca);
-    setCsg(origin.csg);
+    const savedComposition = attempt.catalogo.composicion?.length
+      ? attempt.catalogo.composicion
+      : [{
+        origen_validacion_id: origin.id,
+        cantidad_cajas: attempt.cantidad_cajas,
+      }];
+    if (savedComposition.some((line) => !catalog.origenes.some((item) => (
+      item.id === line.origen_validacion_id && item.activo
+    )))) {
+      setError('Uno de los CSG guardados ya no está habilitado en el catálogo activo. Requiere revisión de supervisión.');
+      return false;
+    }
+    setOriginDrafts(savedComposition.map((line) => ({
+      key: newOriginDraft().key,
+      originId: line.origen_validacion_id,
+      boxes: String(line.cantidad_cajas),
+    })));
+    setPackingDate(attempt.catalogo.fecha_embalaje ?? todayLocal());
     setObservation(null);
     setFolioReview({
       numero_folio: attempt.numero_folio,
@@ -477,8 +506,12 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     if (!Number.isInteger(Number(boxes)) || Number(boxes) < 1) return 'Ingresa una cantidad válida de cajas.';
     if (!selectedCategory) return 'Selecciona una categoría.';
     if (!selectedArticle) return 'Completa especie, variedad, calibre y envase.';
-    if (!selectedOrigin) return 'Completa cliente, marca y CSG.';
-    if (!selectedCombination) return 'La combinación artículo–origen no está habilitada.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(packingDate)) return 'Ingresa una fecha de embalaje válida.';
+    if (selectedOrigins.some((origin) => !origin)) return 'Completa todos los CSG del bulto.';
+    if (new Set(originDrafts.map((draft) => draft.originId)).size !== originDrafts.length) return 'No repitas el mismo CSG en el bulto.';
+    if (!selectedCombination) return 'Una combinación artículo–CSG no está habilitada.';
+    if (originDrafts.some((draft) => !Number.isInteger(Number(draft.boxes)) || Number(draft.boxes) < 1)) return 'Ingresa las cajas de cada CSG.';
+    if (compositionBoxes !== Number(boxes)) return `La composición por CSG suma ${compositionBoxes} cajas y el bulto declara ${boxes}.`;
     if (outbox.some((item) => normalizeFolio(item.payload.numero_folio) === normalizeFolio(folio))) {
       return 'El folio posee una validación local pendiente o con error. Sincronízala antes de registrar otro intento.';
     }
@@ -491,7 +524,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       setError(problem);
       return;
     }
-    if (!catalog || !selectedArticle || !selectedOrigin || !selectedCategory || !line || !shift) return;
+    const primaryOrigin = selectedOrigins[0];
+    if (!catalog || !selectedArticle || !primaryOrigin || !selectedCategory || !line || !shift) return;
 
     const payload: RegisterValidationPayload = {
       operacion_id: Crypto.randomUUID(),
@@ -503,7 +537,12 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       temporada_id: catalog.temporada.id,
       catalogo_version: catalog.temporada.version_catalogo,
       articulo_validacion_id: selectedArticle.id,
-      origen_validacion_id: selectedOrigin.id,
+      origen_validacion_id: primaryOrigin.id,
+      fecha_embalaje: packingDate,
+      composicion: originDrafts.map((draft) => ({
+        origen_validacion_id: draft.originId,
+        cantidad_cajas: Number(draft.boxes),
+      })),
       categoria_validacion_id: selectedCategory.id,
       resultado: result,
       ...(reason ? { motivo: reason } : {}),
@@ -550,6 +589,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       setFolio('');
       setFolioReview(null);
       setBoxes('');
+      setPackingDate(todayLocal());
+      setOriginDrafts([newOriginDraft()]);
       setObservation(null);
       setTimeout(() => folioInput.current?.focus(), 180);
     } finally {
@@ -682,7 +723,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
                   <Text style={[styles.typeButtonText, packageType === type && styles.typeButtonTextActive]}>{type === 'pallet' ? 'PALLET COMPLETO' : 'SALDO'}</Text>
                 </Pressable>
               ))}
-              <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => setBoxes(value.replace(/[^0-9]/g, ''))} placeholder="0" placeholderTextColor={colors.muted} style={[styles.boxInput, terminalDecision && styles.disabled]} value={boxes} /></View>
+              <View style={[styles.boxField, compact && styles.boxFieldCompact]}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => { const clean = value.replace(/[^0-9]/g, ''); setBoxes(clean); setOriginDrafts((current) => current.length === 1 ? [{ ...current[0], boxes: clean }] : current); }} placeholder="0" placeholderTextColor={colors.muted} style={[styles.boxInput, terminalDecision && styles.disabled]} value={boxes} /></View>
             </View>
 
             <Text style={styles.groupTitle}>Categoría</Text>
@@ -700,16 +741,40 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
             <Text style={styles.groupTitle}>Origen comercial</Text>
             <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <SelectField compact={compact} disabled={terminalDecision || !selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setCsg(''); }} />
-              <SelectField compact={compact} disabled={terminalDecision || !client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setCsg(''); }} />
-              <View style={styles.wideField}><SelectField compact={compact} disabled={terminalDecision || !brand} label="CSG / Predio" options={csgOptions} searchable value={csg} onChange={setCsg} /></View>
+              <SelectField compact={compact} disabled={terminalDecision || !selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setOriginDrafts([newOriginDraft()]); }} />
+              <SelectField compact={compact} disabled={terminalDecision || !client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setOriginDrafts([newOriginDraft()]); }} />
+              <View style={styles.packingDateField}>
+                <Text style={styles.label}>Fecha de embalaje *</Text>
+                <TextInput
+                  editable={!terminalDecision}
+                  onChangeText={setPackingDate}
+                  placeholder="AAAA-MM-DD"
+                  placeholderTextColor={colors.muted}
+                  style={[styles.boxInput, terminalDecision && styles.disabled]}
+                  value={packingDate}
+                />
+                <Text style={styles.fieldHint}>Una sola fecha por bulto validado en línea.</Text>
+              </View>
             </View>
+
+            <View style={styles.compositionHeader}>
+              <View><Text style={styles.label}>Composición por CSG *</Text><Text style={styles.fieldHint}>La suma debe coincidir con las cajas del bulto.</Text></View>
+              <Text style={[styles.compositionTotal, compositionBoxes === Number(boxes) ? styles.compositionTotalOk : styles.compositionTotalPending]}>{compositionBoxes}/{boxes || 0} cajas</Text>
+            </View>
+            {originDrafts.map((draft, index) => (
+              <View key={draft.key} style={[styles.originCompositionRow, compact && styles.originCompositionRowCompact]}>
+                <View style={styles.originCompositionSelect}><SelectField compact={compact} disabled={terminalDecision || !brand} label={`CSG / Predio ${index + 1}`} options={csgOptions.filter((option) => option.value === draft.originId || !originDrafts.some((item) => item.originId === option.value))} searchable value={draft.originId} onChange={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, originId: value } : item))} /></View>
+                <View style={styles.originBoxes}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, boxes: value.replace(/[^0-9]/g, '') } : item))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={draft.boxes} /></View>
+                {originDrafts.length > 1 ? <Pressable disabled={terminalDecision} onPress={() => setOriginDrafts((current) => current.filter((item) => item.key !== draft.key))} style={styles.removeOrigin}><Text style={styles.removeOriginText}>Quitar</Text></Pressable> : null}
+              </View>
+            ))}
+            <Pressable disabled={terminalDecision || !brand} onPress={() => setOriginDrafts((current) => [...current, newOriginDraft()])} style={[styles.addOrigin, (terminalDecision || !brand) && styles.disabled]}><Text style={styles.addOriginText}>+ Agregar otro CSG</Text></Pressable>
 
             <View style={styles.selectionSummary}>
               <Text style={styles.selectionSummaryTitle}>{selectedCombination && selectedCategory ? 'Combinación habilitada' : 'Completa los datos obligatorios'}</Text>
               <Text style={styles.selectionSummaryText}>{selectedCategory ? `Categoría: ${selectedCategory.nombre}` : 'Categoría pendiente'}</Text>
               <Text style={styles.selectionSummaryText}>{selectedArticle ? `${selectedArticle.especie} · ${selectedArticle.variedad} · ${selectedArticle.calibre} · ${selectedArticle.envase}` : 'Artículo pendiente'}</Text>
-              <Text style={styles.selectionSummaryText}>{selectedOrigin ? `${selectedOrigin.cliente} · ${selectedOrigin.marca} · CSG ${selectedOrigin.csg}` : 'Origen pendiente'}</Text>
+              <Text style={styles.selectionSummaryText}>{selectedOrigins.every(Boolean) ? `${client} · ${brand} · ${selectedOrigins.map((origin) => `CSG ${origin?.csg}`).join(' + ')} · fecha ${packingDate}` : 'Origen pendiente'}</Text>
             </View>
 
             <View style={[styles.resultActions, compact && styles.resultActionsCompact]}>
@@ -927,6 +992,12 @@ function ObservationModal({ catalog, draft, onCancel, onConfirm }: { catalog: Va
 function uniqueOptions(values: string[]): Option[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')).map((value) => ({ value, label: value }));
 }
+function newOriginDraft(): OriginDraft { return { key: `${Date.now()}-${Math.random()}`, originId: '', boxes: '' }; }
+function todayLocal(): string {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
 function normalizeFolio(value: string) { return value.trim().toUpperCase(); }
 function formatTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' }).format(date); }
 function formatDateTime(value: string | null) { const date = value ? new Date(value) : null; return !date || Number.isNaN(date.getTime()) ? 'sin hora registrada' : new Intl.DateTimeFormat('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date); }
@@ -1006,6 +1077,20 @@ const styles = StyleSheet.create({
   boxFieldCompact: { flexBasis: '100%' },
   boxInput: { minHeight: 49, paddingHorizontal: 13, borderRadius: 11, borderWidth: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.backgroundDeep, fontSize: 18, fontWeight: '900' },
   groupTitle: { color: colors.text, fontSize: 15, fontWeight: '900', marginTop: 20, marginBottom: 9 },
+  fieldHint: { color: colors.muted, fontSize: 9, marginTop: 4 },
+  packingDateField: { flex: 1, minWidth: 190 },
+  compositionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
+  compositionTotal: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden', fontSize: 10, fontWeight: '900' },
+  compositionTotalOk: { color: colors.green, backgroundColor: colors.greenDark },
+  compositionTotalPending: { color: colors.amber, backgroundColor: colors.amberDark },
+  originCompositionRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, marginBottom: 8, padding: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.backgroundDeep },
+  originCompositionRowCompact: { flexWrap: 'wrap' },
+  originCompositionSelect: { flex: 1, minWidth: 220 },
+  originBoxes: { width: 105 },
+  removeOrigin: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 10 },
+  removeOriginText: { color: colors.red, fontSize: 10, fontWeight: '900' },
+  addOrigin: { alignItems: 'center', padding: 11, borderWidth: 1, borderColor: colors.cyanDark, borderRadius: 10, borderStyle: 'dashed' },
+  addOriginText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
   fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   fieldGridCompact: { flexDirection: 'column', flexWrap: 'nowrap' },
   selectField: { flex: 1, minWidth: 145 },

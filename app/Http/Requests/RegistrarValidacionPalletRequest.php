@@ -38,6 +38,21 @@ class RegistrarValidacionPalletRequest extends FormRequest
             'catalogo_version' => ['required', 'integer', 'min:1'],
             'articulo_validacion_id' => ['required', 'uuid', 'exists:articulos_validacion,id'],
             'origen_validacion_id' => ['required', 'uuid', 'exists:origenes_validacion,id'],
+            // Compatibilidad: las PDA anteriores continúan enviando solo origen_validacion_id.
+            // Las nuevas envían el detalle completo y una única fecha por bulto.
+            'fecha_embalaje' => ['nullable', 'date_format:Y-m-d'],
+            'composicion' => ['nullable', 'array', 'min:1', 'max:20'],
+            'composicion.*.origen_validacion_id' => [
+                'required_with:composicion',
+                'uuid',
+                'distinct',
+                'exists:origenes_validacion,id',
+            ],
+            'composicion.*.cantidad_cajas' => [
+                'required_with:composicion',
+                'integer',
+                'min:1',
+            ],
             'categoria_validacion_id' => ['required', 'uuid', 'exists:categorias_validacion,id'],
             'resultado' => ['required', Rule::enum(ResultadoValidacionPallet::class)],
             'motivo' => ['nullable', Rule::enum(MotivoValidacionPallet::class), 'required_unless:resultado,aprobado'],

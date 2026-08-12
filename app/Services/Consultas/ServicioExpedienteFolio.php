@@ -46,10 +46,12 @@ class ServicioExpedienteFolio
         $repaletizajes = Repaletizaje::query()
             ->where(function ($consulta) use ($folio): void {
                 $consulta->where('folio_resultante_id', $folio->id)
+                    ->orWhereHas('resultados', fn ($resultados) => $resultados
+                        ->where('folio_id', $folio->id))
                     ->orWhereHas('detalles', fn ($detalles) => $detalles
                         ->where('folio_origen_id', $folio->id));
             })
-            ->with(['folioResultante', 'detalles.folioOrigen', 'usuario', 'anuladoPor'])
+            ->with(['folioResultante', 'resultados.folio', 'detalles.folioOrigen', 'usuario', 'anuladoPor'])
             ->orderBy('confirmado_at')
             ->get();
 
@@ -103,9 +105,11 @@ class ServicioExpedienteFolio
             'validacion' => $validaciones->last() ? $this->resumenValidacion($validaciones->last()) : null,
             'repaletizajes' => $repaletizajes->map(fn (Repaletizaje $repa): array => [
                 'codigo' => $repa->codigo,
+                'modalidad' => $repa->modalidad ?? 'consolidacion',
                 'estado' => $repa->estado,
                 'tipo_resultado' => $repa->tipo_resultado,
                 'folio_resultante' => $repa->folioResultante?->numero_folio,
+                'folios_resultantes' => $repa->resultados->pluck('folio.numero_folio')->filter()->values()->all(),
                 'cantidad_resultante' => $repa->cantidad_resultante,
                 'campos_mix' => $repa->campos_mix ?? [],
                 'confirmado_at' => $repa->confirmado_at?->toIso8601String(),
@@ -232,7 +236,13 @@ class ServicioExpedienteFolio
     {
         return $repaletizajes->map(function (Repaletizaje $repa) use ($folio): array {
             $detalle = $repa->detalles->firstWhere('folio_origen_id', $folio->id);
-            $esResultado = $repa->folio_resultante_id === $folio->id;
+            $esResultado = $repa->folio_resultante_id === $folio->id
+                || $repa->resultados->contains('folio_id', $folio->id);
+            $numerosResultado = $repa->resultados->pluck('folio.numero_folio')->filter();
+            if ($numerosResultado->isEmpty() && $repa->folioResultante) {
+                $numerosResultado->push($repa->folioResultante->numero_folio);
+            }
+            $textoResultados = $numerosResultado->implode(' + ');
 
             if ($repa->estado === 'anulado') {
                 return [
@@ -244,7 +254,7 @@ class ServicioExpedienteFolio
                         $repa->codigo,
                     ),
                     'meta' => array_filter([
-                        'Resultado' => $repa->folioResultante?->numero_folio,
+                        'Resultado' => $textoResultados,
                         'Motivo' => $repa->motivo_anulacion,
                         'Anulado por' => $repa->anuladoPor?->name,
                     ], fn (mixed $valor): bool => $valor !== null && $valor !== ''),
@@ -278,7 +288,7 @@ class ServicioExpedienteFolio
                     '%d cajas → 0 · aporta %d a %s',
                     $detalle->cajas_antes,
                     $detalle->cajas_aportadas,
-                    $repa->folioResultante?->numero_folio ?? 'folio resultante',
+                    $textoResultados ?: 'folio resultante',
                 );
             } else {
                 $titulo = 'Saldo repaletizado';
@@ -287,7 +297,7 @@ class ServicioExpedienteFolio
                     $detalle?->cajas_antes ?? 0,
                     $detalle?->cajas_despues ?? 0,
                     $detalle?->cajas_aportadas ?? 0,
-                    $repa->folioResultante?->numero_folio ?? 'folio resultante',
+                    $textoResultados ?: 'folio resultante',
                 );
             }
 
@@ -298,7 +308,7 @@ class ServicioExpedienteFolio
                 'descripcion' => $descripcion,
                 'meta' => array_filter([
                     'Repa' => $repa->codigo,
-                    'Resultado' => $repa->folioResultante?->numero_folio,
+                    'Resultado' => $textoResultados,
                     'Cantidad resultado' => $repa->cantidad_resultante.' cajas',
                     'Operador' => $repa->usuario?->nombre,
                     'Mix' => ($repa->campos_mix ?? []) !== []

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'operacion_id',
     'payload_hash',
     'codigo',
+    'modalidad',
     'tipo_resultado',
     'estrategia_folio',
     'folio_resultante_id',
@@ -48,6 +49,11 @@ class Repaletizaje extends Model
     public function detalles(): HasMany
     {
         return $this->hasMany(RepaletizajeDetalle::class)->orderBy('orden');
+    }
+
+    public function resultados(): HasMany
+    {
+        return $this->hasMany(RepaletizajeResultado::class)->orderBy('orden');
     }
 
     public function usuario(): BelongsTo
