@@ -167,6 +167,32 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
             'referencia_origen' => $proceso['id'],
             'user_id' => $administrador->id,
         ]);
+
+        // Simula el dato heredado que ya fue corregido en el proceso, pero no en el folio.
+        $folioAgregado->update([
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
+            'fuente_habilitacion_almacenamiento' => null,
+            'habilitado_almacenamiento_at' => null,
+            'habilitado_almacenamiento_por_user_id' => null,
+        ]);
+        $migracion = require database_path(
+            'migrations/2026_08_12_190000_sincronizar_folios_omitidos_prefrio.php',
+        );
+        $migracion->up();
+
+        $this->assertDatabaseHas('folios', [
+            'id' => $folioAgregado->id,
+            'condicion_termica' => 'prefrio_aprobado',
+            'habilitacion_almacenamiento' => 'habilitado',
+            'fuente_habilitacion_almacenamiento' => 'prefrio_aprobado',
+        ]);
+        $this->assertDatabaseHas('historial_habilitaciones_almacenamiento', [
+            'folio_id' => $folioAgregado->id,
+            'proceso_origen' => 'prefrio',
+            'referencia_origen' => $proceso['id'],
+            'motivo' => 'Regularización automática de folio omitido en el registro de prefrío.',
+        ]);
         $this->assertDatabaseHas('eventos_prefrio', [
             'proceso_prefrio_id' => $proceso['id'],
             'operacion_id' => $operacionId,
