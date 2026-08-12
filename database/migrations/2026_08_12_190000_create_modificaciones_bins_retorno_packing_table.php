@@ -10,17 +10,21 @@ return new class extends Migration
     {
         Schema::create('modificaciones_bin_retorno_packing', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('bin_retorno_packing_id')
-                ->constrained('bins_retorno_packing')
-                ->restrictOnDelete();
+            $table->uuid('bin_retorno_packing_id');
+            $table->foreign(
+                'bin_retorno_packing_id',
+                'mod_bin_retorno_bin_fk',
+            )->references('id')->on('bins_retorno_packing')->restrictOnDelete();
             $table->uuid('operacion_id')->unique();
             $table->char('payload_hash', 64);
             $table->json('datos_anteriores');
             $table->json('datos_nuevos');
             $table->text('motivo');
-            $table->foreignId('modificado_por_user_id')
-                ->constrained('users')
-                ->restrictOnDelete();
+            $table->unsignedBigInteger('modificado_por_user_id');
+            $table->foreign(
+                'modificado_por_user_id',
+                'mod_bin_retorno_user_fk',
+            )->references('id')->on('users')->restrictOnDelete();
             $table->timestamp('modificado_at');
             $table->timestamps(precision: 6);
 
