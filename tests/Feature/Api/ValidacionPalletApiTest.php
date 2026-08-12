@@ -48,6 +48,26 @@ class ValidacionPalletApiTest extends TestCase
         $this->assertDatabaseCount('validaciones_pallet', 1);
     }
 
+    public function test_usa_la_fecha_de_validacion_si_el_folio_no_informa_fecha_de_embalaje(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-FECHA');
+        $payload = $this->payload($catalogo, 'PAL-FECHA-VALIDACION');
+        $payload['generado_dispositivo_at'] = '2026-08-08T23:30:00-04:00';
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.catalogo.fecha_embalaje', '2026-08-08')
+            ->assertJsonPath('data.catalogo.composicion.0.fecha_embalaje', '2026-08-08');
+
+        $folio = Folio::query()->where('numero_folio', 'PAL-FECHA-VALIDACION')->firstOrFail();
+        $this->assertSame('2026-08-08', $folio->datos_externos['fecha_embalaje']);
+        $this->assertSame(
+            '2026-08-08',
+            $folio->datos_externos['composicion'][0]['fecha_embalaje'],
+        );
+    }
+
     public function test_aprueba_un_bulto_con_varios_csg_y_una_sola_fecha(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-MIX-CSG');
