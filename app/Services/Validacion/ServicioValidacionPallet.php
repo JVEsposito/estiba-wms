@@ -312,7 +312,7 @@ class ServicioValidacionPallet
             'origen_validacion_id' => $datos['origen_validacion_id'],
             'fecha_embalaje' => filled($datos['fecha_embalaje'] ?? null)
                 ? (string) $datos['fecha_embalaje']
-                : $generadoDispositivoAt->toDateString(),
+                : $generadoDispositivoAt->setTimezone(config('app.operational_timezone'))->toDateString(),
             'composicion' => collect($datos['composicion'] ?? [[
                 'origen_validacion_id' => $datos['origen_validacion_id'],
                 'cantidad_cajas' => (int) $datos['cantidad_cajas'],
