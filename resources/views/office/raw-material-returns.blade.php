@@ -92,7 +92,13 @@
                         <div class="return-actions"><button class="primary-button" type="submit">Registrar bin y generar folio provisional</button></div>
                     </form>
 
-                    <div class="recent-return-heading"><div><strong>Últimos bins registrados</strong><small>La recepción no mezcla historial con el formulario.</small></div></div>
+                    <div class="recent-return-heading">
+                        <div><strong>Todos los bins registrados</strong><small id="binListCount">Cargando retornos de la temporada…</small></div>
+                        <div class="return-list-filters">
+                            <label><span>Buscar</span><input id="binListSearch" type="search" autocomplete="off" placeholder="Folio, observación, lote u orden"></label>
+                            <label><span>Estado</span><select id="binListState"><option value="">Todos</option><option value="pendiente_regularizacion">Pendientes</option><option value="regularizado">Regularizados</option><option value="anulado">Anulados</option></select></label>
+                        </div>
+                    </div>
                     <div class="bin-list" id="recentBins"></div>
                 </section>
 
@@ -112,6 +118,35 @@
                 </section>
             </section>
         </main>
+
+        <dialog class="return-dialog return-dialog--wide" id="editBinDialog">
+            <form method="dialog" id="editBinForm" novalidate>
+                <div class="return-dialog__heading"><div><p class="eyebrow">CORRECCIÓN AUDITADA</p><h2 id="editBinTitle">Modificar retorno</h2><p id="editBinDescription"></p></div><button value="cancel" type="submit" aria-label="Cerrar">×</button></div>
+                <input name="bin_id" type="hidden">
+                <div class="return-form-grid">
+                    <label><span>Kilos verdes totales *</span><input name="kilos_totales" id="editGreenTotalKilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" required></label>
+                    <label class="field-wide"><span>Observación</span><textarea name="observacion" id="editBinObservation" maxlength="2000" placeholder="Opcional"></textarea></label>
+                </div>
+                <div>
+                    <p class="eyebrow">KILOS VERDES POR PROCESO</p>
+                    <div class="edit-origins" id="editBinOrigins"></div>
+                    <div class="origin-balance" id="editGreenBalance"><span>Distribuido</span><strong>0,000 / 0,000 kg</strong><small>Completa la cuadratura</small></div>
+                </div>
+                <section class="edit-definitive is-hidden" id="editDefinitiveSection">
+                    <div class="return-form-grid">
+                        <label><span>Folio definitivo *</span><input name="folio_definitivo" maxlength="80" autocomplete="off"></label>
+                        <label><span>Clasificación *</span><select name="tipo_resultado_packing_id"></select></label>
+                        <label class="field-wide"><span>Nombre / detalle</span><input name="nombre_resultado" maxlength="100" autocomplete="off" placeholder="Opcional; usa el nombre del catálogo si queda vacío"></label>
+                    </div>
+                    <label class="migration-total"><span>Kilos totales definitivos *</span><input name="kilos_totales_definitivos" id="editDefinitiveTotalKilos" type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal"></label>
+                    <div class="origin-balance" id="editDefinitiveBalance"><span>Distribuido</span><strong>0,000 / 0,000 kg</strong><small>Completa la cuadratura</small></div>
+                </section>
+                <label class="migration-reason"><span>Motivo de la corrección *</span><textarea name="motivo" maxlength="2000" minlength="5" required placeholder="Explica brevemente qué dato estaba incorrecto"></textarea></label>
+                <div class="edit-scope-notice">El folio provisional y los procesos de origen no cambian. Si el proceso asociado es incorrecto, anula el retorno y vuelve a ingresarlo.</div>
+                <p class="form-error" id="editBinError" role="alert"></p>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Guardar modificación</button></div>
+            </form>
+        </dialog>
 
         <dialog class="return-dialog return-dialog--wide" id="regularizeDialog">
             <form method="dialog" id="regularizeForm" novalidate>
