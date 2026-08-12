@@ -298,6 +298,6 @@ class RepaletizajeController extends Controller
             ?? $folio->validacionPallet?->recibido_servidor_at
             ?? $folio->fecha_ingreso;
 
-        return $fecha?->setTimezone(config('app.timezone'))->toDateString();
+        return $fecha?->setTimezone(config('app.operational_timezone'))->toDateString();
     }
 }
