@@ -61,6 +61,10 @@
 .bin-card__actions button, .legacy-card__actions button { border: 1px solid #2e826e; background: #10251f; color: #65ecc2; border-radius: 7px; padding: 8px 12px; font-weight: 800; }
 .legacy-card__actions button[data-discard-legacy] { border-color: #70434a; color: #ff9da7; background: #27171b; }
 .legacy-notice { margin: 14px 20px 0; border: 1px solid #695827; background: #251f0e; color: #e4c96f; border-radius: 8px; padding: 11px 13px; }
+.return-source-observation { border: 1px solid #31556b; background: #0d202b; border-radius: 8px; padding: 12px 14px; display: grid; gap: 5px; }
+.return-source-observation span { color: #73d7f2; font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.return-source-observation p { margin: 0; color: #e4f5fc; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.return-source-observation.is-empty p { color: #789cac; font-style: italic; }
 .return-annulment { margin-top: 12px; border: 1px solid rgba(248, 113, 113, .38); background: rgba(127, 29, 29, .16); color: #fecaca; border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; }
 .return-annulment span { color: #fca5a5; font-size: .85rem; }
 .return-empty { padding: 26px; text-align: center; color: #7fa1b4; border: 1px dashed #294456; border-radius: 8px; }

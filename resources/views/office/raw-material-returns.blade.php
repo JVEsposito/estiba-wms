@@ -116,6 +116,10 @@
         <dialog class="return-dialog return-dialog--wide" id="regularizeDialog">
             <form method="dialog" id="regularizeForm" novalidate>
                 <div class="return-dialog__heading"><div><p class="eyebrow">FOLIO PROVISIONAL</p><h2 id="regularizeTitle">Regularizar bin</h2><p id="regularizeDescription"></p></div><button value="cancel" type="submit" aria-label="Cerrar">×</button></div>
+                <section class="return-source-observation is-empty" aria-labelledby="regularizeObservationLabel">
+                    <span id="regularizeObservationLabel">Observación del retorno físico</span>
+                    <p id="regularizeObservation">Sin observación registrada.</p>
+                </section>
                 <input name="bin_id" type="hidden">
                 <div class="return-form-grid">
                     <label><span>Folio definitivo *</span><input name="folio_definitivo" maxlength="80" autocomplete="off" required></label>
