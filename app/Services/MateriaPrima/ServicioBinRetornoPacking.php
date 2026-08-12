@@ -8,6 +8,7 @@ use App\Models\BinRetornoPacking;
 use App\Models\BinRetornoPackingOrigen;
 use App\Models\EntregaFrutaProceso;
 use App\Models\LoteMateriaPrima;
+use App\Models\ModificacionBinRetornoPacking;
 use App\Models\PersonalAccessToken;
 use App\Models\RegularizacionRetornoPackingLegacy;
 use App\Models\RetornoPacking;
@@ -76,6 +77,140 @@ class ServicioBinRetornoPacking
             $this->crearOrigenes($bin, $origenes);
 
             return $this->cargar($bin);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function modificar(
+        BinRetornoPacking $bin,
+        array $datos,
+        User $usuario,
+    ): BinRetornoPacking {
+        return DB::transaction(function () use ($bin, $datos, $usuario): BinRetornoPacking {
+            $bin = BinRetornoPacking::query()->lockForUpdate()->findOrFail($bin->id);
+            $payload = $this->payloadModificacion($bin, $datos);
+            $hash = $this->hash($payload);
+
+            $modificacionExistente = ModificacionBinRetornoPacking::query()
+                ->where('operacion_id', $datos['operacion_id'])
+                ->lockForUpdate()
+                ->first();
+            if ($modificacionExistente) {
+                if ($modificacionExistente->bin_retorno_packing_id !== $bin->id
+                    || ! hash_equals($modificacionExistente->payload_hash, $hash)) {
+                    throw new ConflictoOperacion(
+                        'El identificador de modificación ya fue utilizado con datos diferentes.',
+                    );
+                }
+
+                return $this->cargar($bin);
+            }
+
+            if ($bin->anulado_at !== null) {
+                throw new ConflictoOperacion('El bin está anulado y no puede modificarse.');
+            }
+
+            if ($bin->temporada_id !== $this->temporadaActivaId()) {
+                throw new ConflictoOperacion(
+                    'El bin no pertenece a la temporada activa y no puede modificarse.',
+                );
+            }
+
+            $origenesPersistidos = $bin->origenes()
+                ->lockForUpdate()
+                ->get();
+            $origenesRecibidos = collect($payload['origenes'])->keyBy('origen_id');
+            if ($origenesPersistidos->count() !== $origenesRecibidos->count()
+                || $origenesPersistidos->contains(
+                    fn (BinRetornoPackingOrigen $origen): bool => ! $origenesRecibidos->has($origen->id),
+                )) {
+                throw ValidationException::withMessages([
+                    'origenes' => 'La corrección debe conservar todos los procesos originales del bin.',
+                ]);
+            }
+
+            $this->validarCuadratura(
+                $payload['kilos_totales'],
+                $origenesPersistidos->map(
+                    fn (BinRetornoPackingOrigen $origen): array => [
+                        'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados'],
+                    ],
+                ),
+            );
+
+            $regularizado = $bin->regularizado_at !== null;
+            $tipo = null;
+            if ($regularizado) {
+                $folioOcupado = BinRetornoPacking::query()
+                    ->where('folio_definitivo', $payload['folio_definitivo'])
+                    ->whereKeyNot($bin->id)
+                    ->exists();
+                if ($folioOcupado) {
+                    throw ValidationException::withMessages([
+                        'folio_definitivo' => 'El folio definitivo ya está asociado a otro bin retornado.',
+                    ]);
+                }
+
+                $tipo = TipoResultadoPacking::query()
+                    ->findOrFail($payload['tipo_resultado_packing_id']);
+                if (! $tipo->activo && $tipo->id !== $bin->tipo_resultado_packing_id) {
+                    throw ValidationException::withMessages([
+                        'tipo_resultado_packing_id' => 'La clasificación seleccionada ya no está activa.',
+                    ]);
+                }
+
+                $this->validarCuadratura(
+                    $payload['kilos_totales_definitivos'],
+                    $origenesPersistidos->map(
+                        fn (BinRetornoPackingOrigen $origen): array => [
+                            'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados_definitivos'],
+                        ],
+                    ),
+                );
+            }
+
+            $datosAnteriores = $this->snapshotBin($bin, $origenesPersistidos);
+
+            foreach ($origenesPersistidos as $origen) {
+                $datosOrigen = [
+                    'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados'],
+                ];
+                if ($regularizado) {
+                    $datosOrigen['kilos_aportados_definitivos'] =
+                        $origenesRecibidos[$origen->id]['kilos_aportados_definitivos'];
+                }
+                $origen->update($datosOrigen);
+            }
+
+            $datosBin = [
+                'kilos_totales' => $payload['kilos_totales'],
+                'observacion' => $payload['observacion'],
+            ];
+            if ($regularizado && $tipo) {
+                $datosBin = [
+                    ...$datosBin,
+                    'folio_definitivo' => $payload['folio_definitivo'],
+                    'tipo_resultado_packing_id' => $tipo->id,
+                    'nombre_resultado' => $payload['nombre_resultado'] ?? $tipo->nombre,
+                    'kilos_totales_definitivos' => $payload['kilos_totales_definitivos'],
+                ];
+            }
+            $bin->update($datosBin);
+
+            $bin->refresh();
+            $origenesActualizados = $bin->origenes()->get();
+            ModificacionBinRetornoPacking::create([
+                'bin_retorno_packing_id' => $bin->id,
+                'operacion_id' => $datos['operacion_id'],
+                'payload_hash' => $hash,
+                'datos_anteriores' => $datosAnteriores,
+                'datos_nuevos' => $this->snapshotBin($bin, $origenesActualizados),
+                'motivo' => $payload['motivo'],
+                'modificado_por_user_id' => $usuario->id,
+                'modificado_at' => now(),
+            ]);
+
+            return $this->cargar($bin->fresh());
         }, attempts: 3);
     }
 
@@ -401,6 +536,7 @@ class ServicioBinRetornoPacking
             'regularizadoPor:id,name',
             'anuladoPor:id,name',
             'retornoLegacy:id,numero',
+            'ultimaModificacion.modificadoPor:id,name',
         ]);
     }
 
@@ -413,6 +549,90 @@ class ServicioBinRetornoPacking
                 ? trim((string) $datos['observacion'])
                 : null,
             'origenes' => $this->normalizarOrigenes($datos['origenes']),
+        ];
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function payloadModificacion(BinRetornoPacking $bin, array $datos): array
+    {
+        $regularizado = $bin->regularizado_at !== null;
+        $origenes = collect($datos['origenes'])
+            ->map(function (array $origen) use ($regularizado): array {
+                $normalizado = [
+                    'origen_id' => (string) $origen['origen_id'],
+                    'kilos_aportados' => $this->decimal($origen['kilos_aportados']),
+                ];
+                if ($regularizado) {
+                    $normalizado['kilos_aportados_definitivos'] = $this->decimal(
+                        $origen['kilos_aportados_definitivos'],
+                    );
+                }
+
+                return $normalizado;
+            })
+            ->sortBy('origen_id')
+            ->values()
+            ->all();
+
+        $payload = [
+            'motivo' => trim((string) $datos['motivo']),
+            'kilos_totales' => $this->decimal($datos['kilos_totales']),
+            'observacion' => filled($datos['observacion'] ?? null)
+                ? trim((string) $datos['observacion'])
+                : null,
+            'origenes' => $origenes,
+        ];
+        if ($regularizado) {
+            $payload = [
+                ...$payload,
+                'folio_definitivo' => mb_strtoupper(trim((string) $datos['folio_definitivo'])),
+                'tipo_resultado_packing_id' => (string) $datos['tipo_resultado_packing_id'],
+                'nombre_resultado' => filled($datos['nombre_resultado'] ?? null)
+                    ? trim((string) $datos['nombre_resultado'])
+                    : null,
+                'kilos_totales_definitivos' => $this->decimal(
+                    $datos['kilos_totales_definitivos'],
+                ),
+            ];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param  Collection<int, BinRetornoPackingOrigen>  $origenes
+     * @return array<string, mixed>
+     */
+    private function snapshotBin(BinRetornoPacking $bin, Collection $origenes): array
+    {
+        return [
+            'folio_provisional' => $bin->folio_provisional,
+            'folio_definitivo' => $bin->folio_definitivo,
+            'kilos_totales' => $this->decimal($bin->kilos_totales),
+            'kilos_totales_definitivos' => $bin->kilos_totales_definitivos !== null
+                ? $this->decimal($bin->kilos_totales_definitivos)
+                : null,
+            'tipo_resultado_packing_id' => $bin->tipo_resultado_packing_id,
+            'nombre_resultado' => $bin->nombre_resultado,
+            'estado' => $bin->estado,
+            'observacion' => $bin->observacion,
+            'origenes' => $origenes
+                ->sortBy('id')
+                ->map(fn (BinRetornoPackingOrigen $origen): array => [
+                    'origen_id' => $origen->id,
+                    'lote_materia_prima_id' => $origen->lote_materia_prima_id,
+                    'numero_lote' => $origen->numero_lote,
+                    'numero_orden' => $origen->numero_orden,
+                    'linea_proceso' => $origen->linea_proceso,
+                    'turno' => $origen->turno,
+                    'kilos_aportados' => $this->decimal($origen->kilos_aportados),
+                    'kilos_aportados_definitivos' =>
+                        $origen->kilos_aportados_definitivos !== null
+                            ? $this->decimal($origen->kilos_aportados_definitivos)
+                            : null,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 
