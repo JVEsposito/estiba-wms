@@ -2,8 +2,11 @@
 
 namespace App\Services\Prefrio;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Enums\TipoEventoPrefrio;
@@ -15,6 +18,7 @@ use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Models\User;
+use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -26,6 +30,10 @@ use JsonException;
 
 class ServicioCorreccionProcesoPrefrio
 {
+    public function __construct(
+        private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $datos
      */
@@ -120,6 +128,7 @@ class ServicioCorreccionProcesoPrefrio
                     'motivo' => $this->textoObligatorio($datos['motivo']),
                     'cambios' => $cambios,
                     'estado_operacional_folios_preservado' => true,
+                    'resultado_termico_folios_sincronizado' => true,
                 ],
                 'observacion' => $this->textoObligatorio($datos['motivo']),
             ]);
@@ -183,7 +192,7 @@ class ServicioCorreccionProcesoPrefrio
     ): void {
         foreach ($folios as $datosFolio) {
             $asignacion = ProcesoPrefrioFolio::query()
-                ->with('folio:id,numero_folio,tipo_bulto')
+                ->with('folio')
                 ->lockForUpdate()
                 ->findOrFail($datosFolio['id']);
 
@@ -230,6 +239,14 @@ class ServicioCorreccionProcesoPrefrio
                     'motivo_resultado' => $this->motivoResultado($proceso),
                     'observacion' => $this->textoOpcional($datosFolio['observacion'] ?? null),
                 ]);
+
+                $this->sincronizarAprobacionTermicaHistorica(
+                    $proceso,
+                    $asignacion->folio,
+                    $usuario,
+                    $this->textoOpcional($datosFolio['observacion'] ?? null),
+                    $cambios,
+                );
             }
 
             if (! $asignacion->isDirty()) {
@@ -310,11 +327,74 @@ class ServicioCorreccionProcesoPrefrio
             'cargado_por_user_id' => $usuario->id,
         ]);
 
+        $this->sincronizarAprobacionTermicaHistorica(
+            $proceso,
+            $folio,
+            $usuario,
+            $this->textoOpcional($datosFolio['observacion'] ?? null),
+            $cambios,
+        );
+
         $cambios[] = [
             'entidad' => 'folio_agregado',
             'id' => $asignacion->id,
             'numero_folio' => $folio->numero_folio,
             'despues' => $this->snapshot($asignacion, $this->camposAsignacion()),
+        ];
+    }
+
+    /**
+     * Una corrección histórica puede incorporar a un proceso ya aprobado un folio
+     * que quedó omitido en el registro original. En ese caso debe recibir la misma
+     * transición térmica que habría obtenido durante la aprobación normal.
+     *
+     * La reparación se limita al estado pendiente original para no reescribir
+     * folios que ya tuvieron movimientos operacionales posteriores.
+     *
+     * @param  array<int, array<string, mixed>>  $cambios
+     */
+    private function sincronizarAprobacionTermicaHistorica(
+        ProcesoPrefrio $proceso,
+        Folio $folio,
+        User $usuario,
+        ?string $observacion,
+        array &$cambios,
+    ): void {
+        if ($proceso->estado !== EstadoProcesoPrefrio::Aprobado
+            || ! $folio->activo
+            || $folio->estado_operacional !== EstadoOperacionalFolio::PendientePrefrio
+            || $folio->condicion_termica !== CondicionTermicaFolio::PendientePrefrio) {
+            return;
+        }
+
+        $campos = [
+            'estado_operacional',
+            'condicion_termica',
+            'habilitacion_almacenamiento',
+            'fuente_habilitacion_almacenamiento',
+            'habilitado_almacenamiento_at',
+            'habilitado_almacenamiento_por_user_id',
+            'retencion_termica_motivo',
+        ];
+        $antes = $this->snapshot($folio, $campos);
+
+        $this->habilitacion->habilitar(
+            $folio,
+            CondicionTermicaFolio::PrefrioAprobado,
+            FuenteHabilitacionAlmacenamiento::PrefrioAprobado,
+            $usuario,
+            null,
+            'prefrio',
+            $proceso->id,
+            $observacion,
+        );
+
+        $cambios[] = [
+            'entidad' => 'folio_resultado_termico',
+            'id' => $folio->id,
+            'numero_folio' => $folio->numero_folio,
+            'antes' => $antes,
+            'despues' => $this->snapshot($folio->refresh(), $campos),
         ];
     }
 
