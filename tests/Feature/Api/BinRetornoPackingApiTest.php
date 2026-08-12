@@ -396,6 +396,8 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertSee('Pendientes de regularizar')
             ->assertSee('Registros anteriores')
             ->assertSee('Kilos totales definitivos')
+            ->assertSee('Observación del retorno físico')
+            ->assertSee('id="regularizeObservation"', false)
             ->assertSee('Cuadraturas debe confirmar folio, clasificación, kilos totales y kilos definitivos por proceso.')
             ->assertSee('folio provisional', false);
 
@@ -404,6 +406,8 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('kilos_totales_definitivos', $script);
         $this->assertStringContainsString('kilos_aportados_definitivos', $script);
         $this->assertStringContainsString('Regularizar folio y kilos', $script);
+        $this->assertStringContainsString('regularizeObservation', $script);
+        $this->assertStringContainsString('bin.observacion', $script);
         $this->assertStringContainsString('Anular retorno', $script);
         $this->assertStringContainsString('data-annul-bin', $script);
     }
