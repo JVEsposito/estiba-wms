@@ -43,16 +43,16 @@ return new class extends Migration
             $table->text('documentos')->nullable();
             $table->text('observacion')->nullable();
             $table->unsignedInteger('version')->default(1);
-            $table->foreignUuid('creado_por_user_id')->constrained('users')->restrictOnDelete();
-            $table->foreignUuid('actualizado_por_user_id')->constrained('users')->restrictOnDelete();
-            $table->foreignUuid('sobrecupo_autorizado_por_user_id')->nullable()
+            $table->foreignId('creado_por_user_id')->constrained('users')->restrictOnDelete();
+            $table->foreignId('actualizado_por_user_id')->constrained('users')->restrictOnDelete();
+            $table->foreignId('sobrecupo_autorizado_por_user_id')->nullable()
                 ->constrained('users')->restrictOnDelete();
             $table->text('sobrecupo_motivo')->nullable();
             $table->timestamp('sobrecupo_autorizado_at')->nullable();
-            $table->foreignUuid('confirmado_por_user_id')->nullable()
+            $table->foreignId('confirmado_por_user_id')->nullable()
                 ->constrained('users')->restrictOnDelete();
             $table->timestamp('confirmado_at')->nullable();
-            $table->foreignUuid('cancelado_por_user_id')->nullable()
+            $table->foreignId('cancelado_por_user_id')->nullable()
                 ->constrained('users')->restrictOnDelete();
             $table->text('cancelacion_motivo')->nullable();
             $table->timestamp('cancelado_at')->nullable();
@@ -94,7 +94,7 @@ return new class extends Migration
         Schema::create('eventos_embarque', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('embarque_id')->constrained('embarques')->cascadeOnDelete();
-            $table->foreignUuid('user_id')->constrained('users')->restrictOnDelete();
+            $table->foreignId('user_id')->constrained('users')->restrictOnDelete();
             $table->string('tipo', 60);
             $table->json('datos')->nullable();
             $table->timestamps();
