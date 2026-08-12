@@ -13,6 +13,8 @@ use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Cliente;
 use App\Models\Embarque;
+use App\Models\Pais;
+use App\Models\Puerto;
 use App\Models\Temporada;
 use App\Services\Embarques\ServicioCalendarioEmbarques;
 use Carbon\CarbonImmutable;
@@ -42,7 +44,11 @@ class EmbarqueController extends Controller
         $embarques = Embarque::query()
             ->where('temporada_id', $temporada->id)
             ->whereBetween('fecha_programada', [$desde->toDateString(), $hasta->toDateString()])
-            ->with(['cliente', 'carga', 'instructivos', 'sobrecupoAutorizadoPor'])
+            ->with([
+                'cliente', 'carga', 'puertoEmbarque.pais',
+                'instructivos.paisDestino', 'instructivos.puertoDestino',
+                'sobrecupoAutorizadoPor',
+            ])
             ->orderBy('fecha_programada')
             ->orderBy('hora_programada')
             ->get();
@@ -65,6 +71,15 @@ class EmbarqueController extends Controller
                     ->orderBy('codigo')->get(['id', 'codigo', 'nombre']),
                 'andenes' => Anden::query()->where('activo', true)
                     ->orderBy('codigo')->get(['id', 'codigo', 'nombre']),
+                'paises' => Pais::query()
+                    ->where('activo', true)
+                    ->whereHas('puertos', fn ($consulta) => $consulta->where('activo', true))
+                    ->orderBy('nombre_es')
+                    ->get(['id', 'iso_alpha2', 'nombre_es']),
+                'puertos' => Puerto::query()->where('activo', true)
+                    ->with('pais:id,iso_alpha2,nombre_es')
+                    ->orderBy('nombre')
+                    ->get(['id', 'pais_id', 'codigo', 'nombre', 'tipo']),
             ],
             'permisos' => [
                 'gestionar' => $request->user()->can('gestionar-cargas'),
@@ -139,7 +154,11 @@ class EmbarqueController extends Controller
     /** @return array<string, mixed> */
     private function embarque(Embarque $embarque): array
     {
-        $embarque->loadMissing(['cliente', 'carga', 'instructivos', 'sobrecupoAutorizadoPor']);
+        $embarque->loadMissing([
+            'cliente', 'carga', 'puertoEmbarque.pais',
+            'instructivos.paisDestino', 'instructivos.puertoDestino',
+            'sobrecupoAutorizadoPor',
+        ]);
 
         return [
             'id' => $embarque->id,
@@ -160,6 +179,18 @@ class EmbarqueController extends Controller
             'nave_vuelo' => $embarque->nave_vuelo,
             'transportista' => $embarque->transportista,
             'puerto_embarque' => $embarque->puerto_embarque,
+            'puerto_embarque_id' => $embarque->puerto_embarque_id,
+            'puerto_embarque_catalogo' => $embarque->puertoEmbarque ? [
+                'id' => $embarque->puertoEmbarque->id,
+                'codigo' => $embarque->puertoEmbarque->codigo,
+                'nombre' => $embarque->puertoEmbarque->nombre,
+                'tipo' => $embarque->puertoEmbarque->tipo,
+                'pais' => $embarque->puertoEmbarque->pais ? [
+                    'id' => $embarque->puertoEmbarque->pais->id,
+                    'iso_alpha2' => $embarque->puertoEmbarque->pais->iso_alpha2,
+                    'nombre' => $embarque->puertoEmbarque->pais->nombre_es,
+                ] : null,
+            ] : null,
             'contenedor' => $embarque->contenedor,
             'sello' => $embarque->sello,
             'patente_camion' => $embarque->patente_camion,
@@ -183,7 +214,20 @@ class EmbarqueController extends Controller
                 'numero_externo' => $instructivo->numero_externo,
                 'recibidor' => $instructivo->recibidor,
                 'destino_pais' => $instructivo->destino_pais,
+                'pais_destino_id' => $instructivo->pais_destino_id,
                 'destino_ciudad' => $instructivo->destino_ciudad,
+                'puerto_destino_id' => $instructivo->puerto_destino_id,
+                'pais_destino' => $instructivo->paisDestino ? [
+                    'id' => $instructivo->paisDestino->id,
+                    'iso_alpha2' => $instructivo->paisDestino->iso_alpha2,
+                    'nombre' => $instructivo->paisDestino->nombre_es,
+                ] : null,
+                'puerto_destino' => $instructivo->puertoDestino ? [
+                    'id' => $instructivo->puertoDestino->id,
+                    'codigo' => $instructivo->puertoDestino->codigo,
+                    'nombre' => $instructivo->puertoDestino->nombre,
+                    'tipo' => $instructivo->puertoDestino->tipo,
+                ] : null,
                 'cantidad_pallets' => $instructivo->cantidad_pallets,
                 'cantidad_cajas' => $instructivo->cantidad_cajas,
                 'booking' => $instructivo->booking,

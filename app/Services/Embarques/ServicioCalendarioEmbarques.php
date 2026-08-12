@@ -10,6 +10,8 @@ use App\Exceptions\OperacionNoAutorizada;
 use App\Models\Cliente;
 use App\Models\Embarque;
 use App\Models\EventoEmbarque;
+use App\Models\Pais;
+use App\Models\Puerto;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
@@ -186,7 +188,7 @@ class ServicioCalendarioEmbarques
             }
 
             $carga = $this->cargas->crear([
-                'numero_orden_externa' => $embarque->codigo,
+                'numero_orden_externa' => null,
                 'prioridad' => $datos['prioridad'] ?? PrioridadCarga::Normal->value,
                 'camara_objetivo_id' => $datos['camara_objetivo_id'] ?? null,
                 'anden_previsto_id' => $datos['anden_previsto_id'] ?? null,
@@ -321,7 +323,9 @@ class ServicioCalendarioEmbarques
             'temporada:id,codigo,nombre,activa,intervalo_embarques_minutos',
             'cliente:id,codigo,nombre,codigo_folio_materiales',
             'carga:id,codigo,estado,version',
-            'instructivos',
+            'puertoEmbarque.pais:id,iso_alpha2,nombre_es',
+            'instructivos.paisDestino:id,iso_alpha2,nombre_es',
+            'instructivos.puertoDestino:id,pais_id,codigo,nombre,tipo',
             'creadoPor:id,name',
             'actualizadoPor:id,name',
             'sobrecupoAutorizadoPor:id,name',
@@ -332,11 +336,19 @@ class ServicioCalendarioEmbarques
     /** @param array<string, mixed> $datos */
     private function camposEditables(array $datos): array
     {
-        return collect([
-            'referencia_correo', 'nave_vuelo', 'transportista', 'puerto_embarque',
+        $campos = collect([
+            'referencia_correo', 'nave_vuelo', 'transportista',
             'contenedor', 'sello', 'patente_camion', 'patente_trasera',
             'documentos', 'observacion',
         ])->mapWithKeys(fn (string $campo): array => [$campo => $datos[$campo] ?? null])->all();
+        $puerto = isset($datos['puerto_embarque_id'])
+            ? Puerto::query()->find($datos['puerto_embarque_id'])
+            : null;
+
+        return array_merge($campos, [
+            'puerto_embarque_id' => $puerto?->id,
+            'puerto_embarque' => $puerto?->nombre,
+        ]);
     }
 
     /** @param array<int, array<string, mixed>> $instructivos */
@@ -345,10 +357,23 @@ class ServicioCalendarioEmbarques
         $embarque->instructivos()->delete();
 
         foreach (array_values($instructivos) as $indice => $instructivo) {
+            $pais = isset($instructivo['pais_destino_id'])
+                ? Pais::query()->find($instructivo['pais_destino_id'])
+                : null;
+            $puerto = isset($instructivo['puerto_destino_id'])
+                ? Puerto::query()->find($instructivo['puerto_destino_id'])
+                : null;
+
             $embarque->instructivos()->create(array_merge(
-                ['orden' => $indice + 1],
+                [
+                    'orden' => $indice + 1,
+                    'pais_destino_id' => $pais?->id,
+                    'destino_pais' => $pais?->nombre_es,
+                    'puerto_destino_id' => $puerto?->id,
+                    'destino_ciudad' => $puerto?->nombre,
+                ],
                 collect($instructivo)->only([
-                    'numero_externo', 'recibidor', 'destino_pais', 'destino_ciudad',
+                    'numero_externo', 'recibidor',
                     'cantidad_pallets', 'cantidad_cajas', 'booking', 'sps', 'dus',
                     'planilla_sag', 'sello_sag', 'observacion',
                 ])->all(),

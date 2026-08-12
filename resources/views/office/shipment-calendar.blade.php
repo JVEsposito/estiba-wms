@@ -81,7 +81,7 @@
                     <div class="shipment-form-grid">
                         <label class="field"><span>Nave / vuelo</span><input name="nave_vuelo" maxlength="150"></label>
                         <label class="field"><span>Naviera / aerolínea / transportista</span><input name="transportista" maxlength="180"></label>
-                        <label class="field"><span>Puerto / aeropuerto / paso</span><input name="puerto_embarque" maxlength="180"></label>
+                        <label class="field"><span>Puerto / aeropuerto / paso</span><select name="puerto_embarque_id"></select></label>
                         <label class="field"><span>Contenedor</span><input name="contenedor" maxlength="100"></label>
                         <label class="field"><span>Sello</span><input name="sello" maxlength="100"></label>
                         <label class="field"><span>Patente camión</span><input name="patente_camion" maxlength="30"></label>
@@ -124,8 +124,8 @@
                 <div class="shipment-form-grid instruction-fields">
                     <label class="field"><span>N.º externo</span><input data-field="numero_externo" maxlength="150"></label>
                     <label class="field"><span>Recibidor</span><input data-field="recibidor" maxlength="180"></label>
-                    <label class="field"><span>País destino</span><input data-field="destino_pais" maxlength="120"></label>
-                    <label class="field"><span>Ciudad destino</span><input data-field="destino_ciudad" maxlength="120"></label>
+                    <label class="field"><span>País destino</span><select data-field="pais_destino_id"></select></label>
+                    <label class="field"><span>Puerto / aeropuerto / paso destino</span><select data-field="puerto_destino_id" disabled></select></label>
                     <label class="field"><span>Pallets</span><input data-field="cantidad_pallets" type="number" min="0" max="999"></label>
                     <label class="field"><span>Cajas</span><input data-field="cantidad_cajas" type="number" min="0" max="999999"></label>
                     <label class="field"><span>Booking</span><input data-field="booking" maxlength="150"></label>

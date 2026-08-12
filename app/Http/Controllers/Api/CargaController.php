@@ -58,6 +58,16 @@ class CargaController extends Controller
                         ->orWhere('numero_orden_externa', 'like', "%{$busqueda}%")
                         ->orWhere('observacion', 'like', "%{$busqueda}%")
                         ->orWhereHas(
+                            'embarque',
+                            fn (Builder $embarque): Builder => $embarque
+                                ->where('codigo', 'like', "%{$busqueda}%"),
+                        )
+                        ->orWhereHas(
+                            'embarque.instructivos',
+                            fn (Builder $instructivo): Builder => $instructivo
+                                ->where('numero_externo', 'like', "%{$busqueda}%"),
+                        )
+                        ->orWhereHas(
                             'camaraObjetivo',
                             fn (Builder $camara): Builder => $camara
                                 ->where('codigo', 'like', "%{$busqueda}%")
@@ -326,6 +336,7 @@ class CargaController extends Controller
             'camaraObjetivo:id,codigo,nombre',
             'andenPrevisto:id,codigo,nombre',
             'embarque:id,carga_id,codigo,fecha_programada,hora_programada,modalidad,estado',
+            'embarque.instructivos:id,embarque_id,orden,numero_externo',
             'creadaPor:id,name',
             'actualizadaPor:id,name',
             'publicadaPor:id,name',

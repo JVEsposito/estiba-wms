@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'temporada_id', 'cliente_id', 'carga_id', 'codigo', 'numero_correlativo',
     'fecha_programada', 'hora_programada', 'intervalo_minutos', 'modalidad', 'estado',
     'referencia_correo', 'nave_vuelo', 'transportista', 'puerto_embarque',
+    'puerto_embarque_id',
     'contenedor', 'sello', 'patente_camion', 'patente_trasera', 'documentos',
     'observacion', 'version', 'creado_por_user_id', 'actualizado_por_user_id',
     'sobrecupo_autorizado_por_user_id', 'sobrecupo_motivo', 'sobrecupo_autorizado_at',
@@ -38,6 +39,11 @@ class Embarque extends Model
     public function carga(): BelongsTo
     {
         return $this->belongsTo(Carga::class);
+    }
+
+    public function puertoEmbarque(): BelongsTo
+    {
+        return $this->belongsTo(Puerto::class, 'puerto_embarque_id');
     }
 
     public function instructivos(): HasMany

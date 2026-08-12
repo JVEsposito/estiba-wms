@@ -3,8 +3,10 @@
 namespace App\Http\Requests;
 
 use App\Enums\ModalidadEmbarque;
+use App\Models\Puerto;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class GuardarEmbarqueRequest extends FormRequest
 {
@@ -28,7 +30,11 @@ class GuardarEmbarqueRequest extends FormRequest
             'referencia_correo' => ['nullable', 'string', 'max:200'],
             'nave_vuelo' => ['nullable', 'string', 'max:150'],
             'transportista' => ['nullable', 'string', 'max:180'],
-            'puerto_embarque' => ['nullable', 'string', 'max:180'],
+            'puerto_embarque_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('puertos', 'id')->where('activo', true),
+            ],
             'contenedor' => ['nullable', 'string', 'max:100'],
             'sello' => ['nullable', 'string', 'max:100'],
             'patente_camion' => ['nullable', 'string', 'max:30'],
@@ -38,8 +44,16 @@ class GuardarEmbarqueRequest extends FormRequest
             'instructivos' => ['required', 'array', 'min:1', 'max:20'],
             'instructivos.*.numero_externo' => ['nullable', 'string', 'max:150'],
             'instructivos.*.recibidor' => ['nullable', 'string', 'max:180'],
-            'instructivos.*.destino_pais' => ['nullable', 'string', 'max:120'],
-            'instructivos.*.destino_ciudad' => ['nullable', 'string', 'max:120'],
+            'instructivos.*.pais_destino_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('paises', 'id')->where('activo', true),
+            ],
+            'instructivos.*.puerto_destino_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('puertos', 'id')->where('activo', true),
+            ],
             'instructivos.*.cantidad_pallets' => ['nullable', 'integer', 'min:0', 'max:999'],
             'instructivos.*.cantidad_cajas' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'instructivos.*.booking' => ['nullable', 'string', 'max:150'],
@@ -62,7 +76,7 @@ class GuardarEmbarqueRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $campos = [
-            'referencia_correo', 'nave_vuelo', 'transportista', 'puerto_embarque',
+            'referencia_correo', 'nave_vuelo', 'transportista',
             'contenedor', 'sello', 'patente_camion', 'patente_trasera',
             'documentos', 'observacion', 'motivo_sobrecupo',
         ];
@@ -86,7 +100,7 @@ class GuardarEmbarqueRequest extends FormRequest
                 }
 
                 foreach ([
-                    'numero_externo', 'recibidor', 'destino_pais', 'destino_ciudad',
+                    'numero_externo', 'recibidor',
                     'booking', 'sps', 'dus', 'planilla_sag', 'sello_sag', 'observacion',
                 ] as $campo) {
                     $fila[$campo] = $this->textoOpcional($fila[$campo] ?? null);
@@ -97,6 +111,41 @@ class GuardarEmbarqueRequest extends FormRequest
             ->all();
 
         $this->merge($normalizados);
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            $instructivos = collect($this->input('instructivos', []));
+            $puertos = Puerto::query()
+                ->whereIn('id', $instructivos->pluck('puerto_destino_id')->filter())
+                ->get(['id', 'pais_id'])
+                ->keyBy('id');
+
+            $instructivos->each(function (mixed $fila, int $indice) use ($validator, $puertos): void {
+                if (! is_array($fila) || empty($fila['puerto_destino_id'])) {
+                    return;
+                }
+
+                if (empty($fila['pais_destino_id'])) {
+                    $validator->errors()->add(
+                        "instructivos.{$indice}.pais_destino_id",
+                        'Selecciona el país antes de elegir el puerto de destino.',
+                    );
+
+                    return;
+                }
+
+                $puerto = $puertos->get($fila['puerto_destino_id']);
+
+                if ($puerto && $puerto->pais_id !== $fila['pais_destino_id']) {
+                    $validator->errors()->add(
+                        "instructivos.{$indice}.puerto_destino_id",
+                        'El puerto seleccionado no pertenece al país de destino.',
+                    );
+                }
+            });
+        }];
     }
 
     private function textoOpcional(mixed $valor): ?string

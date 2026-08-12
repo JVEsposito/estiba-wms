@@ -25,7 +25,7 @@ const state = {
     season: null,
     windows: [],
     shipments: [],
-    catalogs: { clientes: [], camaras: [], andenes: [] },
+    catalogs: { clientes: [], camaras: [], andenes: [], paises: [], puertos: [] },
     permissions: { gestionar: false, autorizar_sobrecupo: false },
     selected: null,
 };
@@ -47,6 +47,7 @@ function mondayOf(value) { const date = parseDate(value); date.setDate(date.getD
 function dateLabel(value, options = { weekday: 'short', day: '2-digit', month: 'short' }) { return new Intl.DateTimeFormat('es-CL', options).format(parseDate(value)); }
 function statusText(value) { return String(value || '').replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase()); }
 function modeText(value) { return ({ maritimo: 'Marítimo', aereo: 'Aéreo', terrestre: 'Terrestre', por_confirmar: 'Por confirmar' })[value] || statusText(value); }
+function transportPointType(value) { return ({ maritimo: 'Puerto', aereo: 'Aeropuerto', terrestre: 'Paso' })[value] || statusText(value); }
 
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
@@ -175,6 +176,11 @@ function populateCatalogs() {
     form.cliente_id.innerHTML = '<option value="">Selecciona cliente</option>' + state.catalogs.clientes.map((client) => `<option value="${client.id}"${client.codigo_folio_materiales ? '' : ' disabled'}>${escapeHtml(client.codigo)} · ${escapeHtml(client.nombre)}${client.codigo_folio_materiales ? '' : ' · sin sigla documental'}</option>`).join('');
     form.camara_objetivo_id.innerHTML = '<option value="">Sin cámara objetivo</option>' + state.catalogs.camaras.map((camera) => `<option value="${camera.id}">${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)}</option>`).join('');
     form.anden_previsto_id.innerHTML = '<option value="">Sin andén previsto</option>' + state.catalogs.andenes.map((dock) => `<option value="${dock.id}">${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}</option>`).join('');
+    form.puerto_embarque_id.innerHTML = '<option value="">Sin punto de embarque informado</option>' + state.catalogs.paises.map((country) => {
+        const ports = state.catalogs.puertos.filter((port) => port.pais_id === country.id);
+        if (!ports.length) return '';
+        return `<optgroup label="${escapeHtml(country.iso_alpha2)} · ${escapeHtml(country.nombre_es)}">${ports.map((port) => `<option value="${port.id}">${escapeHtml(transportPointType(port.tipo))} · ${escapeHtml(port.nombre)} (${escapeHtml(port.codigo)})</option>`).join('')}</optgroup>`;
+    }).join('');
 }
 
 function populateTimeOptions(selected = '') {
@@ -208,8 +214,21 @@ function updateOverbookControls(force = false) {
 function addInstruction(data = {}) {
     const fragment = elements.instructionTemplate.content.cloneNode(true);
     const card = fragment.querySelector('.instruction-card');
-    card.querySelectorAll('[data-field]').forEach((input) => { input.value = data[input.dataset.field] ?? ''; });
+    const country = card.querySelector('[data-field="pais_destino_id"]');
+    country.innerHTML = '<option value="">Selecciona país</option>' + state.catalogs.paises.map((item) => `<option value="${item.id}">${escapeHtml(item.iso_alpha2)} · ${escapeHtml(item.nombre_es)}</option>`).join('');
+    country.value = data.pais_destino_id ?? '';
+    populateInstructionPorts(card, country.value, data.puerto_destino_id ?? '');
+    card.querySelectorAll('[data-field]').forEach((input) => {
+        if (!['pais_destino_id', 'puerto_destino_id'].includes(input.dataset.field)) input.value = data[input.dataset.field] ?? '';
+    });
     elements.instructionList.append(fragment); renumberInstructions();
+}
+function populateInstructionPorts(card, countryId, selected = '') {
+    const port = card.querySelector('[data-field="puerto_destino_id"]');
+    const options = state.catalogs.puertos.filter((item) => item.pais_id === countryId);
+    port.innerHTML = '<option value="">Selecciona punto de destino</option>' + options.map((item) => `<option value="${item.id}">${escapeHtml(transportPointType(item.tipo))} · ${escapeHtml(item.nombre)} (${escapeHtml(item.codigo)})</option>`).join('');
+    port.disabled = !countryId;
+    port.value = selected;
 }
 function renumberInstructions() {
     const cards = [...elements.instructionList.querySelectorAll('.instruction-card')];
@@ -243,7 +262,7 @@ async function openExisting(id, focusConfirmation = false) {
         elements.dialogHelp.textContent = `${shipment.cliente.codigo} · ${shipment.intervalo_minutos} minutos reservados`;
         const form = elements.form.elements;
         form.id.value = shipment.id; form.version_esperada.value = shipment.version; form.cliente_id.value = shipment.cliente.id;
-        for (const field of ['modalidad', 'fecha_programada', 'referencia_correo', 'observacion', 'nave_vuelo', 'transportista', 'puerto_embarque', 'contenedor', 'sello', 'patente_camion', 'patente_trasera', 'documentos']) form[field].value = shipment[field] ?? '';
+        for (const field of ['modalidad', 'fecha_programada', 'referencia_correo', 'observacion', 'nave_vuelo', 'transportista', 'puerto_embarque_id', 'contenedor', 'sello', 'patente_camion', 'patente_trasera', 'documentos']) form[field].value = shipment[field] ?? '';
         populateTimeOptions(shipment.hora_programada); form.hora_programada.value = shipment.hora_programada;
         elements.instructionList.innerHTML = ''; (shipment.instructivos || []).forEach(addInstruction); if (!shipment.instructivos?.length) addInstruction();
         const editable = state.permissions.gestionar && shipment.estado !== 'cancelado';
@@ -267,7 +286,7 @@ function instructionPayload() {
 function shipmentPayload() {
     const form = elements.form.elements;
     const payload = {};
-    for (const field of ['cliente_id', 'modalidad', 'fecha_programada', 'hora_programada', 'referencia_correo', 'observacion', 'nave_vuelo', 'transportista', 'puerto_embarque', 'contenedor', 'sello', 'patente_camion', 'patente_trasera', 'documentos']) payload[field] = form[field].value;
+    for (const field of ['cliente_id', 'modalidad', 'fecha_programada', 'hora_programada', 'referencia_correo', 'observacion', 'nave_vuelo', 'transportista', 'puerto_embarque_id', 'contenedor', 'sello', 'patente_camion', 'patente_trasera', 'documentos']) payload[field] = form[field].value;
     payload.instructivos = instructionPayload(); payload.autorizar_sobrecupo = form.autorizar_sobrecupo.checked;
     payload.motivo_sobrecupo = form.motivo_sobrecupo.value;
     if (form.id.value) payload.version_esperada = Number(form.version_esperada.value);
@@ -308,6 +327,11 @@ elements.closeDialog.addEventListener('click', () => elements.dialog.close());
 elements.dismiss.addEventListener('click', () => elements.dialog.close());
 elements.addInstruction.addEventListener('click', () => addInstruction());
 elements.instructionList.addEventListener('click', (event) => { const button = event.target.closest('[data-remove-instruction]'); if (!button) return; button.closest('.instruction-card').remove(); renumberInstructions(); });
+elements.instructionList.addEventListener('change', (event) => {
+    const country = event.target.closest('[data-field="pais_destino_id"]');
+    if (!country) return;
+    populateInstructionPorts(country.closest('.instruction-card'), country.value);
+});
 elements.form.elements.fecha_programada.addEventListener('change', () => populateTimeOptions(elements.form.elements.hora_programada.value));
 elements.form.elements.hora_programada.addEventListener('change', () => updateOverbookControls());
 elements.form.elements.autorizar_sobrecupo.addEventListener('change', () => updateOverbookControls());

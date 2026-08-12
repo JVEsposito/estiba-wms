@@ -13,6 +13,8 @@ class InterfazCalendarioEmbarquesTest extends TestCase
             ->assertSee('Calendario de embarques')
             ->assertSee('PLANIFICACIÓN 24/7')
             ->assertSee('Instructivos del embarque')
+            ->assertSee('País destino')
+            ->assertSee('Puerto / aeropuerto / paso destino')
             ->assertSee('Autorizar sobrecupo')
             ->assertSee('Confirmar y crear orden CAR')
             ->assertSee('data-active-office="embarques"', false);

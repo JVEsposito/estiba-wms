@@ -51,6 +51,10 @@ class CargaResource extends JsonResource
             'embarque' => $this->whenLoaded('embarque', fn () => $this->embarque ? [
                 'id' => $this->embarque->id,
                 'codigo' => $this->embarque->codigo,
+                'numeros_externos' => $this->embarque->relationLoaded('instructivos')
+                    ? $this->embarque->instructivos->pluck('numero_externo')
+                        ->filter()->unique()->values()
+                    : [],
                 'fecha_programada' => $this->embarque->fecha_programada?->toDateString(),
                 'hora_programada' => substr((string) $this->embarque->hora_programada, 0, 5),
                 'modalidad' => $this->embarque->modalidad->value,

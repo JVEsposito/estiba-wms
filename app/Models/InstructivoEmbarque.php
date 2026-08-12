@@ -9,7 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'embarque_id', 'orden', 'numero_externo', 'recibidor', 'destino_pais',
-    'destino_ciudad', 'cantidad_pallets', 'cantidad_cajas', 'booking', 'sps',
+    'pais_destino_id', 'destino_ciudad', 'puerto_destino_id',
+    'cantidad_pallets', 'cantidad_cajas', 'booking', 'sps',
     'dus', 'planilla_sag', 'sello_sag', 'observacion',
 ])]
 class InstructivoEmbarque extends Model
@@ -21,6 +22,16 @@ class InstructivoEmbarque extends Model
     public function embarque(): BelongsTo
     {
         return $this->belongsTo(Embarque::class);
+    }
+
+    public function paisDestino(): BelongsTo
+    {
+        return $this->belongsTo(Pais::class, 'pais_destino_id');
+    }
+
+    public function puertoDestino(): BelongsTo
+    {
+        return $this->belongsTo(Puerto::class, 'puerto_destino_id');
     }
 
     protected function casts(): array
