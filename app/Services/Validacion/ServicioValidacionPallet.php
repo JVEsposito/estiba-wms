@@ -298,6 +298,8 @@ class ServicioValidacionPallet
      */
     private function normalizarPayload(array $datos): array
     {
+        $generadoDispositivoAt = CarbonImmutable::parse($datos['generado_dispositivo_at']);
+
         return [
             'numero_folio' => mb_strtoupper(trim((string) $datos['numero_folio'])),
             'tipo_bulto' => $datos['tipo_bulto'],
@@ -308,7 +310,9 @@ class ServicioValidacionPallet
             'catalogo_version' => (int) $datos['catalogo_version'],
             'articulo_validacion_id' => $datos['articulo_validacion_id'],
             'origen_validacion_id' => $datos['origen_validacion_id'],
-            'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+            'fecha_embalaje' => filled($datos['fecha_embalaje'] ?? null)
+                ? (string) $datos['fecha_embalaje']
+                : $generadoDispositivoAt->toDateString(),
             'composicion' => collect($datos['composicion'] ?? [[
                 'origen_validacion_id' => $datos['origen_validacion_id'],
                 'cantidad_cajas' => (int) $datos['cantidad_cajas'],
@@ -320,7 +324,7 @@ class ServicioValidacionPallet
             'resultado' => $datos['resultado'],
             'motivo' => $datos['motivo'] ?? null,
             'observacion' => $datos['observacion'] ?? null,
-            'generado_dispositivo_at' => CarbonImmutable::parse($datos['generado_dispositivo_at'])->toAtomString(),
+            'generado_dispositivo_at' => $generadoDispositivoAt->toAtomString(),
         ];
     }
 
