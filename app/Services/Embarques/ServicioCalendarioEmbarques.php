@@ -422,8 +422,8 @@ class ServicioCalendarioEmbarques
     }
 
     /**
-     * @param EloquentCollection<int, Embarque> $conflictos
-     * @param array<string, mixed> $datos
+     * @param  EloquentCollection<int, Embarque>  $conflictos
+     * @param  array<string, mixed>  $datos
      * @return array<string, mixed>
      */
     private function resolverSobrecupo(
