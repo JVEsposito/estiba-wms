@@ -135,8 +135,9 @@
                         <form class="load-header-form" id="loadHeaderForm" novalidate>
                             <div class="load-form-grid">
                                 <label class="field">
-                                    <span>Número de orden externa</span>
+                                    <span id="externalOrderLabel">Número de orden externa</span>
                                     <input name="numero_orden_externa" maxlength="100" placeholder="Ej. OC-2026-001">
+                                    <small id="externalOrderHelp">Referencia informada por el cliente.</small>
                                 </label>
                                 <label class="field">
                                     <span>Prioridad</span>

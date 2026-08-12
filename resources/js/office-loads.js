@@ -36,6 +36,8 @@ const elements = {
     version: byId('loadVersion'),
     updatedAt: byId('loadUpdatedAt'),
     headerForm: byId('loadHeaderForm'),
+    externalOrderLabel: byId('externalOrderLabel'),
+    externalOrderHelp: byId('externalOrderHelp'),
     headerError: byId('loadHeaderError'),
     targetCamera: byId('targetCameraSelect'),
     targetDock: byId('targetDockSelect'),
@@ -405,6 +407,18 @@ function distributionText(load) {
         .join(' · ');
 }
 
+function externalNumbers(load) {
+    return [...new Set((load.embarque?.numeros_externos || []).filter(Boolean))];
+}
+
+function loadReferenceText(load) {
+    const external = externalNumbers(load);
+    if (load.embarque) {
+        return `${load.embarque.codigo} · ${external.length ? `Ext. ${external.join(' / ')}` : 'Sin N.º externo'}`;
+    }
+    return load.numero_orden_externa ? `Ext. ${load.numero_orden_externa}` : 'Sin N.º externo';
+}
+
 function renderPagination(element, pagination, dataAttribute) {
     if (pagination.total === 0) {
         element.innerHTML = '';
@@ -441,7 +455,7 @@ function renderCatalog() {
             <button class="load-card${selected ? ' is-selected' : ''}" data-load-id="${escapeHtml(load.id)}" type="button">
                 <div class="load-card__line load-card__line--main">
                     <strong class="load-card__code">${escapeHtml(load.codigo)}</strong>
-                    <span class="load-card__external">${escapeHtml(load.numero_orden_externa || 'Sin orden externa')}</span>
+                    <span class="load-card__external">${escapeHtml(loadReferenceText(load))}</span>
                     <span class="status-badge status-badge--${statusClass(load.estado)}">${escapeHtml(statusLabels[load.estado] || statusText(load.estado))}</span>
                 </div>
                 <div class="load-card__line load-card__line--detail">
@@ -579,6 +593,8 @@ function startNew() {
     elements.editorEyebrow.textContent = 'NUEVA ORDEN';
     elements.editorTitle.textContent = 'Nuevo borrador';
     elements.editorDescription.textContent = 'Crea el encabezado y luego incorpora los folios.';
+    elements.externalOrderLabel.textContent = 'Número de orden externa';
+    elements.externalOrderHelp.textContent = 'Referencia informada por el cliente.';
     elements.statusBadge.className = 'status-badge status-badge--draft';
     elements.statusBadge.textContent = 'Sin guardar';
     elements.priorityBadge.classList.add('is-hidden');
@@ -752,9 +768,11 @@ function renderSelected(load) {
     const editable = canEdit(load);
     elements.editorEyebrow.textContent = load.estado === 'borrador' ? 'ORDEN EN PREPARACIÓN' : 'ORDEN DE CARGA';
     elements.editorTitle.textContent = load.codigo;
-    elements.editorDescription.textContent = load.numero_orden_externa
-        ? `Orden externa ${load.numero_orden_externa}`
-        : 'Sin número de orden externa asociado.';
+    const linkedShipment = Boolean(load.embarque);
+    const linkedExternalNumbers = externalNumbers(load);
+    elements.editorDescription.textContent = linkedShipment
+        ? `Embarque interno ${load.embarque.codigo} · ${linkedExternalNumbers.length ? `N.º externo ${linkedExternalNumbers.join(' / ')}` : 'sin N.º externo informado'}`
+        : (load.numero_orden_externa ? `N.º externo ${load.numero_orden_externa}` : 'Sin número externo asociado.');
     elements.statusBadge.className = `status-badge status-badge--${statusClass(load.estado)}`;
     elements.statusBadge.textContent = statusLabels[load.estado] || statusText(load.estado);
     elements.priorityBadge.className = `priority-badge priority-badge--${priorityClass(load.prioridad)}`;
@@ -762,13 +780,20 @@ function renderSelected(load) {
     elements.version.textContent = `#${load.version}`;
     elements.updatedAt.textContent = formatDate(load.updated_at);
 
-    elements.headerForm.elements.numero_orden_externa.value = load.numero_orden_externa || '';
+    elements.externalOrderLabel.textContent = linkedShipment ? 'N.º externo del cliente' : 'Número de orden externa';
+    elements.externalOrderHelp.textContent = linkedShipment
+        ? `Se administra en los instructivos del embarque interno ${load.embarque.codigo}.`
+        : 'Referencia informada por el cliente.';
+    elements.headerForm.elements.numero_orden_externa.value = linkedShipment
+        ? linkedExternalNumbers.join(' / ')
+        : (load.numero_orden_externa || '');
     elements.headerForm.elements.prioridad.value = load.prioridad || 'normal';
     elements.headerForm.elements.observacion.value = load.observacion || '';
     populateCameraOptions(load.camara_objetivo?.id || '');
     populateDockOptions(load.anden_previsto?.id || '');
     elements.saveText.textContent = editable ? 'Guardar encabezado' : 'Solo lectura';
     setHeaderDisabled(!editable);
+    elements.headerForm.elements.numero_orden_externa.disabled = !editable || linkedShipment;
 
     elements.totalFolios.textContent = `${load.total_folios} / 26`;
     elements.totalCameras.textContent = String(load.distribucion?.length || 0);
@@ -901,7 +926,9 @@ async function recoverConflict(error) {
 function loadPayload(includeVersion = false) {
     const form = new FormData(elements.headerForm);
     const payload = {
-        numero_orden_externa: String(form.get('numero_orden_externa') || '').trim() || null,
+        numero_orden_externa: state.selected?.embarque
+            ? null
+            : (String(form.get('numero_orden_externa') || '').trim() || null),
         prioridad: form.get('prioridad') || 'normal',
         camara_objetivo_id: form.get('camara_objetivo_id') || null,
         anden_previsto_id: form.get('anden_previsto_id') || null,

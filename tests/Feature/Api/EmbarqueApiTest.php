@@ -4,6 +4,8 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
+use App\Models\Pais;
+use App\Models\Puerto;
 use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -107,7 +109,7 @@ class EmbarqueApiTest extends TestCase
             ],
         ])->assertCreated()->json('data.id');
 
-        $this->actingAs($despachador, 'sanctum')
+        $confirmado = $this->actingAs($despachador, 'sanctum')
             ->postJson("/api/embarques/{$embarqueId}/confirmar", [
                 'version_esperada' => 1,
                 'prioridad' => 'alta',
@@ -120,9 +122,82 @@ class EmbarqueApiTest extends TestCase
 
         $this->assertDatabaseHas('cargas', [
             'codigo' => 'CAR-000001',
-            'numero_orden_externa' => 'EGE0000001',
+            'numero_orden_externa' => null,
         ]);
         $this->assertDatabaseCount('cargas', 1);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/cargas/'.$confirmado->json('data.carga.id'))
+            ->assertOk()
+            ->assertJsonPath('data.codigo', 'CAR-000001')
+            ->assertJsonPath('data.embarque.codigo', 'EGE0000001')
+            ->assertJsonPath('data.embarque.numeros_externos.0', 'A')
+            ->assertJsonPath('data.embarque.numeros_externos.1', 'B');
+    }
+
+    public function test_paises_y_puertos_se_seleccionan_desde_catalogo_relacionado(): void
+    {
+        $despachador = $this->usuario(RolUsuario::Despachador);
+        $cliente = $this->cliente($despachador, 'MC');
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+        $mexico = Pais::query()->where('iso_alpha2', 'MX')->firstOrFail();
+        $sanAntonio = Puerto::query()->where('codigo', 'CLSAI')->firstOrFail();
+        $manzanillo = Puerto::query()->where('codigo', 'MXZLO')->firstOrFail();
+
+        $this->actingAs($despachador, 'sanctum')->postJson('/api/embarques', [
+            'cliente_id' => $cliente->id,
+            'fecha_programada' => '2026-08-15',
+            'hora_programada' => '09:00',
+            'modalidad' => 'maritimo',
+            'puerto_embarque_id' => $sanAntonio->id,
+            'instructivos' => [[
+                'numero_externo' => '0035',
+                'pais_destino_id' => $mexico->id,
+                'puerto_destino_id' => $manzanillo->id,
+            ]],
+        ])->assertCreated()
+            ->assertJsonPath('data.puerto_embarque', 'San Antonio')
+            ->assertJsonPath('data.puerto_embarque_id', $sanAntonio->id)
+            ->assertJsonPath('data.instructivos.0.destino_pais', 'México')
+            ->assertJsonPath('data.instructivos.0.destino_ciudad', 'Manzanillo')
+            ->assertJsonPath('data.instructivos.0.pais_destino_id', $mexico->id)
+            ->assertJsonPath('data.instructivos.0.puerto_destino_id', $manzanillo->id);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/embarques?desde=2026-08-15&hasta=2026-08-15')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $chile->id,
+                'iso_alpha2' => 'CL',
+                'nombre_es' => 'Chile',
+            ])
+            ->assertJsonFragment([
+                'id' => $manzanillo->id,
+                'pais_id' => $mexico->id,
+                'codigo' => 'MXZLO',
+                'nombre' => 'Manzanillo',
+                'tipo' => 'maritimo',
+            ]);
+    }
+
+    public function test_puerto_de_destino_debe_pertenecer_al_pais_seleccionado(): void
+    {
+        $despachador = $this->usuario(RolUsuario::Despachador);
+        $cliente = $this->cliente($despachador, 'MC');
+        $mexico = Pais::query()->where('iso_alpha2', 'MX')->firstOrFail();
+        $rotterdam = Puerto::query()->where('codigo', 'NLRTM')->firstOrFail();
+
+        $this->actingAs($despachador, 'sanctum')->postJson('/api/embarques', [
+            'cliente_id' => $cliente->id,
+            'fecha_programada' => '2026-08-15',
+            'hora_programada' => '10:00',
+            'modalidad' => 'maritimo',
+            'instructivos' => [[
+                'pais_destino_id' => $mexico->id,
+                'puerto_destino_id' => $rotterdam->id,
+            ]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('instructivos.0.puerto_destino_id');
     }
 
     public function test_intervalo_existente_no_cambia_al_editar_la_temporada_sin_el_parametro(): void
