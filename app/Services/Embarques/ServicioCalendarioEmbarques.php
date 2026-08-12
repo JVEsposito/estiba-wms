@@ -427,7 +427,7 @@ class ServicioCalendarioEmbarques
             return [];
         }
 
-        if (! ($datos['autorizar_sobrecupo'] ?? false)) {
+        if (($datos['autorizar_sobrecupo'] ?? false) === false) {
             throw new ConflictoOperacion(
                 'La ventana ya está ocupada. Solo un supervisor puede autorizar un sobrecupo.',
             );

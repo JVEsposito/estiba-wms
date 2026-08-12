@@ -4,7 +4,6 @@ namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
 use App\Models\Cliente;
-use App\Models\Embarque;
 use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
