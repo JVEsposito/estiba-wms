@@ -8,6 +8,12 @@ const elements = {
     panels: [...document.querySelectorAll('[data-return-panel]')], binForm: byId('binReturnForm'), totalKilos: byId('binTotalKilos'),
     processSelect: byId('processSelect'), addOrigin: byId('addOriginButton'), originRows: byId('originRows'), originBalance: byId('originBalance'),
     binError: byId('binReturnError'), recentBins: byId('recentBins'), pendingList: byId('pendingBinList'), legacyList: byId('legacyList'),
+    binListSearch: byId('binListSearch'), binListState: byId('binListState'), binListCount: byId('binListCount'),
+    editDialog: byId('editBinDialog'), editForm: byId('editBinForm'), editTitle: byId('editBinTitle'),
+    editDescription: byId('editBinDescription'), editError: byId('editBinError'), editGreenTotal: byId('editGreenTotalKilos'),
+    editObservation: byId('editBinObservation'), editOrigins: byId('editBinOrigins'), editGreenBalance: byId('editGreenBalance'),
+    editDefinitiveSection: byId('editDefinitiveSection'), editDefinitiveTotal: byId('editDefinitiveTotalKilos'),
+    editDefinitiveBalance: byId('editDefinitiveBalance'),
     regularizeDialog: byId('regularizeDialog'), regularizeForm: byId('regularizeForm'), regularizeTitle: byId('regularizeTitle'),
     regularizeDescription: byId('regularizeDescription'), regularizeObservation: byId('regularizeObservation'), regularizeError: byId('regularizeError'),
     regularizeTotal: byId('regularizeTotalKilos'), regularizeOrigins: byId('regularizeOrigins'), regularizeBalance: byId('regularizeBalance'),
@@ -21,7 +27,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), section: 'recepcion',
     summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], selectedBin: null, selectedLegacy: null,
-    regularizationOperationId: null,
+    regularizationOperationId: null, editOperationId: null,
 };
 
 class ApiError extends Error {
@@ -150,6 +156,30 @@ function paintBalance(element, data) {
     element.innerHTML = `<span>Distribuido</span><strong>${formatKilos(data.distributed)} / ${formatKilos(data.total)}</strong><small>${data.ok ? 'Cuadratura correcta ✓' : `${data.difference >= 0 ? 'Faltan' : 'Exceden'} ${formatKilos(Math.abs(data.difference))}`}</small>`;
 }
 function renderBalance() { paintBalance(elements.originBalance, balance(elements.totalKilos.value, state.origins)); }
+function normalized(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+function filteredBins() {
+    const query = normalized(elements.binListSearch.value);
+    const selectedState = elements.binListState.value;
+    return state.bins.filter((bin) => {
+        if (selectedState && bin.estado !== selectedState) return false;
+        if (!query) return true;
+        const searchable = [
+            bin.folio_provisional,
+            bin.folio_definitivo,
+            bin.observacion,
+            bin.nombre_resultado,
+            ...bin.origenes.flatMap((origin) => [
+                origin.numero_lote,
+                origin.numero_orden,
+                origin.linea_proceso,
+                origin.turno,
+            ]),
+        ].map(normalized).join(' ');
+        return searchable.includes(query);
+    });
+}
 function addOrigin() {
     const process = state.processes.find((item) => item.clave === elements.processSelect.value); if (!process) return;
     state.origins.push({ ...process, kilos_aportados: '' }); renderOriginRows();
@@ -161,14 +191,22 @@ function binOriginsMarkup(bin) {
 function binCard(bin, pending = false) {
     const actions = [];
     if (pending) actions.push(`<button data-regularize-bin="${escapeHtml(bin.id)}" type="button">Regularizar folio y kilos</button>`);
+    if (canResolveLegacyReturn() && bin.estado !== 'anulado') actions.push(`<button data-edit-bin="${escapeHtml(bin.id)}" type="button">Modificar</button>`);
     if (canResolveLegacyReturn() && bin.estado !== 'anulado') actions.push(`<button data-annul-bin="${escapeHtml(bin.id)}" type="button">Anular retorno</button>`);
+    const correction = bin.modificado_at
+        ? `<div class="return-correction"><strong>Modificado ${escapeHtml(formatDate(bin.modificado_at))}</strong><span>${escapeHtml(bin.modificado_por || 'Usuario')} · ${escapeHtml(bin.motivo_ultima_modificacion || 'Corrección de digitación')}</span></div>`
+        : '';
     const audit = bin.anulado_at
         ? `<div class="return-annulment"><strong>Anulado ${escapeHtml(formatDate(bin.anulado_at))}</strong><span>${escapeHtml(bin.anulado_por || 'Usuario')} · ${escapeHtml(bin.motivo_anulacion || 'Sin motivo')}</span></div>`
         : '';
-    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO VERDE</span><strong>${escapeHtml(formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales))}</strong></div><div><span>PESO DEFINITIVO</span><strong>${bin.kilos_totales_definitivos === null ? 'Pendiente' : escapeHtml(formatKilos(bin.kilos_totales_definitivos))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${audit}${actions.length ? `<div class="bin-card__actions" data-office-action-menu>${actions.join('')}</div>` : ''}</article>`;
+    return `<article class="bin-card"><div class="bin-card__heading"><div><h3>${escapeHtml(bin.folio_provisional)}${bin.folio_definitivo ? ` → ${escapeHtml(bin.folio_definitivo)}` : ''}</h3><p>${escapeHtml(formatDate(bin.registrado_at))} · ${escapeHtml(bin.registrado_por || 'Usuario')}${bin.retorno_legacy ? ` · migrado desde ${escapeHtml(bin.retorno_legacy)}` : ''}</p></div><span class="return-status${bin.estado === 'pendiente_regularizacion' ? ' is-warning' : ''}">${escapeHtml(label(bin.estado))}</span></div><div class="bin-facts"><div><span>PESO VERDE</span><strong>${escapeHtml(formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales))}</strong></div><div><span>PESO DEFINITIVO</span><strong>${bin.kilos_totales_definitivos === null ? 'Pendiente' : escapeHtml(formatKilos(bin.kilos_totales_definitivos))}</strong></div><div><span>PROCESOS</span><strong>${formatNumber(bin.origenes.length)}</strong></div><div><span>CLASIFICACIÓN</span><strong>${escapeHtml(bin.nombre_resultado || bin.tipo_resultado?.nombre || 'Pendiente')}</strong></div></div>${binOriginsMarkup(bin)}${correction}${audit}${actions.length ? `<div class="bin-card__actions" data-office-action-menu>${actions.join('')}</div>` : ''}</article>`;
 }
 function renderBins() {
-    elements.recentBins.innerHTML = state.bins.length ? state.bins.slice(0, 8).map((bin) => binCard(bin)).join('') : '<div class="return-empty">Todavía no hay bins registrados con el nuevo modelo.</div>';
+    const visibleBins = filteredBins();
+    elements.binListCount.textContent = `${formatNumber(visibleBins.length)} de ${formatNumber(state.bins.length)} retornos de la temporada`;
+    elements.recentBins.innerHTML = visibleBins.length
+        ? visibleBins.map((bin) => binCard(bin)).join('')
+        : '<div class="return-empty">No hay retornos que coincidan con los filtros.</div>';
     const pending = state.bins.filter((bin) => bin.estado === 'pendiente_regularizacion');
     elements.pendingList.innerHTML = pending.length ? pending.map((bin) => binCard(bin, true)).join('') : '<div class="return-empty">No hay folios provisionales pendientes. La bandeja está al día.</div>';
 }
@@ -216,6 +254,140 @@ async function submitBin() {
         elements.binForm.reset(); state.origins = []; renderOriginRows(); toast(`Bin registrado como ${response.data.folio_provisional}.`); await load({ silent: true });
     } catch (error) { elements.binError.textContent = error.message; }
     finally { setBusy(false); }
+}
+
+function openEdit(id) {
+    const bin = state.bins.find((item) => item.id === id);
+    if (!bin || bin.estado === 'anulado') return;
+    const regularized = bin.estado === 'regularizado' && Boolean(bin.regularizado_at);
+    state.selectedBin = bin;
+    state.editOperationId = uuid();
+    elements.editForm.reset();
+    elements.editForm.elements.bin_id.value = bin.id;
+    elements.editTitle.textContent = `Modificar ${bin.folio_provisional}`;
+    elements.editDescription.textContent = regularized
+        ? 'Corrige los datos verdes y definitivos. El folio provisional y los procesos asociados se conservarán.'
+        : 'Corrige los kilos verdes o la observación antes de regularizar. Los procesos asociados se conservarán.';
+    elements.editGreenTotal.value = bin.kilos_totales_verdes ?? bin.kilos_totales;
+    elements.editObservation.value = bin.observacion || '';
+    elements.editDefinitiveSection.classList.toggle('is-hidden', !regularized);
+
+    const types = [...state.catalogs.tipos_resultado];
+    if (regularized && bin.tipo_resultado && !types.some((type) => type.id === bin.tipo_resultado.id)) {
+        types.push(bin.tipo_resultado);
+    }
+    elements.editForm.elements.tipo_resultado_packing_id.innerHTML = `<option value="">Seleccionar</option>${types.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.codigo)} · ${escapeHtml(type.nombre)}</option>`).join('')}`;
+    elements.editForm.elements.folio_definitivo.value = regularized ? (bin.folio_definitivo || '') : '';
+    elements.editForm.elements.tipo_resultado_packing_id.value = regularized ? (bin.tipo_resultado?.id || '') : '';
+    elements.editForm.elements.nombre_resultado.value = regularized ? (bin.nombre_resultado || '') : '';
+    elements.editDefinitiveTotal.value = regularized ? (bin.kilos_totales_definitivos ?? '') : '';
+
+    elements.editOrigins.innerHTML = bin.origenes.map((origin) => `<div class="edit-origin" data-edit-origin-id="${escapeHtml(origin.id)}"><div class="edit-origin__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>El proceso de origen se conserva para mantener la trazabilidad.</small></div><label><span>Kg verdes</span><input data-edit-green-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_verdes ?? origin.kilos_aportados)}"></label>${regularized ? `<label><span>Kg definitivos</span><input data-edit-definitive-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_definitivos ?? '')}"></label>` : ''}</div>`).join('');
+    elements.editError.textContent = '';
+    renderEditBalances();
+    elements.editDialog.showModal();
+}
+function editOriginsPayload() {
+    if (!state.selectedBin) return [];
+    const regularized = state.selectedBin.estado === 'regularizado' && Boolean(state.selectedBin.regularizado_at);
+    return state.selectedBin.origenes.map((origin) => {
+        const row = elements.editOrigins.querySelector(`[data-edit-origin-id="${CSS.escape(origin.id)}"]`);
+        const payload = {
+            origen_id: origin.id,
+            kilos_aportados: Number(row?.querySelector('[data-edit-green-kilos]')?.value || 0),
+        };
+        if (regularized) {
+            payload.kilos_aportados_definitivos = Number(
+                row?.querySelector('[data-edit-definitive-kilos]')?.value || 0,
+            );
+        }
+        return payload;
+    });
+}
+function renderEditBalances() {
+    const origins = editOriginsPayload();
+    paintBalance(
+        elements.editGreenBalance,
+        balance(elements.editGreenTotal.value, origins),
+    );
+    if (state.selectedBin?.estado === 'regularizado') {
+        paintBalance(
+            elements.editDefinitiveBalance,
+            balance(
+                elements.editDefinitiveTotal.value,
+                origins.map((origin) => ({
+                    kilos_aportados: origin.kilos_aportados_definitivos,
+                })),
+            ),
+        );
+    }
+}
+async function submitEdit() {
+    if (!state.selectedBin || !state.editOperationId) return;
+    const bin = state.selectedBin;
+    const regularized = bin.estado === 'regularizado' && Boolean(bin.regularizado_at);
+    const data = new FormData(elements.editForm);
+    const origins = editOriginsPayload();
+    const greenBalance = balance(data.get('kilos_totales'), origins);
+    const reason = String(data.get('motivo') || '').trim();
+
+    if (reason.length < 5) {
+        elements.editError.textContent = 'Ingresa un motivo de al menos 5 caracteres.';
+        return;
+    }
+    if (origins.some((origin) => origin.kilos_aportados <= 0) || !greenBalance.ok) {
+        elements.editError.textContent = 'Los kilos verdes por proceso deben cuadrar exactamente con el total.';
+        return;
+    }
+
+    const payload = {
+        operacion_id: state.editOperationId,
+        motivo: reason,
+        kilos_totales: Number(data.get('kilos_totales')),
+        observacion: String(data.get('observacion') || '').trim() || null,
+        origenes: origins,
+    };
+    if (regularized) {
+        const folio = String(data.get('folio_definitivo') || '').trim();
+        const type = String(data.get('tipo_resultado_packing_id') || '');
+        const definitiveBalance = balance(
+            data.get('kilos_totales_definitivos'),
+            origins.map((origin) => ({
+                kilos_aportados: origin.kilos_aportados_definitivos,
+            })),
+        );
+        if (!folio || !type) {
+            elements.editError.textContent = 'Completa el folio definitivo y la clasificación.';
+            return;
+        }
+        if (origins.some((origin) => origin.kilos_aportados_definitivos <= 0) || !definitiveBalance.ok) {
+            elements.editError.textContent = 'Los kilos definitivos por proceso deben cuadrar exactamente con el total.';
+            return;
+        }
+        Object.assign(payload, {
+            folio_definitivo: folio,
+            tipo_resultado_packing_id: type,
+            nombre_resultado: String(data.get('nombre_resultado') || '').trim() || null,
+            kilos_totales_definitivos: Number(data.get('kilos_totales_definitivos')),
+        });
+    }
+
+    setBusy(true, 'Guardando corrección auditada…');
+    elements.editError.textContent = '';
+    try {
+        await api(`/api/materia-prima/fruta-proceso/retornos-bin/bins/${bin.id}`, {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        elements.editDialog.close();
+        state.editOperationId = null;
+        toast(`${bin.folio_provisional} fue modificado y el cambio quedó auditado.`);
+        await load({ silent: true });
+    } catch (error) {
+        elements.editError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
 }
 
 function openRegularize(id) {
@@ -330,6 +502,8 @@ elements.login.addEventListener('submit', async (event) => {
 });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
 elements.reload.addEventListener('click', () => void load());
+elements.binListSearch.addEventListener('input', renderBins);
+elements.binListState.addEventListener('change', renderBins);
 elements.sections.forEach((button) => button.addEventListener('click', () => { state.section = button.dataset.returnSection; renderSection(); }));
 elements.addOrigin.addEventListener('click', addOrigin);
 elements.originRows.addEventListener('click', (event) => {
@@ -344,10 +518,23 @@ elements.totalKilos.addEventListener('input', renderBalance);
 elements.binForm.addEventListener('submit', (event) => { event.preventDefault(); void submitBin(); });
 function handleBinAction(event) {
     const regularize = event.target.closest('[data-regularize-bin]'); if (regularize) openRegularize(regularize.dataset.regularizeBin);
+    const edit = event.target.closest('[data-edit-bin]'); if (edit) openEdit(edit.dataset.editBin);
     const annul = event.target.closest('[data-annul-bin]'); if (annul) void annulBin(annul.dataset.annulBin);
 }
 elements.recentBins.addEventListener('click', handleBinAction);
 elements.pendingList.addEventListener('click', handleBinAction);
+elements.editOrigins.addEventListener('input', renderEditBalances);
+elements.editGreenTotal.addEventListener('input', renderEditBalances);
+elements.editDefinitiveTotal.addEventListener('input', renderEditBalances);
+elements.editForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (event.submitter?.value === 'cancel') {
+        elements.editDialog.close();
+        state.editOperationId = null;
+        return;
+    }
+    void submitEdit();
+});
 elements.regularizeOrigins.addEventListener('input', renderRegularizeBalance);
 elements.regularizeTotal.addEventListener('input', renderRegularizeBalance);
 elements.regularizeForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.regularizeDialog.close(); state.regularizationOperationId = null; return; } void submitRegularize(); });
@@ -361,6 +548,6 @@ elements.migrationForm.addEventListener('submit', (event) => { event.preventDefa
 
 if (state.token && state.identity && showApp()) void load(); else clearSession();
 window.setInterval(() => {
-    if (!state.token || elements.app.classList.contains('is-hidden') || elements.regularizeDialog.open || elements.migrationDialog.open) return;
+    if (!state.token || elements.app.classList.contains('is-hidden') || elements.editDialog.open || elements.regularizeDialog.open || elements.migrationDialog.open) return;
     void load({ silent: true });
 }, 30000);
