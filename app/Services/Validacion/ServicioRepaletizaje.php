@@ -70,7 +70,10 @@ class ServicioRepaletizaje
                 ->values();
             $folios = Folio::query()
                 ->whereIn('id', $ids)
-                ->with('ubicacionActual')
+                ->with([
+                    'ubicacionActual',
+                    'validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
+                ])
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -619,7 +622,10 @@ class ServicioRepaletizaje
                 ->unique();
             $folios = Folio::query()
                 ->whereIn('id', $folioIds)
-                ->with('ubicacionActual')
+                ->with([
+                    'ubicacionActual',
+                    'validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
+                ])
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('id');
@@ -1031,23 +1037,44 @@ class ServicioRepaletizaje
     private function composicionFolio(Folio $folio): array
     {
         $datos = $folio->datos_externos ?? [];
+        $fechaPredeterminada = filled($datos['fecha_embalaje'] ?? null)
+            ? (string) $datos['fecha_embalaje']
+            : $this->fechaValidacionFolio($folio);
         $lineas = collect($datos['composicion'] ?? [])
             ->filter(fn (mixed $linea): bool => is_array($linea)
                 && array_key_exists('cantidad_cajas', $linea)
                 && array_key_exists('csg', $linea))
-            ->map(fn (array $linea): array => $this->normalizarLineaComposicion($linea));
+            ->map(function (array $linea) use ($fechaPredeterminada): array {
+                if (! filled($linea['fecha_embalaje'] ?? null)) {
+                    $linea['fecha_embalaje'] = $fechaPredeterminada;
+                }
+
+                return $this->normalizarLineaComposicion($linea);
+            });
 
         if ($lineas->isEmpty()) {
             $lineas->push($this->normalizarLineaComposicion([
                 'origen_validacion_id' => null,
                 'csg' => $datos['csg'] ?? 'SIN CSG',
                 'predio' => $datos['predio'] ?? null,
-                'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+                'fecha_embalaje' => $fechaPredeterminada,
                 'cantidad_cajas' => $this->cantidad($folio),
             ]));
         }
 
         return $this->agruparComposicion($lineas)->values()->all();
+    }
+
+    private function fechaValidacionFolio(Folio $folio): ?string
+    {
+        $folio->loadMissing(
+            'validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
+        );
+        $fecha = $folio->validacionPallet?->generado_dispositivo_at
+            ?? $folio->validacionPallet?->recibido_servidor_at
+            ?? $folio->fecha_ingreso;
+
+        return $fecha?->setTimezone(config('app.operational_timezone'))->toDateString();
     }
 
     /** @param array<string, mixed> $linea */

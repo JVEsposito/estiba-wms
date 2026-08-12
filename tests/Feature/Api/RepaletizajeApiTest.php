@@ -53,6 +53,65 @@ class RepaletizajeApiTest extends TestCase
         $this->assertSame('111', $nuevo->datos_externos['composicion'][0]['csg']);
     }
 
+    public function test_recupera_la_fecha_de_validacion_en_folios_historicos_y_la_conserva(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio($temporada, 'SAL-FECHA-HISTORICA', 83);
+        $origen->update(['fecha_ingreso' => '2026-08-08 18:30:00']);
+
+        $this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes/folios/SAL-FECHA-HISTORICA')
+            ->assertOk()
+            ->assertJsonPath('composicion.0.fecha_embalaje', '2026-08-08');
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'cambio_folio',
+            'origenes' => [[
+                'folio_id' => $origen->id,
+                'cantidad_aportada' => 83,
+            ]],
+            'resultados' => [[
+                'numero_folio' => 'SAL-FECHA-CONSERVADA',
+                'tipo_resultado' => 'saldo',
+                'cantidad_objetivo' => 120,
+                'cantidad_resultante' => 83,
+            ]],
+        ])->assertOk()
+            ->assertJsonPath(
+                'data.resultados.0.folio.composicion.0.fecha_embalaje',
+                '2026-08-08',
+            );
+
+        $resultado = Folio::query()
+            ->where('numero_folio', 'SAL-FECHA-CONSERVADA')
+            ->firstOrFail();
+        $this->assertSame(
+            '2026-08-08',
+            $resultado->datos_externos['composicion'][0]['fecha_embalaje'],
+        );
+    }
+
+    public function test_interfaz_division_balancea_salidas_y_envia_la_modalidad_definida(): void
+    {
+        $script = file_get_contents(resource_path('js/office-repalletizing.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString(
+            'operacion_id: uuid(), modalidad: modality,',
+            $script,
+        );
+        $this->assertStringNotContainsString(
+            'operacion_id: uuid(), modalidad,',
+            $script,
+        );
+        $this->assertStringContainsString(
+            'line[`salida${otherOutput}`] = line.cantidad_cajas - value;',
+            $script,
+        );
+        $this->assertStringContainsString('class="division-line__outputs"', $script);
+    }
+
     public function test_divide_un_folio_en_dos_y_anular_restaura_el_origen_completo(): void
     {
         [$token, $temporada] = $this->contexto();

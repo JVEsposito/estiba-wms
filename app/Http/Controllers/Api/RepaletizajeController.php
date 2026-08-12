@@ -68,6 +68,7 @@ class RepaletizajeController extends Controller
             ->with([
                 'ubicacionActual.camara:id,codigo,nombre',
                 'ubicacionActual.posicion:id,etiqueta',
+                'validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
             ])
             ->first();
 
@@ -149,9 +150,9 @@ class RepaletizajeController extends Controller
     private function relaciones(): array
     {
         return [
-            'folioResultante',
+            'folioResultante.validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
             'folioConservado',
-            'resultados.folio',
+            'resultados.folio.validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
             'detalles.folioOrigen',
             'usuario:id,name',
             'dispositivo:id,codigo,nombre',
@@ -251,17 +252,27 @@ class RepaletizajeController extends Controller
     private function composicionFolio(Folio $folio): array
     {
         $datos = $folio->datos_externos ?? [];
+        $fechaPredeterminada = filled($datos['fecha_embalaje'] ?? null)
+            ? (string) $datos['fecha_embalaje']
+            : $this->fechaValidacionFolio($folio);
         $lineas = collect($datos['composicion'] ?? [])
             ->filter(fn (mixed $linea): bool => is_array($linea)
                 && array_key_exists('cantidad_cajas', $linea)
-                && array_key_exists('csg', $linea));
+                && array_key_exists('csg', $linea))
+            ->map(function (array $linea) use ($fechaPredeterminada): array {
+                if (! filled($linea['fecha_embalaje'] ?? null)) {
+                    $linea['fecha_embalaje'] = $fechaPredeterminada;
+                }
+
+                return $linea;
+            });
 
         if ($lineas->isEmpty() && (int) ($datos['cantidad_cajas'] ?? 0) > 0) {
             $lineas->push([
                 'origen_validacion_id' => null,
                 'csg' => $datos['csg'] ?? 'SIN CSG',
                 'predio' => $datos['predio'] ?? null,
-                'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+                'fecha_embalaje' => $fechaPredeterminada,
                 'cantidad_cajas' => (int) $datos['cantidad_cajas'],
             ]);
         }
@@ -276,5 +287,17 @@ class RepaletizajeController extends Controller
 
             return $linea;
         })->values()->all();
+    }
+
+    private function fechaValidacionFolio(Folio $folio): ?string
+    {
+        $folio->loadMissing(
+            'validacionPallet:id,folio_id,generado_dispositivo_at,recibido_servidor_at',
+        );
+        $fecha = $folio->validacionPallet?->generado_dispositivo_at
+            ?? $folio->validacionPallet?->recibido_servidor_at
+            ?? $folio->fecha_ingreso;
+
+        return $fecha?->setTimezone(config('app.operational_timezone'))->toDateString();
     }
 }
