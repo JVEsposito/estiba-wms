@@ -42,22 +42,26 @@ class ServicioCalendarioEmbarques
             $sobrecupo = $this->resolverSobrecupo($conflictos, $datos, $usuario);
             $correlativo = $this->correlativos->siguiente($cliente);
 
-            $embarque = Embarque::query()->create([
-                'temporada_id' => $temporada->id,
-                'cliente_id' => $cliente->id,
-                'codigo' => $correlativo['codigo'],
-                'numero_correlativo' => $correlativo['numero'],
-                'fecha_programada' => $inicio->toDateString(),
-                'hora_programada' => $inicio->format('H:i:s'),
-                'intervalo_minutos' => $intervalo,
-                'modalidad' => $datos['modalidad'],
-                'estado' => EstadoEmbarque::Tentativo,
-                ...$this->camposEditables($datos),
-                'version' => 1,
-                'creado_por_user_id' => $usuario->id,
-                'actualizado_por_user_id' => $usuario->id,
-                ...$sobrecupo,
-            ]);
+            $embarque = Embarque::query()->create(array_merge(
+                [
+                    'temporada_id' => $temporada->id,
+                    'cliente_id' => $cliente->id,
+                    'codigo' => $correlativo['codigo'],
+                    'numero_correlativo' => $correlativo['numero'],
+                    'fecha_programada' => $inicio->toDateString(),
+                    'hora_programada' => $inicio->format('H:i:s'),
+                    'intervalo_minutos' => $intervalo,
+                    'modalidad' => $datos['modalidad'],
+                    'estado' => EstadoEmbarque::Tentativo,
+                ],
+                $this->camposEditables($datos),
+                [
+                    'version' => 1,
+                    'creado_por_user_id' => $usuario->id,
+                    'actualizado_por_user_id' => $usuario->id,
+                ],
+                $sobrecupo,
+            ));
             $this->sincronizarInstructivos($embarque, $datos['instructivos']);
             $this->evento($embarque, $usuario, 'creado', [
                 'ventana' => $inicio->toIso8601String(),
@@ -104,7 +108,7 @@ class ServicioCalendarioEmbarques
 
             $inicioAnterior = $this->inicioModelo($embarque);
             $inicioNuevo = $this->inicio($datos['fecha_programada'], $datos['hora_programada']);
-            $reprogramado = ! $inicioAnterior->equalTo($inicioNuevo);
+            $reprogramado = $inicioAnterior->equalTo($inicioNuevo) === false;
             $temporada = $reprogramado
                 ? Temporada::query()->lockForUpdate()->findOrFail($embarque->temporada_id)
                 : $embarque->temporada;
@@ -132,16 +136,20 @@ class ServicioCalendarioEmbarques
                 }
             }
 
-            $embarque->update([
-                'fecha_programada' => $inicioNuevo->toDateString(),
-                'hora_programada' => $inicioNuevo->format('H:i:s'),
-                'intervalo_minutos' => $intervalo,
-                'modalidad' => $datos['modalidad'],
-                ...$this->camposEditables($datos),
-                ...$sobrecupo,
-                'version' => $embarque->version + 1,
-                'actualizado_por_user_id' => $usuario->id,
-            ]);
+            $embarque->update(array_merge(
+                [
+                    'fecha_programada' => $inicioNuevo->toDateString(),
+                    'hora_programada' => $inicioNuevo->format('H:i:s'),
+                    'intervalo_minutos' => $intervalo,
+                    'modalidad' => $datos['modalidad'],
+                ],
+                $this->camposEditables($datos),
+                $sobrecupo,
+                [
+                    'version' => $embarque->version + 1,
+                    'actualizado_por_user_id' => $usuario->id,
+                ],
+            ));
             $this->sincronizarInstructivos($embarque, $datos['instructivos']);
             $this->evento($embarque, $usuario, $reprogramado ? 'reprogramado' : 'actualizado', [
                 'ventana_anterior' => $inicioAnterior->toIso8601String(),
@@ -173,7 +181,7 @@ class ServicioCalendarioEmbarques
                 throw new DomainException('Solo un embarque tentativo puede confirmarse.');
             }
 
-            if (! $embarque->instructivos()->exists()) {
+            if ($embarque->instructivos()->exists() === false) {
                 throw new DomainException('El embarque debe conservar al menos un instructivo.');
             }
 
@@ -222,10 +230,10 @@ class ServicioCalendarioEmbarques
             }
 
             if ($embarque->carga) {
-                if (! in_array($embarque->carga->estado, [
+                if (in_array($embarque->carga->estado, [
                     EstadoCarga::Borrador,
                     EstadoCarga::Pendiente,
-                ], true)) {
+                ], true) === false) {
                     throw new DomainException(
                         'La orden CAR ya inició su operación y debe resolverse desde Cargas & Despachos.',
                     );
@@ -337,14 +345,14 @@ class ServicioCalendarioEmbarques
         $embarque->instructivos()->delete();
 
         foreach (array_values($instructivos) as $indice => $instructivo) {
-            $embarque->instructivos()->create([
-                'orden' => $indice + 1,
-                ...collect($instructivo)->only([
+            $embarque->instructivos()->create(array_merge(
+                ['orden' => $indice + 1],
+                collect($instructivo)->only([
                     'numero_externo', 'recibidor', 'destino_pais', 'destino_ciudad',
                     'cantidad_pallets', 'cantidad_cajas', 'booking', 'sps', 'dus',
                     'planilla_sag', 'sello_sag', 'observacion',
                 ])->all(),
-            ]);
+            ));
         }
     }
 
@@ -433,7 +441,7 @@ class ServicioCalendarioEmbarques
             );
         }
 
-        if (! $this->alcance->puedeAutorizarSobrecupoEmbarques($usuario)) {
+        if ($this->alcance->puedeAutorizarSobrecupoEmbarques($usuario) === false) {
             throw new OperacionNoAutorizada(
                 'Tu perfil no puede autorizar sobrecupos en el calendario de embarques.',
             );
@@ -462,7 +470,7 @@ class ServicioCalendarioEmbarques
             'embarque_id' => $embarque->id,
             'user_id' => $usuario->id,
             'tipo' => $tipo,
-            'datos' => ['version' => $embarque->version, ...$datos],
+            'datos' => array_merge(['version' => $embarque->version], $datos),
         ]);
     }
 }
