@@ -153,6 +153,21 @@ function resultNumber() {
     }
     return normalized(formValue('numero_folio_resultante'));
 }
+function divisionTotal(source, output) {
+    return (source?.composicion || []).reduce(
+        (sum, line) => sum + Number(line[`salida${output}`] || 0),
+        0,
+    );
+}
+function refreshDivisionTotals() {
+    const source = state.sources[0];
+    if (!source) return;
+    [1, 2].forEach((output) => {
+        const totalElement = elements.divisionEditor.querySelector(`[data-division-total="${output}"]`);
+        if (totalElement) totalElement.textContent = `${divisionTotal(source, output)} cajas`;
+    });
+    elements.previewQuantity.textContent = `${divisionTotal(source, 1)} + ${divisionTotal(source, 2)} cajas`;
+}
 function render() {
     const modality = mode();
     const transform = modality !== 'consolidacion';
@@ -200,12 +215,26 @@ function render() {
     )).join('') : `<p class="empty-copy">${transform ? 'Agrega un pallet o saldo.' : 'Agrega al menos dos folios tipo saldo.'}</p>`;
 
     elements.divisionEditor.innerHTML = division && state.sources[0] ? `
-        <article class="source-card"><div class="source-identity"><strong>Distribución exacta por composición</strong><small>La suma de ambas salidas debe coincidir con cada línea original.</small></div>
-        <div class="composition-lines">${state.sources[0].composicion.map((line) => `<div class="composition-line">
-            <span><b>CSG ${escapeHtml(line.csg)}</b><small>${escapeHtml(line.fecha_embalaje || 'Sin fecha')} · ${line.cantidad_cajas} cajas</small></span>
-            <label>SALIDA 1<input data-division-output="1" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.salida1 ?? line.cantidad_cajas}"></label>
-            <label>SALIDA 2<input data-division-output="2" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.salida2 ?? 0}"></label>
-        </div>`).join('')}</div></article>` : '';
+        <article class="division-card">
+            <header class="division-heading">
+                <div><strong>Distribución exacta por composición</strong><small>Edita una salida y la otra se ajustará automáticamente.</small></div>
+                <div class="division-totals">
+                    <span><small>SALIDA 1</small><strong data-division-total="1">${divisionTotal(state.sources[0], 1)} cajas</strong></span>
+                    <span><small>SALIDA 2</small><strong data-division-total="2">${divisionTotal(state.sources[0], 2)} cajas</strong></span>
+                </div>
+            </header>
+            <div class="division-lines">${state.sources[0].composicion.map((line) => `<div class="division-line">
+                <div class="division-line__identity">
+                    <strong>CSG ${escapeHtml(line.csg)}</strong>
+                    <small>${line.predio ? `${escapeHtml(line.predio)} · ` : ''}Fecha ${escapeHtml(line.fecha_embalaje || 'Sin fecha')} · ${line.cantidad_cajas} cajas</small>
+                </div>
+                <div class="division-line__outputs">
+                    <label><span>SALIDA 1 · ${escapeHtml(normalized(formValue('resultado_1_numero')) || 'FOLIO 1')}</span><input data-division-output="1" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.salida1 ?? line.cantidad_cajas}"></label>
+                    <label><span>SALIDA 2 · ${escapeHtml(normalized(formValue('resultado_2_numero')) || 'FOLIO 2')}</span><input data-division-output="2" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.salida2 ?? 0}"></label>
+                </div>
+                <span class="division-line__check" data-division-line-total>Total distribuido: ${Number(line.salida1 || 0) + Number(line.salida2 || 0)} de ${line.cantidad_cajas} cajas</span>
+            </div>`).join('')}</div>
+        </article>` : '';
 
     const mismatches = hardMismatch();
     elements.hardRule.classList.toggle('is-invalid', mismatches.length > 0);
@@ -224,8 +253,7 @@ function render() {
     elements.previewFolio.textContent = resultNumber() || 'Sin definir';
     elements.previewType.textContent = modality === 'cambio_folio' ? 'Cambio de folio' : (division ? 'Dos resultados' : (type === 'pallet' ? 'Pallet completo' : 'Saldo consolidado'));
     if (division && state.sources[0]) {
-        const first = state.sources[0].composicion.reduce((sum, line) => sum + Number(line.salida1 || 0), 0);
-        elements.previewQuantity.textContent = `${first} + ${state.sources[0].cantidad_cajas - first} cajas`;
+        elements.previewQuantity.textContent = `${divisionTotal(state.sources[0], 1)} + ${divisionTotal(state.sources[0], 2)} cajas`;
     } else {
         elements.previewQuantity.textContent = transform ? `${state.sources[0]?.cantidad_cajas || 0} cajas` : (type === 'pallet' ? `${total()} / ${target || '—'}` : `${total()} cajas`);
     }
@@ -388,7 +416,7 @@ async function submitTransformation(modality) {
     try {
         const response = await api('/api/validacion/repaletizajes', {
             method: 'POST', body: JSON.stringify({
-                operacion_id: uuid(), modalidad,
+                operacion_id: uuid(), modalidad: modality,
                 origenes: [{ folio_id: source.id, cantidad_aportada: source.cantidad_cajas }],
                 resultados: results,
                 observacion: String(formValue('observacion') || '').trim() || null,
@@ -478,8 +506,20 @@ elements.divisionEditor.addEventListener('input', (event) => {
     if (!event.target.matches('[data-division-output]') || !state.sources[0]) return;
     const line = state.sources[0].composicion.find((item) => item.clave === event.target.dataset.compositionKey);
     if (!line) return;
-    const output = `salida${event.target.dataset.divisionOutput}`;
-    line[output] = Math.min(line.cantidad_cajas, Math.max(0, Number(event.target.value || 0)));
+    const output = Number(event.target.dataset.divisionOutput);
+    const otherOutput = output === 1 ? 2 : 1;
+    const value = Math.min(line.cantidad_cajas, Math.max(0, Number(event.target.value || 0)));
+    line[`salida${output}`] = value;
+    line[`salida${otherOutput}`] = line.cantidad_cajas - value;
+    event.target.value = String(value);
+    const counterpart = [...elements.divisionEditor.querySelectorAll('[data-division-output]')].find((input) => (
+        input.dataset.compositionKey === line.clave
+        && Number(input.dataset.divisionOutput) === otherOutput
+    ));
+    if (counterpart) counterpart.value = String(line[`salida${otherOutput}`]);
+    const lineTotal = event.target.closest('.division-line')?.querySelector('[data-division-line-total]');
+    if (lineTotal) lineTotal.textContent = `Total distribuido: ${line.cantidad_cajas} de ${line.cantidad_cajas} cajas ✓`;
+    refreshDivisionTotals();
 });
 elements.form.addEventListener('submit', (event) => { event.preventDefault(); void submit(); });
 elements.clear.addEventListener('click', reset);
