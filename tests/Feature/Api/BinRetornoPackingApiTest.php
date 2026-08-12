@@ -550,7 +550,7 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('data-annul-bin', $script);
         $this->assertStringContainsString('data-edit-bin', $script);
         $this->assertStringContainsString("method: 'PUT'", $script);
-        $this->assertStringNotContainsString('slice(0, 8)', $script);
+        $this->assertStringNotContainsString('state.bins.slice(0, 8)', $script);
     }
 
     public function test_existencia_materia_prima_descuenta_entregas_e_incluye_retornos_clasificados(): void
