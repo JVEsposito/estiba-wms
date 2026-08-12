@@ -9,7 +9,7 @@ const elements = {
     processSelect: byId('processSelect'), addOrigin: byId('addOriginButton'), originRows: byId('originRows'), originBalance: byId('originBalance'),
     binError: byId('binReturnError'), recentBins: byId('recentBins'), pendingList: byId('pendingBinList'), legacyList: byId('legacyList'),
     regularizeDialog: byId('regularizeDialog'), regularizeForm: byId('regularizeForm'), regularizeTitle: byId('regularizeTitle'),
-    regularizeDescription: byId('regularizeDescription'), regularizeError: byId('regularizeError'),
+    regularizeDescription: byId('regularizeDescription'), regularizeObservation: byId('regularizeObservation'), regularizeError: byId('regularizeError'),
     regularizeTotal: byId('regularizeTotalKilos'), regularizeOrigins: byId('regularizeOrigins'), regularizeBalance: byId('regularizeBalance'),
     migrationDialog: byId('legacyMigrationDialog'), migrationForm: byId('legacyMigrationForm'), migrationTitle: byId('legacyMigrationTitle'),
     migrationDescription: byId('legacyMigrationDescription'), migrationTotal: byId('migrationTotalKilos'), migrationOrigins: byId('migrationOrigins'),
@@ -224,6 +224,9 @@ function openRegularize(id) {
     state.regularizationOperationId = uuid();
     elements.regularizeTitle.textContent = `Regularizar ${bin.folio_provisional}`;
     elements.regularizeDescription.textContent = `Peso verde registrado: ${formatKilos(bin.kilos_totales_verdes ?? bin.kilos_totales)}. Cuadraturas debe confirmar el total y cada proceso; el folio provisional se conservará.`;
+    const sourceObservation = String(bin.observacion || '').trim();
+    elements.regularizeObservation.textContent = sourceObservation || 'Sin observación registrada.';
+    elements.regularizeObservation.closest('.return-source-observation')?.classList.toggle('is-empty', !sourceObservation);
     elements.regularizeForm.elements.tipo_resultado_packing_id.innerHTML = `<option value="">Seleccionar</option>${state.catalogs.tipos_resultado.map((type) => `<option value="${escapeHtml(type.id)}">${escapeHtml(type.codigo)} · ${escapeHtml(type.nombre)}</option>`).join('')}`;
     elements.regularizeTotal.value = bin.kilos_totales_definitivos ?? bin.kilos_totales;
     elements.regularizeOrigins.innerHTML = bin.origenes.map((origin) => `<div class="migration-origin" data-regularize-origin-id="${escapeHtml(origin.id)}"><div class="migration-origin__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>Kilos verdes registrados: ${escapeHtml(formatKilos(origin.kilos_aportados_verdes ?? origin.kilos_aportados))}</small></div><input data-regularize-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_definitivos ?? origin.kilos_aportados)}" aria-label="Kilos definitivos de ${escapeHtml(processLabel(origin))}"></div>`).join('');
