@@ -42,6 +42,8 @@ export default defineConfig({
                 'resources/js/office-sag-inspections.js',
                 'resources/css/office-management.css',
                 'resources/js/office-management.js',
+                'resources/css/office-operational-integrity.css',
+                'resources/js/office-operational-integrity.js',
                 'resources/css/office-inventory-exports.css',
                 'resources/js/office-inventory-exports.js',
                 'resources/css/office-weighbridge.css',

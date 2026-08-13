@@ -133,6 +133,14 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeConsultarAccesos($usuario),
         );
         Gate::define(
+            'consultar-integridad-operacional',
+            fn (User $usuario): bool => $alcance->puedeConsultarIntegridadOperacional($usuario),
+        );
+        Gate::define(
+            'ejecutar-integridad-operacional',
+            fn (User $usuario): bool => $alcance->puedeEjecutarIntegridadOperacional($usuario),
+        );
+        Gate::define(
             'reiniciar-datos-operacionales',
             fn (User $usuario): bool => $usuario->activo
                 && $usuario->rol === RolUsuario::Administrador,

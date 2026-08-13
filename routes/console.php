@@ -13,3 +13,7 @@ if (app()->environment('local') &&
     class_exists(TelescopeServiceProvider::class)) {
     Schedule::command('telescope:prune --hours=48')->dailyAt('02:00');
 }
+
+Schedule::command('folios:auditar-integridad --origen=programada')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(20);
