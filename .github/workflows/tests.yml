@@ -73,10 +73,7 @@ jobs:
         run: npm run build
 
       - name: Validar estilo
-        run: |
-          vendor/bin/pint app/Services/MateriaPrima/ServicioBinRetornoPacking.php
-          git diff -- app/Services/MateriaPrima/ServicioBinRetornoPacking.php
-          vendor/bin/pint --test
+        run: vendor/bin/pint --test
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force

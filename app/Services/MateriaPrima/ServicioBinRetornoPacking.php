@@ -578,8 +578,7 @@ class ServicioBinRetornoPacking
         BinRetornoPacking $bin,
         array $datos,
         Collection $origenesPersistidos,
-    ): array
-    {
+    ): array {
         $regularizado = $bin->regularizado_at !== null;
         $persistidosPorId = $origenesPersistidos->keyBy('id');
         $origenes = collect($datos['origenes'])
@@ -657,8 +656,7 @@ class ServicioBinRetornoPacking
     private function validarOrigenesModificacion(
         array $origenes,
         Collection $origenesPersistidos,
-    ): Collection
-    {
+    ): Collection {
         $persistidosPorClave = $origenesPersistidos->keyBy('clave_proceso');
         $vistos = [];
         $nuevos = [];
