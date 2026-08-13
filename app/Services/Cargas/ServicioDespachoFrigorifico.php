@@ -2,6 +2,7 @@
 
 namespace App\Services\Cargas;
 
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
 use App\Enums\EstadoIncidenciaCarga;
@@ -25,11 +26,13 @@ use App\Models\SesionEstiba;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use BackedEnum;
+use Closure;
 use DateTimeInterface;
 use DomainException;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use JsonException;
 
@@ -39,6 +42,7 @@ class ServicioDespachoFrigorifico
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioTareasCarga $servicioTareas,
         private readonly ServicioMovimientoEstiba $servicioMovimientos,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     public function reportarIncidencia(
@@ -52,16 +56,17 @@ class ServicioDespachoFrigorifico
     ): IncidenciaCargaFolio {
         $this->asegurarUuid($operacionId);
         $this->asegurarPuedeReportar($usuario);
-        $payloadHash = $this->hash([
+        $payload = [
             'carga_folio_id' => $asignacion->id,
             'tipo' => $tipo,
             'descripcion' => $this->textoOpcional($descripcion),
             'sesion_id' => $sesion->id,
             'usuario_id' => $usuario->id,
             'dispositivo_id' => $dispositivo->id,
-        ]);
+        ];
+        $payloadHash = $this->hash($payload);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $operacionId,
             $asignacion,
             $tipo,
@@ -164,7 +169,18 @@ class ServicioDespachoFrigorifico
             $this->servicioTareas->sincronizar($carga);
 
             return $incidencia->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'incidencia.reportar',
+            $operacionId,
+            $usuario,
+            $payload,
+            $accion,
+            CargaFolio::class,
+            (string) $asignacion->id,
+            dispositivo: $dispositivo,
+        );
     }
 
     public function resolverIncidencia(
@@ -177,15 +193,16 @@ class ServicioDespachoFrigorifico
     ): IncidenciaCargaFolio {
         $this->asegurarUuid($operacionId);
         $this->asegurarPuedeResolver($usuario, $resolucion);
-        $payloadHash = $this->hash([
+        $payload = [
             'incidencia_id' => $incidencia->id,
             'resolucion' => $resolucion,
             'folio_reemplazo_id' => $folioReemplazo?->id,
             'observacion' => $this->textoOpcional($observacion),
             'usuario_id' => $usuario->id,
-        ]);
+        ];
+        $payloadHash = $this->hash($payload);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $operacionId,
             $incidencia,
             $resolucion,
@@ -315,7 +332,17 @@ class ServicioDespachoFrigorifico
             $this->servicioTareas->sincronizar($carga);
 
             return $incidenciaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'incidencia.resolver',
+            $operacionId,
+            $usuario,
+            $payload,
+            $accion,
+            IncidenciaCargaFolio::class,
+            (string) $incidencia->id,
+        );
     }
 
     /**
@@ -338,7 +365,16 @@ class ServicioDespachoFrigorifico
             );
         }
 
-        return DB::transaction(function () use (
+        $payload = [
+            'carga_folio_id' => $asignacion->id,
+            'anden_id' => $anden->id,
+            'sesion_id' => $sesion->id,
+            'version_camara_conocida' => $versionCamaraConocida,
+            'generado_dispositivo_at' => $generadoDispositivoAt,
+            'advertencias_confirmadas' => $advertenciasConfirmadas,
+        ];
+
+        $accion = function () use (
             $operacionId,
             $asignacion,
             $anden,
@@ -437,7 +473,19 @@ class ServicioDespachoFrigorifico
             $this->servicioTareas->sincronizar($carga);
 
             return $asignacionBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'folio.enviar_anden',
+            $operacionId,
+            $usuario,
+            $payload,
+            $accion,
+            CargaFolio::class,
+            (string) $asignacion->id,
+            dispositivo: $dispositivo,
+            ocurridoAt: $generadoDispositivoAt,
+        );
     }
 
     public function cerrarDespacho(
@@ -463,15 +511,16 @@ class ServicioDespachoFrigorifico
             throw new DomainException('La patente y el conductor son obligatorios para cerrar el despacho.');
         }
 
-        $payloadHash = $this->hash([
+        $payload = [
             'carga_id' => $carga->id,
             'patente' => $patente,
             'conductor' => $conductor,
             'observacion' => $this->textoOpcional($observacion),
             'usuario_id' => $usuario->id,
-        ]);
+        ];
+        $payloadHash = $this->hash($payload);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $operacionId,
             $carga,
             $usuario,
@@ -534,7 +583,7 @@ class ServicioDespachoFrigorifico
                     'estado_operacional' => EstadoOperacionalFolio::Despachado,
                     'activo' => false,
                 ]);
-                $asignacion->reservaActiva()->delete();
+                $asignacion->reservaActiva()->lockForUpdate()->first()?->delete();
                 $asignacion->update([
                     'finalizado_por_user_id' => $usuario->id,
                     'finalizado_at' => now(),
@@ -567,7 +616,50 @@ class ServicioDespachoFrigorifico
             $this->servicioTareas->sincronizar($cargaBloqueada);
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'carga.cerrar',
+            $operacionId,
+            $usuario,
+            $payload,
+            $accion,
+            Carga::class,
+            (string) $carga->id,
+            $carga->codigo,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function transicionar(
+        string $tipo,
+        string $operacionId,
+        User $usuario,
+        array $payload,
+        Closure $accion,
+        string $sujetoTipo,
+        string $sujetoId,
+        ?string $referencia = null,
+        ?Dispositivo $dispositivo = null,
+        ?DateTimeInterface $ocurridoAt = null,
+    ): mixed {
+        return $this->motorTransiciones->ejecutar(
+            new ComandoTransicionOperacional(
+                dominio: DominioTransicionOperacional::Despacho,
+                tipo: $tipo,
+                usuario: $usuario,
+                payload: $payload,
+                operacionId: $operacionId,
+                dispositivo: $dispositivo,
+                sujetoTipo: $sujetoTipo,
+                sujetoId: $sujetoId,
+                referencia: $referencia,
+                ocurridoAt: $ocurridoAt,
+            ),
+            $accion,
+        );
     }
 
     private function asegurarPuedeReportar(User $usuario): void
@@ -643,7 +735,7 @@ class ServicioDespachoFrigorifico
         User $usuario,
         ?string $motivo,
     ): void {
-        $asignacion->reservaActiva()->delete();
+        $asignacion->reservaActiva()->lockForUpdate()->first()?->delete();
         $asignacion->update([
             'estado' => $estado,
             'finalizado_por_user_id' => $usuario->id,

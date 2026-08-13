@@ -3,6 +3,7 @@
 namespace App\Services\Validacion;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
@@ -16,6 +17,8 @@ use App\Models\Folio;
 use App\Models\User;
 use App\Models\ValidacionPallet;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -26,6 +29,7 @@ class ServicioValidacionPallet
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ProteccionFolioAnulado $proteccionFolioAnulado,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /**
@@ -37,7 +41,18 @@ class ServicioValidacionPallet
         $payload = $this->normalizarPayload($datos);
         $payloadHash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use ($datos, $payload, $payloadHash, $usuario, $dispositivo): array {
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Validacion,
+            tipo: 'pallet.registrar',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $datos['operacion_id'],
+            dispositivo: $dispositivo,
+            sujetoTipo: ValidacionPallet::class,
+            referencia: $payload['numero_folio'],
+            ocurridoAt: CarbonImmutable::parse($datos['generado_dispositivo_at']),
+        );
+        $accion = function () use ($datos, $payload, $payloadHash, $usuario, $dispositivo): array {
             $existente = ValidacionPallet::query()
                 ->where('operacion_id', $datos['operacion_id'])
                 ->lockForUpdate()
@@ -290,7 +305,9 @@ class ServicioValidacionPallet
             }
 
             return [$this->cargar($validacion->refresh()), true, $hayConflicto];
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     /**

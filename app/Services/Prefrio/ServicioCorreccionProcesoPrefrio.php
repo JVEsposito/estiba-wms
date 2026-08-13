@@ -3,6 +3,7 @@
 namespace App\Services\Prefrio;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoProcesoPrefrio;
@@ -19,12 +20,13 @@ use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Models\User;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use DomainException;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use JsonException;
 
@@ -32,6 +34,7 @@ class ServicioCorreccionProcesoPrefrio
 {
     public function __construct(
         private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /**
@@ -46,7 +49,17 @@ class ServicioCorreccionProcesoPrefrio
         $payload = $this->normalizar($datos);
         $payloadHash = $this->calcularHash($payload);
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Administracion,
+            tipo: 'prefrio.corregir',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $datos['operacion_id'],
+            sujetoTipo: ProcesoPrefrio::class,
+            sujetoId: (string) $proceso->id,
+            referencia: $proceso->codigo,
+        );
+        $accion = function () use (
             $proceso,
             $datos,
             $usuario,
@@ -134,7 +147,9 @@ class ServicioCorreccionProcesoPrefrio
             ]);
 
             return $this->cargar($proceso->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     /**

@@ -6,14 +6,37 @@ use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Events\EventoCargaRegistrado;
 use App\Listeners\CrearNotificacionesOperacionales;
+use App\Models\AnulacionValidacionPallet;
+use App\Models\AutorizacionSagFolio;
+use App\Models\Carga;
+use App\Models\CargaFolio;
+use App\Models\CorreccionValidacionPallet;
+use App\Models\DestinoLoteInspeccionSag;
 use App\Models\EventoCarga;
+use App\Models\EventoPrefrio;
+use App\Models\Folio;
+use App\Models\IncidenciaCargaFolio;
+use App\Models\LoteInspeccionSag;
+use App\Models\LoteInspeccionSagFolio;
+use App\Models\Movimiento;
 use App\Models\PersonalAccessToken;
+use App\Models\ProcesoPrefrio;
+use App\Models\ProcesoPrefrioFolio;
+use App\Models\RegistroHabilitacionAlmacenamiento;
+use App\Models\Repaletizaje;
+use App\Models\RepaletizajeDetalle;
+use App\Models\RepaletizajeResultado;
+use App\Models\ReservaCargaFolio;
+use App\Models\ResultadoDestinoInspeccionSag;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Models\ValidacionPallet;
+use App\Observers\AuditarCambioTransicionOperacionalObserver;
 use App\Observers\EventoCargaObserver;
 use App\Observers\InvalidarPanelGerencialObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Transiciones\ContextoEjecucionTransicionOperacional;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -29,6 +52,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(ContextoEjecucionTransicionOperacional::class);
+
         if ($this->app->environment('local') &&
             class_exists(\Laravel\Telescope\TelescopeServiceProvider::class)) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
@@ -60,6 +85,33 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         EventoCarga::observe(EventoCargaObserver::class);
         UbicacionActual::observe(UbicacionActualObserver::class);
+        foreach ([
+            Folio::class,
+            UbicacionActual::class,
+            Movimiento::class,
+            RegistroHabilitacionAlmacenamiento::class,
+            ValidacionPallet::class,
+            CorreccionValidacionPallet::class,
+            AnulacionValidacionPallet::class,
+            ProcesoPrefrio::class,
+            ProcesoPrefrioFolio::class,
+            EventoPrefrio::class,
+            Carga::class,
+            CargaFolio::class,
+            ReservaCargaFolio::class,
+            EventoCarga::class,
+            IncidenciaCargaFolio::class,
+            Repaletizaje::class,
+            RepaletizajeDetalle::class,
+            RepaletizajeResultado::class,
+            LoteInspeccionSag::class,
+            LoteInspeccionSagFolio::class,
+            DestinoLoteInspeccionSag::class,
+            ResultadoDestinoInspeccionSag::class,
+            AutorizacionSagFolio::class,
+        ] as $modeloAuditable) {
+            $modeloAuditable::observe(AuditarCambioTransicionOperacionalObserver::class);
+        }
         foreach (InvalidarPanelGerencialObserver::modelosObservados() as $modelo) {
             $modelo::observe(InvalidarPanelGerencialObserver::class);
         }

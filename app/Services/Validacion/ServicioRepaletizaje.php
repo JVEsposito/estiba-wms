@@ -3,6 +3,7 @@
 namespace App\Services\Validacion;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
@@ -15,7 +16,10 @@ use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
 use App\Models\RepaletizajeResultado;
 use App\Models\Temporada;
+use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +27,10 @@ use JsonException;
 
 class ServicioRepaletizaje
 {
+    public function __construct(
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
+    ) {}
+
     /** @param array<string, mixed> $datos */
     public function registrar(
         array $datos,
@@ -32,7 +40,18 @@ class ServicioRepaletizaje
         $payload = $this->normalizar($datos);
         $hash = $this->hash($payload);
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Repaletizaje,
+            tipo: 'registrar',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $datos['operacion_id'],
+            dispositivo: $dispositivo,
+            sujetoTipo: Repaletizaje::class,
+            referencia: $payload['numero_folio_resultante']
+                ?? ($payload['resultados'][0]['numero_folio'] ?? null),
+        );
+        $accion = function () use (
             $datos,
             $usuario,
             $dispositivo,
@@ -359,7 +378,9 @@ class ServicioRepaletizaje
             }
 
             return $this->cargar($repa->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     /**
@@ -587,7 +608,20 @@ class ServicioRepaletizaje
         string $motivo,
         User $usuario,
     ): Repaletizaje {
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Administracion,
+            tipo: 'repaletizaje.anular',
+            usuario: $usuario,
+            payload: [
+                'repaletizaje_id' => $repaletizaje->id,
+                'motivo' => trim($motivo),
+            ],
+            operacionId: $operacionId,
+            sujetoTipo: Repaletizaje::class,
+            sujetoId: (string) $repaletizaje->id,
+            referencia: $repaletizaje->codigo,
+        );
+        $accion = function () use (
             $repaletizaje,
             $operacionId,
             $motivo,
@@ -682,12 +716,14 @@ class ServicioRepaletizaje
                 AutorizacionSagFolio::query()
                     ->whereIn('folio_id', $resultadoIds)
                     ->where('activa', true)
-                    ->update([
+                    ->lockForUpdate()
+                    ->get()
+                    ->each(fn (AutorizacionSagFolio $autorizacion): bool => $autorizacion->update([
                         'activa' => false,
                         'motivo_revocacion' => 'Repaletizaje anulado',
                         'revocado_por_user_id' => $usuario->id,
                         'revocado_at' => now(),
-                    ]);
+                    ]));
             }
 
             $repa->update([
@@ -699,7 +735,9 @@ class ServicioRepaletizaje
             ]);
 
             return $this->cargar($repa->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     public function cargar(Repaletizaje $repaletizaje): Repaletizaje
@@ -1263,7 +1301,7 @@ class ServicioRepaletizaje
             return;
         }
 
-        DB::table('ubicaciones_actuales')->insert([
+        UbicacionActual::create([
             'id' => $ubicacion['id'],
             'folio_id' => $folio->id,
             'camara_id' => $ubicacion['camara_id'],

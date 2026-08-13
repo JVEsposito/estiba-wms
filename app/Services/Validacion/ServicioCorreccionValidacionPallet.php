@@ -2,6 +2,7 @@
 
 namespace App\Services\Validacion;
 
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use App\Exceptions\ConflictoOperacion;
@@ -9,11 +10,17 @@ use App\Models\CorreccionValidacionPallet;
 use App\Models\Folio;
 use App\Models\User;
 use App\Models\ValidacionPallet;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class ServicioCorreccionValidacionPallet
 {
+    public function __construct(
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $datos
      */
@@ -25,7 +32,17 @@ class ServicioCorreccionValidacionPallet
         $payload = $this->normalizarPayload($datos);
         $payloadHash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Administracion,
+            tipo: 'validacion.corregir',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $datos['operacion_id'],
+            sujetoTipo: ValidacionPallet::class,
+            sujetoId: (string) $validacion->id,
+            referencia: $validacion->numero_folio,
+        );
+        $accion = function () use (
             $validacion,
             $datos,
             $payload,
@@ -241,7 +258,9 @@ class ServicioCorreccionValidacionPallet
             ]);
 
             return $this->cargar($validacionBloqueada->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     private function asegurarCorregible(

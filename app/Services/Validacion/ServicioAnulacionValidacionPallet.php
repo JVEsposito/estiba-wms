@@ -3,6 +3,7 @@
 namespace App\Services\Validacion;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\HabilitacionAlmacenamientoFolio;
@@ -12,12 +13,18 @@ use App\Models\AnulacionValidacionPallet;
 use App\Models\Folio;
 use App\Models\User;
 use App\Models\ValidacionPallet;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use JsonException;
 
 class ServicioAnulacionValidacionPallet
 {
+    public function __construct(
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
+    ) {}
+
     /** @param array<string, mixed> $datos */
     public function anular(
         ValidacionPallet $validacion,
@@ -27,7 +34,17 @@ class ServicioAnulacionValidacionPallet
         $payload = $this->normalizar($datos);
         $hash = $this->hash($payload);
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Administracion,
+            tipo: 'validacion.anular',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $datos['operacion_id'],
+            sujetoTipo: ValidacionPallet::class,
+            sujetoId: (string) $validacion->id,
+            referencia: $validacion->numero_folio,
+        );
+        $accion = function () use (
             $validacion,
             $datos,
             $usuario,
@@ -158,7 +175,9 @@ class ServicioAnulacionValidacionPallet
             ])->save();
 
             return $this->cargar($anulacion->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     public function puedeAnular(ValidacionPallet $validacion): bool
