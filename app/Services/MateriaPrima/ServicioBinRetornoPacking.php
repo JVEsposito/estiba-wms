@@ -657,7 +657,8 @@ class ServicioBinRetornoPacking
     private function validarOrigenesModificacion(
         array $origenes,
         Collection $origenesPersistidos,
-    ): Collection {
+    ): Collection
+    {
         $persistidosPorClave = $origenesPersistidos->keyBy('clave_proceso');
         $vistos = [];
         $nuevos = [];
