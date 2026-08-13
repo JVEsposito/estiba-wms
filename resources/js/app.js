@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const $ = (id) => document.getElementById(id);
 
 const elements = {
@@ -106,6 +108,7 @@ const state = {
     locateLookupTimer: null,
     locateLookupSequence: 0,
     polling: false,
+    poller: null,
 };
 
 class ApiError extends Error {
@@ -1539,4 +1542,14 @@ if (state.token && state.identity) {
     });
 }
 
-window.setInterval(poll, 30000);
+state.poller = createOperationalPoller(
+    poll,
+    {
+        intervalMs: 30000,
+        canRun: () => Boolean(state.token)
+            && !elements.locateDialog.open
+            && !elements.moveDialog.open
+            && !elements.materialDispatchDialog.open,
+    },
+);
+state.poller.start();

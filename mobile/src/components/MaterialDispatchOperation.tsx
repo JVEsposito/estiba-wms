@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { AuthSession, MaterialDispatch, MaterialDispatchSummary } from '../domain/estiba';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { EstibaApi } from '../services/estibaApi';
 import { colors } from '../theme/colors';
 
@@ -74,18 +74,12 @@ export function MaterialDispatchOperation({
 
   useEffect(() => {
     void refresh(false);
-    const timer = setInterval(() => {
-      if (AppState.currentState === 'active') void refresh(true);
-    }, OPERATIONAL_POLL_INTERVAL_MS);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void refresh(true);
-    });
-
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
   }, []);
+
+  useOperationalPolling(
+    () => refresh(true),
+    { intervalMs: OPERATIONAL_POLL_INTERVAL_MS },
+  );
 
   useEffect(() => {
     if (!selectedSummary) {

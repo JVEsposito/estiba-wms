@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -15,6 +14,7 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   RegisterValidationPayload,
   ValidationAttempt,
@@ -211,13 +211,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     void initialize();
   }, []);
 
-  useEffect(() => {
-    const timer = setInterval(() => void flushOutbox(), 30000);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void synchronize();
-    });
-    return () => { clearInterval(timer); subscription.remove(); };
-  }, [baseUrl, auth.token]);
+  useOperationalPolling(
+    flushOutbox,
+    {
+      intervalMs: 30000,
+      enabled: Boolean(baseUrl),
+      onResume: synchronize,
+    },
+  );
 
   async function initialize() {
     setBusy(true);

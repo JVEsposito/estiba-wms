@@ -1,4 +1,5 @@
 import Chart from 'chart.js/auto';
+import { createOperationalPoller } from './shared/operational-poller';
 
 const byId = (id) => document.getElementById(id);
 
@@ -106,7 +107,7 @@ const state = {
     identity: readJson(keys.identity),
     dashboard: null,
     loading: false,
-    timer: null,
+    poller: null,
     charts: new Map(),
 };
 
@@ -222,8 +223,8 @@ function clearSession() {
     state.dashboard = null;
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
-    window.clearInterval(state.timer);
-    state.timer = null;
+    state.poller?.stop();
+    state.poller = null;
     state.charts.forEach((chart) => chart.destroy());
     state.charts.clear();
     elements.app.classList.add('is-hidden');
@@ -719,11 +720,16 @@ async function loadDashboard({ blocking = false, silent = false } = {}) {
 }
 
 function startAutoRefresh() {
-    window.clearInterval(state.timer);
+    state.poller?.stop();
     const seconds = Number(state.dashboard?.actualizacion_segundos || 30);
-    state.timer = window.setInterval(() => {
-        if (!document.hidden) void loadDashboard({ silent: true });
-    }, seconds * 1000);
+    state.poller = createOperationalPoller(
+        () => loadDashboard({ silent: true }),
+        {
+            intervalMs: seconds * 1000,
+            canRun: () => Boolean(state.token) && !state.loading,
+        },
+    );
+    state.poller.start();
 }
 
 elements.login.addEventListener('submit', async (event) => {

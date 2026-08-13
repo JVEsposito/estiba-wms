@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
@@ -27,7 +29,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), section: 'recepcion',
     summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], selectedBin: null, selectedLegacy: null,
-    regularizationOperationId: null, editOperationId: null,
+    regularizationOperationId: null, editOperationId: null, poller: null,
 };
 
 class ApiError extends Error {
@@ -228,18 +230,20 @@ function renderSection() {
 async function load({ silent = false } = {}) {
     if (!silent) setBusy(true, 'Actualizando retornos…');
     try {
-        const [summary, processes, catalogs, bins, legacy] = await Promise.all([
+        const [summary, processes, bins, legacy] = await Promise.all([
             api('/api/materia-prima/fruta-proceso/retornos-bin/resumen'),
             api('/api/materia-prima/fruta-proceso/retornos-bin/procesos'),
-            api('/api/materia-prima/fruta-proceso/retornos-bin/catalogos'),
             api('/api/materia-prima/fruta-proceso/retornos-bin/bins'),
             api('/api/materia-prima/fruta-proceso/retornos-bin/legacy'),
         ]);
-        state.summary = summary || {}; state.processes = processes.data || []; state.catalogs = catalogs || { tipos_resultado: [] };
+        state.summary = summary || {}; state.processes = processes.data || [];
         state.bins = bins.data || []; state.legacy = legacy.data || [];
         renderSummary(); renderProcessSelect(); renderOriginRows(); renderBins(); renderLegacy(); renderSection();
     } catch (error) { toast(error.message, true); }
     finally { if (!silent) setBusy(false); }
+}
+async function loadCatalogs() {
+    state.catalogs = await api('/api/materia-prima/fruta-proceso/retornos-bin/catalogos') || { tipos_resultado: [] };
 }
 
 async function submitBin() {
@@ -496,12 +500,12 @@ elements.login.addEventListener('submit', async (event) => {
     event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…');
     try {
         const data = new FormData(elements.login); const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) });
-        persist(payload); if (!showApp()) { clearSession(); throw new ApiError('Tu perfil no tiene acceso a Fruta a proceso.', 403); } await load({ silent: true });
+        persist(payload); if (!showApp()) { clearSession(); throw new ApiError('Tu perfil no tiene acceso a Fruta a proceso.', 403); } await Promise.all([loadCatalogs(), load({ silent: true })]);
     } catch (error) { elements.loginError.textContent = error.message; }
     finally { setBusy(false); }
 });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
-elements.reload.addEventListener('click', () => void load());
+elements.reload.addEventListener('click', () => void Promise.all([loadCatalogs(), load()]));
 elements.binListSearch.addEventListener('input', renderBins);
 elements.binListState.addEventListener('change', renderBins);
 elements.sections.forEach((button) => button.addEventListener('click', () => { state.section = button.dataset.returnSection; renderSection(); }));
@@ -546,8 +550,16 @@ elements.migrationOrigins.addEventListener('input', renderMigrationBalance);
 elements.migrationTotal.addEventListener('input', renderMigrationBalance);
 elements.migrationForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.migrationDialog.close(); return; } void submitMigration(); });
 
-if (state.token && state.identity && showApp()) void load(); else clearSession();
-window.setInterval(() => {
-    if (!state.token || elements.app.classList.contains('is-hidden') || elements.editDialog.open || elements.regularizeDialog.open || elements.migrationDialog.open) return;
-    void load({ silent: true });
-}, 30000);
+if (state.token && state.identity && showApp()) void Promise.all([loadCatalogs(), load()]); else clearSession();
+state.poller = createOperationalPoller(
+    () => load({ silent: true }),
+    {
+        intervalMs: 30000,
+        canRun: () => Boolean(state.token)
+            && !elements.app.classList.contains('is-hidden')
+            && !elements.editDialog.open
+            && !elements.regularizeDialog.open
+            && !elements.migrationDialog.open,
+    },
+);
+state.poller.start();

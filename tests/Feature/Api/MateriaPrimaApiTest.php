@@ -24,6 +24,39 @@ class MateriaPrimaApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_resumen_fruta_proceso_agrega_en_base_de_datos_sin_materializar_el_inventario(): void
+    {
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->actingAs($digitador, 'sanctum')
+            ->getJson('/api/materia-prima/fruta-proceso/resumen')
+            ->assertOk();
+
+        $consultas = collect(DB::getQueryLog())
+            ->pluck('query')
+            ->map(fn (string $consulta): string => strtolower(trim($consulta)));
+        DB::disableQueryLog();
+
+        $this->assertFalse($consultas->contains(
+            fn (string $consulta): bool => preg_match(
+                '/^select\s+[`"]?lotes_materia_prima[`"]?\.\*/',
+                $consulta,
+            ) === 1,
+        ));
+        $this->assertFalse($consultas->contains(
+            fn (string $consulta): bool => preg_match(
+                '/^select\s+\*\s+from\s+[`"]?sublotes_retorno_packing[`"]?/',
+                $consulta,
+            ) === 1,
+        ));
+        $this->assertTrue($consultas->contains(
+            fn (string $consulta): bool => str_contains($consulta, 'sum(')
+                && str_contains($consulta, 'lotes_materia_prima'),
+        ));
+    }
+
     public function test_catalogos_usan_etag_y_omiten_relaciones_pesadas_si_no_cambian(): void
     {
         $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);

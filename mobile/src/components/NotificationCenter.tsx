@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -12,6 +11,7 @@ import {
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { AuthSession, OperationalNotification } from '../domain/estiba';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { EstibaApi } from '../services/estibaApi';
 import { colors } from '../theme/colors';
 
@@ -45,24 +45,12 @@ export function NotificationCenter({
 
   useEffect(() => {
     void refreshSummary();
-    const timer = setInterval(() => {
-      if (AppState.currentState !== 'active') return;
-
-      if (visibleRef.current) void refreshFeed(true);
-      else void refreshSummary();
-    }, OPERATIONAL_POLL_INTERVAL_MS);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') return;
-
-      if (visibleRef.current) void refreshFeed(true);
-      else void refreshSummary();
-    });
-
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
   }, []);
+
+  useOperationalPolling(
+    () => visibleRef.current ? refreshFeed(true) : refreshSummary(),
+    { intervalMs: OPERATIONAL_POLL_INTERVAL_MS },
+  );
 
   async function refreshSummary() {
     if (summaryInFlight.current) return;
