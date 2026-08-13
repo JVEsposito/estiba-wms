@@ -88,7 +88,10 @@ class ServicioBinRetornoPacking
     ): BinRetornoPacking {
         return DB::transaction(function () use ($bin, $datos, $usuario): BinRetornoPacking {
             $bin = BinRetornoPacking::query()->lockForUpdate()->findOrFail($bin->id);
-            $payload = $this->payloadModificacion($bin, $datos);
+            $origenesPersistidos = $bin->origenes()
+                ->lockForUpdate()
+                ->get();
+            $payload = $this->payloadModificacion($bin, $datos, $origenesPersistidos);
             $hash = $this->hash($payload);
 
             $modificacionExistente = ModificacionBinRetornoPacking::query()
@@ -116,33 +119,21 @@ class ServicioBinRetornoPacking
                 );
             }
 
-            $origenesPersistidos = $bin->origenes()
-                ->lockForUpdate()
-                ->get();
-            $origenesRecibidos = collect($payload['origenes'])->keyBy('origen_id');
-            if ($origenesPersistidos->count() !== $origenesRecibidos->count()
-                || $origenesPersistidos->contains(
-                    fn (BinRetornoPackingOrigen $origen): bool => ! $origenesRecibidos->has($origen->id),
-                )) {
-                throw ValidationException::withMessages([
-                    'origenes' => 'La corrección debe conservar todos los procesos originales del bin.',
-                ]);
-            }
+            $origenesRecibidos = $this->validarOrigenesModificacion(
+                $payload['origenes'],
+                $origenesPersistidos,
+            );
 
             $this->validarCuadratura(
                 $payload['kilos_totales'],
-                $origenesPersistidos->map(
-                    fn (BinRetornoPackingOrigen $origen): array => [
-                        'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados'],
-                    ],
-                ),
+                $origenesRecibidos,
             );
 
             $regularizado = $bin->regularizado_at !== null;
             $tipo = null;
             if ($regularizado) {
                 $folioOcupado = BinRetornoPacking::query()
-                    ->where('folio_definitivo', $payload['folio_definitivo'])
+                    ->where('folio_definitivo_vigente', $payload['folio_definitivo'])
                     ->whereKeyNot($bin->id)
                     ->exists();
                 if ($folioOcupado) {
@@ -161,9 +152,9 @@ class ServicioBinRetornoPacking
 
                 $this->validarCuadratura(
                     $payload['kilos_totales_definitivos'],
-                    $origenesPersistidos->map(
-                        fn (BinRetornoPackingOrigen $origen): array => [
-                            'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados_definitivos'],
+                    $origenesRecibidos->map(
+                        fn (array $origen): array => [
+                            'kilos_aportados' => $origen['kilos_aportados_definitivos'],
                         ],
                     ),
                 );
@@ -171,15 +162,39 @@ class ServicioBinRetornoPacking
 
             $datosAnteriores = $this->snapshotBin($bin, $origenesPersistidos);
 
+            $origenesActualesPorClave = $origenesPersistidos->keyBy('clave_proceso');
+            $origenesNuevosPorClave = $origenesRecibidos->keyBy('clave_proceso');
             foreach ($origenesPersistidos as $origen) {
+                if (! $origenesNuevosPorClave->has($origen->clave_proceso)) {
+                    $origen->delete();
+                }
+            }
+            foreach ($origenesRecibidos as $origenRecibido) {
                 $datosOrigen = [
-                    'kilos_aportados' => $origenesRecibidos[$origen->id]['kilos_aportados'],
+                    'lote_materia_prima_id' => $origenRecibido['lote_materia_prima_id'],
+                    'numero_lote' => $origenRecibido['numero_lote'],
+                    'numero_orden' => $origenRecibido['numero_orden'],
+                    'linea_proceso' => $origenRecibido['linea_proceso'],
+                    'turno' => $origenRecibido['turno'],
+                    'clave_proceso' => $origenRecibido['clave_proceso'],
+                    'kilos_aportados' => $origenRecibido['kilos_aportados'],
                 ];
                 if ($regularizado) {
                     $datosOrigen['kilos_aportados_definitivos'] =
-                        $origenesRecibidos[$origen->id]['kilos_aportados_definitivos'];
+                        $origenRecibido['kilos_aportados_definitivos'];
                 }
-                $origen->update($datosOrigen);
+
+                $origenExistente = $origenesActualesPorClave->get(
+                    $origenRecibido['clave_proceso'],
+                );
+                if ($origenExistente) {
+                    $origenExistente->update($datosOrigen);
+                } else {
+                    BinRetornoPackingOrigen::create([
+                        'bin_retorno_packing_id' => $bin->id,
+                        ...$datosOrigen,
+                    ]);
+                }
             }
 
             $datosBin = [
@@ -190,6 +205,7 @@ class ServicioBinRetornoPacking
                 $datosBin = [
                     ...$datosBin,
                     'folio_definitivo' => $payload['folio_definitivo'],
+                    'folio_definitivo_vigente' => $payload['folio_definitivo'],
                     'tipo_resultado_packing_id' => $tipo->id,
                     'nombre_resultado' => $payload['nombre_resultado'] ?? $tipo->nombre,
                     'kilos_totales_definitivos' => $payload['kilos_totales_definitivos'],
@@ -263,8 +279,7 @@ class ServicioBinRetornoPacking
             }
 
             $ocupado = BinRetornoPacking::query()
-                ->where('folio_definitivo', $payload['folio_definitivo'])
-                ->whereNull('anulado_at')
+                ->where('folio_definitivo_vigente', $payload['folio_definitivo'])
                 ->whereKeyNot($bin->id)
                 ->exists();
             if ($ocupado) {
@@ -309,6 +324,7 @@ class ServicioBinRetornoPacking
 
             $bin->update([
                 'folio_definitivo' => $payload['folio_definitivo'],
+                'folio_definitivo_vigente' => $payload['folio_definitivo'],
                 'kilos_totales_definitivos' => $payload['kilos_totales_definitivos'],
                 'tipo_resultado_packing_id' => $tipo->id,
                 'nombre_resultado' => $payload['nombre_resultado'] ?? $tipo->nombre,
@@ -365,6 +381,7 @@ class ServicioBinRetornoPacking
 
             $bin->update([
                 'estado' => 'anulado',
+                'folio_definitivo_vigente' => null,
                 'operacion_anulacion_id' => $datos['operacion_id'],
                 'payload_anulacion_hash' => $hash,
                 'anulado_por_user_id' => $usuario->id,
@@ -552,14 +569,46 @@ class ServicioBinRetornoPacking
         ];
     }
 
-    /** @param array<string, mixed> $datos */
-    private function payloadModificacion(BinRetornoPacking $bin, array $datos): array
-    {
+    /**
+     * @param  array<string, mixed>  $datos
+     * @param  Collection<int, BinRetornoPackingOrigen>  $origenesPersistidos
+     * @return array<string, mixed>
+     */
+    private function payloadModificacion(
+        BinRetornoPacking $bin,
+        array $datos,
+        Collection $origenesPersistidos,
+    ): array {
         $regularizado = $bin->regularizado_at !== null;
+        $persistidosPorId = $origenesPersistidos->keyBy('id');
         $origenes = collect($datos['origenes'])
-            ->map(function (array $origen) use ($regularizado): array {
+            ->map(function (array $origen) use ($persistidosPorId, $regularizado): array {
+                $identidadCompleta = filled($origen['lote_materia_prima_id'] ?? null)
+                    && filled($origen['numero_orden'] ?? null)
+                    && filled($origen['linea_proceso'] ?? null)
+                    && filled($origen['turno'] ?? null);
+                $persistido = filled($origen['origen_id'] ?? null)
+                    ? $persistidosPorId->get((string) $origen['origen_id'])
+                    : null;
+                if (! $identidadCompleta && ! $persistido) {
+                    throw ValidationException::withMessages([
+                        'origenes' => 'Selecciona un proceso válido para cada origen del retorno.',
+                    ]);
+                }
+
                 $normalizado = [
-                    'origen_id' => (string) $origen['origen_id'],
+                    'lote_materia_prima_id' => $identidadCompleta
+                        ? (string) $origen['lote_materia_prima_id']
+                        : $persistido->lote_materia_prima_id,
+                    'numero_orden' => trim((string) (
+                        $identidadCompleta ? $origen['numero_orden'] : $persistido->numero_orden
+                    )),
+                    'linea_proceso' => trim((string) (
+                        $identidadCompleta ? $origen['linea_proceso'] : $persistido->linea_proceso
+                    )),
+                    'turno' => mb_strtoupper(trim((string) (
+                        $identidadCompleta ? $origen['turno'] : $persistido->turno
+                    ))),
                     'kilos_aportados' => $this->decimal($origen['kilos_aportados']),
                 ];
                 if ($regularizado) {
@@ -570,7 +619,7 @@ class ServicioBinRetornoPacking
 
                 return $normalizado;
             })
-            ->sortBy('origen_id')
+            ->sortBy(fn (array $origen): string => $this->claveProceso($origen))
             ->values()
             ->all();
 
@@ -597,6 +646,56 @@ class ServicioBinRetornoPacking
         }
 
         return $payload;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $origenes
+     * @param  Collection<int, BinRetornoPackingOrigen>  $origenesPersistidos
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function validarOrigenesModificacion(
+        array $origenes,
+        Collection $origenesPersistidos,
+    ): Collection {
+        $persistidosPorClave = $origenesPersistidos->keyBy('clave_proceso');
+        $vistos = [];
+        $nuevos = [];
+
+        foreach ($origenes as $origen) {
+            $clave = $this->claveProceso($origen);
+            if (isset($vistos[$clave])) {
+                throw ValidationException::withMessages([
+                    'origenes' => 'No repitas el mismo proceso dentro de un bin.',
+                ]);
+            }
+            $vistos[$clave] = true;
+            if (! $persistidosPorClave->has($clave)) {
+                $nuevos[] = $origen;
+            }
+        }
+
+        $nuevosValidados = $this->validarOrigenes($nuevos)->keyBy('clave_proceso');
+
+        return collect($origenes)->map(function (array $origen) use (
+            $persistidosPorClave,
+            $nuevosValidados,
+        ): array {
+            $clave = $this->claveProceso($origen);
+            $persistido = $persistidosPorClave->get($clave);
+            if ($persistido) {
+                return [
+                    ...$origen,
+                    'lote_materia_prima_id' => $persistido->lote_materia_prima_id,
+                    'numero_lote' => $persistido->numero_lote,
+                    'numero_orden' => $persistido->numero_orden,
+                    'linea_proceso' => $persistido->linea_proceso,
+                    'turno' => $persistido->turno,
+                    'clave_proceso' => $clave,
+                ];
+            }
+
+            return $nuevosValidados->get($clave);
+        });
     }
 
     /**

@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\ContenidoCamara;
 use App\Enums\RolUsuario;
 use App\Models\BinRetornoPacking;
+use App\Models\BinRetornoPackingOrigen;
 use App\Models\CalibreValidacion;
 use App\Models\Camara;
 use App\Models\Cliente;
@@ -33,6 +34,7 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertTrue(Schema::hasTable('bin_retorno_packing_origenes'));
         $this->assertTrue(Schema::hasTable('regularizaciones_retorno_packing_legacy'));
         $this->assertTrue(Schema::hasTable('modificaciones_bin_retorno_packing'));
+        $this->assertTrue(Schema::hasColumn('bins_retorno_packing', 'folio_definitivo_vigente'));
         $this->assertTrue(Schema::hasColumns('bins_retorno_packing', [
             'temporada_id',
             'folio_provisional',
@@ -388,6 +390,65 @@ class BinRetornoPackingApiTest extends TestCase
         ]);
     }
 
+    public function test_modifica_los_procesos_de_origen_y_conserva_ambas_versiones_en_auditoria(): void
+    {
+        $principal = $this->prepararEntrega('ORIGEN-PRINCIPAL', 'OP-ORIGEN-001');
+        $adicional = $this->prepararEntrega('ORIGEN-ADICIONAL', 'OP-ORIGEN-002');
+        $bin = $this->actingAs($principal['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($principal, (string) Str::uuid(), 508),
+            )
+            ->assertCreated()
+            ->json('data');
+
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'motivo' => 'El retorno provenía de dos procesos y faltaba registrar el segundo.',
+            'kilos_totales' => 508,
+            'observacion' => 'Folio del bin: 31804',
+            'origenes' => [
+                [
+                    'origen_id' => $bin['origenes'][0]['id'],
+                    ...$this->origen($principal, 408),
+                ],
+                $this->origen($adicional, 100),
+            ],
+        ];
+
+        $this->actingAs($principal['supervisor'], 'sanctum')
+            ->putJson(
+                "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$bin['id']}",
+                $payload,
+            )
+            ->assertOk()
+            ->assertJsonCount(2, 'data.origenes')
+            ->assertJsonPath('data.kilos_totales', 508);
+
+        $this->assertSame(
+            2,
+            BinRetornoPackingOrigen::query()
+                ->where('bin_retorno_packing_id', $bin['id'])
+                ->count(),
+        );
+        $this->assertDatabaseHas('bin_retorno_packing_origenes', [
+            'bin_retorno_packing_id' => $bin['id'],
+            'numero_orden' => $principal['numero_orden'],
+            'kilos_aportados' => 408,
+        ]);
+        $this->assertDatabaseHas('bin_retorno_packing_origenes', [
+            'bin_retorno_packing_id' => $bin['id'],
+            'numero_orden' => $adicional['numero_orden'],
+            'kilos_aportados' => 100,
+        ]);
+
+        $modificacion = ModificacionBinRetornoPacking::query()
+            ->where('operacion_id', $payload['operacion_id'])
+            ->firstOrFail();
+        $this->assertCount(1, $modificacion->datos_anteriores['origenes']);
+        $this->assertCount(2, $modificacion->datos_nuevos['origenes']);
+    }
+
     public function test_anula_retorno_sin_borrarlo_y_exige_idempotencia_estricta(): void
     {
         $contexto = $this->prepararEntrega('ANULAR', 'OP-BIN-ANULAR');
@@ -436,6 +497,77 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('bins_registrados', 0)
             ->assertJsonPath('kilos_registrados', 0);
+    }
+
+    public function test_anular_libera_el_folio_definitivo_sin_borrar_el_historial(): void
+    {
+        $original = $this->prepararEntrega('FOLIO-ORIGINAL', 'OP-FOLIO-001');
+        $reingreso = $this->prepararEntrega('FOLIO-REINGRESO', 'OP-FOLIO-002');
+        $tipo = TipoResultadoPacking::query()->where('activo', true)->firstOrFail();
+        $primerBin = $this->actingAs($original['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($original, (string) Str::uuid(), 508),
+            )
+            ->assertCreated()
+            ->json('data');
+        $rutaPrimerBin = "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$primerBin['id']}";
+
+        $this->postJson("{$rutaPrimerBin}/regularizar", [
+            'operacion_id' => (string) Str::uuid(),
+            'folio_definitivo' => '31804',
+            'tipo_resultado_packing_id' => $tipo->id,
+            'kilos_totales_definitivos' => 508,
+            'origenes' => [[
+                'origen_id' => $primerBin['origenes'][0]['id'],
+                'kilos_aportados_definitivos' => 508,
+            ]],
+        ])->assertOk();
+        $this->actingAs($original['supervisor'], 'sanctum')
+            ->postJson("{$rutaPrimerBin}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'El retorno estaba asociado a un solo proceso por error.',
+            ])
+            ->assertOk();
+
+        $segundoBin = $this->actingAs($reingreso['camarero'], 'sanctum')
+            ->postJson(
+                '/api/materia-prima/fruta-proceso/retornos-bin/bins',
+                $this->payloadBin($reingreso, (string) Str::uuid(), 508),
+            )
+            ->assertCreated()
+            ->json('data');
+        $this->postJson(
+            "/api/materia-prima/fruta-proceso/retornos-bin/bins/{$segundoBin['id']}/regularizar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'folio_definitivo' => '31804',
+                'tipo_resultado_packing_id' => $tipo->id,
+                'kilos_totales_definitivos' => 508,
+                'origenes' => [[
+                    'origen_id' => $segundoBin['origenes'][0]['id'],
+                    'kilos_aportados_definitivos' => 508,
+                ]],
+            ],
+        )->assertOk()
+            ->assertJsonPath('data.folio_definitivo', '31804');
+
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $primerBin['id'],
+            'estado' => 'anulado',
+            'folio_definitivo' => '31804',
+            'folio_definitivo_vigente' => null,
+        ]);
+        $this->assertDatabaseHas('bins_retorno_packing', [
+            'id' => $segundoBin['id'],
+            'estado' => 'regularizado',
+            'folio_definitivo' => '31804',
+            'folio_definitivo_vigente' => '31804',
+        ]);
+        $this->assertSame(
+            2,
+            BinRetornoPacking::query()->where('folio_definitivo', '31804')->count(),
+        );
     }
 
     public function test_migra_y_descarta_legado_con_auditoria_cuadratura_e_idempotencia(): void
@@ -531,6 +663,8 @@ class BinRetornoPackingApiTest extends TestCase
             ->assertSee('Folio, observación, lote u orden')
             ->assertSee('Guardar modificación')
             ->assertSee('Motivo de la corrección')
+            ->assertSee('Agregar proceso')
+            ->assertSee('Puedes agregar, quitar o reemplazar procesos de origen')
             ->assertSee('Pendientes de regularizar')
             ->assertSee('Registros anteriores')
             ->assertSee('Kilos totales definitivos')
@@ -549,6 +683,8 @@ class BinRetornoPackingApiTest extends TestCase
         $this->assertStringContainsString('Anular retorno', $script);
         $this->assertStringContainsString('data-annul-bin', $script);
         $this->assertStringContainsString('data-edit-bin', $script);
+        $this->assertStringContainsString('data-remove-edit-origin', $script);
+        $this->assertStringContainsString('lote_materia_prima_id: origin.lote_materia_prima_id', $script);
         $this->assertStringContainsString("method: 'PUT'", $script);
         $this->assertStringNotContainsString('state.bins.slice(0, 8)', $script);
     }

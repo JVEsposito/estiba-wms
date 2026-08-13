@@ -311,6 +311,7 @@ class BinRetornoPackingController extends Controller
             'nombre_resultado' => $bin->nombre_resultado,
             'origenes' => $bin->origenes->map(fn ($origen): array => [
                 'id' => $origen->id,
+                'clave' => $origen->clave_proceso,
                 'lote_materia_prima_id' => $origen->lote_materia_prima_id,
                 'numero_lote' => $origen->numero_lote ?: $origen->lote?->numero_lote,
                 'numero_orden' => $origen->numero_orden,

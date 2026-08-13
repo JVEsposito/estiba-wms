@@ -32,11 +32,19 @@ class ModificarBinRetornoPackingRequest extends FormRequest
             'observacion' => ['nullable', 'string', 'max:2000'],
             'origenes' => ['required', 'array', 'min:1', 'max:20'],
             'origenes.*.origen_id' => [
-                'required',
+                'nullable',
                 'uuid',
                 'distinct',
                 Rule::exists('bin_retorno_packing_origenes', 'id'),
             ],
+            'origenes.*.lote_materia_prima_id' => [
+                'nullable',
+                'uuid',
+                Rule::exists('lotes_materia_prima', 'id'),
+            ],
+            'origenes.*.numero_orden' => ['nullable', 'string', 'max:100'],
+            'origenes.*.linea_proceso' => ['nullable', 'string', 'max:100'],
+            'origenes.*.turno' => ['nullable', 'string', 'max:20'],
             'origenes.*.kilos_aportados' => [
                 'required',
                 'numeric',

@@ -85,10 +85,13 @@
 .migration-origins, .edit-origins, .edit-definitive { display: grid; gap: 8px; }
 .migration-origin { grid-template-columns: minmax(0, 1fr) 180px; }
 .edit-definitive.is-hidden { display: none; }
-.edit-origin { display: grid; grid-template-columns: minmax(0, 1fr) 170px 170px; gap: 10px; align-items: end; border: 1px solid #27404f; border-radius: 8px; padding: 10px; background: #0c1922; }
+.edit-origin-add { min-width: 0; margin: 8px 0 10px; }
+.edit-origin { display: grid; grid-template-columns: minmax(0, 1fr) 150px 150px 44px; gap: 10px; align-items: end; border: 1px solid #27404f; border-radius: 8px; padding: 10px; background: #0c1922; }
+.edit-origin.is-pending { grid-template-columns: minmax(0, 1fr) 170px 44px; }
 .edit-origin__identity, .edit-origin label { display: grid; gap: 5px; min-width: 0; }
 .edit-origin__identity strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .edit-origin__identity small { color: #7fa1b4; }
+.edit-origin > button { border: 1px solid #70434a; background: #27171b; color: #ff9da7; border-radius: 7px; height: 38px; }
 .edit-scope-notice { border: 1px solid #695827; background: #251f0e; color: #e4c96f; border-radius: 8px; padding: 11px 13px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .form-error { min-height: 18px; color: #ff8d99; margin: 0; }

@@ -14,6 +14,7 @@ const elements = {
     editDialog: byId('editBinDialog'), editForm: byId('editBinForm'), editTitle: byId('editBinTitle'),
     editDescription: byId('editBinDescription'), editError: byId('editBinError'), editGreenTotal: byId('editGreenTotalKilos'),
     editObservation: byId('editBinObservation'), editOrigins: byId('editBinOrigins'), editGreenBalance: byId('editGreenBalance'),
+    editProcessSelect: byId('editProcessSelect'), editAddOrigin: byId('editAddOriginButton'),
     editDefinitiveSection: byId('editDefinitiveSection'), editDefinitiveTotal: byId('editDefinitiveTotalKilos'),
     editDefinitiveBalance: byId('editDefinitiveBalance'),
     regularizeDialog: byId('regularizeDialog'), regularizeForm: byId('regularizeForm'), regularizeTitle: byId('regularizeTitle'),
@@ -28,7 +29,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), section: 'recepcion',
-    summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], selectedBin: null, selectedLegacy: null,
+    summary: {}, processes: [], bins: [], legacy: [], catalogs: { tipos_resultado: [] }, origins: [], editOrigins: [], selectedBin: null, selectedLegacy: null,
     regularizationOperationId: null, editOperationId: null, poller: null,
 };
 
@@ -270,11 +271,17 @@ function openEdit(id) {
     elements.editForm.elements.bin_id.value = bin.id;
     elements.editTitle.textContent = `Modificar ${bin.folio_provisional}`;
     elements.editDescription.textContent = regularized
-        ? 'Corrige los datos verdes y definitivos. El folio provisional y los procesos asociados se conservarán.'
-        : 'Corrige los kilos verdes o la observación antes de regularizar. Los procesos asociados se conservarán.';
+        ? 'Corrige los procesos de origen, los datos verdes y los definitivos. El folio provisional se conservará.'
+        : 'Corrige los procesos de origen, los kilos verdes o la observación antes de regularizar.';
     elements.editGreenTotal.value = bin.kilos_totales_verdes ?? bin.kilos_totales;
     elements.editObservation.value = bin.observacion || '';
     elements.editDefinitiveSection.classList.toggle('is-hidden', !regularized);
+    state.editOrigins = bin.origenes.map((origin) => ({
+        ...origin,
+        clave: origin.clave,
+        kilos_aportados: origin.kilos_aportados_verdes ?? origin.kilos_aportados,
+        kilos_aportados_definitivos: origin.kilos_aportados_definitivos ?? '',
+    }));
 
     const types = [...state.catalogs.tipos_resultado];
     if (regularized && bin.tipo_resultado && !types.some((type) => type.id === bin.tipo_resultado.id)) {
@@ -286,18 +293,67 @@ function openEdit(id) {
     elements.editForm.elements.nombre_resultado.value = regularized ? (bin.nombre_resultado || '') : '';
     elements.editDefinitiveTotal.value = regularized ? (bin.kilos_totales_definitivos ?? '') : '';
 
-    elements.editOrigins.innerHTML = bin.origenes.map((origin) => `<div class="edit-origin" data-edit-origin-id="${escapeHtml(origin.id)}"><div class="edit-origin__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>El proceso de origen se conserva para mantener la trazabilidad.</small></div><label><span>Kg verdes</span><input data-edit-green-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_verdes ?? origin.kilos_aportados)}"></label>${regularized ? `<label><span>Kg definitivos</span><input data-edit-definitive-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_definitivos ?? '')}"></label>` : ''}</div>`).join('');
     elements.editError.textContent = '';
-    renderEditBalances();
+    renderEditOriginRows();
     elements.editDialog.showModal();
 }
+
+function renderEditProcessSelect() {
+    const selectedKeys = new Set(state.editOrigins.map((origin) => origin.clave));
+    const available = state.processes.filter((process) => !selectedKeys.has(process.clave));
+    elements.editProcessSelect.innerHTML = available.length
+        ? `<option value="">Seleccionar proceso para agregar</option>${available.map((process) => `<option value="${escapeHtml(process.clave)}">${escapeHtml(processLabel(process))}</option>`).join('')}`
+        : '<option value="">No quedan procesos disponibles</option>';
+}
+
+function syncEditOriginValues() {
+    state.editOrigins.forEach((origin) => {
+        const row = elements.editOrigins.querySelector(
+            `[data-edit-origin-key="${CSS.escape(origin.clave)}"]`,
+        );
+        if (!row) return;
+        origin.kilos_aportados = row.querySelector('[data-edit-green-kilos]')?.value || '';
+        origin.kilos_aportados_definitivos =
+            row.querySelector('[data-edit-definitive-kilos]')?.value || '';
+    });
+}
+
+function renderEditOriginRows() {
+    const regularized = state.selectedBin?.estado === 'regularizado'
+        && Boolean(state.selectedBin?.regularizado_at);
+    elements.editOrigins.innerHTML = state.editOrigins.length
+        ? state.editOrigins.map((origin) => `<div class="edit-origin${regularized ? '' : ' is-pending'}" data-edit-origin-key="${escapeHtml(origin.clave)}"><div class="edit-origin__identity"><strong>${escapeHtml(processLabel(origin))}</strong><small>${origin.id ? 'Origen registrado' : 'Nuevo origen agregado en esta corrección'}</small></div><label><span>Kg verdes</span><input data-edit-green-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados ?? '')}"></label>${regularized ? `<label><span>Kg definitivos</span><input data-edit-definitive-kilos type="number" min="0.001" max="999999999.999" step="0.001" inputmode="decimal" value="${escapeHtml(origin.kilos_aportados_definitivos ?? '')}"></label>` : ''}<button data-remove-edit-origin type="button" aria-label="Quitar proceso">×</button></div>`).join('')
+        : '<div class="return-empty">Agrega al menos un proceso de origen.</div>';
+    renderEditProcessSelect();
+    renderEditBalances();
+}
+
+function addEditOrigin() {
+    syncEditOriginValues();
+    const process = state.processes.find(
+        (item) => item.clave === elements.editProcessSelect.value,
+    );
+    if (!process) return;
+    state.editOrigins.push({
+        ...process,
+        id: null,
+        kilos_aportados: '',
+        kilos_aportados_definitivos: '',
+    });
+    renderEditOriginRows();
+}
+
 function editOriginsPayload() {
     if (!state.selectedBin) return [];
     const regularized = state.selectedBin.estado === 'regularizado' && Boolean(state.selectedBin.regularizado_at);
-    return state.selectedBin.origenes.map((origin) => {
-        const row = elements.editOrigins.querySelector(`[data-edit-origin-id="${CSS.escape(origin.id)}"]`);
+    return state.editOrigins.map((origin) => {
+        const row = elements.editOrigins.querySelector(`[data-edit-origin-key="${CSS.escape(origin.clave)}"]`);
         const payload = {
-            origen_id: origin.id,
+            origen_id: origin.id || null,
+            lote_materia_prima_id: origin.lote_materia_prima_id,
+            numero_orden: origin.numero_orden,
+            linea_proceso: origin.linea_proceso,
+            turno: origin.turno,
             kilos_aportados: Number(row?.querySelector('[data-edit-green-kilos]')?.value || 0),
         };
         if (regularized) {
@@ -385,6 +441,7 @@ async function submitEdit() {
         });
         elements.editDialog.close();
         state.editOperationId = null;
+        state.editOrigins = [];
         toast(`${bin.folio_provisional} fue modificado y el cambio quedó auditado.`);
         await load({ silent: true });
     } catch (error) {
@@ -527,6 +584,17 @@ function handleBinAction(event) {
 }
 elements.recentBins.addEventListener('click', handleBinAction);
 elements.pendingList.addEventListener('click', handleBinAction);
+elements.editAddOrigin.addEventListener('click', addEditOrigin);
+elements.editOrigins.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-edit-origin]');
+    if (!remove) return;
+    syncEditOriginValues();
+    const row = remove.closest('[data-edit-origin-key]');
+    state.editOrigins = state.editOrigins.filter(
+        (origin) => origin.clave !== row.dataset.editOriginKey,
+    );
+    renderEditOriginRows();
+});
 elements.editOrigins.addEventListener('input', renderEditBalances);
 elements.editGreenTotal.addEventListener('input', renderEditBalances);
 elements.editDefinitiveTotal.addEventListener('input', renderEditBalances);
@@ -535,6 +603,7 @@ elements.editForm.addEventListener('submit', (event) => {
     if (event.submitter?.value === 'cancel') {
         elements.editDialog.close();
         state.editOperationId = null;
+        state.editOrigins = [];
         return;
     }
     void submitEdit();
