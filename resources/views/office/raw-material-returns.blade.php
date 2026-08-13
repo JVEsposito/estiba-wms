@@ -128,7 +128,13 @@
                     <label class="field-wide"><span>Observación</span><textarea name="observacion" id="editBinObservation" maxlength="2000" placeholder="Opcional"></textarea></label>
                 </div>
                 <div>
-                    <p class="eyebrow">KILOS VERDES POR PROCESO</p>
+                    <p class="eyebrow">PROCESOS DE ORIGEN Y KILOS VERDES</p>
+                    <div class="origin-add edit-origin-add">
+                        <select id="editProcessSelect" aria-label="Proceso de origen para agregar">
+                            <option value="">Seleccionar proceso para agregar</option>
+                        </select>
+                        <button class="secondary-button" id="editAddOriginButton" type="button">Agregar proceso</button>
+                    </div>
                     <div class="edit-origins" id="editBinOrigins"></div>
                     <div class="origin-balance" id="editGreenBalance"><span>Distribuido</span><strong>0,000 / 0,000 kg</strong><small>Completa la cuadratura</small></div>
                 </div>
@@ -142,7 +148,7 @@
                     <div class="origin-balance" id="editDefinitiveBalance"><span>Distribuido</span><strong>0,000 / 0,000 kg</strong><small>Completa la cuadratura</small></div>
                 </section>
                 <label class="migration-reason"><span>Motivo de la corrección *</span><textarea name="motivo" maxlength="2000" minlength="5" required placeholder="Explica brevemente qué dato estaba incorrecto"></textarea></label>
-                <div class="edit-scope-notice">El folio provisional y los procesos de origen no cambian. Si el proceso asociado es incorrecto, anula el retorno y vuelve a ingresarlo.</div>
+                <div class="edit-scope-notice">El folio provisional no cambia. Puedes agregar, quitar o reemplazar procesos de origen; el estado anterior y el nuevo quedarán guardados en el historial de la corrección.</div>
                 <p class="form-error" id="editBinError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Guardar modificación</button></div>
             </form>
