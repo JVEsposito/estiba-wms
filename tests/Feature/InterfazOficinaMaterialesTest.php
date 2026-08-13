@@ -225,6 +225,7 @@ class InterfazOficinaMaterialesTest extends TestCase
 
         $office = file_get_contents(resource_path('js/office-materials.js'));
         $mobilePolling = file_get_contents(base_path('mobile/src/config/polling.ts'));
+        $operationalPolling = file_get_contents(base_path('mobile/src/hooks/useOperationalPolling.ts'));
         $operationalScreen = file_get_contents(base_path('mobile/src/screens/OperationalScreen.tsx'));
         $materialDispatchOperation = file_get_contents(
             base_path('mobile/src/components/MaterialDispatchOperation.tsx'),
@@ -253,8 +254,10 @@ class InterfazOficinaMaterialesTest extends TestCase
 
         $this->assertIsString($mobilePolling);
         $this->assertStringContainsString('OPERATIONAL_POLL_INTERVAL_MS = 30_000', $mobilePolling);
+        $this->assertIsString($operationalPolling);
+        $this->assertStringContainsString('AppState.currentState', $operationalPolling);
         $this->assertIsString($operationalScreen);
-        $this->assertStringContainsString('AppState.currentState', $operationalScreen);
+        $this->assertStringContainsString('useOperationalPolling(', $operationalScreen);
         $this->assertIsString($materialDispatchOperation);
         $this->assertStringContainsString(
             'api.listMaterialDispatchSummaries(auth.token, ALL_STATES)',

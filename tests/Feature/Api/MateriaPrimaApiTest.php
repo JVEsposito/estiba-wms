@@ -26,11 +26,11 @@ class MateriaPrimaApiTest extends TestCase
 
     public function test_resumen_fruta_proceso_agrega_en_base_de_datos_sin_materializar_el_inventario(): void
     {
-        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
 
         DB::enableQueryLog();
         DB::flushQueryLog();
-        $this->actingAs($digitador, 'sanctum')
+        $this->actingAs($camarero, 'sanctum')
             ->getJson('/api/materia-prima/fruta-proceso/resumen')
             ->assertOk();
 

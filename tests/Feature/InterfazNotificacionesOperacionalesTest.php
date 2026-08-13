@@ -18,11 +18,7 @@ class InterfazNotificacionesOperacionalesTest extends TestCase
             $componente,
         );
         $this->assertStringContainsString(
-            'if (visibleRef.current) void refreshFeed(true)',
-            $componente,
-        );
-        $this->assertStringContainsString(
-            'else void refreshSummary()',
+            '() => visibleRef.current ? refreshFeed(true) : refreshSummary()',
             $componente,
         );
         $this->assertStringContainsString(
