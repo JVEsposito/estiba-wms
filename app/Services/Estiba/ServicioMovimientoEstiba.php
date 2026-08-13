@@ -3,6 +3,7 @@
 namespace App\Services\Estiba;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoIntegracionFolio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoOperacionSincronizacion;
@@ -21,6 +22,8 @@ use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Cargas\ServicioTareasCarga;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use BackedEnum;
 use DateTimeInterface;
 use DomainException;
@@ -50,6 +53,7 @@ class ServicioMovimientoEstiba
     public function __construct(
         private readonly DetectorAdvertenciasMovimiento $detectorAdvertencias,
         private readonly ServicioTareasCarga $servicioTareasCarga,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /**
@@ -303,7 +307,23 @@ class ServicioMovimientoEstiba
                 ]);
 
                 try {
-                    $movimiento = DB::transaction(
+                    $movimiento = $this->motorTransiciones->ejecutar(
+                        new ComandoTransicionOperacional(
+                            dominio: DominioTransicionOperacional::Estiba,
+                            tipo: $tipo->value,
+                            usuario: $usuario,
+                            payload: $payloadNormalizado,
+                            operacionId: $operacionId,
+                            dispositivo: $dispositivo,
+                            sujetoTipo: Folio::class,
+                            sujetoId: isset($payloadNormalizado['folio_id'])
+                                ? (string) $payloadNormalizado['folio_id']
+                                : null,
+                            referencia: isset($payloadNormalizado['numero_folio'])
+                                ? (string) $payloadNormalizado['numero_folio']
+                                : null,
+                            ocurridoAt: $generadoDispositivoAt,
+                        ),
                         fn (): Movimiento => $procesar(
                             $operacion,
                             $operacion->recibida_servidor_at,

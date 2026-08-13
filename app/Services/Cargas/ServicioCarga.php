@@ -3,6 +3,7 @@
 namespace App\Services\Cargas;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
@@ -23,6 +24,9 @@ use App\Models\ReservaCargaFolio;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Temporadas\ServicioTemporadaActiva;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
+use Closure;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +38,7 @@ class ServicioCarga
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioTareasCarga $servicioTareas,
         private readonly ServicioTemporadaActiva $temporadaActiva,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /**
@@ -43,7 +48,7 @@ class ServicioCarga
     {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use ($datos, $usuario): Carga {
+        $accion = function () use ($datos, $usuario): Carga {
             $temporada = $this->temporadaActiva->obtener(bloquear: true);
             $camaraObjetivoId = $datos['camara_objetivo_id'] ?? null;
             $this->asegurarCamaraObjetivoValida($camaraObjetivoId);
@@ -69,7 +74,15 @@ class ServicioCarga
             $this->registrarEvento($carga, TipoEventoCarga::Creada, $usuario);
 
             return $carga;
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'crear',
+            $usuario,
+            $datos,
+            $accion,
+            referencia: $datos['numero_orden_externa'] ?? null,
+        );
     }
 
     /**
@@ -83,7 +96,7 @@ class ServicioCarga
     ): Carga {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use ($carga, $datos, $usuario, $versionEsperada): Carga {
+        $accion = function () use ($carga, $datos, $usuario, $versionEsperada): Carga {
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarEditable($cargaBloqueada);
             $this->asegurarVersion($cargaBloqueada, $versionEsperada);
@@ -121,7 +134,15 @@ class ServicioCarga
             );
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'actualizar',
+            $usuario,
+            [...$datos, 'version_esperada' => $versionEsperada],
+            $accion,
+            $carga,
+        );
     }
 
     /**
@@ -135,7 +156,7 @@ class ServicioCarga
     ): Carga {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $carga,
             $numerosFolio,
             $usuario,
@@ -271,7 +292,19 @@ class ServicioCarga
             }
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'asignar_folios',
+            $usuario,
+            [
+                'carga_id' => $carga->id,
+                'folios' => $numerosFolio,
+                'version_esperada' => $versionEsperada,
+            ],
+            $accion,
+            $carga,
+        );
     }
 
     public function quitarFolio(
@@ -283,7 +316,7 @@ class ServicioCarga
     ): Carga {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $carga,
             $folio,
             $usuario,
@@ -315,7 +348,7 @@ class ServicioCarga
                 );
             }
 
-            $asignacion->reservaActiva()->delete();
+            $asignacion->reservaActiva()->lockForUpdate()->first()?->delete();
             $asignacion->update([
                 'estado' => EstadoCargaFolio::Descartado,
                 'finalizado_por_user_id' => $usuario->id,
@@ -336,7 +369,20 @@ class ServicioCarga
             }
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'desasignar_folio',
+            $usuario,
+            [
+                'carga_id' => $carga->id,
+                'folio_id' => $folio->id,
+                'version_esperada' => $versionEsperada,
+                'motivo' => $motivo,
+            ],
+            $accion,
+            $carga,
+        );
     }
 
     public function publicar(
@@ -346,7 +392,7 @@ class ServicioCarga
     ): Carga {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use ($carga, $usuario, $versionEsperada): Carga {
+        $accion = function () use ($carga, $usuario, $versionEsperada): Carga {
             $cargaBloqueada = $this->bloquearCarga($carga);
             $this->asegurarBorrador($cargaBloqueada);
             $this->asegurarVersion($cargaBloqueada, $versionEsperada);
@@ -434,7 +480,15 @@ class ServicioCarga
             );
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'publicar',
+            $usuario,
+            ['carga_id' => $carga->id, 'version_esperada' => $versionEsperada],
+            $accion,
+            $carga,
+        );
     }
 
     public function cancelar(
@@ -445,7 +499,7 @@ class ServicioCarga
     ): Carga {
         $this->asegurarGestionAutorizada($usuario);
 
-        return DB::transaction(function () use (
+        $accion = function () use (
             $carga,
             $usuario,
             $versionEsperada,
@@ -492,7 +546,7 @@ class ServicioCarga
                     ],
                 );
 
-                $asignacion->reservaActiva()->delete();
+                $asignacion->reservaActiva()->lockForUpdate()->first()?->delete();
                 $asignacion->update([
                     'estado' => EstadoCargaFolio::Descartado,
                     'finalizado_por_user_id' => $usuario->id,
@@ -518,7 +572,44 @@ class ServicioCarga
             $this->servicioTareas->sincronizar($cargaBloqueada);
 
             return $cargaBloqueada->refresh();
-        }, attempts: 3);
+        };
+
+        return $this->transicionar(
+            'cancelar',
+            $usuario,
+            [
+                'carga_id' => $carga->id,
+                'version_esperada' => $versionEsperada,
+                'motivo' => $motivo,
+            ],
+            $accion,
+            $carga,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function transicionar(
+        string $tipo,
+        User $usuario,
+        array $payload,
+        Closure $accion,
+        ?Carga $carga = null,
+        ?string $referencia = null,
+    ): mixed {
+        return $this->motorTransiciones->ejecutar(
+            new ComandoTransicionOperacional(
+                dominio: DominioTransicionOperacional::Cargas,
+                tipo: $tipo,
+                usuario: $usuario,
+                payload: $payload,
+                sujetoTipo: Carga::class,
+                sujetoId: $carga ? (string) $carga->id : null,
+                referencia: $carga?->codigo ?? $referencia,
+            ),
+            $accion,
+        );
     }
 
     private function asegurarGestionAutorizada(User $usuario): void

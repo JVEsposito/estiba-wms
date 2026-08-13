@@ -3,6 +3,7 @@
 namespace App\Services\Prefrio;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoAdministrativoTunelPrefrio;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
@@ -25,6 +26,8 @@ use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use App\Services\Temporadas\ServicioTemporadaActiva;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use DomainException;
@@ -38,6 +41,7 @@ class ServicioProcesoPrefrio
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
         private readonly ServicioTemporadaActiva $temporadaActiva,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /**
@@ -63,7 +67,18 @@ class ServicioProcesoPrefrio
         unset($payloadCompatible['ocurrido_at']);
         $payloadHashCompatible = $this->calcularHash($payloadCompatible);
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Prefrio,
+            tipo: 'proceso.crear',
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $operacionId,
+            dispositivo: $dispositivo,
+            sujetoTipo: ProcesoPrefrio::class,
+            referencia: (string) $datos['tunel_prefrio_id'],
+            ocurridoAt: CarbonImmutable::parse($datos['ocurrido_at']),
+        );
+        $accion = function () use (
             $datos,
             $usuario,
             $dispositivo,
@@ -127,7 +142,9 @@ class ServicioProcesoPrefrio
             ]);
 
             return $this->cargar($proceso->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accion);
     }
 
     /**
@@ -646,7 +663,19 @@ class ServicioProcesoPrefrio
         ]);
         $payloadHash = $this->calcularHash($payload);
 
-        return DB::transaction(function () use (
+        $comando = new ComandoTransicionOperacional(
+            dominio: DominioTransicionOperacional::Prefrio,
+            tipo: 'proceso.'.$tipo->value,
+            usuario: $usuario,
+            payload: $payload,
+            operacionId: $operacionId,
+            dispositivo: $dispositivo,
+            sujetoTipo: ProcesoPrefrio::class,
+            sujetoId: (string) $proceso->id,
+            referencia: $proceso->codigo,
+            ocurridoAt: CarbonImmutable::parse($datos['ocurrido_at']),
+        );
+        $accionTransicion = function () use (
             $proceso,
             $tipo,
             $datos,
@@ -702,7 +731,9 @@ class ServicioProcesoPrefrio
             ]);
 
             return $this->cargar($procesoBloqueado->refresh());
-        }, attempts: 3);
+        };
+
+        return $this->motorTransiciones->ejecutar($comando, $accionTransicion);
     }
 
     private function siguienteCodigo(): string

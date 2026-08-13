@@ -2,6 +2,7 @@
 
 namespace App\Services\InspeccionSag;
 
+use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoFolioInspeccionSag;
 use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\EstadoOperacionalFolio;
@@ -20,9 +21,11 @@ use App\Models\Pais;
 use App\Models\ResultadoDestinoInspeccionSag;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Transiciones\ComandoTransicionOperacional;
+use App\Services\Transiciones\MotorTransicionesOperacionales;
+use Closure;
 use DomainException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ServicioInspeccionSag
@@ -30,14 +33,22 @@ class ServicioInspeccionSag
     public function __construct(
         private readonly ServicioEstadoSagFolio $estadoSag,
         private readonly ServicioCorrelativoInspeccionSag $correlativos,
+        private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
     /** @param array<string, mixed> $datos */
     public function crear(array $datos, User $usuario): LoteInspeccionSag
     {
-        return DB::transaction(function () use ($datos, $usuario): LoteInspeccionSag {
-            $operacionId = $datos['operacion_id'] ?? (string) Str::uuid();
-            $hash = hash('sha256', json_encode(Arr::except($datos, ['operacion_id']), JSON_THROW_ON_ERROR));
+        $operacionId = $datos['operacion_id'] ?? (string) Str::uuid();
+        $payload = Arr::except($datos, ['operacion_id']);
+        $hash = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
+
+        $accion = function () use (
+            $datos,
+            $usuario,
+            $operacionId,
+            $hash,
+        ): LoteInspeccionSag {
             $existente = LoteInspeccionSag::query()->where('operacion_id', $operacionId)->first();
 
             if ($existente) {
@@ -145,12 +156,20 @@ class ServicioInspeccionSag
             }
 
             return $this->cargar($lote);
-        });
+        };
+
+        return $this->transicionar(
+            'lote.crear',
+            $usuario,
+            $payload,
+            $accion,
+            operacionId: $operacionId,
+        );
     }
 
     public function iniciar(LoteInspeccionSag $lote, User $usuario): LoteInspeccionSag
     {
-        return DB::transaction(function () use ($lote, $usuario): LoteInspeccionSag {
+        $accion = function () use ($lote, $usuario): LoteInspeccionSag {
             $lote = LoteInspeccionSag::query()->lockForUpdate()->findOrFail($lote->id);
             $this->exigirEstado($lote, [EstadoLoteInspeccionSag::Preparacion]);
             $lote->update([
@@ -160,7 +179,15 @@ class ServicioInspeccionSag
             ]);
 
             return $this->cargar($lote);
-        });
+        };
+
+        return $this->transicionar(
+            'lote.iniciar',
+            $usuario,
+            ['lote_id' => $lote->id],
+            $accion,
+            $lote,
+        );
     }
 
     /** @param array<string, mixed> $datos */
@@ -170,7 +197,7 @@ class ServicioInspeccionSag
         array $datos,
         User $usuario,
     ): LoteInspeccionSag {
-        return DB::transaction(function () use ($lote, $resultado, $datos, $usuario): LoteInspeccionSag {
+        $accion = function () use ($lote, $resultado, $datos, $usuario): LoteInspeccionSag {
             $lote = LoteInspeccionSag::query()->lockForUpdate()->findOrFail($lote->id);
             $this->exigirEstado($lote, [
                 EstadoLoteInspeccionSag::EnInspeccion,
@@ -233,12 +260,24 @@ class ServicioInspeccionSag
             $lote->update(['estado' => EstadoLoteInspeccionSag::ResultadoParcial]);
 
             return $this->cargar($lote);
-        });
+        };
+
+        return $this->transicionar(
+            'destino.resolver',
+            $usuario,
+            [
+                'lote_id' => $lote->id,
+                'resultado_destino_id' => $resultado->id,
+                'datos' => $datos,
+            ],
+            $accion,
+            $lote,
+        );
     }
 
     public function finalizar(LoteInspeccionSag $lote, User $usuario): LoteInspeccionSag
     {
-        return DB::transaction(function () use ($lote, $usuario): LoteInspeccionSag {
+        $accion = function () use ($lote, $usuario): LoteInspeccionSag {
             $lote = LoteInspeccionSag::query()->lockForUpdate()->findOrFail($lote->id);
             $this->exigirEstado($lote, [
                 EstadoLoteInspeccionSag::EnInspeccion,
@@ -257,12 +296,20 @@ class ServicioInspeccionSag
             ]);
 
             return $this->cargar($lote);
-        });
+        };
+
+        return $this->transicionar(
+            'lote.finalizar',
+            $usuario,
+            ['lote_id' => $lote->id],
+            $accion,
+            $lote,
+        );
     }
 
     public function cancelar(LoteInspeccionSag $lote, User $usuario): LoteInspeccionSag
     {
-        return DB::transaction(function () use ($lote, $usuario): LoteInspeccionSag {
+        $accion = function () use ($lote, $usuario): LoteInspeccionSag {
             $lote = LoteInspeccionSag::query()->lockForUpdate()->findOrFail($lote->id);
 
             if (! $lote->estado->esActivo()) {
@@ -276,7 +323,39 @@ class ServicioInspeccionSag
             ]);
 
             return $this->cargar($lote);
-        });
+        };
+
+        return $this->transicionar(
+            'lote.cancelar',
+            $usuario,
+            ['lote_id' => $lote->id],
+            $accion,
+            $lote,
+        );
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function transicionar(
+        string $tipo,
+        User $usuario,
+        array $payload,
+        Closure $accion,
+        ?LoteInspeccionSag $lote = null,
+        ?string $operacionId = null,
+    ): mixed {
+        return $this->motorTransiciones->ejecutar(
+            new ComandoTransicionOperacional(
+                dominio: DominioTransicionOperacional::Sag,
+                tipo: $tipo,
+                usuario: $usuario,
+                payload: $payload,
+                operacionId: $operacionId,
+                sujetoTipo: LoteInspeccionSag::class,
+                sujetoId: $lote ? (string) $lote->id : null,
+                referencia: $lote?->codigo,
+            ),
+            $accion,
+        );
     }
 
     public function cargar(LoteInspeccionSag $lote): LoteInspeccionSag
