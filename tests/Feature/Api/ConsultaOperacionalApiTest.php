@@ -17,7 +17,9 @@ use App\Services\Clientes\ServicioCliente;
 use App\Services\Consultas\ServicioConsultaSag;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class ConsultaOperacionalApiTest extends TestCase
@@ -346,6 +348,114 @@ class ConsultaOperacionalApiTest extends TestCase
                 ->where('activo', true)
                 ->count(),
         );
+    }
+
+    public function test_asociar_un_csg_no_reescribe_los_origenes_de_otros_productores(): void
+    {
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        Temporada::query()->update(['activa' => false]);
+        $temporada = Temporada::create([
+            'codigo' => 'TEMP-CSG-INCREMENTAL',
+            'nombre' => 'Temporada CSG incremental',
+            'activa' => true,
+        ]);
+        $cliente = Cliente::create([
+            'codigo' => 'CLI-INCREMENTAL',
+            'nombre' => 'Cliente incremental',
+            'activo' => true,
+        ]);
+        app(ServicioCliente::class)->asegurarProyeccionesActivas($cliente, $supervisor->id);
+        $clienteTemporada = ClienteValidacion::query()
+            ->where('temporada_id', $temporada->id)
+            ->where('cliente_id', $cliente->id)
+            ->firstOrFail();
+        $marca = MarcaValidacion::create([
+            'cliente_validacion_id' => $clienteTemporada->id,
+            'nombre' => 'Marca incremental',
+            'activo' => true,
+        ]);
+
+        $otroProductor = ProductorCsg::create([
+            'codigo' => 'CSG-NO-TOCAR',
+            'razon_social' => 'Productor no afectado',
+            'predio' => 'Predio no afectado',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+            'especies' => [],
+            'especies_variedades' => [],
+            'fuente_url' => ServicioConsultaSag::URL,
+            'primera_verificacion_at' => now()->subDay(),
+            'ultima_verificacion_at' => now()->subDay(),
+            'ultima_consulta_user_id' => $supervisor->id,
+            'respuesta_hash' => hash('sha256', 'otro-productor'),
+            'datos_fuente' => [],
+        ]);
+        $otroCsg = CsgValidacion::create([
+            'productor_csg_id' => $otroProductor->id,
+            'temporada_id' => $temporada->id,
+            'codigo' => $otroProductor->codigo,
+            'predio' => $otroProductor->predio,
+            'activo' => true,
+        ]);
+        DB::table('clientes_productores_csg')->insert([
+            'id' => (string) Str::uuid(),
+            'cliente_id' => $cliente->id,
+            'productor_csg_id' => $otroProductor->id,
+            'activo' => true,
+            'asociado_por_user_id' => $supervisor->id,
+            'actualizado_por_user_id' => $supervisor->id,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+        $fechaAnterior = now()->subDay()->startOfSecond();
+        $origenAjeno = OrigenValidacion::create([
+            'temporada_id' => $temporada->id,
+            'cliente_validacion_id' => $clienteTemporada->id,
+            'marca_validacion_id' => $marca->id,
+            'csg_validacion_id' => $otroCsg->id,
+            'cliente' => $clienteTemporada->nombre,
+            'marca' => $marca->nombre,
+            'csg' => $otroCsg->codigo,
+            'predio' => $otroCsg->predio,
+            'activo' => true,
+        ]);
+        DB::table('origenes_validacion')->where('id', $origenAjeno->id)->update([
+            'created_at' => $fechaAnterior,
+            'updated_at' => $fechaAnterior,
+        ]);
+
+        $productor = ProductorCsg::create([
+            'codigo' => 'CSG-ACTUALIZAR',
+            'razon_social' => 'Productor actualizado',
+            'predio' => 'Predio actualizado',
+            'estado_sag' => 'activo',
+            'tipo_codigo' => 'CSG',
+            'especies' => [],
+            'especies_variedades' => [],
+            'fuente_url' => ServicioConsultaSag::URL,
+            'primera_verificacion_at' => now(),
+            'ultima_verificacion_at' => now(),
+            'ultima_consulta_user_id' => $supervisor->id,
+            'respuesta_hash' => hash('sha256', 'productor-actualizado'),
+            'datos_fuente' => [],
+        ]);
+        CsgValidacion::create([
+            'productor_csg_id' => $productor->id,
+            'temporada_id' => $temporada->id,
+            'codigo' => $productor->codigo,
+            'predio' => $productor->predio,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/consultas/productores/{$productor->id}/clientes", [
+                'cliente_ids' => [$cliente->id],
+            ])
+            ->assertOk();
+
+        $origenAjeno->refresh();
+        $this->assertTrue($origenAjeno->activo);
+        $this->assertTrue($origenAjeno->updated_at->equalTo($fechaAnterior));
     }
 
     public function test_consulta_sag_acepta_la_respuesta_real_de_tres_columnas(): void

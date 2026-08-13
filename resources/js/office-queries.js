@@ -35,6 +35,7 @@ const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_id
 const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
+    activeSection: elements.app.dataset.queriesSection || 'busqueda',
     catalogs: { clientes: [] },
     producers: [],
 };
@@ -204,6 +205,21 @@ function renderProducers() {
         : '<div class="query-empty">No hay productores para este filtro.</div>';
 }
 
+function upsertProducer(producer) {
+    const index = state.producers.findIndex((item) => item.id === producer.id);
+    if (index === -1) state.producers.unshift(producer);
+    else state.producers[index] = producer;
+    renderProducers();
+}
+
+async function refreshSummaryQuietly() {
+    try {
+        await loadBase({ includeCatalogs: false, includeProducers: false });
+    } catch (error) {
+        if (error.status !== 401) console.warn('No se pudo refrescar el resumen CSG en segundo plano.', error);
+    }
+}
+
 function resultCard(type, item) {
     if (type === 'folios') {
         const location = item.ubicacion ? `${item.ubicacion.camara} · ${item.ubicacion.posicion}` : 'Sin ubicación actual';
@@ -236,20 +252,24 @@ function renderSearchResults(payload) {
         <div class="result-cards">${payload[group].map((item) => resultCard(group, item)).join('')}</div></section>`).join('');
 }
 
-async function loadBase() {
+async function loadBase(options = {}) {
+    const includeCatalogs = options.includeCatalogs ?? state.activeSection !== 'busqueda';
+    const includeProducers = options.includeProducers ?? state.activeSection === 'productores';
     const filters = new URLSearchParams(new FormData(elements.producerFilters));
     const [summary, catalogs, producers] = await Promise.all([
         api('/api/consultas/resumen'),
-        api('/api/consultas/catalogos'),
-        api(`/api/consultas/productores?${filters.toString()}`),
+        includeCatalogs ? api('/api/consultas/catalogos') : Promise.resolve(null),
+        includeProducers
+            ? api(`/api/consultas/productores?${filters.toString()}`)
+            : Promise.resolve(null),
     ]);
-    state.catalogs = catalogs;
-    state.producers = producers.data;
+    if (catalogs) state.catalogs = catalogs;
+    if (producers) state.producers = producers.data;
     elements.producerCount.textContent = summary.productores.total;
     elements.pendingCount.textContent = summary.productores.pendientes_cliente;
     elements.associatedCount.textContent = summary.productores.asociados;
     elements.sagTodayCount.textContent = summary.consultas_sag_hoy;
-    renderProducers();
+    if (producers) renderProducers();
 }
 
 async function openProducer(id) {
@@ -380,7 +400,8 @@ elements.sagSearch.addEventListener('submit', async (event) => {
     try {
         const payload = await api('/api/consultas/sag', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(elements.sagSearch))) });
         elements.sagResult.innerHTML = payload.data.length ? payload.data.map((producer) => `<div class="sag-producer">${producerCard(producer)}</div>`).join('') : `<div class="query-empty">${escapeHtml(payload.message)}</div>`;
-        await loadBase();
+        payload.data.forEach(upsertProducer);
+        void refreshSummaryQuietly();
         toast(payload.message);
     } catch (error) {
         elements.sagResult.innerHTML = `<div class="query-empty">${escapeHtml(error.message)}</div>`;
@@ -391,7 +412,9 @@ elements.sagSearch.addEventListener('submit', async (event) => {
 elements.producerFilters.addEventListener('submit', async (event) => {
     event.preventDefault();
     setBusy(true, 'Filtrando productores…');
-    try { await loadBase(); } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+    try {
+        await loadBase({ includeCatalogs: false, includeProducers: true });
+    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
 
 document.addEventListener('click', (event) => {
@@ -413,8 +436,9 @@ document.addEventListener('submit', async (event) => {
     if (!clientIds.length) { toast('Selecciona al menos un cliente.', true); return; }
     setBusy(true, 'Guardando clientes del CSG…');
     try {
-        await api(`/api/consultas/productores/${form.dataset.associateProducer}/clientes`, { method: 'POST', body: JSON.stringify({ cliente_ids: clientIds }) });
-        await loadBase();
+        const payload = await api(`/api/consultas/productores/${form.dataset.associateProducer}/clientes`, { method: 'POST', body: JSON.stringify({ cliente_ids: clientIds }) });
+        upsertProducer(payload.data);
+        void refreshSummaryQuietly();
         toast(`CSG habilitado para ${clientIds.length} cliente(s).`);
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
