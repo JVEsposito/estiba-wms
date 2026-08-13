@@ -102,7 +102,7 @@ class ServicioAsociacionProductorCsg
                 $temporada->increment('version_catalogo');
             }
             if ($temporada && $catalogoCambio) {
-                $this->proyector->reconstruir($temporada->refresh());
+                $this->proyector->sincronizarCsg($temporada->refresh(), $productor);
             }
 
             return $productor->fresh()->load('clientes');

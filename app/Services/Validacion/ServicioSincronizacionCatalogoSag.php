@@ -124,7 +124,7 @@ class ServicioSincronizacionCatalogoSag
             if ($catalogoCambio) {
                 $temporada->increment('version_catalogo');
                 if ($proyectar) {
-                    $this->proyector->reconstruir($temporada->refresh());
+                    $this->proyector->sincronizarCsg($temporada->refresh(), $productor);
                 }
             }
 
