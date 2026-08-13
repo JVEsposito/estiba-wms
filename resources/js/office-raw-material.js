@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'),
@@ -54,7 +56,7 @@ const state = {
     editingLot: null,
     selectedSegment: null,
     netManuallyEdited: false,
-    timer: null,
+    poller: null,
 };
 
 class ApiError extends Error {
@@ -197,7 +199,8 @@ function clearSession() {
     state.lots = [];
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
-    window.clearInterval(state.timer);
+    state.poller?.stop();
+    state.poller = null;
     elements.app.classList.add('is-hidden');
     elements.access.classList.remove('is-hidden');
 }
@@ -750,6 +753,7 @@ elements.login.addEventListener('submit', async (event) => {
         persist(payload);
         showApp();
         await loadAll();
+        startRefresh();
     } catch (error) {
         elements.loginError.textContent = error.message;
     } finally {
@@ -889,12 +893,17 @@ elements.operationForm.addEventListener('submit', async (event) => {
 });
 
 function startRefresh() {
-    window.clearInterval(state.timer);
-    state.timer = window.setInterval(() => {
-        if (!document.hidden && !elements.lotDialog.open && !elements.operationDialog.open) {
-            void loadAll().catch(() => {});
-        }
-    }, 30000);
+    state.poller?.stop();
+    state.poller = createOperationalPoller(
+        loadAll,
+        {
+            intervalMs: 30000,
+            canRun: () => Boolean(state.token)
+                && !elements.lotDialog.open
+                && !elements.operationDialog.open,
+        },
+    );
+    state.poller.start();
 }
 
 async function boot() {

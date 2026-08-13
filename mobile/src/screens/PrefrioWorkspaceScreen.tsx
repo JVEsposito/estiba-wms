@@ -2,7 +2,6 @@ import * as Crypto from 'expo-crypto';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   PrefrioFolioCandidate,
   PrefrioMobileCache,
@@ -152,18 +152,13 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
     }
   }, [activeView]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (activeView === 'pendientes') void synchronize(false);
-    }, 30000);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && activeView === 'pendientes') void synchronize(false);
-    });
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
-  }, [activeView, baseUrl, auth.token]);
+  useOperationalPolling(
+    () => synchronize(false),
+    {
+      intervalMs: 30000,
+      enabled: activeView === 'pendientes' && Boolean(baseUrl),
+    },
+  );
 
   async function initialize() {
     setBusy(true);

@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
@@ -22,7 +24,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity), summary: null,
-    lots: [], catalogs: { tipos_resultado: [], camaras: [] }, selected: null, section: 'entregas',
+    lots: [], catalogs: { tipos_resultado: [], camaras: [] }, selected: null, section: 'entregas', poller: null,
 };
 
 class ApiError extends Error {
@@ -173,15 +175,32 @@ async function load({ silent = false } = {}) {
     if (state.section === 'retornos') query.set('estado', '');
     if (!silent) setBusy(true, 'Actualizando fruta a proceso…');
     try {
-        const [summary, lots, catalogs] = await Promise.all([
-            api('/api/materia-prima/fruta-proceso/resumen'),
-            api(`/api/materia-prima/fruta-proceso/lotes?${query}`),
-            api('/api/materia-prima/fruta-proceso/catalogos'),
-        ]);
-        state.summary = summary; state.lots = lots.data || []; state.catalogs = catalogs;
+        let summary;
+        let lots;
+        if (silent) {
+            summary = await api('/api/materia-prima/fruta-proceso/resumen');
+            if (summary.revision && summary.revision === state.summary?.revision) {
+                state.summary = summary;
+                renderSummary();
+                return;
+            }
+            lots = await api(`/api/materia-prima/fruta-proceso/lotes?${query}`);
+        } else {
+            [summary, lots] = await Promise.all([
+                api('/api/materia-prima/fruta-proceso/resumen'),
+                api(`/api/materia-prima/fruta-proceso/lotes?${query}`),
+            ]);
+        }
+        state.summary = summary; state.lots = lots.data || [];
         renderSummary(); renderSection(); renderLots();
-    } catch (error) { if (!silent) toast(error.message, true); }
+    } catch (error) {
+        if (!silent) toast(error.message, true);
+        else throw error;
+    }
     finally { if (!silent) setBusy(false); }
+}
+async function loadCatalogs() {
+    state.catalogs = await api('/api/materia-prima/fruta-proceso/catalogos');
 }
 function findDelivery(deliveryId) {
     for (const lot of state.lots) {
@@ -310,12 +329,12 @@ async function annul(path, success, busyText) {
 
 elements.login.addEventListener('submit', async (event) => {
     event.preventDefault(); elements.loginError.textContent = ''; setBusy(true, 'Validando acceso…');
-    try { const data = new FormData(elements.login); const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) }); persist(payload); if (!showApp()) { clearSession(); throw new ApiError('Tu perfil no tiene acceso a Fruta a proceso.', 403); } await load(); }
+    try { const data = new FormData(elements.login); const payload = await api('/api/acceso-oficina', { method: 'POST', body: JSON.stringify({ email: data.get('email'), password: data.get('password') }) }); persist(payload); if (!showApp()) { clearSession(); throw new ApiError('Tu perfil no tiene acceso a Fruta a proceso.', 403); } await Promise.all([loadCatalogs(), load()]); }
     catch (error) { elements.loginError.textContent = error.message; }
     finally { setBusy(false); }
 });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
-elements.reload.addEventListener('click', () => void load());
+elements.reload.addEventListener('click', () => void Promise.all([loadCatalogs(), load()]));
 elements.filters.addEventListener('submit', (event) => { event.preventDefault(); void load(); });
 elements.sections.forEach((button) => button.addEventListener('click', () => { state.section = button.dataset.processSection; void load(); }));
 elements.list.addEventListener('click', (event) => {
@@ -337,8 +356,14 @@ elements.returnOrigins.addEventListener('change', (event) => {
     if (close && !origin.checked) close.checked = false;
 });
 
-if (state.token && state.identity && showApp()) void load(); else clearSession();
-window.setInterval(() => {
-    const dialogOpen = [elements.deliveryDialog, elements.returnDialog, elements.locationDialog].some((dialog) => dialog.open);
-    if (state.token && !elements.app.classList.contains('is-hidden') && !dialogOpen) void load({ silent: true });
-}, 15000);
+if (state.token && state.identity && showApp()) void Promise.all([loadCatalogs(), load()]); else clearSession();
+state.poller = createOperationalPoller(
+    () => load({ silent: true }),
+    {
+        intervalMs: 30000,
+        canRun: () => Boolean(state.token)
+            && !elements.app.classList.contains('is-hidden')
+            && ![elements.deliveryDialog, elements.returnDialog, elements.locationDialog].some((dialog) => dialog.open),
+    },
+);
+state.poller.start();

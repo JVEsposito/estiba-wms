@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,6 +27,7 @@ import { NotificationCenter } from '../components/NotificationCenter';
 import { RecentMovements } from '../components/RecentMovements';
 import { RefrigeratedLoadOperation } from '../components/RefrigeratedLoadOperation';
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   AuthSession,
   CameraPlan,
@@ -130,48 +130,32 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     void initialize();
   }, []);
 
-  useEffect(() => {
-    if (activeModule !== 'camaras' || !selectedCameraId || busy || locateVisible || moveVisible || materialDispatchVisible) return;
-
-    const timer = setInterval(() => {
-      if (AppState.currentState === 'active') void refreshCurrent({ quiet: true });
-    }, OPERATIONAL_POLL_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active'
-        && activeModule === 'camaras'
-        && selectedCameraId
+  useOperationalPolling(
+    () => refreshCurrent({ quiet: true }),
+    {
+      intervalMs: OPERATIONAL_POLL_INTERVAL_MS,
+      enabled: activeModule === 'camaras'
+        && Boolean(selectedCameraId)
         && !busy
         && !locateVisible
         && !moveVisible
-        && !materialDispatchVisible) {
-        void refreshCurrent({ quiet: true });
-      }
-    });
-
-    return () => subscription.remove();
-  }, [activeModule, selectedCameraId, busy, locateVisible, moveVisible, materialDispatchVisible]);
+        && !materialDispatchVisible,
+    },
+  );
 
   useEffect(() => {
     if (!canUseMaterials || activeModule !== 'camaras') return;
 
     void refreshMaterialDispatches();
-    const timer = setInterval(() => {
-      if (AppState.currentState === 'active') void refreshMaterialDispatches();
-    }, OPERATIONAL_POLL_INTERVAL_MS);
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') void refreshMaterialDispatches();
-    });
-
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
   }, [activeModule, canUseMaterials, auth.token]);
+
+  useOperationalPolling(
+    refreshMaterialDispatches,
+    {
+      intervalMs: OPERATIONAL_POLL_INTERVAL_MS,
+      enabled: canUseMaterials && activeModule === 'camaras',
+    },
+  );
 
   async function initialize() {
     setBusy(true);

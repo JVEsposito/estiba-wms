@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 
@@ -33,6 +35,7 @@ const state = {
     identity: readJson(identityKey),
     response: null,
     page: 1,
+    poller: null,
 };
 
 const moduleLabels = {
@@ -400,9 +403,11 @@ async function boot() {
 
     showApp();
     await load();
-    window.setInterval(() => {
-        if (!document.hidden) void load({ busy: false });
-    }, 60_000);
+    state.poller = createOperationalPoller(
+        () => load({ busy: false }),
+        { intervalMs: 60_000, canRun: () => Boolean(state.token) },
+    );
+    state.poller.start();
 }
 
 void boot();

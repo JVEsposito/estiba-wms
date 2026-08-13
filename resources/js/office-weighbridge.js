@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
@@ -25,7 +27,7 @@ const state = {
     selected: null,
     page: 1,
     meta: null,
-    timer: null,
+    poller: null,
     administrativeCorrection: false,
 };
 
@@ -89,7 +91,7 @@ function persist(payload) {
 }
 function clearSession() {
     state.token = null; state.identity = null; state.receptions = []; state.selected = null;
-    localStorage.removeItem(keys.token); localStorage.removeItem(keys.identity); window.clearInterval(state.timer);
+    localStorage.removeItem(keys.token); localStorage.removeItem(keys.identity); state.poller?.stop(); state.poller = null;
     elements.app.classList.add('is-hidden'); elements.access.classList.remove('is-hidden');
 }
 
@@ -618,10 +620,18 @@ elements.receptionForm.elements.tipo_recepcion.addEventListener('change', toggle
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); } });
 
 function startRefresh() {
-    window.clearInterval(state.timer);
-    state.timer = window.setInterval(() => {
-        if (!document.hidden && !elements.receptionDialog.open && !elements.tareDialog.open && !elements.containerWeighingDialog.open) void loadReceptions({ silent: true }).catch(() => {});
-    }, 30000);
+    state.poller?.stop();
+    state.poller = createOperationalPoller(
+        () => loadReceptions({ silent: true }),
+        {
+            intervalMs: 30000,
+            canRun: () => Boolean(state.token)
+                && !elements.receptionDialog.open
+                && !elements.tareDialog.open
+                && !elements.containerWeighingDialog.open,
+        },
+    );
+    state.poller.start();
 }
 
 async function boot() {

@@ -66,6 +66,9 @@ jobs:
       - name: Instalar dependencias frontend
         run: npm ci
 
+      - name: Probar coordinación de refrescos
+        run: npm run test:js
+
       - name: Compilar interfaz tablet
         run: npm run build
 

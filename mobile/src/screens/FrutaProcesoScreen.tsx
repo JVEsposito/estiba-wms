@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   ProcessCatalogs,
   ProcessDelivery,
@@ -47,6 +49,7 @@ type ReturnOriginDraft = { deliveryId: string; label: string; detail: string; se
 
 const EMPTY_SUMMARY: ProcessSummary = {
   temporada: null,
+  revision: null,
   lotes_abiertos: 0,
   lotes_completados: 0,
   bins_disponibles: 0,
@@ -88,9 +91,16 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
 
   useEffect(() => {
     void load();
-    const refresh = setInterval(() => { void load(true); }, 15_000);
-    return () => clearInterval(refresh);
   }, [filter, section]);
+
+  useEffect(() => {
+    void loadCatalogs();
+  }, [auth.token, baseUrl]);
+
+  useOperationalPolling(
+    () => load(true),
+    { intervalMs: OPERATIONAL_POLL_INTERVAL_MS },
+  );
 
   const visibleLots = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('es-CL');
@@ -112,14 +122,32 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
   async function load(silent = false) {
     if (!silent) { setBusy(true); setError(''); setMessage(''); }
     try {
-      const [nextSummary, nextLots, nextCatalogs] = await Promise.all([
-        getProcessSummary(baseUrl, auth.token),
-        listProcessLots(baseUrl, auth.token, '', section === 'retornos' ? '' : filter),
-        getProcessCatalogs(baseUrl, auth.token),
-      ]);
-      setSummary(nextSummary); setLots(nextLots); setCatalogs(nextCatalogs);
-    } catch (reason) { if (!silent) setError(errorMessage(reason)); }
+      let nextSummary: ProcessSummary;
+      let nextLots: ProcessLot[];
+      if (silent) {
+        nextSummary = await getProcessSummary(baseUrl, auth.token);
+        if (nextSummary.revision && nextSummary.revision === summary.revision) {
+          setSummary(nextSummary);
+          return;
+        }
+        nextLots = await listProcessLots(baseUrl, auth.token, '', section === 'retornos' ? '' : filter);
+      } else {
+        [nextSummary, nextLots] = await Promise.all([
+          getProcessSummary(baseUrl, auth.token),
+          listProcessLots(baseUrl, auth.token, '', section === 'retornos' ? '' : filter),
+        ]);
+      }
+      setSummary(nextSummary); setLots(nextLots);
+    } catch (reason) {
+      if (!silent) setError(errorMessage(reason));
+      else throw reason;
+    }
     finally { if (!silent) setBusy(false); }
+  }
+
+  async function loadCatalogs() {
+    try { setCatalogs(await getProcessCatalogs(baseUrl, auth.token)); }
+    catch (reason) { setError(errorMessage(reason)); }
   }
 
   function newResult(): ReturnResultDraft {
@@ -254,7 +282,7 @@ export function FrutaProcesoScreen({ auth, baseUrl, onLogout }: Props) {
     <View style={styles.screen}>
       <View style={styles.header}>
         <View><Text style={styles.eyebrow}>MATERIA PRIMA · CÁMARA ↔ PACKING</Text><Text style={styles.title}>Fruta a proceso</Text><Text style={styles.subtitle}>{summary.temporada ? `${summary.temporada.nombre} · circuito trazable` : 'Sin temporada activa'}</Text></View>
-        <View style={styles.headerActions}><Pressable disabled={busy} onPress={() => void load()} style={styles.secondary}><Text style={styles.secondaryText}>↻ Actualizar</Text></Pressable><Pressable onPress={onLogout} style={styles.secondary}><Text style={styles.secondaryText}>Salir</Text></Pressable></View>
+        <View style={styles.headerActions}><Pressable disabled={busy} onPress={() => void Promise.all([loadCatalogs(), load()])} style={styles.secondary}><Text style={styles.secondaryText}>↻ Actualizar</Text></Pressable><Pressable onPress={onLogout} style={styles.secondary}><Text style={styles.secondaryText}>Salir</Text></Pressable></View>
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.sectionTabs}><FilterButton active={section === 'entregas'} label="1. Entregas" onPress={() => setSection('entregas')} /><FilterButton active={section === 'retornos'} label="2. Retornos" onPress={() => setSection('retornos')} /></View>

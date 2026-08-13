@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const orderTokenKey = 'estiba_wms_office_token';
 const orderIdentityKey = 'estiba_wms_office_identity';
 
@@ -13,6 +15,7 @@ const orderState = {
     planningOperations: new Map(),
     cancellationOperations: new Map(),
     loadingDetails: new Set(),
+    poller: null,
 };
 
 const orderElements = {};
@@ -858,11 +861,14 @@ function bootMaterialOrders() {
             orderElements.panel.classList.add('is-hidden');
         }
     }, 900);
-    window.setInterval(() => {
-        if (orderState.loadedToken && !document.hidden && !orderState.loading) {
-            void loadOrdersOffice(false);
-        }
-    }, 30000);
+    orderState.poller = createOperationalPoller(
+        () => loadOrdersOffice(false),
+        {
+            intervalMs: 30000,
+            canRun: () => Boolean(orderState.loadedToken) && !orderState.loading,
+        },
+    );
+    orderState.poller.start();
     void loadOrdersOffice(false);
 }
 

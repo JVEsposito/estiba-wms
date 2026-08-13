@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import { AuthSession } from '../domain/estiba';
+import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   PrefrioActionPayload,
   PrefrioFolioCandidate,
@@ -190,17 +190,10 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
     void initialize();
   }, []);
 
-  useEffect(() => {
-    const timer = setInterval(() => void synchronize(), 30000);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void synchronize();
-    });
-
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
-  }, [baseUrl, auth.token]);
+  useOperationalPolling(
+    synchronize,
+    { intervalMs: 30000, enabled: Boolean(baseUrl) },
+  );
 
   useEffect(() => {
     if (selectedProcess && !ACTIVE_STATES.has(selectedProcess.estado)) {

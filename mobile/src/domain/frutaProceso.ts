@@ -94,6 +94,7 @@ export type ProcessLot = {
 
 export type ProcessSummary = {
   temporada: { id: string; codigo: string; nombre: string } | null;
+  revision: string | null;
   lotes_abiertos: number;
   lotes_completados: number;
   bins_disponibles: number;

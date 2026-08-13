@@ -42,6 +42,41 @@ class IndicesConsultasOperacionalesTest extends TestCase
             'movimientos_camara_destino_fecha_idx',
             ['camara_destino_id', 'created_at'],
         );
+        $this->assertIndexColumns(
+            'folios',
+            'folios_activo_tipo_estado_idx',
+            ['activo', 'tipo_bulto', 'estado_operacional'],
+        );
+        $this->assertIndexColumns(
+            'lotes_materia_prima',
+            'lote_mp_temporada_envase_estado_idx',
+            ['temporada_id', 'envase_primario', 'estado', 'created_at'],
+        );
+        $this->assertIndexColumns(
+            'recepciones_romana',
+            'romana_temporada_estado_ingreso_idx',
+            ['temporada_id', 'estado', 'ingreso_at'],
+        );
+        $this->assertIndexColumns(
+            'procesos_prefrio',
+            'prefrio_temporada_estado_fecha_idx',
+            ['temporada_id', 'estado', 'created_at'],
+        );
+        $this->assertIndexColumns(
+            'cargas',
+            'cargas_temporada_estado_publicada_idx',
+            ['temporada_id', 'estado', 'publicada_at'],
+        );
+        $this->assertIndexColumns(
+            'validaciones_pallet',
+            'validacion_temporada_estado_fecha_idx',
+            ['temporada_id', 'estado', 'recibido_servidor_at'],
+        );
+        $this->assertIndexColumns(
+            'validaciones_pallet',
+            'validacion_usuario_dispositivo_sesion_idx',
+            ['user_id', 'dispositivo_id', 'generado_dispositivo_at'],
+        );
     }
 
     /**

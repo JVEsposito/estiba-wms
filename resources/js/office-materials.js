@@ -1,3 +1,5 @@
+import { createOperationalPoller } from './shared/operational-poller';
+
 const byId = (id) => document.getElementById(id);
 const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'),
@@ -43,6 +45,7 @@ const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
+    operationalPoller: null,
 };
 const operationalRefreshIntervalMs = 30000;
 const mainDataSections = new Set(['resumen', 'catalogos', 'inventario', 'despachos']);
@@ -816,11 +819,13 @@ async function boot() {
     try { await loadAll(); } catch (error) { if (error.status !== 401) toast(error.message, true); } finally { setBusy(false); }
 }
 if (operationalDataIsRequired()) {
-    window.setInterval(() => {
-        if (document.visibilityState === 'visible') void refreshOperationalData();
-    }, operationalRefreshIntervalMs);
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') void refreshOperationalData();
-    });
+    state.operationalPoller = createOperationalPoller(
+        refreshOperationalData,
+        {
+            intervalMs: operationalRefreshIntervalMs,
+            canRun: () => Boolean(state.token) && operationalDataIsRequired(),
+        },
+    );
+    state.operationalPoller.start();
 }
 void boot();
