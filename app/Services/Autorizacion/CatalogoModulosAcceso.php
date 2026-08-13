@@ -7,6 +7,8 @@ use App\Models\User;
 
 class CatalogoModulosAcceso
 {
+    public const OFICINA_INTEGRIDAD_OPERACIONAL = 'administracion.integridad-operacional';
+
     public const OFICINA_MAESTROS_TEMPORADA = 'administracion.maestros-temporada';
 
     public const OFICINA_CATALOGOS_VALIDACION_LEGADO = 'frigorifico.catalogos';
@@ -95,6 +97,7 @@ class CatalogoModulosAcceso
                     $this->modulo('administracion.accesos', 'Accesos y temporadas', 'Usuarios, perfiles, tablets y maestros globales.'),
                     $this->modulo(self::OFICINA_MAESTROS_TEMPORADA, 'Maestros de temporada', 'Base transversal consumida por los módulos operacionales.'),
                     $this->modulo('administracion.camaras', 'Configuración de cámaras', 'Creación y estructura física de cámaras.'),
+                    $this->modulo(self::OFICINA_INTEGRIDAD_OPERACIONAL, 'Salud operacional', 'Auditoría de contradicciones entre folios, procesos, ubicaciones y reservas.'),
                 ],
             ],
         ];

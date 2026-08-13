@@ -1,0 +1,330 @@
+.integrity-app {
+    min-height: 100vh;
+    background: var(--bg);
+}
+
+.integrity-shell {
+    display: grid;
+    gap: 16px;
+    padding: clamp(16px, 2vw, 28px);
+}
+
+.integrity-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.integrity-heading h1,
+.integrity-panel h2 {
+    margin: 0;
+}
+
+.integrity-heading > div:first-child > p:last-child {
+    max-width: 760px;
+    margin: 7px 0 0;
+}
+
+.integrity-heading__actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.integrity-heading__actions > div {
+    display: grid;
+    min-width: 250px;
+    gap: 2px;
+    text-align: right;
+}
+
+.integrity-heading__actions span,
+.integrity-metrics span {
+    color: var(--text-subtle);
+    font-size: .66rem;
+    font-weight: 900;
+    letter-spacing: .07em;
+}
+
+.integrity-heading__actions button,
+.integrity-pagination button {
+    min-height: 42px;
+}
+
+.integrity-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--info-text);
+    border-radius: 7px;
+    padding: 10px 14px;
+    background: var(--info-bg);
+    color: var(--info-text);
+}
+
+.integrity-notice span {
+    color: var(--text-secondary);
+    font-size: .82rem;
+}
+
+.integrity-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.integrity-metrics article {
+    display: grid;
+    min-height: 120px;
+    align-content: center;
+    gap: 5px;
+    padding: 18px;
+}
+
+.integrity-metrics strong {
+    font-size: clamp(1.8rem, 2.6vw, 2.5rem);
+}
+
+.integrity-metric--critical {
+    border-top-color: var(--danger-text) !important;
+}
+
+.integrity-metric--critical strong {
+    color: var(--danger-text) !important;
+}
+
+.integrity-metric--warning {
+    border-top-color: var(--warning-text) !important;
+}
+
+.integrity-metric--warning strong {
+    color: var(--warning-text) !important;
+}
+
+.integrity-metric--resolved {
+    border-top-color: var(--success-text) !important;
+}
+
+.integrity-metric--resolved strong {
+    color: var(--success-text) !important;
+}
+
+.integrity-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.integrity-panel {
+    padding: 16px;
+}
+
+.integrity-panel__heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.integrity-panel__heading > span {
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.integrity-filters {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(130px, .8fr)) minmax(220px, 1.35fr) auto auto;
+    gap: 9px;
+    align-items: end;
+    margin-bottom: 12px;
+}
+
+.integrity-filters label {
+    gap: 5px;
+}
+
+.integrity-filters input,
+.integrity-filters select,
+.integrity-filters button {
+    min-height: 40px !important;
+}
+
+.integrity-table-scroll {
+    max-height: min(58vh, 680px);
+    overflow: auto;
+}
+
+.integrity-table {
+    width: 100%;
+}
+
+.integrity-table th,
+.integrity-table td {
+    padding: 10px 12px;
+    vertical-align: top;
+}
+
+.integrity-table td:nth-child(1),
+.integrity-table td:nth-child(2) {
+    white-space: nowrap;
+}
+
+.integrity-table td:nth-child(3) {
+    min-width: 330px;
+}
+
+.integrity-table td strong,
+.integrity-table td span,
+.integrity-table td small {
+    display: block;
+}
+
+.integrity-table td small {
+    margin-top: 4px;
+}
+
+.integrity-severity,
+.integrity-module {
+    display: inline-flex !important;
+    width: max-content;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: .67rem;
+    font-weight: 900;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+.integrity-severity--critico {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+}
+
+.integrity-severity--advertencia {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+}
+
+.integrity-severity--informativo,
+.integrity-module {
+    background: var(--info-bg);
+    color: var(--info-text);
+}
+
+.integrity-reference {
+    font-variant-numeric: tabular-nums;
+}
+
+.integrity-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.integrity-pagination span {
+    min-width: 110px;
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.integrity-history {
+    display: grid;
+    gap: 8px;
+}
+
+.integrity-history-card {
+    display: grid;
+    gap: 5px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--corporate-blue);
+    border-radius: 6px;
+    padding: 11px;
+    background: var(--surface-muted);
+}
+
+.integrity-history-card--failed {
+    border-left-color: var(--danger-text);
+}
+
+.integrity-history-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.integrity-history-card p {
+    margin: 0;
+    font-size: .8rem;
+}
+
+.integrity-empty td {
+    padding: 44px 16px !important;
+    text-align: center;
+}
+
+.integrity-empty strong {
+    margin-bottom: 5px;
+    color: var(--success-text) !important;
+}
+
+@media (max-width: 1320px) {
+    .integrity-filters {
+        grid-template-columns: repeat(4, minmax(140px, 1fr));
+    }
+
+    .integrity-filter-search {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 980px) {
+    .integrity-heading,
+    .integrity-heading__actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .integrity-heading__actions > div {
+        text-align: left;
+    }
+
+    .integrity-metrics,
+    .integrity-workspace {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .integrity-workspace > * {
+        grid-column: 1 / -1;
+    }
+
+    .integrity-filters {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 620px) {
+    .integrity-metrics,
+    .integrity-filters {
+        grid-template-columns: 1fr;
+    }
+
+    .integrity-filter-search {
+        grid-column: auto;
+    }
+
+    .integrity-notice {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

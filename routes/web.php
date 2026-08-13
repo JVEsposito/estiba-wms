@@ -58,6 +58,7 @@ Route::redirect('/oficina/materiales/existencias', '/oficina/existencias');
 Route::view('/oficina/validacion', 'office.validation');
 Route::redirect('/oficina/validacion/catalogo', '/oficina/administracion/maestros-temporada', 301);
 Route::view('/oficina/administracion/maestros-temporada', 'office.validation-catalog');
+Route::view('/oficina/administracion/integridad-operacional', 'office.operational-integrity');
 Route::view('/oficina/prefrio', 'office.precooling');
 Route::view('/oficina/frigorifico/inspeccion-sag', 'office.sag-inspections');
 Route::view('/oficina/gerencia', 'office.management');

@@ -174,6 +174,24 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeConsultarIntegridadOperacional(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador, RolUsuario::Consulta],
+            CatalogoModulosAcceso::OFICINA_INTEGRIDAD_OPERACIONAL,
+        );
+    }
+
+    public function puedeEjecutarIntegridadOperacional(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador],
+            CatalogoModulosAcceso::OFICINA_INTEGRIDAD_OPERACIONAL,
+        );
+    }
+
     public function contenidoForzadoCreacion(User $usuario): ?ContenidoCamara
     {
         return match ($usuario->rol) {
@@ -835,6 +853,8 @@ class AlcanceOperacionalUsuario
             'puede_consultar_catalogos_validacion' => $this->puedeConsultarCatalogosValidacion($usuario),
             'puede_consultar_accesos' => $this->puedeConsultarAccesos($usuario),
             'puede_consultar_configuracion_camaras' => $this->puedeConsultarConfiguracionCamaras($usuario),
+            'puede_consultar_integridad_operacional' => $this->puedeConsultarIntegridadOperacional($usuario),
+            'puede_ejecutar_integridad_operacional' => $this->puedeEjecutarIntegridadOperacional($usuario),
             'puede_consultar_prefrio' => $this->puedeConsultarPrefrio($usuario),
             'puede_consultar_inspeccion_sag' => $this->puedeConsultarInspeccionSag($usuario),
             'puede_gestionar_inspeccion_sag' => $this->puedeGestionarInspeccionSag($usuario),

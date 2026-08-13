@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\ImportacionProductosRecepcionMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
 use App\Http\Controllers\Api\InspeccionSagController;
+use App\Http\Controllers\Api\IntegridadOperacionalController;
 use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
@@ -57,6 +58,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/gerencia/resumen', PanelGerencialController::class)
         ->middleware('can:consultar-panel-gerencial');
+    Route::get('/administracion/integridad-operacional', [IntegridadOperacionalController::class, 'index'])
+        ->middleware('can:consultar-integridad-operacional');
+    Route::post('/administracion/integridad-operacional/auditar', [IntegridadOperacionalController::class, 'auditar'])
+        ->middleware('can:ejecutar-integridad-operacional');
 
     Route::middleware('can:consultar-oficina-consultas')->prefix('consultas')->group(function () {
         Route::get('/resumen', [ConsultaOficinaController::class, 'resumen']);
