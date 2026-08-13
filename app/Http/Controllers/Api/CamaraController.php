@@ -10,8 +10,8 @@ use App\Http\Resources\CamaraResumenResource;
 use App\Models\Camara;
 use App\Models\PersonalAccessToken;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class CamaraController extends Controller
@@ -19,28 +19,36 @@ class CamaraController extends Controller
     public function index(
         Request $request,
         AlcanceOperacionalUsuario $alcance,
-    ): AnonymousResourceCollection {
+    ): Response {
         $contenidos = collect($alcance->contenidosVisibles($request->user()))
             ->map->value
             ->all();
         $camaras = Camara::query()
             ->where('estado', EstadoCamara::Activa->value)
             ->whereIn('contenido', $contenidos)
-            ->withCount([
-                'posiciones' => fn ($consulta) => $consulta
-                    ->where('estado', EstadoPosicion::Activa->value),
-            ])
-            ->withCount([
-                'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
-                    ->where('estado', EstadoPosicion::Activa->value)
-                    ->whereHas('ubicacionesActuales'),
-            ])
-            ->withCount('ubicacionesSinPosicion')
             ->with($this->relacionesBloqueo())
             ->orderBy('codigo')
             ->get();
+        $etag = $this->etagListado($request, $camaras);
+        $respuestaCondicional = $this->configurarCache(response('', 200), $etag);
 
-        return CamaraResumenResource::collection($camaras);
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        $camaras->loadCount([
+            'posiciones' => fn ($consulta) => $consulta
+                ->where('estado', EstadoPosicion::Activa->value),
+            'posiciones as posiciones_ocupadas_count' => fn ($consulta) => $consulta
+                ->where('estado', EstadoPosicion::Activa->value)
+                ->whereHas('ubicacionesActuales'),
+            'ubicacionesSinPosicion',
+        ]);
+
+        return $this->configurarCache(
+            CamaraResumenResource::collection($camaras)->response(),
+            $etag,
+        );
     }
 
     public function plano(
@@ -53,7 +61,7 @@ class CamaraController extends Controller
 
         $camara->load('bloqueo.sesionEstiba');
         $etag = $this->etagPlano($request, $camara);
-        $respuestaCondicional = $this->configurarCachePlano(response('', 200), $etag);
+        $respuestaCondicional = $this->configurarCache(response('', 200), $etag);
 
         if ($respuestaCondicional->isNotModified($request)) {
             return $respuestaCondicional;
@@ -93,10 +101,50 @@ class CamaraController extends Controller
                 ->orderBy('posicion'),
         ]);
 
-        return $this->configurarCachePlano(
+        return $this->configurarCache(
             (new CamaraPlanoResource($camara))->response(),
             $etag,
         );
+    }
+
+    /** @param Collection<int, Camara> $camaras */
+    private function etagListado(Request $request, Collection $camaras): string
+    {
+        $token = $request->user()?->currentAccessToken();
+        $dispositivoId = $token instanceof PersonalAccessToken
+            ? $token->dispositivo_id
+            : null;
+        $huella = json_encode([
+            'usuario_id' => $request->user()?->getAuthIdentifier(),
+            'dispositivo_id' => $dispositivoId,
+            'camaras' => $camaras->map(function (Camara $camara): array {
+                $bloqueo = $camara->bloqueo;
+                $sesion = $bloqueo?->sesionEstiba;
+
+                return [
+                    'id' => $camara->id,
+                    'codigo' => $camara->codigo,
+                    'nombre' => $camara->nombre,
+                    'tipo' => $camara->tipo,
+                    'contenido' => $camara->contenido->value,
+                    'estado' => $camara->estado->value,
+                    'version_plano' => $camara->version_plano,
+                    'actualizada_at' => $camara->updated_at?->toAtomString(),
+                    'bloqueo_id' => $bloqueo?->getKey(),
+                    'bloqueo_adquirido_at' => $bloqueo?->adquirido_at?->toAtomString(),
+                    'sesion_id' => $sesion?->id,
+                    'sesion_usuario_id' => $sesion?->user_id,
+                    'sesion_usuario_nombre' => $sesion?->usuario?->name,
+                    'sesion_dispositivo_id' => $sesion?->dispositivo_id,
+                    'sesion_dispositivo_nombre' => $sesion?->dispositivo?->nombre,
+                    'sesion_estado' => $sesion?->estado?->value,
+                    'sesion_iniciada_at' => $sesion?->iniciada_at?->toAtomString(),
+                    'sesion_ultima_actividad_at' => $sesion?->ultima_actividad_at?->toAtomString(),
+                ];
+            })->values()->all(),
+        ], JSON_THROW_ON_ERROR);
+
+        return 'camaras-'.hash('sha256', $huella);
     }
 
     private function etagPlano(Request $request, Camara $camara): string
@@ -125,7 +173,7 @@ class CamaraController extends Controller
         return 'plano-'.hash('sha256', $huella);
     }
 
-    private function configurarCachePlano(Response $respuesta, string $etag): Response
+    private function configurarCache(Response $respuesta, string $etag): Response
     {
         $respuesta->setEtag($etag);
         $respuesta->setPrivate();

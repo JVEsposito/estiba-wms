@@ -114,6 +114,10 @@ export class DemoEstibaApi implements EstibaApi {
     return listDemoCameras();
   }
 
+  async refreshCameras() {
+    return listDemoCameras();
+  }
+
   async listConditions() {
     return clone(demoSagConditions);
   }
@@ -282,6 +286,10 @@ export class DemoEstibaApi implements EstibaApi {
   }
 
   async listRecent(_token: string, cameraId: string) {
+    return listDemoRecentMovements(cameraId);
+  }
+
+  async refreshRecent(_token: string, cameraId: string) {
     return listDemoRecentMovements(cameraId);
   }
 
