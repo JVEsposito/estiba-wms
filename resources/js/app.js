@@ -98,7 +98,9 @@ const state = {
     materialDispatches: [],
     selectedCameraId: null,
     plan: null,
+    camerasEtag: null,
     planEtags: new Map(),
+    recentEtags: new Map(),
     selectedPosition: null,
     destinationPlan: null,
     moveDestination: null,
@@ -222,6 +224,44 @@ async function loadPlan(cameraId, { conditional = false } = {}) {
     return response?.data ?? null;
 }
 
+async function loadCameras({ conditional = false } = {}) {
+    const headers = new Headers();
+    if (conditional && state.camerasEtag) {
+        headers.set('If-None-Match', state.camerasEtag);
+    }
+
+    const response = await api('/api/camaras', {
+        headers,
+        acceptNotModified: conditional,
+        onResponse: (httpResponse) => {
+            const nextEtag = httpResponse.headers.get('ETag');
+            if (nextEtag) state.camerasEtag = nextEtag;
+        },
+    });
+
+    return response?.data ?? null;
+}
+
+async function loadRecent(cameraId, { conditional = false } = {}) {
+    const headers = new Headers();
+    const etag = conditional ? state.recentEtags.get(cameraId) : null;
+    if (etag) headers.set('If-None-Match', etag);
+
+    const response = await api(
+        `/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`,
+        {
+            headers,
+            acceptNotModified: conditional,
+            onResponse: (httpResponse) => {
+                const nextEtag = httpResponse.headers.get('ETag');
+                if (nextEtag) state.recentEtags.set(cameraId, nextEtag);
+            },
+        },
+    );
+
+    return response?.data ?? null;
+}
+
 async function apiWithPhysicalWarnings(path, payload) {
     try {
         return await api(path, { method: 'POST', body: JSON.stringify(payload) });
@@ -288,6 +328,9 @@ function clearSession() {
     state.identity = null;
     state.cameras = [];
     state.plan = null;
+    state.camerasEtag = null;
+    state.planEtags.clear();
+    state.recentEtags.clear();
     state.selectedCameraId = null;
     state.selectedPosition = null;
     state.materialCatalog = { items: [], destinos: [] };
@@ -476,8 +519,8 @@ function renderCameras() {
 }
 
 async function reloadCameraList() {
-    const response = await api('/api/camaras');
-    state.cameras = response.data || [];
+    const cameras = await loadCameras();
+    state.cameras = cameras || [];
     renderCameras();
 }
 
@@ -489,12 +532,12 @@ async function selectCamera(cameraId, showLoading = true) {
     const load = async () => {
         const [loadedPlan, recentResponse] = await Promise.all([
             loadPlan(cameraId),
-            api(`/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`),
+            loadRecent(cameraId),
         ]);
 
         state.plan = loadedPlan;
         renderPlan();
-        renderRecent(recentResponse.data || []);
+        renderRecent(recentResponse || []);
         updateLastSync();
     };
 
@@ -510,17 +553,17 @@ async function refreshCurrent({ quiet = false } = {}) {
 
     const refresh = async () => {
         const cameraId = state.selectedCameraId;
-        const [cameraResponse, loadedPlan, recentResponse] = await Promise.all([
-            api('/api/camaras'),
+        const [loadedCameras, loadedPlan, loadedMovements] = await Promise.all([
+            loadCameras({ conditional: true }),
             loadPlan(cameraId, { conditional: true }),
-            api(`/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`),
+            loadRecent(cameraId, { conditional: true }),
         ]);
 
-        state.cameras = cameraResponse.data || [];
+        if (loadedCameras) state.cameras = loadedCameras;
         if (loadedPlan) state.plan = loadedPlan;
         renderCameras();
         renderPlan();
-        renderRecent(recentResponse.data || []);
+        if (loadedMovements) renderRecent(loadedMovements);
         updateLastSync();
     };
 

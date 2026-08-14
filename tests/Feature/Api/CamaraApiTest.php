@@ -59,6 +59,54 @@ class CamaraApiTest extends TestCase
         $this->assertNotSame($operador->id, $consulta->id);
     }
 
+    public function test_el_listado_usa_etag_y_no_recalcula_ocupacion_si_no_cambia(): void
+    {
+        [, $token] = $this->crearIdentidad('TABLET-LISTADO-ETAG');
+        $camara = $this->crearCamara('CAM-LISTADO-ETAG');
+        $this->crearPosiciones($camara, 3);
+
+        $inicial = $this->withToken($token)
+            ->getJson('/api/camaras')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.0.ocupacion.total', 3)
+            ->assertJsonPath('data.0.acceso.modo', 'disponible');
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+
+        auth()->forgetGuards();
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->get('/api/camaras')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $consultoOcupacion = collect(DB::getQueryLog())
+            ->contains(fn (array $consulta): bool => preg_match(
+                '/^select\b.*\bfrom\s+[`"]?(posiciones|ubicaciones_actuales)[`"]?/is',
+                trim($consulta['query']),
+            ) === 1);
+        $this->assertFalse($consultoOcupacion);
+
+        DB::disableQueryLog();
+        auth()->forgetGuards();
+        $this->withToken($token)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated();
+
+        auth()->forgetGuards();
+        $actualizado = $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/camaras')
+            ->assertOk()
+            ->assertJsonPath('data.0.acceso.modo', 'edicion');
+
+        $this->assertNotSame($etagInicial, $actualizado->headers->get('ETag'));
+    }
+
     public function test_el_plano_expone_posiciones_folios_y_acceso_de_edicion_propio(): void
     {
         [, $token] = $this->crearIdentidad('TABLET-01');

@@ -13,8 +13,10 @@ use App\Models\Folio;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\User;
+use App\Services\Estiba\DetectorAdvertenciasMovimiento;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -316,6 +318,72 @@ class MovimientoApiTest extends TestCase
             ->getJson("/api/movimientos/recientes?camara_id={$camaraDestino->id}&limite=10")
             ->assertOk()
             ->assertJsonCount(0, 'data');
+    }
+
+    public function test_movimientos_recientes_usa_etag_y_evita_cargar_relaciones_si_no_cambia(): void
+    {
+        [, , $token] = $this->crearIdentidad();
+        [$camara, $origen, $destino] = $this->crearCamara('CAM-REC-ETAG', 2);
+        $sesionId = $this->abrirSesion($token, $camara);
+        $folioId = $this->ubicar($token, $origen, $sesionId, 0, 'FOLIO-REC-ETAG');
+        $ruta = "/api/movimientos/recientes?camara_id={$camara->id}&limite=8";
+
+        $inicial = $this->withToken($token)
+            ->getJson($ruta)
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.folio.numero_folio', 'FOLIO-REC-ETAG');
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+
+        auth()->forgetGuards();
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->get($ruta)
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $consultoRelaciones = collect(DB::getQueryLog())
+            ->contains(function (array $consulta): bool {
+                $sql = Str::lower(Str::squish(
+                    str_replace(['`', '"'], '', trim($consulta['query'])),
+                ));
+
+                return str_starts_with($sql, 'select * from folios ')
+                    || str_starts_with($sql, 'select * from posiciones ');
+            });
+        $this->assertFalse($consultoRelaciones);
+
+        DB::disableQueryLog();
+        auth()->forgetGuards();
+        $this->withToken($token)
+            ->postJson('/api/movimientos/mover', [
+                'operacion_id' => (string) Str::uuid(),
+                'folio_id' => $folioId,
+                'posicion_destino_id' => $destino->id,
+                'sesion_origen_id' => $sesionId,
+                'sesion_destino_id' => $sesionId,
+                'version_origen_conocida' => 1,
+                'version_destino_conocida' => 1,
+                'generado_dispositivo_at' => now()->toAtomString(),
+                'advertencias_confirmadas' => [
+                    DetectorAdvertenciasMovimiento::POSICIONES_FONDO_LIBRES,
+                ],
+            ])
+            ->assertOk();
+
+        auth()->forgetGuards();
+        $actualizado = $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson($ruta)
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $this->assertNotSame($etagInicial, $actualizado->headers->get('ETag'));
     }
 
     /**

@@ -22,8 +22,8 @@ use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class MovimientoController extends Controller
@@ -170,13 +170,14 @@ class MovimientoController extends Controller
     public function recientes(
         MovimientosRecientesRequest $request,
         AlcanceOperacionalUsuario $alcance,
-    ): AnonymousResourceCollection {
+    ): Response {
         $datos = $request->validated();
         $contenidos = collect($alcance->contenidosVisibles($request->user()))
             ->map->value
             ->all();
+        $camaraId = $datos['camara_id'] ?? null;
 
-        if ($camaraId = $datos['camara_id'] ?? null) {
+        if ($camaraId) {
             $camara = Camara::query()->findOrFail($camaraId);
             abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
         }
@@ -198,13 +199,68 @@ class MovimientoController extends Controller
                         ->orWhere('camara_destino_id', $camaraId);
                 });
             })
-            ->with($this->relacionesMovimiento())
             ->latest('created_at')
             ->latest('id')
             ->limit($datos['limite'] ?? 3)
             ->get();
 
-        return MovimientoResource::collection($movimientos);
+        $etag = $this->etagRecientes(
+            $request,
+            $movimientos,
+            $contenidos,
+            $camaraId,
+            $datos['limite'] ?? 3,
+        );
+        $respuestaCondicional = $this->configurarCacheRecientes(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        $movimientos->load($this->relacionesMovimiento());
+
+        return $this->configurarCacheRecientes(
+            MovimientoResource::collection($movimientos)->response(),
+            $etag,
+        );
+    }
+
+    /**
+     * @param  Collection<int, Movimiento>  $movimientos
+     * @param  array<int, string>  $contenidos
+     */
+    private function etagRecientes(
+        MovimientosRecientesRequest $request,
+        Collection $movimientos,
+        array $contenidos,
+        ?string $camaraId,
+        int $limite,
+    ): string {
+        $huella = json_encode([
+            'usuario_id' => $request->user()?->getAuthIdentifier(),
+            'contenidos' => $contenidos,
+            'camara_id' => $camaraId,
+            'limite' => $limite,
+            // Movimiento es inalterable por dominio; sus atributos forman una
+            // revisión estable sin cargar folio, usuario, cámaras ni posiciones.
+            'movimientos' => $movimientos
+                ->map(fn (Movimiento $movimiento): array => $movimiento->getAttributes())
+                ->values()
+                ->all(),
+        ], JSON_THROW_ON_ERROR);
+
+        return 'movimientos-recientes-'.hash('sha256', $huella);
+    }
+
+    private function configurarCacheRecientes(Response $respuesta, string $etag): Response
+    {
+        $respuesta->setEtag($etag);
+        $respuesta->setPrivate();
+        $respuesta->headers->addCacheControlDirective('no-cache');
+        $respuesta->setVary('Authorization');
+        $respuesta->headers->set('Access-Control-Expose-Headers', 'ETag');
+
+        return $respuesta;
     }
 
     private function cargarRelaciones(Movimiento $movimiento): Movimiento

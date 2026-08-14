@@ -294,14 +294,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
 
     try {
       const [loadedCameras, loadedPlan, loadedMovements] = await Promise.all([
-        api.listCameras(auth.token),
+        api.refreshCameras(auth.token),
         api.refreshPlan(auth.token, selectedCameraId),
-        api.listRecent(auth.token, selectedCameraId),
+        api.refreshRecent(auth.token, selectedCameraId),
       ]);
 
-      setCameras(loadedCameras);
+      if (loadedCameras) setCameras(loadedCameras);
       if (loadedPlan) setPlan(loadedPlan);
-      setMovements(loadedMovements);
+      if (loadedMovements) setMovements(loadedMovements);
       setError('');
       if (loadedPlan) {
         setSelectedPositionId((current) => (

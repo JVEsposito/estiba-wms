@@ -53,10 +53,12 @@ export interface EstibaApi {
   login(payload: LoginPayload): Promise<AuthSession>;
   logout(token: string): Promise<void>;
   listCameras(token: string): Promise<CameraSummary[]>;
+  refreshCameras(token: string): Promise<CameraSummary[] | null>;
   listConditions(token: string): Promise<SagCondition[]>;
   getPlan(token: string, cameraId: string): Promise<CameraPlan>;
   refreshPlan(token: string, cameraId: string): Promise<CameraPlan | null>;
   listRecent(token: string, cameraId: string): Promise<Movement[]>;
+  refreshRecent(token: string, cameraId: string): Promise<Movement[] | null>;
   openSession(token: string, cameraId: string): Promise<OpenedSession>;
   closeSession(token: string, sessionId: string): Promise<void>;
   lookupFolio(token: string, folioNumber: string): Promise<FolioLookup>;
@@ -110,7 +112,9 @@ function validationMessage(data: unknown, fallback: string) {
 class HttpEstibaApi implements EstibaApi {
   readonly mode = 'connected' as const;
   readonly configurationError = null;
+  private camerasEtag: string | null = null;
   private readonly planEtags = new Map<string, string>();
+  private readonly recentEtags = new Map<string, string>();
 
   constructor(public readonly baseUrl: string) {}
 
@@ -156,10 +160,17 @@ class HttpEstibaApi implements EstibaApi {
 
   async logout(token: string) {
     await this.request<null>('/api/acceso-tablet', token, { method: 'DELETE' });
+    this.camerasEtag = null;
+    this.planEtags.clear();
+    this.recentEtags.clear();
   }
 
   async listCameras(token: string) {
-    return (await this.request<ApiList<CameraSummary>>('/api/camaras', token)).data;
+    return (await this.requestCameras(token, false))!;
+  }
+
+  async refreshCameras(token: string) {
+    return this.requestCameras(token, true);
   }
 
   async listConditions(token: string) {
@@ -175,8 +186,77 @@ class HttpEstibaApi implements EstibaApi {
   }
 
   async listRecent(token: string, cameraId: string) {
+    return (await this.requestRecent(token, cameraId, false))!;
+  }
+
+  async refreshRecent(token: string, cameraId: string) {
+    return this.requestRecent(token, cameraId, true);
+  }
+
+  private async requestCameras(
+    token: string,
+    conditional: boolean,
+  ): Promise<CameraSummary[] | null> {
+    return this.requestConditionalList<CameraSummary>(
+      '/api/camaras',
+      token,
+      conditional ? this.camerasEtag : null,
+      (etag) => { this.camerasEtag = etag; },
+    );
+  }
+
+  private async requestRecent(
+    token: string,
+    cameraId: string,
+    conditional: boolean,
+  ): Promise<Movement[] | null> {
     const path = `/api/movimientos/recientes?camara_id=${encodeURIComponent(cameraId)}&limite=8`;
-    return (await this.request<ApiList<Movement>>(path, token)).data;
+    return this.requestConditionalList<Movement>(
+      path,
+      token,
+      conditional ? this.recentEtags.get(cameraId) ?? null : null,
+      (etag) => { this.recentEtags.set(cameraId, etag); },
+    );
+  }
+
+  private async requestConditionalList<T>(
+    path: string,
+    token: string,
+    etag: string | null,
+    rememberEtag: (etag: string) => void,
+  ): Promise<T[] | null> {
+    const headers = new Headers({
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    });
+    if (etag) headers.set('If-None-Match', etag);
+
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, { headers });
+    } catch {
+      throw new ApiError(
+        `No fue posible conectar con ${this.baseUrl}. Revisa la IP, Laravel y el firewall.`,
+        0,
+      );
+    }
+
+    if (response.status === 304) return null;
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new ApiError(
+        validationMessage(data, 'La operación no pudo completarse.'),
+        response.status,
+        data,
+      );
+    }
+
+    const nextEtag = response.headers.get('ETag');
+    if (nextEtag) rememberEtag(nextEtag);
+
+    return (data as ApiList<T>).data;
   }
 
   private async requestPlan(
@@ -557,10 +637,12 @@ function createUnavailableApi(message: string): EstibaApi {
     login: unavailable,
     logout: unavailable,
     listCameras: unavailable,
+    refreshCameras: unavailable,
     listConditions: unavailable,
     getPlan: unavailable,
     refreshPlan: unavailable,
     listRecent: unavailable,
+    refreshRecent: unavailable,
     openSession: unavailable,
     closeSession: unavailable,
     lookupFolio: unavailable,
