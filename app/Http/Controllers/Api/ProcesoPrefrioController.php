@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\TipoEventoPrefrio;
+use App\Http\Controllers\Concerns\RespondeConEtagOperacional;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccionProcesoPrefrioRequest;
 use App\Http\Requests\AgregarFolioProcesoPrefrioRequest;
@@ -19,16 +20,18 @@ use App\Models\Dispositivo;
 use App\Models\PersonalAccessToken;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
+use App\Services\Prefrio\RevisionPrefrioOperacional;
 use App\Services\Prefrio\ServicioCorreccionProcesoPrefrio;
 use App\Services\Prefrio\ServicioProcesoPrefrio;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class ProcesoPrefrioController extends Controller
 {
+    use RespondeConEtagOperacional;
+
     public function resumen(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('consultar-prefrio'), 403);
@@ -63,8 +66,10 @@ class ProcesoPrefrioController extends Controller
         ]);
     }
 
-    public function index(ConsultarProcesosPrefrioRequest $request): AnonymousResourceCollection
-    {
+    public function index(
+        ConsultarProcesosPrefrioRequest $request,
+        RevisionPrefrioOperacional $revision,
+    ): Response {
         $datos = $request->validated();
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
             ->filter->esActivo()
@@ -85,11 +90,29 @@ class ProcesoPrefrioController extends Controller
                 ->whereDate('created_at', '>=', $fecha))
             ->when($datos['fecha_hasta'] ?? null, fn ($consulta, string $fecha) => $consulta
                 ->whereDate('created_at', '<=', $fecha))
-            ->with($this->relaciones())
             ->latest('created_at')
             ->paginate($datos['per_page'] ?? 25);
 
-        return ProcesoPrefrioResource::collection($procesos);
+        $etag = 'prefrio-procesos-'.$revision->procesos(
+            $procesos->getCollection(),
+            [
+                'pagina' => $procesos->currentPage(),
+                'por_pagina' => $procesos->perPage(),
+                'total' => $procesos->total(),
+            ],
+        );
+        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        $procesos->getCollection()->load($this->relaciones());
+
+        return $this->conEtagOperacional(
+            ProcesoPrefrioResource::collection($procesos)->response(),
+            $etag,
+        );
     }
 
     public function show(Request $request, ProcesoPrefrio $procesoPrefrio): ProcesoPrefrioResource

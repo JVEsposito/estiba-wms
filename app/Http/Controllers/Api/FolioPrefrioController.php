@@ -6,16 +6,24 @@ use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
+use App\Http\Controllers\Concerns\RespondeConEtagOperacional;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConsultarFoliosPrefrioRequest;
 use App\Http\Resources\FolioPrefrioResource;
 use App\Models\Folio;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Services\Prefrio\RevisionPrefrioOperacional;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Symfony\Component\HttpFoundation\Response;
 
 class FolioPrefrioController extends Controller
 {
-    public function index(ConsultarFoliosPrefrioRequest $request): AnonymousResourceCollection
-    {
+    use RespondeConEtagOperacional;
+
+    public function index(
+        ConsultarFoliosPrefrioRequest $request,
+        RevisionPrefrioOperacional $revision,
+    ): Response {
         $datos = $request->validated();
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
             ->filter->esActivo()
@@ -23,7 +31,7 @@ class FolioPrefrioController extends Controller
             ->all();
         $folio = mb_strtoupper(trim((string) ($datos['folio'] ?? '')));
 
-        $folios = Folio::query()
+        $consulta = Folio::query()
             ->where('activo', true)
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
             ->whereIn('tipo_bulto', [TipoBulto::Pallet->value, TipoBulto::Saldo->value])
@@ -42,10 +50,35 @@ class FolioPrefrioController extends Controller
             ->when($folio !== '', fn ($consulta) => $consulta
                 ->where('numero_folio', 'like', "%{$folio}%"))
             ->orderBy('fecha_ingreso')
-            ->orderBy('numero_folio')
-            ->limit($datos['limit'] ?? 500)
-            ->get();
+            ->orderBy('numero_folio');
+        $limite = $datos['limit'] ?? 500;
 
-        return FolioPrefrioResource::collection($folios);
+        if ($folio !== '') {
+            return FolioPrefrioResource::collection(
+                $this->obtenerFolios($consulta, $limite),
+            )->response();
+        }
+
+        $resumen = (clone $consulta)
+            ->limit($limite)
+            ->get(['id', 'numero_folio', 'fecha_ingreso', 'updated_at']);
+        $etag = 'prefrio-folios-'.$revision->foliosElegibles($resumen);
+        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        return $this->conEtagOperacional(
+            FolioPrefrioResource::collection(
+                $this->obtenerFolios($consulta, $limite),
+            )->response(),
+            $etag,
+        );
+    }
+
+    private function obtenerFolios(Builder $consulta, int $limite): Collection
+    {
+        return (clone $consulta)->limit($limite)->get();
     }
 }

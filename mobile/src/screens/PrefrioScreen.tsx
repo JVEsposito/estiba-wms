@@ -49,6 +49,7 @@ const EMPTY_CACHE: PrefrioMobileCache = {
   tunnels: [],
   processes: [],
   eligible_folios: [],
+  revisions: {},
   synced_at: '',
 };
 
@@ -257,15 +258,26 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
     const task = (async () => {
       try {
         await flushOutbox();
+        const current = cacheRef.current;
         const [tunnels, processes, eligibleFolios] = await Promise.all([
-          listPrefrioTunnels(baseUrl, auth.token),
-          listPrefrioProcesses(baseUrl, auth.token),
-          listEligiblePrefrioFolios(baseUrl, auth.token),
+          listPrefrioTunnels(baseUrl, auth.token, current.revisions?.tunnels),
+          listPrefrioProcesses(baseUrl, auth.token, current.revisions?.processes),
+          listEligiblePrefrioFolios(
+            baseUrl,
+            auth.token,
+            500,
+            current.revisions?.eligible_folios,
+          ),
         ]);
         const next: PrefrioMobileCache = {
-          tunnels,
-          processes,
-          eligible_folios: eligibleFolios,
+          tunnels: tunnels.data ?? current.tunnels,
+          processes: processes.data ?? current.processes,
+          eligible_folios: eligibleFolios.data ?? current.eligible_folios,
+          revisions: {
+            tunnels: tunnels.etag,
+            processes: processes.etag,
+            eligible_folios: eligibleFolios.etag,
+          },
           synced_at: new Date().toISOString(),
         };
         await replaceCache(next);
