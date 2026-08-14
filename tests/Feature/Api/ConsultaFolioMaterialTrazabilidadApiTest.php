@@ -47,7 +47,7 @@ class ConsultaFolioMaterialTrazabilidadApiTest extends TestCase
         $cliente = Cliente::create([
             'codigo' => 'MACE',
             'nombre' => 'MACE',
-            'codigo_folio_materiales' => 'FMA',
+            'codigo_folio_materiales' => 'FM',
             'activo' => true,
         ]);
         $temporadaMaterial = TemporadaMaterial::create([
