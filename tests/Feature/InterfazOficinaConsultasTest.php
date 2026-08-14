@@ -42,4 +42,17 @@ class InterfazOficinaConsultasTest extends TestCase
             $script,
         );
     }
+
+    public function test_expediente_distingue_producto_de_material_y_expone_su_existencia(): void
+    {
+        $script = file_get_contents(resource_path('js/office-queries.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString("folio.tipo_bulto === 'material'", $script);
+        $this->assertStringContainsString('Identidad del material', $script);
+        $this->assertStringContainsString('Saldo por almacén y centro de costo', $script);
+        $this->assertStringContainsString('recepciones_material', $script);
+        $this->assertStringContainsString('consumos_material', $script);
+        $this->assertStringContainsString('formatMaterialQuantity', $script);
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Consultas;
 
 use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\TipoBulto;
 use App\Models\Folio;
 use App\Models\Movimiento;
 use App\Models\ProcesoPrefrioFolio;
@@ -13,9 +14,17 @@ use Illuminate\Support\Collection;
 
 class ServicioExpedienteFolio
 {
+    public function __construct(
+        private readonly ServicioExpedienteMaterial $expedienteMaterial,
+    ) {}
+
     /** @return array<string, mixed> */
     public function obtener(Folio $folio): array
     {
+        if ($folio->tipo_bulto === TipoBulto::Material) {
+            return $this->expedienteMaterial->obtener($folio);
+        }
+
         $folio->load(['temporada', 'ubicacionActual.posicion.camara']);
 
         $validaciones = ValidacionPallet::query()

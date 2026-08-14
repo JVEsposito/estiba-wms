@@ -83,6 +83,7 @@
 .folio-spec-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .folio-spec-grid > div { display: grid; gap: 5px; border: 1px solid var(--line); border-radius: 9px; background: #06151d; padding: 10px; }
 .folio-spec-grid strong { font-size: .73rem; line-height: 1.35; }
+.folio-spec-grid small { color: #88a5b0; font-size: .61rem; line-height: 1.35; }
 .trace-counts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .trace-counts span { border: 1px solid var(--line); border-radius: 999px; background: var(--soft); color: #a9c1ca; padding: 5px 8px; font-size: .58rem; font-weight: 800; }
 .trace-timeline { display: grid; }

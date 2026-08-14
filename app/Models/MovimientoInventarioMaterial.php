@@ -44,6 +44,26 @@ class MovimientoInventarioMaterial extends Model
         return $this->belongsTo(ItemMaterial::class, 'item_material_id');
     }
 
+    public function despacho(): BelongsTo
+    {
+        return $this->belongsTo(DespachoMaterial::class, 'despacho_material_id');
+    }
+
+    public function retiro(): BelongsTo
+    {
+        return $this->belongsTo(RetiroMaterial::class, 'retiro_material_id');
+    }
+
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function dispositivo(): BelongsTo
+    {
+        return $this->belongsTo(Dispositivo::class);
+    }
+
     public function ordenTransformacion(): BelongsTo
     {
         return $this->belongsTo(OrdenTransformacionMaterial::class, 'orden_transformacion_material_id');
