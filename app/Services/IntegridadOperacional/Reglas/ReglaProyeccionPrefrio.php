@@ -4,7 +4,6 @@ namespace App\Services\IntegridadOperacional\Reglas;
 
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\EstadoFolioProcesoPrefrio;
-use App\Enums\EstadoOperacionalFolio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\SeveridadHallazgoIntegridadOperacional;
 use App\Enums\TipoBulto;
@@ -55,24 +54,17 @@ final class ReglaProyeccionPrefrio implements ReglaIntegridadOperacional
             ->where(function (Builder $inconsistencia): void {
                 $inconsistencia
                     ->whereNull('folio.condicion_termica')
-                    ->orWhereIn('folio.condicion_termica', [
-                        CondicionTermicaFolio::PendientePrefrio->value,
-                        CondicionTermicaFolio::EnProceso->value,
-                    ])
-                    ->orWhere('folio.estado_operacional', EstadoOperacionalFolio::PendientePrefrio->value)
-                    ->orWhere(function (Builder $sinHabilitacion): void {
-                        $sinHabilitacion
-                            ->where('folio.condicion_termica', CondicionTermicaFolio::PrefrioAprobado->value)
-                            ->where(function (Builder $habilitacion): void {
-                                $habilitacion
-                                    ->whereNull('folio.habilitacion_almacenamiento')
-                                    ->orWhere(
-                                        'folio.habilitacion_almacenamiento',
-                                        '!=',
-                                        HabilitacionAlmacenamientoFolio::Habilitado->value,
-                                    );
-                            });
-                    });
+                    ->orWhere(
+                        'folio.condicion_termica',
+                        '!=',
+                        CondicionTermicaFolio::PrefrioAprobado->value,
+                    )
+                    ->orWhereNull('folio.habilitacion_almacenamiento')
+                    ->orWhere(
+                        'folio.habilitacion_almacenamiento',
+                        '!=',
+                        HabilitacionAlmacenamientoFolio::Habilitado->value,
+                    );
             })
             ->orderBy('folio.numero_folio')
             ->get([

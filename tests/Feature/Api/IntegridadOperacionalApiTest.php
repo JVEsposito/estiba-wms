@@ -183,6 +183,37 @@ class IntegridadOperacionalApiTest extends TestCase
             ->assertSee('Solo diagnóstico');
     }
 
+    public function test_no_reporta_como_inconsistente_un_folio_aprobado_pendiente_de_ubicacion(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        [$folio] = $this->prefrioInconsistente($temporada, $administrador);
+
+        $folio->update([
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+        ]);
+        $this->assertSame(
+            EstadoOperacionalFolio::PendientePrefrio,
+            $folio->estado_operacional,
+        );
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/integridad-operacional/auditar')
+            ->assertOk()
+            ->assertJsonPath('data.hallazgos_activos', 0)
+            ->assertJsonPath('data.hallazgos_criticos', 0);
+
+        $this->assertDatabaseMissing('hallazgos_integridad', [
+            'regla_codigo' => 'prefrio_aprobado_no_proyectado',
+            'entidad_id' => $folio->id,
+            'activo' => true,
+        ]);
+    }
+
     public function test_comando_programado_registra_una_auditoria_sin_hallazgos(): void
     {
         $codigo = Artisan::call('folios:auditar-integridad', [
