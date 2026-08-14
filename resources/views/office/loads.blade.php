@@ -59,6 +59,7 @@
                         </div>
                         <div class="catalog-actions">
                             <button class="icon-button" id="reloadLoadsButton" type="button" aria-label="Actualizar órdenes">↻</button>
+                            <button class="secondary-button compact-button is-hidden" id="directDispatchButton" type="button" title="Registrar salida directa desde Prefrío">⇥ Prefrío</button>
                             <button class="primary-button compact-button" id="newLoadButton" type="button">+ Nueva</button>
                         </div>
                     </div>
@@ -366,12 +367,67 @@
                 <div class="dialog-grid">
                     <label class="field"><span>Patente *</span><input name="patente" maxlength="20" autocomplete="off" required placeholder="ABCD12"></label>
                     <label class="field"><span>Conductor *</span><input name="conductor" maxlength="150" required placeholder="Nombre completo"></label>
+                    <label class="field field--full"><span>Fecha y hora física de salida *</span><input name="ocurrido_at" type="datetime-local" required></label>
                     <label class="field field--full"><span>Observación de salida</span><textarea name="observacion" maxlength="1000" rows="3"></textarea></label>
                 </div>
                 <p class="form-error" id="closeDispatchError" role="alert"></p>
                 <footer>
                     <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
                     <button class="primary-button" type="submit">Cerrar despacho <span>→</span></button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="office-dialog office-dialog--wide" id="directDispatchDialog" aria-labelledby="directDispatchTitle">
+            <form id="directDispatchForm" method="dialog" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">PREFRÍO → DESPACHO / ANDÉN</p>
+                        <h2 id="directDispatchTitle">Registrar salida directa desde Prefrío</h2>
+                        <p>Para folios aprobados que salieron sin ubicación en cámara. No se crearán ubicaciones ni movimientos ficticios.</p>
+                    </div>
+                    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+                </header>
+
+                <div class="direct-dispatch-layout">
+                    <section class="direct-dispatch-data" aria-label="Datos del despacho">
+                        <div class="dialog-grid">
+                            <label class="field"><span>Orden externa</span><input name="numero_orden_externa" maxlength="100" placeholder="Opcional"></label>
+                            <label class="field"><span>Prioridad *</span><select name="prioridad" required><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+                            <label class="field"><span>Andén *</span><select id="directDockSelect" name="anden_id" required><option value="">Selecciona un andén</option></select></label>
+                            <label class="field"><span>Patente *</span><input name="patente" maxlength="20" autocomplete="off" required placeholder="ABCD12"></label>
+                            <label class="field"><span>Conductor *</span><input name="conductor" maxlength="150" required placeholder="Nombre completo"></label>
+                            <label class="field"><span>Fecha y hora física de salida *</span><input name="ocurrido_at" type="datetime-local" required></label>
+                            <label class="field field--full"><span>Observación</span><textarea name="observacion" maxlength="1000" rows="3" placeholder="Ej.: despacho físico ya realizado"></textarea></label>
+                        </div>
+                    </section>
+
+                    <section class="direct-folio-picker" aria-labelledby="directFoliosTitle">
+                        <div class="direct-folio-picker__heading">
+                            <div>
+                                <strong id="directFoliosTitle">Folios aprobados en Prefrío y sin ubicación</strong>
+                                <small id="directSelectionSummary">0 seleccionados · máximo 26</small>
+                            </div>
+                            <input id="directFolioSearch" type="search" maxlength="100" placeholder="Buscar folio, variedad, marca o SAG">
+                        </div>
+                        <label class="field">
+                            <span>Folios a despachar *</span>
+                            <textarea id="directFoliosInput" name="folios" rows="3" required placeholder="Escribe o pega folios separados por coma, espacio o salto de línea"></textarea>
+                            <small>También puedes marcarlos en la lista.</small>
+                        </label>
+                        <div class="direct-folio-toolbar">
+                            <label><input id="directSelectPage" type="checkbox"> Seleccionar página</label>
+                            <span id="directCandidateSummary">Cargando folios…</span>
+                        </div>
+                        <div class="direct-folio-list" id="directFolioList"></div>
+                        <div class="pagination" id="directFolioPagination" aria-label="Paginación de folios"></div>
+                    </section>
+                </div>
+
+                <p class="form-error" id="directDispatchError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Registrar salida directa <span>→</span></button>
                 </footer>
             </form>
         </dialog>

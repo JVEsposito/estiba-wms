@@ -17,6 +17,7 @@ const elements = {
     romanaNav: byId('officeRomanaNav'),
     reload: byId('reloadLoadsButton'),
     newLoad: byId('newLoadButton'),
+    directDispatch: byId('directDispatchButton'),
     emptyNewLoad: byId('emptyNewLoadButton'),
     search: byId('loadSearch'),
     statusFilter: byId('loadStatusFilter'),
@@ -91,6 +92,17 @@ const elements = {
     closeForm: byId('closeDispatchForm'),
     closeContext: byId('closeDispatchContext'),
     closeError: byId('closeDispatchError'),
+    directDialog: byId('directDispatchDialog'),
+    directForm: byId('directDispatchForm'),
+    directDock: byId('directDockSelect'),
+    directSearch: byId('directFolioSearch'),
+    directFoliosInput: byId('directFoliosInput'),
+    directSelectPage: byId('directSelectPage'),
+    directCandidateSummary: byId('directCandidateSummary'),
+    directSelectionSummary: byId('directSelectionSummary'),
+    directFolioList: byId('directFolioList'),
+    directFolioPagination: byId('directFolioPagination'),
+    directError: byId('directDispatchError'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -140,12 +152,15 @@ const state = {
     cameras: [],
     docks: [],
     availableFolios: [],
+    directFolios: [],
     incidents: [],
     replacements: [],
     loadPagination: emptyPagination(25),
     availablePagination: emptyPagination(10),
+    directPagination: emptyPagination(25),
     loadRequestId: 0,
     availableRequestId: 0,
+    directRequestId: 0,
     selected: null,
     selectedIncident: null,
     selectedReplacement: null,
@@ -155,6 +170,7 @@ const state = {
 let loadSearchTimer;
 let availableSearchTimer;
 let replacementSearchTimer;
+let directSearchTimer;
 
 class ApiError extends Error {
     constructor(message, status, data = {}) {
@@ -331,6 +347,10 @@ function showApp() {
     const canManage = state.identity?.puede_gestionar_cargas === true;
     elements.newLoad.classList.toggle('is-hidden', !canManage);
     elements.emptyNewLoad.classList.toggle('is-hidden', !canManage);
+    elements.directDispatch.classList.toggle(
+        'is-hidden',
+        !canManage || state.identity?.puede_cerrar_despacho_frigorifico !== true,
+    );
 }
 
 function statusText(value) {
@@ -388,6 +408,34 @@ function parseFolios(value = elements.folioInput.value) {
         });
 }
 
+function parseDirectFolios(value = elements.directFoliosInput.value) {
+    const seen = new Set();
+
+    return String(value)
+        .split(/[\s,;]+/)
+        .map((folio) => folio.trim())
+        .filter((folio) => {
+            if (!folio || seen.has(folio)) return false;
+            seen.add(folio);
+            return true;
+        });
+}
+
+function localDateTimeValue(date = new Date()) {
+    const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60_000));
+    return local.toISOString().slice(0, 16);
+}
+
+function localDateTimeToIso(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function syncDirectFolioInput(folios) {
+    elements.directFoliosInput.value = [...new Set(folios)].slice(0, 26).join('\n');
+    renderDirectFolios();
+}
+
 function remainingFolioSlots(load = state.selected) {
     return Math.max(0, 26 - Number(load?.total_folios || 0));
 }
@@ -401,6 +449,7 @@ function priorityClass(priority) {
 }
 
 function distributionText(load) {
+    if (load.modalidad_salida === 'directa_prefrio') return 'Salida directa desde Prefrío';
     if (!load.distribucion?.length) return 'Sin distribución disponible';
     return load.distribucion
         .map((item) => `${item.camara.codigo}: ${item.cantidad}`)
@@ -488,6 +537,17 @@ function populateCameraOptions(selectedId = '') {
 function populateDockOptions(selectedId = '') {
     elements.targetDock.innerHTML = [
         '<option value="">Sin andén previsto</option>',
+        ...state.docks.map((dock) => `
+            <option value="${escapeHtml(dock.id)}"${dock.id === selectedId ? ' selected' : ''}>
+                ${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}
+            </option>
+        `),
+    ].join('');
+}
+
+function populateDirectDockOptions(selectedId = '') {
+    elements.directDock.innerHTML = [
+        '<option value="">Selecciona un andén</option>',
         ...state.docks.map((dock) => `
             <option value="${escapeHtml(dock.id)}"${dock.id === selectedId ? ' selected' : ''}>
                 ${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}
@@ -606,6 +666,17 @@ function startNew() {
 }
 
 function renderDistribution(load) {
+    if (load.modalidad_salida === 'directa_prefrio') {
+        elements.distribution.innerHTML = `
+            <span class="distribution-chip">
+                <b>PREFRÍO</b>
+                <span>Salida directa a ${escapeHtml(load.anden_previsto?.codigo || 'andén')}</span>
+                <strong>${Number(load.total_folios || 0)}</strong>
+            </span>
+        `;
+        return;
+    }
+
     if (!load.distribucion?.length) {
         elements.distribution.innerHTML = '<span class="distribution-empty">Sin folios asignados</span>';
         return;
@@ -745,8 +816,10 @@ function renderCommands(load) {
         elements.folioTableHint.textContent = 'Los folios ya salieron de las cámaras y esperan el cierre documental.';
     } else if (load.estado === 'cerrada') {
         elements.commandTitle.textContent = `Despacho cerrado · ${load.cierre?.patente || 'sin patente'}`;
-        elements.commandDescription.textContent = `${load.cierre?.conductor || 'Conductor no informado'} · ${formatDate(load.cierre?.cerrada_at)}`;
-        elements.folioTableHint.textContent = 'Registro histórico de los folios despachados.';
+        elements.commandDescription.textContent = `${load.cierre?.conductor || 'Conductor no informado'} · salida física ${formatDate(load.cierre?.cerrada_at)} · registro ${formatDate(load.cierre?.registrada_at)}`;
+        elements.folioTableHint.textContent = load.modalidad_salida === 'directa_prefrio'
+            ? 'Registro histórico de salida directa desde Prefrío, sin ubicación ficticia.'
+            : 'Registro histórico de los folios despachados.';
     } else {
         elements.commandTitle.textContent = statusLabels[load.estado] || statusText(load.estado);
         elements.commandDescription.textContent = 'El encabezado y los folios quedan en modo de consulta.';
@@ -766,7 +839,9 @@ function renderSelected(load) {
     clearFolioErrors();
 
     const editable = canEdit(load);
-    elements.editorEyebrow.textContent = load.estado === 'borrador' ? 'ORDEN EN PREPARACIÓN' : 'ORDEN DE CARGA';
+    elements.editorEyebrow.textContent = load.modalidad_salida === 'directa_prefrio'
+        ? 'SALIDA DIRECTA DESDE PREFRÍO'
+        : (load.estado === 'borrador' ? 'ORDEN EN PREPARACIÓN' : 'ORDEN DE CARGA');
     elements.editorTitle.textContent = load.codigo;
     const linkedShipment = Boolean(load.embarque);
     const linkedExternalNumbers = externalNumbers(load);
@@ -851,6 +926,7 @@ async function loadDocks() {
     const response = await api('/api/andenes');
     state.docks = response.data;
     populateDockOptions(state.selected?.anden_previsto?.id || '');
+    populateDirectDockOptions();
 }
 
 async function loadIncidents(loadId) {
@@ -887,6 +963,100 @@ async function loadAvailableFolios(page = state.availablePagination.currentPage)
     state.availableFolios = response.data;
     state.availablePagination = pagination;
     renderAvailableFolios();
+}
+
+function renderDirectFolios() {
+    const selected = new Set(parseDirectFolios());
+    const folios = state.directFolios;
+    const pagination = state.directPagination;
+
+    elements.directSelectionSummary.textContent = `${selected.size} seleccionados · máximo 26`;
+    elements.directCandidateSummary.textContent = pagination.total
+        ? `Mostrando ${pagination.from}–${pagination.to} de ${pagination.total} disponibles`
+        : '0 folios disponibles';
+    renderPagination(elements.directFolioPagination, pagination, 'direct-page');
+
+    elements.directSelectPage.disabled = folios.length === 0;
+    elements.directSelectPage.checked = folios.length > 0
+        && folios.every((folio) => selected.has(folio.numero_folio));
+    elements.directSelectPage.indeterminate = !elements.directSelectPage.checked
+        && folios.some((folio) => selected.has(folio.numero_folio));
+
+    if (!folios.length) {
+        elements.directFolioList.innerHTML = `
+            <div class="direct-folio-empty">
+                ${elements.directSearch.value.trim()
+                    ? 'No hay folios que coincidan con la búsqueda.'
+                    : 'No existen folios aprobados en Prefrío, sin ubicación y disponibles para despacho.'}
+            </div>
+        `;
+        return;
+    }
+
+    elements.directFolioList.innerHTML = folios.map((folio) => {
+        const selectedOnPage = selected.has(folio.numero_folio);
+        const sag = folio.condicion_sag
+            ? `${folio.condicion_sag.codigo} · ${folio.condicion_sag.nombre}`
+            : 'Sin condición SAG';
+        return `
+            <label class="direct-folio-item">
+                <input data-direct-folio="${escapeHtml(folio.numero_folio)}" type="checkbox"${selectedOnPage ? ' checked' : ''}>
+                <span class="direct-folio-item__identity">
+                    <strong>${escapeHtml(folio.numero_folio)}</strong>
+                    <small>${escapeHtml(statusText(folio.tipo_bulto))}</small>
+                </span>
+                <span class="direct-folio-item__detail">
+                    <span>${escapeHtml(folio.variedad || 'Sin variedad')} · ${escapeHtml(folio.calibre || 'Sin calibre')} · ${escapeHtml(folio.marca || 'Sin marca')}</span>
+                    <small>${escapeHtml(sag)} · Prefrío ${escapeHtml(folio.prefrio?.codigo || 'aprobado')} · ${escapeHtml(formatDate(folio.prefrio?.finalizado_at))}</small>
+                </span>
+            </label>
+        `;
+    }).join('');
+}
+
+async function loadDirectFolios(page = state.directPagination.currentPage) {
+    const requestId = ++state.directRequestId;
+    const params = new URLSearchParams({
+        page: String(page),
+        per_page: '25',
+    });
+    const query = elements.directSearch.value.trim();
+    if (query) params.set('q', query);
+
+    const response = await api(`/api/cargas/folios-salida-directa-prefrio?${params}`);
+    if (requestId !== state.directRequestId) return;
+
+    const pagination = paginationFrom(response, 25);
+    if (pagination.currentPage > pagination.lastPage) {
+        await loadDirectFolios(pagination.lastPage);
+        return;
+    }
+
+    state.directFolios = response.data;
+    state.directPagination = pagination;
+    renderDirectFolios();
+}
+
+async function openDirectDispatchDialog() {
+    elements.directForm.reset();
+    elements.directError.textContent = '';
+    elements.directSearch.value = '';
+    elements.directFoliosInput.value = '';
+    elements.directForm.elements.ocurrido_at.value = localDateTimeValue();
+    populateDirectDockOptions();
+    state.directFolios = [];
+    state.directPagination = emptyPagination(25);
+    elements.directCandidateSummary.textContent = 'Cargando folios…';
+    elements.directFolioList.innerHTML = '<div class="direct-folio-empty">Buscando folios disponibles…</div>';
+    elements.directDialog.showModal();
+
+    try {
+        await loadDirectFolios(1);
+        elements.directSearch.focus();
+    } catch (error) {
+        elements.directError.textContent = error.message;
+        elements.directCandidateSummary.textContent = 'No fue posible cargar los folios.';
+    }
 }
 
 async function loadInitialData() {
@@ -1006,6 +1176,7 @@ function openCloseDialog() {
     elements.closeForm.reset();
     elements.closeError.textContent = '';
     elements.closeContext.textContent = `${state.selected.codigo} · ${state.selected.total_folios} folios en andén`;
+    elements.closeForm.elements.ocurrido_at.value = localDateTimeValue();
     elements.closeDialog.showModal();
     elements.closeForm.elements.patente.focus();
 }
@@ -1367,6 +1538,132 @@ elements.incidentForm.addEventListener('submit', async (event) => {
     }
 });
 
+elements.directDispatch.addEventListener('click', () => {
+    if (state.identity?.puede_gestionar_cargas === true
+        && state.identity?.puede_cerrar_despacho_frigorifico === true) {
+        void openDirectDispatchDialog();
+    }
+});
+
+elements.directSearch.addEventListener('input', () => {
+    clearTimeout(directSearchTimer);
+    directSearchTimer = setTimeout(() => {
+        loadDirectFolios(1).catch((error) => {
+            elements.directError.textContent = error.message;
+        });
+    }, 250);
+});
+
+elements.directFolioPagination.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-direct-page]');
+    if (!button || button.disabled) return;
+    loadDirectFolios(Number(button.dataset.directPage)).catch((error) => {
+        elements.directError.textContent = error.message;
+    });
+});
+
+elements.directFoliosInput.addEventListener('input', () => {
+    const count = parseDirectFolios().length;
+    elements.directError.textContent = count > 26
+        ? 'Una salida puede contener como máximo 26 folios.'
+        : '';
+    renderDirectFolios();
+});
+
+elements.directFolioList.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('[data-direct-folio]');
+    if (!checkbox) return;
+
+    const selected = new Set(parseDirectFolios());
+    if (checkbox.checked && selected.size >= 26 && !selected.has(checkbox.dataset.directFolio)) {
+        checkbox.checked = false;
+        elements.directError.textContent = 'Una salida puede contener como máximo 26 folios.';
+        return;
+    }
+
+    if (checkbox.checked) selected.add(checkbox.dataset.directFolio);
+    else selected.delete(checkbox.dataset.directFolio);
+    elements.directError.textContent = '';
+    syncDirectFolioInput(selected);
+});
+
+elements.directSelectPage.addEventListener('change', () => {
+    const selected = new Set(parseDirectFolios());
+    const pageFolios = state.directFolios.map((folio) => folio.numero_folio);
+
+    if (elements.directSelectPage.checked) {
+        for (const folio of pageFolios) {
+            if (selected.size >= 26) break;
+            selected.add(folio);
+        }
+    } else {
+        pageFolios.forEach((folio) => selected.delete(folio));
+    }
+
+    elements.directError.textContent = selected.size >= 26 && pageFolios.some((folio) => !selected.has(folio))
+        ? 'Se seleccionaron los primeros 26 folios permitidos.'
+        : '';
+    syncDirectFolioInput(selected);
+});
+
+elements.directForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(elements.directForm);
+    const folios = parseDirectFolios();
+    const dockId = String(form.get('anden_id') || '').trim();
+    const plate = String(form.get('patente') || '').trim().toUpperCase();
+    const driver = String(form.get('conductor') || '').trim();
+    const occurredAt = localDateTimeToIso(String(form.get('ocurrido_at') || ''));
+    const observation = String(form.get('observacion') || '').trim();
+    const externalOrder = String(form.get('numero_orden_externa') || '').trim();
+    elements.directError.textContent = '';
+
+    if (folios.length < 1 || folios.length > 26) {
+        elements.directError.textContent = 'Selecciona entre 1 y 26 folios.';
+        return;
+    }
+
+    if (!dockId || !plate || !driver || !occurredAt) {
+        elements.directError.textContent = 'Andén, patente, conductor y fecha/hora física son obligatorios.';
+        return;
+    }
+
+    if (new Date(occurredAt).getTime() > Date.now()) {
+        elements.directError.textContent = 'La fecha y hora física no puede estar en el futuro.';
+        return;
+    }
+
+    setBusy(true, 'Registrando salida directa desde Prefrío…');
+    try {
+        const response = await api('/api/cargas/despacho-directo-prefrio', {
+            method: 'POST',
+            body: JSON.stringify({
+                operacion_id: operationId(),
+                folios,
+                numero_orden_externa: externalOrder || null,
+                prioridad: String(form.get('prioridad') || 'normal'),
+                anden_id: dockId,
+                patente: plate,
+                conductor: driver,
+                ocurrido_at: occurredAt,
+                observacion: observation || null,
+            }),
+        });
+        elements.directDialog.close();
+        state.incidents = [];
+        syncLoad(response.data);
+        await Promise.all([
+            loadCatalog(1),
+            loadAvailableFolios(state.availablePagination.currentPage),
+        ]);
+        toast(`${response.data.codigo}: salida directa de ${folios.length} folios registrada con hora física ${formatDate(occurredAt)}.`);
+    } catch (error) {
+        elements.directError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+
 elements.closeDispatch.addEventListener('click', () => {
     if (canCloseDispatch(state.selected)) openCloseDialog();
 });
@@ -1377,10 +1674,16 @@ elements.closeForm.addEventListener('submit', async (event) => {
     const plate = String(form.get('patente') || '').trim().toUpperCase();
     const driver = String(form.get('conductor') || '').trim();
     const observation = String(form.get('observacion') || '').trim();
+    const occurredAt = localDateTimeToIso(String(form.get('ocurrido_at') || ''));
     elements.closeError.textContent = '';
 
-    if (!plate || !driver) {
-        elements.closeError.textContent = 'La patente y el conductor son obligatorios.';
+    if (!plate || !driver || !occurredAt) {
+        elements.closeError.textContent = 'La patente, el conductor y la fecha/hora física son obligatorios.';
+        return;
+    }
+
+    if (new Date(occurredAt).getTime() > Date.now()) {
+        elements.closeError.textContent = 'La fecha y hora física no puede estar en el futuro.';
         return;
     }
 
@@ -1392,6 +1695,7 @@ elements.closeForm.addEventListener('submit', async (event) => {
                 operacion_id: operationId(),
                 patente: plate,
                 conductor: driver,
+                ocurrido_at: occurredAt,
                 observacion: observation || null,
             }),
         });

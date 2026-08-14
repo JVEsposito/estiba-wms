@@ -201,6 +201,9 @@ class DespachoFrigorificoController extends Controller
             patente: $datos['patente'],
             conductor: $datos['conductor'],
             observacion: $datos['observacion'] ?? null,
+            ocurridoAt: isset($datos['ocurrido_at'])
+                ? CarbonImmutable::parse($datos['ocurrido_at'])
+                : null,
         );
 
         return new CargaResource($this->cargarCarga($cerrada));
