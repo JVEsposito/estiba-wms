@@ -49,10 +49,19 @@ type CandidateGroup = {
 
 const LOADABLE_PROCESS_STATES = new Set(['borrador', 'cargando', 'listo_para_iniciar']);
 
+const EMPTY_CACHE: PrefrioMobileCache = {
+  tunnels: [],
+  processes: [],
+  eligible_folios: [],
+  revisions: {},
+  synced_at: '',
+};
+
 export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorkspaceProps) {
   const loadingFolio = useRef(false);
   const previousView = useRef<WorkspaceView>('pendientes');
   const synchronizing = useRef(false);
+  const cacheRef = useRef<PrefrioMobileCache>(EMPTY_CACHE);
   const userId = auth.usuario.id;
   const deviceId = auth.dispositivo.id;
   const canOperate = auth.usuario.capacidades.puede_operar_prefrio === true;
@@ -165,6 +174,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
     try {
       const cached = await loadPrefrioCache(userId, deviceId);
       if (cached) {
+        cacheRef.current = cached;
         setFolios(cached.eligible_folios);
         setProcesses(cached.processes);
         setTunnels(cached.tunnels);
@@ -187,20 +197,32 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
 
     synchronizing.current = true;
     try {
+      const current = cacheRef.current;
       const [nextTunnels, nextProcesses, nextFolios] = await Promise.all([
-        listPrefrioTunnels(baseUrl, auth.token),
-        listPrefrioProcesses(baseUrl, auth.token),
-        listEligiblePrefrioFolios(baseUrl, auth.token),
+        listPrefrioTunnels(baseUrl, auth.token, current.revisions?.tunnels),
+        listPrefrioProcesses(baseUrl, auth.token, current.revisions?.processes),
+        listEligiblePrefrioFolios(
+          baseUrl,
+          auth.token,
+          500,
+          current.revisions?.eligible_folios,
+        ),
       ]);
       const nextCache: PrefrioMobileCache = {
-        tunnels: nextTunnels,
-        processes: nextProcesses,
-        eligible_folios: nextFolios,
+        tunnels: nextTunnels.data ?? current.tunnels,
+        processes: nextProcesses.data ?? current.processes,
+        eligible_folios: nextFolios.data ?? current.eligible_folios,
+        revisions: {
+          tunnels: nextTunnels.etag,
+          processes: nextProcesses.etag,
+          eligible_folios: nextFolios.etag,
+        },
         synced_at: new Date().toISOString(),
       };
-      setTunnels(nextTunnels);
-      setProcesses(nextProcesses);
-      setFolios(nextFolios);
+      cacheRef.current = nextCache;
+      setTunnels(nextCache.tunnels);
+      setProcesses(nextCache.processes);
+      setFolios(nextCache.eligible_folios);
       await savePrefrioCache(userId, deviceId, nextCache);
       setOnline(true);
       setError('');
@@ -278,14 +300,17 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
         ...processes.filter((item) => item.id !== updatedProcess.id),
       ];
       const nextFolios = folios.filter((item) => item.id !== selectedFolio.id);
-      setProcesses(nextProcesses);
-      setFolios(nextFolios);
-      await savePrefrioCache(userId, deviceId, {
+      const nextCache: PrefrioMobileCache = {
+        ...cacheRef.current,
         tunnels,
         processes: nextProcesses,
         eligible_folios: nextFolios,
         synced_at: new Date().toISOString(),
-      });
+      };
+      cacheRef.current = nextCache;
+      setProcesses(nextProcesses);
+      setFolios(nextFolios);
+      await savePrefrioCache(userId, deviceId, nextCache);
       setOnline(true);
       setNotice(
         `${selectedFolio.numero_folio} cargado en ${positionLabel(selectedPositionId, freePositions)} del proceso ${updatedProcess.codigo}.`

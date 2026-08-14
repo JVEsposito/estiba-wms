@@ -190,5 +190,10 @@ export type PrefrioMobileCache = {
   tunnels: PrefrioTunnel[];
   processes: PrefrioProcess[];
   eligible_folios: PrefrioFolioCandidate[];
+  revisions?: {
+    tunnels?: string | null;
+    processes?: string | null;
+    eligible_folios?: string | null;
+  };
   synced_at: string;
 };

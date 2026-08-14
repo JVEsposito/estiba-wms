@@ -132,6 +132,83 @@ class PrefrioApiTest extends TestCase
         $this->assertSame(1, ProcesoPrefrio::query()->count());
     }
 
+    public function test_bandejas_operacionales_usan_etag_y_evitan_relaciones_pesadas_sin_cambios(): void
+    {
+        [$tunel, $posicion, $token] = $this->contexto();
+        $proceso = $this->crearProceso($token, $tunel);
+
+        $tunelesIniciales = $this->conToken($token)
+            ->getJson('/api/prefrio/tuneles')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.0.proceso_activo.id', $proceso['id']);
+        $procesosIniciales = $this->conToken($token)
+            ->getJson('/api/prefrio/procesos?per_page=50&solo_activos=1')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.0.id', $proceso['id']);
+        $etagTuneles = $tunelesIniciales->headers->get('ETag');
+        $etagProcesos = $procesosIniciales->headers->get('ETag');
+
+        $this->assertNotNull($etagTuneles);
+        $this->assertNotNull($etagProcesos);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->conToken($token)
+            ->withHeader('If-None-Match', $etagTuneles)
+            ->get('/api/prefrio/tuneles')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagTuneles);
+        $consultasTuneles = collect(DB::getQueryLog());
+
+        DB::flushQueryLog();
+        $this->conToken($token)
+            ->withHeader('If-None-Match', $etagProcesos)
+            ->get('/api/prefrio/procesos?per_page=50&solo_activos=1')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagProcesos);
+        $consultasProcesos = collect(DB::getQueryLog());
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+
+        $this->assertFalse($consultasTuneles->contains(function (array $consulta): bool {
+            $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
+
+            return str_contains($sql, 'from posiciones_tunel_prefrio')
+                && str_contains($sql, 'tunel_prefrio_id in');
+        }), 'La revisión de túneles no debe reconstruir sus posiciones.');
+        $this->assertFalse($consultasProcesos->contains(function (array $consulta): bool {
+            $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
+
+            return str_contains($sql, 'from eventos_prefrio')
+                || str_contains($sql, 'from users where users.id in');
+        }), 'La revisión de procesos no debe cargar eventos ni actores.');
+
+        $folio = $this->folioPendiente('PAL-PF-ETAG-001');
+        $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 0,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $posicion->id,
+            'ocurrido_at' => now()->toAtomString(),
+        ]);
+
+        $tunelesActualizados = $this->conToken($token)
+            ->withHeader('If-None-Match', $etagTuneles)
+            ->getJson('/api/prefrio/tuneles')
+            ->assertOk()
+            ->assertJsonPath('data.0.proceso_activo.folios_cargados', 1);
+        $procesosActualizados = $this->conToken($token)
+            ->withHeader('If-None-Match', $etagProcesos)
+            ->getJson('/api/prefrio/procesos?per_page=50&solo_activos=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.0.folios');
+
+        $this->assertNotSame($etagTuneles, $tunelesActualizados->headers->get('ETag'));
+        $this->assertNotSame($etagProcesos, $procesosActualizados->headers->get('ETag'));
+    }
+
     public function test_posicion_admite_varios_saldos_y_mantiene_pallet_completo_exclusivo(): void
     {
         [$tunel, $primeraPosicion, $token] = $this->contexto();
@@ -826,6 +903,23 @@ class PrefrioApiTest extends TestCase
         $this->assertStringContainsString('removePrefrioProcessCommands', $mobile);
         $this->assertStringContainsString('removePrefrioProcessCommands', $store);
         $this->assertStringNotContainsString('quedó registrado${baseUrl', $mobile);
+    }
+
+    public function test_pda_reutiliza_revisiones_de_prefrio_sin_vaciar_la_bandeja(): void
+    {
+        $api = file_get_contents(base_path('mobile/src/services/prefrioApi.ts'));
+        $tuneles = file_get_contents(base_path('mobile/src/screens/PrefrioScreen.tsx'));
+        $pendientes = file_get_contents(base_path('mobile/src/screens/PrefrioWorkspaceScreen.tsx'));
+
+        $this->assertIsString($api);
+        $this->assertIsString($tuneles);
+        $this->assertIsString($pendientes);
+        $this->assertStringContainsString("headers.set('If-None-Match', etag)", $api);
+        $this->assertStringContainsString('response.status === 304', $api);
+        $this->assertStringContainsString('tunnels.data ?? current.tunnels', $tuneles);
+        $this->assertStringContainsString('nextFolios.data ?? current.eligible_folios', $pendientes);
+        $this->assertStringContainsString('revisions:', $tuneles);
+        $this->assertStringContainsString('revisions:', $pendientes);
     }
 
     /**

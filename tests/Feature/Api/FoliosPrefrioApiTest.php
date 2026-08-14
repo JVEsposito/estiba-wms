@@ -81,6 +81,43 @@ class FoliosPrefrioApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_bandeja_elegible_usa_etag_y_se_invalida_al_cambiar_un_folio(): void
+    {
+        [, , $token] = $this->accesoPrefrio();
+        $folio = $this->crearFolio(
+            'PAL-PF-ETAG-100',
+            CondicionTermicaFolio::PendientePrefrio,
+            HabilitacionAlmacenamientoFolio::NoHabilitado,
+        );
+
+        $inicial = $this->withToken($token)
+            ->getJson('/api/prefrio/folios-disponibles?limit=500')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.0.id', $folio->id);
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+        $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->get('/api/prefrio/folios-disponibles?limit=500')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $folio->update([
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+        ]);
+
+        $actualizada = $this->withToken($token)
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/prefrio/folios-disponibles?limit=500')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->assertNotSame($etagInicial, $actualizada->headers->get('ETag'));
+    }
+
     /**
      * @return array{User, Dispositivo, string}
      */

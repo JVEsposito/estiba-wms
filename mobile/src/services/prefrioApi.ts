@@ -47,22 +47,72 @@ async function request<T>(
   return data as T;
 }
 
-export async function listPrefrioTunnels(baseUrl: string, token: string) {
-  const response = await request<{ data: PrefrioTunnel[] }>(
+export type ConditionalPrefrioList<T> = {
+  data: T[] | null;
+  etag: string | null;
+};
+
+async function requestConditionalList<T>(
+  baseUrl: string,
+  path: string,
+  token: string,
+  etag?: string | null,
+): Promise<ConditionalPrefrioList<T>> {
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+  });
+  if (etag) headers.set('If-None-Match', etag);
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, { headers });
+  } catch {
+    throw new ApiError('La PDA no puede alcanzar el servidor. Se conserva la última bandeja de Prefrío.', 0);
+  }
+
+  const nextEtag = response.headers.get('ETag') ?? etag ?? null;
+  if (response.status === 304) return { data: null, etag: nextEtag };
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiError(
+      responseMessage(body, 'No fue posible actualizar la bandeja de Prefrío.'),
+      response.status,
+      body,
+    );
+  }
+
+  return {
+    data: (body as { data: T[] }).data,
+    etag: nextEtag,
+  };
+}
+
+export async function listPrefrioTunnels(
+  baseUrl: string,
+  token: string,
+  etag?: string | null,
+) {
+  return requestConditionalList<PrefrioTunnel>(
     baseUrl,
     '/api/prefrio/tuneles',
     token,
+    etag,
   );
-  return response.data;
 }
 
-export async function listPrefrioProcesses(baseUrl: string, token: string) {
-  const response = await request<{ data: PrefrioProcess[] }>(
+export async function listPrefrioProcesses(
+  baseUrl: string,
+  token: string,
+  etag?: string | null,
+) {
+  return requestConditionalList<PrefrioProcess>(
     baseUrl,
     '/api/prefrio/procesos?per_page=50&solo_activos=1',
     token,
+    etag,
   );
-  return response.data;
 }
 
 export async function getPrefrioProcess(
@@ -82,13 +132,14 @@ export async function listEligiblePrefrioFolios(
   baseUrl: string,
   token: string,
   limit = 500,
+  etag?: string | null,
 ) {
-  const response = await request<{ data: PrefrioFolioCandidate[] }>(
+  return requestConditionalList<PrefrioFolioCandidate>(
     baseUrl,
     `/api/prefrio/folios-disponibles?limit=${limit}`,
     token,
+    etag,
   );
-  return response.data;
 }
 
 export async function findEligiblePrefrioFolios(

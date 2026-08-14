@@ -48,6 +48,17 @@ class IndicesConsultasOperacionalesTest extends TestCase
             ['activo', 'tipo_bulto', 'estado_operacional'],
         );
         $this->assertIndexColumns(
+            'folios',
+            'folios_elegibles_prefrio_idx',
+            [
+                'activo',
+                'tipo_bulto',
+                'condicion_termica',
+                'habilitacion_almacenamiento',
+                'fecha_ingreso',
+            ],
+        );
+        $this->assertIndexColumns(
             'lotes_materia_prima',
             'lote_mp_temporada_envase_estado_idx',
             ['temporada_id', 'envase_primario', 'estado', 'created_at'],

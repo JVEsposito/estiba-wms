@@ -2,32 +2,48 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RespondeConEtagOperacional;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuardarTunelPrefrioRequest;
 use App\Http\Resources\TunelPrefrioResource;
 use App\Models\TunelPrefrio;
+use App\Services\Prefrio\RevisionPrefrioOperacional;
 use App\Services\Prefrio\ServicioConfiguracionTunelPrefrio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 class TunelPrefrioController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
-    {
+    use RespondeConEtagOperacional;
+
+    public function index(
+        Request $request,
+        RevisionPrefrioOperacional $revision,
+    ): Response {
         abort_unless($request->user()?->can('consultar-prefrio'), 403);
 
         $tuneles = TunelPrefrio::query()
-            ->with([
-                'posiciones' => fn ($consulta) => $consulta->orderBy('numero'),
-                'procesoActivo.folios',
-                'creadoPor:id,name',
-            ])
             ->orderBy('codigo')
             ->get();
 
-        return TunelPrefrioResource::collection($tuneles);
+        $etag = 'prefrio-tuneles-'.$revision->tuneles($tuneles);
+        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        $tuneles->load([
+            'posiciones' => fn ($consulta) => $consulta->orderBy('numero'),
+            'procesoActivo.folios',
+            'creadoPor:id,name',
+        ]);
+
+        return $this->conEtagOperacional(
+            TunelPrefrioResource::collection($tuneles)->response(),
+            $etag,
+        );
     }
 
     public function show(Request $request, TunelPrefrio $tunelPrefrio): TunelPrefrioResource
