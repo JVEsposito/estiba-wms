@@ -99,8 +99,7 @@ class CargaController extends Controller
     public function pendientes(
         Request $request,
         RevisionCargaOperacional $revision,
-    ): Response
-    {
+    ): Response {
         Gate::authorize('consultar-cargas-operacion');
 
         $cargas = Carga::query()
