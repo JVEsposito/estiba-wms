@@ -22,14 +22,17 @@ use App\Models\IncidenciaCargaFolio;
 use App\Models\SesionEstiba;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Cargas\PlanificadorExtraccionCarga;
+use App\Services\Cargas\RevisionCargaOperacional;
 use App\Services\Cargas\ServicioDespachoFrigorifico;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 class DespachoFrigorificoController extends Controller
 {
@@ -82,9 +85,11 @@ class DespachoFrigorificoController extends Controller
     }
 
     public function planExtraccion(
+        Request $request,
         Carga $carga,
         PlanificadorExtraccionCarga $planificador,
-    ): JsonResponse {
+        RevisionCargaOperacional $revision,
+    ): Response {
         Gate::authorize('consultar-cargas-operacion');
 
         abort_unless(
@@ -92,7 +97,28 @@ class DespachoFrigorificoController extends Controller
             404,
         );
 
-        return response()->json(['data' => $planificador->planificar($carga)]);
+        $etag = 'plan-extraccion-'.$revision->calcular(new Collection([$carga]));
+        $respuestaCondicional = $this->configurarCacheOperacion(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        return $this->configurarCacheOperacion(
+            response()->json(['data' => $planificador->planificar($carga)]),
+            $etag,
+        );
+    }
+
+    private function configurarCacheOperacion(Response $respuesta, string $etag): Response
+    {
+        $respuesta->setEtag($etag);
+        $respuesta->setPrivate();
+        $respuesta->headers->addCacheControlDirective('no-cache');
+        $respuesta->setVary('Authorization');
+        $respuesta->headers->set('Access-Control-Expose-Headers', 'ETag');
+
+        return $respuesta;
     }
 
     public function reportarIncidencia(

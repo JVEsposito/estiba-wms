@@ -24,6 +24,7 @@ use App\Services\Estiba\ServicioSesionEstiba;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -94,6 +95,60 @@ class CargaApiTest extends TestCase
                 'data.posiciones.0.folio.carga_actual.codigo',
                 'CAR-000001',
             );
+    }
+
+    public function test_bandeja_operacional_usa_etag_y_evade_el_detalle_si_no_cambia(): void
+    {
+        $despachador = $this->despachador();
+        [$camara, $folio] = $this->crearFolioUbicado('FOLIO-CARGA-ETAG');
+        $carga = $this->crearCarga($despachador);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$carga->id}/folios", [
+                'folios' => [$folio->numero_folio],
+                'version_esperada' => 1,
+            ])
+            ->assertOk();
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$carga->id}/publicar", [
+                'version_esperada' => 2,
+            ])
+            ->assertOk();
+
+        $inicial = $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/cargas/pendientes')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonPath('data.0.codigo', $carga->codigo)
+            ->assertJsonPath('data.0.total_folios', 1);
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->actingAs($despachador, 'sanctum')
+            ->withHeader('If-None-Match', $etagInicial)
+            ->get('/api/cargas/pendientes')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $consultoDetalle = collect(DB::getQueryLog())->contains(function (array $consulta): bool {
+            $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
+
+            return str_starts_with($sql, 'select * from carga_folios ')
+                || str_contains($sql, 'select count(*) as aggregate from incidencias_carga_folio');
+        });
+        $this->assertFalse($consultoDetalle);
+        DB::disableQueryLog();
+
+        $camara->increment('version_plano');
+        $actualizada = $this->actingAs($despachador, 'sanctum')
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/cargas/pendientes')
+            ->assertOk();
+
+        $this->assertNotSame($etagInicial, $actualizada->headers->get('ETag'));
     }
 
     public function test_un_folio_no_puede_pertenecer_a_dos_cargas_activas(): void

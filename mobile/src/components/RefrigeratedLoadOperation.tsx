@@ -126,11 +126,12 @@ export function RefrigeratedLoadOperation({
     if (pollInFlight.current) return;
     pollInFlight.current = true;
     try {
-      const loadedLoads = await api.listRefrigeratedLoads(auth.token);
-      setLoads(loadedLoads);
-      const nextLoadId = loadedLoads.some((load) => load.id === selectedLoadId)
+      const refreshedLoads = await api.refreshRefrigeratedLoads(auth.token);
+      const nextLoads = refreshedLoads ?? loads;
+      if (refreshedLoads) setLoads(refreshedLoads);
+      const nextLoadId = nextLoads.some((load) => load.id === selectedLoadId)
         ? selectedLoadId
-        : loadedLoads[0]?.id ?? null;
+        : nextLoads[0]?.id ?? null;
       setSelectedLoadId(nextLoadId);
 
       if (!nextLoadId) {
@@ -139,8 +140,14 @@ export function RefrigeratedLoadOperation({
         return;
       }
 
-      const route = await api.getExtractionPlan(auth.token, nextLoadId);
-      setExtractionPlan(route);
+      let refreshedRoute = await api.refreshExtractionPlan(auth.token, nextLoadId);
+      const currentRoute = extractionPlan?.carga_id === nextLoadId ? extractionPlan : null;
+      if (!refreshedRoute && !currentRoute) {
+        refreshedRoute = await api.getExtractionPlan(auth.token, nextLoadId);
+      }
+      const route = refreshedRoute ?? currentRoute;
+      if (!route) return;
+      if (refreshedRoute) setExtractionPlan(refreshedRoute);
       const selected = route.items.find((item) => item.asignacion_id === selectedRouteId)
         ?? route.siguiente
         ?? route.items.find((item) => item.ubicacion !== null)

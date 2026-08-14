@@ -88,7 +88,9 @@ export interface EstibaApi {
   generateMaterialTransformationLabels(token: string, orderId: string, payload: GenerateMaterialLabelsPayload): Promise<{ jobId: string; zpl: string }>;
   reportMaterialTransformationPrintOutcome(token: string, jobId: string, payload: MaterialPrintOutcomePayload): Promise<void>;
   listRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[]>;
+  refreshRefrigeratedLoads(token: string): Promise<RefrigeratedLoad[] | null>;
   getExtractionPlan(token: string, loadId: string): Promise<ExtractionPlan>;
+  refreshExtractionPlan(token: string, loadId: string): Promise<ExtractionPlan | null>;
   listDocks(token: string): Promise<Dock[]>;
   reportLoadIncident(token: string, assignmentId: string, payload: ReportLoadIncidentPayload): Promise<void>;
   sendLoadFolioToDock(token: string, assignmentId: string, payload: SendLoadFolioToDockPayload): Promise<RefrigeratedLoad>;
@@ -113,8 +115,10 @@ class HttpEstibaApi implements EstibaApi {
   readonly mode = 'connected' as const;
   readonly configurationError = null;
   private camerasEtag: string | null = null;
+  private refrigeratedLoadsEtag: string | null = null;
   private readonly planEtags = new Map<string, string>();
   private readonly recentEtags = new Map<string, string>();
+  private readonly extractionPlanEtags = new Map<string, string>();
 
   constructor(public readonly baseUrl: string) {}
 
@@ -161,8 +165,10 @@ class HttpEstibaApi implements EstibaApi {
   async logout(token: string) {
     await this.request<null>('/api/acceso-tablet', token, { method: 'DELETE' });
     this.camerasEtag = null;
+    this.refrigeratedLoadsEtag = null;
     this.planEtags.clear();
     this.recentEtags.clear();
+    this.extractionPlanEtags.clear();
   }
 
   async listCameras(token: string) {
@@ -225,6 +231,15 @@ class HttpEstibaApi implements EstibaApi {
     etag: string | null,
     rememberEtag: (etag: string) => void,
   ): Promise<T[] | null> {
+    return this.requestConditionalData<T[]>(path, token, etag, rememberEtag);
+  }
+
+  private async requestConditionalData<T>(
+    path: string,
+    token: string,
+    etag: string | null,
+    rememberEtag: (etag: string) => void,
+  ): Promise<T | null> {
     const headers = new Headers({
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
@@ -256,7 +271,7 @@ class HttpEstibaApi implements EstibaApi {
     const nextEtag = response.headers.get('ETag');
     if (nextEtag) rememberEtag(nextEtag);
 
-    return (data as ApiList<T>).data;
+    return (data as ApiItem<T>).data;
   }
 
   private async requestPlan(
@@ -524,14 +539,44 @@ class HttpEstibaApi implements EstibaApi {
   }
 
   async listRefrigeratedLoads(token: string) {
-    return (await this.request<ApiList<RefrigeratedLoad>>('/api/cargas/pendientes', token)).data;
+    return (await this.requestRefrigeratedLoads(token, false))!;
+  }
+
+  async refreshRefrigeratedLoads(token: string) {
+    return this.requestRefrigeratedLoads(token, true);
   }
 
   async getExtractionPlan(token: string, loadId: string) {
-    return (await this.request<ApiItem<ExtractionPlan>>(
+    return (await this.requestExtractionPlan(token, loadId, false))!;
+  }
+
+  async refreshExtractionPlan(token: string, loadId: string) {
+    return this.requestExtractionPlan(token, loadId, true);
+  }
+
+  private async requestRefrigeratedLoads(
+    token: string,
+    conditional: boolean,
+  ): Promise<RefrigeratedLoad[] | null> {
+    return this.requestConditionalList<RefrigeratedLoad>(
+      '/api/cargas/pendientes',
+      token,
+      conditional ? this.refrigeratedLoadsEtag : null,
+      (etag) => { this.refrigeratedLoadsEtag = etag; },
+    );
+  }
+
+  private async requestExtractionPlan(
+    token: string,
+    loadId: string,
+    conditional: boolean,
+  ): Promise<ExtractionPlan | null> {
+    return this.requestConditionalData<ExtractionPlan>(
       `/api/cargas/${loadId}/plan-extraccion`,
       token,
-    )).data;
+      conditional ? this.extractionPlanEtags.get(loadId) ?? null : null,
+      (etag) => { this.extractionPlanEtags.set(loadId, etag); },
+    );
   }
 
   async listDocks(token: string) {
@@ -666,7 +711,9 @@ function createUnavailableApi(message: string): EstibaApi {
     generateMaterialTransformationLabels: unavailable,
     reportMaterialTransformationPrintOutcome: unavailable,
     listRefrigeratedLoads: unavailable,
+    refreshRefrigeratedLoads: unavailable,
     getExtractionPlan: unavailable,
+    refreshExtractionPlan: unavailable,
     listDocks: unavailable,
     reportLoadIncident: unavailable,
     sendLoadFolioToDock: unavailable,
