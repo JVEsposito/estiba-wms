@@ -35,6 +35,7 @@ class CargaResource extends JsonResource
             'codigo' => $this->codigo,
             'numero_orden_externa' => $this->numero_orden_externa,
             'estado' => $this->estado->value,
+            'modalidad_salida' => $this->modalidad_salida->value,
             'prioridad' => $this->prioridad->value,
             'version' => $this->version,
             'observacion' => $this->observacion,
@@ -103,6 +104,7 @@ class CargaResource extends JsonResource
                 'conductor' => $this->conductor,
                 'observacion' => $this->observacion_cierre,
                 'cerrada_at' => $this->cerrada_at->toAtomString(),
+                'registrada_at' => $this->cierre_registrado_at?->toAtomString(),
                 'cerrada_por' => $this->whenLoaded('cerradaPor', fn () => [
                     'id' => $this->cerradaPor?->id,
                     'nombre' => $this->cerradaPor?->name,

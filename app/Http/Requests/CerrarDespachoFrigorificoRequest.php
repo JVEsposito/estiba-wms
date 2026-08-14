@@ -21,6 +21,7 @@ class CerrarDespachoFrigorificoRequest extends FormRequest
             'operacion_id' => ['required', 'uuid'],
             'patente' => ['required', 'string', 'max:20'],
             'conductor' => ['required', 'string', 'max:150'],
+            'ocurrido_at' => ['nullable', 'date', 'before_or_equal:now'],
             'observacion' => ['nullable', 'string', 'max:1000'],
         ];
     }

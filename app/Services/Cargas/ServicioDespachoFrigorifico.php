@@ -29,6 +29,7 @@ use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Transiciones\ComandoTransicionOperacional;
 use App\Services\Transiciones\MotorTransicionesOperacionales;
 use BackedEnum;
+use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
 use DomainException;
@@ -495,6 +496,7 @@ class ServicioDespachoFrigorifico
         string $patente,
         string $conductor,
         ?string $observacion = null,
+        ?DateTimeInterface $ocurridoAt = null,
     ): Carga {
         $this->asegurarUuid($operacionId);
 
@@ -506,6 +508,13 @@ class ServicioDespachoFrigorifico
 
         $patente = Str::upper(trim($patente));
         $conductor = trim($conductor);
+        $salidaAt = $ocurridoAt
+            ? CarbonImmutable::instance($ocurridoAt)
+            : CarbonImmutable::now();
+
+        if ($salidaAt->isFuture()) {
+            throw new DomainException('La fecha y hora de salida no puede estar en el futuro.');
+        }
 
         if ($patente === '' || $conductor === '') {
             throw new DomainException('La patente y el conductor son obligatorios para cerrar el despacho.');
@@ -518,6 +527,11 @@ class ServicioDespachoFrigorifico
             'observacion' => $this->textoOpcional($observacion),
             'usuario_id' => $usuario->id,
         ];
+
+        if ($ocurridoAt) {
+            $payload['ocurrido_at'] = $salidaAt->toAtomString();
+        }
+
         $payloadHash = $this->hash($payload);
 
         $accion = function () use (
@@ -527,6 +541,7 @@ class ServicioDespachoFrigorifico
             $patente,
             $conductor,
             $observacion,
+            $salidaAt,
             $payloadHash,
         ): Carga {
             $otraCarga = Carga::query()
@@ -568,6 +583,16 @@ class ServicioDespachoFrigorifico
                 throw new DomainException('La carga aún posee folios pendientes fuera del andén.');
             }
 
+            $ultimoEnvioAnden = $asignaciones->max(
+                fn (CargaFolio $asignacion): ?int => $asignacion->enviado_anden_at?->getTimestamp(),
+            );
+
+            if ($ultimoEnvioAnden !== null && $salidaAt->getTimestamp() < $ultimoEnvioAnden) {
+                throw new DomainException(
+                    'La fecha y hora de salida no puede ser anterior al último envío de un folio al andén.',
+                );
+            }
+
             $incidenciasAbiertas = IncidenciaCargaFolio::query()
                 ->whereIn('carga_folio_id', $asignaciones->pluck('id'))
                 ->where('estado', EstadoIncidenciaCarga::Abierta->value)
@@ -586,7 +611,7 @@ class ServicioDespachoFrigorifico
                 $asignacion->reservaActiva()->lockForUpdate()->first()?->delete();
                 $asignacion->update([
                     'finalizado_por_user_id' => $usuario->id,
-                    'finalizado_at' => now(),
+                    'finalizado_at' => $salidaAt,
                     'motivo_finalizacion' => 'Salida de camión confirmada',
                 ]);
             }
@@ -599,7 +624,8 @@ class ServicioDespachoFrigorifico
                 'conductor' => $conductor,
                 'observacion_cierre' => $this->textoOpcional($observacion),
                 'cerrada_por_user_id' => $usuario->id,
-                'cerrada_at' => now(),
+                'cerrada_at' => $salidaAt,
+                'cierre_registrado_at' => CarbonImmutable::now(),
                 'version' => $cargaBloqueada->version + 1,
                 'actualizada_por_user_id' => $usuario->id,
             ]);
@@ -611,6 +637,8 @@ class ServicioDespachoFrigorifico
                     'patente' => $patente,
                     'conductor' => $conductor,
                     'cantidad_folios' => $asignaciones->count(),
+                    'salida_fisica_at' => $salidaAt->toAtomString(),
+                    'registrada_at' => CarbonImmutable::now()->toAtomString(),
                 ],
             );
             $this->servicioTareas->sincronizar($cargaBloqueada);
@@ -627,6 +655,7 @@ class ServicioDespachoFrigorifico
             Carga::class,
             (string) $carga->id,
             $carga->codigo,
+            ocurridoAt: $salidaAt,
         );
     }
 

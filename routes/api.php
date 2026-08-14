@@ -371,6 +371,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/cargas/folios-disponibles', [CargaController::class, 'foliosDisponibles'])
         ->middleware('can:gestionar-cargas');
+    Route::get('/cargas/folios-salida-directa-prefrio', [CargaController::class, 'foliosSalidaDirectaPrefrio'])
+        ->middleware('can:gestionar-cargas');
     Route::middleware('can:consultar-catalogo-cargas')->group(function () {
         Route::get('/embarques', [EmbarqueController::class, 'index']);
         Route::get('/embarques/{embarque}', [EmbarqueController::class, 'show']);
@@ -383,6 +385,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/embarques/{embarque}', [EmbarqueController::class, 'update']);
         Route::post('/embarques/{embarque}/confirmar', [EmbarqueController::class, 'confirmar']);
         Route::post('/embarques/{embarque}/cancelar', [EmbarqueController::class, 'cancelar']);
+        Route::post('/cargas/despacho-directo-prefrio', [CargaController::class, 'registrarDespachoDirectoPrefrio']);
         Route::post('/cargas', [CargaController::class, 'store']);
         Route::put('/cargas/{carga}', [CargaController::class, 'update']);
         Route::post('/cargas/{carga}/folios', [CargaController::class, 'agregarFolios']);

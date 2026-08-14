@@ -2,12 +2,17 @@
 
 namespace App\Services\Cargas;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
+use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
+use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Enums\ModalidadSalidaCarga;
 use App\Enums\PrioridadCarga;
 use App\Enums\TipoBulto;
 use App\Enums\TipoEventoCarga;
@@ -26,7 +31,10 @@ use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Temporadas\ServicioTemporadaActiva;
 use App\Services\Transiciones\ComandoTransicionOperacional;
 use App\Services\Transiciones\MotorTransicionesOperacionales;
+use App\Services\Transiciones\NormalizadorTransicionOperacional;
+use Carbon\CarbonImmutable;
 use Closure;
+use DateTimeInterface;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +47,7 @@ class ServicioCarga
         private readonly ServicioTareasCarga $servicioTareas,
         private readonly ServicioTemporadaActiva $temporadaActiva,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
+        private readonly NormalizadorTransicionOperacional $normalizadorTransiciones,
     ) {}
 
     /**
@@ -82,6 +91,303 @@ class ServicioCarga
             $datos,
             $accion,
             referencia: $datos['numero_orden_externa'] ?? null,
+        );
+    }
+
+    /**
+     * Registra en una sola transición una salida física desde Prefrío hacia
+     * andén/camión. No crea ubicaciones ni movimientos de cámara ficticios.
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    public function registrarDespachoDirectoPrefrio(array $datos, User $usuario): Carga
+    {
+        $this->asegurarGestionAutorizada($usuario);
+
+        if (! $this->alcance->puedeCerrarDespachoFrigorifico($usuario)) {
+            throw new OperacionNoAutorizada(
+                'El usuario no está autorizado para registrar salidas directas desde Prefrío.',
+            );
+        }
+
+        $operacionId = (string) $datos['operacion_id'];
+        $numeros = $this->normalizarNumerosFolio($datos['folios']);
+        $salidaAt = CarbonImmutable::parse($datos['ocurrido_at']);
+        $ahora = CarbonImmutable::now();
+
+        if ($salidaAt->isFuture()) {
+            throw new DomainException('La fecha y hora real de salida no puede estar en el futuro.');
+        }
+
+        $patente = mb_strtoupper(trim((string) $datos['patente']));
+        $conductor = trim((string) $datos['conductor']);
+
+        if ($patente === '' || $conductor === '') {
+            throw new DomainException(
+                'La patente y el conductor son obligatorios para registrar la salida directa.',
+            );
+        }
+
+        $numeroOrden = $this->textoOpcional($datos['numero_orden_externa'] ?? null);
+        $observacion = $this->textoOpcional($datos['observacion'] ?? null);
+        $prioridad = PrioridadCarga::from(
+            $datos['prioridad'] ?? PrioridadCarga::Normal->value,
+        );
+        $payload = [
+            'operacion_id' => $operacionId,
+            'folios' => $numeros,
+            'numero_orden_externa' => $numeroOrden,
+            'prioridad' => $prioridad->value,
+            'anden_id' => $datos['anden_id'],
+            'patente' => $patente,
+            'conductor' => $conductor,
+            'ocurrido_at' => $salidaAt->toAtomString(),
+            'observacion' => $observacion,
+            'usuario_id' => $usuario->id,
+        ];
+        $payloadHash = $this->normalizadorTransiciones->hash($payload);
+
+        $accion = function () use (
+            $operacionId,
+            $numeros,
+            $salidaAt,
+            $ahora,
+            $patente,
+            $conductor,
+            $numeroOrden,
+            $observacion,
+            $prioridad,
+            $datos,
+            $usuario,
+            $payloadHash,
+        ): Carga {
+            $existente = Carga::query()
+                ->where('operacion_cierre_id', $operacionId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existente) {
+                return $existente;
+            }
+
+            $temporada = $this->temporadaActiva->obtener(bloquear: true);
+            $anden = Anden::query()
+                ->whereKey($datos['anden_id'])
+                ->where('activo', true)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $anden) {
+                throw new DomainException('El andén indicado no existe o se encuentra inactivo.');
+            }
+
+            if ($numeroOrden !== null && Carga::query()
+                ->where('numero_orden_externa', $numeroOrden)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new DomainException(
+                    "Ya existe una carga con el número de orden externa {$numeroOrden}.",
+                );
+            }
+
+            $folios = Folio::query()
+                ->whereIn('numero_folio', $numeros)
+                ->with([
+                    'ubicacionActual',
+                    'procesosPrefrio' => fn ($consulta) => $consulta
+                        ->where('estado', EstadoFolioProcesoPrefrio::Aprobado->value)
+                        ->whereHas('proceso', fn ($proceso) => $proceso
+                            ->where('estado', EstadoProcesoPrefrio::Aprobado->value))
+                        ->with('proceso:id,codigo,estado,finalizado_at'),
+                ])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('numero_folio');
+            $reservas = ReservaCargaFolio::query()
+                ->whereIn('folio_id', $folios->pluck('id'))
+                ->with('asignacion.carga:id,codigo')
+                ->orderBy('folio_id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('folio_id');
+            $errores = [];
+
+            foreach ($numeros as $numero) {
+                /** @var Folio|null $folio */
+                $folio = $folios->get($numero);
+
+                if (! $folio) {
+                    $errores[] = $this->errorFolio(
+                        $numero,
+                        'no_existe',
+                        "El folio {$numero} no existe en el sistema.",
+                    );
+
+                    continue;
+                }
+
+                $reserva = $reservas->get($folio->id);
+
+                if ($reserva) {
+                    $errores[] = $this->errorFolio(
+                        $numero,
+                        'asignado_otra_carga',
+                        sprintf(
+                            'El folio %s ya está asignado a la carga %s.',
+                            $numero,
+                            $reserva->asignacion->carga->codigo,
+                        ),
+                    );
+
+                    continue;
+                }
+
+                $error = $this->motivoFolioNoAsignableSalidaDirecta(
+                    $folio,
+                    $temporada->id,
+                    $salidaAt,
+                );
+
+                if ($error) {
+                    $errores[] = $this->errorFolio(
+                        $numero,
+                        $error['codigo'],
+                        $error['mensaje'],
+                    );
+                }
+            }
+
+            if ($errores !== []) {
+                throw new FoliosCargaInvalidos($errores);
+            }
+
+            try {
+                $carga = Carga::create([
+                    'temporada_id' => $temporada->id,
+                    'codigo' => $this->siguienteCodigoBloqueado(),
+                    'numero_orden_externa' => $numeroOrden,
+                    'estado' => EstadoCarga::Cerrada,
+                    'modalidad_salida' => ModalidadSalidaCarga::DirectaPrefrio,
+                    'prioridad' => $prioridad,
+                    'camara_objetivo_id' => null,
+                    'anden_previsto_id' => $anden->id,
+                    'observacion' => $observacion,
+                    'version' => 1,
+                    'creada_por_user_id' => $usuario->id,
+                    'actualizada_por_user_id' => $usuario->id,
+                    'publicada_por_user_id' => $usuario->id,
+                    'publicada_at' => $salidaAt,
+                    'operacion_cierre_id' => $operacionId,
+                    'cierre_payload_hash' => $payloadHash,
+                    'patente' => $patente,
+                    'conductor' => $conductor,
+                    'observacion_cierre' => $observacion,
+                    'cerrada_por_user_id' => $usuario->id,
+                    'cerrada_at' => $salidaAt,
+                    'cierre_registrado_at' => $ahora,
+                ]);
+            } catch (QueryException $exception) {
+                if ($exception->getCode() === '23000') {
+                    throw new ConflictoOperacion(
+                        'La salida directa entró en conflicto con otra carga registrada al mismo tiempo.',
+                        previous: $exception,
+                    );
+                }
+
+                throw $exception;
+            }
+
+            $this->registrarEvento(
+                $carga,
+                TipoEventoCarga::Creada,
+                $usuario,
+                datos: [
+                    'modalidad_salida' => ModalidadSalidaCarga::DirectaPrefrio->value,
+                    'salida_ocurrida_at' => $salidaAt->toAtomString(),
+                    'registrada_at' => $ahora->toAtomString(),
+                ],
+            );
+
+            foreach ($numeros as $numero) {
+                /** @var Folio $folio */
+                $folio = $folios->get($numero);
+                CargaFolio::create([
+                    'carga_id' => $carga->id,
+                    'folio_id' => $folio->id,
+                    'estado' => EstadoCargaFolio::EnAnden,
+                    'anden_id' => $anden->id,
+                    'asignado_por_user_id' => $usuario->id,
+                    'asignado_at' => $salidaAt,
+                    'enviado_anden_por_user_id' => $usuario->id,
+                    'enviado_anden_at' => $salidaAt,
+                    'finalizado_por_user_id' => $usuario->id,
+                    'finalizado_at' => $salidaAt,
+                    'motivo_finalizacion' => 'Salida directa desde Prefrío confirmada',
+                ]);
+                $folio->update([
+                    'estado_operacional' => EstadoOperacionalFolio::Despachado,
+                    'activo' => false,
+                ]);
+                $this->registrarEvento(
+                    $carga,
+                    TipoEventoCarga::FolioAsignado,
+                    $usuario,
+                    $folio,
+                    [
+                        'modalidad_salida' => ModalidadSalidaCarga::DirectaPrefrio->value,
+                        'salida_ocurrida_at' => $salidaAt->toAtomString(),
+                    ],
+                );
+                $this->registrarEvento(
+                    $carga,
+                    TipoEventoCarga::FolioEnviadoAnden,
+                    $usuario,
+                    $folio,
+                    [
+                        'anden_id' => $anden->id,
+                        'sin_movimiento_camara' => true,
+                        'salida_ocurrida_at' => $salidaAt->toAtomString(),
+                    ],
+                );
+            }
+
+            $this->registrarEvento(
+                $carga,
+                TipoEventoCarga::DespachoDirectoPrefrio,
+                $usuario,
+                datos: [
+                    'anden_id' => $anden->id,
+                    'cantidad_folios' => count($numeros),
+                    'salida_ocurrida_at' => $salidaAt->toAtomString(),
+                    'registrada_at' => $ahora->toAtomString(),
+                ],
+            );
+            $this->registrarEvento(
+                $carga,
+                TipoEventoCarga::CierreDespacho,
+                $usuario,
+                datos: [
+                    'patente' => $patente,
+                    'conductor' => $conductor,
+                    'cantidad_folios' => count($numeros),
+                    'modalidad_salida' => ModalidadSalidaCarga::DirectaPrefrio->value,
+                    'salida_ocurrida_at' => $salidaAt->toAtomString(),
+                    'registrada_at' => $ahora->toAtomString(),
+                ],
+            );
+
+            return $carga->refresh();
+        };
+
+        return $this->transicionar(
+            'despacho_directo_prefrio',
+            $usuario,
+            $payload,
+            $accion,
+            referencia: $numeroOrden,
+            operacionId: $operacionId,
+            ocurridoAt: $salidaAt,
         );
     }
 
@@ -597,6 +903,8 @@ class ServicioCarga
         Closure $accion,
         ?Carga $carga = null,
         ?string $referencia = null,
+        ?string $operacionId = null,
+        ?DateTimeInterface $ocurridoAt = null,
     ): mixed {
         return $this->motorTransiciones->ejecutar(
             new ComandoTransicionOperacional(
@@ -607,6 +915,8 @@ class ServicioCarga
                 sujetoTipo: Carga::class,
                 sujetoId: $carga ? (string) $carga->id : null,
                 referencia: $carga?->codigo ?? $referencia,
+                operacionId: $operacionId,
+                ocurridoAt: $ocurridoAt,
             ),
             $accion,
         );
@@ -722,6 +1032,91 @@ class ServicioCarga
             return [
                 'codigo' => 'camara_no_productos',
                 'mensaje' => "El folio {$folio->numero_folio} no está ubicado en una cámara de productos.",
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{codigo: string, mensaje: string}|null
+     */
+    private function motivoFolioNoAsignableSalidaDirecta(
+        Folio $folio,
+        string $temporadaId,
+        CarbonImmutable $salidaAt,
+    ): ?array {
+        if ($folio->temporada_id !== $temporadaId) {
+            return [
+                'codigo' => 'temporada_no_coincide',
+                'mensaje' => "El folio {$folio->numero_folio} pertenece a otra temporada operacional.",
+            ];
+        }
+
+        if (! in_array($folio->tipo_bulto, [
+            TipoBulto::Pallet,
+            TipoBulto::Saldo,
+        ], true)) {
+            return [
+                'codigo' => 'tipo_bulto_no_permitido',
+                'mensaje' => "El folio {$folio->numero_folio} no corresponde a un pallet o saldo de producto.",
+            ];
+        }
+
+        if (! $folio->activo) {
+            return [
+                'codigo' => 'inactivo',
+                'mensaje' => "El folio {$folio->numero_folio} se encuentra inactivo.",
+            ];
+        }
+
+        if (! in_array($folio->estado_operacional, [
+            EstadoOperacionalFolio::PendientePrefrio,
+            EstadoOperacionalFolio::PendienteUbicacion,
+            EstadoOperacionalFolio::Disponible,
+        ], true)) {
+            return [
+                'codigo' => 'estado_no_permitido',
+                'mensaje' => "El folio {$folio->numero_folio} no está pendiente de ubicación después de Prefrío.",
+            ];
+        }
+
+        if ($folio->condicion_termica !== CondicionTermicaFolio::PrefrioAprobado
+            || $folio->habilitacion_almacenamiento !== HabilitacionAlmacenamientoFolio::Habilitado) {
+            return [
+                'codigo' => 'prefrio_no_aprobado',
+                'mensaje' => "El folio {$folio->numero_folio} no posee un Prefrío aprobado y habilitado.",
+            ];
+        }
+
+        if ($folio->ubicacionActual) {
+            return [
+                'codigo' => 'folio_ubicado',
+                'mensaje' => "El folio {$folio->numero_folio} ya posee una ubicación; debe seguir el flujo normal desde cámara.",
+            ];
+        }
+
+        $finalizadoAt = $folio->procesosPrefrio
+            ->map(fn ($asignacion) => $asignacion->proceso?->finalizado_at)
+            ->filter()
+            ->sortDesc()
+            ->first();
+
+        if (! $finalizadoAt) {
+            return [
+                'codigo' => 'sin_prefrio_trazable',
+                'mensaje' => "El folio {$folio->numero_folio} no posee un proceso de Prefrío aprobado y finalizado.",
+            ];
+        }
+
+        if ($salidaAt->lt($finalizadoAt)) {
+            return [
+                'codigo' => 'salida_antes_prefrio',
+                'mensaje' => sprintf(
+                    'La salida del folio %s no puede ser anterior al término de su Prefrío (%s).',
+                    $folio->numero_folio,
+                    $finalizadoAt->format('d-m-Y H:i'),
+                ),
             ];
         }
 

@@ -16,5 +16,6 @@ enum TipoEventoCarga: string
     case FolioReemplazado = 'folio_reemplazado';
     case FolioEnviadoAnden = 'folio_enviado_anden';
     case CierreDespacho = 'cierre_despacho';
+    case DespachoDirectoPrefrio = 'despacho_directo_prefrio';
     case Cancelada = 'cancelada';
 }

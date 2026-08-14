@@ -1359,6 +1359,123 @@ button:disabled {
     min-width: 160px;
 }
 
+.office-dialog--wide {
+    width: min(1180px, calc(100vw - 40px));
+}
+
+.direct-dispatch-layout {
+    display: grid;
+    grid-template-columns: minmax(340px, .8fr) minmax(480px, 1.2fr);
+    gap: 16px;
+}
+
+.direct-dispatch-data,
+.direct-folio-picker {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--deep);
+    padding: 14px;
+}
+
+.direct-folio-picker {
+    display: grid;
+    gap: 11px;
+    min-width: 0;
+}
+
+.direct-folio-picker__heading,
+.direct-folio-toolbar,
+.direct-folio-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.direct-folio-picker__heading > div {
+    display: grid;
+    gap: 4px;
+}
+
+.direct-folio-picker__heading small,
+.direct-folio-toolbar,
+.direct-folio-item small {
+    color: var(--muted);
+    font-size: .66rem;
+}
+
+.direct-folio-picker__heading input {
+    width: min(270px, 45%);
+    min-height: 38px;
+}
+
+.direct-folio-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+}
+
+.direct-folio-toolbar input,
+.direct-folio-item input {
+    width: 17px;
+    min-height: 17px;
+    accent-color: var(--cyan);
+}
+
+.direct-folio-list {
+    display: grid;
+    max-height: 310px;
+    overflow-y: auto;
+    gap: 6px;
+}
+
+.direct-folio-item {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--raised);
+    padding: 9px 11px;
+    cursor: pointer;
+}
+
+.direct-folio-item:has(input:checked) {
+    border-color: var(--cyan);
+    background: rgba(22, 201, 194, .09);
+}
+
+.direct-folio-item__identity,
+.direct-folio-item__detail {
+    display: grid;
+    gap: 3px;
+}
+
+.direct-folio-item__identity {
+    min-width: 105px;
+}
+
+.direct-folio-item__identity strong {
+    color: var(--cyan);
+}
+
+.direct-folio-item__detail {
+    flex: 1;
+    min-width: 0;
+}
+
+.direct-folio-item__detail span,
+.direct-folio-item__detail small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.direct-folio-empty {
+    padding: 24px;
+    color: var(--muted);
+    font-size: .72rem;
+    text-align: center;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;
@@ -1428,5 +1545,24 @@ button:disabled {
 
     .incident-card > button {
         grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 900px) {
+    .office-dialog--wide {
+        width: calc(100vw - 24px);
+    }
+
+    .direct-dispatch-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .direct-folio-picker__heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .direct-folio-picker__heading input {
+        width: 100%;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\EstadoCarga;
+use App\Enums\ModalidadSalidaCarga;
 use App\Enums\PrioridadCarga;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'codigo',
     'numero_orden_externa',
     'estado',
+    'modalidad_salida',
     'prioridad',
     'camara_objetivo_id',
     'anden_previsto_id',
@@ -36,10 +38,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'observacion_cierre',
     'cerrada_por_user_id',
     'cerrada_at',
+    'cierre_registrado_at',
 ])]
 class Carga extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    /** @var array<string, mixed> */
+    protected $attributes = [
+        'modalidad_salida' => ModalidadSalidaCarga::DesdeCamara->value,
+    ];
 
     public function temporada(): BelongsTo
     {
@@ -124,11 +132,13 @@ class Carga extends Model
     {
         return [
             'estado' => EstadoCarga::class,
+            'modalidad_salida' => ModalidadSalidaCarga::class,
             'prioridad' => PrioridadCarga::class,
             'version' => 'integer',
             'publicada_at' => 'datetime',
             'cancelada_at' => 'datetime',
             'cerrada_at' => 'datetime',
+            'cierre_registrado_at' => 'datetime',
         ];
     }
 }

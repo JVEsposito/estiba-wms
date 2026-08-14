@@ -2,20 +2,26 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoCarga;
+use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoIncidenciaCarga;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
+use App\Enums\EstadoProcesoPrefrio;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarCargaRequest;
 use App\Http\Requests\AgregarFoliosCargaRequest;
 use App\Http\Requests\CrearCargaRequest;
+use App\Http\Requests\RegistrarDespachoDirectoPrefrioRequest;
 use App\Http\Requests\VersionCargaRequest;
 use App\Http\Resources\CargaResource;
 use App\Http\Resources\FolioDisponibleCargaResource;
+use App\Http\Resources\FolioSalidaDirectaPrefrioResource;
 use App\Models\Carga;
 use App\Models\Folio;
 use App\Services\Cargas\RevisionCargaOperacional;
@@ -137,6 +143,76 @@ class CargaController extends Controller
         );
     }
 
+    public function foliosSalidaDirectaPrefrio(Request $request): AnonymousResourceCollection
+    {
+        Gate::authorize('gestionar-cargas');
+
+        $filtros = $request->validate([
+            'q' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $busqueda = trim((string) ($filtros['q'] ?? ''));
+
+        $folios = Folio::query()
+            ->where('activo', true)
+            ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta
+                ->where('activa', true))
+            ->whereIn('tipo_bulto', [
+                TipoBulto::Pallet->value,
+                TipoBulto::Saldo->value,
+            ])
+            ->whereIn('estado_operacional', [
+                EstadoOperacionalFolio::PendientePrefrio->value,
+                EstadoOperacionalFolio::PendienteUbicacion->value,
+                EstadoOperacionalFolio::Disponible->value,
+            ])
+            ->where('condicion_termica', CondicionTermicaFolio::PrefrioAprobado->value)
+            ->where(
+                'habilitacion_almacenamiento',
+                HabilitacionAlmacenamientoFolio::Habilitado->value,
+            )
+            ->whereDoesntHave('ubicacionActual')
+            ->whereDoesntHave('asignacionCargaActual')
+            ->whereHas('procesosPrefrio', fn (Builder $asignacion): Builder => $asignacion
+                ->where('estado', EstadoFolioProcesoPrefrio::Aprobado->value)
+                ->whereHas('proceso', fn (Builder $proceso): Builder => $proceso
+                    ->where('estado', EstadoProcesoPrefrio::Aprobado->value)
+                    ->whereNotNull('finalizado_at')))
+            ->when(
+                $busqueda !== '',
+                fn (Builder $consulta): Builder => $consulta->where(
+                    fn (Builder $coincidencia): Builder => $coincidencia
+                        ->where('numero_folio', 'like', "%{$busqueda}%")
+                        ->orWhere('variedad', 'like', "%{$busqueda}%")
+                        ->orWhere('calibre', 'like', "%{$busqueda}%")
+                        ->orWhere('marca', 'like', "%{$busqueda}%")
+                        ->orWhere('exportadora', 'like', "%{$busqueda}%")
+                        ->orWhereHas(
+                            'condicionSag',
+                            fn (Builder $condicion): Builder => $condicion
+                                ->where('codigo', 'like', "%{$busqueda}%")
+                                ->orWhere('nombre', 'like', "%{$busqueda}%"),
+                        ),
+                ),
+            )
+            ->with([
+                'condicionSag:id,codigo,nombre',
+                'procesosPrefrio' => fn ($consulta) => $consulta
+                    ->where('estado', EstadoFolioProcesoPrefrio::Aprobado->value)
+                    ->whereHas('proceso', fn ($proceso) => $proceso
+                        ->where('estado', EstadoProcesoPrefrio::Aprobado->value)
+                        ->whereNotNull('finalizado_at'))
+                    ->with('proceso:id,codigo,estado,finalizado_at'),
+            ])
+            ->orderBy('fecha_ingreso')
+            ->orderBy('numero_folio')
+            ->paginate((int) ($filtros['per_page'] ?? 25))
+            ->withQueryString();
+
+        return FolioSalidaDirectaPrefrioResource::collection($folios);
+    }
+
     public function foliosDisponibles(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('gestionar-cargas');
@@ -226,6 +302,20 @@ class CargaController extends Controller
             ->withQueryString();
 
         return FolioDisponibleCargaResource::collection($folios);
+    }
+
+    public function registrarDespachoDirectoPrefrio(
+        RegistrarDespachoDirectoPrefrioRequest $request,
+        ServicioCarga $servicio,
+    ): JsonResponse {
+        $carga = $servicio->registrarDespachoDirectoPrefrio(
+            $request->validated(),
+            $request->user(),
+        );
+
+        return (new CargaResource($this->cargarDetalle($carga)))
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
     }
 
     public function store(

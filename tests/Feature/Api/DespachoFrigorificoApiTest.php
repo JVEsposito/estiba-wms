@@ -209,11 +209,14 @@ class DespachoFrigorificoApiTest extends TestCase
         ]);
         $this->assertSame(1, $folio->movimientos()->where('tipo_movimiento', 'retiro')->count());
 
+        $salidaFisica = now()->toImmutable()->addHour()->startOfMinute();
+        $this->travelTo($salidaFisica);
         $operacionCierre = (string) Str::uuid();
         $payloadCierre = [
             'operacion_id' => $operacionCierre,
             'patente' => 'ab-cd-12',
             'conductor' => 'María Pérez',
+            'ocurrido_at' => $salidaFisica->toAtomString(),
         ];
         $rutaCierre = "/api/cargas/{$carga->id}/cerrar-despacho";
 
@@ -223,6 +226,7 @@ class DespachoFrigorificoApiTest extends TestCase
             ->assertJsonPath('data.estado', 'cerrada')
             ->assertJsonPath('data.cierre.patente', 'AB-CD-12')
             ->assertJsonPath('data.cierre.conductor', 'María Pérez')
+            ->assertJsonPath('data.cierre.cerrada_at', $salidaFisica->toAtomString())
             ->assertJsonPath('data.total_folios', 1)
             ->assertJsonPath('data.folios.0.numero_folio', $folio->numero_folio)
             ->assertJsonPath('data.progreso.porcentaje', 100);
@@ -238,6 +242,11 @@ class DespachoFrigorificoApiTest extends TestCase
             'activo' => false,
         ]);
         $this->assertDatabaseMissing('reservas_carga_folio', ['folio_id' => $folio->id]);
+        $this->assertDatabaseHas('cargas', [
+            'id' => $carga->id,
+            'cerrada_at' => $salidaFisica->format('Y-m-d H:i:s'),
+        ]);
+        $this->assertNotNull($carga->refresh()->cierre_registrado_at);
 
         $this->conToken($contexto['tokenOficina'])
             ->postJson($rutaCierre, [
@@ -246,6 +255,8 @@ class DespachoFrigorificoApiTest extends TestCase
             ])
             ->assertConflict()
             ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $this->travelBack();
     }
 
     public function test_planifica_la_extraccion_vertical_y_salta_a_otra_banda_ante_una_incidencia(): void
