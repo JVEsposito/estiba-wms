@@ -18,6 +18,7 @@ use App\Services\Cargas\ServicioCarga;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -288,6 +289,51 @@ class DespachoFrigorificoApiTest extends TestCase
             ->assertJsonPath('data.resumen.con_incidencia', 1)
             ->assertJsonPath('data.items.3.folio.numero_folio', 'FOLIO-DESP-03')
             ->assertJsonPath('data.items.3.estado_ruta', 'incidencia');
+    }
+
+    public function test_plan_de_extraccion_usa_etag_y_no_recalcula_la_ruta_si_no_cambia(): void
+    {
+        $contexto = $this->crearContextoFrio(3);
+        $carga = $this->crearCargaPublicada(
+            $contexto['despachador'],
+            $contexto['anden'],
+            $contexto['folios'],
+        );
+        $ruta = "/api/cargas/{$carga->id}/plan-extraccion";
+
+        $inicial = $this->conToken($contexto['token'])
+            ->getJson($ruta)
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag')
+            ->assertJsonCount(3, 'data.items');
+        $etagInicial = $inicial->headers->get('ETag');
+
+        $this->assertNotNull($etagInicial);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->conToken($contexto['token'])
+            ->withHeader('If-None-Match', $etagInicial)
+            ->get($ruta)
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+
+        $recalculoRuta = collect(DB::getQueryLog())->contains(function (array $consulta): bool {
+            $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
+
+            return str_starts_with($sql, 'select * from carga_folios ')
+                || str_starts_with($sql, 'select * from ubicaciones_actuales ');
+        });
+        $this->assertFalse($recalculoRuta);
+        DB::disableQueryLog();
+
+        $contexto['camara']->increment('version_plano');
+        $actualizado = $this->conToken($contexto['token'])
+            ->withHeader('If-None-Match', $etagInicial)
+            ->getJson($ruta)
+            ->assertOk();
+
+        $this->assertNotSame($etagInicial, $actualizado->headers->get('ETag'));
     }
 
     public function test_la_oficina_calcula_concentracion_y_filtra_reemplazos_equivalentes(): void

@@ -148,7 +148,15 @@ export class DemoEstibaApi implements EstibaApi {
     return listDemoRefrigeratedLoads();
   }
 
+  async refreshRefrigeratedLoads(_token: string): Promise<RefrigeratedLoad[]> {
+    return listDemoRefrigeratedLoads();
+  }
+
   async getExtractionPlan(_token: string, loadId: string): Promise<ExtractionPlan> {
+    return getDemoExtractionPlan(loadId);
+  }
+
+  async refreshExtractionPlan(_token: string, loadId: string): Promise<ExtractionPlan> {
     return getDemoExtractionPlan(loadId);
   }
 

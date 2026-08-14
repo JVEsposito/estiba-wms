@@ -18,6 +18,7 @@ use App\Http\Resources\CargaResource;
 use App\Http\Resources\FolioDisponibleCargaResource;
 use App\Models\Carga;
 use App\Models\Folio;
+use App\Services\Cargas\RevisionCargaOperacional;
 use App\Services\Cargas\ServicioCarga;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -95,8 +96,10 @@ class CargaController extends Controller
         return CargaResource::collection($cargas);
     }
 
-    public function pendientes(): AnonymousResourceCollection
-    {
+    public function pendientes(
+        Request $request,
+        RevisionCargaOperacional $revision,
+    ): Response {
         Gate::authorize('consultar-cargas-operacion');
 
         $cargas = Carga::query()
@@ -108,18 +111,30 @@ class CargaController extends Controller
                     ->map(fn (EstadoCarga $estado): string => $estado->value)
                     ->all(),
             )
-            ->with($this->relacionesDetalle())
-            ->withCount([
-                'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
-                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
-            ])
             ->orderByRaw(
                 "CASE prioridad WHEN 'urgente' THEN 1 WHEN 'alta' THEN 2 ELSE 3 END",
             )
             ->orderBy('publicada_at')
             ->get();
 
-        return CargaResource::collection($cargas);
+        $etag = 'cargas-operacion-'.$revision->calcular($cargas);
+        $respuestaCondicional = $this->configurarCacheOperacion(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
+        $cargas
+            ->load($this->relacionesOperacion())
+            ->loadCount([
+                'incidencias as incidencias_abiertas' => fn (Builder $consulta): Builder => $consulta
+                    ->where('incidencias_carga_folio.estado', EstadoIncidenciaCarga::Abierta->value),
+            ]);
+
+        return $this->configurarCacheOperacion(
+            CargaResource::collection($cargas)->response(),
+            $etag,
+        );
     }
 
     public function foliosDisponibles(Request $request): AnonymousResourceCollection
@@ -350,5 +365,27 @@ class CargaController extends Controller
             'tareas.camaraOrigen:id,codigo,nombre',
             'tareas.responsable:id,name',
         ];
+    }
+
+    /** @return array<int, string> */
+    private function relacionesOperacion(): array
+    {
+        return [
+            'camaraObjetivo:id,codigo,nombre',
+            'andenPrevisto:id,codigo,nombre',
+            'asignacionesActuales.anden:id,codigo,nombre',
+            'asignacionesActuales.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
+        ];
+    }
+
+    private function configurarCacheOperacion(Response $respuesta, string $etag): Response
+    {
+        $respuesta->setEtag($etag);
+        $respuesta->setPrivate();
+        $respuesta->headers->addCacheControlDirective('no-cache');
+        $respuesta->setVary('Authorization');
+        $respuesta->headers->set('Access-Control-Expose-Headers', 'ETag');
+
+        return $respuesta;
     }
 }
