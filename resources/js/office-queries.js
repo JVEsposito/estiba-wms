@@ -70,8 +70,13 @@ function label(value) {
         recepciones: 'Recepciones',
         pallet: 'Pallet',
         saldo: 'Saldo',
+        material: 'Material',
         agotado: 'Agotado',
         disponible: 'Disponible',
+        pendiente_ubicacion: 'Pendiente de ubicación',
+        bloqueado: 'Bloqueado',
+        despachado: 'Despachado',
+        retirado_definitivo: 'Retirado definitivo',
         pendiente_prefrio: 'Pendiente de prefrío',
         prefrio_aprobado: 'Prefrío aprobado',
         agotado_por_repaletizaje: 'Agotado por repaletizaje',
@@ -325,15 +330,134 @@ function specificationGrid(specifications = {}) {
     return Object.entries(labels).map(([key, title]) => `<div><span>${title}</span><strong>${escapeHtml(specifications[key] || '—')}</strong></div>`).join('');
 }
 
+function formatMaterialQuantity(value, unit = '') {
+    if (value === null || value === undefined || value === '') return '—';
+    const number = Number(value);
+    if (Number.isNaN(number)) return '—';
+    const formatted = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 3 }).format(number);
+    return `${formatted}${unit ? ` ${unit}` : ''}`;
+}
+
+function formatDateOnly(value) {
+    if (!value) return '—';
+    const parts = String(value).split('-');
+    return parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : String(value);
+}
+
+function materialSpecificationGrid(material = {}) {
+    const identity = material.identidad || {};
+    const specifications = [
+        ['Cliente', identity.cliente],
+        ['Código', identity.codigo],
+        ['Ítem', identity.item],
+        ['Categoría', identity.categoria],
+        ['Categoría operacional', label(identity.categoria_operacional)],
+        ['Proveedor', identity.proveedor],
+        ['Lote', identity.lote],
+        ['Fabricación', formatDateOnly(identity.fecha_fabricacion)],
+        ['Vencimiento', formatDateOnly(identity.fecha_vencimiento)],
+    ];
+    return specifications.map(([title, value]) => `<div><span>${escapeHtml(title)}</span><strong>${escapeHtml(value || '—')}</strong></div>`).join('');
+}
+
+function materialInventoryGrid(material = {}) {
+    const inventory = material.inventario || {};
+    const unit = inventory.unidad_medida || '';
+    const summary = [
+        ['Cantidad inicial', formatMaterialQuantity(inventory.inicial, unit)],
+        ['Cantidad actual', formatMaterialQuantity(inventory.actual, unit)],
+        ['Cantidad reservada', formatMaterialQuantity(inventory.reservada, unit)],
+        ['Cantidad disponible', formatMaterialQuantity(inventory.disponible, unit)],
+    ];
+    const balances = (material.saldos || []).map((balance) => {
+        const place = [balance.camara, balance.posicion].filter(Boolean).join(' · ');
+        const context = [balance.centro_costo ? `CC ${balance.centro_costo}` : '', place].filter(Boolean).join(' · ');
+        return [
+            balance.almacen || balance.codigo || 'Almacén',
+            formatMaterialQuantity(balance.cantidad_actual, unit),
+            `${formatMaterialQuantity(balance.cantidad_disponible, unit)} disponibles${context ? ` · ${context}` : ''}`,
+        ];
+    });
+    return [
+        ...summary.map(([title, value]) => `<div><span>${escapeHtml(title)}</span><strong>${escapeHtml(value)}</strong></div>`),
+        ...balances.map(([title, value, detail]) => `<div><span>${escapeHtml(title)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></div>`),
+    ].join('');
+}
+
+function materialLocation(material = {}, folio = {}) {
+    const balances = material.saldos || [];
+    if (balances.length === 1) {
+        const balance = balances[0];
+        return {
+            title: balance.almacen || balance.codigo || 'Almacén con saldo',
+            detail: [balance.centro_costo ? `CC ${balance.centro_costo}` : '', balance.camara, balance.posicion].filter(Boolean).join(' · ') || 'Saldo vigente',
+        };
+    }
+    if (balances.length > 1) {
+        return {
+            title: `${balances.length} almacenes con saldo`,
+            detail: balances.map((balance) => balance.almacen || balance.codigo).filter(Boolean).join(' · '),
+        };
+    }
+    if (folio.ubicacion) {
+        return {
+            title: [folio.ubicacion.camara, folio.ubicacion.posicion].filter(Boolean).join(' · '),
+            detail: 'Ubicación física actual',
+        };
+    }
+    return { title: 'Sin saldo ubicado', detail: folio.temporada || 'Sin temporada' };
+}
+
+function traceCounts(payload, materialProfile) {
+    const totals = payload.totales || {};
+    const counts = materialProfile ? [
+        [totals.recepciones_material || 0, 'recepción'],
+        [totals.movimientos_material || 0, 'movimientos'],
+        [totals.consumos_material || 0, 'consumos'],
+        [totals.transformaciones_material || 0, 'transformaciones'],
+    ] : [
+        [totals.validaciones || 0, 'validación'],
+        [totals.procesos_prefrio || 0, 'prefrío'],
+        [totals.movimientos || 0, 'movimientos'],
+        [totals.repaletizajes || 0, 'repas'],
+    ];
+    return counts.map(([count, title]) => `<span>${count} ${escapeHtml(title)}</span>`).join('');
+}
+
 async function openFolio(id) {
     setBusy(true, 'Construyendo trazabilidad del folio…');
     try {
         const payload = await api(`/api/consultas/folios/${id}`);
         const folio = payload.folio;
-        const currentLocation = folio.ubicacion ? `${folio.ubicacion.camara} · ${folio.ubicacion.posicion}` : 'Sin ubicación actual';
-        const originText = payload.validacion
-            ? `Validado ${formatDate(payload.validacion.fecha)} · ${formatBoxes(payload.validacion.cantidad_cajas)}`
-            : (payload.repaletizajes?.length ? `Origen trazado por ${payload.repaletizajes[0].codigo}` : 'Sin validación directa registrada');
+        const materialProfile = folio.tipo_bulto === 'material' && payload.material;
+        const location = materialProfile
+            ? materialLocation(payload.material, folio)
+            : {
+                title: folio.ubicacion ? [folio.ubicacion.camara, folio.ubicacion.posicion].filter(Boolean).join(' · ') : 'Sin ubicación actual',
+                detail: folio.temporada || 'Sin temporada',
+            };
+        const originText = materialProfile
+            ? `${payload.material.origen?.titulo || 'Ingreso de material'} · ${payload.material.origen?.referencia || 'Sin referencia'}`
+            : (payload.validacion
+                ? `Validado ${formatDate(payload.validacion.fecha)} · ${formatBoxes(payload.validacion.cantidad_cajas)}`
+                : (payload.repaletizajes?.length ? `Origen trazado por ${payload.repaletizajes[0].codigo}` : 'Sin validación directa registrada'));
+        const originDetail = materialProfile
+            ? `Origen ${formatDate(payload.material.origen?.fecha || folio.fecha_ingreso)}`
+            : `Ingreso ${formatDate(folio.fecha_ingreso)}`;
+        const currentQuantity = materialProfile
+            ? formatMaterialQuantity(payload.material.inventario?.actual, payload.material.inventario?.unidad_medida)
+            : formatBoxes(folio.cantidad_cajas);
+        const stateDetail = materialProfile
+            ? `${formatMaterialQuantity(payload.material.inventario?.disponible, payload.material.inventario?.unidad_medida)} disponibles`
+            : label(folio.condicion_termica);
+        const identity = materialProfile
+            ? materialSpecificationGrid(payload.material)
+            : specificationGrid(folio.especificaciones);
+        const inventory = materialProfile ? `
+            <section class="folio-dossier-section">
+                <div class="folio-dossier-heading"><div><p class="eyebrow">EXISTENCIA</p><h3>Saldo por almacén y centro de costo</h3></div></div>
+                <div class="folio-spec-grid">${materialInventoryGrid(payload.material)}</div>
+            </section>` : '';
         const exhaustion = folio.repaletizaje_agotamiento
             ? `<div class="trace-alert"><strong>AGOTADO POR REPALETIZAJE</strong><span>Este folio terminó su existencia física en ${escapeHtml(folio.repaletizaje_agotamiento)}.</span></div>`
             : '';
@@ -342,17 +466,18 @@ async function openFolio(id) {
         elements.folioDialogBody.innerHTML = `
             ${exhaustion}
             <section class="folio-dossier-hero">
-                <div><span>ESTADO ACTUAL</span><strong>${escapeHtml(label(folio.estado_explicado))}</strong><small>${escapeHtml(label(folio.condicion_termica))}</small></div>
-                <div><span>CANTIDAD ACTUAL</span><strong>${escapeHtml(formatBoxes(folio.cantidad_cajas))}</strong><small>${escapeHtml(label(folio.tipo_bulto))}</small></div>
-                <div><span>UBICACIÓN</span><strong>${escapeHtml(currentLocation)}</strong><small>${escapeHtml(folio.temporada || 'Sin temporada')}</small></div>
-                <div><span>ORIGEN</span><strong>${escapeHtml(originText)}</strong><small>Ingreso ${escapeHtml(formatDate(folio.fecha_ingreso))}</small></div>
+                <div><span>ESTADO ACTUAL</span><strong>${escapeHtml(label(folio.estado_explicado))}</strong><small>${escapeHtml(stateDetail)}</small></div>
+                <div><span>CANTIDAD ACTUAL</span><strong>${escapeHtml(currentQuantity)}</strong><small>${escapeHtml(label(folio.tipo_bulto))}</small></div>
+                <div><span>UBICACIÓN</span><strong>${escapeHtml(location.title)}</strong><small>${escapeHtml(location.detail)}</small></div>
+                <div><span>ORIGEN</span><strong>${escapeHtml(originText)}</strong><small>${escapeHtml(originDetail)}</small></div>
             </section>
             <section class="folio-dossier-section">
-                <div class="folio-dossier-heading"><div><p class="eyebrow">ESPECIFICACIONES</p><h3>Identidad del producto</h3></div></div>
-                <div class="folio-spec-grid">${specificationGrid(folio.especificaciones)}</div>
+                <div class="folio-dossier-heading"><div><p class="eyebrow">ESPECIFICACIONES</p><h3>${materialProfile ? 'Identidad del material' : 'Identidad del producto'}</h3></div></div>
+                <div class="folio-spec-grid">${identity}</div>
             </section>
+            ${inventory}
             <section class="folio-dossier-section">
-                <div class="folio-dossier-heading"><div><p class="eyebrow">HISTORIA OPERACIONAL</p><h3>Línea de tiempo</h3></div><div class="trace-counts"><span>${payload.totales.validaciones} validación</span><span>${payload.totales.procesos_prefrio} prefrío</span><span>${payload.totales.movimientos} movimientos</span><span>${payload.totales.repaletizajes} repas</span></div></div>
+                <div class="folio-dossier-heading"><div><p class="eyebrow">HISTORIA OPERACIONAL</p><h3>Línea de tiempo</h3></div><div class="trace-counts">${traceCounts(payload, materialProfile)}</div></div>
                 ${traceTimeline(payload.timeline)}
             </section>`;
         elements.folioDialog.showModal();
