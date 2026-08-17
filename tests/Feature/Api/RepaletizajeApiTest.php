@@ -140,10 +140,14 @@ class RepaletizajeApiTest extends TestCase
                 'composicion' => [],
             ]],
         ])->assertUnprocessable()
-            ->assertJsonPath(
-                'errors.resultados.0.composicion.0',
-                'La composición de cada resultado debe incluir al menos una línea.',
-            );
+            ->assertJsonValidationErrors('resultados.0.composicion')
+            ->assertJson([
+                'errors' => [
+                    'resultados.0.composicion' => [
+                        'La composición de cada resultado debe incluir al menos una línea.',
+                    ],
+                ],
+            ]);
     }
 
     public function test_divide_un_folio_en_dos_y_anular_restaura_el_origen_completo(): void
