@@ -63,6 +63,8 @@ class MateriaPrimaController extends Controller
                 ])->count(),
                 'pendientes_asignacion' => (clone $base)
                     ->where('estado', EstadoLoteMateriaPrima::PendienteAsignacion->value)->count(),
+                'disponibles_proceso' => (clone $base)
+                    ->where('estado', EstadoLoteMateriaPrima::DisponibleProceso->value)->count(),
                 'asignados_camara' => (clone $base)
                     ->whereIn('estado', [
                         EstadoLoteMateriaPrima::AsignadoCamara->value,

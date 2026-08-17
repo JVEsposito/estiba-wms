@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\EmbarqueController;
 use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\FrutaProcesoController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
+use App\Http\Controllers\Api\HidrocoolerMateriaPrimaController;
 use App\Http\Controllers\Api\ImportacionCatalogoMaterialController;
 use App\Http\Controllers\Api\ImportacionProductosRecepcionMaterialController;
 use App\Http\Controllers\Api\ImpresionEtiquetaMaterialController;
@@ -203,9 +204,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/lotes/{loteMateriaPrima}', [MateriaPrimaController::class, 'update']);
         Route::put('/lotes/{loteMateriaPrima}/corregir-origen', [MateriaPrimaController::class, 'corregirOrigen']);
         Route::post('/lotes/{loteMateriaPrima}/confirmar', [MateriaPrimaController::class, 'confirmar']);
+        Route::post('/lotes/{loteMateriaPrima}/asignar-camara', [MateriaPrimaController::class, 'asignarCamara']);
+    });
+    Route::middleware('can:consultar-hidrocooler-materia-prima')->prefix('materia-prima/hidrocooler')->group(function () {
+        Route::get('/resumen', [HidrocoolerMateriaPrimaController::class, 'resumen']);
+        Route::get('/lotes', [HidrocoolerMateriaPrimaController::class, 'index']);
+    });
+    Route::middleware('can:operar-hidrocooler-materia-prima')->prefix('materia-prima')->group(function () {
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/iniciar', [MateriaPrimaController::class, 'iniciarHidrocooler']);
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/completar', [MateriaPrimaController::class, 'completarHidrocooler']);
-        Route::post('/lotes/{loteMateriaPrima}/asignar-camara', [MateriaPrimaController::class, 'asignarCamara']);
     });
     Route::post('/materia-prima/lotes/{loteMateriaPrima}/anular', [MateriaPrimaController::class, 'anular'])
         ->middleware('can:supervisar-lotes-materia-prima');

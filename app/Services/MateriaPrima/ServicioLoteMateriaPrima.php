@@ -7,6 +7,7 @@ use App\Enums\EstadoCamara;
 use App\Enums\EstadoHidrocoolerMateriaPrima;
 use App\Enums\EstadoLoteMateriaPrima;
 use App\Enums\EstadoValidacionMp;
+use App\Enums\TipoEnvaseRomana;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\AsignacionCamaraLoteMateriaPrima;
 use App\Models\Camara;
@@ -314,15 +315,20 @@ class ServicioLoteMateriaPrima
         array $datos,
         User $usuario,
     ): LoteMateriaPrima {
-        return DB::transaction(function () use ($lote, $datos, $usuario): LoteMateriaPrima {
+        $hash = $this->hash($this->payloadHidrocooler($datos));
+
+        return DB::transaction(function () use ($lote, $datos, $usuario, $hash): LoteMateriaPrima {
             $lote = LoteMateriaPrima::query()->lockForUpdate()->findOrFail($lote->id);
             $existente = ProcesoHidrocoolerMateriaPrima::query()
                 ->where('operacion_inicio_id', $datos['operacion_id'])
+                ->lockForUpdate()
                 ->first();
             if ($existente) {
-                if ($existente->lote_materia_prima_id !== $lote->id) {
+                if ($existente->lote_materia_prima_id !== $lote->id
+                    || ($existente->payload_inicio_hash !== null
+                        && ! hash_equals($existente->payload_inicio_hash, $hash))) {
                     throw new ConflictoOperacion(
-                        'El identificador de inicio ya fue utilizado en otro lote.',
+                        'El identificador de inicio ya fue utilizado con datos diferentes.',
                     );
                 }
 
@@ -331,14 +337,45 @@ class ServicioLoteMateriaPrima
             if ($lote->estado !== EstadoLoteMateriaPrima::PendienteHidrocooler) {
                 throw new ConflictoOperacion('El lote no está pendiente de hidrocooler.');
             }
+            if (ProcesoHidrocoolerMateriaPrima::query()
+                ->where('lote_materia_prima_id', $lote->id)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new ConflictoOperacion('El lote ya posee un ciclo de hidrocooler registrado.');
+            }
+
+            $equipo = trim($datos['equipo']);
+            if (ProcesoHidrocoolerMateriaPrima::query()
+                ->where('estado', EstadoHidrocoolerMateriaPrima::EnCurso->value)
+                ->whereRaw('LOWER(equipo) = ?', [mb_strtolower($equipo)])
+                ->lockForUpdate()
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'equipo' => 'El equipo seleccionado ya posee otro lote en curso.',
+                ]);
+            }
 
             $inicio = CarbonImmutable::parse($datos['inicio_at']);
             ProcesoHidrocoolerMateriaPrima::create([
                 'lote_materia_prima_id' => $lote->id,
                 'operacion_inicio_id' => $datos['operacion_id'],
+                'payload_inicio_hash' => $hash,
+                'codigo' => 'HC-'.now()->format('Ymd').'-'.strtoupper(
+                    str_replace('-', '', $datos['operacion_id']),
+                ),
                 'estado' => EstadoHidrocoolerMateriaPrima::EnCurso,
-                'equipo' => trim($datos['equipo']),
+                'equipo' => $equipo,
+                'equipo_activo_clave' => hash('sha256', mb_strtolower($equipo)),
+                'operador_snapshot' => $usuario->name,
+                'cantidad_envases_snapshot' => $lote->cantidad_envases_primarios,
+                'kilos_netos_snapshot' => $lote->kilos_netos_confirmados,
                 'inicio_at' => $inicio,
+                'temperatura_inicial_c' => round((float) $datos['temperatura_inicial_c'], 2),
+                'temperatura_objetivo_c' => round((float) $datos['temperatura_objetivo_c'], 2),
+                'temperatura_agua_inicial_c' => filled($datos['temperatura_agua_inicial_c'] ?? null)
+                    ? round((float) $datos['temperatura_agua_inicial_c'], 2)
+                    : null,
+                'observacion_inicio' => $datos['observacion_inicio'] ?? null,
                 'iniciado_por_user_id' => $usuario->id,
             ]);
             $lote->update([
@@ -353,7 +390,19 @@ class ServicioLoteMateriaPrima
                 $datos['operacion_id'],
                 EstadoLoteMateriaPrima::PendienteHidrocooler,
                 EstadoLoteMateriaPrima::HidrocoolerEnCurso,
-                ['equipo' => trim($datos['equipo']), 'inicio_at' => $inicio->toAtomString()],
+                [
+                    'equipo' => $equipo,
+                    'operador' => $usuario->name,
+                    'inicio_at' => $inicio->toAtomString(),
+                    'cantidad_envases' => $lote->cantidad_envases_primarios,
+                    'kilos_netos' => (float) $lote->kilos_netos_confirmados,
+                    'temperatura_inicial_c' => (float) $datos['temperatura_inicial_c'],
+                    'temperatura_objetivo_c' => (float) $datos['temperatura_objetivo_c'],
+                    'temperatura_agua_inicial_c' => filled($datos['temperatura_agua_inicial_c'] ?? null)
+                        ? (float) $datos['temperatura_agua_inicial_c']
+                        : null,
+                    'payload_hash' => $hash,
+                ],
             );
 
             return $this->cargar($lote);
@@ -366,7 +415,9 @@ class ServicioLoteMateriaPrima
         array $datos,
         User $usuario,
     ): LoteMateriaPrima {
-        return DB::transaction(function () use ($lote, $datos, $usuario): LoteMateriaPrima {
+        $hash = $this->hash($this->payloadHidrocooler($datos));
+
+        return DB::transaction(function () use ($lote, $datos, $usuario, $hash): LoteMateriaPrima {
             $lote = LoteMateriaPrima::query()->lockForUpdate()->findOrFail($lote->id);
             $proceso = ProcesoHidrocoolerMateriaPrima::query()
                 ->where('lote_materia_prima_id', $lote->id)
@@ -382,9 +433,11 @@ class ServicioLoteMateriaPrima
                 );
             }
             if ($proceso->operacion_termino_id !== null) {
-                if ($proceso->operacion_termino_id !== $datos['operacion_id']) {
+                if ($proceso->operacion_termino_id !== $datos['operacion_id']
+                    || ($proceso->payload_termino_hash !== null
+                        && ! hash_equals($proceso->payload_termino_hash, $hash))) {
                     throw new ConflictoOperacion(
-                        'El hidrocooler ya fue completado con otra operación.',
+                        'El hidrocooler ya fue completado con otra operación o datos.',
                     );
                 }
 
@@ -403,17 +456,32 @@ class ServicioLoteMateriaPrima
                 ]);
             }
             $duracion = (int) ceil(($termino->getTimestamp() - $inicio->getTimestamp()) / 60);
+            $destino = $datos['destino_salida'];
+            if ($destino === 'proceso' && $lote->envase_primario !== TipoEnvaseRomana::Bins) {
+                throw ValidationException::withMessages([
+                    'destino_salida' => 'La salida directa a proceso solo admite lotes en bins.',
+                ]);
+            }
+            $estadoNuevo = $destino === 'proceso'
+                ? EstadoLoteMateriaPrima::DisponibleProceso
+                : EstadoLoteMateriaPrima::PendienteAsignacion;
             $proceso->update([
                 'operacion_termino_id' => $datos['operacion_id'],
+                'payload_termino_hash' => $hash,
                 'estado' => EstadoHidrocoolerMateriaPrima::Completado,
+                'equipo_activo_clave' => null,
                 'termino_at' => $termino,
                 'duracion_minutos' => $duracion,
                 'temperatura_c' => round((float) $datos['temperatura_c'], 2),
+                'temperatura_agua_final_c' => filled($datos['temperatura_agua_final_c'] ?? null)
+                    ? round((float) $datos['temperatura_agua_final_c'], 2)
+                    : null,
+                'destino_salida' => $destino,
                 'observacion' => $datos['observacion'] ?? null,
                 'completado_por_user_id' => $usuario->id,
             ]);
             $lote->update([
-                'estado' => EstadoLoteMateriaPrima::PendienteAsignacion,
+                'estado' => $estadoNuevo,
                 'version' => $lote->version + 1,
                 'actualizado_por_user_id' => $usuario->id,
             ]);
@@ -423,13 +491,18 @@ class ServicioLoteMateriaPrima
                 $usuario,
                 $datos['operacion_id'],
                 EstadoLoteMateriaPrima::HidrocoolerEnCurso,
-                EstadoLoteMateriaPrima::PendienteAsignacion,
+                $estadoNuevo,
                 [
                     'equipo' => $proceso->equipo,
                     'inicio_at' => $inicio->toAtomString(),
                     'termino_at' => $termino->toAtomString(),
                     'duracion_minutos' => $duracion,
                     'temperatura_c' => (float) $proceso->temperatura_c,
+                    'temperatura_agua_final_c' => $proceso->temperatura_agua_final_c !== null
+                        ? (float) $proceso->temperatura_agua_final_c
+                        : null,
+                    'destino_salida' => $destino,
+                    'payload_hash' => $hash,
                 ],
             );
 
@@ -864,6 +937,15 @@ class ServicioLoteMateriaPrima
             ->except(['version_conocida'])
             ->sortKeys()
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $datos
+     * @return array<string, mixed>
+     */
+    private function payloadHidrocooler(array $datos): array
+    {
+        return collect($datos)->sortKeys()->all();
     }
 
     /**

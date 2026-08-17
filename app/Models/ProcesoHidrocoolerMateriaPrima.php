@@ -10,15 +10,28 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
+    'codigo',
     'lote_materia_prima_id',
     'operacion_inicio_id',
+    'payload_inicio_hash',
     'operacion_termino_id',
+    'payload_termino_hash',
     'estado',
     'equipo',
+    'equipo_activo_clave',
+    'operador_snapshot',
+    'cantidad_envases_snapshot',
+    'kilos_netos_snapshot',
     'inicio_at',
     'termino_at',
     'duracion_minutos',
+    'temperatura_inicial_c',
+    'temperatura_objetivo_c',
+    'temperatura_agua_inicial_c',
     'temperatura_c',
+    'temperatura_agua_final_c',
+    'destino_salida',
+    'observacion_inicio',
     'observacion',
     'iniciado_por_user_id',
     'completado_por_user_id',
@@ -51,7 +64,13 @@ class ProcesoHidrocoolerMateriaPrima extends Model
             'inicio_at' => 'datetime',
             'termino_at' => 'datetime',
             'duracion_minutos' => 'integer',
+            'cantidad_envases_snapshot' => 'integer',
+            'kilos_netos_snapshot' => 'decimal:3',
+            'temperatura_inicial_c' => 'decimal:2',
+            'temperatura_objetivo_c' => 'decimal:2',
+            'temperatura_agua_inicial_c' => 'decimal:2',
             'temperatura_c' => 'decimal:2',
+            'temperatura_agua_final_c' => 'decimal:2',
         ];
     }
 }

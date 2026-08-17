@@ -59,6 +59,9 @@ class FrutaProcesoLoteResource extends JsonResource
                 'codigo' => $this->asignacionCamara->camara->codigo,
                 'nombre' => $this->asignacionCamara->camara->nombre,
             ] : null,
+            'origen_operacional' => $this->asignacionCamara?->camara
+                ? 'camara_materia_prima'
+                : 'hidrocooler_directo',
             'envase_primario' => $this->envase_primario->value,
             'progreso' => [
                 'total' => $total,

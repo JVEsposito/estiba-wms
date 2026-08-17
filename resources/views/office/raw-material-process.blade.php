@@ -55,7 +55,7 @@
 
                 <section class="panel process-panel">
                     <div class="process-panel__heading">
-                        <div><p class="eyebrow" id="panelEyebrow">CONTROL DE DESPACHO INTERNO</p><h2 id="panelTitle">Lotes en cámara de materia prima</h2><p id="panelDescription">Registra la cantidad de cada viaje físico; no es necesario escanear cada bin.</p></div>
+                        <div><p class="eyebrow" id="panelEyebrow">CONTROL DE DESPACHO INTERNO</p><h2 id="panelTitle">Lotes disponibles para proceso</h2><p id="panelDescription">Desde cámara MP o directamente desde Hidrocooler, conservando el origen de cada viaje.</p></div>
                         <form id="processFilters">
                             <input name="buscar" maxlength="100" placeholder="Lote, cliente, CSG u orden">
                             <select name="estado"><option value="abiertos">Abiertos</option><option value="completados">Completados</option><option value="">Todos</option></select>
