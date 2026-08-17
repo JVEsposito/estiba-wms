@@ -393,7 +393,8 @@ async function submitTransformation(modality) {
         const target = Number(formValue(`resultado_${output}_objetivo`) || 0);
         return {
             numero_folio: numbers[index], tipo_resultado: type,
-            cantidad_objetivo: target || null, cantidad_resultante: quantity, composicion: composition,
+            cantidad_objetivo: target || null, cantidad_resultante: quantity,
+            ...(modality === 'division' ? { composicion: composition } : {}),
         };
     });
     if (results.some((result) => result.cantidad_resultante < 1)) {

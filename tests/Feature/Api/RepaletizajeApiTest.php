@@ -109,7 +109,45 @@ class RepaletizajeApiTest extends TestCase
             'line[`salida${otherOutput}`] = line.cantidad_cajas - value;',
             $script,
         );
+        $this->assertStringContainsString(
+            "...(modality === 'division' ? { composicion: composition } : {}),",
+            $script,
+        );
+        $this->assertStringNotContainsString(
+            'cantidad_resultante: quantity, composicion: composition,',
+            $script,
+        );
         $this->assertStringContainsString('class="division-line__outputs"', $script);
+    }
+
+    public function test_composicion_vacia_entrega_un_mensaje_de_validacion_legible(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio($temporada, 'SAL-CAMBIO-INVALIDO', 60);
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'cambio_folio',
+            'origenes' => [[
+                'folio_id' => $origen->id,
+                'cantidad_aportada' => 60,
+            ]],
+            'resultados' => [[
+                'numero_folio' => 'SAL-CAMBIO-INVALIDO-NUEVO',
+                'tipo_resultado' => 'saldo',
+                'cantidad_objetivo' => 120,
+                'cantidad_resultante' => 60,
+                'composicion' => [],
+            ]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('resultados.0.composicion')
+            ->assertJson([
+                'errors' => [
+                    'resultados.0.composicion' => [
+                        'La composición de cada resultado debe incluir al menos una línea.',
+                    ],
+                ],
+            ]);
     }
 
     public function test_divide_un_folio_en_dos_y_anular_restaura_el_origen_completo(): void

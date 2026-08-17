@@ -72,6 +72,15 @@ class RegistrarRepaletizajeRequest extends FormRequest
         ];
     }
 
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'origenes.*.composicion.min' => 'La composición de cada origen debe incluir al menos una línea.',
+            'resultados.*.composicion.min' => 'La composición de cada resultado debe incluir al menos una línea.',
+        ];
+    }
+
     public function after(): array
     {
         return [function (Validator $validator): void {
