@@ -55,6 +55,8 @@ export default defineConfig({
                 'resources/css/office-raw-material.css',
                 'resources/css/office-queries.css',
                 'resources/js/office-raw-material.js',
+                'resources/css/office-hydrocooler.css',
+                'resources/js/office-hydrocooler.js',
                 'resources/css/office-raw-material-process.css',
                 'resources/js/office-raw-material-process.js',
                 'resources/css/office-raw-material-returns.css',

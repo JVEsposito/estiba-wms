@@ -46,6 +46,7 @@ class FrutaProcesoController extends Controller
         }
 
         $estadosAbiertos = [
+            EstadoLoteMateriaPrima::DisponibleProceso->value,
             EstadoLoteMateriaPrima::AsignadoCamara->value,
             EstadoLoteMateriaPrima::EntregaParcialProceso->value,
         ];
@@ -71,7 +72,7 @@ class FrutaProcesoController extends Controller
             ->where('lotes_materia_prima.envase_primario', TipoEnvaseRomana::Bins->value)
             ->whereIn('lotes_materia_prima.estado', $estadosProceso)
             ->selectRaw(
-                'SUM(CASE WHEN lotes_materia_prima.estado IN (?, ?) THEN 1 ELSE 0 END) as lotes_abiertos',
+                'SUM(CASE WHEN lotes_materia_prima.estado IN (?, ?, ?) THEN 1 ELSE 0 END) as lotes_abiertos',
                 $estadosAbiertos,
             )
             ->selectRaw(
@@ -196,6 +197,7 @@ class FrutaProcesoController extends Controller
                 $estado = $request->string('estado')->toString();
                 if ($estado === 'abiertos') {
                     $query->whereIn('estado', [
+                        EstadoLoteMateriaPrima::DisponibleProceso->value,
                         EstadoLoteMateriaPrima::AsignadoCamara->value,
                         EstadoLoteMateriaPrima::EntregaParcialProceso->value,
                     ]);
@@ -220,7 +222,7 @@ class FrutaProcesoController extends Controller
                 });
             })
             ->with($this->relaciones())
-            ->orderByRaw("case estado when 'entrega_parcial_proceso' then 0 when 'asignado_camara' then 1 else 2 end")
+            ->orderByRaw("case estado when 'entrega_parcial_proceso' then 0 when 'disponible_proceso' then 1 when 'asignado_camara' then 2 else 3 end")
             ->orderBy('created_at');
 
         return FrutaProcesoLoteResource::collection(
@@ -292,6 +294,7 @@ class FrutaProcesoController extends Controller
     private function estadosProceso(): array
     {
         return [
+            EstadoLoteMateriaPrima::DisponibleProceso,
             EstadoLoteMateriaPrima::AsignadoCamara,
             EstadoLoteMateriaPrima::EntregaParcialProceso,
             EstadoLoteMateriaPrima::EntregadoProceso,

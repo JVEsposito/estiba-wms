@@ -375,6 +375,14 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeSupervisarLotesMateriaPrima($usuario),
         );
         Gate::define(
+            'consultar-hidrocooler-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeConsultarHidrocoolerMateriaPrima($usuario),
+        );
+        Gate::define(
+            'operar-hidrocooler-materia-prima',
+            fn (User $usuario): bool => $alcance->puedeOperarHidrocoolerMateriaPrima($usuario),
+        );
+        Gate::define(
             'consultar-fruta-proceso',
             fn (User $usuario): bool => $alcance->puedeConsultarFrutaProceso($usuario),
         );

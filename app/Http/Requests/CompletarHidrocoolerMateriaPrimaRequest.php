@@ -3,12 +3,13 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CompletarHidrocoolerMateriaPrimaRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('gestionar-lotes-materia-prima') === true;
+        return $this->user()?->can('operar-hidrocooler-materia-prima') === true;
     }
 
     /** @return array<string, mixed> */
@@ -18,6 +19,8 @@ class CompletarHidrocoolerMateriaPrimaRequest extends FormRequest
             'operacion_id' => ['required', 'uuid'],
             'termino_at' => ['required', 'date', 'before_or_equal:now'],
             'temperatura_c' => ['required', 'numeric', 'between:-20,50', 'decimal:0,2'],
+            'temperatura_agua_final_c' => ['nullable', 'numeric', 'between:-20,50', 'decimal:0,2'],
+            'destino_salida' => ['required', Rule::in(['camara', 'proceso'])],
             'observacion' => ['nullable', 'string', 'max:2000'],
         ];
     }

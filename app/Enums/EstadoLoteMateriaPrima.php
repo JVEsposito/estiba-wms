@@ -8,6 +8,7 @@ enum EstadoLoteMateriaPrima: string
     case PendienteHidrocooler = 'pendiente_hidrocooler';
     case HidrocoolerEnCurso = 'hidrocooler_en_curso';
     case PendienteAsignacion = 'pendiente_asignacion';
+    case DisponibleProceso = 'disponible_proceso';
     case AsignadoCamara = 'asignado_camara';
     case EntregaParcialProceso = 'entrega_parcial_proceso';
     case EntregadoProceso = 'entregado_proceso';

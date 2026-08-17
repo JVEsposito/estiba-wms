@@ -108,6 +108,8 @@ class AccesoOficinaController extends Controller
                 'puede_consultar_materia_prima' => $capacidades['puede_consultar_materia_prima'],
                 'puede_gestionar_lotes_materia_prima' => $capacidades['puede_gestionar_lotes_materia_prima'],
                 'puede_supervisar_lotes_materia_prima' => $capacidades['puede_supervisar_lotes_materia_prima'],
+                'puede_consultar_hidrocooler_materia_prima' => $capacidades['puede_consultar_hidrocooler_materia_prima'],
+                'puede_operar_hidrocooler_materia_prima' => $capacidades['puede_operar_hidrocooler_materia_prima'],
                 'puede_consultar_fruta_proceso' => $capacidades['puede_consultar_fruta_proceso'],
                 'puede_entregar_fruta_proceso' => $capacidades['puede_entregar_fruta_proceso'],
                 'puede_corregir_entregas_fruta_proceso' => $capacidades['puede_corregir_entregas_fruta_proceso'],

@@ -209,11 +209,20 @@ class MateriaPrimaApiTest extends TestCase
                 'operacion_id' => (string) Str::uuid(),
                 'equipo' => 'HIDRO-02',
                 'inicio_at' => $inicio->toAtomString(),
+                'temperatura_inicial_c' => 18.25,
+                'temperatura_objetivo_c' => 4,
+                'temperatura_agua_inicial_c' => 1.8,
+                'observacion_inicio' => 'Agua y lote verificados.',
             ],
         )
             ->assertOk()
             ->assertJsonPath('data.estado', 'hidrocooler_en_curso')
             ->assertJsonPath('data.hidrocooler.equipo', 'HIDRO-02')
+            ->assertJsonPath('data.hidrocooler.operador', $digitador->name)
+            ->assertJsonPath('data.hidrocooler.cantidad_envases', 20)
+            ->assertJsonPath('data.hidrocooler.kilos_netos', 7495)
+            ->assertJsonPath('data.hidrocooler.temperatura_inicial_c', 18.25)
+            ->assertJsonPath('data.hidrocooler.temperatura_objetivo_c', 4)
             ->assertJsonPath('data.hidrocooler.iniciado_por', $digitador->name);
 
         $this->postJson(
@@ -222,6 +231,8 @@ class MateriaPrimaApiTest extends TestCase
                 'operacion_id' => (string) Str::uuid(),
                 'termino_at' => now()->toAtomString(),
                 'temperatura_c' => 3.75,
+                'temperatura_agua_final_c' => 1.65,
+                'destino_salida' => 'camara',
                 'observacion' => 'Pulpa dentro del rango.',
             ],
         )
@@ -229,6 +240,8 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('data.estado', 'pendiente_asignacion')
             ->assertJsonPath('data.hidrocooler.duracion_minutos', 90)
             ->assertJsonPath('data.hidrocooler.temperatura_c', 3.75)
+            ->assertJsonPath('data.hidrocooler.temperatura_agua_final_c', 1.65)
+            ->assertJsonPath('data.hidrocooler.destino_salida', 'camara')
             ->assertJsonPath('data.hidrocooler.observacion', 'Pulpa dentro del rango.')
             ->assertJsonPath('data.hidrocooler.completado_por', $digitador->name);
 
@@ -254,6 +267,104 @@ class MateriaPrimaApiTest extends TestCase
         $this->assertDatabaseCount('asignaciones_camara_lote_materia_prima', 2);
     }
 
+    public function test_hidrocooler_libera_un_lote_directo_a_proceso_sin_camara_ficticia(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-08-17 10:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-HIDRO-DIRECTO',
+                'requiere_hidrocooler' => true,
+            ]))
+            ->assertCreated()
+            ->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+
+        $inicioId = (string) Str::uuid();
+        $inicio = [
+            'operacion_id' => $inicioId,
+            'equipo' => 'HIDRO-01',
+            'inicio_at' => now()->subMinutes(75)->toAtomString(),
+            'temperatura_inicial_c' => 19.4,
+            'temperatura_objetivo_c' => 4,
+            'temperatura_agua_inicial_c' => 1.9,
+            'observacion_inicio' => 'Carga completa verificada.',
+        ];
+        $this->postJson(
+            "/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar",
+            $inicio,
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'hidrocooler_en_curso')
+            ->assertJsonPath('data.hidrocooler.codigo', fn ($codigo) => str_starts_with($codigo, 'HC-20260817-'));
+
+        $inicioAlterado = $inicio;
+        $inicioAlterado['temperatura_inicial_c'] = 20;
+        $this->postJson(
+            "/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar",
+            $inicioAlterado,
+        )->assertConflict();
+
+        $this->postJson(
+            "/api/materia-prima/lotes/{$lote['id']}/hidrocooler/completar",
+            [
+                'operacion_id' => (string) Str::uuid(),
+                'termino_at' => now()->toAtomString(),
+                'temperatura_c' => 3.8,
+                'temperatura_agua_final_c' => 1.7,
+                'destino_salida' => 'proceso',
+                'observacion' => 'Liberado directamente a Packing.',
+            ],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'disponible_proceso')
+            ->assertJsonPath('data.hidrocooler.duracion_minutos', 75)
+            ->assertJsonPath('data.hidrocooler.destino_salida', 'proceso')
+            ->assertJsonPath('data.asignacion_camara', null);
+
+        $this->getJson('/api/materia-prima/hidrocooler/resumen')
+            ->assertOk()
+            ->assertJsonPath('pendientes', 0)
+            ->assertJsonPath('en_curso', 0)
+            ->assertJsonPath('completados_hoy', 1)
+            ->assertJsonPath('duracion_promedio_hoy', 75);
+        $this->getJson('/api/materia-prima/hidrocooler/lotes?bandeja=historial')
+            ->assertOk()
+            ->assertJsonPath('data.0.numero_lote', 'LOTE-HIDRO-DIRECTO')
+            ->assertJsonPath('data.0.hidrocooler.destino_salida', 'proceso');
+
+        $this->actingAs($camarero, 'sanctum')
+            ->getJson('/api/materia-prima/fruta-proceso/lotes?estado=abiertos')
+            ->assertOk()
+            ->assertJsonPath('data.0.numero_lote', 'LOTE-HIDRO-DIRECTO')
+            ->assertJsonPath('data.0.origen_operacional', 'hidrocooler_directo')
+            ->assertJsonPath('data.0.camara', null);
+        $this->postJson("/api/materia-prima/fruta-proceso/lotes/{$lote['id']}/entregas", [
+            'operacion_id' => (string) Str::uuid(),
+            'cantidad_envases' => 12,
+            'kilos_enviados' => 4500,
+            'linea_proceso' => 'Línea 1',
+            'turno' => 'A',
+            'numero_orden' => 'OP-HIDRO-DIRECTO',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'entrega_parcial_proceso')
+            ->assertJsonPath('data.camara', null);
+
+        $this->assertDatabaseHas('entregas_fruta_proceso', [
+            'lote_materia_prima_id' => $lote['id'],
+            'asignacion_camara_lote_id' => null,
+            'camara_id' => null,
+        ]);
+        $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 1);
+        $this->assertDatabaseCount('asignaciones_camara_lote_materia_prima', 0);
+    }
+
     public function test_controla_identificadores_disponibilidad_y_correccion_supervisada(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-07-27 15:00:00'));
@@ -273,6 +384,8 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('usuario.puede_consultar_materia_prima', true)
             ->assertJsonPath('usuario.puede_gestionar_lotes_materia_prima', true)
             ->assertJsonPath('usuario.puede_supervisar_lotes_materia_prima', false)
+            ->assertJsonPath('usuario.puede_consultar_hidrocooler_materia_prima', true)
+            ->assertJsonPath('usuario.puede_operar_hidrocooler_materia_prima', true)
             ->assertJsonPath('usuario.ambito_camaras', 'materia_prima');
 
         $this->actingAs($digitador, 'sanctum');
