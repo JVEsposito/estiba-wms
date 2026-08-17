@@ -16,8 +16,8 @@
                 <div class="office-logo" aria-hidden="true">◫</div>
                 <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Convierte cada recepción validada en lotes trazables.</h1>
-                <p>Digitación reúne Romana, Validación MP, envases, hidrocooler y cámara sin perder el origen del producto ni las correcciones supervisadas.</p>
-                <div class="feature-row"><span>Lotes manuales</span><span>Neto confirmado</span><span>GGN y SdP</span><span>Hidrocooler trazado</span></div>
+                <p>Digitación transforma cada segmento validado en un lote trazable y lo deriva al proceso operacional correspondiente.</p>
+                <div class="feature-row"><span>Lotes manuales</span><span>Neto confirmado</span><span>GGN y SdP</span><span>Destino controlado</span></div>
             </div>
             <form class="office-access__form" id="officeLoginForm" novalidate>
                 <div><p class="eyebrow">ACCESO DE OFICINA</p><h2>Ingresar a Materia prima</h2><p>Disponible para Digitación, supervisión, administración y consulta autorizada.</p></div>
@@ -39,9 +39,10 @@
 
                 <nav class="raw-material-module-links" aria-label="Procesos del módulo">
                     <a href="/oficina/materia-prima/romana"><span>01</span><strong>Romana</strong><small>Ingreso, destare y neto por envase</small></a>
-                    <a class="is-active" href="/oficina/materia-prima/lotes"><span>02</span><strong>Digitación de lotes</strong><small>Origen, pesos e hidrocooler</small></a>
-                    <a href="/oficina/materia-prima/fruta-a-proceso"><span>03</span><strong>Fruta a proceso</strong><small>Entregas parciales hacia Packing</small></a>
-                    <a href="/oficina/materia-prima/envases"><span>04</span><strong>Envases</strong><small>Cuenta corriente y trazabilidad</small></a>
+                    <a class="is-active" href="/oficina/materia-prima/lotes"><span>02</span><strong>Digitación de lotes</strong><small>Origen, envases, kilos y confirmación</small></a>
+                    <a href="/oficina/materia-prima/hidrocooler"><span>03</span><strong>Hidrocooler</strong><small>Ciclos individuales y temperaturas</small></a>
+                    <a href="/oficina/materia-prima/fruta-a-proceso"><span>04</span><strong>Fruta a proceso</strong><small>Entregas parciales hacia Packing</small></a>
+                    <a href="/oficina/materia-prima/envases"><span>05</span><strong>Envases</strong><small>Cuenta corriente y trazabilidad</small></a>
                 </nav>
 
                 <div class="raw-material-kpis">
@@ -62,7 +63,7 @@
                             <div><p class="eyebrow">TRAZABILIDAD OPERACIONAL</p><h2>Lotes de la temporada</h2></div>
                             <form class="lot-filters" id="lotFilters">
                                 <input name="buscar" maxlength="100" placeholder="Lote, recepción, GGN o SdP">
-                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="asignado_camara">Asignado</option><option value="entrega_parcial_proceso">Entrega parcial a Packing</option><option value="entregado_proceso">Entregado a Packing</option><option value="anulado">Anulado</option></select>
+                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="disponible_proceso">Disponible directo a proceso</option><option value="asignado_camara">Asignado</option><option value="entrega_parcial_proceso">Entrega parcial a Packing</option><option value="entregado_proceso">Entregado a Packing</option><option value="anulado">Anulado</option></select>
                                 <button class="secondary-button" type="submit">Filtrar</button>
                             </form>
                         </div>

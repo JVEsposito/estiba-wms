@@ -55,11 +55,12 @@ class ServicioFrutaProceso
                     ->lockForUpdate()
                     ->findOrFail($lote->id);
                 if (! in_array($lote->estado, [
+                    EstadoLoteMateriaPrima::DisponibleProceso,
                     EstadoLoteMateriaPrima::AsignadoCamara,
                     EstadoLoteMateriaPrima::EntregaParcialProceso,
                 ], true)) {
                     throw new ConflictoOperacion(
-                        'El lote debe estar asignado a cámara y mantener bins disponibles.',
+                        'El lote debe estar disponible desde Hidrocooler o cámara y mantener bins disponibles.',
                     );
                 }
                 if ($lote->envase_primario !== TipoEnvaseRomana::Bins) {
@@ -72,8 +73,14 @@ class ServicioFrutaProceso
                     ->where('lote_materia_prima_id', $lote->id)
                     ->lockForUpdate()
                     ->first();
-                if (! $asignacion) {
-                    throw new ConflictoOperacion('El lote no posee una asignación vigente a cámara.');
+                $esSalidaDirecta = ! $asignacion
+                    && $lote->hidrocooler()
+                        ->where('destino_salida', 'proceso')
+                        ->exists();
+                if (! $asignacion && ! $esSalidaDirecta) {
+                    throw new ConflictoOperacion(
+                        'El lote no posee una asignación vigente a cámara ni una salida directa aprobada.',
+                    );
                 }
 
                 $entregados = $this->cantidadEntregada($lote);
@@ -92,8 +99,8 @@ class ServicioFrutaProceso
                     'operacion_id' => $datos['operacion_id'],
                     'payload_hash' => $hash,
                     'lote_materia_prima_id' => $lote->id,
-                    'asignacion_camara_lote_id' => $asignacion->id,
-                    'camara_id' => $asignacion->camara_id,
+                    'asignacion_camara_lote_id' => $asignacion?->id,
+                    'camara_id' => $asignacion?->camara_id,
                     'cantidad_envases' => $cantidad,
                     'kilos_enviados' => filled($datos['kilos_enviados'] ?? null)
                         ? round((float) $datos['kilos_enviados'], 3)
@@ -138,7 +145,10 @@ class ServicioFrutaProceso
                         'linea_proceso' => $entrega->linea_proceso,
                         'turno' => $entrega->turno,
                         'numero_orden' => $entrega->numero_orden,
-                        'camara_id' => $asignacion->camara_id,
+                        'camara_id' => $asignacion?->camara_id,
+                        'origen_operacional' => $esSalidaDirecta
+                            ? 'hidrocooler_directo'
+                            : 'camara_materia_prima',
                     ],
                 );
 
@@ -212,8 +222,13 @@ class ServicioFrutaProceso
                 ]);
 
                 $entregados = $this->cantidadEntregada($lote);
+                $tieneCamara = AsignacionCamaraLoteMateriaPrima::query()
+                    ->where('lote_materia_prima_id', $lote->id)
+                    ->exists();
                 $estadoNuevo = $entregados === 0
-                    ? EstadoLoteMateriaPrima::AsignadoCamara
+                    ? ($tieneCamara
+                        ? EstadoLoteMateriaPrima::AsignadoCamara
+                        : EstadoLoteMateriaPrima::DisponibleProceso)
                     : EstadoLoteMateriaPrima::EntregaParcialProceso;
                 $lote->update([
                     'estado' => $estadoNuevo,

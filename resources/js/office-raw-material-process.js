@@ -59,7 +59,7 @@ function formatDate(value) {
 }
 function label(value) {
     const labels = {
-        asignado_camara: 'Disponible', entrega_parcial_proceso: 'Entrega parcial', entregado_proceso: 'Completado',
+        disponible_proceso: 'Directo desde Hidrocooler', asignado_camara: 'Disponible', entrega_parcial_proceso: 'Entrega parcial', entregado_proceso: 'Completado',
         pendiente: 'Pendiente de retorno', parcial: 'Retorno parcial', completado: 'Retorno cerrado',
         pendiente_ubicacion: 'Pendiente de ubicación', ubicado_camara: 'Ubicado en cámara', anulado: 'Anulado',
         camarero_frio: 'Camarero', supervisor_frio: 'Supervisor de frío', administrador: 'Administrador',
@@ -152,7 +152,11 @@ function renderDeliveryLots() {
     return state.lots.map((lot) => {
         const complete = lot.progreso.disponibles === 0;
         const product = [lot.producto.especie, lot.producto.variedad, lot.producto.calibre].filter(Boolean).join(' · ');
-        return `<article class="process-lot-card${complete ? ' is-complete' : ''}"><div class="process-lot-card__heading"><div><h3>${escapeHtml(lot.numero_lote)}</h3><p>${escapeHtml(lot.cliente?.nombre)} · recepción ${escapeHtml(lot.recepcion?.numero_recepcion)}</p></div><span class="process-status">${escapeHtml(label(lot.estado))}</span></div><div class="process-facts"><div><span>CÁMARA</span><strong>${escapeHtml(lot.camara?.codigo)} · ${escapeHtml(lot.camara?.nombre)}</strong></div><div><span>PRODUCTO</span><strong>${escapeHtml(product)}</strong></div><div><span>ORIGEN</span><strong>CSG ${escapeHtml(lot.producto.csg)} · ${escapeHtml(lot.producto.predio)}</strong></div></div><div class="process-progress"><div class="process-progress__labels"><span><strong>${formatNumber(lot.progreso.entregados)}/${formatNumber(lot.progreso.total)}</strong> bins entregados</span><span>${formatNumber(lot.progreso.disponibles)} disponibles</span></div><div class="process-progress__track"><span style="width:${Math.min(100, Number(lot.progreso.porcentaje))}%"></span></div></div>${!complete && can('puede_entregar_fruta_proceso') ? `<div class="process-actions"><button class="primary-button" data-deliver="${escapeHtml(lot.id)}" type="button">+ Registrar viaje</button></div>` : ''}<details class="process-history"><summary>Historial de viajes (${lot.entregas.length})</summary><div class="process-history__list">${lot.entregas.length ? lot.entregas.map(renderDelivery).join('') : '<small>Este lote aún no registra entregas.</small>'}</div></details></article>`;
+        const origin = lot.camara
+            ? `${lot.camara.codigo} · ${lot.camara.nombre}`
+            : 'Salida directa desde Hidrocooler';
+        const originLabel = lot.camara ? 'CÁMARA' : 'ORIGEN OPERACIONAL';
+        return `<article class="process-lot-card${complete ? ' is-complete' : ''}"><div class="process-lot-card__heading"><div><h3>${escapeHtml(lot.numero_lote)}</h3><p>${escapeHtml(lot.cliente?.nombre)} · recepción ${escapeHtml(lot.recepcion?.numero_recepcion)}</p></div><span class="process-status">${escapeHtml(label(lot.estado))}</span></div><div class="process-facts"><div><span>${escapeHtml(originLabel)}</span><strong>${escapeHtml(origin)}</strong></div><div><span>PRODUCTO</span><strong>${escapeHtml(product)}</strong></div><div><span>ORIGEN</span><strong>CSG ${escapeHtml(lot.producto.csg)} · ${escapeHtml(lot.producto.predio)}</strong></div></div><div class="process-progress"><div class="process-progress__labels"><span><strong>${formatNumber(lot.progreso.entregados)}/${formatNumber(lot.progreso.total)}</strong> bins entregados</span><span>${formatNumber(lot.progreso.disponibles)} disponibles</span></div><div class="process-progress__track"><span style="width:${Math.min(100, Number(lot.progreso.porcentaje))}%"></span></div></div>${!complete && can('puede_entregar_fruta_proceso') ? `<div class="process-actions"><button class="primary-button" data-deliver="${escapeHtml(lot.id)}" type="button">+ Registrar viaje</button></div>` : ''}<details class="process-history"><summary>Historial de viajes (${lot.entregas.length})</summary><div class="process-history__list">${lot.entregas.length ? lot.entregas.map(renderDelivery).join('') : '<small>Este lote aún no registra entregas.</small>'}</div></details></article>`;
     }).join('');
 }
 function renderReturnCards() {
@@ -167,8 +171,8 @@ function renderSection() {
     elements.sections.forEach((button) => button.classList.toggle('is-active', button.dataset.processSection === state.section));
     const returns = state.section === 'retornos';
     elements.panelEyebrow.textContent = returns ? 'CONTROL DE PRODUCCIÓN INTERNA' : 'CONTROL DE DESPACHO INTERNO';
-    elements.panelTitle.textContent = returns ? 'Retornos desde Packing' : 'Lotes en cámara de materia prima';
-    elements.panelDescription.textContent = returns ? 'Clasifica cada devolución, genera sublotes y asígnalos a cámara.' : 'Registra la cantidad de cada viaje físico; no es necesario escanear cada bin.';
+    elements.panelTitle.textContent = returns ? 'Retornos desde Packing' : 'Lotes disponibles para proceso';
+    elements.panelDescription.textContent = returns ? 'Clasifica cada devolución, genera sublotes y asígnalos a cámara.' : 'Registra viajes desde cámara MP o directamente desde Hidrocooler.';
 }
 async function load({ silent = false } = {}) {
     const query = new URLSearchParams(new FormData(elements.filters)); query.set('per_page', '200');
@@ -221,7 +225,9 @@ function openDelivery(lotId) {
     state.selected = { lot }; elements.deliveryForm.reset(); elements.deliveryForm.elements.lote_id.value = lot.id;
     elements.deliveryForm.elements.cantidad_envases.max = String(lot.progreso.disponibles);
     elements.deliveryTitle.textContent = `Entregar ${lot.numero_lote}`;
-    elements.deliveryDescription.textContent = `${lot.progreso.disponibles} bins disponibles en ${lot.camara?.codigo}.`;
+    elements.deliveryDescription.textContent = lot.camara
+        ? `${lot.progreso.disponibles} bins disponibles en ${lot.camara.codigo}.`
+        : `${lot.progreso.disponibles} bins disponibles directamente desde Hidrocooler.`;
     elements.deliverySummary.innerHTML = `<div><span>LOTE</span><strong>${escapeHtml(lot.numero_lote)}</strong></div><div><span>PROGRESO</span><strong>${formatNumber(lot.progreso.entregados)}/${formatNumber(lot.progreso.total)}</strong></div><div><span>SALDO MÁXIMO</span><strong>${formatNumber(lot.progreso.disponibles)} bins</strong></div>`;
     elements.deliveryError.textContent = ''; elements.deliveryDialog.showModal();
 }

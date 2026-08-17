@@ -312,6 +312,8 @@ class ReinicioOperacionalApiTest extends TestCase
             'operacion_id' => (string) Str::uuid(),
             'equipo' => 'HIDRO-RESET',
             'inicio_at' => now()->subMinutes(15)->toAtomString(),
+            'temperatura_inicial_c' => 18,
+            'temperatura_objetivo_c' => 4,
         ])->assertOk();
 
         return [

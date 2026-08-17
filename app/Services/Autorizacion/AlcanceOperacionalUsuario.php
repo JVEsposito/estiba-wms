@@ -678,6 +678,26 @@ class AlcanceOperacionalUsuario
         ], 'materia-prima.digitacion');
     }
 
+    public function puedeConsultarHidrocoolerMateriaPrima(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::OperadorRomana,
+            RolUsuario::DigitadorMateriaPrima,
+            RolUsuario::Consulta,
+        ], 'materia-prima.hidrocooler');
+    }
+
+    public function puedeOperarHidrocoolerMateriaPrima(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::DigitadorMateriaPrima,
+        ], 'materia-prima.hidrocooler');
+    }
+
     public function puedeConsultarFrutaProceso(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -812,6 +832,8 @@ class AlcanceOperacionalUsuario
             'puede_consultar_materia_prima' => $this->puedeConsultarMateriaPrima($usuario),
             'puede_gestionar_lotes_materia_prima' => $this->puedeGestionarLotesMateriaPrima($usuario),
             'puede_supervisar_lotes_materia_prima' => $this->puedeSupervisarLotesMateriaPrima($usuario),
+            'puede_consultar_hidrocooler_materia_prima' => $this->puedeConsultarHidrocoolerMateriaPrima($usuario),
+            'puede_operar_hidrocooler_materia_prima' => $this->puedeOperarHidrocoolerMateriaPrima($usuario),
             'puede_consultar_fruta_proceso' => $this->puedeConsultarFrutaProceso($usuario),
             'puede_entregar_fruta_proceso' => $this->puedeEntregarFrutaProceso($usuario),
             'puede_corregir_entregas_fruta_proceso' => $this->puedeCorregirEntregasFrutaProceso($usuario),

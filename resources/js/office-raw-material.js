@@ -108,6 +108,7 @@ function label(value) {
         pendiente_hidrocooler: 'Pendiente hidrocooler',
         hidrocooler_en_curso: 'Hidrocooler en curso',
         pendiente_asignacion: 'Pendiente de cámara',
+        disponible_proceso: 'Disponible directo a proceso',
         asignado_camara: 'Asignado a cámara',
         entrega_parcial_proceso: 'Entrega parcial a Packing',
         entregado_proceso: 'Entregado a Packing',
@@ -162,7 +163,7 @@ function stateBadge(status) {
             ? 'hydro'
             : status === 'pendiente_asignacion'
                 ? 'camera'
-                : ['asignado_camara', 'entrega_parcial_proceso', 'entregado_proceso'].includes(status)
+                : ['disponible_proceso', 'asignado_camara', 'entrega_parcial_proceso', 'entregado_proceso'].includes(status)
                     ? 'assigned'
                     : 'void';
     return `<span class="raw-state raw-state--${style}">${escapeHtml(label(status))}</span>`;
@@ -352,12 +353,6 @@ function lotActions(lot) {
     }
     if (canManage && !['borrador', 'anulado'].includes(lot.estado)) {
         actions.push(`<button data-action="correct-origin" data-lot-id="${escapeHtml(lot.id)}" type="button">Corregir origen</button>`);
-    }
-    if (canManage && lot.estado === 'pendiente_hidrocooler') {
-        actions.push(`<button class="is-primary" data-action="start-hydro" data-lot-id="${escapeHtml(lot.id)}" type="button">Iniciar hidro</button>`);
-    }
-    if (canManage && lot.estado === 'hidrocooler_en_curso') {
-        actions.push(`<button class="is-primary" data-action="finish-hydro" data-lot-id="${escapeHtml(lot.id)}" type="button">Terminar hidro</button>`);
     }
     if (canManage && lot.estado === 'pendiente_asignacion') {
         actions.push(`<button class="is-primary" data-action="assign" data-lot-id="${escapeHtml(lot.id)}" type="button">Asignar cámara</button>`);
@@ -619,23 +614,6 @@ function openOperation(type, lotId) {
     form.lote_id.value = lot.id;
     form.operacion_id.value = operationUuid();
     const definitions = {
-        'start-hydro': {
-            eyebrow: 'HIDROCOOLER · INICIO',
-            title: `Iniciar ${lot.numero_lote}`,
-            description: 'Registra el equipo y la hora real de inicio. El operador queda tomado de la sesión.',
-            fields: `
-                <label class="field"><span>Equipo / hidrocooler *</span><input name="equipo" maxlength="100" required></label>
-                <label class="field"><span>Inicio *</span><input name="inicio_at" type="datetime-local" max="${escapeHtml(localDateTimeValue())}" value="${escapeHtml(localDateTimeValue())}" required></label>`,
-        },
-        'finish-hydro': {
-            eyebrow: 'HIDROCOOLER · TÉRMINO',
-            title: `Completar ${lot.numero_lote}`,
-            description: `Inicio: ${formatDate(lot.hidrocooler?.inicio_at)}. La duración será calculada automáticamente.`,
-            fields: `
-                <label class="field"><span>Término *</span><input name="termino_at" type="datetime-local" max="${escapeHtml(localDateTimeValue())}" value="${escapeHtml(localDateTimeValue())}" required></label>
-                <label class="field"><span>Temperatura final °C *</span><input name="temperatura_c" type="number" min="-20" max="50" step="0.01" required></label>
-                <label class="field"><span>Observación</span><textarea name="observacion" maxlength="2000"></textarea></label>`,
-        },
         'correct-origin': {
             eyebrow: 'CORRECCIÓN DE ORIGEN',
             title: `Corregir ${lot.numero_lote}`,
@@ -678,16 +656,7 @@ async function submitOperation() {
     const payload = { operacion_id: values.operacion_id };
     let path = '';
     let method = 'POST';
-    if (type === 'start-hydro') {
-        path = `/api/materia-prima/lotes/${lotId}/hidrocooler/iniciar`;
-        payload.equipo = values.equipo;
-        payload.inicio_at = new Date(values.inicio_at).toISOString();
-    } else if (type === 'finish-hydro') {
-        path = `/api/materia-prima/lotes/${lotId}/hidrocooler/completar`;
-        payload.termino_at = new Date(values.termino_at).toISOString();
-        payload.temperatura_c = values.temperatura_c;
-        payload.observacion = values.observacion || null;
-    } else if (type === 'correct-origin') {
+    if (type === 'correct-origin') {
         const lot = state.lots.find((item) => item.id === lotId);
         path = `/api/materia-prima/lotes/${lotId}/corregir-origen`;
         method = 'PUT';

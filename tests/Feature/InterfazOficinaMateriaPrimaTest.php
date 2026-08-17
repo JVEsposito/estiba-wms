@@ -12,14 +12,22 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
             ->assertOk()
             ->assertSee('Materia prima')
             ->assertSee('Digitación de lotes')
+            ->assertSee('Hidrocooler')
             ->assertSee('Fruta a proceso')
             ->assertSee('/oficina/materia-prima/romana', escape: false)
             ->assertSee('/oficina/materia-prima/fruta-a-proceso', escape: false)
+            ->assertSee('/oficina/materia-prima/hidrocooler', escape: false)
             ->assertSee('/oficina/materia-prima/envases', escape: false)
             ->assertSee('Neto confirmado por digitador')
             ->assertSee('¿El lote necesita hidrocooler?');
 
         $this->get('/oficina/materia-prima/lotes')->assertOk();
+        $this->get('/oficina/materia-prima/hidrocooler')
+            ->assertOk()
+            ->assertSee('Un ciclo de Hidrocooler por cada lote.')
+            ->assertSee('Temperatura inicial fruta')
+            ->assertSee('Directo a Fruta a proceso')
+            ->assertSee('TIEMPO PROMEDIO HOY');
         $this->get('/oficina/materia-prima/fruta-a-proceso')
             ->assertOk()
             ->assertSee('Fruta a proceso')

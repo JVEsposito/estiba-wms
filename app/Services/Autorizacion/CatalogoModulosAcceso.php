@@ -45,6 +45,7 @@ class CatalogoModulosAcceso
                 'modulos' => [
                     $this->modulo('materia-prima.romana', 'Romana', 'Ingreso, pesaje y seguimiento de recepciones.'),
                     $this->modulo('materia-prima.digitacion', 'Digitación de lotes', 'Creación y gestión de lotes posteriores a validación.'),
+                    $this->modulo('materia-prima.hidrocooler', 'Hidrocooler', 'Ciclos individuales por lote, temperaturas y destino de salida.'),
                     $this->modulo('materia-prima.fruta-proceso', 'Fruta a proceso', 'Entregas parciales de bins desde cámara hacia Packing.'),
                     $this->modulo('materia-prima.validacion-mp', 'Validación MP', 'Flujo PDA/tablet para validar y segregar recepciones.'),
                     $this->modulo('materia-prima.cuenta-envases', 'Cuenta de envases', 'Saldos y movimientos de envases por cliente.'),
@@ -290,6 +291,7 @@ class CatalogoModulosAcceso
                 'gerencia.panel',
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.hidrocooler',
                 'materia-prima.fruta-proceso',
                 'frigorifico.validacion',
                 'frigorifico.inspeccion-sag',
@@ -331,12 +333,14 @@ class CatalogoModulosAcceso
             RolUsuario::OperadorRomana => [
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.hidrocooler',
                 'materia-prima.cuenta-envases',
                 'materia-prima.despacho-envases',
             ],
             RolUsuario::DigitadorMateriaPrima => [
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.hidrocooler',
                 'materia-prima.cuenta-envases',
                 'consultas.busqueda',
                 'consultas.sag',
@@ -366,6 +370,7 @@ class CatalogoModulosAcceso
                 'gerencia.panel',
                 'materia-prima.romana',
                 'materia-prima.digitacion',
+                'materia-prima.hidrocooler',
                 'materia-prima.fruta-proceso',
                 'materia-prima.cuenta-envases',
                 'frigorifico.prefrio',

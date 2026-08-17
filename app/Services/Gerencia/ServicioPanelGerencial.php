@@ -563,6 +563,10 @@ class ServicioPanelGerencial
                 EstadoLoteMateriaPrima::PendienteAsignacion->value,
                 0,
             ),
+            'directo_proceso' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::DisponibleProceso->value,
+                0,
+            ),
             'en_camara' => (int) $porEstado->get(EstadoLoteMateriaPrima::AsignadoCamara->value, 0),
             'entrega_parcial' => (int) $porEstado->get(
                 EstadoLoteMateriaPrima::EntregaParcialProceso->value,

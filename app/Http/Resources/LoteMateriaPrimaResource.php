@@ -80,14 +80,35 @@ class LoteMateriaPrimaResource extends JsonResource
             'requiere_hidrocooler' => $this->requiere_hidrocooler,
             'hidrocooler' => $this->whenLoaded('hidrocooler', fn () => $this->hidrocooler ? [
                 'id' => $this->hidrocooler->id,
+                'codigo' => $this->hidrocooler->codigo,
                 'estado' => $this->hidrocooler->estado->value,
                 'equipo' => $this->hidrocooler->equipo,
+                'operador' => $this->hidrocooler->operador_snapshot
+                    ?: $this->hidrocooler->iniciadoPor?->name,
+                'cantidad_envases' => $this->hidrocooler->cantidad_envases_snapshot,
+                'kilos_netos' => $this->hidrocooler->kilos_netos_snapshot !== null
+                    ? (float) $this->hidrocooler->kilos_netos_snapshot
+                    : null,
                 'inicio_at' => $this->hidrocooler->inicio_at?->toAtomString(),
                 'termino_at' => $this->hidrocooler->termino_at?->toAtomString(),
                 'duracion_minutos' => $this->hidrocooler->duracion_minutos,
+                'temperatura_inicial_c' => $this->hidrocooler->temperatura_inicial_c !== null
+                    ? (float) $this->hidrocooler->temperatura_inicial_c
+                    : null,
+                'temperatura_objetivo_c' => $this->hidrocooler->temperatura_objetivo_c !== null
+                    ? (float) $this->hidrocooler->temperatura_objetivo_c
+                    : null,
+                'temperatura_agua_inicial_c' => $this->hidrocooler->temperatura_agua_inicial_c !== null
+                    ? (float) $this->hidrocooler->temperatura_agua_inicial_c
+                    : null,
                 'temperatura_c' => $this->hidrocooler->temperatura_c !== null
                     ? (float) $this->hidrocooler->temperatura_c
                     : null,
+                'temperatura_agua_final_c' => $this->hidrocooler->temperatura_agua_final_c !== null
+                    ? (float) $this->hidrocooler->temperatura_agua_final_c
+                    : null,
+                'destino_salida' => $this->hidrocooler->destino_salida,
+                'observacion_inicio' => $this->hidrocooler->observacion_inicio,
                 'observacion' => $this->hidrocooler->observacion,
                 'iniciado_por' => $this->hidrocooler->iniciadoPor?->name,
                 'completado_por' => $this->hidrocooler->completadoPor?->name,

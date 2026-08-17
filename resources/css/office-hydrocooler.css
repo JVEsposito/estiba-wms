@@ -1,0 +1,147 @@
+:root {
+    --hydro-blue: #69c9f3;
+    --hydro-ice: #b7e9fa;
+    --hydro-green: #72dfa0;
+    --hydro-gold: #efc36f;
+}
+
+body {
+    background:
+        radial-gradient(circle at 82% -10%, rgba(105, 201, 243, .15), transparent 35rem),
+        var(--bg);
+}
+
+.hydrocooler-access-brand {
+    background: linear-gradient(145deg, rgba(10, 60, 82, .96), rgba(4, 15, 21, .99));
+}
+
+.hydrocooler-access-brand .office-logo {
+    border-color: rgba(105, 201, 243, .45);
+    background: rgba(105, 201, 243, .12);
+    color: var(--hydro-ice);
+}
+
+.hydrocooler-workspace { min-width: 1120px; padding: 26px; }
+.hydrocooler-heading,
+.hydrocooler-toolbar,
+.hydrocooler-dialog__heading,
+.dialog-actions,
+.cycle-card__heading,
+.cycle-card__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.hydrocooler-heading { align-items: flex-end; margin-bottom: 18px; }
+.hydrocooler-heading h1 { margin: 0; font-size: clamp(2.2rem, 3vw, 3.3rem); letter-spacing: -.04em; }
+.hydrocooler-heading p:last-child { margin: 6px 0 0; color: var(--muted); }
+
+.hydrocooler-kpis {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.hydrocooler-kpis article {
+    position: relative;
+    min-height: 122px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: linear-gradient(145deg, rgba(13, 34, 45, .98), rgba(7, 22, 30, .98));
+    padding: 17px;
+}
+
+.hydrocooler-kpis article::before { position: absolute; inset: 0 0 auto; height: 3px; background: var(--hydro-blue); content: ''; }
+.hydrocooler-kpis article:nth-child(2)::before { background: var(--hydro-gold); }
+.hydrocooler-kpis article:nth-child(3)::before { background: var(--hydro-ice); }
+.hydrocooler-kpis article:nth-child(4)::before { background: var(--hydro-green); }
+.hydrocooler-kpis article:nth-child(5)::before { background: var(--cyan); }
+.hydrocooler-kpis span { color: var(--muted); font-size: .62rem; font-weight: 900; letter-spacing: .08em; }
+.hydrocooler-kpis strong { display: block; margin: 13px 0 5px; font-size: 2rem; line-height: 1; }
+.hydrocooler-kpis small { color: var(--muted); font-size: .66rem; }
+
+.hydrocooler-panel { overflow: hidden; }
+.hydrocooler-toolbar { align-items: flex-end; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.hydrocooler-tabs { display: flex; gap: 7px; }
+.hydrocooler-tabs button {
+    min-height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--deep);
+    color: var(--muted);
+    padding: 0 16px;
+    font-size: .7rem;
+    font-weight: 900;
+}
+.hydrocooler-tabs button.is-active { border-color: rgba(105, 201, 243, .55); background: rgba(105, 201, 243, .1); color: var(--hydro-ice); }
+.hydrocooler-toolbar form { display: grid; grid-template-columns: minmax(190px, 1.25fr) 150px 155px 135px 135px auto; gap: 7px; }
+.hydrocooler-toolbar input,
+.hydrocooler-toolbar select,
+.hydrocooler-toolbar button { min-height: 40px; font-size: .66rem; }
+
+.hydrocooler-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 15px; }
+.hydrocooler-empty { grid-column: 1 / -1; padding: 55px 20px; color: var(--muted); text-align: center; font-size: .8rem; }
+.cycle-card { border: 1px solid var(--line); border-radius: 14px; background: var(--deep); padding: 15px; }
+.cycle-card.is-active { border-color: rgba(239, 195, 111, .42); box-shadow: inset 0 3px rgba(239, 195, 111, .35); }
+.cycle-card.is-complete { border-color: rgba(114, 223, 160, .28); }
+.cycle-card__heading { align-items: flex-start; }
+.cycle-card__heading h3 { margin: 0; font-size: 1.05rem; }
+.cycle-card__heading p { margin: 5px 0 0; color: var(--muted); font-size: .68rem; }
+.hydro-status { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 9px; color: var(--hydro-ice); font-size: .58rem; font-weight: 900; white-space: nowrap; }
+.hydro-status::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ''; }
+.cycle-card.is-active .hydro-status { color: var(--hydro-gold); }
+.cycle-card.is-complete .hydro-status { color: var(--hydro-green); }
+.cycle-facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 13px; }
+.cycle-facts div { min-height: 64px; border: 1px solid var(--line); border-radius: 9px; background: rgba(9, 26, 35, .7); padding: 9px; }
+.cycle-facts span,
+.cycle-summary span { display: block; color: var(--muted); font-size: .55rem; font-weight: 900; letter-spacing: .07em; }
+.cycle-facts strong,
+.cycle-summary strong { display: block; margin-top: 5px; color: #e4eef1; font-size: .72rem; line-height: 1.35; overflow-wrap: anywhere; }
+.cycle-temperature { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 8px; }
+.cycle-temperature div { border-radius: 8px; background: rgba(105, 201, 243, .08); padding: 9px; color: var(--hydro-ice); font-size: .68rem; }
+.cycle-temperature span { display: block; margin-bottom: 4px; color: var(--muted); font-size: .54rem; font-weight: 900; }
+.cycle-note { margin: 10px 0 0; color: var(--muted); font-size: .66rem; line-height: 1.5; }
+.cycle-card__actions { justify-content: flex-end; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); }
+.cycle-card__actions button { min-height: 37px; }
+
+.hydrocooler-dialog { width: min(830px, calc(100vw - 30px)); max-height: calc(100vh - 28px); border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--text); padding: 0; }
+.hydrocooler-dialog::backdrop { background: rgba(2, 8, 12, .84); backdrop-filter: blur(5px); }
+.hydrocooler-dialog > form { max-height: calc(100vh - 30px); overflow: auto; padding: 22px; }
+.hydrocooler-dialog__heading { align-items: flex-start; margin-bottom: 15px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.hydrocooler-dialog__heading h2 { margin: 0; font-size: 1.5rem; }
+.hydrocooler-dialog__heading p:last-child { margin: 5px 0 0; color: var(--muted); }
+.hydrocooler-dialog__heading > button { width: 38px; height: 38px; flex: 0 0 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--deep); color: var(--muted); font-size: 1.3rem; }
+.cycle-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
+.cycle-summary div { border: 1px solid var(--line); border-radius: 9px; background: var(--deep); padding: 10px; }
+.hydrocooler-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px; }
+.hydrocooler-fields label { display: grid; align-content: start; gap: 7px; }
+.hydrocooler-fields label > span,
+.destination-choice legend { color: #c5d4da; font-size: .7rem; font-weight: 800; }
+.hydrocooler-fields input { min-height: 44px; }
+.hydrocooler-fields textarea { min-height: 88px; resize: vertical; border: 1px solid var(--line); border-radius: 11px; background: #091a23; color: var(--text); padding: 12px 14px; font: inherit; }
+.hydrocooler-fields .field-wide { grid-column: 1 / -1; }
+.destination-choice { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 8px; border: 1px solid var(--line); border-radius: 11px; margin: 0; padding: 10px; }
+.destination-choice legend { padding: 0 6px; }
+.destination-choice label { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--deep); padding: 11px; cursor: pointer; }
+.destination-choice input { width: 18px; min-height: 18px; flex: 0 0 18px; accent-color: var(--hydro-blue); }
+.destination-choice strong,
+.destination-choice small { display: block; }
+.destination-choice small { margin-top: 4px; color: var(--muted); font-size: .61rem; line-height: 1.4; }
+.destination-choice label.is-disabled { opacity: .45; cursor: not-allowed; }
+.dialog-actions { justify-content: flex-end; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.dialog-actions button { min-height: 44px; }
+
+@media (max-width: 1320px) {
+    .hydrocooler-toolbar { align-items: stretch; flex-direction: column; }
+    .hydrocooler-toolbar form { width: 100%; }
+}
+
+@media (max-width: 900px) {
+    .hydrocooler-workspace { min-width: 1040px; }
+    .hydrocooler-list { grid-template-columns: 1fr; }
+    .hydrocooler-fields { grid-template-columns: repeat(2, 1fr); }
+}
