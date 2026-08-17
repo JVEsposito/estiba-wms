@@ -77,7 +77,7 @@ return new class extends Migration
             ->whereNull('asignacion_camara_lote_id')
             ->orWhereNull('camara_id')
             ->exists()) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'No se puede revertir el módulo mientras existan entregas directas desde Hidrocooler.',
             );
         }
