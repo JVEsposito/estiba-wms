@@ -505,7 +505,7 @@ class ServicioProcesoPrefrio
                         $this->textoOpcional($resultado['observacion'] ?? null),
                     );
                     $asignacion->folio->update([
-                        'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+                        'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
                     ]);
                 }
 
