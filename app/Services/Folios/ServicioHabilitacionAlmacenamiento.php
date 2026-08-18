@@ -216,7 +216,10 @@ class ServicioHabilitacionAlmacenamiento
         }
 
         $esProductoAprobadoEnPrefrio = $folio->tipo_bulto !== TipoBulto::Material
-            && $folio->estado_operacional === EstadoOperacionalFolio::PendientePrefrio
+            && in_array($folio->estado_operacional, [
+                EstadoOperacionalFolio::PendientePrefrio,
+                EstadoOperacionalFolio::PendienteUbicacion,
+            ], true)
             && $folio->condicion_termica === CondicionTermicaFolio::PrefrioAprobado
             && $folio->habilitacion_almacenamiento === HabilitacionAlmacenamientoFolio::Habilitado;
 

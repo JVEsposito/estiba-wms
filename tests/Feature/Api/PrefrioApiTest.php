@@ -447,7 +447,7 @@ class PrefrioApiTest extends TestCase
             HabilitacionAlmacenamientoFolio::Habilitado,
             $folio->habilitacion_almacenamiento,
         );
-        $this->assertSame(EstadoOperacionalFolio::PendientePrefrio, $folio->estado_operacional);
+        $this->assertSame(EstadoOperacionalFolio::PendienteUbicacion, $folio->estado_operacional);
 
         $registro = RegistroHabilitacionAlmacenamiento::query()
             ->where('folio_id', $folio->id)

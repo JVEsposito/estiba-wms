@@ -70,7 +70,7 @@ class MovimientoApiTest extends TestCase
         $folio = Folio::create([
             'numero_folio' => 'FOLIO-CICLO-02',
             'tipo_bulto' => TipoBulto::Pallet,
-            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
             'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fecha_ingreso' => now(),
