@@ -8,11 +8,14 @@ use App\Enums\EstadoOperacionalFolio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\Posicion;
 use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -51,6 +54,119 @@ class RepaletizajeApiTest extends TestCase
         $nuevo = Folio::query()->where('numero_folio', 'SAL-CAMBIO-NUEVO')->firstOrFail();
         $this->assertSame(60, $nuevo->datos_externos['cantidad_cajas']);
         $this->assertSame('111', $nuevo->datos_externos['composicion'][0]['csg']);
+    }
+
+    public function test_cambio_folio_heredado_aprobado_queda_disponible_para_carga(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio(
+            $temporada,
+            'SAL-HEREDADO-PF',
+            60,
+            condicion: CondicionTermicaFolio::PrefrioAprobado,
+            estado: EstadoOperacionalFolio::PendientePrefrio,
+        );
+        $camara = Camara::create([
+            'codigo' => 'CAM-REPA-HEREDADO',
+            'nombre' => 'Cámara repa heredado',
+        ]);
+        $posicion = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P01-N1',
+        ]);
+        DB::table('ubicaciones_actuales')->insert([
+            'id' => (string) Str::uuid(),
+            'folio_id' => $origen->id,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion->id,
+            'movimiento_id' => null,
+            'ubicado_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'cambio_folio',
+            'origenes' => [[
+                'folio_id' => $origen->id,
+                'cantidad_aportada' => 60,
+            ]],
+            'resultados' => [[
+                'numero_folio' => 'SAL-HEREDADO-PF-NUEVO',
+                'tipo_resultado' => 'saldo',
+                'cantidad_objetivo' => 120,
+                'cantidad_resultante' => 60,
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.folio_resultante.estado_operacional', 'disponible')
+            ->assertJsonPath('data.folio_resultante.condicion_termica', 'prefrio_aprobado');
+
+        $nuevo = Folio::query()
+            ->where('numero_folio', 'SAL-HEREDADO-PF-NUEVO')
+            ->firstOrFail();
+        $this->assertSame(
+            HabilitacionAlmacenamientoFolio::Habilitado,
+            $nuevo->habilitacion_almacenamiento,
+        );
+        $this->assertDatabaseHas('ubicaciones_actuales', [
+            'folio_id' => $nuevo->id,
+            'posicion_id' => $posicion->id,
+        ]);
+
+        $despachador = User::factory()->create([
+            'rol' => RolUsuario::Despachador,
+            'activo' => true,
+        ]);
+        $cargaId = $this->actingAs($despachador, 'sanctum')
+            ->postJson('/api/cargas', [])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$cargaId}/folios", [
+                'folios' => [$nuevo->numero_folio],
+                'version_esperada' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.total_folios', 1);
+    }
+
+    public function test_migracion_normaliza_solo_repas_heredados_aprobados(): void
+    {
+        [, $temporada] = $this->contexto();
+        $repa = $this->folio(
+            $temporada,
+            'SAL-REPA-PENDIENTE',
+            40,
+            condicion: CondicionTermicaFolio::PrefrioAprobado,
+            estado: EstadoOperacionalFolio::PendientePrefrio,
+        );
+        $repa->update(['origen_sistema' => 'repaletizaje']);
+        $validacion = $this->folio(
+            $temporada,
+            'SAL-VALIDACION-PENDIENTE',
+            40,
+            condicion: CondicionTermicaFolio::PrefrioAprobado,
+            estado: EstadoOperacionalFolio::PendientePrefrio,
+        );
+
+        $migracion = require database_path(
+            'migrations/2026_08_18_120000_normalizar_estado_repas_aprobados.php',
+        );
+        $migracion->up();
+
+        $this->assertSame(
+            EstadoOperacionalFolio::Disponible,
+            $repa->refresh()->estado_operacional,
+        );
+        $this->assertSame(
+            EstadoOperacionalFolio::PendientePrefrio,
+            $validacion->refresh()->estado_operacional,
+        );
     }
 
     public function test_recupera_la_fecha_de_validacion_en_folios_historicos_y_la_conserva(): void
