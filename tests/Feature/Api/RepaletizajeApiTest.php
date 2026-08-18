@@ -135,37 +135,83 @@ class RepaletizajeApiTest extends TestCase
             ->assertJsonPath('data.total_folios', 1);
     }
 
-    public function test_migracion_normaliza_solo_repas_heredados_aprobados(): void
+    public function test_migracion_normaliza_aprobados_segun_su_ubicacion_sin_importar_origen(): void
     {
         [, $temporada] = $this->contexto();
-        $repa = $this->folio(
+        $sinUbicacionValidacion = $this->folio(
+            $temporada,
+            'PAL-VALIDACION-PENDIENTE',
+            40,
+            condicion: CondicionTermicaFolio::PrefrioAprobado,
+            estado: EstadoOperacionalFolio::PendientePrefrio,
+            tipo: TipoBulto::Pallet,
+        );
+        $sinUbicacionRepa = $this->folio(
             $temporada,
             'SAL-REPA-PENDIENTE',
             40,
             condicion: CondicionTermicaFolio::PrefrioAprobado,
             estado: EstadoOperacionalFolio::PendientePrefrio,
         );
-        $repa->update(['origen_sistema' => 'repaletizaje']);
-        $validacion = $this->folio(
+        $sinUbicacionRepa->update(['origen_sistema' => 'repaletizaje']);
+        $ubicado = $this->folio(
             $temporada,
-            'SAL-VALIDACION-PENDIENTE',
+            'PAL-APROBADO-UBICADO',
             40,
             condicion: CondicionTermicaFolio::PrefrioAprobado,
             estado: EstadoOperacionalFolio::PendientePrefrio,
+            tipo: TipoBulto::Pallet,
         );
+        $pendienteReal = $this->folio(
+            $temporada,
+            'PAL-PREFRIO-PENDIENTE',
+            40,
+            condicion: CondicionTermicaFolio::PendientePrefrio,
+            estado: EstadoOperacionalFolio::PendientePrefrio,
+            tipo: TipoBulto::Pallet,
+        );
+        $camara = Camara::create([
+            'codigo' => 'CAM-NORMALIZACION-PF',
+            'nombre' => 'Cámara normalización post prefrío',
+        ]);
+        $posicion = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P01-N1',
+        ]);
+        DB::table('ubicaciones_actuales')->insert([
+            'id' => (string) Str::uuid(),
+            'folio_id' => $ubicado->id,
+            'camara_id' => $camara->id,
+            'posicion_id' => $posicion->id,
+            'movimiento_id' => null,
+            'ubicado_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $migracion = require database_path(
-            'migrations/2026_08_18_120000_normalizar_estado_repas_aprobados.php',
+            'migrations/2026_08_18_160000_normalizar_estado_post_prefrio.php',
         );
         $migracion->up();
 
         $this->assertSame(
+            EstadoOperacionalFolio::PendienteUbicacion,
+            $sinUbicacionValidacion->refresh()->estado_operacional,
+        );
+        $this->assertSame(
+            EstadoOperacionalFolio::PendienteUbicacion,
+            $sinUbicacionRepa->refresh()->estado_operacional,
+        );
+        $this->assertSame(
             EstadoOperacionalFolio::Disponible,
-            $repa->refresh()->estado_operacional,
+            $ubicado->refresh()->estado_operacional,
         );
         $this->assertSame(
             EstadoOperacionalFolio::PendientePrefrio,
-            $validacion->refresh()->estado_operacional,
+            $pendienteReal->refresh()->estado_operacional,
         );
     }
 
@@ -428,7 +474,7 @@ class RepaletizajeApiTest extends TestCase
         $this->assertContains('csg', $respuesta->json('data.campos_mix'));
     }
 
-    public function test_consolida_saldo_post_prefrio_conservando_folio_disponible(): void
+    public function test_consolida_saldo_post_prefrio_sin_ubicacion_como_pendiente_ubicacion(): void
     {
         [$token, $temporada] = $this->contexto();
         $primero = $this->folio(
@@ -461,7 +507,7 @@ class RepaletizajeApiTest extends TestCase
             ->assertJsonPath('data.folio_resultante.numero_folio', 'SAL-FRIO-1')
             ->assertJsonPath('data.folio_resultante.cantidad_cajas', 55)
             ->assertJsonPath('data.folio_resultante.tipo_bulto', 'saldo')
-            ->assertJsonPath('data.folio_resultante.estado_operacional', 'disponible')
+            ->assertJsonPath('data.folio_resultante.estado_operacional', 'pendiente_ubicacion')
             ->assertJsonPath('data.folio_resultante.condicion_termica', 'prefrio_aprobado');
     }
 
