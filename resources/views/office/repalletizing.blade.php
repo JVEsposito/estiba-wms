@@ -135,6 +135,7 @@
                                 <span>Cliente · especie · marca · estado térmico</span>
                             </div>
                             <div class="mix-warnings is-hidden" id="mixWarnings"></div>
+                            <div class="source-overview is-hidden" id="sourceOverview" aria-live="polite"></div>
                             <div class="source-list" id="sourceList"><p class="empty-copy">Agrega al menos dos folios tipo saldo.</p></div>
 
                             <div class="source-list is-hidden" id="divisionEditor"></div>
