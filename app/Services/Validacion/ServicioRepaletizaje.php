@@ -209,12 +209,8 @@ class ServicioRepaletizaje
             /** @var Folio $primero */
             $primero = $origenes->first()['folio'];
             $condicion = $primero->condicion_termica;
-            $estadoResultado = $condicion === CondicionTermicaFolio::PendientePrefrio
-                ? EstadoOperacionalFolio::PendientePrefrio
-                : EstadoOperacionalFolio::Disponible;
-            $habilitacionResultado = $condicion === CondicionTermicaFolio::PendientePrefrio
-                ? HabilitacionAlmacenamientoFolio::NoHabilitado
-                : HabilitacionAlmacenamientoFolio::Habilitado;
+            $estadoResultado = $this->estadoResultado($condicion);
+            $habilitacionResultado = $this->habilitacionResultado($condicion);
             $codigo = $this->siguienteCodigo();
             $genealogia = $origenes->map(fn (array $origen): array => [
                 'folio_id' => $origen['folio']->id,
@@ -496,9 +492,11 @@ class ServicioRepaletizaje
                 'numero_folio' => $resultado['numero_folio'],
                 'tipo_bulto' => TipoBulto::from($resultado['tipo_resultado']),
                 'condicion_sag_id' => $folio->condicion_sag_id,
-                'estado_operacional' => $folio->estado_operacional,
+                'estado_operacional' => $this->estadoResultado($folio->condicion_termica),
                 'condicion_termica' => $folio->condicion_termica,
-                'habilitacion_almacenamiento' => $folio->habilitacion_almacenamiento,
+                'habilitacion_almacenamiento' => $this->habilitacionResultado(
+                    $folio->condicion_termica,
+                ),
                 'fuente_habilitacion_almacenamiento' => $folio->fuente_habilitacion_almacenamiento,
                 'habilitado_almacenamiento_at' => $folio->habilitado_almacenamiento_at,
                 'habilitado_almacenamiento_por_user_id' => $folio->habilitado_almacenamiento_por_user_id,
@@ -842,6 +840,22 @@ class ServicioRepaletizaje
                 "El folio {$folio->numero_folio} participa en un proceso de prefrío activo.",
             );
         }
+    }
+
+    private function estadoResultado(
+        CondicionTermicaFolio $condicion,
+    ): EstadoOperacionalFolio {
+        return $condicion === CondicionTermicaFolio::PendientePrefrio
+            ? EstadoOperacionalFolio::PendientePrefrio
+            : EstadoOperacionalFolio::Disponible;
+    }
+
+    private function habilitacionResultado(
+        CondicionTermicaFolio $condicion,
+    ): HabilitacionAlmacenamientoFolio {
+        return $condicion === CondicionTermicaFolio::PendientePrefrio
+            ? HabilitacionAlmacenamientoFolio::NoHabilitado
+            : HabilitacionAlmacenamientoFolio::Habilitado;
     }
 
     private function validarFolioTransformable(Folio $folio): void
