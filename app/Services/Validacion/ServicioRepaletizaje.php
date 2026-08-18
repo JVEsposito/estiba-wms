@@ -209,7 +209,15 @@ class ServicioRepaletizaje
             /** @var Folio $primero */
             $primero = $origenes->first()['folio'];
             $condicion = $primero->condicion_termica;
-            $estadoResultado = $this->estadoResultado($condicion);
+            $tieneUbicacionResultado = $folioConservado?->ubicacionActual !== null
+                || ($folioConservado === null && $origenes->contains(
+                    fn (array $origen): bool => $origen['cantidad_despues'] === 0
+                        && $origen['folio']->ubicacionActual !== null,
+                ));
+            $estadoResultado = $this->estadoResultado(
+                $condicion,
+                $tieneUbicacionResultado,
+            );
             $habilitacionResultado = $this->habilitacionResultado($condicion);
             $codigo = $this->siguienteCodigo();
             $genealogia = $origenes->map(fn (array $origen): array => [
@@ -342,7 +350,10 @@ class ServicioRepaletizaje
                     $datosExternos['ultimo_repaletizaje'] = $codigo;
                     $folio->update([
                         'tipo_bulto' => TipoBulto::Saldo,
-                        'estado_operacional' => $estadoResultado,
+                        'estado_operacional' => $this->estadoResultado(
+                            $condicion,
+                            $folio->ubicacionActual !== null,
+                        ),
                         'datos_externos' => $datosExternos,
                     ]);
                 }
@@ -492,7 +503,10 @@ class ServicioRepaletizaje
                 'numero_folio' => $resultado['numero_folio'],
                 'tipo_bulto' => TipoBulto::from($resultado['tipo_resultado']),
                 'condicion_sag_id' => $folio->condicion_sag_id,
-                'estado_operacional' => $this->estadoResultado($folio->condicion_termica),
+                'estado_operacional' => $this->estadoResultado(
+                    $folio->condicion_termica,
+                    $indice === 0 && $folio->ubicacionActual !== null,
+                ),
                 'condicion_termica' => $folio->condicion_termica,
                 'habilitacion_almacenamiento' => $this->habilitacionResultado(
                     $folio->condicion_termica,
@@ -844,10 +858,15 @@ class ServicioRepaletizaje
 
     private function estadoResultado(
         CondicionTermicaFolio $condicion,
+        bool $tieneUbicacion,
     ): EstadoOperacionalFolio {
-        return $condicion === CondicionTermicaFolio::PendientePrefrio
-            ? EstadoOperacionalFolio::PendientePrefrio
-            : EstadoOperacionalFolio::Disponible;
+        if ($condicion === CondicionTermicaFolio::PendientePrefrio) {
+            return EstadoOperacionalFolio::PendientePrefrio;
+        }
+
+        return $tieneUbicacion
+            ? EstadoOperacionalFolio::Disponible
+            : EstadoOperacionalFolio::PendienteUbicacion;
     }
 
     private function habilitacionResultado(
