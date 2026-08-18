@@ -5,7 +5,7 @@ const elements = {
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'),
     reload: byId('reloadButton'), form: byId('repaForm'), sourceInput: byId('sourceFolioInput'),
     addSource: byId('addSourceButton'), sourceError: byId('sourceError'), repaError: byId('repaError'),
-    sourceList: byId('sourceList'), sourceCount: byId('sourceCount'), keptField: byId('keptFolioField'),
+    sourceList: byId('sourceList'), sourceOverview: byId('sourceOverview'), sourceCount: byId('sourceCount'), keptField: byId('keptFolioField'),
     newField: byId('newFolioField'), hardRule: byId('hardRule'), mixWarnings: byId('mixWarnings'),
     previewFolio: byId('previewFolio'), previewType: byId('previewType'),
     previewQuantity: byId('previewQuantity'), previewThermal: byId('previewThermal'),
@@ -22,6 +22,7 @@ const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
     sources: [],
+    expandedSources: new Set(),
     history: [],
 };
 const hardFields = [
@@ -86,7 +87,7 @@ function persist(payload) {
     localStorage.setItem(keys.identity, JSON.stringify(payload.usuario));
 }
 function clearSession() {
-    state.token = null; state.identity = null; state.sources = []; state.history = [];
+    state.token = null; state.identity = null; state.sources = []; state.expandedSources.clear(); state.history = [];
     localStorage.removeItem(keys.token); localStorage.removeItem(keys.identity);
     elements.app.classList.add('is-hidden'); elements.access.classList.remove('is-hidden');
 }
@@ -123,6 +124,58 @@ function total() {
 }
 function sourceTotal(source) {
     return (source.composicion || []).reduce((sum, line) => sum + Number(line.aporte || 0), 0);
+}
+function sourceCompositionCommon(source, field) {
+    const lines = source.composicion || [];
+    if (!lines.length) return '—';
+    const values = [...new Set(lines.map((line) => normalized(line[field])).filter(Boolean))];
+    if (!values.length) return '—';
+    return values.length === 1 ? (lines[0]?.[field] || '—') : 'MIX';
+}
+function renderSourceCard(source, transform) {
+    const lines = source.composicion || [];
+    const singleLine = lines.length === 1 ? lines[0] : null;
+    const expanded = state.expandedSources.has(source.id);
+    const csg = sourceCompositionCommon(source, 'csg');
+    const date = sourceCompositionCommon(source, 'fecha_embalaje');
+    const predio = sourceCompositionCommon(source, 'predio');
+    const contributed = sourceTotal(source);
+    const remaining = Math.max(0, source.cantidad_cajas - contributed);
+    const contribution = !transform && singleLine
+        ? `<input class="source-amount-input" data-composition-source="${escapeHtml(source.id)}" data-composition-key="${escapeHtml(singleLine.clave)}" aria-label="Cajas aportadas por el folio ${escapeHtml(source.numero_folio)}" type="number" min="0" max="${singleLine.cantidad_cajas}" value="${singleLine.aporte}">`
+        : `<span class="source-value">${transform ? source.cantidad_cajas : contributed}</span>`;
+    const lineLabel = `${lines.length} ${lines.length === 1 ? 'composición' : 'composiciones'}`;
+
+    return `<article class="source-card${expanded ? ' is-expanded' : ''}">
+        <div class="source-card__row">
+            <div class="source-identity"><strong>${escapeHtml(source.numero_folio)}</strong>
+                <small>${escapeHtml(source.cliente)} · ${escapeHtml(source.especie)} · ${escapeHtml(source.marca)}</small>
+                <small>Calibre ${escapeHtml(source.calibre)} · ${escapeHtml(source.condicion_termica)}</small>
+            </div>
+            <div class="source-batch"><span>LOTE / FECHA</span>
+                <strong class="${csg === 'MIX' ? 'is-mix' : ''}">CSG ${escapeHtml(csg)}</strong>
+                <small class="${date === 'MIX' ? 'is-mix' : ''}">${date === 'MIX' ? 'Fechas MIX' : `Fecha ${escapeHtml(date)}`} · ${lineLabel}</small>
+            </div>
+            <label>DISPONIBLE<span class="source-value">${source.cantidad_cajas}</span></label>
+            <label>APORTA${contribution}</label>
+            <label>QUEDA<span class="source-value">${remaining}</span></label>
+            <button class="source-remove" data-remove="${escapeHtml(source.id)}" aria-label="Quitar folio ${escapeHtml(source.numero_folio)}" type="button">Quitar</button>
+        </div>
+        <div class="source-card__footer">
+            <button class="source-details-toggle" data-toggle-composition="${escapeHtml(source.id)}" aria-expanded="${expanded}" type="button">
+                <span aria-hidden="true">${expanded ? '▴' : '▾'}</span> ${expanded ? 'Ocultar' : 'Ver'} composición (${lines.length})
+            </button>
+            <span>${predio === 'MIX' ? 'Predios MIX' : escapeHtml(predio)}</span>
+        </div>
+        <div class="composition-lines${expanded ? '' : ' is-collapsed'}">
+            ${lines.map((line) => `<label class="composition-line">
+                <span><b>CSG ${escapeHtml(line.csg)}</b>${line.predio ? ` · ${escapeHtml(line.predio)}` : ''}<small>${line.fecha_embalaje ? `Fecha ${escapeHtml(line.fecha_embalaje)}` : 'Fecha no registrada'} · ${line.cantidad_cajas} cajas disponibles</small></span>
+                ${transform ? `<b>${line.cantidad_cajas} cajas</b>` : (singleLine
+                    ? `<b>Aporta ${line.aporte} de ${line.cantidad_cajas}</b>`
+                    : `<input data-composition-source="${escapeHtml(source.id)}" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.aporte}">`)}
+            </label>`).join('') || '<p class="empty-copy">Sin composición registrada.</p>'}
+        </div>
+    </article>`;
 }
 function resultComposition() {
     const grouped = new Map();
@@ -169,6 +222,11 @@ function refreshDivisionTotals() {
     elements.previewQuantity.textContent = `${divisionTotal(source, 1)} + ${divisionTotal(source, 2)} cajas`;
 }
 function render() {
+    const sourceScrollTop = elements.sourceList.scrollTop;
+    const activeComposition = document.activeElement?.matches('[data-composition-source]') ? {
+        source: document.activeElement.dataset.compositionSource,
+        key: document.activeElement.dataset.compositionKey,
+    } : null;
     const modality = mode();
     const transform = modality !== 'consolidacion';
     const division = modality === 'division';
@@ -193,26 +251,38 @@ function render() {
     if (state.sources.some((source) => source.id === selected)) select.value = selected;
     else if (state.sources.length) select.value = state.sources[0].id;
 
+    const contributed = total();
+    const dates = new Set(state.sources.flatMap((source) => source.composicion || [])
+        .map((line) => normalized(line.fecha_embalaje)).filter(Boolean));
+    const compositions = state.sources.reduce((sum, source) => sum + (source.composicion || []).length, 0);
+    const capacityText = modality === 'consolidacion' && type === 'pallet'
+        ? `${contributed} / ${target || '—'}`
+        : `${contributed}`;
+    const capacityComplete = modality === 'consolidacion' && type === 'pallet'
+        && target > 0 && contributed === target;
+    const capacityOverview = modality === 'consolidacion' && type === 'pallet'
+        ? `<span class="${capacityComplete ? 'is-complete' : ''}"><strong>${capacityText}</strong> capacidad</span>`
+        : '';
     elements.sourceCount.textContent = `${state.sources.length} folio${state.sources.length === 1 ? '' : 's'}`;
-    elements.sourceList.innerHTML = state.sources.length ? state.sources.map((source) => (
-        `<article class="source-card">
-            <div class="source-identity"><strong>${escapeHtml(source.numero_folio)}</strong>
-                <small>${escapeHtml(source.cliente)} · ${escapeHtml(source.especie)} · ${escapeHtml(source.marca)}</small>
-                <small>${escapeHtml(source.calibre)} · ${escapeHtml(source.condicion_termica)}</small>
-            </div>
-            <label>DISPONIBLE<span class="source-value">${source.cantidad_cajas}</span></label>
-            <label>APORTA<span class="source-value">${transform ? source.cantidad_cajas : sourceTotal(source)}</span></label>
-            <label>QUEDA<span class="source-value">${Math.max(0, source.cantidad_cajas - sourceTotal(source))}</span></label>
-            <button data-remove="${escapeHtml(source.id)}" type="button">Quitar</button>
-            <div class="composition-lines">
-                <strong>COMPOSICIÓN DEL BULTO</strong>
-                ${(source.composicion || []).map((line) => `<label class="composition-line">
-                    <span><b>CSG ${escapeHtml(line.csg)}</b>${line.predio ? ` · ${escapeHtml(line.predio)}` : ''}<small>${line.fecha_embalaje ? `Fecha ${escapeHtml(line.fecha_embalaje)}` : 'Fecha no registrada'} · ${line.cantidad_cajas} cajas disponibles</small></span>
-                    ${transform ? `<b>${line.cantidad_cajas} cajas</b>` : `<input data-composition-source="${escapeHtml(source.id)}" data-composition-key="${escapeHtml(line.clave)}" type="number" min="0" max="${line.cantidad_cajas}" value="${line.aporte}">`}
-                </label>`).join('')}
-            </div>
-        </article>`
-    )).join('') : `<p class="empty-copy">${transform ? 'Agrega un pallet o saldo.' : 'Agrega al menos dos folios tipo saldo.'}</p>`;
+    elements.sourceOverview.classList.toggle('is-hidden', !state.sources.length);
+    elements.sourceOverview.innerHTML = state.sources.length ? `
+        <span><strong>${state.sources.length}</strong> folios</span>
+        <span><strong>${contributed}</strong> cajas aportadas</span>
+        ${capacityOverview}
+        <span><strong>${dates.size}</strong> fechas</span>
+        <span><strong>${compositions}</strong> composiciones</span>` : '';
+    elements.sourceList.classList.toggle('has-many', state.sources.length > 5);
+    elements.sourceList.innerHTML = state.sources.length
+        ? state.sources.map((source) => renderSourceCard(source, transform)).join('')
+        : `<p class="empty-copy">${transform ? 'Agrega un pallet o saldo.' : 'Agrega al menos dos folios tipo saldo.'}</p>`;
+    elements.sourceList.scrollTop = sourceScrollTop;
+    if (activeComposition) {
+        const input = [...elements.sourceList.querySelectorAll('[data-composition-source]')].find((candidate) => (
+            candidate.dataset.compositionSource === activeComposition.source
+            && candidate.dataset.compositionKey === activeComposition.key
+        ));
+        input?.focus({ preventScroll: true });
+    }
 
     elements.divisionEditor.innerHTML = division && state.sources[0] ? `
         <article class="division-card">
@@ -311,11 +381,14 @@ async function addSource() {
         state.sources.push({ ...source, composicion: composition });
         elements.sourceInput.value = '';
         render();
+        if (elements.sourceList.classList.contains('has-many')) {
+            elements.sourceList.scrollTop = elements.sourceList.scrollHeight;
+        }
     } catch (error) { elements.sourceError.textContent = error.message; }
     finally { setBusy(false); }
 }
 function reset() {
-    state.sources = []; elements.form.reset();
+    state.sources = []; state.expandedSources.clear(); elements.form.reset();
     elements.form.elements.cantidad_objetivo.value = 120;
     elements.sourceError.textContent = ''; elements.repaError.textContent = '';
     render();
@@ -487,6 +560,7 @@ elements.sourceInput.addEventListener('keydown', (event) => {
 elements.form.addEventListener('change', render);
 elements.form.elements.modalidad.addEventListener('change', () => {
     state.sources = [];
+    state.expandedSources.clear();
     elements.sourceError.textContent = '';
     elements.repaError.textContent = '';
     render();
@@ -501,7 +575,17 @@ elements.form.addEventListener('input', (event) => {
 });
 elements.sourceList.addEventListener('click', (event) => {
     const remove = event.target.closest('[data-remove]');
-    if (remove) { state.sources = state.sources.filter((source) => source.id !== remove.dataset.remove); render(); }
+    if (remove) {
+        state.sources = state.sources.filter((source) => source.id !== remove.dataset.remove);
+        state.expandedSources.delete(remove.dataset.remove);
+        render(); return;
+    }
+    const toggle = event.target.closest('[data-toggle-composition]');
+    if (!toggle) return;
+    const id = toggle.dataset.toggleComposition;
+    if (state.expandedSources.has(id)) state.expandedSources.delete(id);
+    else state.expandedSources.add(id);
+    render();
 });
 elements.divisionEditor.addEventListener('input', (event) => {
     if (!event.target.matches('[data-division-output]') || !state.sources[0]) return;
