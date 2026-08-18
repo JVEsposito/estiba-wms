@@ -24,7 +24,7 @@ class RepaletizajeOfficeTest extends TestCase
         $this->assertIsString($styles);
         $this->assertStringContainsString('class="source-card__row"', $script);
         $this->assertStringContainsString('data-toggle-composition=', $script);
-        $this->assertStringContainsString("state.expandedSources.has(id)", $script);
+        $this->assertStringContainsString('state.expandedSources.has(id)', $script);
         $this->assertStringContainsString('.source-list.has-many', $styles);
         $this->assertStringContainsString('.source-card .composition-lines.is-collapsed', $styles);
         $this->assertStringContainsString('position: sticky;', $styles);
