@@ -187,6 +187,7 @@ Ocultar una acción en la interfaz nunca reemplaza la autorización del backend.
 - [Alcance funcional actual](docs/alcance-mvp.md)
 - [Reglas de negocio](docs/reglas-negocio.md)
 - [Arquitectura](docs/arquitectura.md)
+- [Perfil operativo y rendimiento](docs/operacion-rendimiento.md)
 - [Configuración de cámaras y cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
 - [Validación de pallets/PT](docs/MODULO_VALIDACION_PALLETS.md)
