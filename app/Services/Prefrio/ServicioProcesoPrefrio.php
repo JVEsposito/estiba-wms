@@ -6,7 +6,6 @@ use App\Enums\CondicionTermicaFolio;
 use App\Enums\DominioTransicionOperacional;
 use App\Enums\EstadoAdministrativoTunelPrefrio;
 use App\Enums\EstadoFolioProcesoPrefrio;
-use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Enums\FuenteHabilitacionAlmacenamiento;
@@ -504,9 +503,6 @@ class ServicioProcesoPrefrio
                         $procesoBloqueado->id,
                         $this->textoOpcional($resultado['observacion'] ?? null),
                     );
-                    $asignacion->folio->update([
-                        'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
-                    ]);
                 }
 
                 $procesoBloqueado->update([

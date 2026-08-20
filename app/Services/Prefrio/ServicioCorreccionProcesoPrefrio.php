@@ -140,7 +140,7 @@ class ServicioCorreccionProcesoPrefrio
                 'datos' => [
                     'motivo' => $this->textoObligatorio($datos['motivo']),
                     'cambios' => $cambios,
-                    'estado_operacional_folios_preservado' => true,
+                    'estado_operacional_folios_sincronizado' => true,
                     'resultado_termico_folios_sincronizado' => true,
                 ],
                 'observacion' => $this->textoObligatorio($datos['motivo']),

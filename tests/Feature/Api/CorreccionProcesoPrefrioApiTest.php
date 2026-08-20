@@ -154,7 +154,7 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
         ]);
         $this->assertDatabaseHas('folios', [
             'id' => $folioAgregado->id,
-            'estado_operacional' => 'pendiente_prefrio',
+            'estado_operacional' => 'pendiente_ubicacion',
             'condicion_termica' => 'prefrio_aprobado',
             'habilitacion_almacenamiento' => 'habilitado',
             'fuente_habilitacion_almacenamiento' => 'prefrio_aprobado',
@@ -171,6 +171,7 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
 
         // Simula el dato heredado que ya fue corregido en el proceso, pero no en el folio.
         DB::table('folios')->where('id', $folioAgregado->id)->update([
+            'estado_operacional' => 'pendiente_prefrio',
             'condicion_termica' => 'pendiente_prefrio',
             'habilitacion_almacenamiento' => 'no_habilitado',
             'fuente_habilitacion_almacenamiento' => null,

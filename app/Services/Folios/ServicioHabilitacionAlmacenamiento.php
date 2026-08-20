@@ -70,14 +70,22 @@ class ServicioHabilitacionAlmacenamiento
     ): Folio {
         $this->validarProducto($folio);
 
-        $folio->update([
+        $cambios = [
             'condicion_termica' => $condicion,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
             'fuente_habilitacion_almacenamiento' => $fuente,
             'habilitado_almacenamiento_at' => now(),
             'habilitado_almacenamiento_por_user_id' => $usuario->id,
             'retencion_termica_motivo' => null,
-        ]);
+        ];
+
+        if ($condicion === CondicionTermicaFolio::PrefrioAprobado) {
+            $cambios['estado_operacional'] = $folio->ubicacionActual()->exists()
+                ? EstadoOperacionalFolio::Disponible
+                : EstadoOperacionalFolio::PendienteUbicacion;
+        }
+
+        $folio->update($cambios);
 
         $this->registrar(
             $folio,
