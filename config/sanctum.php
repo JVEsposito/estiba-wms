@@ -54,6 +54,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Last Used At Tracking
+    |--------------------------------------------------------------------------
+    |
+    | Updating this timestamp adds a database write to every authenticated
+    | bearer-token request. Operational installations disable it because the
+    | application does not use this value for access control or auditing.
+    |
+    */
+
+    'last_used_at' => env('SANCTUM_TRACK_LAST_USED_AT', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

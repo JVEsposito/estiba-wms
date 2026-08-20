@@ -35,6 +35,32 @@ class SanctumAuthenticationTest extends TestCase
             ->assertJsonPath('email', $user->email);
     }
 
+    public function test_una_solicitud_autenticada_no_actualiza_el_ultimo_uso_si_el_seguimiento_esta_desactivado(): void
+    {
+        config()->set('sanctum.last_used_at', false);
+
+        $user = User::factory()->create();
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-01',
+            'nombre' => 'Tablet de prueba',
+        ]);
+        $nuevoToken = $user->crearTokenParaDispositivo($dispositivo, 'tablet-prueba');
+        $ultimoUso = now()->subDay()->startOfSecond();
+
+        $nuevoToken->accessToken->forceFill([
+            'last_used_at' => $ultimoUso,
+        ])->save();
+
+        $this->withToken($nuevoToken->plainTextToken)
+            ->getJson('/api/user')
+            ->assertOk();
+
+        $this->assertSame(
+            $ultimoUso->toDateTimeString(),
+            $nuevoToken->accessToken->fresh()->last_used_at?->toDateTimeString(),
+        );
+    }
+
     public function test_el_token_queda_asociado_al_dispositivo_autorizado(): void
     {
         $user = User::factory()->create();
