@@ -135,7 +135,7 @@ class RepaletizajeApiTest extends TestCase
             ->assertJsonPath('data.total_folios', 1);
     }
 
-    public function test_migracion_normaliza_aprobados_segun_su_ubicacion_sin_importar_origen(): void
+    public function test_hotfix_corrige_la_secuencia_acumulada_de_migraciones_post_prefrio(): void
     {
         [, $temporada] = $this->contexto();
         $sinUbicacionValidacion = $this->folio(
@@ -192,10 +192,24 @@ class RepaletizajeApiTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $migracion = require database_path(
+        $migracionRepa = require database_path(
+            'migrations/2026_08_18_120000_normalizar_estado_repas_aprobados.php',
+        );
+        $migracionRepa->up();
+        $migracionPostPrefrio = require database_path(
             'migrations/2026_08_18_160000_normalizar_estado_post_prefrio.php',
         );
-        $migracion->up();
+        $migracionPostPrefrio->up();
+
+        $this->assertSame(
+            EstadoOperacionalFolio::Disponible,
+            $sinUbicacionRepa->refresh()->estado_operacional,
+        );
+
+        $hotfix = require database_path(
+            'migrations/2026_08_20_120000_corregir_estados_post_prefrio_acumulados.php',
+        );
+        $hotfix->up();
 
         $this->assertSame(
             EstadoOperacionalFolio::PendienteUbicacion,
