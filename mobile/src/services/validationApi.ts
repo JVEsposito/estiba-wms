@@ -46,8 +46,44 @@ async function request<T>(
   return data as T;
 }
 
-export function getValidationCatalog(baseUrl: string, token: string) {
-  return request<ValidationCatalog>(baseUrl, '/api/validacion/catalogos', token);
+export async function getValidationCatalog(
+  baseUrl: string,
+  token: string,
+  knownCatalog: ValidationCatalog | null = null,
+): Promise<ValidationCatalog | null> {
+  const headers = new Headers({
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+  });
+  if (knownCatalog) {
+    headers.set(
+      'If-None-Match',
+      `"validacion-catalogo-${knownCatalog.temporada.id}-${knownCatalog.temporada.version_catalogo}"`,
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/api/validacion/catalogos`, { headers });
+  } catch {
+    throw new ApiError(
+      'La PDA no puede actualizar el catálogo. Se conservará la última copia disponible.',
+      0,
+    );
+  }
+
+  if (response.status === 304) return null;
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new ApiError(
+      validationMessage(data, 'No fue posible actualizar el catálogo de validación.'),
+      response.status,
+      data,
+    );
+  }
+
+  return data as ValidationCatalog;
 }
 
 export async function registerValidation(
