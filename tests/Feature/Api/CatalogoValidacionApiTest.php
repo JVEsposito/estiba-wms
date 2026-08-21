@@ -24,7 +24,7 @@ class CatalogoValidacionApiTest extends TestCase
         $this->withToken($token)
             ->getJson('/api/validacion/catalogos')
             ->assertOk()
-            ->assertHeader('ETag', ""{$etag}"")
+            ->assertHeader('ETag', "\"{$etag}\"")
             ->assertJsonPath('temporada.id', $temporada->id)
             ->assertJsonCount(1, 'categorias')
             ->assertJsonCount(1, 'articulos')
@@ -35,7 +35,7 @@ class CatalogoValidacionApiTest extends TestCase
         DB::enableQueryLog();
 
         $this->withToken($token)
-            ->withHeader('If-None-Match', ""{$etag}"")
+            ->withHeader('If-None-Match', "\"{$etag}\"")
             ->get('/api/validacion/catalogos')
             ->assertStatus(Response::HTTP_NOT_MODIFIED)
             ->assertContent('');
@@ -58,12 +58,12 @@ class CatalogoValidacionApiTest extends TestCase
         $versionActualizada = (int) $temporada->version_catalogo + 1;
 
         $this->withToken($token)
-            ->withHeader('If-None-Match', ""{$etag}"")
+            ->withHeader('If-None-Match', "\"{$etag}\"")
             ->getJson('/api/validacion/catalogos')
             ->assertOk()
             ->assertHeader(
                 'ETag',
-                ""validacion-catalogo-{$temporada->id}-".($temporada->version_catalogo + 1).'"',
+                "\"validacion-catalogo-{$temporada->id}-{$versionActualizada}\"",
             );
     }
 
