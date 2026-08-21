@@ -9,8 +9,45 @@ import {
   ValidationSessionSnapshot,
 } from '../domain/validation';
 
+const CATALOG_STORAGE_SCHEMA = 2;
+const CATALOG_CHUNK_SIZE = 200;
+const MAX_CACHED_SESSION_ATTEMPTS = 100;
+const CATALOG_COLLECTIONS = [
+  'categorias',
+  'articulos',
+  'origenes',
+  'combinaciones',
+] as const;
+
+type CatalogCollection = typeof CATALOG_COLLECTIONS[number];
+type CatalogMetadata = Omit<ValidationCatalog, CatalogCollection>;
+type CatalogManifest = {
+  schema_version: typeof CATALOG_STORAGE_SCHEMA;
+  generation: string;
+  metadata: CatalogMetadata;
+  chunks: Record<CatalogCollection, number>;
+};
+
 function catalogKey(userId: string, deviceId: string) {
   return `estiba_validation_catalog:${userId}:${deviceId}`;
+}
+
+function catalogManifestKey(userId: string, deviceId: string) {
+  return `${catalogKey(userId, deviceId)}:manifest:v${CATALOG_STORAGE_SCHEMA}`;
+}
+
+function catalogChunkPrefix(userId: string, deviceId: string) {
+  return `${catalogKey(userId, deviceId)}:chunk:v${CATALOG_STORAGE_SCHEMA}:`;
+}
+
+function catalogChunkKey(
+  userId: string,
+  deviceId: string,
+  generation: string,
+  collection: CatalogCollection,
+  index: number,
+) {
+  return `${catalogChunkPrefix(userId, deviceId)}${generation}:${collection}:${index}`;
 }
 
 function outboxKey(userId: string, deviceId: string) {
@@ -23,6 +60,58 @@ function workContextKey(userId: string, deviceId: string) {
 
 function sessionKey(userId: string, deviceId: string, sessionId: string) {
   return `estiba_validation_session:${userId}:${deviceId}:${sessionId}`;
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+}
+
+function parseCatalogManifest(raw: string): CatalogManifest {
+  const parsed = JSON.parse(raw) as Partial<CatalogManifest>;
+  const validChunks = parsed.chunks
+    && CATALOG_COLLECTIONS.every((collection) => (
+      Number.isInteger(parsed.chunks?.[collection])
+      && Number(parsed.chunks?.[collection]) >= 0
+      && Number(parsed.chunks?.[collection]) <= 10_000
+    ));
+
+  if (
+    parsed.schema_version !== CATALOG_STORAGE_SCHEMA
+    || typeof parsed.generation !== 'string'
+    || parsed.generation === ''
+    || !parsed.metadata
+    || !validChunks
+  ) {
+    throw new Error('Manifiesto de catálogo inválido.');
+  }
+
+  return parsed as CatalogManifest;
+}
+
+async function removeCatalogGeneration(
+  userId: string,
+  deviceId: string,
+  generation: string,
+) {
+  const prefix = `${catalogChunkPrefix(userId, deviceId)}${generation}:`;
+  const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(prefix));
+  if (keys.length > 0) await AsyncStorage.multiRemove(keys);
+}
+
+async function removeStaleCatalogChunks(
+  userId: string,
+  deviceId: string,
+  currentGeneration: string,
+) {
+  const prefix = catalogChunkPrefix(userId, deviceId);
+  const currentPrefix = `${prefix}${currentGeneration}:`;
+  const staleKeys = (await AsyncStorage.getAllKeys())
+    .filter((key) => key.startsWith(prefix) && !key.startsWith(currentPrefix));
+  if (staleKeys.length > 0) await AsyncStorage.multiRemove(staleKeys);
 }
 
 export async function loadCachedValidationSession(
@@ -47,9 +136,13 @@ export async function saveValidationSession(
   sessionId: string,
   snapshot: ValidationSessionSnapshot,
 ) {
+  const cachedSnapshot = snapshot.data.length > MAX_CACHED_SESSION_ATTEMPTS
+    ? { ...snapshot, data: snapshot.data.slice(0, MAX_CACHED_SESSION_ATTEMPTS) }
+    : snapshot;
+
   await AsyncStorage.setItem(
     sessionKey(userId, deviceId, sessionId),
-    JSON.stringify(snapshot),
+    JSON.stringify(cachedSnapshot),
   );
 }
 
@@ -84,15 +177,89 @@ export async function loadCachedValidationCatalog(
   userId: string,
   deviceId: string,
 ): Promise<ValidationCatalog | null> {
-  const raw = await AsyncStorage.getItem(catalogKey(userId, deviceId));
-  if (!raw) return null;
+  const manifestKey = catalogManifestKey(userId, deviceId);
+  const manifestRaw = await AsyncStorage.getItem(manifestKey);
 
+  if (manifestRaw) {
+    let manifest: CatalogManifest | null = null;
+    try {
+      manifest = parseCatalogManifest(manifestRaw);
+      const collections: Record<CatalogCollection, unknown[]> = {
+        categorias: [],
+        articulos: [],
+        origenes: [],
+        combinaciones: [],
+      };
+      const keys: string[] = [];
+
+      for (const collection of CATALOG_COLLECTIONS) {
+        for (let index = 0; index < manifest.chunks[collection]; index += 1) {
+          keys.push(catalogChunkKey(
+            userId,
+            deviceId,
+            manifest.generation,
+            collection,
+            index,
+          ));
+        }
+      }
+
+      const values = await AsyncStorage.multiGet(keys);
+      let offset = 0;
+      for (const collection of CATALOG_COLLECTIONS) {
+        for (let index = 0; index < manifest.chunks[collection]; index += 1) {
+          const raw = values[offset]?.[1];
+          offset += 1;
+          if (!raw) throw new Error('Fragmento de catálogo ausente.');
+          const parsed = JSON.parse(raw) as unknown;
+          if (!Array.isArray(parsed)) throw new Error('Fragmento de catálogo inválido.');
+          collections[collection].push(...parsed);
+        }
+      }
+
+      return {
+        ...manifest.metadata,
+        categorias: collections.categorias as ValidationCatalog['categorias'],
+        articulos: collections.articulos as ValidationCatalog['articulos'],
+        origenes: collections.origenes as ValidationCatalog['origenes'],
+        combinaciones: collections.combinaciones as ValidationCatalog['combinaciones'],
+      };
+    } catch {
+      await AsyncStorage.removeItem(manifestKey);
+      if (manifest) {
+        try {
+          await removeCatalogGeneration(userId, deviceId, manifest.generation);
+        } catch {
+          // Los fragmentos huérfanos se eliminarán en la próxima sincronización.
+        }
+      }
+    }
+  }
+
+  let legacyRaw: string | null = null;
   try {
-    return JSON.parse(raw) as ValidationCatalog;
+    legacyRaw = await AsyncStorage.getItem(catalogKey(userId, deviceId));
   } catch {
     await AsyncStorage.removeItem(catalogKey(userId, deviceId));
     return null;
   }
+  if (!legacyRaw) return null;
+
+  let legacyCatalog: ValidationCatalog;
+  try {
+    legacyCatalog = JSON.parse(legacyRaw) as ValidationCatalog;
+  } catch {
+    await AsyncStorage.removeItem(catalogKey(userId, deviceId));
+    return null;
+  }
+
+  try {
+    await saveValidationCatalog(userId, deviceId, legacyCatalog);
+  } catch {
+    // La copia antigua sigue disponible durante esta sesión aunque la migración falle.
+  }
+
+  return legacyCatalog;
 }
 
 export async function saveValidationCatalog(
@@ -100,17 +267,69 @@ export async function saveValidationCatalog(
   deviceId: string,
   catalog: ValidationCatalog,
 ) {
-  const key = catalogKey(userId, deviceId);
-  const serialized = JSON.stringify(catalog);
+  const generation = [
+    catalog.temporada.id,
+    catalog.temporada.version_catalogo,
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2, 8),
+  ].join('-');
+  const {
+    categorias,
+    articulos,
+    origenes,
+    combinaciones,
+    ...metadata
+  } = catalog;
+  const collectionValues: Record<CatalogCollection, unknown[]> = {
+    categorias,
+    articulos,
+    origenes,
+    combinaciones,
+  };
+  const manifest: CatalogManifest = {
+    schema_version: CATALOG_STORAGE_SCHEMA,
+    generation,
+    metadata,
+    chunks: {
+      categorias: 0,
+      articulos: 0,
+      origenes: 0,
+      combinaciones: 0,
+    },
+  };
+  const pairs: Array<[string, string]> = [];
+
+  for (const collection of CATALOG_COLLECTIONS) {
+    const collectionChunks = chunks(collectionValues[collection], CATALOG_CHUNK_SIZE);
+    manifest.chunks[collection] = collectionChunks.length;
+    collectionChunks.forEach((items, index) => {
+      pairs.push([
+        catalogChunkKey(userId, deviceId, generation, collection, index),
+        JSON.stringify(items),
+      ]);
+    });
+  }
 
   try {
-    await AsyncStorage.setItem(key, serialized);
+    if (pairs.length > 0) await AsyncStorage.multiSet(pairs);
+    await AsyncStorage.setItem(
+      catalogManifestKey(userId, deviceId),
+      JSON.stringify(manifest),
+    );
   } catch (reason) {
-    const message = reason instanceof Error ? reason.message : String(reason);
-    if (!/SQLITE_FULL|database or disk is full/i.test(message)) throw reason;
+    try {
+      await removeCatalogGeneration(userId, deviceId, generation);
+    } catch {
+      // No reemplaza el manifiesto anterior si la nueva escritura queda incompleta.
+    }
+    throw reason;
+  }
 
-    await AsyncStorage.removeItem(key);
-    await AsyncStorage.setItem(key, serialized);
+  try {
+    await AsyncStorage.removeItem(catalogKey(userId, deviceId));
+    await removeStaleCatalogChunks(userId, deviceId, generation);
+  } catch {
+    // El manifiesto nuevo ya es válido; la limpieza puede reintentarse después.
   }
 }
 
