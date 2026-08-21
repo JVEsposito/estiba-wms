@@ -237,7 +237,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         setLine(savedContext.linea_proceso);
         setShift(savedContext.turno);
       }
-      await synchronize();
+      await synchronize({ knownCatalog: cached });
     } catch (reason) {
       setError(messageFrom(reason));
     } finally {
@@ -279,7 +279,13 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     }
   }
 
-  async function synchronize({ notify = false }: { notify?: boolean } = {}) {
+  async function synchronize({
+    notify = false,
+    knownCatalog = catalog,
+  }: {
+    notify?: boolean;
+    knownCatalog?: ValidationCatalog | null;
+  } = {}) {
     if (!baseUrl) {
       setOnline(false);
       if (notify) setError('Configura el servidor antes de sincronizar.');
@@ -291,18 +297,28 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
     try {
       const [loaded, latest] = await Promise.all([
-        getValidationCatalog(baseUrl, auth.token),
+        getValidationCatalog(baseUrl, auth.token, knownCatalog),
         listRecentValidations(baseUrl, auth.token),
       ]);
-      await saveValidationCatalog(userId, deviceId, loaded);
-      setCatalog(loaded);
+      const activeCatalog = loaded ?? knownCatalog;
+      if (!activeCatalog) {
+        throw new Error('No existe un catálogo disponible para validación.');
+      }
+      if (loaded) {
+        await saveValidationCatalog(userId, deviceId, loaded);
+        setCatalog(loaded);
+      } else if (knownCatalog) {
+        setCatalog(knownCatalog);
+      }
       setRecent(latest);
       setOnline(true);
       setLastSync(new Date().toISOString());
       await flushOutbox();
       if (notify) {
         setError('');
-        setNotice(`Catálogo v${loaded.temporada.version_catalogo} y sesión actualizados.`);
+        setNotice(
+          `Catálogo v${activeCatalog.temporada.version_catalogo} y sesión actualizados.`,
+        );
       }
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
@@ -311,7 +327,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
         return;
       }
       setOnline(!(reason instanceof ApiError && reason.status === 0));
-      if (!catalog || notify) setError(messageFrom(reason));
+      if ((!knownCatalog && !catalog) || notify) setError(messageFrom(reason));
     } finally {
       synchronizing.current = false;
       setSyncing(false);
