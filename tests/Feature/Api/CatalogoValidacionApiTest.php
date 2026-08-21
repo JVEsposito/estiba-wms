@@ -55,6 +55,7 @@ class CatalogoValidacionApiTest extends TestCase
         }
 
         Temporada::query()->whereKey($temporada->id)->increment('version_catalogo');
+        $versionActualizada = (int) $temporada->version_catalogo + 1;
 
         $this->withToken($token)
             ->withHeader('If-None-Match', ""{$etag}"")
