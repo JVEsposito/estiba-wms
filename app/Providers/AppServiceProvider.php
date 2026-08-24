@@ -33,6 +33,7 @@ use App\Models\User;
 use App\Models\ValidacionPallet;
 use App\Observers\AuditarCambioTransicionOperacionalObserver;
 use App\Observers\EventoCargaObserver;
+use App\Observers\InvalidarBandejasOperacionalesObserver;
 use App\Observers\InvalidarPanelGerencialObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
@@ -114,6 +115,9 @@ class AppServiceProvider extends ServiceProvider
         }
         foreach (InvalidarPanelGerencialObserver::modelosObservados() as $modelo) {
             $modelo::observe(InvalidarPanelGerencialObserver::class);
+        }
+        foreach (InvalidarBandejasOperacionalesObserver::modelosObservados() as $modelo) {
+            $modelo::observe(InvalidarBandejasOperacionalesObserver::class);
         }
         Event::listen(EventoCargaRegistrado::class, CrearNotificacionesOperacionales::class);
 
