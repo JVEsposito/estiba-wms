@@ -25,11 +25,23 @@ class FolioPrefrioController extends Controller
         RevisionPrefrioOperacional $revision,
     ): Response {
         $datos = $request->validated();
+        $folio = mb_strtoupper(trim((string) ($datos['folio'] ?? '')));
+        $limite = (int) ($datos['limit'] ?? 500);
+        $etag = null;
+
+        if ($folio === '') {
+            $etag = 'prefrio-folios-'.$revision->foliosElegibles($limite);
+            $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+            if ($respuestaCondicional->isNotModified($request)) {
+                return $respuestaCondicional;
+            }
+        }
+
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
             ->filter->esActivo()
             ->map->value
             ->all();
-        $folio = mb_strtoupper(trim((string) ($datos['folio'] ?? '')));
 
         $consulta = Folio::query()
             ->where('activo', true)
@@ -51,30 +63,14 @@ class FolioPrefrioController extends Controller
                 ->where('numero_folio', 'like', "%{$folio}%"))
             ->orderBy('fecha_ingreso')
             ->orderBy('numero_folio');
-        $limite = $datos['limit'] ?? 500;
 
-        if ($folio !== '') {
-            return FolioPrefrioResource::collection(
-                $this->obtenerFolios($consulta, $limite),
-            )->response();
-        }
+        $respuesta = FolioPrefrioResource::collection(
+            $this->obtenerFolios($consulta, $limite),
+        )->response();
 
-        $resumen = (clone $consulta)
-            ->limit($limite)
-            ->get(['id', 'numero_folio', 'fecha_ingreso', 'updated_at']);
-        $etag = 'prefrio-folios-'.$revision->foliosElegibles($resumen);
-        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
-
-        if ($respuestaCondicional->isNotModified($request)) {
-            return $respuestaCondicional;
-        }
-
-        return $this->conEtagOperacional(
-            FolioPrefrioResource::collection(
-                $this->obtenerFolios($consulta, $limite),
-            )->response(),
-            $etag,
-        );
+        return $etag === null
+            ? $respuesta
+            : $this->conEtagOperacional($respuesta, $etag);
     }
 
     private function obtenerFolios(Builder $consulta, int $limite): Collection
