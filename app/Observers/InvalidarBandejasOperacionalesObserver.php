@@ -6,6 +6,7 @@ use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
+use App\Models\EventoPrefrio;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\Movimiento;
@@ -65,6 +66,7 @@ final class InvalidarBandejasOperacionalesObserver
             PosicionTunelPrefrio::class,
             ProcesoPrefrio::class,
             ProcesoPrefrioFolio::class,
+            EventoPrefrio::class,
             UbicacionActual::class,
             CargaFolio::class,
             ReservaCargaFolio::class,
