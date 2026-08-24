@@ -133,14 +133,23 @@ class CargaApiTest extends TestCase
             ->assertStatus(304)
             ->assertHeader('ETag', $etagInicial);
 
-        $consultoDetalle = collect(DB::getQueryLog())->contains(function (array $consulta): bool {
+        $consultoBandeja = collect(DB::getQueryLog())->contains(function (array $consulta): bool {
             $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
 
-            return str_starts_with($sql, 'select * from carga_folios ')
-                || str_contains($sql, 'select count(*) as aggregate from incidencias_carga_folio');
+            return str_contains($sql, 'from cargas')
+                || str_contains($sql, 'from carga_folios')
+                || str_contains($sql, 'from reservas_carga_folio')
+                || str_contains($sql, 'from incidencias_carga_folio')
+                || str_contains($sql, 'from ubicaciones_actuales')
+                || str_contains($sql, 'from posiciones')
+                || str_contains($sql, 'from camaras');
         });
-        $this->assertFalse($consultoDetalle);
+        $this->assertFalse(
+            $consultoBandeja,
+            'Un 304 de cargas no debe consultar ni reconstruir la bandeja operacional.',
+        );
         DB::disableQueryLog();
+        DB::flushQueryLog();
 
         $camara->increment('version_plano');
         $actualizada = $this->actingAs($despachador, 'sanctum')
