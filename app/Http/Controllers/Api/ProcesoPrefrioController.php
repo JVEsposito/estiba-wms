@@ -71,41 +71,48 @@ class ProcesoPrefrioController extends Controller
         RevisionPrefrioOperacional $revision,
     ): Response {
         $datos = $request->validated();
+        $soloActivos = (bool) ($datos['solo_activos'] ?? false);
+        $folio = mb_strtoupper(trim((string) ($datos['folio'] ?? '')));
+        $pagina = max(1, $request->integer('page', 1));
+        $porPagina = (int) ($datos['per_page'] ?? 25);
+
+        $etag = 'prefrio-procesos-'.$revision->procesos([
+            'solo_activos' => $soloActivos,
+            'tunel_prefrio_id' => $datos['tunel_prefrio_id'] ?? null,
+            'estado' => $datos['estado'] ?? null,
+            'folio' => $folio !== '' ? $folio : null,
+            'fecha_desde' => $datos['fecha_desde'] ?? null,
+            'fecha_hasta' => $datos['fecha_hasta'] ?? null,
+            'pagina' => $pagina,
+            'por_pagina' => $porPagina,
+        ]);
+        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
             ->filter->esActivo()
             ->map->value
             ->all();
         $procesos = ProcesoPrefrio::query()
             ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
-            ->when($datos['solo_activos'] ?? false, fn ($consulta) => $consulta
+            ->when($soloActivos, fn ($consulta) => $consulta
                 ->whereIn('estado', $estadosActivos))
             ->when($datos['tunel_prefrio_id'] ?? null, fn ($consulta, string $id) => $consulta
                 ->where('tunel_prefrio_id', $id))
             ->when($datos['estado'] ?? null, fn ($consulta, string $estado) => $consulta
                 ->where('estado', $estado))
-            ->when($datos['folio'] ?? null, fn ($consulta, string $folio) => $consulta
+            ->when($folio !== '', fn ($consulta) => $consulta
                 ->whereHas('folios.folio', fn ($folios) => $folios
-                    ->where('numero_folio', 'like', '%'.mb_strtoupper(trim($folio)).'%')))
+                    ->where('numero_folio', 'like', "%{$folio}%")))
             ->when($datos['fecha_desde'] ?? null, fn ($consulta, string $fecha) => $consulta
                 ->whereDate('created_at', '>=', $fecha))
             ->when($datos['fecha_hasta'] ?? null, fn ($consulta, string $fecha) => $consulta
                 ->whereDate('created_at', '<=', $fecha))
             ->latest('created_at')
-            ->paginate($datos['per_page'] ?? 25);
-
-        $etag = 'prefrio-procesos-'.$revision->procesos(
-            $procesos->getCollection(),
-            [
-                'pagina' => $procesos->currentPage(),
-                'por_pagina' => $procesos->perPage(),
-                'total' => $procesos->total(),
-            ],
-        );
-        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
-
-        if ($respuestaCondicional->isNotModified($request)) {
-            return $respuestaCondicional;
-        }
+            ->paginate($porPagina);
 
         $procesos->getCollection()->load($this->relaciones());
 
