@@ -190,6 +190,13 @@ class PrefrioApiTest extends TestCase
                 || str_contains($sql, 'from eventos_prefrio');
         }), 'Un 304 de procesos no debe consultar ni paginar la bandeja operacional.');
 
+        $otroTamano = $this->conToken($token)
+            ->withHeader('If-None-Match', $etagProcesos)
+            ->getJson('/api/prefrio/procesos?per_page=10&solo_activos=1')
+            ->assertOk();
+
+        $this->assertNotSame($etagProcesos, $otroTamano->headers->get('ETag'));
+
         $folio = $this->folioPendiente('PAL-PF-ETAG-001');
         $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
             'operacion_id' => (string) Str::uuid(),
