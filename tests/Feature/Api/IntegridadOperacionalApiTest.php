@@ -8,8 +8,10 @@ use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Enums\OrigenAuditoriaIntegridadOperacional;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Jobs\EjecutarAuditoriaIntegridadOperacional;
 use App\Models\Camara;
 use App\Models\ClienteMaterial;
 use App\Models\Folio;
@@ -22,9 +24,11 @@ use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Autorizacion\CatalogoModulosAcceso;
+use App\Services\IntegridadOperacional\ServicioAuditoriaIntegridadOperacional;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -58,14 +62,27 @@ class IntegridadOperacionalApiTest extends TestCase
         $snapshotMaterial = DB::table('folios_materiales')->where('folio_id', $folioMaterial->id)->first();
         $snapshotRepa = DB::table('repaletizajes')->where('id', $repaletizajeId)->first();
 
-        $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/integridad-operacional/auditar')
-            ->assertOk()
-            ->assertJsonPath('data.estado', 'completada')
-            ->assertJsonPath('data.hallazgos_activos', 5)
-            ->assertJsonPath('data.hallazgos_criticos', 5)
-            ->assertJsonPath('data.hallazgos_nuevos', 5)
-            ->assertJsonPath('data.hallazgos_resueltos', 0);
+        $servicio = app(ServicioAuditoriaIntegridadOperacional::class);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $auditoria = $servicio->ejecutar(
+            OrigenAuditoriaIntegridadOperacional::Manual,
+            $administrador,
+        );
+        $consultasPersistencia = collect(DB::getQueryLog())->filter(
+            fn (array $consulta): bool => str_contains(
+                Str::lower($consulta['query']),
+                'hallazgos_integridad',
+            ),
+        )->count();
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(6, $consultasPersistencia);
+        $this->assertSame('completada', $auditoria->estado->value);
+        $this->assertSame(5, $auditoria->hallazgos_activos);
+        $this->assertSame(5, $auditoria->hallazgos_criticos);
+        $this->assertSame(5, $auditoria->hallazgos_nuevos);
+        $this->assertSame(0, $auditoria->hallazgos_resueltos);
 
         foreach ([
             'prefrio_aprobado_no_proyectado',
@@ -101,7 +118,19 @@ class IntegridadOperacionalApiTest extends TestCase
             'carga_folio_id' => $reservaCargaId,
         ]);
 
-        $this->getJson('/api/administracion/integridad-operacional?modulo=prefrio&severidad=critico')
+        $auditoriaRepetida = $servicio->ejecutar(
+            OrigenAuditoriaIntegridadOperacional::Manual,
+            $administrador,
+        );
+        $this->assertSame(5, $auditoriaRepetida->hallazgos_activos);
+        $this->assertSame(0, $auditoriaRepetida->hallazgos_nuevos);
+        $this->assertSame(
+            5,
+            DB::table('hallazgos_integridad')->where('ocurrencias', 2)->count(),
+        );
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/administracion/integridad-operacional?modulo=prefrio&severidad=critico')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.referencia', $folioPrefrio->numero_folio)
@@ -122,13 +151,15 @@ class IntegridadOperacionalApiTest extends TestCase
         ]);
         DB::table('reservas_carga_folio')->where('folio_id', $folioCarga->id)->delete();
 
-        $this->postJson('/api/administracion/integridad-operacional/auditar')
-            ->assertOk()
-            ->assertJsonPath('data.hallazgos_activos', 0)
-            ->assertJsonPath('data.hallazgos_nuevos', 0)
-            ->assertJsonPath('data.hallazgos_resueltos', 5);
+        $auditoriaResuelta = $servicio->ejecutar(
+            OrigenAuditoriaIntegridadOperacional::Manual,
+            $administrador,
+        );
+        $this->assertSame(0, $auditoriaResuelta->hallazgos_activos);
+        $this->assertSame(0, $auditoriaResuelta->hallazgos_nuevos);
+        $this->assertSame(5, $auditoriaResuelta->hallazgos_resueltos);
 
-        $this->assertDatabaseCount('auditorias_integridad', 2);
+        $this->assertDatabaseCount('auditorias_integridad', 3);
         $this->assertSame(0, DB::table('hallazgos_integridad')->where('activo', true)->count());
         $this->assertSame(5, DB::table('hallazgos_integridad')->whereNotNull('resuelto_at')->count());
         $this->assertDatabaseHas('procesos_prefrio', [
@@ -183,6 +214,69 @@ class IntegridadOperacionalApiTest extends TestCase
             ->assertSee('Solo diagnóstico');
     }
 
+    public function test_administracion_programa_la_auditoria_manual_en_la_cola(): void
+    {
+        Queue::fake();
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/administracion/integridad-operacional/auditar')
+            ->assertStatus(202)
+            ->assertJsonPath(
+                'message',
+                'Auditoría programada. El panel se actualizará cuando finalice.',
+            );
+
+        Queue::assertPushed(
+            EjecutarAuditoriaIntegridadOperacional::class,
+            fn (EjecutarAuditoriaIntegridadOperacional $job): bool => $job->actorId === $administrador->id,
+        );
+        $this->assertDatabaseCount('auditorias_integridad', 0);
+    }
+
+    public function test_consulta_reutiliza_el_etag_mientras_no_hay_una_nueva_auditoria(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $inicial = $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/administracion/integridad-operacional')
+            ->assertOk()
+            ->assertHeader('Access-Control-Expose-Headers', 'ETag');
+        $etagInicial = (string) $inicial->headers->get('ETag');
+        $this->assertNotSame('', $etagInicial);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/administracion/integridad-operacional')
+            ->assertStatus(304)
+            ->assertHeader('ETag', $etagInicial);
+        $consultoHallazgos = collect(DB::getQueryLog())->contains(
+            fn (array $consulta): bool => str_contains(
+                Str::lower($consulta['query']),
+                'hallazgos_integridad',
+            ),
+        );
+        $this->assertFalse($consultoHallazgos);
+        DB::disableQueryLog();
+
+        app(ServicioAuditoriaIntegridadOperacional::class)->ejecutar(
+            OrigenAuditoriaIntegridadOperacional::Manual,
+            $administrador,
+        );
+
+        $actualizada = $this->withHeader('If-None-Match', $etagInicial)
+            ->getJson('/api/administracion/integridad-operacional')
+            ->assertOk();
+        $this->assertNotSame($etagInicial, (string) $actualizada->headers->get('ETag'));
+    }
+
     public function test_no_reporta_como_inconsistente_un_folio_aprobado_pendiente_de_ubicacion(): void
     {
         $administrador = User::factory()->create([
@@ -201,11 +295,12 @@ class IntegridadOperacionalApiTest extends TestCase
             $folio->estado_operacional,
         );
 
-        $this->actingAs($administrador, 'sanctum')
-            ->postJson('/api/administracion/integridad-operacional/auditar')
-            ->assertOk()
-            ->assertJsonPath('data.hallazgos_activos', 0)
-            ->assertJsonPath('data.hallazgos_criticos', 0);
+        $auditoria = app(ServicioAuditoriaIntegridadOperacional::class)->ejecutar(
+            OrigenAuditoriaIntegridadOperacional::Manual,
+            $administrador,
+        );
+        $this->assertSame(0, $auditoria->hallazgos_activos);
+        $this->assertSame(0, $auditoria->hallazgos_criticos);
 
         $this->assertDatabaseMissing('hallazgos_integridad', [
             'regla_codigo' => 'prefrio_aprobado_no_proyectado',

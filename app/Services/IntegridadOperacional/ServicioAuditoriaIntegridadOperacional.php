@@ -19,11 +19,14 @@ use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 final class ServicioAuditoriaIntegridadOperacional
 {
     private const CLAVE_BLOQUEO = 'integridad-operacional:auditoria';
+
+    private const TAMANO_LOTE_PERSISTENCIA = 250;
 
     /** @var array<int, ReglaIntegridadOperacional> */
     private array $reglas;
@@ -154,50 +157,76 @@ final class ServicioAuditoriaIntegridadOperacional
             $ahora = now();
             $nuevos = 0;
 
-            foreach ($detectados as $huella => $detectado) {
-                $hallazgo = HallazgoIntegridadOperacional::query()
-                    ->where('huella', $huella)
+            foreach ($detectados->chunk(self::TAMANO_LOTE_PERSISTENCIA) as $lote) {
+                $existentes = HallazgoIntegridadOperacional::query()
+                    ->whereIn('huella', $lote->keys()->all())
                     ->lockForUpdate()
-                    ->first();
-                $esNuevoOReabierto = ! $hallazgo || ! $hallazgo->activo;
+                    ->get(['id', 'huella', 'activo', 'ocurrencias'])
+                    ->keyBy('huella');
+                $filas = [];
 
-                if (! $hallazgo) {
-                    $hallazgo = new HallazgoIntegridadOperacional([
+                foreach ($lote as $huella => $detectado) {
+                    $existente = $existentes->get($huella);
+
+                    if (! $existente || ! $existente->activo) {
+                        $nuevos++;
+                    }
+
+                    $filas[] = [
+                        'id' => $existente?->id ?? (string) Str::uuid(),
                         'huella' => $huella,
+                        'regla_codigo' => $detectado->reglaCodigo,
+                        'severidad' => $detectado->severidad->value,
+                        'modulo' => $detectado->modulo,
+                        'entidad_tipo' => $detectado->entidadTipo,
+                        'entidad_id' => $detectado->entidadId,
+                        'referencia' => $detectado->referencia,
+                        'titulo' => $detectado->titulo,
+                        'detalle' => $detectado->detalle,
+                        'contexto' => json_encode(
+                            $detectado->contexto,
+                            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+                        ),
+                        'activo' => true,
+                        'ocurrencias' => ((int) ($existente?->ocurrencias ?? 0)) + 1,
                         'primera_auditoria_id' => $auditoria->id,
+                        'ultima_auditoria_id' => $auditoria->id,
                         'detectado_primera_vez_at' => $ahora,
-                        'ocurrencias' => 0,
-                    ]);
+                        'detectado_ultima_vez_at' => $ahora,
+                        'resuelto_at' => null,
+                        'created_at' => $ahora,
+                        'updated_at' => $ahora,
+                    ];
                 }
 
-                $hallazgo->fill([
-                    'regla_codigo' => $detectado->reglaCodigo,
-                    'severidad' => $detectado->severidad,
-                    'modulo' => $detectado->modulo,
-                    'entidad_tipo' => $detectado->entidadTipo,
-                    'entidad_id' => $detectado->entidadId,
-                    'referencia' => $detectado->referencia,
-                    'titulo' => $detectado->titulo,
-                    'detalle' => $detectado->detalle,
-                    'contexto' => $detectado->contexto,
-                    'activo' => true,
-                    'ocurrencias' => $hallazgo->ocurrencias + 1,
-                    'ultima_auditoria_id' => $auditoria->id,
-                    'detectado_ultima_vez_at' => $ahora,
-                    'resuelto_at' => null,
-                ]);
-                $hallazgo->save();
-
-                if ($esNuevoOReabierto) {
-                    $nuevos++;
-                }
+                DB::table('hallazgos_integridad')->upsert(
+                    $filas,
+                    ['huella'],
+                    [
+                        'regla_codigo',
+                        'severidad',
+                        'modulo',
+                        'entidad_tipo',
+                        'entidad_id',
+                        'referencia',
+                        'titulo',
+                        'detalle',
+                        'contexto',
+                        'activo',
+                        'ocurrencias',
+                        'ultima_auditoria_id',
+                        'detectado_ultima_vez_at',
+                        'resuelto_at',
+                        'updated_at',
+                    ],
+                );
             }
 
+            // Cada hallazgo detectado ya apunta a esta auditoría; así evitamos
+            // enviar todas las huellas en un WHERE NOT IN de tamaño variable.
             $porResolver = HallazgoIntegridadOperacional::query()
-                ->where('activo', true);
-            if ($detectados->isNotEmpty()) {
-                $porResolver->whereNotIn('huella', $detectados->keys()->all());
-            }
+                ->where('activo', true)
+                ->where('ultima_auditoria_id', '!=', $auditoria->id);
             $resueltos = $porResolver->count();
             $porResolver->update([
                 'activo' => false,
