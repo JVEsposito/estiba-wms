@@ -34,6 +34,7 @@ const state = {
     token: localStorage.getItem(tokenKey),
     identity: readJson(identityKey),
     response: null,
+    responseEtag: null,
     page: 1,
     poller: null,
 };
@@ -125,6 +126,14 @@ async function api(path, options = {}) {
         throw new ApiError('No fue posible conectar con Laravel.');
     }
 
+    if (response.status === 304) {
+        return {
+            data: null,
+            etag: response.headers.get('ETag'),
+            notModified: true,
+        };
+    }
+
     const data = response.status === 204
         ? null
         : await response.json().catch(() => ({}));
@@ -135,7 +144,11 @@ async function api(path, options = {}) {
         );
     }
 
-    return data;
+    return {
+        data,
+        etag: response.headers.get('ETag'),
+        notModified: false,
+    };
 }
 
 function clearSession() {
@@ -221,7 +234,15 @@ async function load({ busy = true } = {}) {
     if (busy) setBusy(true);
     elements.error.textContent = '';
     try {
-        state.response = await api(`/api/administracion/integridad-operacional?${queryParameters()}`);
+        const headers = new Headers();
+        if (state.responseEtag) headers.set('If-None-Match', state.responseEtag);
+        const result = await api(
+            `/api/administracion/integridad-operacional?${queryParameters()}`,
+            { headers },
+        );
+        if (result.notModified) return;
+        state.response = result.data;
+        state.responseEtag = result.etag;
         render();
     } catch (error) {
         handleApiError(error);
@@ -266,9 +287,11 @@ function renderSummary() {
     }
 
     elements.lastAudit.textContent = `${formatDate(audit.finalizada_at || audit.iniciada_at)} · ${statusText(audit.estado)}`;
-    elements.lastAuditDetail.textContent = audit.estado === 'fallida'
-        ? audit.error || 'La última auditoría no pudo completarse.'
-        : `${audit.hallazgos_activos} activos · ${audit.hallazgos_nuevos} nuevos · ${audit.hallazgos_resueltos} resueltos · ${formatDuration(audit.duracion_ms)}`;
+    elements.lastAuditDetail.textContent = audit.estado === 'en_ejecucion'
+        ? 'Revisando folios y procesos en segundo plano…'
+        : (audit.estado === 'fallida'
+            ? audit.error || 'La última auditoría no pudo completarse.'
+            : `${audit.hallazgos_activos} activos · ${audit.hallazgos_nuevos} nuevos · ${audit.hallazgos_resueltos} resueltos · ${formatDuration(audit.duracion_ms)}`);
 }
 
 function renderFindings() {
@@ -328,9 +351,11 @@ function renderHistory() {
                 <strong>${escapeHtml(formatDate(audit.iniciada_at))}</strong>
                 <span class="integrity-severity integrity-severity--${audit.estado === 'fallida' ? 'critico' : (audit.hallazgos_criticos > 0 ? 'advertencia' : 'informativo')}">${escapeHtml(statusText(audit.estado))}</span>
             </div>
-            <p>${audit.estado === 'fallida'
-        ? escapeHtml(audit.error || 'Auditoría incompleta')
-        : `${audit.hallazgos_activos} activos · ${audit.hallazgos_nuevos} nuevos · ${audit.hallazgos_resueltos} resueltos`}</p>
+            <p>${audit.estado === 'en_ejecucion'
+        ? 'Revisando folios y procesos…'
+        : (audit.estado === 'fallida'
+            ? escapeHtml(audit.error || 'Auditoría incompleta')
+            : `${audit.hallazgos_activos} activos · ${audit.hallazgos_nuevos} nuevos · ${audit.hallazgos_resueltos} resueltos`)}</p>
             <small>${escapeHtml(statusText(audit.origen))} · ${escapeHtml(formatDuration(audit.duracion_ms))}${audit.iniciada_por ? ` · ${escapeHtml(audit.iniciada_por.nombre)}` : ''}</small>
         </article>
     `).join('');
@@ -347,14 +372,14 @@ async function runAudit() {
     if (!can('puede_ejecutar_integridad_operacional')) return;
     elements.error.textContent = '';
     elements.run.disabled = true;
-    setBusy(true, 'Auditando folios y procesos…');
+    setBusy(true, 'Programando auditoría…');
     try {
-        const response = await api('/api/administracion/integridad-operacional/auditar', {
+        const result = await api('/api/administracion/integridad-operacional/auditar', {
             method: 'POST',
         });
         state.page = 1;
         await load({ busy: false });
-        toast(response.message || 'Auditoría completada.');
+        toast(result.data?.message || 'Auditoría programada.');
     } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
             toast(error.message, true);

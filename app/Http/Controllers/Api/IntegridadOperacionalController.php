@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\OrigenAuditoriaIntegridadOperacional;
 use App\Enums\SeveridadHallazgoIntegridadOperacional;
+use App\Http\Controllers\Concerns\RespondeConEtagOperacional;
 use App\Http\Controllers\Controller;
+use App\Jobs\EjecutarAuditoriaIntegridadOperacional;
 use App\Models\AuditoriaIntegridadOperacional;
 use App\Models\HallazgoIntegridadOperacional;
 use App\Services\IntegridadOperacional\ServicioAuditoriaIntegridadOperacional;
@@ -12,14 +13,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 class IntegridadOperacionalController extends Controller
 {
+    use RespondeConEtagOperacional;
+
     public function __construct(
         private readonly ServicioAuditoriaIntegridadOperacional $servicio,
     ) {}
 
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): Response
     {
         Gate::authorize('consultar-integridad-operacional');
 
@@ -32,6 +36,13 @@ class IntegridadOperacionalController extends Controller
             'pagina' => ['nullable', 'integer', 'min:1'],
             'por_pagina' => ['nullable', 'integer', 'min:10', 'max:100'],
         ])->validate();
+
+        $etag = $this->etagConsulta($datos);
+        $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
 
         $consulta = HallazgoIntegridadOperacional::query();
         match ($datos['estado'] ?? 'activos') {
@@ -84,7 +95,7 @@ class IntegridadOperacionalController extends Controller
             ->limit(8)
             ->get();
 
-        return response()->json([
+        return $this->conEtagOperacional(response()->json([
             'resumen' => [
                 'activos' => (int) $conteos->sum(),
                 'criticos' => (int) ($conteos[SeveridadHallazgoIntegridadOperacional::Critico->value] ?? 0),
@@ -112,24 +123,64 @@ class IntegridadOperacionalController extends Controller
                 'por_pagina' => $hallazgos->perPage(),
                 'total' => $hallazgos->total(),
             ],
-        ]);
+        ]), $etag);
     }
 
     public function auditar(Request $request): JsonResponse
     {
         Gate::authorize('ejecutar-integridad-operacional');
 
-        $auditoria = $this->servicio->ejecutar(
-            OrigenAuditoriaIntegridadOperacional::Manual,
-            $request->user(),
-        );
+        EjecutarAuditoriaIntegridadOperacional::dispatch((int) $request->user()->id);
 
         return response()->json([
-            'message' => $auditoria->hallazgos_activos === 0
-                ? 'Auditoría completada sin contradicciones activas.'
-                : "Auditoría completada con {$auditoria->hallazgos_activos} hallazgos activos.",
-            'data' => $this->auditoria($auditoria->loadMissing('iniciadaPor:id,name')),
-        ]);
+            'message' => 'Auditoría programada. El panel se actualizará cuando finalice.',
+        ], 202);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filtros
+     */
+    private function etagConsulta(array $filtros): string
+    {
+        $ultimaAuditoria = AuditoriaIntegridadOperacional::query()
+            ->orderByDesc('iniciada_at')
+            ->orderByDesc('id')
+            ->first([
+                'id',
+                'estado',
+                'updated_at',
+                'finalizada_at',
+                'hallazgos_activos',
+                'hallazgos_nuevos',
+                'hallazgos_resueltos',
+            ]);
+
+        $revision = [
+            'version' => 1,
+            'filtros' => [
+                'estado' => $filtros['estado'] ?? 'activos',
+                'severidad' => $filtros['severidad'] ?? null,
+                'modulo' => $filtros['modulo'] ?? null,
+                'regla' => $filtros['regla'] ?? null,
+                'q' => isset($filtros['q']) ? trim((string) $filtros['q']) : null,
+                'pagina' => (int) ($filtros['pagina'] ?? 1),
+                'por_pagina' => (int) ($filtros['por_pagina'] ?? 25),
+            ],
+            'auditoria' => $ultimaAuditoria ? [
+                'id' => $ultimaAuditoria->id,
+                'estado' => $ultimaAuditoria->estado->value,
+                'updated_at' => $ultimaAuditoria->updated_at?->toAtomString(),
+                'finalizada_at' => $ultimaAuditoria->finalizada_at?->toAtomString(),
+                'hallazgos_activos' => $ultimaAuditoria->hallazgos_activos,
+                'hallazgos_nuevos' => $ultimaAuditoria->hallazgos_nuevos,
+                'hallazgos_resueltos' => $ultimaAuditoria->hallazgos_resueltos,
+            ] : null,
+        ];
+
+        return 'integridad-operacional-'.hash(
+            'sha256',
+            json_encode($revision, JSON_THROW_ON_ERROR),
+        );
     }
 
     /** @return array<string, mixed> */

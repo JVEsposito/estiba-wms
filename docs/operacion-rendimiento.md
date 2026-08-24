@@ -12,6 +12,7 @@ TELESCOPE_ENABLED=false
 CACHE_STORE=file
 SESSION_DRIVER=file
 QUEUE_CONNECTION=database
+DB_QUEUE_RETRY_AFTER=900
 
 LOG_LEVEL=warning
 SANCTUM_TRACK_LAST_USED_AT=false
@@ -30,6 +31,22 @@ Este perfil reduce escrituras y lecturas auxiliares en MySQL:
 - Caché y sesiones no compiten con las transacciones operacionales en la base de datos.
 - Sanctum no actualiza `personal_access_tokens.last_used_at` en cada petición autenticada. La autenticación, expiración y validación de usuario y dispositivo permanecen activas.
 - La cola continúa en MySQL mientras exista un solo servidor. Si la carga crece o se agregan servidores, Redis es el siguiente paso recomendado.
+
+## Cola de trabajo
+
+Las auditorías manuales de Salud operacional se envían a la cola para no mantener abierta la petición del navegador mientras se recorren los folios y procesos. La instalación debe mantener un worker supervisado con un tiempo límite menor que `DB_QUEUE_RETRY_AFTER`:
+
+```bash
+php artisan queue:work --sleep=1 --tries=5 --timeout=840
+```
+
+Después de cada despliegue se debe reiniciar el worker para que cargue el código nuevo:
+
+```bash
+php artisan queue:restart
+```
+
+El scheduler conserva la auditoría automática cada 15 minutos; el bloqueo compartido evita que una ejecución manual y una programada escriban resultados al mismo tiempo.
 
 ## Telescope
 
