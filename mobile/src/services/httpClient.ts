@@ -8,7 +8,7 @@ export class ApiRequestTimeoutError extends Error {
 }
 
 export async function fetchWithTimeout(
-  input: RequestInfo | URL,
+  input: string,
   init: RequestInit = {},
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
 ): Promise<Response> {
