@@ -44,6 +44,11 @@ final class InvalidarBandejasOperacionalesObserver
         $this->invalidar($modelo);
     }
 
+    public function updated(Model $modelo): void
+    {
+        $this->invalidar($modelo);
+    }
+
     public function deleted(Model $modelo): void
     {
         $this->invalidar($modelo);
