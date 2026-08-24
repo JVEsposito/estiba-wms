@@ -175,15 +175,27 @@ class PrefrioApiTest extends TestCase
         $this->assertFalse($consultasTuneles->contains(function (array $consulta): bool {
             $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
 
-            return str_contains($sql, 'from posiciones_tunel_prefrio')
-                && str_contains($sql, 'tunel_prefrio_id in');
-        }), 'La revisión de túneles no debe reconstruir sus posiciones.');
+            return str_contains($sql, 'from tuneles_prefrio')
+                || str_contains($sql, 'from posiciones_tunel_prefrio')
+                || str_contains($sql, 'from procesos_prefrio')
+                || str_contains($sql, 'from folios');
+        }), 'Un 304 de túneles no debe consultar la bandeja operacional.');
         $this->assertFalse($consultasProcesos->contains(function (array $consulta): bool {
             $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
 
-            return str_contains($sql, 'from eventos_prefrio')
-                || str_contains($sql, 'from users where users.id in');
-        }), 'La revisión de procesos no debe cargar eventos ni actores.');
+            return str_contains($sql, 'from procesos_prefrio')
+                || str_contains($sql, 'from procesos_prefrio_folios')
+                || str_contains($sql, 'from tuneles_prefrio')
+                || str_contains($sql, 'from folios')
+                || str_contains($sql, 'from eventos_prefrio');
+        }), 'Un 304 de procesos no debe consultar ni paginar la bandeja operacional.');
+
+        $otroTamano = $this->conToken($token)
+            ->withHeader('If-None-Match', $etagProcesos)
+            ->getJson('/api/prefrio/procesos?per_page=10&solo_activos=1')
+            ->assertOk();
+
+        $this->assertNotSame($etagProcesos, $otroTamano->headers->get('ETag'));
 
         $folio = $this->folioPendiente('PAL-PF-ETAG-001');
         $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
@@ -908,12 +920,22 @@ class PrefrioApiTest extends TestCase
     public function test_pda_reutiliza_revisiones_de_prefrio_sin_vaciar_la_bandeja(): void
     {
         $api = file_get_contents(base_path('mobile/src/services/prefrioApi.ts'));
+        $estibaApi = file_get_contents(base_path('mobile/src/services/estibaApi.ts'));
+        $http = file_get_contents(base_path('mobile/src/services/httpClient.ts'));
         $tuneles = file_get_contents(base_path('mobile/src/screens/PrefrioScreen.tsx'));
         $pendientes = file_get_contents(base_path('mobile/src/screens/PrefrioWorkspaceScreen.tsx'));
 
         $this->assertIsString($api);
+        $this->assertIsString($estibaApi);
+        $this->assertIsString($http);
         $this->assertIsString($tuneles);
         $this->assertIsString($pendientes);
+        $this->assertStringContainsString('DEFAULT_API_TIMEOUT_MS = 15_000', $http);
+        $this->assertStringContainsString('new AbortController()', $http);
+        $this->assertStringContainsString('fetchWithTimeout', $api);
+        $this->assertStringContainsString('fetchWithTimeout', $estibaApi);
+        $this->assertStringNotContainsString('response = await fetch(', $api);
+        $this->assertStringNotContainsString('response = await fetch(', $estibaApi);
         $this->assertStringContainsString("headers.set('If-None-Match', etag)", $api);
         $this->assertStringContainsString('response.status === 304', $api);
         $this->assertStringContainsString('tunnels.data ?? current.tunnels', $tuneles);

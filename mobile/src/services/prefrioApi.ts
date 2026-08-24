@@ -6,6 +6,7 @@ import {
   PrefrioTunnel,
 } from '../domain/prefrio';
 import { ApiError } from './apiError';
+import { fetchWithTimeout } from './httpClient';
 
 function responseMessage(data: unknown, fallback: string) {
   if (!data || typeof data !== 'object') return fallback;
@@ -27,7 +28,7 @@ async function request<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    response = await fetchWithTimeout(`${baseUrl}${path}`, { ...init, headers });
   } catch {
     throw new ApiError('La PDA no puede alcanzar el servidor. La operación permanece en la bandeja.', 0);
   }
@@ -66,7 +67,7 @@ async function requestConditionalList<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, { headers });
+    response = await fetchWithTimeout(`${baseUrl}${path}`, { headers });
   } catch {
     throw new ApiError('La PDA no puede alcanzar el servidor. Se conserva la última bandeja de Prefrío.', 0);
   }

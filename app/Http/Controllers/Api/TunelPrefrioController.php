@@ -23,16 +23,16 @@ class TunelPrefrioController extends Controller
     ): Response {
         abort_unless($request->user()?->can('consultar-prefrio'), 403);
 
-        $tuneles = TunelPrefrio::query()
-            ->orderBy('codigo')
-            ->get();
-
-        $etag = 'prefrio-tuneles-'.$revision->tuneles($tuneles);
+        $etag = 'prefrio-tuneles-'.$revision->tuneles();
         $respuestaCondicional = $this->conEtagOperacional(response('', 200), $etag);
 
         if ($respuestaCondicional->isNotModified($request)) {
             return $respuestaCondicional;
         }
+
+        $tuneles = TunelPrefrio::query()
+            ->orderBy('codigo')
+            ->get();
 
         $tuneles->load([
             'posiciones' => fn ($consulta) => $consulta->orderBy('numero'),

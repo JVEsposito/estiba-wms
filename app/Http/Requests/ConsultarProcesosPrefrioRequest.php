@@ -26,6 +26,7 @@ class ConsultarProcesosPrefrioRequest extends FormRequest
             'fecha_desde' => ['nullable', 'date'],
             'fecha_hasta' => ['nullable', 'date', 'after_or_equal:fecha_desde'],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50])],
+            'page' => ['nullable', 'integer', 'min:1'],
         ];
     }
 }

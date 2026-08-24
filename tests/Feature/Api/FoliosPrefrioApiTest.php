@@ -16,6 +16,7 @@ use App\Models\ProcesoPrefrioFolio;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -98,11 +99,25 @@ class FoliosPrefrioApiTest extends TestCase
         $etagInicial = $inicial->headers->get('ETag');
 
         $this->assertNotNull($etagInicial);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
         $this->withToken($token)
             ->withHeader('If-None-Match', $etagInicial)
             ->get('/api/prefrio/folios-disponibles?limit=500')
             ->assertStatus(304)
             ->assertHeader('ETag', $etagInicial);
+        $consultas = collect(DB::getQueryLog());
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+
+        $this->assertFalse($consultas->contains(function (array $consulta): bool {
+            $sql = Str::lower(Str::squish(str_replace(['`', '"'], '', $consulta['query'])));
+
+            return str_contains($sql, 'from folios')
+                || str_contains($sql, 'from procesos_prefrio')
+                || str_contains($sql, 'from ubicaciones_actuales');
+        }), 'Un 304 de folios elegibles no debe consultar la bandeja operacional.');
 
         $folio->update([
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,

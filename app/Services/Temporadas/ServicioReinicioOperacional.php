@@ -7,6 +7,7 @@ use App\Models\ReinicioOperacional;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Gerencia\ServicioPanelGerencial;
+use App\Services\Revisiones\RevisionBandejasOperacionales;
 use DomainException;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -85,6 +86,7 @@ class ServicioReinicioOperacional
 
     public function __construct(
         private readonly ServicioPanelGerencial $panelGerencial,
+        private readonly RevisionBandejasOperacionales $revisionesBandejas,
     ) {}
 
     public function fraseConfirmacion(Temporada $temporada): string
@@ -188,6 +190,10 @@ class ServicioReinicioOperacional
         }, 3);
 
         $this->panelGerencial->invalidar();
+        $this->revisionesBandejas->invalidar(
+            RevisionBandejasOperacionales::PREFRIO,
+            RevisionBandejasOperacionales::CARGAS,
+        );
 
         return $resultado;
     }

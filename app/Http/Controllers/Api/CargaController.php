@@ -108,6 +108,13 @@ class CargaController extends Controller
     ): Response {
         Gate::authorize('consultar-cargas-operacion');
 
+        $etag = 'cargas-operacion-'.$revision->calcular();
+        $respuestaCondicional = $this->configurarCacheOperacion(response('', 200), $etag);
+
+        if ($respuestaCondicional->isNotModified($request)) {
+            return $respuestaCondicional;
+        }
+
         $cargas = Carga::query()
             ->whereHas('temporada', fn (Builder $consulta): Builder => $consulta
                 ->where('activa', true))
@@ -122,13 +129,6 @@ class CargaController extends Controller
             )
             ->orderBy('publicada_at')
             ->get();
-
-        $etag = 'cargas-operacion-'.$revision->calcular($cargas);
-        $respuestaCondicional = $this->configurarCacheOperacion(response('', 200), $etag);
-
-        if ($respuestaCondicional->isNotModified($request)) {
-            return $respuestaCondicional;
-        }
 
         $cargas
             ->load($this->relacionesOperacion())
