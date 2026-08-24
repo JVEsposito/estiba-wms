@@ -27,6 +27,7 @@ import {
   WithdrawMaterialPayload,
 } from '../domain/estiba';
 import { ApiError } from './apiError';
+import { fetchWithTimeout } from './httpClient';
 import { normalizeApiBaseUrl } from './apiConfiguration';
 import { DemoEstibaApi } from './estibaApiDemo';
 import {
@@ -132,7 +133,7 @@ class HttpEstibaApi implements EstibaApi {
     let response: Response;
 
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+      response = await fetchWithTimeout(`${this.baseUrl}${path}`, { ...init, headers });
     } catch {
       throw new ApiError(
         `No fue posible conectar con ${this.baseUrl}. Revisa la IP, Laravel y el firewall.`,
@@ -249,7 +250,7 @@ class HttpEstibaApi implements EstibaApi {
     let response: Response;
 
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers });
+      response = await fetchWithTimeout(`${this.baseUrl}${path}`, { headers });
     } catch {
       throw new ApiError(
         `No fue posible conectar con ${this.baseUrl}. Revisa la IP, Laravel y el firewall.`,
@@ -290,7 +291,7 @@ class HttpEstibaApi implements EstibaApi {
     let response: Response;
 
     try {
-      response = await fetch(`${this.baseUrl}${path}`, { headers });
+      response = await fetchWithTimeout(`${this.baseUrl}${path}`, { headers });
     } catch {
       throw new ApiError(
         `No fue posible conectar con ${this.baseUrl}. Revisa la IP, Laravel y el firewall.`,
@@ -495,7 +496,7 @@ class HttpEstibaApi implements EstibaApi {
   ) {
     let response: Response;
     try {
-      response = await fetch(
+      response = await fetchWithTimeout(
         `${this.baseUrl}/api/materiales/transformaciones/ordenes/${encodeURIComponent(orderId)}/etiquetas`,
         {
           method: 'POST',
