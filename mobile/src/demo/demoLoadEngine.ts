@@ -13,6 +13,7 @@ import {
   ReportLoadIncidentPayload,
   SendLoadFolioToDockPayload,
 } from '../domain/estiba';
+import { cameraDisplayName } from '../domain/cameras';
 import { ApiError } from '../services/apiError';
 import {
   DemoDatabaseExecutor,
@@ -730,7 +731,7 @@ export async function getDemoExtractionPlan(loadId: string): Promise<ExtractionP
 function assertOwnSession(location: LocatedFolio, sessionId: string): void {
   const session = location.plan.acceso.sesion;
   if (location.plan.acceso.modo !== 'edicion' || !session?.es_propia || session.id !== sessionId) {
-    throw new ApiError(`No tienes una sesión activa en ${location.plan.codigo}.`, 409);
+    throw new ApiError(`No tienes una sesión activa en ${cameraDisplayName(location.plan)}.`, 409);
   }
 }
 
@@ -820,7 +821,7 @@ export async function sendDemoLoadFolioToDock(
     assertOwnSession(location, payload.sesion_estiba_id);
     if (location.plan.version_plano !== payload.version_camara_conocida) {
       throw new ApiError(
-        `${location.plan.codigo} cambió desde la última lectura. Actualiza la ruta antes de continuar.`,
+        `${cameraDisplayName(location.plan)} cambió desde la última lectura. Actualiza la ruta antes de continuar.`,
         409,
       );
     }

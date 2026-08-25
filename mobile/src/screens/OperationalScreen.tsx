@@ -28,6 +28,7 @@ import { RecentMovements } from '../components/RecentMovements';
 import { RefrigeratedLoadOperation } from '../components/RefrigeratedLoadOperation';
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
+import { cameraDisplayName } from '../domain/cameras';
 import {
   AuthSession,
   CameraPlan,
@@ -334,7 +335,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     if (ownSession) {
       Alert.alert(
         'Cerrar estiba',
-        '¿Deseas liberar ' + plan.codigo + '?',
+        '¿Deseas liberar ' + cameraDisplayName(plan) + '?',
         [
           { text: 'Cancelar', style: 'cancel' },
           { text: 'Cerrar', style: 'destructive', onPress: () => void closeCurrentSession() },
@@ -353,18 +354,18 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     });
 
     if (succeeded) {
-      setNotice(`Estiba abierta en ${plan.codigo}. La cámara quedó reservada para esta tablet.`);
+      setNotice(`Estiba abierta en ${cameraDisplayName(plan)}. La cámara quedó reservada para esta tablet.`);
       await refreshCurrent();
     }
   }
 
   async function closeCurrentSession() {
     if (!ownSession) return;
-    const cameraCode = plan?.codigo ?? 'la cámara';
+    const cameraName = cameraDisplayName(plan);
     const succeeded = await runOperation(() => api.closeSession(auth.token, ownSession.id));
 
     if (succeeded) {
-      setNotice(`Estiba cerrada en ${cameraCode}. La cámara quedó disponible.`);
+      setNotice(`Estiba cerrada en ${cameraName}. La cámara quedó disponible.`);
       await refreshCurrent();
     }
   }
@@ -404,7 +405,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     if (succeeded) {
       setLocateVisible(false);
       setNotice(locateCameraOnly
-        ? `Folio ${payload.numero_folio} asignado a ${plan.codigo} sin posición.`
+        ? `Folio ${payload.numero_folio} asignado a ${cameraDisplayName(plan)} sin posición.`
         : `Folio ${payload.numero_folio} guardado en ${positionLabel(selectedPosition!)}.`);
       setLocateCameraOnly(false);
       await refreshCurrent();
@@ -439,7 +440,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   async function confirmMove() {
     if (!plan || !operationalPosition?.folio || !ownSession || !destinationPlan || !selectedDestination) return;
     const folio = operationalPosition.folio;
-    const destinationLabel = `${destinationPlan.codigo} · ${positionLabel(selectedDestination)}`;
+    const destinationLabel = `${cameraDisplayName(destinationPlan)} · ${positionLabel(selectedDestination)}`;
     setModalError('');
 
     const succeeded = await runOperation(async () => {
@@ -563,7 +564,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
   async function logout() {
     const openCameras = cameras
       .filter((camera) => camera.acceso.modo === 'edicion' && camera.acceso.sesion?.es_propia)
-      .map((camera) => camera.codigo);
+      .map(cameraDisplayName);
 
     if (openCameras.length > 0) {
       Alert.alert(
@@ -657,7 +658,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           </View>
           <View style={styles.statuses}>
             <Status color={connectionColor} label={connectionLabel} />
-            <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + plan?.codigo : 'Solo consulta'} />
+            <Status color={canOperate ? colors.cyan : colors.muted} label={canOperate ? 'Editando ' + cameraDisplayName(plan) : 'Solo consulta'} />
             {(canUseLoads || canUseMaterials) && (
               <NotificationCenter
                 api={api}

@@ -1,3 +1,5 @@
+import { cameraDisplayName } from './shared/camera-display';
+
 const byId = (id) => document.getElementById(id);
 
 const elements = {
@@ -318,6 +320,7 @@ function renderCameras() {
     }
 
     const canConfigure = state.identity?.puede_configurar_camaras === true;
+    const operationalMode = elements.app.dataset.cameraMode === 'operacion';
     if (!canConfigure) {
         elements.cameraList.innerHTML = state.cameras.map((camera) => {
             const occupied = Number(camera.ocupacion?.ocupadas || 0);
@@ -328,11 +331,12 @@ function renderCameras() {
             const accessText = camera.acceso?.bloqueada
                 ? `En edición por ${session?.usuario?.nombre || 'otro usuario'}`
                 : 'Disponible para operación';
+            const displayName = cameraDisplayName(camera);
 
             return `
                 <article class="camera-item camera-item--consultation">
-                    <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot" title="Activa"></span></div>
-                    <h3>${escapeHtml(camera.nombre)}</h3>
+                    <div><strong>${escapeHtml(operationalMode ? displayName : camera.codigo)}</strong><span class="state-dot" title="Activa"></span></div>
+                    ${operationalMode ? '' : `<h3>${escapeHtml(displayName)}</h3>`}
                     <p>${escapeHtml(statusText(camera.tipo))} · ${escapeHtml(statusText(camera.contenido))} · ${escapeHtml(accessText)}</p>
                     <div class="camera-availability">
                         <div><strong>${available}</strong><span>libres</span></div>
@@ -350,15 +354,19 @@ function renderCameras() {
 
     const canAdminister = state.identity?.puede_administrar_camaras === true;
     const canSupervise = state.identity?.capacidades?.puede_supervisar === true;
-    elements.cameraList.innerHTML = state.cameras.map((camera) => `
-        <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
-            <div><strong>${escapeHtml(camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
-            <h3>${escapeHtml(camera.nombre)}</h3>
-            <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
-            <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
-            ${(canAdminister || (canSupervise && camera.acceso?.bloqueada)) ? `<div class="camera-item__actions">${canAdminister ? `<button data-edit-camera="${camera.id}" type="button">Editar cámara</button>` : ''}${canSupervise && camera.acceso?.bloqueada ? `<button data-force-close-session="${camera.acceso.sesion?.id || ''}" type="button">Cerrar sesión forzosamente</button>` : ''}</div>` : ''}
-        </article>
-    `).join('');
+    elements.cameraList.innerHTML = state.cameras.map((camera) => {
+        const displayName = cameraDisplayName(camera);
+
+        return `
+            <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
+                <div><strong>${escapeHtml(operationalMode ? displayName : camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
+                ${operationalMode ? '' : `<h3>${escapeHtml(displayName)}</h3>`}
+                <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
+                <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
+                ${(canAdminister || (canSupervise && camera.acceso?.bloqueada)) ? `<div class="camera-item__actions">${canAdminister ? `<button data-edit-camera="${camera.id}" type="button">Editar cámara</button>` : ''}${canSupervise && camera.acceso?.bloqueada ? `<button data-force-close-session="${camera.acceso.sesion?.id || ''}" type="button">Cerrar sesión forzosamente</button>` : ''}</div>` : ''}
+            </article>
+        `;
+    }).join('');
 }
 
 function resetForm() {

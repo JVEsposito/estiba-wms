@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { cameraDisplayName } from '../domain/cameras';
 import {
   CameraPlan,
   CameraSummary,
@@ -305,8 +306,8 @@ export function LocateModal({
             eyebrow={cameraOnly ? 'ASIGNACIÓN A CÁMARA' : 'UBICACIÓN INICIAL'}
             onClose={onCancel}
             subtitle={cameraOnly
-              ? `Destino: ${plan?.codigo ?? ''} · Sin posición`
-              : `Destino: ${plan?.codigo ?? ''} · ${position?.etiqueta ?? ''}`}
+              ? `Destino: ${cameraDisplayName(plan)} · Sin posición`
+              : `Destino: ${cameraDisplayName(plan)} · ${position?.etiqueta ?? ''}`}
             title={cameraOnly ? 'Asignar material a cámara' : 'Registrar folio'}
           />
           <ScrollView
@@ -495,7 +496,7 @@ export function MoveModal({
             compact={compact}
             eyebrow="MOVIMIENTO DE FOLIO"
             onClose={onCancel}
-            subtitle={'Origen: ' + (originPlan?.codigo ?? '') + ' · ' + (originPosition?.etiqueta ?? '')}
+            subtitle={'Origen: ' + cameraDisplayName(originPlan) + ' · ' + (originPosition?.etiqueta ?? '')}
             title={'Mover ' + (originPosition?.folio?.numero_folio ?? 'folio')}
           />
 
@@ -506,7 +507,7 @@ export function MoveModal({
                 <Choice
                   active={destinationPlan?.id === camera.id}
                   key={camera.id}
-                  label={camera.codigo}
+                  label={cameraDisplayName(camera)}
                   onPress={() => onChooseCamera(camera.id)}
                 />
               ))}

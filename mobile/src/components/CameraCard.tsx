@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { cameraDisplayName } from '../domain/cameras';
 import { CameraSummary } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
@@ -16,14 +17,15 @@ export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
   const status = readOnly ? 'Solo consulta' : ownSession ? 'Edición propia' : locked ? 'En uso' : 'Disponible';
   const statusColor = readOnly ? colors.muted : ownSession ? colors.cyan : locked ? colors.amber : colors.green;
   const contentLabel = camera.contenido === 'materiales'
-    ? 'MATERIALES · '
+    ? 'MATERIALES'
     : camera.contenido === 'materia_prima'
-      ? 'MATERIA PRIMA · '
-      : '';
+      ? 'MATERIA PRIMA'
+      : 'PRODUCTOS';
+  const displayName = cameraDisplayName(camera);
 
   return (
     <Pressable
-      accessibilityLabel={`Abrir ${camera.codigo}, ${status}`}
+      accessibilityLabel={`Abrir ${displayName}, ${status}`}
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [
@@ -33,13 +35,13 @@ export function CameraCard({ camera, selected, onPress }: CameraCardProps) {
       ]}
     >
       <View style={styles.topRow}>
-        <Text style={styles.code}>{camera.codigo}</Text>
+        <Text numberOfLines={1} style={styles.title}>{displayName}</Text>
         <View style={styles.state}>
           <View style={[styles.dot, { backgroundColor: statusColor }]} />
           <Text style={[styles.stateText, { color: statusColor }]}>{status}</Text>
         </View>
       </View>
-      <Text numberOfLines={1} style={styles.name}>{contentLabel}{camera.nombre}</Text>
+      <Text style={styles.content}>{contentLabel}</Text>
       <View style={styles.occupancyRow}>
         <Text style={styles.occupancyLabel}>Ocupación</Text>
         <Text style={styles.occupancyValue}>{camera.ocupacion.porcentaje}%</Text>
@@ -79,7 +81,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  code: {
+  title: {
+    flex: 1,
     color: colors.text,
     fontSize: 18,
     fontWeight: '900',
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
   state: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stateText: { fontSize: 10, fontWeight: '800' },
-  name: { marginTop: 7, color: colors.muted, fontSize: 12 },
+  content: { marginTop: 7, color: colors.muted, fontSize: 10, fontWeight: '800' },
   occupancyRow: {
     marginTop: 13,
     flexDirection: 'row',

@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { cameraDisplayName } from '../domain/cameras';
 import { Movement } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
@@ -23,7 +24,7 @@ function movementEndLabel(end: Movement['origen'], fallback: string) {
     ? end.posicion.etiqueta ?? `B${end.posicion.banda}`
     : 'Sin posición';
 
-  return `${end.camara.codigo} · ${position}`;
+  return `${cameraDisplayName(end.camara)} · ${position}`;
 }
 
 export function RecentMovements({ movements, lastSync }: RecentMovementsProps) {

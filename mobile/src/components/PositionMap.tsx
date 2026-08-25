@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { cameraDisplayName } from '../domain/cameras';
 import { CameraPlan, Position } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
@@ -39,7 +40,7 @@ export function PositionMap({
         <View style={styles.headingCopy}>
           <Text style={styles.eyebrow}>PLANO DE ESTIBA · {plan.tipo.toUpperCase()}</Text>
           <View style={styles.titleRow}>
-            <Text numberOfLines={1} style={styles.title}>{plan.codigo} · {plan.nombre}</Text>
+            <Text numberOfLines={1} style={styles.title}>{cameraDisplayName(plan)}</Text>
             <Text style={styles.version}>v{plan.version_plano}</Text>
           </View>
           <Text style={styles.subtitle}>{plan.posiciones.length} posiciones configuradas</Text>
