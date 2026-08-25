@@ -12,6 +12,7 @@ import {
   OpenedSession,
   Position,
 } from '../domain/estiba';
+import { cameraDisplayName } from '../domain/cameras';
 import { ApiError } from '../services/apiError';
 import {
   DemoDatabaseExecutor,
@@ -144,14 +145,14 @@ function assertOwnSession(plan: CameraPlan, sessionId: string): void {
   if (plan.acceso.modo !== 'edicion'
     || !plan.acceso.sesion?.es_propia
     || plan.acceso.sesion.id !== sessionId) {
-    throw new ApiError(`No tienes una sesión activa en ${plan.codigo}.`, 409);
+    throw new ApiError(`No tienes una sesión activa en ${cameraDisplayName(plan)}.`, 409);
   }
 }
 
 function assertVersion(plan: CameraPlan, knownVersion: number): void {
   if (plan.version_plano !== knownVersion) {
     throw new ApiError(
-      `${plan.codigo} cambió desde la última lectura. Actualiza el plano antes de continuar.`,
+      `${cameraDisplayName(plan)} cambió desde la última lectura. Actualiza el plano antes de continuar.`,
       409,
     );
   }
@@ -320,7 +321,7 @@ export async function lookupDemoFolio(folioNumber: string): Promise<FolioLookup>
       condicion_termica: folio.condicion_termica ?? null,
       habilitacion_almacenamiento: folio.habilitacion_almacenamiento ?? null,
       disponible_ubicacion: false,
-      mensaje_disponibilidad: `El folio ya está ubicado en ${located.plan.codigo} · ${located.position.etiqueta ?? ''}.`,
+      mensaje_disponibilidad: `El folio ya está ubicado en ${cameraDisplayName(located.plan)} · ${located.position.etiqueta ?? ''}.`,
       origen_sistema: 'demo',
       condicion_sag: folio.condicion_sag,
       variedad: folio.variedad,

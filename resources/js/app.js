@@ -1,4 +1,5 @@
 import { createOperationalPoller } from './shared/operational-poller';
+import { cameraDisplayName } from './shared/camera-display';
 
 const $ = (id) => document.getElementById(id);
 
@@ -502,11 +503,11 @@ function renderCameras() {
         return `
             <button class="camera-card${selected ? ' is-active' : ''}" type="button" data-camera-id="${escapeHtml(camera.id)}">
                 <span class="camera-card__top">
-                    <strong>${escapeHtml(camera.codigo)}</strong>
+                    <strong>${escapeHtml(cameraDisplayName(camera))}</strong>
                     <span class="camera-card__state"><i class="status-dot ${dot}"></i>${label}</span>
                 </span>
                 <span class="camera-card__meta">
-                    <span>${camera.contenido === 'materiales' ? 'MATERIALES · ' : ''}${escapeHtml(camera.nombre)}</span>
+                    <span>${escapeHtml(statusText(camera.contenido))}</span>
                     <span>${percentage}%</span>
                 </span>
                 <span class="mini-progress"><i style="width:${Math.min(100, percentage)}%"></i></span>
@@ -583,7 +584,7 @@ function renderPlan() {
     elements.planBreadcrumb.textContent = plan.contenido === 'materiales'
         ? `BODEGA DE MATERIALES · ${plan.tipo.toUpperCase()}`
         : `PLANO DE ESTIBA · ${plan.tipo.toUpperCase()}`;
-    elements.planTitle.textContent = `${plan.codigo} · ${plan.nombre}`;
+    elements.planTitle.textContent = cameraDisplayName(plan);
     elements.planSubtitle.textContent = `${plan.posiciones.length} posiciones configuradas`;
     elements.planVersion.textContent = `v${plan.version_plano}`;
     elements.occupancyValue.textContent = `${plan.ocupacion.porcentaje}%`;
@@ -612,7 +613,7 @@ function renderLockState() {
     if (access?.modo === 'edicion') {
         elements.globalSessionStatus.classList.add('is-editing');
         sessionChipDot.className = 'status-dot status-dot--cyan';
-        elements.globalSessionStatus.querySelector('span').textContent = `Editando ${state.plan.codigo}`;
+        elements.globalSessionStatus.querySelector('span').textContent = `Editando ${cameraDisplayName(state.plan)}`;
     } else {
         elements.globalSessionStatus.classList.remove('is-editing');
         sessionChipDot.className = 'status-dot';
@@ -803,7 +804,7 @@ async function toggleSession() {
     if (! state.plan) return;
 
     if (state.plan.acceso.modo === 'edicion') {
-        const confirmed = window.confirm(`¿Cerrar la estiba de ${state.plan.codigo} y liberar la cámara?`);
+        const confirmed = window.confirm(`¿Cerrar la estiba de ${cameraDisplayName(state.plan)} y liberar la cámara?`);
         if (! confirmed) return;
 
         await withBusy('Cerrando estiba…', () => api(`/api/sesiones/${ownSession().id}/cerrar`, {
@@ -815,7 +816,7 @@ async function toggleSession() {
         await withBusy('Abriendo estiba…', () => api(`/api/camaras/${state.plan.id}/sesiones`, {
             method: 'POST',
         }));
-        showToast(`Sesión de edición abierta en ${state.plan.codigo}.`);
+        showToast(`Sesión de edición abierta en ${cameraDisplayName(state.plan)}.`);
     }
 
     await refreshCurrent({ quiet: true });
@@ -827,7 +828,7 @@ function openLocateDialog() {
 
     elements.locateForm.reset();
     elements.locateError.textContent = '';
-    elements.locateDestinationText.textContent = `Destino: ${state.plan.codigo} · ${positionLabel(position)}`;
+    elements.locateDestinationText.textContent = `Destino: ${cameraDisplayName(state.plan)} · ${positionLabel(position)}`;
     renderConditions();
     renderMaterialCatalog();
     const isMaterial = state.plan.contenido === 'materiales';
@@ -1097,7 +1098,7 @@ function openMaterialDispatchDialog() {
     state.materialWithdrawOperationId = operationUuid();
     elements.materialDispatchError.textContent = '';
     elements.materialDispatchTitle.textContent = material.item.nombre;
-    elements.materialDispatchOrigin.textContent = `${position.folio.numero_folio} · ${state.plan.codigo} · ${positionLabel(position)}`;
+    elements.materialDispatchOrigin.textContent = `${position.folio.numero_folio} · ${cameraDisplayName(state.plan)} · ${positionLabel(position)}`;
     elements.materialBalance.innerHTML = `
         <div><span>SALDO ACTUAL</span><strong>${escapeHtml(material.cantidad_actual)} ${escapeHtml(material.unidad_medida)}</strong></div>
         <div><span>DISPONIBLE</span><strong>${escapeHtml(material.cantidad_disponible)} ${escapeHtml(material.unidad_medida)}</strong></div>`;
@@ -1234,10 +1235,10 @@ async function openMoveDialog() {
     elements.moveForm.reset();
     elements.moveError.textContent = '';
     elements.moveDialogTitle.textContent = `Mover ${position.folio.numero_folio}`;
-    elements.moveOriginText.textContent = `Origen: ${state.plan.codigo} · ${positionLabel(position)}`;
+    elements.moveOriginText.textContent = `Origen: ${cameraDisplayName(state.plan)} · ${positionLabel(position)}`;
     elements.moveCameraSelect.innerHTML = state.cameras
         .filter((camera) => camera.estado === 'activa' && camera.contenido === state.plan.contenido)
-        .map((camera) => `<option value="${escapeHtml(camera.id)}">${escapeHtml(camera.codigo)} · ${escapeHtml(camera.nombre)}</option>`)
+        .map((camera) => `<option value="${escapeHtml(camera.id)}">${escapeHtml(cameraDisplayName(camera))}</option>`)
         .join('');
     elements.moveCameraSelect.value = state.plan.id;
     state.moveDestination = null;
@@ -1377,7 +1378,7 @@ async function ensureDestinationSession() {
         bloqueada: true,
         sesion: { ...response.data, es_propia: true },
     };
-    showToast(`Se abrió una sesión en ${state.destinationPlan.codigo} para completar el traslado.`);
+    showToast(`Se abrió una sesión en ${cameraDisplayName(state.destinationPlan)} para completar el traslado.`);
 
     return response.data.id;
 }
@@ -1409,7 +1410,7 @@ async function moveFolio() {
         const changedCamera = state.destinationPlan.id !== state.plan.id;
         elements.moveDialog.close();
         showToast(changedCamera
-            ? `Folio trasladado a ${state.destinationPlan.codigo}.`
+            ? `Folio trasladado a ${cameraDisplayName(state.destinationPlan)}.`
             : 'Folio reubicado dentro de la cámara.');
         await refreshCurrent({ quiet: true });
     } catch (error) {
@@ -1429,10 +1430,10 @@ function renderRecent(movements) {
 
     elements.recentList.innerHTML = movements.map((movement) => {
         const origin = movement.origen
-            ? `${movement.origen.camara.codigo} · ${movement.origen.posicion.etiqueta || `B${movement.origen.posicion.banda}`}`
+            ? `${cameraDisplayName(movement.origen.camara)} · ${movement.origen.posicion.etiqueta || `B${movement.origen.posicion.banda}`}`
             : 'Ingreso';
         const destination = movement.destino
-            ? `${movement.destino.camara.codigo} · ${movement.destino.posicion.etiqueta || `B${movement.destino.posicion.banda}`}`
+            ? `${cameraDisplayName(movement.destino.camara)} · ${movement.destino.posicion.etiqueta || `B${movement.destino.posicion.banda}`}`
             : 'Salida';
         const date = new Date(movement.created_at || movement.recibido_servidor_at);
 

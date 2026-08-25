@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
+import { cameraDisplayName } from '../domain/cameras';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import {
   AuthSession,
@@ -272,7 +273,7 @@ export function RefrigeratedLoadOperation({
       return { plan, sessionId: plan.acceso.sesion.id };
     }
     if (plan.acceso.modo !== 'disponible') {
-      throw new Error(`${plan.codigo} está siendo modificada por otro camarero.`);
+      throw new Error(`${cameraDisplayName(plan)} está siendo modificada por otro camarero.`);
     }
     const session = await api.openSession(auth.token, plan.id);
     onSessionsChanged();
@@ -499,7 +500,7 @@ export function RefrigeratedLoadOperation({
                       <Text style={styles.selectedFolioNumber}>{selectedRoute.folio.numero_folio}</Text>
                       <Text style={styles.selectedFolioLocation}>
                         {selectedRoute.ubicacion
-                          ? `${selectedRoute.ubicacion.camara.codigo} · ${selectedRoute.ubicacion.posicion.etiqueta}`
+                          ? `${cameraDisplayName(selectedRoute.ubicacion.camara)} · ${selectedRoute.ubicacion.posicion.etiqueta}`
                           : 'Sin ubicación'}
                       </Text>
                     </View>
@@ -659,7 +660,7 @@ function RouteCard({ item, onPress, selected }: { item: ExtractionRouteItem; onP
       <View style={styles.routeCopy}>
         <Text style={styles.routeFolio}>{item.folio.numero_folio}</Text>
         <Text style={styles.routeLocation}>
-          {item.ubicacion ? `${item.ubicacion.camara.codigo} · ${item.ubicacion.posicion.etiqueta}` : 'Sin ubicación'}
+          {item.ubicacion ? `${cameraDisplayName(item.ubicacion.camara)} · ${item.ubicacion.posicion.etiqueta}` : 'Sin ubicación'}
         </Text>
         {item.bloqueadores.length > 0 && (
           <Text style={styles.blockers}>Delante: {item.bloqueadores.map((blocker) => blocker.numero_folio).join(', ')}</Text>

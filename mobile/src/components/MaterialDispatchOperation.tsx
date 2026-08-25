@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
+import { cameraDisplayName } from '../domain/cameras';
 import { AuthSession, MaterialDispatch, MaterialDispatchSummary } from '../domain/estiba';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { EstibaApi } from '../services/estibaApi';
@@ -260,7 +261,7 @@ export function MaterialDispatchOperation({
                             <Text style={styles.folioNumber}>{suggestion.numero_folio}</Text>
                             <Text style={styles.location}>
                               {suggestion.camara
-                                ? `${suggestion.camara.codigo} · ${suggestion.posicion?.etiqueta ?? 'Sin posición'}`
+                                ? `${cameraDisplayName(suggestion.camara)} · ${suggestion.posicion?.etiqueta ?? 'Sin posición'}`
                                 : 'Sin cámara asignada'}
                             </Text>
                           </View>
@@ -287,7 +288,7 @@ export function MaterialDispatchOperation({
                     <View style={styles.traceMain}>
                       <Text style={styles.traceFolio}>{withdrawal.folio.numero_folio}</Text>
                       <Text style={styles.traceMeta}>
-                        {withdrawal.item.cliente.temporada.codigo} · {withdrawal.item.cliente.codigo} · {withdrawal.item.codigo} · {withdrawal.camara?.codigo ?? 'Sin cámara'} · {withdrawal.posicion?.etiqueta ?? 'Sin posición'}
+                        {withdrawal.item.cliente.temporada.codigo} · {withdrawal.item.cliente.codigo} · {withdrawal.item.codigo} · {withdrawal.camara ? cameraDisplayName(withdrawal.camara) : 'Sin cámara'} · {withdrawal.posicion?.etiqueta ?? 'Sin posición'}
                       </Text>
                       <Text style={styles.traceMeta}>
                         {withdrawal.usuario?.nombre ?? 'Usuario no disponible'} · {withdrawal.dispositivo?.codigo ?? 'Sin dispositivo'} · {formatDateTime(withdrawal.retirado_at)}
