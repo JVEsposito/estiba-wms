@@ -1,0 +1,206 @@
+.domain-lobby-workspace {
+    display: grid;
+    gap: 16px;
+    max-width: 1920px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.domain-lobby-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px;
+}
+
+.domain-lobby-heading h1,
+.domain-lobby-modules h2,
+.domain-lobby-card h3 {
+    margin: 0;
+}
+
+.domain-lobby-heading h1 {
+    font-size: clamp(1.35rem, 2vw, 1.9rem);
+}
+
+.domain-lobby-heading p:not(.eyebrow),
+.domain-lobby-modules > header > p {
+    margin: 7px 0 0;
+    color: var(--text-secondary, var(--muted));
+    font-size: .82rem;
+    line-height: 1.55;
+}
+
+.domain-lobby-heading .secondary-button {
+    min-width: 138px;
+}
+
+.domain-lobby-metrics {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.domain-lobby-metrics article {
+    min-height: 90px;
+    padding: 15px;
+    border: 1px solid var(--corporate-border, var(--line));
+    border-top: 2px solid var(--corporate-blue, var(--cyan));
+    border-radius: var(--radius, 12px);
+    background: var(--kpi-surface, var(--panel));
+    box-shadow: var(--corporate-shadow, none);
+}
+
+.domain-lobby-metrics span {
+    display: block;
+    color: var(--text-subtle, var(--muted));
+    font-size: .64rem;
+    font-weight: 900;
+    letter-spacing: .07em;
+}
+
+.domain-lobby-metrics strong {
+    display: block;
+    margin-top: 9px;
+    color: var(--text-strong, var(--text));
+    font-size: clamp(1.35rem, 2vw, 1.75rem);
+    line-height: 1.1;
+}
+
+.domain-lobby-modules {
+    padding-top: 4px;
+}
+
+.domain-lobby-modules > header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 12px;
+    padding: 0 2px;
+}
+
+.domain-lobby-modules > header > p {
+    max-width: 480px;
+    text-align: right;
+}
+
+.domain-lobby-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 14px;
+}
+
+.domain-lobby-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 15px;
+    min-height: 132px;
+    padding: 18px;
+    color: var(--text-strong, var(--text));
+    text-decoration: none;
+    background: var(--kpi-surface, var(--panel));
+    border: 1px solid var(--corporate-border, var(--line));
+    border-radius: calc(var(--radius, 7px) + 4px);
+    box-shadow: var(--corporate-shadow, none);
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.domain-lobby-card:hover,
+.domain-lobby-card:focus-visible {
+    border-color: var(--corporate-blue, var(--cyan));
+    box-shadow: var(--corporate-shadow-raised, 0 18px 48px rgba(0, 0, 0, .25));
+    transform: translateY(-2px);
+}
+
+.domain-lobby-card > span {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    color: var(--info-text, var(--cyan-light));
+    font-size: 1rem;
+    font-weight: 900;
+    background: var(--info-bg, var(--soft));
+    border: 1px solid var(--logo-border, var(--line));
+    border-radius: calc(var(--radius, 7px) + 4px);
+}
+
+.domain-lobby-card h3 {
+    font-size: 1.05rem;
+}
+
+.domain-lobby-card p:not(.eyebrow) {
+    margin: 6px 0 0;
+    color: var(--text-secondary, var(--muted));
+    font-size: .74rem;
+    line-height: 1.5;
+}
+
+.domain-lobby-card > strong {
+    color: var(--corporate-blue, var(--cyan-light));
+    font-size: 1.1rem;
+}
+
+.domain-lobby-empty {
+    display: grid;
+    gap: 5px;
+    min-height: 150px;
+    place-content: center;
+    margin-top: 12px;
+    padding: 30px;
+    color: var(--text-secondary, var(--muted));
+    text-align: center;
+    border: 1px dashed var(--corporate-border, var(--line));
+    border-radius: calc(var(--radius, 7px) + 4px);
+    background: var(--surface-muted, var(--panel));
+}
+
+.domain-lobby-empty strong {
+    color: var(--text-strong, var(--text));
+}
+
+.domain-lobby-access-brand .office-logo {
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+@media (max-width: 1300px) {
+    .domain-lobby-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 800px) {
+    .domain-lobby-heading,
+    .domain-lobby-modules > header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .domain-lobby-heading .secondary-button {
+        width: 100%;
+    }
+
+    .domain-lobby-modules > header > p {
+        max-width: none;
+        text-align: left;
+    }
+
+    .domain-lobby-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 520px) {
+    .domain-lobby-workspace {
+        padding: 10px;
+    }
+
+    .domain-lobby-metrics,
+    .domain-lobby-grid {
+        grid-template-columns: 1fr;
+    }
+}

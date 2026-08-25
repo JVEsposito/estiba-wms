@@ -10,8 +10,13 @@ class InterfazOficinaConsultasTest extends TestCase
     {
         $this->get('/oficina/consultas')
             ->assertOk()
-            ->assertSee('Oficina de consultas')
+            ->assertSee('Resumen de Consultas')
             ->assertSee('data-active-domain="consultas"', false)
+            ->assertSee('data-lobby-domain="consultas"', false)
+            ->assertSee('/oficina/consultas/busqueda', false);
+
+        $this->get('/oficina/consultas/busqueda')
+            ->assertOk()
             ->assertSee('data-queries-section="busqueda"', false)
             ->assertSee('Buscar en Estiba WMS');
 

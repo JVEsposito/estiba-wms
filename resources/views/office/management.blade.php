@@ -344,7 +344,7 @@
                         <header>
                             <div><p class="eyebrow">MATERIA PRIMA</p><h2>Lotes y continuidad hacia proceso</h2></div>
                             <div class="management-panel-actions">
-                                <a class="management-panel-link" href="/oficina/materia-prima">Abrir lotes →</a>
+                                <a class="management-panel-link" href="/oficina/materia-prima/lotes">Abrir lotes →</a>
                                 <a class="management-panel-link" href="/oficina/materia-prima/existencias">Existencia MP →</a>
                             </div>
                         </header>
