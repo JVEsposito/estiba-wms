@@ -11,6 +11,8 @@ export default defineConfig({
                 'resources/css/office.css',
                 'resources/css/office-corporate.css',
                 'resources/js/office-navigation.js',
+                'resources/css/office-domain-lobby.css',
+                'resources/js/office-domain-lobby.js',
                 'resources/js/office-cameras.js',
                 'resources/css/office-loads.css',
                 'resources/js/office-loads.js',

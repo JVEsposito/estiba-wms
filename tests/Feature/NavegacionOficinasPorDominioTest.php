@@ -62,11 +62,15 @@ class NavegacionOficinasPorDominioTest extends TestCase
         $this->get('/oficina/consultas')
             ->assertOk()
             ->assertSee('data-active-domain="consultas"', false)
-            ->assertSee('data-queries-section="busqueda"', false)
+            ->assertSee('data-lobby-domain="consultas"', false)
             ->assertSee('Búsqueda Operacional')
             ->assertSee('Productores SAG / CSG')
             ->assertSee('Productores Verificados')
             ->assertDontSee('Digitación de Lotes');
+
+        $this->get('/oficina/consultas/busqueda')
+            ->assertOk()
+            ->assertSee('data-queries-section="busqueda"', false);
 
         $this->get('/oficina/consultas/sag')
             ->assertOk()

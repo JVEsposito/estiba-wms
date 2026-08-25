@@ -7,6 +7,9 @@ Route::get('/', function () {
 });
 
 Route::redirect('/oficina/camaras', '/oficina/frigorifico/camaras');
+Route::view('/oficina/frigorifico', 'office.domain-lobby', [
+    'lobbyDomain' => 'frigorifico',
+]);
 Route::view('/oficina/frigorifico/camaras', 'office.cameras', [
     'navigationDomain' => 'frigorifico',
     'navigationOffice' => 'camaras',
@@ -16,6 +19,9 @@ Route::view('/oficina/administracion/camaras', 'office.cameras', [
     'navigationDomain' => 'administracion',
     'navigationOffice' => 'configuracion-camaras',
     'cameraMode' => 'configuracion',
+]);
+Route::view('/oficina/administracion', 'office.domain-lobby', [
+    'lobbyDomain' => 'administracion',
 ]);
 Route::view('/oficina/cargas', 'office.loads');
 Route::view('/oficina/frigorifico/calendario-embarques', 'office.shipment-calendar');
@@ -96,8 +102,13 @@ Route::view('/oficina/materia-prima/existencias', 'office.inventory-exports', [
 Route::view('/oficina/romana', 'office.weighbridge');
 Route::view('/oficina/envases/cuenta-corriente', 'office.container-accounts');
 Route::view('/oficina/envases/despachos', 'office.container-dispatches');
-Route::view('/oficina/materia-prima', 'office.raw-material');
-Route::view('/oficina/consultas', 'office.queries', [
+Route::view('/oficina/materia-prima', 'office.domain-lobby', [
+    'lobbyDomain' => 'materia-prima',
+]);
+Route::view('/oficina/consultas', 'office.domain-lobby', [
+    'lobbyDomain' => 'consultas',
+]);
+Route::view('/oficina/consultas/busqueda', 'office.queries', [
     'navigationOffice' => 'busqueda',
     'queriesSection' => 'busqueda',
 ]);
