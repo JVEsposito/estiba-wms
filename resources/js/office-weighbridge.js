@@ -5,7 +5,7 @@ const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     managementNav: byId('officeManagementNav'), rawMaterialNav: byId('officeRawMaterialNav'), containerAccountsNav: byId('officeContainerAccountsNav'), camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'),
-    reload: byId('reloadButton'), newReception: byId('newReceptionButton'), filters: byId('receptionFilters'), tableBody: byId('receptionTableBody'),
+    reload: byId('reloadButton'), blankWeighingForm: byId('downloadBlankWeighingFormButton'), newReception: byId('newReceptionButton'), filters: byId('receptionFilters'), tableBody: byId('receptionTableBody'),
     entryCount: byId('entryCount'), containerWeighingCount: byId('containerWeighingCount'), exitCount: byId('exitCount'), closedCount: byId('closedCount'), netWeight: byId('netWeight'),
     paginationSummary: byId('paginationSummary'), previousPage: byId('previousPageButton'), nextPage: byId('nextPageButton'),
     detail: byId('receptionDetail'), detailTitle: byId('detailTitle'), detailSubtitle: byId('detailSubtitle'), detailFacts: byId('detailFacts'), detailTimeline: byId('detailTimeline'), weightBalance: byId('weightBalance'),
@@ -579,6 +579,30 @@ elements.downloadReceipt.addEventListener('click', async () => {
         const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `aviso-recibo-${state.selected.numero_recepcion.toLowerCase()}.pdf`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { toast(error.message, true); }
     finally { setBusy(false); }
+});
+
+elements.blankWeighingForm.addEventListener('click', async () => {
+    setBusy(true, 'Generando planilla de pesaje en blanco…');
+    try {
+        const response = await fetch('/api/romana/registro-pesaje/en-blanco', {
+            headers: { Accept: 'application/pdf', Authorization: `Bearer ${state.token}` },
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new ApiError(errorMessage(data, 'No fue posible generar la planilla en blanco.'), response.status);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'registro-pesaje-romana-en-blanco.pdf';
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
 });
 
 elements.tableBody.addEventListener('click', (event) => { const row = event.target.closest('[data-reception-id]'); if (row) void selectReception(row.dataset.receptionId); });

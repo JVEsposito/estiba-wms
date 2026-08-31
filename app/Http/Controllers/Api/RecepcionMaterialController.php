@@ -218,6 +218,17 @@ class RecepcionMaterialController extends Controller
         )->deleteFileAfterSend();
     }
 
+    public function registroMuestreoEnBlanco(MuestreoXlsx $generador): BinaryFileResponse
+    {
+        Gate::authorize('consultar-recepciones-materiales');
+
+        return response()->download(
+            $generador->generarEnBlanco(),
+            'Registro_Muestreo_EN_BLANCO.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend();
+    }
+
     public function store(
         CrearRecepcionMaterialRequest $request,
         ServicioRecepcionMaterial $servicio,

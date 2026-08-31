@@ -37,6 +37,7 @@
                 <header class="weighbridge-heading">
                     <div><p class="eyebrow">RECEPCIÓN CONTRACTUAL</p><h1>Control de Romana</h1><p>Ingreso cargado, retorno vacío y cierre documental en una sola trazabilidad.</p></div>
                     <div class="weighbridge-heading__actions">
+                        <button class="secondary-button" id="downloadBlankWeighingFormButton" type="button">↓ Planilla de pesaje en blanco</button>
                         <button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button>
                         <button class="primary-button" id="newReceptionButton" type="button">+ Registrar ingreso</button>
                     </div>

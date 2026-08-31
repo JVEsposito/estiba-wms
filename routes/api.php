@@ -78,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('can:consultar-romana')->prefix('romana')->group(function () {
         Route::get('/catalogos', [RecepcionRomanaController::class, 'catalogos']);
+        Route::get('/registro-pesaje/en-blanco', [RecepcionRomanaController::class, 'registroPesajeEnBlanco']);
         Route::get('/recepciones', [RecepcionRomanaController::class, 'index']);
         Route::get('/recepciones/{recepcion}', [RecepcionRomanaController::class, 'show']);
         Route::get('/recepciones/{recepcion}/aviso-recibo', [RecepcionRomanaController::class, 'avisoRecibo']);
@@ -182,6 +183,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-validaciones-pallet')->group(function () {
         Route::get('/validacion/pallets', [ValidacionPalletController::class, 'index']);
         Route::get('/validacion/registro/opciones', [ValidacionPalletController::class, 'opciones']);
+        Route::get('/validacion/registro/rrpp-01/en-blanco', [ValidacionPalletController::class, 'exportarEnBlanco']);
         Route::get('/validacion/registro/rrpp-01', [ValidacionPalletController::class, 'exportar']);
         Route::get('/validacion/pallets/{validacionPallet}', [ValidacionPalletController::class, 'show']);
     });
@@ -315,6 +317,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/folios-pendientes', [RecepcionMaterialController::class, 'foliosPendientes']);
             Route::get('/perfiles-impresion', [PerfilImpresionEtiquetaController::class, 'index']);
             Route::get('/', [RecepcionMaterialController::class, 'index']);
+            Route::get('/registro-muestreo/en-blanco', [RecepcionMaterialController::class, 'registroMuestreoEnBlanco']);
             Route::get('/{recepcionMaterial}/registro-muestreo', [RecepcionMaterialController::class, 'registroMuestreo']);
             Route::get('/{recepcionMaterial}/impresiones', [ImpresionEtiquetaMaterialController::class, 'index']);
             Route::get('/{recepcionMaterial}', [RecepcionMaterialController::class, 'show']);

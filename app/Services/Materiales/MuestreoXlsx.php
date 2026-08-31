@@ -11,6 +11,8 @@ use ZipArchive;
 
 class MuestreoXlsx
 {
+    private const FILAS_EN_BLANCO = 10;
+
     public function generar(RecepcionMaterial $recepcion): string
     {
         $recepcion->loadMissing([
@@ -22,6 +24,20 @@ class MuestreoXlsx
         ]);
 
         [$condicion, $porcentaje] = $this->condicionProveedor($recepcion);
+
+        return $this->generarLibro($recepcion, $condicion, $porcentaje);
+    }
+
+    public function generarEnBlanco(): string
+    {
+        return $this->generarLibro(null, null, null);
+    }
+
+    private function generarLibro(
+        ?RecepcionMaterial $recepcion,
+        ?string $condicion,
+        ?float $porcentaje,
+    ): string {
         $ruta = $this->rutaTemporal('estiba-muestreo-', '.xlsx');
         $zip = null;
 
@@ -31,7 +47,8 @@ class MuestreoXlsx
                 throw new RuntimeException('No fue posible construir el registro de muestreo.');
             }
 
-            $titulo = 'Registro de muestreo de recepción de materiales';
+            $titulo = 'Registro de muestreo de recepción de materiales'
+                .($recepcion === null ? ' en blanco' : '');
             $zip->addFromString('[Content_Types].xml', $this->contentTypes());
             $zip->addFromString('_rels/.rels', $this->rootRelationships());
             $zip->addFromString('docProps/app.xml', $this->appProperties());
@@ -89,12 +106,14 @@ class MuestreoXlsx
     }
 
     private function sheet(
-        RecepcionMaterial $recepcion,
-        string $condicion,
-        float $porcentaje,
+        ?RecepcionMaterial $recepcion,
+        ?string $condicion,
+        ?float $porcentaje,
     ): string {
-        $detalles = $recepcion->detalles->values();
-        $cantidadFilas = max(4, $detalles->count());
+        $detalles = ($recepcion?->detalles ?? collect())->values();
+        $cantidadFilas = $recepcion === null
+            ? self::FILAS_EN_BLANCO
+            : max(4, $detalles->count());
         $filaInicio = 12;
         $filaFin = $filaInicio + $cantidadFilas - 1;
         $filaResultado = $filaFin + 2;
@@ -112,14 +131,20 @@ class MuestreoXlsx
             $this->inlineCell('J5', 'Muestreo', 5),
         ], 22);
 
-        $fecha = $recepcion->fecha_documento?->format('d-m-Y') ?? '—';
+        $fecha = $recepcion === null
+            ? ''
+            : ($recepcion->fecha_documento?->format('d-m-Y') ?? '—');
         $proveedor = collect([
-            $recepcion->proveedor?->codigo,
-            $recepcion->proveedor?->nombre ?? 'Proveedor no disponible',
+            $recepcion?->proveedor?->codigo,
+            $recepcion === null
+                ? null
+                : ($recepcion->proveedor?->nombre ?? 'Proveedor no disponible'),
         ])->filter()->implode(' · ');
-        $recepcionista = $recepcion->confirmadoPor?->name
-            ?? $recepcion->creadoPor?->name
-            ?? '—';
+        $recepcionista = $recepcion === null
+            ? ''
+            : ($recepcion->confirmadoPor?->name
+                ?? $recepcion->creadoPor?->name
+                ?? '—');
         $condiciones = [
             ['nuevo', 'Proveedor nuevo', 0.10],
             ['satisfactorio', 'Proveedor con desempeño satisfactorio', 0.05],
@@ -128,7 +153,7 @@ class MuestreoXlsx
         $generales = [
             ['Fecha', $fecha],
             ['Proveedor', $proveedor],
-            ['Guía de Despacho N°', $recepcion->numero_guia_despacho],
+            ['Guía de Despacho N°', $recepcion?->numero_guia_despacho ?? ''],
             ['Recepcionista', $recepcionista],
         ];
 
@@ -168,10 +193,11 @@ class MuestreoXlsx
                 continue;
             }
 
+            $porcentajeAplicado = $porcentaje ?? 0.0;
             $bultos = $detalle->bultos;
             $muestreados = $bultos->isEmpty()
                 ? 0
-                : (int) ceil($bultos->count() * $porcentaje);
+                : (int) ceil($bultos->count() * $porcentajeAplicado);
             $material = collect([
                 $detalle->item?->codigo,
                 $detalle->item?->nombre ?? 'Ítem no disponible',
@@ -181,7 +207,7 @@ class MuestreoXlsx
                 $this->numberCell("D{$fila}", (float) $detalle->cantidad_documental, 8),
                 $this->inlineCell("E{$fila}", $this->unidadEmbalaje($detalle), 7),
                 $this->numberCell("F{$fila}", $bultos->count(), 8),
-                $this->numberCell("G{$fila}", $porcentaje, 9),
+                $this->numberCell("G{$fila}", $porcentajeAplicado, 9),
                 $this->numberCell("H{$fila}", $muestreados, 8),
                 $this->inlineCell("I{$fila}", '', 7),
                 $this->inlineCell("J{$fila}", (string) ($detalle->observacion ?? ''), 7),

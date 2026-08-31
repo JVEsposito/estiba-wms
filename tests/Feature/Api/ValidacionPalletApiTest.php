@@ -440,6 +440,38 @@ class ValidacionPalletApiTest extends TestCase
         $zip->close();
     }
 
+    public function test_descarga_rrpp_01_en_blanco_sin_validaciones_previas(): void
+    {
+        [, $token] = $this->contexto(RolUsuario::Validador, 'VAL-RRPP-BLANCO');
+
+        $respuesta = $this->conToken($token)
+            ->get('/api/validacion/registro/rrpp-01/en-blanco')
+            ->assertOk()
+            ->assertDownload('RRPP-01_EN_BLANCO.xlsx')
+            ->assertHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($respuesta->baseResponse->getFile()->getPathname()) === true);
+        $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $libro = $zip->getFromName('xl/workbook.xml');
+        $zip->close();
+
+        $this->assertIsString($hoja);
+        $this->assertIsString($libro);
+        $this->assertSame('', $this->valorCelda($hoja, 'C5'));
+        $this->assertSame('', $this->valorCelda($hoja, 'C6'));
+        $this->assertSame('', $this->valorCelda($hoja, 'C7'));
+        $this->assertSame('', $this->valorCelda($hoja, 'C8'));
+        $this->assertSame('', $this->valorCelda($hoja, 'B11'));
+        $this->assertSame('Categoría', $this->valorCelda($hoja, 'M10'));
+        $this->assertSame('SUM(I11:I30)', $this->formulaCelda($hoja, 'I31'));
+        $this->assertSame('0', $this->valorCelda($hoja, 'I31'));
+        $this->assertStringContainsString('RRPP-01 en blanco', $libro);
+    }
+
     public function test_historial_separa_temporadas_y_por_defecto_muestra_solo_la_activa(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-TEMP-01');

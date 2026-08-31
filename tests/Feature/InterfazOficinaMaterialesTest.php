@@ -70,6 +70,8 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->get('/oficina/materiales/recepciones')
             ->assertOk()
             ->assertSee('Recepciones y folios')
+            ->assertSee('Muestreo en blanco')
+            ->assertSee('downloadBlankMaterialSampling', false)
             ->assertSee('Motivo de la corrección administrativa')
             ->assertSee('Eliminar y liberar folios')
             ->assertSee('type="date"', false);
@@ -83,6 +85,7 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertStringContainsString("method: 'DELETE'", $script);
         $this->assertStringContainsString('Math.ceil(accepted / packageSize)', $script);
         $this->assertStringContainsString('Registro de muestreo', $script);
+        $this->assertStringContainsString('registro-muestreo/en-blanco', $script);
         $this->assertStringContainsString('/registro-muestreo', $script);
     }
 

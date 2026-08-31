@@ -243,6 +243,7 @@
                             <span id="materialReceptionsSummary">Cargando recepciones…</span>
                         </div>
                         <div class="materials-panel__tools">
+                            <button class="secondary-button" id="downloadBlankMaterialSampling" type="button">↓ Muestreo en blanco</button>
                             <button class="secondary-button" id="reloadMaterialReceptions" type="button">↻ Actualizar</button>
                             <button class="primary-button is-hidden" id="newMaterialReception" type="button">+ Nueva recepción</button>
                         </div>

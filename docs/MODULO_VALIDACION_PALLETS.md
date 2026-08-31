@@ -181,6 +181,18 @@ habilitacion_almacenamiento = habilitado
 
 Después de esa ubicación el folio pasa a `disponible`.
 
+## Registro RRPP-01
+
+La oficina permite descargar el registro completado según fecha, encargado,
+línea y turno, o una copia en blanco independiente de la existencia de
+validaciones. Ambas variantes se construyen desde la misma plantilla controlada
+y conservan código, versión, columnas, total y configuración de impresión.
+
+```http
+GET /api/validacion/registro/rrpp-01
+GET /api/validacion/registro/rrpp-01/en-blanco
+```
+
 ## Roles
 
 ### `validador`

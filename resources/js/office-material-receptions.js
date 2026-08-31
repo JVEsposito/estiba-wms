@@ -6,6 +6,7 @@ const receptionElements = {
     error: document.getElementById('materialReceptionsError'),
     list: document.getElementById('materialReceptionsList'),
     reload: document.getElementById('reloadMaterialReceptions'),
+    blankSampling: document.getElementById('downloadBlankMaterialSampling'),
     create: document.getElementById('newMaterialReception'),
     filters: document.getElementById('materialReceptionsFilters'),
     previous: document.getElementById('materialReceptionsPrevious'),
@@ -113,10 +114,13 @@ async function receptionApi(path, options = {}) {
     return data;
 }
 
-async function downloadReceptionSampling(record) {
+async function downloadReceptionSampling(record = null) {
     receptionElements.error.textContent = '';
+    const path = record
+        ? `/api/materiales/recepciones/${record.id}/registro-muestreo`
+        : '/api/materiales/recepciones/registro-muestreo/en-blanco';
     const response = await fetch(
-        `/api/materiales/recepciones/${record.id}/registro-muestreo`,
+        path,
         {
             headers: {
                 Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -132,7 +136,9 @@ async function downloadReceptionSampling(record) {
     const blob = await response.blob();
     const disposition = response.headers.get('content-disposition') || '';
     const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
-        || `Registro_Muestreo_${record.numero_guia_despacho}.xlsx`;
+        || (record
+            ? `Registro_Muestreo_${record.numero_guia_despacho}.xlsx`
+            : 'Registro_Muestreo_EN_BLANCO.xlsx');
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -549,6 +555,13 @@ window.estibaMaterialReceptionImportContext = {
 
 if (receptionElements.workspace) {
     receptionElements.reload.addEventListener('click', () => loadReceptions(receptionState.page));
+    receptionElements.blankSampling.addEventListener('click', async () => {
+        try {
+            await downloadReceptionSampling();
+        } catch (error) {
+            receptionElements.error.textContent = error.message;
+        }
+    });
     receptionElements.create.addEventListener('click', () => openReception(null, 'create'));
     receptionElements.filters.addEventListener('submit', (event) => {
         event.preventDefault();
