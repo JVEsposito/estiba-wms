@@ -113,11 +113,66 @@ class GeneradorAvisoReciboPdf
         return $this->documento($contenido);
     }
 
-    private function encabezado(RecepcionRomana $recepcion): string
+    public function generarEnBlanco(): string
     {
-        $fecha = $recepcion->salida_at?->format('d-m-Y')
-            ?? $recepcion->ingreso_at?->format('d-m-Y')
-            ?? now()->format('d-m-Y');
+        $lineas = [
+            'N° recepción',
+            'Ingreso',
+            'Salida / destare',
+            'Cliente',
+            'Código cliente',
+            'Tipo recepción',
+            'Servicio / concepto',
+            'Guía de despacho',
+            'Envases declarados',
+            'Patente camión',
+            'Patente carro',
+            'Conductor',
+            'RUT conductor',
+            'Peso bruto',
+            'Tara camión / envases',
+            'PESO NETO',
+        ];
+        $inicioPesos = count($lineas) - 3;
+        $indiceNeto = count($lineas) - 1;
+
+        $contenido = $this->encabezado();
+        $contenido .= "0.15 0.72 0.70 RG 42 752 m 553 752 l S\n";
+        $contenido .= $this->texto(42, 726, 11, 'Antecedentes contractuales de ingreso al frigorífico', true);
+
+        $y = 695;
+        foreach ($lineas as $indice => $etiqueta) {
+            if ($indice === $inicioPesos) {
+                $contenido .= '0.92 0.96 0.97 rg 38 '.($y - 9)." 519 31 re f\n";
+            }
+            if ($indice === $indiceNeto) {
+                $contenido .= '0.08 0.50 0.48 rg 38 '.($y - 12)." 519 36 re f\n";
+            }
+            $color = $indice === $indiceNeto ? '1 1 1' : '0.15 0.20 0.23';
+            $contenido .= $this->texto(48, $y, 9, $etiqueta, $indice === $indiceNeto, $color);
+            $contenido .= $color.' RG 235 '.($y - 3).' m 545 '.($y - 3)." l S\n";
+            $y -= $indice >= $inicioPesos ? 35 : 27;
+        }
+
+        $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);
+        $contenido .= "0.65 0.70 0.72 RG 42 202 m 553 202 l S\n";
+        $contenido .= $this->texto(42, 180, 9, 'Observación de cierre', true);
+        $contenido .= "0.65 0.70 0.72 RG 42 160 m 553 160 l S\n";
+        $contenido .= "0.65 0.70 0.72 RG 42 122 m 240 122 l S 355 122 m 553 122 l S\n";
+        $contenido .= $this->texto(78, 105, 8, 'Operador de romana');
+        $contenido .= $this->texto(403, 105, 8, 'Transportista');
+        $contenido .= $this->texto(42, 52, 7, 'Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditoría.');
+
+        return $this->documento($contenido);
+    }
+
+    private function encabezado(?RecepcionRomana $recepcion = null): string
+    {
+        $fecha = $recepcion === null
+            ? ''
+            : ($recepcion->salida_at?->format('d-m-Y')
+                ?? $recepcion->ingreso_at?->format('d-m-Y')
+                ?? now()->format('d-m-Y'));
 
         $contenido = "0.12 0.16 0.18 RG 0.75 w\n";
         $contenido .= "42 770 511 60 re S\n";

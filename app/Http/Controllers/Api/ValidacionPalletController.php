@@ -188,6 +188,16 @@ class ValidacionPalletController extends Controller
         )->deleteFileAfterSend();
     }
 
+    public function exportarEnBlanco(
+        ServicioExportacionRegistroValidacion $exportador,
+    ): BinaryFileResponse {
+        return response()->download(
+            $exportador->generarEnBlanco(),
+            'RRPP-01_EN_BLANCO.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend();
+    }
+
     public function show(ValidacionPallet $validacionPallet): ValidacionPalletResource
     {
         return new ValidacionPalletResource(

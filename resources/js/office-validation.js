@@ -3,7 +3,7 @@ const elements = {
     access: byId('officeAccess'), app: byId('officeApp'), login: byId('officeLoginForm'), loginError: byId('officeLoginError'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), prefrioNav: byId('officePrefrioNav'), accessesNav: byId('officeAccessesNav'), managementNav: byId('officeManagementNav'), romanaNav: byId('officeRomanaNav'),
-    reload: byId('reloadValidationButton'), seasonSelector: byId('seasonSelector'), filters: byId('validationFilters'), history: byId('validationHistoryBody'), userFilter: byId('validationUserFilter'), exportRegister: byId('exportValidationRegisterButton'),
+    reload: byId('reloadValidationButton'), seasonSelector: byId('seasonSelector'), filters: byId('validationFilters'), history: byId('validationHistoryBody'), userFilter: byId('validationUserFilter'), blankRegister: byId('downloadBlankValidationRegisterButton'), exportRegister: byId('exportValidationRegisterButton'),
     catalogVersion: byId('catalogVersion'), articleCount: byId('activeArticleCount'), originCount: byId('activeOriginCount'), combinationCount: byId('activeCombinationCount'), observedCount: byId('observedCount'),
     correctionDialog: byId('validationCorrectionDialog'), correctionForm: byId('validationCorrectionForm'), correctionError: byId('validationCorrectionError'), correctionCancel: byId('cancelValidationCorrection'), correctionTitle: byId('validationCorrectionTitle'), correctionState: byId('validationCorrectionState'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
@@ -216,6 +216,12 @@ elements.correctionForm.elements.articulo_validacion_id.addEventListener('change
 elements.correctionCancel.addEventListener('click', closeCorrection);
 elements.correctionDialog.addEventListener('cancel', (event) => { event.preventDefault(); closeCorrection(); });
 elements.seasonSelector.addEventListener('change', () => { setBusy(true, 'Cambiando temporada…'); void loadAll(elements.seasonSelector.value || null).catch((error) => toast(error.message, true)).finally(() => setBusy(false)); });
+elements.blankRegister.addEventListener('click', () => {
+    setBusy(true, 'Preparando formulario RRPP-01 en blanco…');
+    void download('/api/validacion/registro/rrpp-01/en-blanco')
+        .catch((error) => toast(error.message, true))
+        .finally(() => setBusy(false));
+});
 elements.exportRegister.addEventListener('click', () => {
     const values = Object.fromEntries(new FormData(elements.filters));
     if (!values.fecha) { toast('Selecciona la fecha del registro RRPP-01.', true); return; }

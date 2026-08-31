@@ -62,10 +62,11 @@
                             <select name="resultado"><option value="">Todos los resultados</option><option value="aprobado">Aprobado</option><option value="observado">Observado</option><option value="rechazado">Rechazado</option></select>
                             <select name="estado"><option value="">Todos los estados</option><option value="aceptada">Aceptada</option><option value="conflicto">Conflicto</option></select>
                             <button class="secondary-button" type="submit">Filtrar</button>
+                            <button class="secondary-button" id="downloadBlankValidationRegisterButton" type="button">Descargar en blanco</button>
                             <button class="primary-button" id="exportValidationRegisterButton" type="button">Descargar RRPP-01</button>
                         </form>
                     </div>
-                    <p class="validation-help">El registro RRPP-01 utiliza la fecha real de terreno y agrupa automáticamente cada hoja por encargado, línea y turno. Los conflictos de sincronización no forman parte del registro oficial.</p>
+                    <p class="validation-help">El registro RRPP-01 utiliza la fecha real de terreno y agrupa automáticamente cada hoja por encargado, línea y turno. La versión en blanco conserva el formato oficial para contingencia, trazabilidad y auditoría.</p>
                     <div class="validation-table-scroll"><table class="validation-table"><thead><tr><th>Folio</th><th>Artículo</th><th>Origen</th><th>Resultado</th><th>Validador</th><th>Fecha y jornada</th><th>Administración</th></tr></thead><tbody id="validationHistoryBody"></tbody></table></div>
                 </section>
 

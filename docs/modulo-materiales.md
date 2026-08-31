@@ -88,6 +88,12 @@ consume en orden antes de avanzar el correlativo. Si existían etiquetas
 impresas, sus trabajos se invalidan y las copias físicas deben destruirse antes
 de reutilizar el número.
 
+Desde la misma oficina se puede descargar el registro de muestreo completado de
+cada recepción confirmada o una versión en blanco para uso manual, contingencia
+y auditoría. La copia en blanco no depende de una recepción ni arrastra datos de
+proveedores o materiales anteriores; conserva porcentajes de referencia,
+resultado, observaciones y firmas.
+
 ## Bloqueo supervisado
 
 Administrador y supervisor de Materiales pueden bloquear un folio activo que no

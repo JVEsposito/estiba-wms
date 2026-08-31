@@ -247,6 +247,11 @@ Una recepción cerrada expone un PDF con:
 
 El endpoint rechaza recepciones abiertas.
 
+La oficina también permite descargar una planilla en blanco sin crear ni cerrar
+una recepción. Mantiene el mismo encabezado controlado, antecedentes de
+transporte, campos de pesaje, observaciones y firmas, y se identifica como copia
+para contingencia, trazabilidad y auditoría.
+
 ## Integración gerencial
 
 `/oficina/gerencia` muestra:
@@ -267,6 +272,7 @@ El endpoint rechaza recepciones abiertas.
 
 ```http
 GET /api/romana/catalogos
+GET /api/romana/registro-pesaje/en-blanco
 GET /api/romana/recepciones
 GET /api/romana/recepciones/{id}
 GET /api/romana/recepciones/{id}/aviso-recibo

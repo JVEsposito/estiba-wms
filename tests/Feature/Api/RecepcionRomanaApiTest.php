@@ -117,6 +117,33 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('data.romana.tendencia_diaria.6.peso_neto', 18000);
     }
 
+    public function test_descarga_planilla_de_pesaje_en_blanco_sin_recepcion(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+
+        $respuesta = $this->actingAs($operador, 'sanctum')
+            ->get('/api/romana/registro-pesaje/en-blanco')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader(
+                'Content-Disposition',
+                'attachment; filename="registro-pesaje-romana-en-blanco.pdf"',
+            );
+
+        $contenidoPdf = (string) $respuesta->getContent();
+        $this->assertStringStartsWith('%PDF-1.4', $contenidoPdf);
+        $this->assertStringContainsString('(REGISTRO DE PESAJE)', $contenidoPdf);
+        $this->assertStringContainsString('(ROMANA)', $contenidoPdf);
+        $this->assertStringContainsString('(Peso bruto)', $contenidoPdf);
+        $this->assertStringContainsString('(Tara cam', $contenidoPdf);
+        $this->assertStringContainsString('(PESO NETO)', $contenidoPdf);
+        $this->assertStringContainsString(
+            '(Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditor',
+            $contenidoPdf,
+        );
+        $this->assertStringNotContainsString('(REC-', $contenidoPdf);
+    }
+
     public function test_bloquea_destare_invalido_duplicados_y_edicion_despues_de_confirmar(): void
     {
         $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);

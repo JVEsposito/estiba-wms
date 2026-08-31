@@ -39,7 +39,26 @@ class ServicioExportacionRegistroValidacion
             throw new DomainException('No existen validaciones confirmadas para generar el registro RRPP-01.');
         }
 
-        $paginas = $this->paginas($validaciones);
+        return $this->generarPaginas($this->paginas($validaciones));
+    }
+
+    public function generarEnBlanco(): string
+    {
+        return $this->generarPaginas([[
+            'fecha' => '',
+            'encargado' => '',
+            'linea' => 0,
+            'turno' => '',
+            'numero' => 1,
+            'validaciones' => collect(),
+        ]]);
+    }
+
+    /**
+     * @param  array<int, array{fecha:string,encargado:string,linea:int,turno:string,numero:int,validaciones:Collection<int,ValidacionPallet>}>  $paginas
+     */
+    private function generarPaginas(array $paginas): string
+    {
         $plantilla = resource_path('templates/validacion/rrpp-01.xlsx');
         if (is_file($plantilla) === false) {
             throw new RuntimeException('No se encuentra la plantilla RRPP-01.');
@@ -168,7 +187,12 @@ class ServicioExportacionRegistroValidacion
         $this->texto($documento, $xpath, 'C5', $pagina['fecha']);
         $this->texto($documento, $xpath, 'C6', $pagina['encargado']);
         $this->texto($documento, $xpath, 'C7', $pagina['turno']);
-        $this->texto($documento, $xpath, 'C8', (string) $pagina['linea']);
+        $this->texto(
+            $documento,
+            $xpath,
+            'C8',
+            $pagina['linea'] > 0 ? (string) $pagina['linea'] : '',
+        );
         $this->texto($documento, $xpath, self::COLUMNA_CATEGORIA.'10', 'Categoría');
 
         for ($indice = 0; $indice < self::FILAS_POR_HOJA; $indice += 1) {
@@ -533,6 +557,10 @@ class ServicioExportacionRegistroValidacion
      */
     private function nombreHoja(array $pagina, int $numero): string
     {
+        if ($pagina['fecha'] === '' && $pagina['turno'] === '' && $pagina['linea'] === 0) {
+            return 'RRPP-01 en blanco';
+        }
+
         $nombre = sprintf(
             '%s-L%d-%s-%02d',
             str_replace('-', '', $pagina['fecha']),

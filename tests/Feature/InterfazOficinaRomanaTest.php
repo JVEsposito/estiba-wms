@@ -22,6 +22,8 @@ class InterfazOficinaRomanaTest extends TestCase
             ->assertSee('Peso bruto')
             ->assertSee('Peso tara')
             ->assertSee('Aviso de Recibo PDF')
+            ->assertSee('Planilla de pesaje en blanco')
+            ->assertSee('downloadBlankWeighingFormButton', false)
             ->assertSee('Motivo de la corrección administrativa')
             ->assertSee('editReceptionButton', false)
             ->assertSee('administrativeCorrectionField', false)

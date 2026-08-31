@@ -261,6 +261,17 @@ class RecepcionRomanaController extends Controller
         ]);
     }
 
+    public function registroPesajeEnBlanco(GeneradorAvisoReciboPdf $generador): Response
+    {
+        Gate::authorize('consultar-romana');
+
+        return response($generador->generarEnBlanco(), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="registro-pesaje-romana-en-blanco.pdf"',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function recepcion(RecepcionRomana $recepcion, bool $conEventos = false): array
     {

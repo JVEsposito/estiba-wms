@@ -18,6 +18,8 @@ class InterfazOficinaValidacionTest extends TestCase
             ->assertDontSee('Combinaciones artículo–origen habilitadas')
             ->assertSee('validationHistoryBody', false)
             ->assertSee('Descargar RRPP-01')
+            ->assertSee('Descargar en blanco')
+            ->assertSee('downloadBlankValidationRegisterButton', false)
             ->assertSee('validationUserFilter', false)
             ->assertDontSee('importPreview', false)
             ->assertSee('data-active-domain="frigorifico"', false)

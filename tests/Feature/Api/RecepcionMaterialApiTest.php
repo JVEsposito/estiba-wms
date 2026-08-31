@@ -1264,6 +1264,38 @@ class RecepcionMaterialApiTest extends TestCase
         $this->assertStringContainsString('<c r="H12" s="8"><v>1</v></c>', $hoja);
     }
 
+    public function test_descarga_registro_de_muestreo_en_blanco_sin_recepcion(): void
+    {
+        [, $token] = $this->prepararCatalogo();
+
+        $respuesta = $this->conToken($token)
+            ->get('/api/materiales/recepciones/registro-muestreo/en-blanco')
+            ->assertOk()
+            ->assertDownload('Registro_Muestreo_EN_BLANCO.xlsx')
+            ->assertHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            );
+
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($respuesta->baseResponse->getFile()->getPathname()));
+        $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $propiedades = $zip->getFromName('docProps/core.xml');
+        $zip->close();
+
+        $this->assertIsString($hoja);
+        $this->assertIsString($propiedades);
+        $this->assertStringContainsString('Registro de muestreo de recepción de materiales', $hoja);
+        $this->assertStringContainsString('☐ Proveedor nuevo', $hoja);
+        $this->assertStringContainsString('☐ Proveedor con desempeño satisfactorio', $hoja);
+        $this->assertStringContainsString('☐ Proveedor con diferencias anteriores', $hoja);
+        $this->assertStringNotContainsString('☒', $hoja);
+        $this->assertStringContainsString('<c r="C21" s="7"', $hoja);
+        $this->assertStringContainsString('en blanco', $propiedades);
+        $this->assertStringNotContainsString('PROV-REC', $hoja);
+        $this->assertStringNotContainsString('FILM-REC', $hoja);
+    }
+
     private function prepararCatalogo(): array
     {
         $administrador = User::factory()->create([
