@@ -365,6 +365,8 @@ class ServicioLoteMateriaPrima
                 ),
                 'estado' => EstadoHidrocoolerMateriaPrima::EnCurso,
                 'equipo' => $equipo,
+                'turno' => $datos['turno'],
+                'cantidad_bombas_funcionando' => $datos['cantidad_bombas_funcionando'],
                 'equipo_activo_clave' => hash('sha256', mb_strtolower($equipo)),
                 'operador_snapshot' => $usuario->name,
                 'cantidad_envases_snapshot' => $lote->cantidad_envases_primarios,
@@ -375,6 +377,11 @@ class ServicioLoteMateriaPrima
                 'temperatura_agua_inicial_c' => filled($datos['temperatura_agua_inicial_c'] ?? null)
                     ? round((float) $datos['temperatura_agua_inicial_c'], 2)
                     : null,
+                'cloro_libre_ppm' => round((float) $datos['cloro_libre_ppm'], 2),
+                'ph_agua' => round((float) $datos['ph_agua'], 2),
+                'condicion_visual_agua' => $datos['condicion_visual_agua'],
+                'dosificador_operativo' => $datos['dosificador_operativo'],
+                'manejo_agua' => $datos['manejo_agua'],
                 'observacion_inicio' => $datos['observacion_inicio'] ?? null,
                 'iniciado_por_user_id' => $usuario->id,
             ]);
@@ -392,6 +399,8 @@ class ServicioLoteMateriaPrima
                 EstadoLoteMateriaPrima::HidrocoolerEnCurso,
                 [
                     'equipo' => $equipo,
+                    'turno' => $datos['turno'],
+                    'cantidad_bombas_funcionando' => $datos['cantidad_bombas_funcionando'],
                     'operador' => $usuario->name,
                     'inicio_at' => $inicio->toAtomString(),
                     'cantidad_envases' => $lote->cantidad_envases_primarios,
@@ -401,6 +410,11 @@ class ServicioLoteMateriaPrima
                     'temperatura_agua_inicial_c' => filled($datos['temperatura_agua_inicial_c'] ?? null)
                         ? (float) $datos['temperatura_agua_inicial_c']
                         : null,
+                    'cloro_libre_ppm' => (float) $datos['cloro_libre_ppm'],
+                    'ph_agua' => (float) $datos['ph_agua'],
+                    'condicion_visual_agua' => $datos['condicion_visual_agua'],
+                    'dosificador_operativo' => (bool) $datos['dosificador_operativo'],
+                    'manejo_agua' => $datos['manejo_agua'],
                     'payload_hash' => $hash,
                 ],
             );
@@ -478,6 +492,7 @@ class ServicioLoteMateriaPrima
                     : null,
                 'destino_salida' => $destino,
                 'observacion' => $datos['observacion'] ?? null,
+                'accion_correctiva' => $datos['accion_correctiva'] ?? null,
                 'completado_por_user_id' => $usuario->id,
             ]);
             $lote->update([
@@ -502,6 +517,7 @@ class ServicioLoteMateriaPrima
                         ? (float) $proceso->temperatura_agua_final_c
                         : null,
                     'destino_salida' => $destino,
+                    'accion_correctiva' => $datos['accion_correctiva'] ?? null,
                     'payload_hash' => $hash,
                 ],
             );

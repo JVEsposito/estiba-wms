@@ -82,12 +82,22 @@ Confirmar un lote actualiza el segmento a `lotizacion_parcial` o `lotizado` seg�
 
 Cuando el lote lo requiere:
 
-1. se registra equipo e inicio;
+1. se registra equipo, turno, cantidad de bombas funcionando e inicio;
 2. el usuario autenticado queda como operador de inicio;
-3. al terminar se registra término, temperatura y observación;
-4. la duración se calcula automáticamente en minutos;
-5. el usuario autenticado queda como operador de término;
-6. el lote pasa a `pendiente_asignacion`.
+3. se registran temperaturas de fruta y agua, cloro libre, pH, condición visual del agua, dosificador y filtrado o recambio;
+4. al terminar se registra término, temperatura final, observación y acción correctiva cuando corresponda;
+5. la duración se calcula automáticamente en minutos;
+6. el usuario autenticado queda como operador de término;
+7. el lote pasa a `pendiente_asignacion` o queda disponible directo a proceso, según el destino registrado.
+
+El módulo permite descargar el **Registro de control de Hidrocooler**:
+
+- en blanco, sin requerir ciclos previos;
+- completado, respetando los filtros de equipo, turno, destino y fechas; si no se indica fecha, exporta el día actual;
+- en Excel editable y PDF A4 horizontal;
+- con trazabilidad por lote/ciclo, controles PCC, cantidad de bombas, observaciones y firmas de Operador, Calidad y Supervisión.
+
+Los valores de referencia impresos son cloro libre entre 80 y 120 ppm y pH entre 6 y 7, o el rango vigente validado por la planta. El formulario recuerda detener, ajustar, recircular o renovar agua, retener fruta desde el último control conforme y documentar la acción ante una desviación.
 
 Un lote que no requiere hidrocooler pasa directamente a `pendiente_asignacion`.
 
@@ -165,6 +175,8 @@ PUT  /api/materia-prima/lotes/{lote}
 POST /api/materia-prima/lotes/{lote}/confirmar
 POST /api/materia-prima/lotes/{lote}/hidrocooler/iniciar
 POST /api/materia-prima/lotes/{lote}/hidrocooler/completar
+GET /api/materia-prima/hidrocooler/registro?formato=xlsx|pdf
+GET /api/materia-prima/hidrocooler/registro/en-blanco?formato=xlsx|pdf
 POST /api/materia-prima/lotes/{lote}/asignar-camara
 POST /api/materia-prima/lotes/{lote}/anular
 

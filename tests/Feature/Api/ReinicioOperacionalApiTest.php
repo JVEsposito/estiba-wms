@@ -311,9 +311,16 @@ class ReinicioOperacionalApiTest extends TestCase
         $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar", [
             'operacion_id' => (string) Str::uuid(),
             'equipo' => 'HIDRO-RESET',
+            'turno' => 'A',
+            'cantidad_bombas_funcionando' => 2,
             'inicio_at' => now()->subMinutes(15)->toAtomString(),
             'temperatura_inicial_c' => 18,
             'temperatura_objetivo_c' => 4,
+            'cloro_libre_ppm' => 100,
+            'ph_agua' => 6.5,
+            'condicion_visual_agua' => 'conforme',
+            'dosificador_operativo' => true,
+            'manejo_agua' => 'sin_novedad',
         ])->assertOk();
 
         return [
