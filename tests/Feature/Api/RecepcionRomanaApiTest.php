@@ -522,6 +522,7 @@ class RecepcionRomanaApiTest extends TestCase
         $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
         $datos = $this->datosIngreso($this->cliente());
         $datos['tipo_recepcion'] = 'solo_envases';
+        $datos['fecha_ingreso'] = '2026-07-18';
         $datos['concepto_envases'] = 'arriendo';
         $datos['tipo_servicio'] = null;
         $datos['peso_bruto'] = 28540; // Un cliente antiguo podría seguir enviando el campo.
@@ -535,6 +536,8 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.numero_recepcion', 'REC-2607-0001')
             ->assertJsonPath('data.tipo_recepcion', 'solo_envases')
+            ->assertJsonPath('data.fecha_ingreso', '2026-07-18')
+            ->assertJsonPath('data.ingreso_at', '2026-07-18T16:32:15+00:00')
             ->assertJsonPath('data.concepto_envases', 'arriendo')
             ->assertJsonPath('data.peso_bruto', null)
             ->assertJsonPath('data.peso_tara', null)
@@ -549,12 +552,18 @@ class RecepcionRomanaApiTest extends TestCase
             'cantidad_declarada' => 800,
             'cantidad_validada' => null,
         ]);
+        $eventoIngreso = EventoRecepcionRomana::query()
+            ->where('recepcion_romana_id', $recepcion['id'])
+            ->firstOrFail();
+        $this->assertSame('2026-07-18', $eventoIngreso->datos['fecha_ingreso']);
+        $this->assertSame('2026-07-18T16:32:15+00:00', $eventoIngreso->datos['ingreso_at']);
+        $this->assertSame('2026-07-21 16:32:15', $eventoIngreso->ocurrido_at->toDateTimeString());
         $this->actingAs($validador, 'sanctum')
             ->getJson('/api/notificaciones-operacionales')
             ->assertOk()
             ->assertJsonPath('data.0.tipo', 'recepcion_romana_creada')
             ->assertJsonPath('data.0.recepcion_romana.numero_recepcion', 'REC-2607-0001')
-            ->assertJsonPath('data.0.datos.ingreso_at', '2026-07-21T16:32:15+00:00');
+            ->assertJsonPath('data.0.datos.ingreso_at', '2026-07-18T16:32:15+00:00');
 
         $this->actingAs($operador, 'sanctum')
             ->getJson('/api/envases/cuenta-corriente/movimientos')
@@ -585,7 +594,39 @@ class RecepcionRomanaApiTest extends TestCase
             'peso_tara' => null,
             'peso_neto' => null,
             'estado' => EstadoRecepcionRomana::Cerrado->value,
+            'ingreso_at' => '2026-07-18 16:32:15',
         ]);
+    }
+
+    public function test_fecha_manual_se_limita_a_recepciones_solo_envases_y_no_admite_futuro(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-07-21 16:32:15'));
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $datos['tipo_recepcion'] = 'solo_envases';
+        $datos['concepto_envases'] = 'compra';
+        $datos['tipo_servicio'] = null;
+        $datos['peso_bruto'] = null;
+
+        $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('fecha_ingreso');
+
+        $datos['fecha_ingreso'] = '2026-07-22';
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('fecha_ingreso');
+
+        $datos['tipo_recepcion'] = 'fruta_con_envases';
+        $datos['concepto_envases'] = null;
+        $datos['tipo_servicio'] = 'prefrio';
+        $datos['peso_bruto'] = 28540;
+        $datos['fecha_ingreso'] = '2026-07-18';
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->assertJsonPath('data.fecha_ingreso', null)
+            ->assertJsonPath('data.ingreso_at', '2026-07-21T16:32:15+00:00');
     }
 
     public function test_oculta_notificaciones_de_recepciones_de_temporadas_anteriores(): void

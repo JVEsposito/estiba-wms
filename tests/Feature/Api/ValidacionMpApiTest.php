@@ -204,6 +204,7 @@ class ValidacionMpApiTest extends TestCase
         $validador = User::factory()->create(['rol' => RolUsuario::ValidadorMp]);
         $datos = $this->recepcion($temporada, $cliente);
         $datos['tipo_recepcion'] = 'solo_envases';
+        $datos['fecha_ingreso'] = now(config('app.operational_timezone'))->toDateString();
         $datos['concepto_envases'] = 'compra';
         $datos['tipo_servicio'] = null;
         $datos['envases'] = [['tipo_envase' => 'esponjas', 'cantidad' => 500]];

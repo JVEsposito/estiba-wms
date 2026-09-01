@@ -42,6 +42,7 @@ class ServicioRecepcionRomana
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
             $this->asegurarGuiaUnica($temporada->id, $cliente->id, (string) $payload['numero_guia_despacho']);
             $ahora = CarbonImmutable::now();
+            $ingresoAt = $this->resolverIngresoAt($payload, $ahora);
             $numero = $this->siguienteNumero($ahora);
             $envasePrincipal = $payload['envases'][0];
             $esPesajeEnvases = $payload['tipo_recepcion'] === TipoRecepcionRomana::FrutaPesajeEnvases->value;
@@ -82,7 +83,7 @@ class ServicioRecepcionRomana
                     ? EstadoRecepcionRomana::EnPesajeEnvases
                     : EstadoRecepcionRomana::EnBasculaIngreso,
                 'estado_validacion_mp' => EstadoValidacionMp::Pendiente,
-                'ingreso_at' => $ahora,
+                'ingreso_at' => $ingresoAt,
                 'ingreso_confirmado_at' => $esPesajeEnvases ? $ahora : null,
                 'creado_por_user_id' => $usuario->id,
                 'ingreso_confirmado_por_user_id' => $esPesajeEnvases ? $usuario->id : null,
@@ -106,6 +107,8 @@ class ServicioRecepcionRomana
                     'numero_recepcion' => $numero,
                     'numero_guia_despacho' => $recepcion->numero_guia_despacho,
                     'temporada_id' => $recepcion->temporada_id,
+                    'fecha_ingreso' => $payload['fecha_ingreso'],
+                    'ingreso_at' => $ingresoAt->toAtomString(),
                     'envases' => $payload['envases'],
                     'tipo_envase_pesaje' => $payload['tipo_envase_pesaje'],
                     'tara_unitaria_envase' => $payload['tara_unitaria_envase'],
@@ -155,6 +158,8 @@ class ServicioRecepcionRomana
                 $recepcion->id,
             );
             $envasePrincipal = $payload['envases'][0];
+            $ahora = CarbonImmutable::now();
+            $ingresoAt = $this->resolverIngresoAt($payload, $ahora, $recepcion);
             $recepcion->update([
                 'temporada_id' => $temporada->id,
                 'temporada_codigo_snapshot' => $temporada->codigo,
@@ -172,6 +177,7 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
+                'ingreso_at' => $ingresoAt,
                 'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? 0
                     : ($payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value
@@ -209,8 +215,12 @@ class ServicioRecepcionRomana
                 $recepcion->estado,
                 $recepcion->estado,
                 $usuario,
-                CarbonImmutable::now(),
-                ['version' => $recepcion->version],
+                $ahora,
+                [
+                    'version' => $recepcion->version,
+                    'fecha_ingreso' => $payload['fecha_ingreso'],
+                    'ingreso_at' => $ingresoAt->toAtomString(),
+                ],
             );
 
             return $this->cargar($recepcion);
@@ -283,6 +293,8 @@ class ServicioRecepcionRomana
             $estado = $recepcion->estado;
             $anterior = $this->snapshotCorreccion($recepcion);
             $envasePrincipal = $payload['envases'][0];
+            $ahora = CarbonImmutable::now();
+            $ingresoAt = $this->resolverIngresoAt($payload, $ahora, $recepcion);
             $actualizacion = [
                 'temporada_id' => $temporada->id,
                 'temporada_codigo_snapshot' => $temporada->codigo,
@@ -300,6 +312,7 @@ class ServicioRecepcionRomana
                 'patente_carro' => $payload['patente_carro'],
                 'rut_conductor' => $payload['rut_conductor'],
                 'nombre_conductor' => $payload['nombre_conductor'],
+                'ingreso_at' => $ingresoAt,
                 'peso_bruto' => $recepcion->estado === EstadoRecepcionRomana::EnPesajeEnvases
                     ? 0
                     : ($payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value
@@ -350,7 +363,7 @@ class ServicioRecepcionRomana
                 $estado,
                 $estado,
                 $usuario,
-                CarbonImmutable::now(),
+                $ahora,
                 [
                     'motivo' => $payload['motivo_correccion'],
                     'version' => $recepcion->version,
@@ -913,6 +926,7 @@ class ServicioRecepcionRomana
             'temporada_id' => $datos['temporada_id'],
             'cliente_id' => $datos['cliente_id'],
             'tipo_recepcion' => $datos['tipo_recepcion'],
+            'fecha_ingreso' => $datos['fecha_ingreso'] ?? null,
             'concepto_envases' => $datos['concepto_envases'] ?? null,
             'tipo_servicio' => $datos['tipo_servicio'] ?? 'almacenaje',
             'envases' => $envases,
@@ -1080,6 +1094,7 @@ class ServicioRecepcionRomana
             'temporada_id' => $recepcion->temporada_id,
             'cliente_id' => $recepcion->cliente_id,
             'tipo_recepcion' => $recepcion->tipo_recepcion->value,
+            'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
             'concepto_envases' => $recepcion->concepto_envases?->value,
             'tipo_servicio' => $recepcion->tipo_servicio->value,
             'envases' => $recepcion->detallesEnvases
@@ -1117,6 +1132,39 @@ class ServicioRecepcionRomana
             'cantidad_envases_pesados' => $recepcion->cantidad_envases_pesados,
             'observacion' => $recepcion->observacion,
         ];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function resolverIngresoAt(
+        array $payload,
+        CarbonImmutable $ahora,
+        ?RecepcionRomana $recepcion = null,
+    ): CarbonImmutable {
+        $esSoloEnvases = $payload['tipo_recepcion'] === TipoRecepcionRomana::SoloEnvases->value;
+        if (! $esSoloEnvases) {
+            if ($recepcion?->tipo_recepcion === TipoRecepcionRomana::SoloEnvases) {
+                return CarbonImmutable::instance($recepcion->created_at);
+            }
+
+            return $recepcion?->ingreso_at !== null
+                ? CarbonImmutable::instance($recepcion->ingreso_at)
+                : $ahora;
+        }
+
+        $zona = (string) config('app.operational_timezone');
+        $horaBase = $recepcion?->ingreso_at !== null
+            ? CarbonImmutable::instance($recepcion->ingreso_at)->setTimezone($zona)
+            : $ahora->setTimezone($zona);
+        $fechaSeleccionada = CarbonImmutable::parse((string) $payload['fecha_ingreso'], $zona)
+            ->startOfDay()
+            ->setTime(
+                $horaBase->hour,
+                $horaBase->minute,
+                $horaBase->second,
+                $horaBase->micro,
+            );
+
+        return $fechaSeleccionada->utc();
     }
 
     /**

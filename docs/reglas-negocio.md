@@ -40,6 +40,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 11. Romana no crea folios, lotes, validaciones PT, procesos de Prefrío ni ubicaciones.
 12. Los eventos de Romana no se eliminan físicamente.
 13. Una corrección administrativa de una recepción cerrada recalcula los pesos derivados y no modifica su estado.
+14. Solo una recepción `solo_envases` permite seleccionar la fecha efectiva de ingreso; no admite fechas futuras y conserva la hora real de registro. En toda recepción con fruta, fecha y hora se asignan automáticamente.
 
 ## 4. Validación MP
 

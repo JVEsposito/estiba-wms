@@ -120,7 +120,7 @@ La recepción puede corresponder a:
 - fruta con pesaje acumulativo de todos los envases;
 - una operación exclusiva de envases por compra o arriendo.
 
-Una recepción `solo_envases` no exige ni almacena peso bruto, tara o peso neto. Conserva correlativo, guía, cliente, fecha y hora, transporte, cantidades, concepto y trazabilidad, y se cierra documentalmente después de confirmar el ingreso.
+Una recepción `solo_envases` no exige ni almacena peso bruto, tara o peso neto. Permite seleccionar la fecha efectiva de ingreso —hoy o una fecha anterior— y conserva la hora real en que se registró el expediente. La fecha seleccionada queda incluida en el evento auditable. Las recepciones con fruta mantienen fecha y hora automáticas. El expediente conserva además correlativo, guía, cliente, transporte, cantidades, concepto y trazabilidad, y se cierra documentalmente después de confirmar el ingreso.
 
 En el pesaje tradicional de fruta, si el camión sale sin los envases que traían la fruta, la lectura de salida representa únicamente la tara del camión. Romana exige entonces la tara unitaria de cada tipo declarado y calcula:
 
