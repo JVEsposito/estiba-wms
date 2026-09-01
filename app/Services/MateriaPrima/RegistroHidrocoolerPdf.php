@@ -21,7 +21,7 @@ class RegistroHidrocoolerPdf
     }
 
     /** @param Collection<int, ProcesoHidrocoolerMateriaPrima> $procesos
-     *  @return array<int, string>
+     * @return array<int, string>
      */
     private function paginas(Collection $procesos, bool $enBlanco): array
     {
@@ -52,7 +52,7 @@ class RegistroHidrocoolerPdf
     }
 
     /** @param Collection<int, array<int, string>> $filas
-     *  @param array{fecha:string,equipo:string,turno:string,operador:string,temporada:string} $contexto
+     * @param  array{fecha:string,equipo:string,turno:string,operador:string,temporada:string}  $contexto
      */
     private function pagina(
         Collection $filas,
@@ -170,7 +170,7 @@ class RegistroHidrocoolerPdf
     }
 
     /** @param Collection<int, ProcesoHidrocoolerMateriaPrima> $procesos
-     *  @return array{fecha:string,equipo:string,turno:string,operador:string,temporada:string}
+     * @return array{fecha:string,equipo:string,turno:string,operador:string,temporada:string}
      */
     private function contexto(Collection $procesos): array
     {

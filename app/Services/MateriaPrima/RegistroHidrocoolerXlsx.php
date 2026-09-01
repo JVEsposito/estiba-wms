@@ -198,7 +198,7 @@ class RegistroHidrocoolerXlsx
     }
 
     /** @param Collection<int, ProcesoHidrocoolerMateriaPrima> $procesos
-     *  @return array{fecha:string,equipo:string,turno:string,operador:string,temporada:string}
+     * @return array{fecha:string,equipo:string,turno:string,operador:string,temporada:string}
      */
     private function contexto(Collection $procesos): array
     {
