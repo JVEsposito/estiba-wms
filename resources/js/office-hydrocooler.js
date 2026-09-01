@@ -15,6 +15,7 @@ const elements = {
     finishTitle: byId('finishTitle'), finishDescription: byId('finishDescription'), finishSummary: byId('finishSummary'),
     finishError: byId('finishError'), loading: byId('officeLoading'), loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
+    registerButtons: [...document.querySelectorAll('[data-register]')],
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
@@ -51,6 +52,8 @@ function label(value) {
         pendiente_hidrocooler: 'Pendiente', hidrocooler_en_curso: 'En curso',
         pendiente_asignacion: 'A cámara MP', disponible_proceso: 'Directo a proceso',
         camara: 'Cámara MP', proceso: 'Directo a proceso', bins: 'bins', totes: 'totes', esponjas: 'esponjas',
+        conforme: 'Conforme', no_conforme: 'No conforme', sin_novedad: 'Sin novedad',
+        filtrado: 'Filtrado', recambio: 'Recambio',
         digitador_materia_prima: 'Digitador de materia prima', supervisor_frio: 'Supervisor de frío',
         operador_romana: 'Operador de Romana', administrador: 'Administrador', consulta: 'Solo consulta',
     };
@@ -109,6 +112,22 @@ async function api(path, options = {}) {
     }
     return data;
 }
+async function download(path) {
+    const headers = new Headers({ Accept: '*/*' });
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    let response;
+    try { response = await fetch(path, { headers }); }
+    catch { throw new ApiError('No fue posible descargar la planilla.'); }
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new ApiError(errorMessage(data, 'No fue posible descargar la planilla.'), response.status);
+    }
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || 'registro-hidrocooler';
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a'); link.href = url; link.download = filename;
+    document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+}
 function showApp() {
     if (!can('puede_consultar_hidrocooler_materia_prima')) return false;
     elements.access.classList.add('is-hidden'); elements.app.classList.remove('is-hidden');
@@ -160,8 +179,10 @@ function card(lot) {
             <div><span>PRODUCTO</span><strong>${escapeHtml(product || 'Sin detalle')}</strong></div>
             <div><span>ENVASES / KILOS</span><strong>${escapeHtml(cycle?.cantidad_envases ?? lot.envases.cantidad_primarios)} ${escapeHtml(label(lot.envases.primario))}<br>${escapeHtml(formatKilos(cycle?.kilos_netos ?? lot.pesos.kilos_netos_confirmados))}</strong></div>
             <div><span>OPERADOR / DURACIÓN</span><strong>${escapeHtml(cycle?.operador || 'Pendiente')}<br>${duration === null ? 'Pendiente' : escapeHtml(formatDuration(duration))}</strong></div>
+            <div><span>TURNO / BOMBAS</span><strong>${escapeHtml(cycle?.turno ? `Turno ${cycle.turno}` : 'Pendiente')}<br>${cycle?.cantidad_bombas_funcionando === null || cycle?.cantidad_bombas_funcionando === undefined ? '—' : `${cycle.cantidad_bombas_funcionando} bombas`}</strong></div>
         </div>
         <div class="cycle-temperature"><div><span>INICIAL FRUTA</span>${escapeHtml(formatTemperature(cycle?.temperatura_inicial_c))}</div><div><span>OBJETIVO</span>${escapeHtml(formatTemperature(cycle?.temperatura_objetivo_c))}</div><div><span>FINAL FRUTA</span>${escapeHtml(formatTemperature(cycle?.temperatura_c))}</div></div>
+        ${cycle ? `<div class="cycle-quality"><div><span>CLORO / PH</span>${cycle.cloro_libre_ppm === null ? '—' : `${escapeHtml(formatNumber(cycle.cloro_libre_ppm, 2))} ppm`} · ${cycle.ph_agua === null ? '—' : escapeHtml(formatNumber(cycle.ph_agua, 2))}</div><div><span>AGUA / DOSIFICADOR</span>${cycle.condicion_visual_agua ? escapeHtml(label(cycle.condicion_visual_agua)) : '—'} · ${cycle.dosificador_operativo === null ? '—' : (cycle.dosificador_operativo ? 'Operativo' : 'No operativo')}</div><div><span>CONTROL AGUA</span>${cycle.manejo_agua ? escapeHtml(label(cycle.manejo_agua)) : '—'}</div></div>` : ''}
         <p class="cycle-note">${cycle ? `Inicio ${escapeHtml(formatDate(cycle.inicio_at))}${cycle.termino_at ? ` · término ${escapeHtml(formatDate(cycle.termino_at))}` : ''}${note ? ` · ${escapeHtml(note)}` : ''}` : `Confirmado ${escapeHtml(formatDate(lot.confirmado_at))} · CSG ${escapeHtml(lot.trazabilidad.csg)}`}</p>
         ${action ? `<div class="cycle-card__actions">${action}</div>` : ''}
     </article>`;
@@ -176,6 +197,18 @@ function query() {
     const params = new URLSearchParams(new FormData(elements.filters));
     params.set('bandeja', state.tray); params.set('per_page', '200');
     return params.toString();
+}
+async function downloadRegister(action) {
+    const [type, format] = action.split('-');
+    const params = new URLSearchParams(type === 'filled' ? new FormData(elements.filters) : undefined);
+    params.set('formato', format);
+    const path = type === 'blank'
+        ? `/api/materia-prima/hidrocooler/registro/en-blanco?${params}`
+        : `/api/materia-prima/hidrocooler/registro?${params}`;
+    setBusy(true, 'Generando planilla de Hidrocooler…');
+    try { await download(path); toast('Planilla de Hidrocooler descargada.'); }
+    catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
 }
 async function load({ silent = false } = {}) {
     if (!silent) setBusy(true, 'Actualizando Hidrocooler…');
@@ -221,10 +254,14 @@ async function submitStart() {
     const data = new FormData(elements.startForm);
     const payload = {
         operacion_id: data.get('operacion_id'), equipo: String(data.get('equipo') || '').trim(),
+        turno: data.get('turno'), cantidad_bombas_funcionando: Number(data.get('cantidad_bombas_funcionando')),
         inicio_at: new Date(data.get('inicio_at')).toISOString(),
         temperatura_inicial_c: Number(data.get('temperatura_inicial_c')),
         temperatura_objetivo_c: Number(data.get('temperatura_objetivo_c')),
         temperatura_agua_inicial_c: data.get('temperatura_agua_inicial_c') === '' ? null : Number(data.get('temperatura_agua_inicial_c')),
+        cloro_libre_ppm: Number(data.get('cloro_libre_ppm')), ph_agua: Number(data.get('ph_agua')),
+        condicion_visual_agua: data.get('condicion_visual_agua'),
+        dosificador_operativo: data.get('dosificador_operativo') === '1', manejo_agua: data.get('manejo_agua'),
         observacion_inicio: String(data.get('observacion_inicio') || '').trim() || null,
     };
     setBusy(true, 'Iniciando ciclo…');
@@ -241,6 +278,7 @@ async function submitFinish() {
         temperatura_c: Number(data.get('temperatura_c')),
         temperatura_agua_final_c: data.get('temperatura_agua_final_c') === '' ? null : Number(data.get('temperatura_agua_final_c')),
         destino_salida: data.get('destino_salida'), observacion: String(data.get('observacion') || '').trim() || null,
+        accion_correctiva: String(data.get('accion_correctiva') || '').trim() || null,
     };
     setBusy(true, 'Finalizando ciclo…');
     try {
@@ -265,6 +303,7 @@ elements.logout.addEventListener('click', async () => {
     try { await api('/api/acceso-oficina', { method: 'DELETE' }); } finally { clearSession(); }
 });
 elements.reload.addEventListener('click', () => load());
+elements.registerButtons.forEach((button) => button.addEventListener('click', () => downloadRegister(button.dataset.register)));
 elements.filters.addEventListener('submit', (event) => { event.preventDefault(); void load(); });
 elements.tabs.forEach((tab) => tab.addEventListener('click', () => { state.tray = tab.dataset.tray; void load(); }));
 elements.list.addEventListener('click', (event) => {

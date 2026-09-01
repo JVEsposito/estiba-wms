@@ -34,7 +34,13 @@
             <section class="hydrocooler-workspace">
                 <header class="hydrocooler-heading">
                     <div><p class="eyebrow">CONTROL DE ENFRIAMIENTO MP</p><h1>Hidrocooler</h1><p id="seasonDescription">Cargando ciclos de la temporada…</p></div>
-                    <button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button>
+                    <div class="hydrocooler-heading__actions">
+                        <button class="secondary-button" data-register="blank-xlsx" type="button">↓ Blanco Excel</button>
+                        <button class="secondary-button" data-register="blank-pdf" type="button">↓ Blanco PDF</button>
+                        <button class="secondary-button" data-register="filled-xlsx" type="button">↓ Registro Excel</button>
+                        <button class="secondary-button" data-register="filled-pdf" type="button">↓ Registro PDF</button>
+                        <button class="secondary-button" id="reloadButton" type="button">↻ Actualizar</button>
+                    </div>
                 </header>
 
                 <div class="hydrocooler-kpis">
@@ -55,6 +61,7 @@
                         <form id="hydrocoolerFilters">
                             <input name="buscar" maxlength="100" placeholder="Lote, recepción, cliente, ciclo o equipo">
                             <select name="equipo" id="equipmentFilter"><option value="">Todos los equipos</option></select>
+                            <select name="turno"><option value="">Todos los turnos</option><option value="A">Turno A</option><option value="B">Turno B</option></select>
                             <select name="destino"><option value="">Todos los destinos</option><option value="camara">Cámara MP</option><option value="proceso">Directo a proceso</option></select>
                             <input name="desde" type="date" aria-label="Desde">
                             <input name="hasta" type="date" aria-label="Hasta">
@@ -74,11 +81,18 @@
                 <div class="cycle-summary" id="startSummary"></div>
                 <div class="hydrocooler-fields">
                     <label><span>Equipo / Hidrocooler *</span><input name="equipo" list="equipmentOptions" maxlength="100" autocomplete="off" required></label>
+                    <label><span>Turno *</span><select name="turno" required><option value="">Seleccionar</option><option value="A">Turno A</option><option value="B">Turno B</option></select></label>
+                    <label><span>Cantidad de bombas funcionando *</span><input name="cantidad_bombas_funcionando" type="number" min="1" max="20" step="1" required></label>
                     <label><span>Operador responsable</span><input name="operador" readonly></label>
                     <label><span>Fecha y hora de inicio *</span><input name="inicio_at" type="datetime-local" required></label>
                     <label><span>Temperatura inicial fruta °C *</span><input name="temperatura_inicial_c" type="number" min="-20" max="50" step="0.01" required></label>
                     <label><span>Temperatura objetivo fruta °C *</span><input name="temperatura_objetivo_c" type="number" min="-20" max="50" step="0.01" required></label>
                     <label><span>Temperatura inicial agua °C</span><input name="temperatura_agua_inicial_c" type="number" min="-20" max="50" step="0.01"></label>
+                    <label><span>Cloro libre ppm *</span><input name="cloro_libre_ppm" type="number" min="0" max="500" step="0.01" required></label>
+                    <label><span>pH del agua *</span><input name="ph_agua" type="number" min="0" max="14" step="0.01" required></label>
+                    <label><span>Condición visual del agua *</span><select name="condicion_visual_agua" required><option value="">Seleccionar</option><option value="conforme">Conforme</option><option value="no_conforme">No conforme</option></select></label>
+                    <label><span>Dosificador *</span><select name="dosificador_operativo" required><option value="">Seleccionar</option><option value="1">Operativo</option><option value="0">No operativo</option></select></label>
+                    <label><span>Control del agua *</span><select name="manejo_agua" required><option value="">Seleccionar</option><option value="sin_novedad">Sin novedad</option><option value="filtrado">Filtrado</option><option value="recambio">Recambio</option></select></label>
                     <label class="field-wide"><span>Observación de inicio</span><textarea name="observacion_inicio" maxlength="2000"></textarea></label>
                 </div>
                 <datalist id="equipmentOptions"></datalist>
@@ -99,6 +113,7 @@
                     <label><span>Temperatura final agua °C</span><input name="temperatura_agua_final_c" type="number" min="-20" max="50" step="0.01"></label>
                     <fieldset class="destination-choice"><legend>Destino después del Hidrocooler *</legend><label><input name="destino_salida" type="radio" value="camara" checked required><span><strong>Cámara MP</strong><small>Queda pendiente de asignación a cámara.</small></span></label><label><input name="destino_salida" type="radio" value="proceso" required><span><strong>Directo a Fruta a proceso</strong><small>Disponible para viajes a Packing sin ubicación ficticia.</small></span></label></fieldset>
                     <label class="field-wide"><span>Observación de término</span><textarea name="observacion" maxlength="2000"></textarea></label>
+                    <label class="field-wide"><span>Acción correctiva aplicada</span><textarea name="accion_correctiva" maxlength="2000" placeholder="Completar cuando exista una desviación de temperatura, agua, cloro, pH, dosificador o bombas."></textarea></label>
                 </div>
                 <p class="form-error" id="finishError" role="alert"></p>
                 <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Finalizar y liberar lote</button></div>

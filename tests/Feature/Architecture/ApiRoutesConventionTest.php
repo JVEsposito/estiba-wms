@@ -39,6 +39,8 @@ class ApiRoutesConventionTest extends TestCase
             ['POST', 'api/materiales/transformaciones/lotes/{loteTransformacionMaterial}/revertir', 'can:revertir-transformaciones-materiales'],
             ['POST', 'api/materiales/transformaciones/ordenes/{ordenTransformacionMaterial}/etiquetas', 'can:operar-transformaciones-materiales'],
             ['GET', 'api/romana/registro-pesaje/en-blanco', 'can:consultar-romana'],
+            ['GET', 'api/materia-prima/hidrocooler/registro/en-blanco', 'can:consultar-hidrocooler-materia-prima'],
+            ['GET', 'api/materia-prima/hidrocooler/registro', 'can:consultar-hidrocooler-materia-prima'],
             ['PUT', 'api/romana/recepciones/{recepcion}/corregir', 'can:corregir-recepciones-romana'],
             ['GET', 'api/validacion/registro/rrpp-01/en-blanco', 'can:consultar-validaciones-pallet'],
             ['PUT', 'api/administracion/usuarios/{usuario}', 'can:administrar-accesos'],

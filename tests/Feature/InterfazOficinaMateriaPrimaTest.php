@@ -29,6 +29,10 @@ class InterfazOficinaMateriaPrimaTest extends TestCase
             ->assertOk()
             ->assertSee('Un ciclo de Hidrocooler por cada lote.')
             ->assertSee('Temperatura inicial fruta')
+            ->assertSee('Cantidad de bombas funcionando')
+            ->assertSee('Cloro libre ppm')
+            ->assertSee('Blanco Excel')
+            ->assertSee('Registro PDF')
             ->assertSee('Directo a Fruta a proceso')
             ->assertSee('TIEMPO PROMEDIO HOY');
         $this->get('/oficina/materia-prima/fruta-a-proceso')

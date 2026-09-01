@@ -83,6 +83,8 @@ class LoteMateriaPrimaResource extends JsonResource
                 'codigo' => $this->hidrocooler->codigo,
                 'estado' => $this->hidrocooler->estado->value,
                 'equipo' => $this->hidrocooler->equipo,
+                'turno' => $this->hidrocooler->turno,
+                'cantidad_bombas_funcionando' => $this->hidrocooler->cantidad_bombas_funcionando,
                 'operador' => $this->hidrocooler->operador_snapshot
                     ?: $this->hidrocooler->iniciadoPor?->name,
                 'cantidad_envases' => $this->hidrocooler->cantidad_envases_snapshot,
@@ -101,6 +103,15 @@ class LoteMateriaPrimaResource extends JsonResource
                 'temperatura_agua_inicial_c' => $this->hidrocooler->temperatura_agua_inicial_c !== null
                     ? (float) $this->hidrocooler->temperatura_agua_inicial_c
                     : null,
+                'cloro_libre_ppm' => $this->hidrocooler->cloro_libre_ppm !== null
+                    ? (float) $this->hidrocooler->cloro_libre_ppm
+                    : null,
+                'ph_agua' => $this->hidrocooler->ph_agua !== null
+                    ? (float) $this->hidrocooler->ph_agua
+                    : null,
+                'condicion_visual_agua' => $this->hidrocooler->condicion_visual_agua,
+                'dosificador_operativo' => $this->hidrocooler->dosificador_operativo,
+                'manejo_agua' => $this->hidrocooler->manejo_agua,
                 'temperatura_c' => $this->hidrocooler->temperatura_c !== null
                     ? (float) $this->hidrocooler->temperatura_c
                     : null,
@@ -110,6 +121,7 @@ class LoteMateriaPrimaResource extends JsonResource
                 'destino_salida' => $this->hidrocooler->destino_salida,
                 'observacion_inicio' => $this->hidrocooler->observacion_inicio,
                 'observacion' => $this->hidrocooler->observacion,
+                'accion_correctiva' => $this->hidrocooler->accion_correctiva,
                 'iniciado_por' => $this->hidrocooler->iniciadoPor?->name,
                 'completado_por' => $this->hidrocooler->completadoPor?->name,
             ] : null),

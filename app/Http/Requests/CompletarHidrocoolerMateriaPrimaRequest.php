@@ -22,6 +22,7 @@ class CompletarHidrocoolerMateriaPrimaRequest extends FormRequest
             'temperatura_agua_final_c' => ['nullable', 'numeric', 'between:-20,50', 'decimal:0,2'],
             'destino_salida' => ['required', Rule::in(['camara', 'proceso'])],
             'observacion' => ['nullable', 'string', 'max:2000'],
+            'accion_correctiva' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
@@ -30,6 +31,9 @@ class CompletarHidrocoolerMateriaPrimaRequest extends FormRequest
         $this->merge([
             'observacion' => filled($this->input('observacion'))
                 ? trim((string) $this->input('observacion'))
+                : null,
+            'accion_correctiva' => filled($this->input('accion_correctiva'))
+                ? trim((string) $this->input('accion_correctiva'))
                 : null,
         ]);
     }

@@ -19,10 +19,42 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+use ZipArchive;
 
 class MateriaPrimaApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_descarga_registro_hidrocooler_en_blanco_sin_ciclos(): void
+    {
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+
+        $xlsx = $this->actingAs($digitador, 'sanctum')
+            ->get('/api/materia-prima/hidrocooler/registro/en-blanco?formato=xlsx')
+            ->assertOk()
+            ->assertDownload('registro-hidrocooler-en-blanco.xlsx')
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        $zip = new ZipArchive;
+        $this->assertTrue($zip->open($xlsx->baseResponse->getFile()->getPathname()) === true);
+        $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        $this->assertIsString($hoja);
+        $this->assertStringContainsString('REGISTRO DE CONTROL DE HIDROCOOLER', $hoja);
+        $this->assertStringContainsString('Bombas', $hoja);
+        $this->assertStringContainsString('Cloro ppm', $hoja);
+        $this->assertStringContainsString('A17', $hoja);
+
+        $pdf = $this->get('/api/materia-prima/hidrocooler/registro/en-blanco?formato=pdf')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-1.4', $pdf->getContent());
+        $this->assertStringContainsString('REGISTRO DE CONTROL DE HIDROCOOLER', $pdf->getContent());
+        $this->assertStringContainsString('Bombas', $pdf->getContent());
+
+        $this->app['auth']->forgetGuards();
+        $this->getJson('/api/materia-prima/hidrocooler/registro/en-blanco')
+            ->assertUnauthorized();
+    }
 
     public function test_resumen_fruta_proceso_agrega_en_base_de_datos_sin_materializar_el_inventario(): void
     {
@@ -208,21 +240,35 @@ class MateriaPrimaApiTest extends TestCase
             [
                 'operacion_id' => (string) Str::uuid(),
                 'equipo' => 'HIDRO-02',
+                'turno' => 'A',
+                'cantidad_bombas_funcionando' => 3,
                 'inicio_at' => $inicio->toAtomString(),
                 'temperatura_inicial_c' => 18.25,
                 'temperatura_objetivo_c' => 4,
                 'temperatura_agua_inicial_c' => 1.8,
+                'cloro_libre_ppm' => 95,
+                'ph_agua' => 6.5,
+                'condicion_visual_agua' => 'conforme',
+                'dosificador_operativo' => true,
+                'manejo_agua' => 'sin_novedad',
                 'observacion_inicio' => 'Agua y lote verificados.',
             ],
         )
             ->assertOk()
             ->assertJsonPath('data.estado', 'hidrocooler_en_curso')
             ->assertJsonPath('data.hidrocooler.equipo', 'HIDRO-02')
+            ->assertJsonPath('data.hidrocooler.turno', 'A')
+            ->assertJsonPath('data.hidrocooler.cantidad_bombas_funcionando', 3)
             ->assertJsonPath('data.hidrocooler.operador', $digitador->name)
             ->assertJsonPath('data.hidrocooler.cantidad_envases', 20)
             ->assertJsonPath('data.hidrocooler.kilos_netos', 7495)
             ->assertJsonPath('data.hidrocooler.temperatura_inicial_c', 18.25)
             ->assertJsonPath('data.hidrocooler.temperatura_objetivo_c', 4)
+            ->assertJsonPath('data.hidrocooler.cloro_libre_ppm', 95)
+            ->assertJsonPath('data.hidrocooler.ph_agua', 6.5)
+            ->assertJsonPath('data.hidrocooler.condicion_visual_agua', 'conforme')
+            ->assertJsonPath('data.hidrocooler.dosificador_operativo', true)
+            ->assertJsonPath('data.hidrocooler.manejo_agua', 'sin_novedad')
             ->assertJsonPath('data.hidrocooler.iniciado_por', $digitador->name);
 
         $this->postJson(
@@ -234,6 +280,7 @@ class MateriaPrimaApiTest extends TestCase
                 'temperatura_agua_final_c' => 1.65,
                 'destino_salida' => 'camara',
                 'observacion' => 'Pulpa dentro del rango.',
+                'accion_correctiva' => null,
             ],
         )
             ->assertOk()
@@ -244,6 +291,12 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('data.hidrocooler.destino_salida', 'camara')
             ->assertJsonPath('data.hidrocooler.observacion', 'Pulpa dentro del rango.')
             ->assertJsonPath('data.hidrocooler.completado_por', $digitador->name);
+
+        $registro = $this->get('/api/materia-prima/hidrocooler/registro?formato=pdf&equipo=HIDRO-02&turno=A')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+        $this->assertStringContainsString('HIDRO-02', $registro->getContent());
+        $this->assertStringContainsString('Turno A', $registro->getContent());
 
         foreach ([$primerLote['id'], $segundoLote['id']] as $loteId) {
             $this->postJson("/api/materia-prima/lotes/{$loteId}/asignar-camara", [
@@ -289,12 +342,28 @@ class MateriaPrimaApiTest extends TestCase
         $inicio = [
             'operacion_id' => $inicioId,
             'equipo' => 'HIDRO-01',
+            'turno' => 'B',
+            'cantidad_bombas_funcionando' => 2,
             'inicio_at' => now()->subMinutes(75)->toAtomString(),
             'temperatura_inicial_c' => 19.4,
             'temperatura_objetivo_c' => 4,
             'temperatura_agua_inicial_c' => 1.9,
+            'cloro_libre_ppm' => 105,
+            'ph_agua' => 6.7,
+            'condicion_visual_agua' => 'conforme',
+            'dosificador_operativo' => true,
+            'manejo_agua' => 'filtrado',
             'observacion_inicio' => 'Carga completa verificada.',
         ];
+        $inicioSinBombas = $inicio;
+        $inicioSinBombas['cantidad_bombas_funcionando'] = 0;
+        $this->postJson(
+            "/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar",
+            $inicioSinBombas,
+        )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('cantidad_bombas_funcionando');
+
         $this->postJson(
             "/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar",
             $inicio,
@@ -319,12 +388,14 @@ class MateriaPrimaApiTest extends TestCase
                 'temperatura_agua_final_c' => 1.7,
                 'destino_salida' => 'proceso',
                 'observacion' => 'Liberado directamente a Packing.',
+                'accion_correctiva' => 'Se verificó el filtro antes de liberar.',
             ],
         )
             ->assertOk()
             ->assertJsonPath('data.estado', 'disponible_proceso')
             ->assertJsonPath('data.hidrocooler.duracion_minutos', 75)
             ->assertJsonPath('data.hidrocooler.destino_salida', 'proceso')
+            ->assertJsonPath('data.hidrocooler.accion_correctiva', 'Se verificó el filtro antes de liberar.')
             ->assertJsonPath('data.asignacion_camara', null);
 
         $this->getJson('/api/materia-prima/hidrocooler/resumen')

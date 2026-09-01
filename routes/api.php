@@ -209,6 +209,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lotes/{loteMateriaPrima}/asignar-camara', [MateriaPrimaController::class, 'asignarCamara']);
     });
     Route::middleware('can:consultar-hidrocooler-materia-prima')->prefix('materia-prima/hidrocooler')->group(function () {
+        Route::get('/registro/en-blanco', [HidrocoolerMateriaPrimaController::class, 'registroEnBlanco']);
+        Route::get('/registro', [HidrocoolerMateriaPrimaController::class, 'registro']);
         Route::get('/resumen', [HidrocoolerMateriaPrimaController::class, 'resumen']);
         Route::get('/lotes', [HidrocoolerMateriaPrimaController::class, 'index']);
     });

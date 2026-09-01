@@ -9,12 +9,18 @@ use App\Http\Resources\LoteMateriaPrimaResource;
 use App\Models\LoteMateriaPrima;
 use App\Models\ProcesoHidrocoolerMateriaPrima;
 use App\Models\Temporada;
+use App\Services\MateriaPrima\RegistroHidrocoolerPdf;
+use App\Services\MateriaPrima\RegistroHidrocoolerXlsx;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class HidrocoolerMateriaPrimaController extends Controller
 {
@@ -76,6 +82,7 @@ class HidrocoolerMateriaPrimaController extends Controller
             'bandeja' => ['nullable', Rule::in(['pendientes', 'en_curso', 'historial'])],
             'buscar' => ['nullable', 'string', 'max:100'],
             'equipo' => ['nullable', 'string', 'max:100'],
+            'turno' => ['nullable', Rule::in(['A', 'B'])],
             'destino' => ['nullable', Rule::in(['camara', 'proceso'])],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
@@ -99,15 +106,26 @@ class HidrocoolerMateriaPrimaController extends Controller
             ->when($request->filled('equipo'), fn (Builder $query) => $query
                 ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
                     ->where('equipo', $request->string('equipo')->toString())))
+            ->when($request->filled('turno'), fn (Builder $query) => $query
+                ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
+                    ->where('turno', $request->string('turno')->toString())))
             ->when($request->filled('destino'), fn (Builder $query) => $query
                 ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
                     ->where('destino_salida', $request->string('destino')->toString())))
             ->when($request->filled('desde'), fn (Builder $query) => $query
                 ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
-                    ->whereDate('inicio_at', '>=', $request->date('desde'))))
+                    ->where(
+                        'inicio_at',
+                        '>=',
+                        CarbonImmutable::parse($request->string('desde')->toString())->startOfDay(),
+                    )))
             ->when($request->filled('hasta'), fn (Builder $query) => $query
                 ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
-                    ->whereDate('inicio_at', '<=', $request->date('hasta'))))
+                    ->where(
+                        'inicio_at',
+                        '<',
+                        CarbonImmutable::parse($request->string('hasta')->toString())->addDay()->startOfDay(),
+                    )))
             ->when($request->filled('buscar'), function (Builder $query) use ($request): void {
                 $buscar = '%'.$request->string('buscar')->trim()->toString().'%';
                 $query->where(function (Builder $filtro) use ($buscar): void {
@@ -142,6 +160,137 @@ class HidrocoolerMateriaPrimaController extends Controller
         return LoteMateriaPrimaResource::collection(
             $consulta->paginate(min(200, max(1, $request->integer('per_page', 100)))),
         );
+    }
+
+    public function registro(
+        Request $request,
+        RegistroHidrocoolerXlsx $xlsx,
+        RegistroHidrocoolerPdf $pdf,
+    ): BinaryFileResponse|Response {
+        Gate::authorize('consultar-hidrocooler-materia-prima');
+        $request->validate($this->reglasRegistro());
+        $procesos = $this->procesosRegistro($request);
+
+        return $this->descargarRegistro(
+            $request->string('formato', 'xlsx')->toString(),
+            $procesos,
+            $xlsx,
+            $pdf,
+            false,
+        );
+    }
+
+    public function registroEnBlanco(
+        Request $request,
+        RegistroHidrocoolerXlsx $xlsx,
+        RegistroHidrocoolerPdf $pdf,
+    ): BinaryFileResponse|Response {
+        Gate::authorize('consultar-hidrocooler-materia-prima');
+        $request->validate([
+            'formato' => ['nullable', Rule::in(['xlsx', 'pdf'])],
+        ]);
+
+        return $this->descargarRegistro(
+            $request->string('formato', 'xlsx')->toString(),
+            collect(),
+            $xlsx,
+            $pdf,
+            true,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function reglasRegistro(): array
+    {
+        return [
+            'formato' => ['nullable', Rule::in(['xlsx', 'pdf'])],
+            'buscar' => ['nullable', 'string', 'max:100'],
+            'equipo' => ['nullable', 'string', 'max:100'],
+            'turno' => ['nullable', Rule::in(['A', 'B'])],
+            'destino' => ['nullable', Rule::in(['camara', 'proceso'])],
+            'desde' => ['nullable', 'date'],
+            'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
+        ];
+    }
+
+    /** @return Collection<int, ProcesoHidrocoolerMateriaPrima> */
+    private function procesosRegistro(Request $request): Collection
+    {
+        $temporada = Temporada::query()->where('activa', true)->first();
+        if (! $temporada) {
+            return collect();
+        }
+
+        return ProcesoHidrocoolerMateriaPrima::query()
+            ->where('estado', EstadoHidrocoolerMateriaPrima::Completado->value)
+            ->whereHas('lote', fn (Builder $lote) => $lote
+                ->where('temporada_id', $temporada->id))
+            ->when($request->filled('equipo'), fn (Builder $query) => $query
+                ->where('equipo', $request->string('equipo')->toString()))
+            ->when($request->filled('turno'), fn (Builder $query) => $query
+                ->where('turno', $request->string('turno')->toString()))
+            ->when($request->filled('destino'), fn (Builder $query) => $query
+                ->where('destino_salida', $request->string('destino')->toString()))
+            ->when($request->filled('desde'), fn (Builder $query) => $query
+                ->where('inicio_at', '>=', CarbonImmutable::parse($request->string('desde')->toString())->startOfDay()))
+            ->when($request->filled('hasta'), fn (Builder $query) => $query
+                ->where('inicio_at', '<', CarbonImmutable::parse($request->string('hasta')->toString())->addDay()->startOfDay()))
+            ->when(
+                ! $request->filled('desde') && ! $request->filled('hasta'),
+                fn (Builder $query) => $query->where('inicio_at', '>=', CarbonImmutable::today()->startOfDay()),
+            )
+            ->when($request->filled('buscar'), function (Builder $query) use ($request): void {
+                $buscar = '%'.$request->string('buscar')->trim()->toString().'%';
+                $query->where(function (Builder $filtro) use ($buscar): void {
+                    $filtro->where('codigo', 'like', $buscar)
+                        ->orWhere('equipo', 'like', $buscar)
+                        ->orWhereHas('lote', fn (Builder $lote) => $lote
+                            ->where('numero_lote', 'like', $buscar)
+                            ->orWhere('csg_snapshot', 'like', $buscar)
+                            ->orWhereHas('recepcion', fn (Builder $recepcion) => $recepcion
+                                ->where('numero_recepcion', 'like', $buscar))
+                            ->orWhereHas('cliente', fn (Builder $cliente) => $cliente
+                                ->where('nombre', 'like', $buscar)
+                                ->orWhere('codigo', 'like', $buscar)));
+                });
+            })
+            ->with([
+                'lote.temporada',
+                'lote.recepcion',
+                'lote.cliente',
+                'iniciadoPor',
+                'completadoPor',
+            ])
+            ->orderBy('inicio_at')
+            ->orderBy('codigo')
+            ->get();
+    }
+
+    /** @param Collection<int, ProcesoHidrocoolerMateriaPrima> $procesos */
+    private function descargarRegistro(
+        string $formato,
+        Collection $procesos,
+        RegistroHidrocoolerXlsx $xlsx,
+        RegistroHidrocoolerPdf $pdf,
+        bool $enBlanco,
+    ): BinaryFileResponse|Response {
+        $sufijo = $enBlanco ? 'en-blanco' : now()->format('Ymd-His');
+        if ($formato === 'pdf') {
+            $contenido = $enBlanco ? $pdf->generarEnBlanco() : $pdf->generar($procesos);
+
+            return response($contenido, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="registro-hidrocooler-'.$sufijo.'.pdf"',
+            ]);
+        }
+
+        $ruta = $enBlanco ? $xlsx->generarEnBlanco() : $xlsx->generar($procesos);
+
+        return response()->download(
+            $ruta,
+            'registro-hidrocooler-'.$sufijo.'.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        )->deleteFileAfterSend(true);
     }
 
     /** @return array<int, string> */
