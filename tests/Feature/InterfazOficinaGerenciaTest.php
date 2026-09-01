@@ -12,6 +12,7 @@ class InterfazOficinaGerenciaTest extends TestCase
             ->assertOk()
             ->assertSee('Panel gerencial')
             ->assertSee('Solo observación')
+            ->assertSee('TEMPORADA DEL PANEL')
             ->assertSee('CAPACIDAD DE CÁMARAS')
             ->assertSee('INVENTARIO DE MATERIALES')
             ->assertSee('Focos operacionales priorizados')
@@ -29,6 +30,7 @@ class InterfazOficinaGerenciaTest extends TestCase
             ->assertSee('managementLoadList', false)
             ->assertSee('managementPrecoolingList', false)
             ->assertSee('refreshDashboardButton', false)
+            ->assertSee('managementSeasonSelect', false)
             ->assertDontSee('<form id="create', false);
     }
 }

@@ -74,6 +74,35 @@ body {
     text-align: right;
 }
 
+.management-season {
+    display: grid;
+    min-width: 250px;
+    gap: 4px;
+    text-align: left;
+}
+
+.management-season select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid rgba(85, 229, 223, .3);
+    border-radius: 10px;
+    background: rgba(7, 24, 32, .94);
+    color: var(--text);
+    padding: 0 36px 0 12px;
+    font-size: .76rem;
+    font-weight: 800;
+}
+
+.management-season select:focus {
+    border-color: var(--cyan-light);
+    outline: 2px solid rgba(85, 229, 223, .12);
+}
+
+.management-season select:disabled {
+    cursor: wait;
+    opacity: .62;
+}
+
 .management-refresh > div {
     display: grid;
     gap: 2px;
@@ -505,6 +534,7 @@ body {
     .management-app { min-width: 760px; }
     .management-heading { align-items: flex-start; flex-direction: column; }
     .management-refresh { width: 100%; justify-content: space-between; text-align: left; }
+    .management-season { min-width: 220px; }
 }
 
 

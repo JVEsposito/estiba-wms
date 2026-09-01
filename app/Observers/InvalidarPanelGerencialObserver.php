@@ -19,6 +19,7 @@ use App\Models\ProcesoPrefrioFolio;
 use App\Models\RecepcionMaterial;
 use App\Models\RecepcionRomana;
 use App\Models\ReservaCargaFolio;
+use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\TunelPrefrio;
 use App\Models\UbicacionActual;
@@ -51,6 +52,7 @@ class InvalidarPanelGerencialObserver implements ShouldHandleEventsAfterCommit
             RecepcionMaterial::class,
             ItemMaterial::class,
             ClienteMaterial::class,
+            Temporada::class,
             TemporadaMaterial::class,
             TunelPrefrio::class,
             PosicionTunelPrefrio::class,

@@ -19,6 +19,8 @@ const elements = {
     accessesNav: byId('officeAccessesNav'),
     romanaNav: byId('officeRomanaNav'),
     rawMaterialNav: byId('officeRawMaterialNav'),
+    seasonSelect: byId('managementSeasonSelect'),
+    seasonStatus: byId('managementSeasonStatus'),
     refresh: byId('refreshDashboardButton'),
     lastUpdated: byId('lastUpdatedAt'),
     refreshStatus: byId('refreshStatus'),
@@ -106,6 +108,7 @@ const state = {
     token: localStorage.getItem(keys.token),
     identity: readJson(keys.identity),
     dashboard: null,
+    seasonId: null,
     loading: false,
     poller: null,
     charts: new Map(),
@@ -221,6 +224,7 @@ function clearSession() {
     state.token = null;
     state.identity = null;
     state.dashboard = null;
+    state.seasonId = null;
     localStorage.removeItem(keys.token);
     localStorage.removeItem(keys.identity);
     state.poller?.stop();
@@ -268,6 +272,7 @@ function setBusy(active, message = 'Actualizando indicadores…') {
     elements.loading.classList.toggle('is-hidden', !active);
     elements.loading.setAttribute('aria-hidden', String(!active));
     elements.refresh.disabled = active;
+    elements.seasonSelect.disabled = active;
 }
 
 function toast(message, error = false) {
@@ -312,8 +317,22 @@ function clampPercentage(value) {
     return Math.max(0, Math.min(100, Number(value || 0)));
 }
 
+function renderSeasonOptions(data) {
+    const selected = data.temporada;
+    const seasons = data.temporadas || [];
+    state.seasonId = selected?.id || null;
+    elements.seasonSelect.innerHTML = seasons.length
+        ? seasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.nombre)} · ${escapeHtml(season.codigo)}${season.activa ? ' (activa)' : ''}</option>`).join('')
+        : '<option value="">Sin temporadas configuradas</option>';
+    elements.seasonSelect.value = state.seasonId || '';
+    elements.seasonStatus.textContent = selected?.activa
+        ? 'Temporada global activa · capacidad física actual'
+        : 'Consulta histórica · capacidad física actual';
+}
+
 function renderDashboard(data) {
     state.dashboard = data;
+    renderSeasonOptions(data);
     const capacity = data.camaras.resumen;
     const products = data.productos;
     const loads = data.cargas;
@@ -701,7 +720,10 @@ async function loadDashboard({ blocking = false, silent = false } = {}) {
     elements.refreshStatus.textContent = 'Consultando la operación actual…';
 
     try {
-        const payload = await api('/api/gerencia/resumen');
+        const params = new URLSearchParams();
+        if (state.seasonId) params.set('temporada_id', state.seasonId);
+        const suffix = params.size ? `?${params}` : '';
+        const payload = await api(`/api/gerencia/resumen${suffix}`);
         renderDashboard(payload.data);
         if (!silent) toast('Panel actualizado con la información actual.');
     } catch (error) {
@@ -766,6 +788,10 @@ elements.logout.addEventListener('click', async () => {
 });
 
 elements.refresh.addEventListener('click', () => void loadDashboard());
+elements.seasonSelect.addEventListener('change', () => {
+    state.seasonId = elements.seasonSelect.value || null;
+    void loadDashboard({ blocking: true });
+});
 elements.materialUnitSelect.addEventListener('change', renderMaterialChart);
 
 document.addEventListener('estiba:office-panel-change', (event) => {

@@ -55,6 +55,13 @@
                     <p>Recepciones de romana, capacidad física, inventario utilizable y operación de prefrío al momento.</p>
                 </div>
                 <div class="management-refresh">
+                    <label class="management-season">
+                        <span>TEMPORADA DEL PANEL</span>
+                        <select id="managementSeasonSelect" aria-label="Temporada del panel gerencial">
+                            <option value="">Cargando temporada activa…</option>
+                        </select>
+                        <small id="managementSeasonStatus">Indicadores operacionales</small>
+                    </label>
                     <div>
                         <span>ÚLTIMA ACTUALIZACIÓN</span>
                         <strong id="lastUpdatedAt">Sin actualizar</strong>

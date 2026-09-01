@@ -29,6 +29,7 @@ use App\Models\MovimientoEnvase;
 use App\Models\ProcesoPrefrio;
 use App\Models\RecepcionMaterial;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use App\Models\ValidacionPallet;
 use Carbon\CarbonImmutable;
@@ -38,65 +39,87 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ServicioPanelGerencial
 {
-    public const CLAVE_CACHE = 'gerencia:panel:resumen:v2';
+    public const CLAVE_CACHE = 'gerencia:panel:resumen:v3';
 
     private const CLAVE_BLOQUEO = 'gerencia:panel:resumen:bloqueo';
+
+    private const CLAVE_VERSION_CACHE = 'gerencia:panel:resumen:version';
 
     /**
      * @return array<string, mixed>
      */
-    public function obtener(): array
+    public function obtener(Temporada $temporada): array
     {
-        $instantanea = Cache::get(self::CLAVE_CACHE);
+        $clave = $this->claveCache($temporada->id);
+        $instantanea = Cache::get($clave);
 
         if (is_array($instantanea)) {
             return $instantanea;
         }
 
         try {
-            return Cache::lock(self::CLAVE_BLOQUEO, 15)->block(
+            return Cache::lock($this->claveBloqueo($temporada->id), 15)->block(
                 5,
                 fn (): array => Cache::remember(
-                    self::CLAVE_CACHE,
+                    $clave,
                     $this->segundosCache(),
-                    fn (): array => $this->construir(),
+                    fn (): array => $this->construir($temporada),
                 ),
             );
         } catch (LockTimeoutException) {
             return Cache::remember(
-                self::CLAVE_CACHE,
+                $clave,
                 $this->segundosCache(),
-                fn (): array => $this->construir(),
+                fn (): array => $this->construir($temporada),
             );
         }
     }
 
     public function invalidar(): void
     {
-        Cache::forget(self::CLAVE_CACHE);
+        Cache::forever(self::CLAVE_VERSION_CACHE, (string) Str::uuid());
+    }
+
+    public function claveCache(string $temporadaId): string
+    {
+        return implode(':', [
+            self::CLAVE_CACHE,
+            $this->versionCache(),
+            $temporadaId,
+        ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function construir(): array
+    private function construir(Temporada $temporada): array
     {
         $camaras = $this->camaras();
-        $productos = $this->productos();
-        $cargas = $this->cargas();
-        $validacion = $this->validacion();
-        $materiales = $this->materiales();
-        $prefrio = $this->prefrio();
-        $romana = $this->romana();
-        $materiaPrima = $this->materiaPrima();
-        $envases = $this->envases();
+        $productos = $this->productos($temporada->id);
+        $cargas = $this->cargas($temporada->id);
+        $validacion = $this->validacion($temporada->id);
+        $materiales = $this->materiales($temporada->id);
+        $prefrio = $this->prefrio($temporada->id);
+        $romana = $this->romana($temporada->id);
+        $materiaPrima = $this->materiaPrima($temporada->id);
+        $envases = $this->envases($temporada->id);
 
         return [
             'generado_at' => now()->toAtomString(),
             'actualizacion_segundos' => 30,
+            'temporada' => $this->temporada($temporada),
+            'temporadas' => Temporada::query()
+                ->orderByDesc('activa')
+                ->orderByDesc('fecha_inicio')
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (Temporada $opcion): array => $this->temporada($opcion))
+                ->values()
+                ->all(),
             'camaras' => $camaras,
             'productos' => $productos,
             'cargas' => $cargas,
@@ -184,9 +207,10 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function productos(): array
+    private function productos(string $temporadaId): array
     {
         $base = Folio::query()
+            ->where('temporada_id', $temporadaId)
             ->where('activo', true)
             ->whereIn('tipo_bulto', [TipoBulto::Pallet->value, TipoBulto::Saldo->value]);
         $total = (clone $base)->count();
@@ -248,10 +272,11 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function cargas(): array
+    private function cargas(string $temporadaId): array
     {
         $estadosActivos = collect(EstadoCarga::visiblesEnOperacion())->map->value->all();
         $porEstado = Carga::query()
+            ->where('temporada_id', $temporadaId)
             ->whereIn('estado', $estadosActivos)
             ->groupBy('estado')
             ->select('estado')
@@ -259,13 +284,19 @@ class ServicioPanelGerencial
             ->pluck('total', 'estado');
         $folios = CargaFolio::query()
             ->whereHas('reservaActiva')
-            ->whereHas('carga', fn (Builder $consulta): Builder => $consulta->whereIn('estado', $estadosActivos));
+            ->whereHas(
+                'carga',
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('temporada_id', $temporadaId)
+                    ->whereIn('estado', $estadosActivos),
+            );
         $detalle = Carga::query()
             ->withCount('asignacionesActuales')
             ->with([
                 'camaraObjetivo:id,codigo,nombre',
                 'andenPrevisto:id,codigo,nombre',
             ])
+            ->where('temporada_id', $temporadaId)
             ->whereIn('estado', $estadosActivos)
             ->oldest('created_at')
             ->limit(8)
@@ -308,6 +339,7 @@ class ServicioPanelGerencial
                 ->where('estado', EstadoCargaFolio::ConIncidencia->value)
                 ->count(),
             'cerradas_hoy' => Carga::query()
+                ->where('temporada_id', $temporadaId)
                 ->whereIn('estado', [EstadoCarga::Despachada->value, EstadoCarga::Cerrada->value])
                 ->where('cerrada_at', '>=', now()->startOfDay())
                 ->count(),
@@ -318,16 +350,19 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function validacion(): array
+    private function validacion(string $temporadaId): array
     {
         $inicio = now()->startOfDay();
-        $baseHoy = ValidacionPallet::query()->where('recibido_servidor_at', '>=', $inicio);
+        $baseHoy = ValidacionPallet::query()
+            ->where('temporada_id', $temporadaId)
+            ->where('recibido_servidor_at', '>=', $inicio);
         $porResultado = (clone $baseHoy)
             ->groupBy('resultado')
             ->select('resultado')
             ->selectRaw('COUNT(*) as total')
             ->pluck('total', 'resultado');
         $ultima = ValidacionPallet::query()
+            ->where('temporada_id', $temporadaId)
             ->latest('recibido_servidor_at')
             ->first(['numero_folio', 'resultado', 'recibido_servidor_at']);
 
@@ -347,7 +382,7 @@ class ServicioPanelGerencial
         ];
     }
 
-    private function materiales(): array
+    private function materiales(string $temporadaId): array
     {
         $filas = DB::table('folios_materiales as fm')
             ->join('folios as f', 'f.id', '=', 'fm.folio_id')
@@ -357,6 +392,8 @@ class ServicioPanelGerencial
             ->leftJoin('ubicaciones_actuales as ua', 'ua.folio_id', '=', 'f.id')
             ->leftJoin('posiciones as p', 'p.id', '=', 'ua.posicion_id')
             ->leftJoin('camaras as c', 'c.id', '=', 'p.camara_id')
+            ->where('tm.temporada_id', $temporadaId)
+            ->where('f.temporada_id', $temporadaId)
             ->where('f.activo', true)
             ->where('i.activo', true)
             ->where('fm.cantidad_actual', '>', 0)
@@ -513,19 +550,23 @@ class ServicioPanelGerencial
             'items_con_stock' => $filas->pluck('item_id')->unique()->count(),
             'folios_con_stock' => (int) $filas->sum('folios'),
             'despachos_abiertos' => DespachoMaterial::query()
+                ->where('temporada_id', $temporadaId)
                 ->whereIn('estado', [
                     EstadoDespachoMaterial::Pendiente->value,
                     EstadoDespachoMaterial::Parcial->value,
                 ])
                 ->count(),
             'despachos_parciales' => DespachoMaterial::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('estado', EstadoDespachoMaterial::Parcial->value)
                 ->count(),
             'recepciones_confirmadas_hoy' => RecepcionMaterial::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('estado', EstadoRecepcionMaterial::Confirmada->value)
                 ->where('confirmado_at', '>=', now()->startOfDay())
                 ->count(),
             'recepciones_borrador' => RecepcionMaterial::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('estado', EstadoRecepcionMaterial::Borrador->value)
                 ->count(),
             'unidades_medida' => $porUnidad->all(),
@@ -538,9 +579,10 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function materiaPrima(): array
+    private function materiaPrima(string $temporadaId): array
     {
         $base = LoteMateriaPrima::query()
+            ->where('temporada_id', $temporadaId)
             ->where('estado', '!=', EstadoLoteMateriaPrima::Anulado->value);
         $porEstado = (clone $base)
             ->groupBy('estado')
@@ -573,10 +615,12 @@ class ServicioPanelGerencial
                 0,
             ),
             'confirmados_hoy' => LoteMateriaPrima::query()
+                ->where('temporada_id', $temporadaId)
                 ->whereNotNull('confirmado_at')
                 ->where('confirmado_at', '>=', now()->startOfDay())
                 ->count(),
             'kilos_confirmados_hoy' => round((float) LoteMateriaPrima::query()
+                ->where('temporada_id', $temporadaId)
                 ->whereNotNull('confirmado_at')
                 ->where('confirmado_at', '>=', now()->startOfDay())
                 ->sum('kilos_netos_confirmados'), 2),
@@ -586,23 +630,27 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function envases(): array
+    private function envases(string $temporadaId): array
     {
-        $hoy = MovimientoEnvase::query()->where('ocurrido_at', '>=', now()->startOfDay());
+        $hoy = MovimientoEnvase::query()
+            ->where('temporada_id', $temporadaId)
+            ->where('ocurrido_at', '>=', now()->startOfDay());
 
         return [
             'movimientos_hoy' => (clone $hoy)->count(),
             'unidades_movidas_hoy' => (int) (clone $hoy)->sum('cantidad'),
             'pendientes_revision' => MovimientoEnvase::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('estado_revision', EstadoRevisionMovimientoEnvase::Pendiente->value)
                 ->count(),
             'observados' => MovimientoEnvase::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('estado_revision', EstadoRevisionMovimientoEnvase::Observado->value)
                 ->count(),
         ];
     }
 
-    private function prefrio(): array
+    private function prefrio(string $temporadaId): array
     {
         $estadosActivos = collect(EstadoProcesoPrefrio::cases())
             ->filter->esActivo()
@@ -622,14 +670,16 @@ class ServicioPanelGerencial
             ])
             ->orderBy('codigo')
             ->get()
-            ->map(function (TunelPrefrio $tunel): array {
+            ->map(function (TunelPrefrio $tunel) use ($temporadaId): array {
                 $operativo = $tunel->estado_administrativo === EstadoAdministrativoTunelPrefrio::Activo
                     && $tunel->estado_tecnico === EstadoTecnicoTunelPrefrio::Operativo;
                 $capacidad = $operativo ? (int) $tunel->posiciones_activas_count : 0;
                 $ocupadas = $operativo
                     ? min($capacidad, (int) ($tunel->procesoActivo?->folios_activos_count ?? 0))
                     : 0;
-                $proceso = $tunel->procesoActivo;
+                $proceso = $tunel->procesoActivo?->temporada_id === $temporadaId
+                    ? $tunel->procesoActivo
+                    : null;
                 $transcurridos = $proceso?->iniciado_at
                     ? (int) $proceso->iniciado_at->diffInMinutes(now())
                     : null;
@@ -671,6 +721,7 @@ class ServicioPanelGerencial
         $capacidad = (int) $tuneles->sum('capacidad');
         $ocupadas = (int) $tuneles->sum('ocupadas');
         $completados = ProcesoPrefrio::query()
+            ->where('temporada_id', $temporadaId)
             ->whereIn('estado', [
                 EstadoProcesoPrefrio::Aprobado->value,
                 EstadoProcesoPrefrio::RequiereReproceso->value,
@@ -686,7 +737,10 @@ class ServicioPanelGerencial
         return [
             'tuneles_operativos' => $tuneles->where('operativo', true)->count(),
             'tuneles_totales' => $tuneles->count(),
-            'procesos_activos' => ProcesoPrefrio::query()->whereIn('estado', $estadosActivos)->count(),
+            'procesos_activos' => ProcesoPrefrio::query()
+                ->where('temporada_id', $temporadaId)
+                ->whereIn('estado', $estadosActivos)
+                ->count(),
             'procesos_atrasados' => $tuneles
                 ->filter(fn (array $tunel): bool => (bool) ($tunel['proceso_activo']['atrasado'] ?? false))
                 ->count(),
@@ -702,6 +756,7 @@ class ServicioPanelGerencial
                 ? (int) round($duraciones->average())
                 : null,
             'folios_pendientes' => Folio::query()
+                ->where('temporada_id', $temporadaId)
                 ->where('activo', true)
                 ->where('estado_operacional', EstadoOperacionalFolio::PendientePrefrio->value)
                 ->whereIn('tipo_bulto', [TipoBulto::Pallet->value, TipoBulto::Saldo->value])
@@ -717,12 +772,13 @@ class ServicioPanelGerencial
     /**
      * @return array<string, mixed>
      */
-    private function romana(): array
+    private function romana(string $temporadaId): array
     {
         $hoy = CarbonImmutable::today();
         $inicio = $hoy->subDays(6)->startOfDay();
         $termino = $hoy->addDay()->startOfDay();
         $porEstado = RecepcionRomana::query()
+            ->where('temporada_id', $temporadaId)
             ->whereIn('estado', [
                 EstadoRecepcionRomana::EnBasculaIngreso->value,
                 EstadoRecepcionRomana::EnPesajeEnvases->value,
@@ -733,6 +789,7 @@ class ServicioPanelGerencial
             ->selectRaw('COUNT(*) as total')
             ->pluck('total', 'estado');
         $porDia = RecepcionRomana::query()
+            ->where('temporada_id', $temporadaId)
             ->where('estado', EstadoRecepcionRomana::Cerrado->value)
             ->where('salida_at', '>=', $inicio)
             ->where('salida_at', '<', $termino)
@@ -973,6 +1030,33 @@ class ServicioPanelGerencial
             ->sortBy(fn (array $alerta): int => $prioridad[$alerta['nivel']] ?? 3)
             ->values()
             ->all();
+    }
+
+    /** @return array<string, mixed> */
+    private function temporada(Temporada $temporada): array
+    {
+        return [
+            'id' => $temporada->id,
+            'codigo' => $temporada->codigo,
+            'nombre' => $temporada->nombre,
+            'fecha_inicio' => $temporada->fecha_inicio?->toDateString(),
+            'fecha_fin' => $temporada->fecha_fin?->toDateString(),
+            'activa' => $temporada->activa,
+        ];
+    }
+
+    private function claveBloqueo(string $temporadaId): string
+    {
+        return implode(':', [
+            self::CLAVE_BLOQUEO,
+            $this->versionCache(),
+            $temporadaId,
+        ]);
+    }
+
+    private function versionCache(): string
+    {
+        return (string) Cache::get(self::CLAVE_VERSION_CACHE, '1');
     }
 
     private function porcentaje(int|float $parte, int|float $total): float

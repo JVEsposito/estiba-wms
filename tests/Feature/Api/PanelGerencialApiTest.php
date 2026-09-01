@@ -20,6 +20,7 @@ use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Models\ValidacionPallet;
@@ -41,6 +42,7 @@ class PanelGerencialApiTest extends TestCase
 
     public function test_entrega_una_instantanea_gerencial_con_capacidad_stock_y_disponibilidad(): void
     {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
         $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $this->crearProductoUbicado('PROD-001');
@@ -66,6 +68,9 @@ class PanelGerencialApiTest extends TestCase
             ->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('data.actualizacion_segundos', 30)
+            ->assertJsonPath('data.temporada.id', $temporada->id)
+            ->assertJsonPath('data.temporada.activa', true)
+            ->assertJsonPath('data.temporadas.0.id', $temporada->id)
             ->assertJsonPath('data.camaras.resumen.operativas', 3)
             ->assertJsonPath('data.camaras.resumen.ocupadas', 2)
             ->assertJsonPath('data.camaras.resumen.disponibles', 1)
@@ -116,6 +121,55 @@ class PanelGerencialApiTest extends TestCase
         $this->assertNotNull($respuesta->json('data.generado_at'));
     }
 
+    public function test_filtra_por_temporada_activa_y_permite_consultar_una_historica(): void
+    {
+        $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
+        $vigente = Temporada::query()->where('activa', true)->firstOrFail();
+        $anterior = Temporada::create([
+            'codigo' => '2025-2026',
+            'nombre' => 'Temporada cerezas 2025–2026',
+            'fecha_inicio' => '2025-10-01',
+            'fecha_fin' => '2026-02-28',
+            'activa' => false,
+        ]);
+        Folio::create([
+            'temporada_id' => $vigente->id,
+            'numero_folio' => 'VIGENTE-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        Folio::create([
+            'temporada_id' => $anterior->id,
+            'numero_folio' => 'HISTORICO-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::Bloqueado,
+            'fecha_ingreso' => now()->subYear(),
+            'activo' => true,
+        ]);
+
+        $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.temporada.id', $vigente->id)
+            ->assertJsonPath('data.temporada.activa', true)
+            ->assertJsonPath('data.productos.total_activos', 1)
+            ->assertJsonPath('data.productos.pendientes_ubicacion', 1)
+            ->assertJsonPath('data.productos.bloqueados', 0)
+            ->assertJsonPath('data.temporadas.0.id', $vigente->id)
+            ->assertJsonPath('data.temporadas.1.id', $anterior->id);
+
+        $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen?temporada_id='.$anterior->id)
+            ->assertOk()
+            ->assertJsonPath('data.temporada.id', $anterior->id)
+            ->assertJsonPath('data.temporada.activa', false)
+            ->assertJsonPath('data.productos.total_activos', 1)
+            ->assertJsonPath('data.productos.pendientes_ubicacion', 0)
+            ->assertJsonPath('data.productos.bloqueados', 1);
+    }
+
     public function test_restringe_el_panel_a_perfiles_gerenciales_de_solo_consulta(): void
     {
         $operador = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
@@ -128,7 +182,10 @@ class PanelGerencialApiTest extends TestCase
 
     public function test_reutiliza_la_instantanea_y_la_invalida_ante_cambios_operacionales(): void
     {
-        Cache::forget(ServicioPanelGerencial::CLAVE_CACHE);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $servicio = app(ServicioPanelGerencial::class);
+        $servicio->invalidar();
+        $claveCache = $servicio->claveCache($temporada->id);
         $this->travelTo(CarbonImmutable::parse('2026-07-29 09:00:00'));
         $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
 
@@ -150,7 +207,7 @@ class PanelGerencialApiTest extends TestCase
         $consultasSegunda = count(DB::getQueryLog());
 
         $this->assertSame($primera['generado_at'], $segunda['generado_at']);
-        $this->assertTrue(Cache::has(ServicioPanelGerencial::CLAVE_CACHE));
+        $this->assertTrue(Cache::has($claveCache));
         $this->assertGreaterThan(0, $consultasPrimera);
         $this->assertLessThan($consultasPrimera, $consultasSegunda);
 
@@ -164,7 +221,8 @@ class PanelGerencialApiTest extends TestCase
         $observador = app(InvalidarPanelGerencialObserver::class);
         $this->assertInstanceOf(ShouldHandleEventsAfterCommit::class, $observador);
         $observador->saved($folio);
-        $this->assertFalse(Cache::has(ServicioPanelGerencial::CLAVE_CACHE));
+        $this->assertNotSame($claveCache, $servicio->claveCache($temporada->id));
+        $this->assertFalse(Cache::has($servicio->claveCache($temporada->id)));
 
         $this->travel(1)->second();
         $tercera = $this->actingAs($gerencia, 'sanctum')
@@ -184,6 +242,10 @@ class PanelGerencialApiTest extends TestCase
         );
         $this->assertContains(
             ValidacionPallet::class,
+            InvalidarPanelGerencialObserver::modelosObservados(),
+        );
+        $this->assertContains(
+            Temporada::class,
             InvalidarPanelGerencialObserver::modelosObservados(),
         );
     }
@@ -373,6 +435,7 @@ class PanelGerencialApiTest extends TestCase
         }
 
         $proceso = ProcesoPrefrio::create([
+            'temporada_id' => $folio->temporada_id,
             'codigo' => 'PF-GE-01',
             'operacion_id' => (string) Str::uuid(),
             'payload_hash' => hash('sha256', 'panel-gerencial'),
