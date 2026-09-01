@@ -102,6 +102,7 @@
                     <label class="field field--span-2"><span>Temporada global *</span><select name="temporada_id" required><option value="">Seleccionar temporada activa</option></select></label>
                     <label class="field field--span-2"><span>Cliente *</span><select name="cliente_id" required><option value="">Seleccionar cliente activo</option></select></label>
                     <label class="field"><span>Tipo de recepción *</span><select name="tipo_recepcion" required></select></label>
+                    <label class="field is-hidden" id="containerEntryDateField"><span>Fecha de ingreso *</span><input name="fecha_ingreso" type="date" max="{{ now(config('app.operational_timezone'))->toDateString() }}" disabled><small>Disponible solo para ingresos documentales de envases.</small></label>
                     <label class="field is-hidden" id="containerConceptField"><span>Concepto de envases *</span><select name="concepto_envases"></select></label>
                     <label class="field" id="serviceField"><span>Servicio de fruta *</span><select name="tipo_servicio" required></select></label>
                     <label class="field"><span>Guía de despacho *</span><input name="numero_guia_despacho" maxlength="80" required></label>

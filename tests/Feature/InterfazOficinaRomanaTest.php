@@ -20,6 +20,8 @@ class InterfazOficinaRomanaTest extends TestCase
             ->assertSee('El camión sale sin los envases')
             ->assertSee('Tara de envases retenidos')
             ->assertSee('Peso bruto')
+            ->assertSee('Fecha de ingreso')
+            ->assertSee('containerEntryDateField', false)
             ->assertSee('Peso tara')
             ->assertSee('Aviso de Recibo PDF')
             ->assertSee('Planilla de pesaje en blanco')

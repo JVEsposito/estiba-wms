@@ -34,6 +34,7 @@ class GuiaDespachoEnvasesApiTest extends TestCase
             'temporada_id' => $temporada->id,
             'cliente_id' => $arrendador->id,
             'tipo_recepcion' => 'solo_envases',
+            'fecha_ingreso' => now(config('app.operational_timezone'))->toDateString(),
             'concepto_envases' => 'arriendo',
             'envases' => [['tipo_envase' => 'bins', 'cantidad' => 100]],
             'numero_guia_despacho' => 'ARR-GD-100',

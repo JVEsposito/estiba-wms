@@ -276,6 +276,7 @@ class RecepcionRomanaController extends Controller
     private function recepcion(RecepcionRomana $recepcion, bool $conEventos = false): array
     {
         $esPesajeEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::FrutaPesajeEnvases;
+        $esSoloEnvases = $recepcion->tipo_recepcion === TipoRecepcionRomana::SoloEnvases;
         $cantidadDeclaradaPesaje = $esPesajeEnvases
             ? (int) ($recepcion->detallesEnvases
                 ->first(fn ($detalle): bool => $detalle->tipo_envase === $recepcion->tipo_envase_pesaje)
@@ -359,6 +360,11 @@ class RecepcionRomanaController extends Controller
                     ? $recepcion->pesajesEnvases->whereNull('anulado_at')->count()
                     : null,
             ] : null,
+            'fecha_ingreso' => $esSoloEnvases
+                ? $recepcion->ingreso_at?->copy()
+                    ->setTimezone(config('app.operational_timezone'))
+                    ->toDateString()
+                : null,
             'ingreso_at' => $recepcion->ingreso_at?->toAtomString(),
             'ingreso_confirmado_at' => $recepcion->ingreso_confirmado_at?->toAtomString(),
             'salida_at' => $recepcion->salida_at?->toAtomString(),

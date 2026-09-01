@@ -7,6 +7,7 @@ use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
 use App\Rules\RutChileno;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -21,6 +22,7 @@ class CrearRecepcionRomanaRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $esSoloEnvases = $this->input('tipo_recepcion') === TipoRecepcionRomana::SoloEnvases->value;
         $esPesajeEnvases = $this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaPesajeEnvases->value;
         $requierePesoBruto = $this->input('tipo_recepcion') === TipoRecepcionRomana::FrutaConEnvases->value;
 
@@ -29,9 +31,15 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'temporada_id' => ['required', 'uuid', Rule::exists('temporadas', 'id')->where('activa', true)],
             'cliente_id' => ['required', 'uuid', Rule::exists('clientes', 'id')->where('activo', true)],
             'tipo_recepcion' => ['required', Rule::enum(TipoRecepcionRomana::class)],
+            'fecha_ingreso' => [
+                'nullable',
+                Rule::requiredIf($esSoloEnvases),
+                'date_format:Y-m-d',
+                'before_or_equal:'.CarbonImmutable::now(config('app.operational_timezone'))->toDateString(),
+            ],
             'concepto_envases' => [
                 'nullable',
-                Rule::requiredIf($this->input('tipo_recepcion') === TipoRecepcionRomana::SoloEnvases->value),
+                Rule::requiredIf($esSoloEnvases),
                 Rule::enum(ConceptoEnvasesRomana::class),
             ],
             'tipo_servicio' => [
@@ -81,6 +89,9 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'cliente_id.required' => 'Selecciona el cliente del servicio.',
             'cliente_id.exists' => 'El cliente seleccionado no está activo.',
             'tipo_recepcion.required' => 'Selecciona el tipo de recepción.',
+            'fecha_ingreso.required' => 'Selecciona la fecha de ingreso de los envases.',
+            'fecha_ingreso.date_format' => 'La fecha de ingreso de los envases no es válida.',
+            'fecha_ingreso.before_or_equal' => 'La fecha de ingreso de los envases no puede ser futura.',
             'concepto_envases.required' => 'Indica si los envases ingresan por compra o arriendo.',
             'tipo_servicio.required' => 'Selecciona el servicio contratado para la fruta.',
             'envases.required' => 'Registra al menos un tipo de envase declarado en la guía.',
@@ -135,6 +146,9 @@ class CrearRecepcionRomanaRequest extends FormRequest
         $this->merge([
             'concepto_envases' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
                 ? $this->input('concepto_envases')
+                : null,
+            'fecha_ingreso' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
+                ? $this->input('fecha_ingreso')
                 : null,
             'tipo_servicio' => $tipoRecepcion === TipoRecepcionRomana::SoloEnvases->value
                 ? 'almacenaje'

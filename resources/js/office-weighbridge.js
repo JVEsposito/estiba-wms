@@ -12,7 +12,7 @@ const elements = {
     editReception: byId('editReceptionButton'), confirmEntry: byId('confirmEntryButton'), addContainerWeighing: byId('addContainerWeighingButton'), closeReception: byId('closeReceptionButton'), downloadReceipt: byId('downloadReceiptButton'), closeDetail: byId('closeDetailButton'),
     containerWeighingPanel: byId('containerWeighingPanel'), containerWeighingProgress: byId('containerWeighingProgress'), containerWeighingList: byId('containerWeighingList'),
     receptionDialog: byId('receptionDialog'), receptionForm: byId('receptionForm'), receptionDialogTitle: byId('receptionDialogTitle'), receptionDialogDescription: byId('receptionDialogDescription'), receptionFormError: byId('receptionFormError'), saveReception: byId('saveReceptionButton'),
-    serviceField: byId('serviceField'), containerConceptField: byId('containerConceptField'), standardContainerLines: byId('standardContainerLines'), containerWeighingFields: byId('containerWeighingFields'), grossWeightField: byId('grossWeightField'), administrativeCorrectionField: byId('administrativeCorrectionField'), administrativeTareField: byId('administrativeTareField'), administrativeNetContainerField: byId('administrativeNetContainerField'),
+    serviceField: byId('serviceField'), containerEntryDateField: byId('containerEntryDateField'), containerConceptField: byId('containerConceptField'), standardContainerLines: byId('standardContainerLines'), containerWeighingFields: byId('containerWeighingFields'), grossWeightField: byId('grossWeightField'), administrativeCorrectionField: byId('administrativeCorrectionField'), administrativeTareField: byId('administrativeTareField'), administrativeNetContainerField: byId('administrativeNetContainerField'),
     tareDialog: byId('tareDialog'), tareForm: byId('tareForm'), tareDescription: byId('tareDescription'), tareFormError: byId('tareFormError'), outboundContainerTares: byId('outboundContainerTares'), outboundContainerTareList: byId('outboundContainerTareList'), containerTarePreviewRow: byId('containerTarePreviewRow'), containerTarePreview: byId('containerTarePreview'), netWeightPreview: byId('netWeightPreview'), netPerContainerPreview: byId('netPerContainerPreview'),
     containerWeighingDialog: byId('containerWeighingDialog'), containerWeighingForm: byId('containerWeighingForm'), containerWeighingDescription: byId('containerWeighingDescription'), containerWeighingFormError: byId('containerWeighingFormError'), containerWeighingTarePreview: byId('containerWeighingTarePreview'), containerWeighingNetPreview: byId('containerWeighingNetPreview'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
@@ -327,7 +327,7 @@ function openEditReception() {
     elements.receptionForm.reset(); elements.receptionFormError.textContent = '';
     configureAdministrativeCorrection(canCorrect);
     elements.receptionDialogTitle.textContent = canCorrect ? 'Corregir recepción' : 'Editar pesaje de ingreso';
-    form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_recepcion.value = reception.tipo_recepcion; form.concepto_envases.value = reception.concepto_envases || ''; form.tipo_servicio.value = reception.tipo_servicio;
+    form.recepcion_id.value = reception.id; form.temporada_id.value = reception.temporada.id; form.cliente_id.value = reception.cliente.id; form.tipo_recepcion.value = reception.tipo_recepcion; form.fecha_ingreso.value = reception.fecha_ingreso || ''; form.concepto_envases.value = reception.concepto_envases || ''; form.tipo_servicio.value = reception.tipo_servicio;
     form.numero_guia_despacho.value = reception.numero_guia_despacho;
     ['bins', 'totes', 'esponjas'].forEach((tipo) => { const item = reception.envases.find((envase) => envase.tipo_envase === tipo); form[`cantidad_${tipo}`].value = item?.cantidad_declarada || 0; });
     if (reception.pesaje_envases) {
@@ -617,18 +617,22 @@ function toggleReceptionType() {
     const soloEnvases = form.tipo_recepcion.value === 'solo_envases';
     const cumulativeWeighing = form.tipo_recepcion.value === 'fruta_pesaje_envases';
     elements.serviceField.classList.toggle('is-hidden', soloEnvases);
+    elements.containerEntryDateField.classList.toggle('is-hidden', !soloEnvases);
     elements.containerConceptField.classList.toggle('is-hidden', !soloEnvases);
     elements.standardContainerLines.classList.toggle('is-hidden', cumulativeWeighing);
     elements.containerWeighingFields.classList.toggle('is-hidden', !cumulativeWeighing);
     elements.grossWeightField.classList.toggle('is-hidden', cumulativeWeighing || soloEnvases);
     form.tipo_servicio.required = !soloEnvases;
+    form.fecha_ingreso.disabled = !soloEnvases;
+    form.fecha_ingreso.required = soloEnvases;
+    if (soloEnvases && !form.fecha_ingreso.value) form.fecha_ingreso.value = form.fecha_ingreso.max;
     form.concepto_envases.required = soloEnvases;
     form.peso_bruto.required = !cumulativeWeighing && !soloEnvases;
     form.tipo_envase_pesaje.required = cumulativeWeighing;
     form.cantidad_envases_pesaje.required = cumulativeWeighing;
     form.tara_unitaria_envase.required = cumulativeWeighing;
     elements.receptionDialogDescription.textContent = soloEnvases
-        ? 'Registra guía, cliente, transporte y cantidades. Esta recepción no utiliza kilos.'
+        ? 'Selecciona la fecha efectiva y registra guía, cliente, transporte y cantidades. Esta recepción no utiliza kilos.'
         : cumulativeWeighing
             ? 'Configura el envase y registra después sus pesajes por tandas.'
             : 'Captura los antecedentes documentales y el peso del camión cargado.';
