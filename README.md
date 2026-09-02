@@ -128,6 +128,7 @@ El repositorio es un monorepo: Laravel y las oficinas web viven en la raíz; la 
 | Ruta | Función |
 |---|---|
 | `/oficina/accesos` | Usuarios, dispositivos, clientes globales, temporadas y migración de ciclo |
+| `/oficina/demo` | Escenario comercial ficticio, aislado por pestaña y habilitado solo por un administrador |
 | `/oficina/romana` | Pesaje, recepción, tara, cierre y Aviso de Recibo |
 | `/oficina/materia-prima` | Oficina madre, digitación de lotes, hidrocooler y asignación |
 | `/oficina/envases/cuenta-corriente` | Existencia y cuenta corriente de envases |

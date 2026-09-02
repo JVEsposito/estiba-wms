@@ -13,6 +13,8 @@ export default defineConfig({
                 'resources/js/office-navigation.js',
                 'resources/css/office-domain-lobby.css',
                 'resources/js/office-domain-lobby.js',
+                'resources/css/office-demo.css',
+                'resources/js/office-demo.js',
                 'resources/js/office-cameras.js',
                 'resources/css/office-loads.css',
                 'resources/js/office-loads.js',

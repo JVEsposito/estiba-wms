@@ -81,6 +81,7 @@
                     ['module' => 'administracion.maestros-temporada', 'permissions' => ['puede_administrar_catalogos_validacion'], 'href' => '/oficina/administracion/maestros-temporada', 'icon' => '≡', 'eyebrow' => 'CATÁLOGOS', 'title' => 'Maestros de temporada', 'description' => 'Mantiene clientes, especies, variedades, calibres y combinaciones.'],
                     ['module' => 'administracion.camaras', 'permissions' => ['puede_consultar_configuracion_camaras'], 'href' => '/oficina/administracion/camaras', 'icon' => '▦', 'eyebrow' => 'INFRAESTRUCTURA', 'title' => 'Configuración de cámaras', 'description' => 'Define dimensiones, contenido, posiciones y estado administrativo.'],
                     ['module' => 'administracion.integridad-operacional', 'permissions' => ['puede_consultar_integridad_operacional'], 'href' => '/oficina/administracion/integridad-operacional', 'icon' => '⌁', 'eyebrow' => 'CONTROL', 'title' => 'Salud operacional', 'description' => 'Detecta discrepancias de estados, trazabilidad y proyecciones.'],
+                    ['module' => '', 'permissions' => ['puede_habilitar_demo'], 'href' => '/oficina/demo', 'icon' => '▶', 'eyebrow' => 'PRESENTACIÓN', 'title' => 'Demo comercial', 'description' => 'Habilita un escenario ficticio y aislado para gerencia, compradores e inversionistas.'],
                 ],
             ],
             'consultas' => [

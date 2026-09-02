@@ -57,6 +57,7 @@ Route::post('/acceso-oficina', [AccesoOficinaController::class, 'store'])->middl
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
+    Route::get('/demo/autorizar', [AccesoOficinaController::class, 'autorizarDemo']);
     Route::get('/gerencia/resumen', PanelGerencialController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/administracion/integridad-operacional', [IntegridadOperacionalController::class, 'index'])

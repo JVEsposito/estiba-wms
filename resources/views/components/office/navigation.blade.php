@@ -48,6 +48,7 @@
             ['key' => 'maestros-temporada', 'module' => 'administracion.maestros-temporada', 'label' => 'Maestros de temporada', 'href' => '/oficina/administracion/maestros-temporada', 'permissions' => ['puede_administrar_catalogos_validacion']],
             ['key' => 'configuracion-camaras', 'module' => 'administracion.camaras', 'label' => 'Configuración de cámaras', 'href' => '/oficina/administracion/camaras', 'permissions' => ['puede_consultar_configuracion_camaras']],
             ['key' => 'integridad-operacional', 'module' => 'administracion.integridad-operacional', 'label' => 'Salud operacional', 'href' => '/oficina/administracion/integridad-operacional', 'permissions' => ['puede_consultar_integridad_operacional']],
+            ['key' => 'demo', 'module' => '', 'label' => 'Demo comercial', 'href' => '/oficina/demo', 'permissions' => ['puede_habilitar_demo']],
         ],
         'consultas' => [
             ['key' => 'resumen', 'module' => '', 'label' => 'Resumen', 'href' => '/oficina/consultas', 'permissions' => ['puede_consultar_oficina_consultas', 'puede_consultar_sag']],
