@@ -178,6 +178,7 @@ class ServicioMigracionTemporada
                     'codigo' => $item->codigo,
                     'nombre' => $item->nombre,
                     'categoria' => $item->categoria,
+                    'categoria_operacional' => $item->categoria_operacional,
                     'unidad_medida' => $item->unidad_medida,
                     'codigo_externo' => $item->codigo_externo,
                     'origen_sistema' => $item->origen_sistema,
