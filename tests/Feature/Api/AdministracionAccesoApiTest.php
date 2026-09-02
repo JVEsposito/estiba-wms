@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
@@ -15,6 +16,7 @@ use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\PerfilAcceso;
+use App\Models\ProveedorMaterial;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
@@ -370,9 +372,25 @@ class AdministracionAccesoApiTest extends TestCase
             'codigo' => 'FILM-MIGRABLE',
             'nombre' => 'Film migrable',
             'categoria' => 'Embalaje',
+            'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
             'unidad_medida' => 'rollos',
             'origen_sistema' => 'manual',
             'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        $proveedor = ProveedorMaterial::create([
+            'codigo' => 'PROV-MIGRABLE',
+            'nombre' => 'Proveedor migrable',
+            'activo' => true,
+            'creado_por_user_id' => $administrador->id,
+            'actualizado_por_user_id' => $administrador->id,
+        ]);
+        ClienteProveedorMaterial::create([
+            'cliente_id' => $clienteOrigen->cliente_id,
+            'proveedor_material_id' => $proveedor->id,
+            'activo' => true,
+            'categorias' => ['Embalaje'],
             'creado_por_user_id' => $administrador->id,
             'actualizado_por_user_id' => $administrador->id,
         ]);
@@ -430,6 +448,7 @@ class AdministracionAccesoApiTest extends TestCase
                 ->where('temporada_material_id', $configuracionDestino->id))
             ->firstOrFail();
 
+        $this->assertSame(CategoriaOperacionalMaterial::Insumo, $itemDestino->categoria_operacional);
         $this->assertSame($itemDestino->id, $folio->material()->firstOrFail()->item_material_id);
         $this->assertSame($destino['id'], $folio->refresh()->temporada_id);
         $this->assertDatabaseHas('categorias_validacion', [
@@ -443,6 +462,17 @@ class AdministracionAccesoApiTest extends TestCase
         ]);
         $this->assertFalse($origen->refresh()->activa);
         $this->assertTrue(Temporada::query()->findOrFail($destino['id'])->activa);
+
+        $this->getJson('/api/materiales/recepciones/catalogos')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $proveedor->id,
+                'codigo' => 'PROV-MIGRABLE',
+            ])
+            ->assertJsonFragment([
+                'id' => $itemDestino->id,
+                'categoria_operacional' => CategoriaOperacionalMaterial::Insumo->value,
+            ]);
     }
 
     public function test_migracion_repara_configuraciones_de_materiales_ausentes_sin_bloquear_validacion(): void
