@@ -281,6 +281,17 @@ consulta
 
 Las capacidades se calculan en el backend. Cada endpoint debe exigir el Gate correspondiente y cada servicio debe volver a validar las reglas críticas del dominio.
 
+## 19. Demo comercial web
+
+1. Solo el rol base `administrador` puede autorizar la demo comercial.
+2. La autorización no crea ni activa temporadas y no persiste un estado demo en el servidor.
+3. El escenario y su población ficticia se guardan únicamente en `sessionStorage`.
+4. La demo queda aislada a una pestaña y no afecta a otros usuarios, sesiones o equipos.
+5. Una vez habilitada, la oficina demo no consulta ni modifica endpoints de operación productiva.
+6. Ningún dato real, token, usuario, folio, ubicación, inventario o auditoría puede incorporarse a
+   la población demostrativa.
+7. Salir de la demo elimina la sesión y los datos ficticios del navegador.
+
 
 ## Invariantes físicos de Materiales
 

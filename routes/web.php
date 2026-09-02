@@ -23,6 +23,7 @@ Route::view('/oficina/administracion/camaras', 'office.cameras', [
 Route::view('/oficina/administracion', 'office.domain-lobby', [
     'lobbyDomain' => 'administracion',
 ]);
+Route::view('/oficina/demo', 'office.demo');
 Route::view('/oficina/cargas', 'office.loads');
 Route::view('/oficina/frigorifico/calendario-embarques', 'office.shipment-calendar');
 Route::view('/oficina/accesos', 'office.accesses');

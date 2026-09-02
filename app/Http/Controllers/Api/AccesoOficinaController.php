@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\RolUsuario;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccesoOficinaRequest;
 use App\Models\PersonalAccessToken;
@@ -66,6 +67,7 @@ class AccesoOficinaController extends Controller
                 'puede_crear_camaras_materia_prima' => $usuario->can('crear-camaras-materia-prima'),
                 'puede_administrar_camaras' => $usuario->can('administrar-camaras'),
                 'puede_administrar_accesos' => $usuario->can('administrar-accesos'),
+                'puede_habilitar_demo' => $usuario->rol === RolUsuario::Administrador,
                 'puede_consultar_accesos' => $capacidades['puede_consultar_accesos'],
                 'puede_consultar_configuracion_camaras' => $capacidades['puede_consultar_configuracion_camaras'],
                 'puede_consultar_integridad_operacional' => $capacidades['puede_consultar_integridad_operacional'],
@@ -122,6 +124,29 @@ class AccesoOficinaController extends Controller
                 'puede_anular_despacho_envases' => $capacidades['puede_anular_despacho_envases'],
             ],
         ]);
+    }
+
+    public function autorizarDemo(Request $request): JsonResponse
+    {
+        $usuario = $request->user();
+        if (! $usuario || $usuario->rol !== RolUsuario::Administrador) {
+            return response()->json([
+                'message' => 'Solo un administrador puede habilitar la versión demo.',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        return response()->json([
+            'data' => [
+                'autorizado' => true,
+                'version_escenario' => 1,
+                'administrador' => [
+                    'id' => $usuario->id,
+                    'nombre' => $usuario->name,
+                ],
+                'autorizado_at' => now()->toAtomString(),
+                'persistencia' => 'sesion_navegador',
+            ],
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     public function destroy(Request $request): Response
