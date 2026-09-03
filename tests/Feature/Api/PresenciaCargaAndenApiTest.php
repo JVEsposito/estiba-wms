@@ -9,6 +9,8 @@ use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\Dispositivo;
+use App\Models\EventoCarga;
+use App\Models\Folio;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\PresenciaCargaAnden;
@@ -22,6 +24,7 @@ use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class PresenciaCargaAndenApiTest extends TestCase
@@ -79,6 +82,52 @@ class PresenciaCargaAndenApiTest extends TestCase
 
         $this->assertSame(1, PresenciaCargaAnden::query()->count());
         $this->assertSame(1, TareaMovimiento::query()->count());
+    }
+
+    public function test_publica_varios_retiros_independientes_para_camareros_disponibles(): void
+    {
+        $contexto = $this->crearContexto(2, 3);
+        $posicionSegundaBanda = Posicion::create([
+            'camara_id' => $contexto['camara']->id,
+            'banda' => 2,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B02-P01-N1',
+        ]);
+        $contexto['folios'][1]->ubicacionActual()->update([
+            'posicion_id' => $posicionSegundaBanda->id,
+        ]);
+        $carga = $this->crearCargaPublicada($contexto, $contexto['folios']);
+
+        $this->registrarPresencia($contexto, $carga, $contexto['anden']);
+
+        $tareas = TareaMovimiento::query()
+            ->where('estado', EstadoTareaMovimiento::Pendiente->value)
+            ->orderBy('secuencia')
+            ->get();
+        $this->assertCount(2, $tareas);
+        $this->assertTrue($tareas->every(
+            fn (TareaMovimiento $tarea): bool => $tarea->tipo_movimiento->value === 'retiro',
+        ));
+
+        $segundoOperador = User::factory()->create([
+            'rol' => RolUsuario::CamareroFrio,
+            'activo' => true,
+        ]);
+        $segundoDispositivo = Dispositivo::create([
+            'codigo' => 'TABLET-252-B',
+            'nombre' => 'Tablet PR 252 B',
+        ]);
+        $servicio = app(ServicioPlanesOperacionales::class);
+        $servicio->asumir($tareas[0], $contexto['operador'], $contexto['dispositivo']);
+        $servicio->asumir($tareas[1], $segundoOperador, $segundoDispositivo);
+
+        $this->assertSame('asumida', $tareas[0]->refresh()->estado->value);
+        $this->assertSame('asumida', $tareas[1]->refresh()->estado->value);
+        $this->assertNotSame(
+            $tareas[0]->responsable_user_id,
+            $tareas[1]->responsable_user_id,
+        );
     }
 
     public function test_un_anden_y_una_carga_solo_admiten_una_presencia_activa(): void
@@ -290,6 +339,31 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertDatabaseCount('tareas_movimiento', 0);
     }
 
+    public function test_shadow_registra_candidatos_sin_dirigir_trabajo(): void
+    {
+        config([
+            'planificador.mode' => 'shadow',
+            'planificador.generacion_automatica' => true,
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'rolling',
+        ]);
+        $contexto = $this->crearContexto(1, 2, configurarPlanificador: false);
+        $carga = $this->crearCargaPublicada($contexto, [$contexto['folios'][0]]);
+
+        $this->registrarPresencia($contexto, $carga, $contexto['anden']);
+
+        $this->assertDatabaseCount('planes_operacionales', 0);
+        $this->assertDatabaseCount('tareas_movimiento', 0);
+        $evento = EventoCarga::query()
+            ->where('carga_id', $carga->id)
+            ->where('tipo', 'tareas_generadas')
+            ->latest('created_at')
+            ->firstOrFail();
+        $this->assertSame('shadow', $evento->datos['planner_mode']);
+        $this->assertSame('tablet', $evento->datos['planner_compute']);
+        $this->assertCount(1, $evento->datos['candidatos']);
+    }
+
     /** @return array<string, mixed> */
     private function crearContexto(
         int $cantidadFolios,
@@ -300,7 +374,7 @@ class PresenciaCargaAndenApiTest extends TestCase
             config([
                 'planificador.mode' => 'guided',
                 'planificador.generacion_automatica' => true,
-                'planificador.compute' => 'server',
+                'planificador.compute' => 'tablet',
                 'planificador.horizon' => 'rolling',
             ]);
         }
@@ -336,7 +410,7 @@ class PresenciaCargaAndenApiTest extends TestCase
         $camara = Camara::create([
             'codigo' => 'CAM-252',
             'nombre' => 'Cámara de tránsito',
-            'cantidad_bandas' => 1,
+            'cantidad_bandas' => 2,
             'posiciones_por_banda' => $cantidadPosiciones,
             'cantidad_niveles' => 1,
         ]);
@@ -402,7 +476,7 @@ class PresenciaCargaAndenApiTest extends TestCase
 
     /**
      * @param  array<string, mixed>  $contexto
-     * @param  array<int, \App\Models\Folio>  $folios
+     * @param  array<int, Folio>  $folios
      */
     private function crearCargaPublicada(array $contexto, array $folios): Carga
     {
@@ -434,7 +508,7 @@ class PresenciaCargaAndenApiTest extends TestCase
     }
 
     /** @param array<string, mixed> $contexto */
-    private function finalizarPresencia(array $contexto, Carga $carga): \Illuminate\Testing\TestResponse
+    private function finalizarPresencia(array $contexto, Carga $carga): TestResponse
     {
         return $this->conToken($contexto['tokenOficina'])
             ->postJson("/api/cargas/{$carga->id}/camion-en-anden/finalizar", [
