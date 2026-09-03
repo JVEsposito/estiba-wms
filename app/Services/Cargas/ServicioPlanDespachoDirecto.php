@@ -269,6 +269,7 @@ class ServicioPlanDespachoDirecto
                 ->where('carga_id', $carga->id)
                 ->whereHas('reservaActiva')
                 ->lockForUpdate()
+                ->get(['estado'])
                 ->pluck('estado');
             $todosEnAnden = $estados->isNotEmpty()
                 && $estados->every(
@@ -446,11 +447,13 @@ class ServicioPlanDespachoDirecto
                 );
             })
             ->filter()
-            ->unique(fn (array $candidato): string => $candidato['candidate_key']);
+            ->unique(fn (array $candidato): string => $candidato['folio_id'])
+            ->values();
 
         return $directos
             ->concat($despejes)
-            ->unique(fn (array $candidato): string => $candidato['candidate_key'])
+            ->unique(fn (array $candidato): string => $candidato['folio_id'])
+            ->take(max(1, (int) config('planificador.frontier_max', 4)))
             ->values();
     }
 
@@ -542,28 +545,21 @@ class ServicioPlanDespachoDirecto
         PresenciaCargaAnden $presencia,
     ): array {
         $posicion = $bloqueador->posicion;
-        $hayDestinoMismaCamara = Posicion::query()
-            ->where('camara_id', $posicion->camara_id)
-            ->where('estado', 'activa')
-            ->whereKeyNot($posicion->id)
-            ->whereDoesntHave('ubicacionActual')
-            ->whereDoesntHave('reservaTareaActiva')
-            ->exists();
-        $tipo = $hayDestinoMismaCamara
-            ? TipoMovimiento::Reubicacion
-            : TipoMovimiento::TrasladoEntreCamaras;
-        $clave = "despeje:{$bloqueador->folio_id}:{$habilitada->folio_id}";
+        $clave = "despeje:{$bloqueador->folio_id}";
 
         return [
             'candidate_key' => $clave,
             'folio_id' => $bloqueador->folio_id,
-            'tipo_movimiento' => $tipo,
+            // Tipo inicial neutral para búsqueda global. Al materializar el
+            // destino, el servidor lo normaliza a reubicación o traslado.
+            'tipo_movimiento' => TipoMovimiento::TrasladoEntreCamaras,
             'camara_origen_id' => $posicion->camara_id,
             'posicion_origen_id' => $posicion->id,
             'instruccion' => "Despejar {$bloqueador->folio->numero_folio} para habilitar la salida directa de {$habilitada->folio->numero_folio}.",
             'contexto' => [
                 'candidate_key' => $clave,
                 'tipo_decision' => 'despeje_salida_directa',
+                'tipo_movimiento_materializable' => true,
                 'presencia_carga_anden_id' => $presencia->id,
                 'carga_id' => $presencia->carga_id,
                 'anden_id' => $presencia->anden_id,
@@ -582,6 +578,7 @@ class ServicioPlanDespachoDirecto
         User $usuario,
         Collection $candidatos,
     ): void {
+        $cambio = false;
         $deseados = $candidatos->keyBy('candidate_key');
         $activas = $plan->tareas()
             ->whereIn('estado', [
@@ -600,11 +597,12 @@ class ServicioPlanDespachoDirecto
                 continue;
             }
 
-            $this->planes->cancelarPorReplanificacion(
+            $cancelada = $this->planes->cancelarPorReplanificacion(
                 $tarea,
                 $usuario,
                 "La frontera de despacho directo cambió para el camión {$presencia->patente}.",
             );
+            $cambio = $cancelada !== null || $cambio;
         }
 
         $activas = $plan->tareas()
@@ -654,12 +652,15 @@ class ServicioPlanDespachoDirecto
             }
 
             $nueva = $this->crearTareaCandidata($plan, $candidato);
+            $cambio = true;
             if ($cancelada) {
                 $cancelada->update(['reemplazada_por_tarea_id' => $nueva->id]);
             }
         }
 
-        $plan->refresh()->update(['version' => $plan->version + 1]);
+        if ($cambio) {
+            $plan->refresh()->update(['version' => $plan->version + 1]);
+        }
     }
 
     /** @param array<string, mixed> $candidato */
