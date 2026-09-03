@@ -6,15 +6,19 @@ use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoPlanOperacional;
+use App\Exceptions\ConflictoOperacion;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PlanOperacionalResource;
 use App\Http\Resources\TareaMovimientoResource;
 use App\Models\PlanOperacional;
+use App\Models\Posicion;
 use App\Models\TareaMovimiento;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
+use DomainException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
@@ -79,6 +83,17 @@ class PlanOperacionalController extends Controller
             'tareas.dispositivo:id,codigo,nombre',
             'tareas.reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
         ]));
+    }
+
+    public function snapshot(
+        PlanOperacional $planOperacional,
+        ServicioReservasTareasMovimiento $reservas,
+        ServicioPlanesOperacionales $servicio,
+    ): JsonResponse {
+        abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
+        $reservas->expirarVencidas();
+
+        return response()->json(['data' => $servicio->snapshot($planOperacional)]);
     }
 
     public function tareas(
@@ -146,6 +161,103 @@ class PlanOperacionalController extends Controller
         );
     }
 
+    public function materializarFrontera(
+        Request $request,
+        PlanOperacional $planOperacional,
+        ContextoOperacional $contexto,
+        ServicioPlanesOperacionales $servicio,
+    ): JsonResponse {
+        abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
+        $max = (int) config('planificador.frontier_max', 4);
+        $datos = $request->validate([
+            'snapshot_version' => ['required', 'string', 'size:64'],
+            'planner_version' => ['required', 'string', 'max:80'],
+            'propuestas' => ['required', 'array', 'min:1', "max:{$max}"],
+            'propuestas.*.tarea_id' => ['required', 'uuid', 'distinct', 'exists:tareas_movimiento,id'],
+            'propuestas.*.posicion_destino_id' => ['required', 'uuid', 'exists:posiciones,id'],
+            'propuestas.*.tarea_version' => ['required', 'integer', 'min:1'],
+            'propuestas.*.plan_version' => ['required', 'integer', 'min:1'],
+            'propuestas.*.version_camara_conocida' => ['required', 'integer', 'min:0'],
+            'propuestas.*.score' => ['nullable', 'numeric'],
+            'propuestas.*.motivo' => ['nullable', 'string', 'max:240'],
+        ]);
+        $snapshot = $servicio->snapshot($planOperacional);
+        if (! hash_equals($snapshot['snapshot_version'], $datos['snapshot_version'])) {
+            return response()->json([
+                'message' => 'El snapshot cambió antes de materializar la frontera.',
+                'codigo' => 'snapshot_obsoleto',
+                'data' => [
+                    'snapshot_version' => $snapshot['snapshot_version'],
+                    'aceptadas' => [],
+                    'rechazadas' => $datos['propuestas'],
+                ],
+            ], 409);
+        }
+
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+        $aceptadas = [];
+        $rechazadas = [];
+
+        foreach ($datos['propuestas'] as $propuesta) {
+            $tarea = TareaMovimiento::query()
+                ->where('plan_operacional_id', $planOperacional->id)
+                ->find($propuesta['tarea_id']);
+            if (! $tarea) {
+                $rechazadas[] = [
+                    'tarea_id' => $propuesta['tarea_id'],
+                    'motivo' => 'La tarea no pertenece al plan solicitado.',
+                ];
+                continue;
+            }
+
+            try {
+                $materializada = $servicio->materializarDestino(
+                    tarea: $tarea,
+                    posicion: Posicion::query()->findOrFail($propuesta['posicion_destino_id']),
+                    usuario: $usuario,
+                    dispositivo: $dispositivo,
+                    versionTarea: (int) $propuesta['tarea_version'],
+                    versionPlan: (int) $propuesta['plan_version'],
+                    versionCamara: (int) $propuesta['version_camara_conocida'],
+                );
+                $aceptadas[] = [
+                    'tarea' => (new TareaMovimientoResource($materializada))->resolve($request),
+                    'score' => $propuesta['score'] ?? null,
+                    'motivo' => $propuesta['motivo'] ?? null,
+                    'planner_version' => $datos['planner_version'],
+                ];
+            } catch (ConflictoOperacion|DomainException $exception) {
+                $rechazadas[] = [
+                    'tarea_id' => $propuesta['tarea_id'],
+                    'posicion_destino_id' => $propuesta['posicion_destino_id'],
+                    'motivo' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'aceptadas' => $aceptadas,
+                'rechazadas' => $rechazadas,
+                'recalcular' => $rechazadas !== [],
+                'snapshot' => $servicio->snapshot($planOperacional->refresh()),
+            ],
+        ]);
+    }
+
+    public function iniciar(
+        Request $request,
+        TareaMovimiento $tareaMovimiento,
+        ContextoOperacional $contexto,
+        ServicioPlanesOperacionales $servicio,
+    ): TareaMovimientoResource {
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+
+        return new TareaMovimientoResource(
+            $servicio->iniciar($tareaMovimiento, $usuario, $dispositivo),
+        );
+    }
+
     public function liberar(
         Request $request,
         TareaMovimiento $tareaMovimiento,
@@ -176,7 +288,7 @@ class PlanOperacionalController extends Controller
     private function relacionesTarea(): array
     {
         return [
-            'planOperacional:id,temporada_id,tipo,estado,prioridad,titulo,version',
+            'planOperacional:id,temporada_id,tipo,estado,prioridad,titulo,version,contexto',
             'folio:id,numero_folio,tipo_bulto',
             'camaraOrigen:id,nombre',
             'posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
