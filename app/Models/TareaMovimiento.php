@@ -6,13 +6,16 @@ use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoMovimiento;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Observers\CerrarRecepcionTunelObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+#[ObservedBy([CerrarRecepcionTunelObserver::class])]
 #[Fillable([
     'plan_operacional_id',
     'secuencia',
