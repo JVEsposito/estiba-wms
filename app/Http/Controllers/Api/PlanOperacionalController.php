@@ -168,6 +168,15 @@ class PlanOperacionalController extends Controller
         ServicioPlanesOperacionales $servicio,
     ): JsonResponse {
         abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
+        $horizon = ($planOperacional->contexto ?? [])['planner_horizon']
+            ?? config('planificador.horizon');
+        if (config('planificador.mode') !== 'guided'
+            || config('planificador.compute') !== 'tablet'
+            || $horizon !== 'rolling') {
+            throw new DomainException(
+                'La frontera de tablet requiere un plan rolling con el planificador guided/tablet.',
+            );
+        }
         $max = (int) config('planificador.frontier_max', 4);
         $datos = $request->validate([
             'snapshot_version' => ['required', 'string', 'size:64'],

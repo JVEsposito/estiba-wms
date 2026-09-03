@@ -80,7 +80,7 @@ class ServicioReservasTareasMovimiento
 
         // En horizonte rolling, asumir significa exclusivamente reclamar la tarea.
         // Batch conserva el comportamiento histórico para planes estáticos.
-        $posicion = config('planificador.horizon') === 'batch'
+        $posicion = $this->esHorizonteBatch($tarea)
             ? $this->bloquearDestinoDisponible($tarea)
             : null;
 
@@ -458,7 +458,7 @@ class ServicioReservasTareasMovimiento
 
         // Batch conserva el cierre histórico. En rolling, la inexistencia temporal
         // de tareas no significa que el objetivo del plan se haya cumplido.
-        if (config('planificador.horizon') !== 'batch') {
+        if (! $this->esHorizonteBatch($tareaBloqueada)) {
             return;
         }
 
@@ -595,11 +595,20 @@ class ServicioReservasTareasMovimiento
         ?string $posicionOrigenId,
         ?string $posicionDestinoId,
     ): void {
-        if ($tarea->estado !== EstadoTareaMovimiento::EnProceso
+        $estadoEjecutable = $this->esHorizonteBatch($tarea)
+            ? in_array($tarea->estado, [
+                EstadoTareaMovimiento::Asumida,
+                EstadoTareaMovimiento::EnProceso,
+            ], true)
+            : $tarea->estado === EstadoTareaMovimiento::EnProceso;
+
+        if (! $estadoEjecutable
             || ! $tarea->planOperacional
             || $tarea->planOperacional->estado !== EstadoPlanOperacional::EnEjecucion) {
             throw new ConflictoOperacion(
-                'La tarea debe marcarse en proceso antes de ejecutar el movimiento físico.',
+                $this->esHorizonteBatch($tarea)
+                    ? 'La tarea no se encuentra habilitada para ejecución.'
+                    : 'La tarea debe marcarse en proceso antes de ejecutar el movimiento físico.',
             );
         }
         if ($tarea->folio_id !== $folio->id
@@ -622,6 +631,13 @@ class ServicioReservasTareasMovimiento
         $this->incrementarRevisionCamara($reserva->posicion_destino_id);
 
         return $reserva->refresh();
+    }
+
+    private function esHorizonteBatch(TareaMovimiento $tarea): bool
+    {
+        $contextoPlan = $tarea->planOperacional?->contexto ?? [];
+
+        return ($contextoPlan['planner_horizon'] ?? config('planificador.horizon')) === 'batch';
     }
 
     private function expirarRelacionadas(string $folioId, ?string $posicionDestinoId): void

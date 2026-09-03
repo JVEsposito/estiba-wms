@@ -60,6 +60,18 @@ class HorizonteMovilApiTest extends TestCase
         ]);
     }
 
+    public function test_snapshot_respeta_el_horizonte_persistido_en_el_plan(): void
+    {
+        config(['planificador.horizon' => 'batch']);
+        $contexto = $this->crearContexto();
+        $plan = $this->crearPlanRolling($contexto, [$contexto['folios'][0]]);
+
+        $this->conToken($contexto['token'])
+            ->getJson("/api/planes-operacionales/{$plan->id}/snapshot")
+            ->assertOk()
+            ->assertJsonPath('data.planner.horizon', 'rolling');
+    }
+
     public function test_servidor_materializa_una_frontera_parcial_y_rechaza_conflictos(): void
     {
         $contexto = $this->crearContexto();
@@ -145,6 +157,42 @@ class HorizonteMovilApiTest extends TestCase
         ]);
     }
 
+    public function test_frontera_no_materializa_fuera_de_guided_tablet(): void
+    {
+        $contexto = $this->crearContexto();
+        $plan = $this->crearPlanRolling($contexto, [$contexto['folios'][0]]);
+        $tarea = $plan->tareas->firstOrFail();
+        $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
+            ->assertOk();
+        $snapshot = $this->conToken($contexto['token'])
+            ->getJson("/api/planes-operacionales/{$plan->id}/snapshot")
+            ->assertOk()
+            ->json('data');
+
+        config(['planificador.mode' => 'shadow']);
+
+        $this->conToken($contexto['token'])
+            ->postJson("/api/planes-operacionales/{$plan->id}/frontera", [
+                'snapshot_version' => $snapshot['snapshot_version'],
+                'planner_version' => 'rolling-test-1',
+                'propuestas' => [[
+                    'tarea_id' => $tarea->id,
+                    'posicion_destino_id' => $contexto['posiciones'][0]->id,
+                    'tarea_version' => $snapshot['tareas'][0]['version'],
+                    'plan_version' => $snapshot['plan']['version'],
+                    'version_camara_conocida' => $contexto['camara']->version_plano,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseMissing('reservas_tareas_movimiento', [
+            'tarea_movimiento_id' => $tarea->id,
+            'bloqueo_posicion_id' => $contexto['posiciones'][0]->id,
+        ]);
+    }
+
     public function test_en_proceso_es_punto_de_no_retorno_y_no_expira(): void
     {
         $contexto = $this->crearContexto();
@@ -197,6 +245,7 @@ class HorizonteMovilApiTest extends TestCase
             $contexto['dispositivo'],
         );
         $servicio->iniciar($tarea->refresh(), $contexto['camarero'], $contexto['dispositivo']);
+        config(['planificador.horizon' => 'batch']);
         $sesion = app(ServicioSesionEstiba::class)->abrir(
             $contexto['camara'],
             $contexto['camarero'],

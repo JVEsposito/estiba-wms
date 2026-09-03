@@ -187,6 +187,12 @@ class ServicioPlanesOperacionales
             $versionCamara,
         ): TareaMovimiento {
             $this->validarActor($usuario, $dispositivo);
+            $plan = $tarea->planOperacional()->firstOrFail();
+            if ($this->horizonte($plan) !== 'rolling') {
+                throw new DomainException(
+                    'La materialización dinámica de destinos solo está disponible para planes rolling.',
+                );
+            }
             $this->reservas->materializarDestino(
                 $tarea,
                 $posicion,
@@ -270,6 +276,7 @@ class ServicioPlanesOperacionales
     public function snapshot(PlanOperacional $plan): array
     {
         $plan = $this->cargar($plan->refresh());
+        $horizon = $this->horizonte($plan);
         $cameraIds = $plan->tareas
             ->flatMap(fn (TareaMovimiento $tarea): array => array_filter([
                 $tarea->camara_origen_id,
@@ -312,7 +319,7 @@ class ServicioPlanesOperacionales
             'planner' => [
                 'mode' => config('planificador.mode'),
                 'compute' => config('planificador.compute'),
-                'horizon' => config('planificador.horizon'),
+                'horizon' => $horizon,
                 'frontier_max' => config('planificador.frontier_max'),
             ],
             'plan' => [
@@ -514,6 +521,12 @@ class ServicioPlanesOperacionales
             'iniciadoPor:id,name',
             'tareas' => fn ($consulta) => $consulta->with($this->relacionesTarea()),
         ]);
+    }
+
+    private function horizonte(PlanOperacional $plan): string
+    {
+        return ($plan->contexto ?? [])['planner_horizon']
+            ?? config('planificador.horizon');
     }
 
     private function cargarTarea(TareaMovimiento $tarea): TareaMovimiento
