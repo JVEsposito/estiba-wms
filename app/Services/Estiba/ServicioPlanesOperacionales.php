@@ -268,7 +268,8 @@ class ServicioPlanesOperacionales
             }
 
             $contexto = $tareaBloqueada->contexto ?? [];
-            if (($contexto['tipo_decision'] ?? null) === 'despeje_salida_directa'
+            $tipoDecision = $contexto['tipo_decision'] ?? null;
+            if (in_array($tipoDecision, ['despeje_salida_directa', 'despeje_concentracion'], true)
                 && ($contexto['tipo_movimiento_materializable'] ?? false) === true) {
                 if ($versionTarea !== null && $tareaBloqueada->version !== $versionTarea) {
                     throw new ConflictoOperacion('La tarea cambió desde el snapshot utilizado por la tablet.');
@@ -291,6 +292,10 @@ class ServicioPlanesOperacionales
                     ]);
                     $versionTarea = $tareaBloqueada->version;
                 }
+            }
+
+            if ($tipoDecision === 'concentrar_carga') {
+                $this->validarDestinoConcentracion($tareaBloqueada, $posicion);
             }
 
             $this->reservas->materializarDestino(
@@ -610,6 +615,44 @@ class ServicioPlanesOperacionales
 
         if (! $valida) {
             throw new DomainException('El objetivo rolling no corresponde al tipo de movimiento de la tarea.');
+        }
+    }
+
+    private function validarDestinoConcentracion(TareaMovimiento $tarea, Posicion $posicion): void
+    {
+        $contexto = $tarea->contexto ?? [];
+        $camaraObjetivoId = $contexto['camara_objetivo_id'] ?? $tarea->camara_destino_id;
+        if (! $camaraObjetivoId || $posicion->camara_id !== $camaraObjetivoId) {
+            throw new ConflictoOperacion(
+                'La posición propuesta no pertenece a la cámara objetivo de concentración.',
+            );
+        }
+
+        $puntos = $contexto['concentracion_puntos'] ?? [];
+        if (! is_array($puntos) || $puntos === []) {
+            return;
+        }
+
+        $vecina = collect($puntos)->contains(function (mixed $punto) use ($posicion): bool {
+            if (! is_array($punto)
+                || ! isset($punto['banda'], $punto['posicion'], $punto['nivel'])) {
+                return false;
+            }
+            if ((int) $punto['nivel'] !== (int) $posicion->nivel) {
+                return false;
+            }
+
+            $diferenciaBanda = abs((int) $punto['banda'] - (int) $posicion->banda);
+            $diferenciaPosicion = abs((int) $punto['posicion'] - (int) $posicion->posicion);
+
+            return ($diferenciaBanda === 0 && $diferenciaPosicion === 1)
+                || ($diferenciaBanda === 1 && $diferenciaPosicion <= 1);
+        });
+
+        if (! $vecina) {
+            throw new ConflictoOperacion(
+                'La posición propuesta no amplía físicamente el grupo principal de la carga.',
+            );
         }
     }
 
