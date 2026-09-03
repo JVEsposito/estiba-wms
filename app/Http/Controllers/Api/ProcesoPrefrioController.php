@@ -22,10 +22,12 @@ use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Services\Prefrio\RevisionPrefrioOperacional;
 use App\Services\Prefrio\ServicioCorreccionProcesoPrefrio;
+use App\Services\Prefrio\ServicioGeneracionRecepcionTunel;
 use App\Services\Prefrio\ServicioProcesoPrefrio;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class ProcesoPrefrioController extends Controller
@@ -240,13 +242,28 @@ class ProcesoPrefrioController extends Controller
         AprobarProcesoPrefrioRequest $request,
         ProcesoPrefrio $procesoPrefrio,
         ServicioProcesoPrefrio $servicio,
+        ServicioGeneracionRecepcionTunel $generador,
     ): ProcesoPrefrioResource {
-        return new ProcesoPrefrioResource($servicio->aprobar(
+        $dispositivo = $this->dispositivo($request);
+        $proceso = DB::transaction(function () use (
+            $request,
             $procesoPrefrio,
-            $request->validated(),
-            $request->user(),
-            $this->dispositivo($request),
-        ));
+            $servicio,
+            $generador,
+            $dispositivo,
+        ): ProcesoPrefrio {
+            $aprobado = $servicio->aprobar(
+                $procesoPrefrio,
+                $request->validated(),
+                $request->user(),
+                $dispositivo,
+            );
+            $generador->generar($aprobado, $request->user());
+
+            return $aprobado;
+        }, attempts: 3);
+
+        return new ProcesoPrefrioResource($proceso);
     }
 
     public function reprocesar(
