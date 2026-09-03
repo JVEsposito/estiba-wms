@@ -23,15 +23,28 @@ class CerrarRecepcionTunelObserver
             $planes->push($planPropio);
         }
 
-        TareaMovimiento::query()
-            ->where('reemplazada_por_tarea_id', $tarea->id)
-            ->with('planOperacional')
-            ->get()
-            ->each(function (TareaMovimiento $reemplazada) use ($planes): void {
+        $frontera = collect([$tarea->id]);
+        $visitadas = [];
+        for ($profundidad = 0; $profundidad < 12 && $frontera->isNotEmpty(); $profundidad++) {
+            $ids = $frontera
+                ->filter(fn (string $id): bool => ! in_array($id, $visitadas, true))
+                ->values();
+            if ($ids->isEmpty()) {
+                break;
+            }
+            $visitadas = [...$visitadas, ...$ids->all()];
+
+            $predecesoras = TareaMovimiento::query()
+                ->whereIn('reemplazada_por_tarea_id', $ids)
+                ->with('planOperacional')
+                ->get();
+            $predecesoras->each(function (TareaMovimiento $reemplazada) use ($planes): void {
                 if ($reemplazada->planOperacional?->tipo === TipoPlanOperacional::RecepcionTunel) {
                     $planes->push($reemplazada->planOperacional);
                 }
             });
+            $frontera = $predecesoras->pluck('id');
+        }
 
         $planes
             ->unique('id')
