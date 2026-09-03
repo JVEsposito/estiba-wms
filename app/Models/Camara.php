@@ -105,6 +105,7 @@ class Camara extends Model
             'estado' => EstadoCamara::class,
             'contenido' => ContenidoCamara::class,
             'version_plano' => 'integer',
+            'revision_reservas' => 'integer',
             'cantidad_bandas' => 'integer',
             'posiciones_por_banda' => 'integer',
             'cantidad_niveles' => 'integer',

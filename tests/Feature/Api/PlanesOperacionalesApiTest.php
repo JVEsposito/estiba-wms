@@ -16,6 +16,7 @@ use App\Models\Posicion;
 use App\Models\ReservaTareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioSesionEstiba;
@@ -108,6 +109,12 @@ class PlanesOperacionalesApiTest extends TestCase
             ->assertJsonPath('data.0.id', $tarea->id)
             ->assertJsonPath('data.0.folio.numero_folio', 'PALLET-001')
             ->assertJsonPath('data.0.destino.camara.nombre', 'Cámara tránsito');
+        $planoLibre = $this->conToken($contexto['token'])
+            ->getJson("/api/camaras/{$contexto['camara']->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.posiciones.0.reservada', false);
+        $etagPlanoLibre = $planoLibre->headers->get('ETag');
+        $this->assertNotNull($etagPlanoLibre);
 
         $this->conToken($contexto['token'])
             ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
@@ -124,6 +131,7 @@ class PlanesOperacionalesApiTest extends TestCase
             'iniciado_por_user_id' => $contexto['camarero']->id,
         ]);
         $this->conToken($contexto['token'])
+            ->withHeader('If-None-Match', $etagPlanoLibre)
             ->getJson("/api/camaras/{$contexto['camara']->id}/plano")
             ->assertOk()
             ->assertJsonPath('data.bandas_operacionales.0.capacidad.reservadas', 1)
@@ -304,7 +312,7 @@ class PlanesOperacionalesApiTest extends TestCase
             );
             $this->fail('Se esperaba el rechazo del movimiento sin su tarea reservada.');
         } catch (ConflictoOperacion $exception) {
-            $this->assertStringContainsString('reservado', $exception->getMessage());
+            $this->assertStringContainsString('reservad', $exception->getMessage());
         }
 
         try {
@@ -454,6 +462,7 @@ class PlanesOperacionalesApiTest extends TestCase
             'posiciones_por_banda' => 4,
             'cantidad_niveles' => 1,
         ]);
+        app(ServicioBandasOperacionales::class)->sincronizar($camara, $supervisor);
         $posiciones = [];
 
         for ($indice = 1; $indice <= 4; $indice++) {

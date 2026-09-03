@@ -8,6 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('camaras', function (Blueprint $table): void {
+            $table->unsignedBigInteger('revision_reservas')
+                ->default(0)
+                ->after('version_plano');
+        });
+
         Schema::create('reservas_tareas_movimiento', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('tarea_movimiento_id')
@@ -52,5 +58,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('reservas_tareas_movimiento');
+
+        Schema::table('camaras', function (Blueprint $table): void {
+            $table->dropColumn('revision_reservas');
+        });
     }
 };

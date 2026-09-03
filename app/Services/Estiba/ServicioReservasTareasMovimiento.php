@@ -8,6 +8,7 @@ use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\TipoMovimiento;
 use App\Exceptions\ConflictoOperacion;
+use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Movimiento;
@@ -118,6 +119,7 @@ class ServicioReservasTareasMovimiento
                 previous: $exception,
             );
         }
+        $this->incrementarRevisionCamara($reserva->posicion_destino_id);
 
         $tarea->update([
             'estado' => EstadoTareaMovimiento::Asumida,
@@ -435,6 +437,7 @@ class ServicioReservasTareasMovimiento
             'vence_at' => $this->nuevoVencimiento(),
             'version' => $reserva->version + 1,
         ]);
+        $this->incrementarRevisionCamara($reserva->posicion_destino_id);
 
         return $reserva->refresh();
     }
@@ -477,6 +480,7 @@ class ServicioReservasTareasMovimiento
         EstadoReservaTareaMovimiento $estado,
         array $atributos,
     ): void {
+        $posicionDestinoId = $reserva->posicion_destino_id;
         $reserva->update([
             ...$atributos,
             'estado' => $estado,
@@ -484,6 +488,19 @@ class ServicioReservasTareasMovimiento
             'bloqueo_posicion_id' => null,
             'version' => $reserva->version + 1,
         ]);
+        $this->incrementarRevisionCamara($posicionDestinoId);
+    }
+
+    private function incrementarRevisionCamara(?string $posicionDestinoId): void
+    {
+        if (! $posicionDestinoId) {
+            return;
+        }
+
+        $camaraId = Posicion::query()->whereKey($posicionDestinoId)->value('camara_id');
+        if ($camaraId) {
+            Camara::query()->whereKey($camaraId)->increment('revision_reservas');
+        }
     }
 
     private function devolverTareaALaBandeja(string $tareaId): void
