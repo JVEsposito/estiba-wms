@@ -637,6 +637,9 @@ function renderPositionMap() {
     const levels = [...new Set(positions.map((position) => Number(position.nivel)))].sort((a, b) => a - b);
     const bands = [...new Set(positions.map((position) => Number(position.banda)))].sort((a, b) => a - b);
     const maxPosition = Math.max(...positions.map((position) => Number(position.posicion)));
+    const operationalBands = new Map(
+        (state.plan?.bandas_operacionales || []).map((band) => [Number(band.numero), band]),
+    );
     const lookup = new Map(positions.map((position) => [
         `${position.nivel}|${position.banda}|${position.posicion}`,
         position,
@@ -644,6 +647,7 @@ function renderPositionMap() {
 
     elements.positionMap.innerHTML = levels.map((level) => {
         const bandColumns = bands.map((band) => {
+            const operationalBand = operationalBands.get(band);
             const cells = [];
             for (let positionNumber = 1; positionNumber <= maxPosition; positionNumber += 1) {
                 const position = lookup.get(`${level}|${band}|${positionNumber}`);
@@ -651,8 +655,8 @@ function renderPositionMap() {
             }
 
             return `
-                <div class="band-column">
-                    <strong class="band-heading">BANDA ${String(band).padStart(2, '0')}</strong>
+                <div class="band-column${operationalBand ? ` is-${escapeHtml(operationalBand.estado)}` : ''}">
+                    ${renderOperationalBandHeading(band, operationalBand)}
                     ${cells.join('')}
                 </div>`;
         }).join('');
@@ -671,6 +675,35 @@ function renderPositionMap() {
     elements.positionMap.querySelectorAll('[data-position-id]').forEach((button) => {
         button.addEventListener('click', () => selectPosition(button.dataset.positionId));
     });
+}
+
+function renderOperationalBandHeading(band, operationalBand) {
+    if (!operationalBand) {
+        return `<strong class="band-heading">BANDA ${String(band).padStart(2, '0')}</strong>`;
+    }
+
+    const stateLabels = {
+        libre: 'LIBRE',
+        parcial: 'PARCIAL',
+        completa: 'COMPLETA',
+        bloqueada: 'BLOQUEADA',
+        en_vaciado: 'EN VACIADO',
+    };
+    const useLabels = {
+        transito_pt: 'Tránsito PT',
+        inspeccion: 'Inspección',
+        retenidos: 'Retenidos',
+    };
+    const uses = (operationalBand.usos_permitidos || [])
+        .map((use) => useLabels[use] || use)
+        .join(' · ');
+
+    return `
+        <div class="band-heading">
+            <strong>BANDA ${String(band).padStart(2, '0')}</strong>
+            <span>${escapeHtml(stateLabels[operationalBand.estado] || operationalBand.estado)} · ${Number(operationalBand.capacidad?.disponibles || 0)}/${Number(operationalBand.capacidad?.efectiva || 0)} libres</span>
+            <small>${escapeHtml(uses)}</small>
+        </div>`;
 }
 
 function renderPositionCell(position) {

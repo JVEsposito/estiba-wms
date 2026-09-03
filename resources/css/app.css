@@ -927,6 +927,14 @@ select:focus {
     padding: 7px;
 }
 
+.band-column.is-bloqueada {
+    border-color: var(--red);
+}
+
+.band-column.is-en_vaciado {
+    border-color: var(--amber);
+}
+
 .band-heading {
     position: sticky;
     z-index: 3;
@@ -940,6 +948,30 @@ select:focus {
     font-size: 0.62rem;
     letter-spacing: 0.04em;
     text-align: center;
+}
+
+.band-heading strong,
+.band-heading span,
+.band-heading small {
+    display: block;
+}
+
+.band-heading span {
+    margin-top: 3px;
+    color: var(--text);
+    font-size: 0.52rem;
+    letter-spacing: 0;
+}
+
+.band-heading small {
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 0.46rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .position-cell {

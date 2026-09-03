@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { cameraDisplayName } from '../domain/cameras';
-import { CameraPlan, Position } from '../domain/estiba';
+import { CameraPlan, OperationalBand, Position } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
 type PositionMapProps = {
@@ -145,10 +145,25 @@ function Band({
   suggestedFolioId = null,
 }: BandProps) {
   const positions = Array.from({ length: maxPosition }, (_, index) => index + 1);
+  const operationalBand = plan.bandas_operacionales?.find((candidate) => candidate.numero === band);
 
   return (
-    <View style={styles.band}>
-      <Text style={styles.bandHeading}>BANDA {String(band).padStart(2, '0')}</Text>
+    <View style={[
+      styles.band,
+      operationalBand?.estado === 'bloqueada' && styles.bandBlocked,
+      operationalBand?.estado === 'en_vaciado' && styles.bandEmptying,
+    ]}>
+      <View style={styles.bandHeading}>
+        <Text style={styles.bandHeadingTitle}>BANDA {String(band).padStart(2, '0')}</Text>
+        {operationalBand ? (
+          <>
+            <Text style={styles.bandHeadingState}>{operationalBandLabel(operationalBand)}</Text>
+            <Text numberOfLines={1} style={styles.bandHeadingUses}>
+              {operationalBand.usos_permitidos.map(operationalUseLabel).join(' · ')}
+            </Text>
+          </>
+        ) : null}
+      </View>
       {positions.map((number) => {
         const position = plan.posiciones.find((candidate) => (
           candidate.nivel === level
@@ -209,6 +224,26 @@ function Band({
       })}
     </View>
   );
+}
+
+function operationalBandLabel(band: OperationalBand) {
+  const labels: Record<OperationalBand['estado'], string> = {
+    libre: 'LIBRE',
+    parcial: 'PARCIAL',
+    completa: 'COMPLETA',
+    bloqueada: 'BLOQUEADA',
+    en_vaciado: 'EN VACIADO',
+  };
+
+  return `${labels[band.estado]} · ${band.capacidad.disponibles}/${band.capacidad.efectiva} libres`;
+}
+
+function operationalUseLabel(use: OperationalBand['usos_permitidos'][number]) {
+  return {
+    transito_pt: 'Tránsito PT',
+    inspeccion: 'Inspección',
+    retenidos: 'Retenidos',
+  }[use];
 }
 
 function Legend({ color, label, border }: { color: string; label: string; border?: string }) {
@@ -301,6 +336,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     gap: 5,
   },
+  bandBlocked: { borderColor: colors.blockedBorder },
+  bandEmptying: { borderColor: colors.amber },
   bandHeading: {
     marginHorizontal: -7,
     marginTop: -7,
@@ -311,12 +348,12 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
     backgroundColor: colors.panelStrong,
-    color: colors.cyan,
-    textAlign: 'center',
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: .4,
+    alignItems: 'center',
+    gap: 2,
   },
+  bandHeadingTitle: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: .4 },
+  bandHeadingState: { color: colors.text, fontSize: 7, fontWeight: '900' },
+  bandHeadingUses: { maxWidth: 124, color: colors.muted, fontSize: 6, fontWeight: '700' },
   gap: { height: 76 },
   cell: {
     height: 76,

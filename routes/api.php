@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdministracionTemporadaController;
 use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AlmacenMaterialController;
 use App\Http\Controllers\Api\AndenController;
+use App\Http\Controllers\Api\BandaOperacionalController;
 use App\Http\Controllers\Api\BloqueoMaterialController;
 use App\Http\Controllers\Api\CamaraController;
 use App\Http\Controllers\Api\CargaController;
@@ -420,6 +421,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/configuracion/camaras', [ConfiguracionCamaraController::class, 'store']);
     Route::put('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'update'])
         ->middleware('can:administrar-camaras');
+    Route::put(
+        '/configuracion/camaras/{camara}/bandas/{bandaOperacional}',
+        [BandaOperacionalController::class, 'update'],
+    )->middleware('can:administrar-camaras');
     Route::delete('/configuracion/camaras/{camara}', [ConfiguracionCamaraController::class, 'destroy'])
         ->middleware('can:administrar-camaras');
 

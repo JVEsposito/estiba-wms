@@ -13,6 +13,9 @@ class CamaraPlanoResource extends CamaraResumenResource
     {
         return [
             ...parent::toArray($request),
+            'bandas_operacionales' => BandaOperacionalResource::collection(
+                $this->whenLoaded('bandasOperacionales'),
+            ),
             'folios_sin_posicion' => FolioSinPosicionResource::collection(
                 $this->whenLoaded('ubicacionesSinPosicion'),
             ),

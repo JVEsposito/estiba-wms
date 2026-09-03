@@ -46,7 +46,9 @@ Este documento define los términos utilizados por Estiba WMS. Las reglas, contr
 | Proceso `PF-*` | Ciclo térmico histórico ejecutado en un túnel. |
 | Cámara | Espacio configurable de almacenamiento con posiciones y plano vigente. |
 | Posición | Coordenada física de una cámara. En producto admite un folio; en Materiales puede admitir varias líneas del mismo cliente. |
-| Banda | Línea vertical numerada dentro de una cámara. |
+| Banda | Línea vertical numerada dentro de una cámara. En producto terminado posee además capacidad, usos y estado operacional calculado. |
+| Banda en vaciado | Banda que debe liberar sus ocupantes y no debe recibir nuevos ingresos del planificador. |
+| Capacidad efectiva de banda | Cantidad de posiciones activas del plano vigente; excluye coordenadas bloqueadas o fuera de servicio. |
 | Nivel | Altura o nivel físico de una posición. |
 | Estiba | Distribución espacial vigente de los bultos dentro de una cámara. No es un agrupador de pallets. |
 | Plano de estiba | Representación visual de las posiciones, su estado y sus ocupantes. |

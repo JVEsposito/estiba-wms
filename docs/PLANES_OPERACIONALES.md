@@ -10,6 +10,18 @@ Este incremento crea la base auditable para coordinar movimientos de pallets com
 - Una tarea puede ser asumida por una sola combinación de usuario y dispositivo. Repetir la misma toma es idempotente; otro camarero recibe un conflicto operacional.
 - Los movimientos existentes pueden quedar sin plan ni tarea. Las nuevas relaciones son opcionales para preservar compatibilidad y permitir una adopción gradual.
 
+## Bandas operacionales
+
+Cada banda vigente de una cámara de producto terminado dispone de una identidad operacional independiente de sus posiciones. Expone:
+
+- usos permitidos: `transito_pt`, `inspeccion` y `retenidos`;
+- modo explícito: `operativa`, `bloqueada` o `en_vaciado`;
+- capacidad física y efectiva, ocupadas y disponibles;
+- estado calculado: `libre`, `parcial`, `completa`, `bloqueada` o `en_vaciado`;
+- versión y responsable de la última configuración.
+
+El plano web y la tablet muestran este resumen sobre cada banda. La configuración de la banda incrementa la versión del plano para invalidar sus ETag. Todavía no se crean movimientos ni afinidades automáticas: esos comportamientos consumirán esta base en los siguientes incrementos.
+
 ## Estados
 
 Los planes pasan por `programado`, `en_ejecucion`, `pausado`, `completado` o `cancelado`. Las tareas usan `pendiente`, `asumida`, `en_proceso`, `completada` o `cancelada`.

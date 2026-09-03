@@ -21,6 +21,7 @@ class ServicioConfiguracionCamara
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioSecuenciaDocumento $secuencias,
+        private readonly ServicioBandasOperacionales $bandasOperacionales,
     ) {}
 
     public function siguienteCodigo(): string
@@ -92,6 +93,8 @@ class ServicioConfiguracionCamara
                 Posicion::query()->insert($lote);
             }
 
+            $this->bandasOperacionales->sincronizar($camara, $usuario);
+
             return $camara->loadCount([
                 'posiciones',
                 'posiciones as posiciones_activas_count' => fn ($consulta) => $consulta
@@ -151,6 +154,8 @@ class ServicioConfiguracionCamara
                 'version_plano' => $camaraBloqueada->version_plano + 1,
                 'actualizado_por_user_id' => $usuario->id,
             ]);
+
+            $this->bandasOperacionales->sincronizar($camaraBloqueada, $usuario);
 
             return $camaraBloqueada->refresh();
         }, attempts: 3);

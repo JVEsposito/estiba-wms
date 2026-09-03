@@ -480,7 +480,27 @@ export type Position = {
   folios?: Folio[];
 };
 
+export type OperationalBand = {
+  id: string;
+  numero: number;
+  usos_permitidos: Array<'transito_pt' | 'inspeccion' | 'retenidos'>;
+  modo: 'operativa' | 'bloqueada' | 'en_vaciado';
+  motivo_estado: string | null;
+  estado: 'libre' | 'parcial' | 'completa' | 'bloqueada' | 'en_vaciado';
+  acepta_nuevos_ingresos: boolean;
+  capacidad: {
+    fisica: number;
+    efectiva: number;
+    ocupadas: number;
+    disponibles: number;
+    porcentaje: number;
+  };
+  version: number;
+  updated_at: string;
+};
+
 export type CameraPlan = CameraSummary & {
+  bandas_operacionales?: OperationalBand[];
   folios_sin_posicion: Folio[];
   posiciones: Position[];
 };

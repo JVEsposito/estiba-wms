@@ -10,6 +10,7 @@ use App\Http\Resources\CamaraConfiguracionResource;
 use App\Models\Camara;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Camaras\ServicioConfiguracionCamara;
+use App\Services\Camaras\ServicioBandasOperacionales;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -18,6 +19,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class ConfiguracionCamaraController extends Controller
 {
+    public function __construct(
+        private readonly ServicioBandasOperacionales $bandasOperacionales,
+    ) {}
+
     public function index(
         Request $request,
         AlcanceOperacionalUsuario $alcance,
@@ -122,7 +127,11 @@ class ConfiguracionCamaraController extends Controller
                 ->where('nivel', '<=', $camara->cantidad_niveles),
         ]);
         $camara->load([
+            'bandasOperacionales' => fn ($consulta) => $consulta
+                ->where('numero', '<=', $camara->cantidad_bandas)
+                ->with('actualizadoPor:id,name'),
             'posiciones' => fn ($consulta) => $consulta
+                ->with('ubicacionesActuales:id,posicion_id')
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
                 ->where('nivel', '<=', $camara->cantidad_niveles)
@@ -130,6 +139,8 @@ class ConfiguracionCamaraController extends Controller
                 ->orderBy('posicion')
                 ->orderBy('nivel'),
         ]);
+
+        $this->bandasOperacionales->enriquecer($camara);
 
         return $camara;
     }

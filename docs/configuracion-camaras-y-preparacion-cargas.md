@@ -40,6 +40,21 @@ No se mezclan producto y materiales dentro de una misma cámara.
 - Las posiciones pueden estar activas, bloqueadas o fuera de servicio.
 - En Materiales el plano puede mostrar varios ocupantes dentro de una misma posición.
 
+### Bandas operacionales de producto terminado
+
+Las cámaras de producto terminado representan cada banda física como una unidad operacional. Esta capa no reemplaza sus posiciones ni modifica las ubicaciones existentes.
+
+- La capacidad física cuenta las coordenadas vigentes de la banda.
+- La capacidad efectiva excluye posiciones bloqueadas o fuera de servicio.
+- La ocupación y disponibilidad se calculan desde las ubicaciones actuales.
+- El estado calculado puede ser `libre`, `parcial`, `completa`, `bloqueada` o `en_vaciado`.
+- Una banda operativa puede admitir tránsito PT, inspección y/o retenidos.
+- Saldos y repaletizaje no son usos configurables de estas bandas; se mantienen fuera del planificador inicial de pallets completos.
+
+`bloqueada` impide que el planificador la considere disponible. `en_vaciado` identifica una banda que debe liberar sus ocupantes y no recibir nuevos ingresos. En este incremento ambos modos quedan expuestos para los siguientes generadores de tareas; no producen movimientos automáticos por sí solos.
+
+La migración crea una banda operacional por cada banda vigente de cámaras PT, habilitada inicialmente para tránsito, inspección y retenidos. No mueve folios ni asigna clientes, marcas, formatos o cargas.
+
 ## Advertencias físicas
 
 Las reglas físicas orientan al operador, pero determinadas excepciones pueden confirmarse de forma auditada:
@@ -67,6 +82,8 @@ La configuración permite:
 - crear y mantener andenes según permisos.
 
 Solo el administrador puede editar estructuralmente una cámara existente, ampliar o reducir el plano, cambiar propiedades reservadas, desactivarla o reactivarla.
+
+El administrador también puede configurar los usos y modo de una banda PT mediante `PUT /api/configuracion/camaras/{camara}/bandas/{banda}`. La actualización usa versión optimista, registra al responsable e incrementa `version_plano`. Se rechaza mientras exista una sesión de estiba abierta.
 
 Una reducción no elimina posiciones físicamente: archiva las coordenadas retiradas. Se rechaza si contienen ocupantes. Una cámara tampoco puede desactivarse con inventario o una sesión abierta.
 
