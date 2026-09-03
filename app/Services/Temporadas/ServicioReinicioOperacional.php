@@ -235,6 +235,17 @@ class ServicioReinicioOperacional
                 'movimientos_camara' => DB::table('movimientos')
                     ->whereIn('folio_id', clone $folios)
                     ->count(),
+                'planes_operacionales' => DB::table('planes_operacionales')
+                    ->where('temporada_id', $temporada->id)
+                    ->count(),
+                'tareas_movimiento' => DB::table('tareas_movimiento')
+                    ->whereIn(
+                        'plan_operacional_id',
+                        DB::table('planes_operacionales')
+                            ->select('id')
+                            ->where('temporada_id', $temporada->id),
+                    )
+                    ->count(),
                 'ubicaciones_camara' => DB::table('ubicaciones_actuales')
                     ->whereIn('folio_id', clone $folios)
                     ->count(),
@@ -385,6 +396,15 @@ class ServicioReinicioOperacional
             ->delete();
         $eliminados['movimientos_camara'] = DB::table('movimientos')
             ->whereIn('folio_id', clone $folios)
+            ->delete();
+        $planesOperacionales = DB::table('planes_operacionales')
+            ->select('id')
+            ->where('temporada_id', $temporada->id);
+        $eliminados['tareas_movimiento'] = DB::table('tareas_movimiento')
+            ->whereIn('plan_operacional_id', clone $planesOperacionales)
+            ->delete();
+        $eliminados['planes_operacionales'] = DB::table('planes_operacionales')
+            ->where('temporada_id', $temporada->id)
             ->delete();
         $eliminados['operaciones_sincronizacion'] = $this->eliminarPorIds(
             'operaciones_sincronizacion',

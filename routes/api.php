@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\NotificacionOperacionalController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\PerfilAccesoController;
 use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
+use App\Http\Controllers\Api\PlanOperacionalController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
@@ -474,6 +475,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/movimientos/consultar-folio', [MovimientoController::class, 'consultarFolio']);
     Route::post('/movimientos/ubicar', [MovimientoController::class, 'ubicar']);
     Route::post('/movimientos/mover', [MovimientoController::class, 'mover']);
+
+    Route::middleware('can:operar-camaras-productos')->group(function () {
+        Route::get('/planes-operacionales', [PlanOperacionalController::class, 'index']);
+        Route::get('/planes-operacionales/{planOperacional}', [PlanOperacionalController::class, 'show']);
+        Route::get('/tareas-movimiento', [PlanOperacionalController::class, 'tareas']);
+        Route::post('/tareas-movimiento/{tareaMovimiento}/asumir', [PlanOperacionalController::class, 'asumir']);
+        Route::post('/tareas-movimiento/{tareaMovimiento}/liberar', [PlanOperacionalController::class, 'liberar']);
+    });
 
     Route::delete('/acceso-tablet', [AccesoTabletController::class, 'destroy']);
     Route::delete('/acceso-oficina', [AccesoOficinaController::class, 'destroy']);

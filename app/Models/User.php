@@ -78,6 +78,11 @@ class User extends Authenticatable
         return $this->hasMany(Movimiento::class);
     }
 
+    public function tareasMovimiento(): HasMany
+    {
+        return $this->hasMany(TareaMovimiento::class, 'responsable_user_id');
+    }
+
     public function perfilAcceso(): BelongsTo
     {
         return $this->belongsTo(PerfilAcceso::class);

@@ -43,6 +43,16 @@ class Posicion extends Model
         return $this->hasMany(Movimiento::class, 'posicion_destino_id');
     }
 
+    public function tareasMovimientoOrigen(): HasMany
+    {
+        return $this->hasMany(TareaMovimiento::class, 'posicion_origen_id');
+    }
+
+    public function tareasMovimientoDestino(): HasMany
+    {
+        return $this->hasMany(TareaMovimiento::class, 'posicion_destino_id');
+    }
+
     protected function casts(): array
     {
         return [
