@@ -151,6 +151,7 @@ class DespachoDirectoDesdePrefrioRollingTest extends TestCase
             'creada_por_user_id' => $despachador->id,
             'actualizada_por_user_id' => $despachador->id,
         ]);
+        $carga->refresh();
         $asignacion = CargaFolio::create([
             'carga_id' => $carga->id,
             'folio_id' => $folio->id,

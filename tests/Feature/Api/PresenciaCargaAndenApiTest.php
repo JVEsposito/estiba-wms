@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\ContenidoCamara;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
@@ -70,7 +71,7 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertSame($contexto['anden']->id, $tarea->contexto['anden_id']);
 
         $this->conToken($contexto['token'])
-            ->getJson('/api/planes-operacionales/tareas?asignacion=disponibles')
+            ->getJson('/api/tareas-movimiento?asignacion=disponibles')
             ->assertOk()
             ->assertJsonPath('data.0.id', $tarea->id)
             ->assertJsonPath('data.0.destino_logico.tipo', 'anden')
@@ -488,6 +489,7 @@ class PresenciaCargaAndenApiTest extends TestCase
         $camara = Camara::create([
             'codigo' => 'CAM-252',
             'nombre' => 'Cámara de tránsito',
+            'contenido' => ContenidoCamara::Productos,
             'cantidad_bandas' => 2,
             'posiciones_por_banda' => $cantidadPosiciones,
             'cantidad_niveles' => 1,
