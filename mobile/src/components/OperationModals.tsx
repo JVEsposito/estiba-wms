@@ -216,7 +216,8 @@ export function LocateModal({
       : compatible
         ? result.mensaje_disponibilidad
         : 'El tipo de folio no corresponde a esta cámara.';
-    setLookupMessage(`${source} ${availability}`);
+    const recommendation = recommendationMessage(result);
+    setLookupMessage(`${source} ${availability}${recommendation ? ` ${recommendation}` : ''}`);
     setLookupTone(result.disponible_ubicacion && compatible ? 'success' : 'warning');
   }
 
@@ -447,6 +448,22 @@ export function LocateModal({
       </SafeAreaView>
     </Modal>
   );
+}
+
+function recommendationMessage(result: FolioLookup): string {
+  if (!result.existe || !result.recomendacion_ubicacion?.aplica) return '';
+
+  const recommendation = result.recomendacion_ubicacion;
+  const best = recommendation.mejor;
+
+  if (!recommendation.disponible || !best) {
+    return `Sugerencia WMS: ${recommendation.motivo}`;
+  }
+
+  const position = best.posicion.etiqueta
+    ?? `B${String(best.banda.numero).padStart(2, '0')} · P${String(best.posicion.posicion).padStart(2, '0')} · N${best.posicion.nivel}`;
+
+  return `Sugerencia WMS: ${best.camara.nombre} · Banda ${String(best.banda.numero).padStart(2, '0')} · ${position}. ${best.afinidad.motivo}`;
 }
 
 type MoveModalProps = {

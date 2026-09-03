@@ -23,6 +23,7 @@ class ConsultarFolioUbicacionRequest extends FormRequest
     {
         return [
             'numero_folio' => ['required', 'string', 'max:50'],
+            'camara_id' => ['nullable', 'uuid', 'exists:camaras,id'],
         ];
     }
 }

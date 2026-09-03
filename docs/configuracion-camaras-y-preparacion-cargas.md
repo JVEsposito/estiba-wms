@@ -55,6 +55,14 @@ Las cámaras de producto terminado representan cada banda física como una unida
 
 La migración crea una banda operacional por cada banda vigente de cámaras PT, habilitada inicialmente para tránsito, inspección y retenidos. No mueve folios ni asigna clientes, marcas, formatos o cargas.
 
+### Afinidad dinámica
+
+La afinidad visible de una banda se calcula desde sus pallets completos actuales. Muestra el cliente dominante y, dentro de este, la marca/etiqueta y el formato/envase dominantes. Un cliente activo sin existencia no ocupa una banda; al retirar el último pallet completo, la afinidad queda liberada automáticamente.
+
+Para un pallet completo habilitado, la consulta previa recomienda la mejor posición disponible entre las cámaras PT visibles para el camarero. Prioriza coincidencia `cliente → marca/etiqueta → formato/envase`, después una banda libre y deja una mezcla de clientes como última alternativa explicada. No considera bandas bloqueadas, en vaciado, sin uso de tránsito, completas o intervenidas por saldos/materiales.
+
+La recomendación es una fotografía consultiva y entrega `version_plano`. El movimiento mantiene las validaciones de sesión, capacidad y concurrencia; este incremento todavía no reserva la posición.
+
 ## Advertencias físicas
 
 Las reglas físicas orientan al operador, pero determinadas excepciones pueden confirmarse de forma auditada:
@@ -113,6 +121,7 @@ Para un folio existente recupera:
 - exportadora;
 - ubicación actual;
 - ficha de Materiales cuando corresponde.
+- recomendación explicada de cámara, banda y posición cuando es un pallet completo habilitado.
 
 Los datos nacidos en Validación no se reescriben desde Cámara.
 

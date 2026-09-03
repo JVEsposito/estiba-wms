@@ -30,7 +30,7 @@ class BandaOperacionalController extends Controller
                 ->with('actualizadoPor:id,name'),
             'posiciones' => fn ($consulta) => $consulta
                 ->where('banda', $banda->numero)
-                ->with('ubicacionesActuales:id,posicion_id'),
+                ->with('ubicacionesActuales:id,folio_id,posicion_id'),
         ]);
         $servicio->enriquecer($camara);
 

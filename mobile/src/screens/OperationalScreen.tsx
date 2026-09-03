@@ -856,7 +856,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           setLocateCameraOnly(false);
         }}
         onConfirm={confirmLocate}
-        onLookup={(folioNumber) => api.lookupFolio(auth.token, folioNumber)}
+        onLookup={(folioNumber) => api.lookupFolio(auth.token, folioNumber, plan?.id)}
         plan={plan}
         position={selectedPosition}
         visible={locateVisible}

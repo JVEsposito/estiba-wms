@@ -138,7 +138,7 @@ class ConfiguracionCamaraController extends Controller
                 ->where('numero', '<=', $camara->cantidad_bandas)
                 ->with('actualizadoPor:id,name'),
             'posiciones' => fn ($consulta) => $consulta
-                ->with('ubicacionesActuales:id,posicion_id')
+                ->with('ubicacionesActuales:id,folio_id,posicion_id')
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
                 ->where('nivel', '<=', $camara->cantidad_niveles)

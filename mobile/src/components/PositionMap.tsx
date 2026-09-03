@@ -158,6 +158,9 @@ function Band({
         {operationalBand ? (
           <>
             <Text style={styles.bandHeadingState}>{operationalBandLabel(operationalBand)}</Text>
+            <Text numberOfLines={2} style={styles.bandHeadingAffinity}>
+              {operationalBandAffinityLabel(operationalBand)}
+            </Text>
             <Text numberOfLines={1} style={styles.bandHeadingUses}>
               {operationalBand.usos_permitidos.map(operationalUseLabel).join(' · ')}
             </Text>
@@ -244,6 +247,24 @@ function operationalUseLabel(use: OperationalBand['usos_permitidos'][number]) {
     inspeccion: 'Inspección',
     retenidos: 'Retenidos',
   }[use];
+}
+
+function operationalBandAffinityLabel(band: OperationalBand) {
+  const affinity = band.afinidad;
+
+  if (!affinity?.activa) {
+    return affinity?.fuera_alcance
+      ? `${affinity.fuera_alcance} bulto(s) fuera del planificador`
+      : 'Sin afinidad · banda liberada';
+  }
+
+  const profile = [affinity.cliente?.valor, affinity.marca?.valor, affinity.formato?.valor]
+    .filter(Boolean)
+    .join(' › ') || 'Afinidad sin datos completos';
+
+  return affinity.perfiles_diferentes > 1
+    ? `${profile} · MIX ${affinity.perfiles_diferentes}`
+    : profile;
 }
 
 function Legend({ color, label, border }: { color: string; label: string; border?: string }) {
@@ -353,6 +374,13 @@ const styles = StyleSheet.create({
   },
   bandHeadingTitle: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: .4 },
   bandHeadingState: { color: colors.text, fontSize: 7, fontWeight: '900' },
+  bandHeadingAffinity: {
+    maxWidth: 124,
+    color: colors.cyan,
+    fontSize: 6,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
   bandHeadingUses: { maxWidth: 124, color: colors.muted, fontSize: 6, fontWeight: '700' },
   gap: { height: 76 },
   cell: {
