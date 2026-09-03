@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\TipoPlanOperacional;
+use App\Models\PlanOperacional;
 use App\Models\TareaMovimiento;
 
 class CerrarRecepcionTunelObserver
@@ -16,27 +17,77 @@ class CerrarRecepcionTunelObserver
             return;
         }
 
-        $plan = $tarea->planOperacional()->lockForUpdate()->first();
+        $planes = collect();
+        $planPropio = $tarea->planOperacional()->first();
+        if ($planPropio?->tipo === TipoPlanOperacional::RecepcionTunel) {
+            $planes->push($planPropio);
+        }
+
+        TareaMovimiento::query()
+            ->where('reemplazada_por_tarea_id', $tarea->id)
+            ->with('planOperacional')
+            ->get()
+            ->each(function (TareaMovimiento $reemplazada) use ($planes): void {
+                if ($reemplazada->planOperacional?->tipo === TipoPlanOperacional::RecepcionTunel) {
+                    $planes->push($reemplazada->planOperacional);
+                }
+            });
+
+        $planes
+            ->unique('id')
+            ->each(fn (PlanOperacional $plan): mixed => $this->evaluarPlan($plan, $tarea));
+    }
+
+    private function evaluarPlan(PlanOperacional $plan, TareaMovimiento $disparadora): void
+    {
+        $plan = PlanOperacional::query()->lockForUpdate()->find($plan->id);
         if (! $plan
             || $plan->tipo !== TipoPlanOperacional::RecepcionTunel
             || $plan->estado->esFinal()) {
             return;
         }
 
-        $faltan = TareaMovimiento::query()
+        $tareas = TareaMovimiento::query()
             ->where('plan_operacional_id', $plan->id)
-            ->where('estado', '!=', EstadoTareaMovimiento::Completada->value)
-            ->exists();
+            ->orderBy('secuencia')
+            ->lockForUpdate()
+            ->get();
 
-        if ($faltan) {
+        if ($tareas->isEmpty()
+            || $tareas->contains(fn (TareaMovimiento $tarea): bool => ! $this->estaResuelta($tarea))) {
             return;
         }
 
         $plan->update([
             'estado' => EstadoPlanOperacional::Completado,
-            'completado_por_user_id' => $tarea->responsable_user_id,
-            'completado_at' => $tarea->completada_at ?? now(),
+            'completado_por_user_id' => $disparadora->responsable_user_id,
+            'completado_at' => $disparadora->completada_at ?? now(),
             'version' => $plan->version + 1,
         ]);
+    }
+
+    private function estaResuelta(TareaMovimiento $tarea): bool
+    {
+        $actual = $tarea;
+        $visitadas = [];
+
+        for ($profundidad = 0; $profundidad < 12; $profundidad++) {
+            if ($actual->estado === EstadoTareaMovimiento::Completada) {
+                return true;
+            }
+            if ($actual->estado !== EstadoTareaMovimiento::Cancelada
+                || ! $actual->reemplazada_por_tarea_id
+                || in_array($actual->id, $visitadas, true)) {
+                return false;
+            }
+
+            $visitadas[] = $actual->id;
+            $actual = TareaMovimiento::query()->find($actual->reemplazada_por_tarea_id);
+            if (! $actual) {
+                return false;
+            }
+        }
+
+        return false;
     }
 }
