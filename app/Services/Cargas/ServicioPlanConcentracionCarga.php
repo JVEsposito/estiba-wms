@@ -53,14 +53,22 @@ class ServicioPlanConcentracionCarga
 
             if (! $carga->temporada?->activa
                 || ! in_array($carga->estado, EstadoCarga::visiblesEnOperacion(), true)) {
-                $this->cancelarObjetivoFinalizado($plan, $usuario, 'La carga ya no se encuentra disponible para concentración.');
+                $this->cancelarObjetivoFinalizado(
+                    $plan,
+                    $usuario,
+                    'La carga ya no se encuentra disponible para concentración.',
+                );
 
                 return $plan?->refresh();
             }
 
             $asignaciones = $this->asignaciones($carga);
             if ($asignaciones->isEmpty()) {
-                $this->cancelarObjetivoFinalizado($plan, $usuario, 'La carga ya no posee pallets completos pendientes en cámara.');
+                $this->cancelarObjetivoFinalizado(
+                    $plan,
+                    $usuario,
+                    'La carga ya no posee pallets completos vigentes para concentración.',
+                );
 
                 return $plan?->refresh();
             }
@@ -76,13 +84,20 @@ class ServicioPlanConcentracionCarga
             $analisis = $this->calculador->analizar($asignaciones, $camaraObjetivoId);
             $necesarios = max(
                 0,
-                (int) ceil(($analisis['total'] * CalculadorConcentracionCarga::UMBRAL_PORCENTAJE) / 100)
-                    - (int) $analisis['concentrados'],
+                (int) ceil(
+                    ($analisis['total'] * CalculadorConcentracionCarga::UMBRAL_PORCENTAJE) / 100,
+                ) - (int) $analisis['concentrados'],
             );
             $geometriaHash = $this->geometriaHash($camaraObjetivoId, $analisis);
 
             if (config('planificador.mode') === 'shadow') {
-                $this->registrarShadow($carga, $usuario, $analisis, $camaraObjetivoId, $necesarios);
+                $this->registrarShadow(
+                    $carga,
+                    $usuario,
+                    $analisis,
+                    $camaraObjetivoId,
+                    $necesarios,
+                );
 
                 return $plan?->refresh();
             }
@@ -169,8 +184,8 @@ class ServicioPlanConcentracionCarga
     }
 
     /**
-     * Recalcula solo las cargas cuyo grafo pudo cambiar por el folio movido o
-     * por las bandas de origen/destino afectadas.
+     * Recalcula únicamente las cargas cuyo grafo pudo cambiar por el folio
+     * movido o por las bandas de origen/destino afectadas.
      */
     public function sincronizarTrasMovimiento(Movimiento $movimiento, User $usuario): void
     {
@@ -227,6 +242,7 @@ class ServicioPlanConcentracionCarga
             ->whereIn('estado', [
                 EstadoCargaFolio::Pendiente->value,
                 EstadoCargaFolio::ConIncidencia->value,
+                EstadoCargaFolio::EnAnden->value,
             ])
             ->whereHas('reservaActiva')
             ->whereHas('folio', fn ($consulta) => $consulta
@@ -235,12 +251,7 @@ class ServicioPlanConcentracionCarga
             ->with('folio.ubicacionActual.posicion.camara')
             ->orderBy('asignado_at')
             ->lockForUpdate()
-            ->get()
-            ->filter(fn (CargaFolio $asignacion): bool => $asignacion
-                ->folio
-                ?->ubicacionActual
-                ?->posicion !== null)
-            ->values();
+            ->get();
     }
 
     /**
@@ -264,6 +275,10 @@ class ServicioPlanConcentracionCarga
 
         $pendientes = $asignaciones
             ->where('estado', EstadoCargaFolio::Pendiente)
+            ->filter(fn (CargaFolio $asignacion): bool => $asignacion
+                ->folio
+                ?->ubicacionActual
+                ?->posicion !== null)
             ->reject(fn (CargaFolio $asignacion): bool => $grupoIds->contains($asignacion->folio_id))
             ->values();
         if ($pendientes->isEmpty()) {
@@ -826,6 +841,7 @@ class ServicioPlanConcentracionCarga
         };
     }
 
+    /** @param array<string, mixed> $analisis */
     private function registrarShadow(
         Carga $carga,
         User $usuario,
