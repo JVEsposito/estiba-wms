@@ -624,6 +624,53 @@ button:disabled {
     white-space: nowrap;
 }
 
+.truck-dock-panel {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    margin-top: 16px;
+    border: 1px solid rgba(246, 184, 75, .52);
+    border-radius: 12px;
+    background: linear-gradient(110deg, rgba(246, 184, 75, .12), rgba(22, 201, 194, .05));
+    padding: 15px 17px;
+    box-shadow: inset 3px 0 0 var(--amber);
+}
+
+.truck-dock-panel__icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border: 1px solid rgba(246, 184, 75, .4);
+    border-radius: 11px;
+    background: rgba(246, 184, 75, .1);
+    font-size: 1.25rem;
+}
+
+.truck-dock-panel h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.truck-dock-panel p:last-child {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+.truck-dock-panel__status {
+    border: 1px solid rgba(246, 184, 75, .48);
+    border-radius: 999px;
+    background: rgba(246, 184, 75, .12);
+    color: var(--amber);
+    padding: 7px 10px;
+    font-size: .63rem;
+    font-weight: 900;
+    letter-spacing: .09em;
+}
+
 .distribution-block {
     align-items: flex-start;
     margin-top: 16px;

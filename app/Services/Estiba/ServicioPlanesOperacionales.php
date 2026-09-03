@@ -168,6 +168,75 @@ class ServicioPlanesOperacionales
         }, attempts: 3);
     }
 
+    /**
+     * Agrega una sola decisión a la frontera de un objetivo rolling vigente.
+     *
+     * @param  array<string, mixed>  $datosTarea
+     */
+    public function agregarTareaRolling(
+        PlanOperacional $plan,
+        array $datosTarea,
+    ): TareaMovimiento {
+        return DB::transaction(function () use ($plan, $datosTarea): TareaMovimiento {
+            $planBloqueado = PlanOperacional::query()
+                ->with('temporada')
+                ->lockForUpdate()
+                ->findOrFail($plan->id);
+
+            if ($this->horizonte($planBloqueado) !== 'rolling'
+                || $planBloqueado->estado->esFinal()
+                || ! $planBloqueado->temporada?->activa) {
+                throw new DomainException('El objetivo ya no admite nuevas decisiones rolling.');
+            }
+
+            $secuencia = ((int) TareaMovimiento::query()
+                ->where('plan_operacional_id', $planBloqueado->id)
+                ->lockForUpdate()
+                ->max('secuencia')) + 1;
+            $tarea = $this->crearTarea(
+                $planBloqueado,
+                $secuencia,
+                $datosTarea,
+                $planBloqueado->prioridad,
+            );
+            $planBloqueado->update(['version' => $planBloqueado->version + 1]);
+
+            return $this->cargarTarea($tarea);
+        }, attempts: 3);
+    }
+
+    public function cancelarPorReplanificacion(
+        TareaMovimiento $tarea,
+        User $usuario,
+        string $motivo,
+    ): ?TareaMovimiento {
+        return DB::transaction(function () use ($tarea, $usuario, $motivo): ?TareaMovimiento {
+            $tareaBloqueada = TareaMovimiento::query()
+                ->with('planOperacional')
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+
+            if ($tareaBloqueada->estado->esFinal()) {
+                return $tareaBloqueada;
+            }
+            if (! $this->reservas->liberarParaReplanificacion($tareaBloqueada, $motivo)) {
+                return null;
+            }
+
+            $tareaBloqueada->update([
+                'estado' => EstadoTareaMovimiento::Cancelada,
+                'cancelada_at' => now(),
+                'cancelada_por_user_id' => $usuario->id,
+                'motivo_cancelacion' => Str::limit(trim($motivo), 255, ''),
+                'version' => $tareaBloqueada->version + 1,
+            ]);
+            $plan = $tareaBloqueada->planOperacional;
+            $plan->update(['version' => $plan->version + 1]);
+
+            return $tareaBloqueada->refresh();
+        }, attempts: 3);
+    }
+
     public function materializarDestino(
         TareaMovimiento $tarea,
         Posicion $posicion,
@@ -187,14 +256,45 @@ class ServicioPlanesOperacionales
             $versionCamara,
         ): TareaMovimiento {
             $this->validarActor($usuario, $dispositivo);
-            $plan = $tarea->planOperacional()->firstOrFail();
+            $tareaBloqueada = TareaMovimiento::query()
+                ->with('planOperacional')
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+            $plan = $tareaBloqueada->planOperacional;
             if ($this->horizonte($plan) !== 'rolling') {
                 throw new DomainException(
                     'La materialización dinámica de destinos solo está disponible para planes rolling.',
                 );
             }
+
+            $contexto = $tareaBloqueada->contexto ?? [];
+            if (($contexto['tipo_decision'] ?? null) === 'despeje_salida_directa'
+                && ($contexto['tipo_movimiento_materializable'] ?? false) === true) {
+                if ($versionTarea !== null && $tareaBloqueada->version !== $versionTarea) {
+                    throw new ConflictoOperacion('La tarea cambió desde el snapshot utilizado por la tablet.');
+                }
+                if ($tareaBloqueada->estado !== EstadoTareaMovimiento::Asumida
+                    || ! $tareaBloqueada->camara_origen_id
+                    || ! $tareaBloqueada->posicion_origen_id) {
+                    throw new ConflictoOperacion(
+                        'El despeje ya no se encuentra disponible para materializar un destino.',
+                    );
+                }
+
+                $tipoMaterializado = $posicion->camara_id === $tareaBloqueada->camara_origen_id
+                    ? TipoMovimiento::Reubicacion
+                    : TipoMovimiento::TrasladoEntreCamaras;
+                if ($tareaBloqueada->tipo_movimiento !== $tipoMaterializado) {
+                    $tareaBloqueada->update([
+                        'tipo_movimiento' => $tipoMaterializado,
+                        'version' => $tareaBloqueada->version + 1,
+                    ]);
+                    $versionTarea = $tareaBloqueada->version;
+                }
+            }
+
             $this->reservas->materializarDestino(
-                $tarea,
+                $tareaBloqueada,
                 $posicion,
                 $usuario,
                 $dispositivo,
@@ -203,7 +303,7 @@ class ServicioPlanesOperacionales
                 $versionCamara,
             );
 
-            return $this->cargarTarea($tarea->refresh());
+            return $this->cargarTarea($tareaBloqueada->refresh());
         }, attempts: 3);
     }
 

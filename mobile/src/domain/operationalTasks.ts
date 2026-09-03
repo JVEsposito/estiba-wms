@@ -52,6 +52,13 @@ export type OperationalTask = {
   };
   origen: OperationalTaskEndpoint;
   destino: OperationalTaskEndpoint;
+  destino_logico?: {
+    tipo: 'anden';
+    id: string;
+    nombre: string;
+    carga_folio_id: string;
+    presencia_carga_anden_id: string;
+  } | null;
   responsable: {
     id: string | number;
     nombre: string;
@@ -169,6 +176,11 @@ export function operationalTaskPositionLabel(endpoint: OperationalTaskEndpoint) 
     ?? `B${String(position.banda).padStart(2, '0')}-P${String(position.posicion).padStart(2, '0')}-N${position.nivel}`;
 
   return `${endpoint.camara.nombre} · ${physical}`;
+}
+
+export function operationalTaskDestinationLabel(task: OperationalTask) {
+  if (task.destino_logico?.tipo === 'anden') return task.destino_logico.nombre;
+  return operationalTaskPositionLabel(task.destino);
 }
 
 export function positionScanMatches(task: OperationalTask, scannedValue: string) {

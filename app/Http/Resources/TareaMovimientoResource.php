@@ -35,6 +35,7 @@ class TareaMovimientoResource extends JsonResource
             ]),
             'origen' => $this->extremo('Origen'),
             'destino' => $this->extremo('Destino'),
+            'destino_logico' => $this->destinoLogico(),
             'responsable' => $this->whenLoaded('responsable', fn (): ?array => $this->responsable ? [
                 'id' => $this->responsable->id,
                 'nombre' => $this->responsable->name,
@@ -67,6 +68,10 @@ class TareaMovimientoResource extends JsonResource
             'iniciada_at' => $this->iniciada_at?->toAtomString(),
             'completada_at' => $this->completada_at?->toAtomString(),
             'cancelada_at' => $this->cancelada_at?->toAtomString(),
+            'cancelacion' => $this->cancelada_at ? [
+                'motivo' => $this->motivo_cancelacion,
+                'reemplazada_por_tarea_id' => $this->reemplazada_por_tarea_id,
+            ] : null,
             'version' => $this->version,
             'created_at' => $this->created_at?->toAtomString(),
         ];
@@ -94,6 +99,24 @@ class TareaMovimientoResource extends JsonResource
                 'posicion' => $posicion->posicion,
                 'nivel' => $posicion->nivel,
             ] : null,
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function destinoLogico(): ?array
+    {
+        $contexto = $this->contexto ?? [];
+        if (($contexto['tipo_decision'] ?? null) !== 'retiro_directo_anden'
+            || empty($contexto['anden_id'])) {
+            return null;
+        }
+
+        return [
+            'tipo' => 'anden',
+            'id' => $contexto['anden_id'],
+            'nombre' => $contexto['anden_nombre'] ?? 'Andén',
+            'carga_folio_id' => $contexto['carga_folio_id'] ?? null,
+            'presencia_carga_anden_id' => $contexto['presencia_carga_anden_id'] ?? null,
         ];
     }
 }

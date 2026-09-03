@@ -17,7 +17,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ActualizarCargaRequest;
 use App\Http\Requests\AgregarFoliosCargaRequest;
 use App\Http\Requests\CrearCargaRequest;
+use App\Http\Requests\FinalizarPresenciaCargaAndenRequest;
 use App\Http\Requests\RegistrarDespachoDirectoPrefrioRequest;
+use App\Http\Requests\RegistrarPresenciaCargaAndenRequest;
 use App\Http\Requests\VersionCargaRequest;
 use App\Http\Resources\CargaResource;
 use App\Http\Resources\FolioDisponibleCargaResource;
@@ -26,6 +28,7 @@ use App\Models\Carga;
 use App\Models\Folio;
 use App\Services\Cargas\RevisionCargaOperacional;
 use App\Services\Cargas\ServicioCarga;
+use App\Services\Cargas\ServicioPresenciaCargaAnden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -421,6 +424,26 @@ class CargaController extends Controller
         return new CargaResource($this->cargarDetalle($cancelada));
     }
 
+    public function registrarCamionEnAnden(
+        RegistrarPresenciaCargaAndenRequest $request,
+        Carga $carga,
+        ServicioPresenciaCargaAnden $servicio,
+    ): CargaResource {
+        $servicio->registrar($carga, $request->validated(), $request->user());
+
+        return new CargaResource($this->cargarDetalle($carga->refresh()));
+    }
+
+    public function finalizarCamionEnAnden(
+        FinalizarPresenciaCargaAndenRequest $request,
+        Carga $carga,
+        ServicioPresenciaCargaAnden $servicio,
+    ): CargaResource {
+        $servicio->finalizar($carga, $request->validated(), $request->user());
+
+        return new CargaResource($this->cargarDetalle($carga->refresh()));
+    }
+
     private function cargarDetalle(Carga $carga): Carga
     {
         return $carga
@@ -440,6 +463,8 @@ class CargaController extends Controller
             'temporada:id,codigo,nombre,activa',
             'camaraObjetivo:id,codigo,nombre',
             'andenPrevisto:id,codigo,nombre',
+            'presenciaAndenActiva.anden:id,codigo,nombre',
+            'presenciaAndenActiva.ingresadaPor:id,name',
             'embarque:id,carga_id,codigo,fecha_programada,hora_programada,modalidad,estado',
             'embarque.instructivos:id,embarque_id,orden,numero_externo',
             'creadaPor:id,name',
@@ -463,6 +488,8 @@ class CargaController extends Controller
         return [
             'camaraObjetivo:id,codigo,nombre',
             'andenPrevisto:id,codigo,nombre',
+            'presenciaAndenActiva.anden:id,codigo,nombre',
+            'presenciaAndenActiva.ingresadaPor:id,name',
             'asignacionesActuales.anden:id,codigo,nombre',
             'asignacionesActuales.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
         ];

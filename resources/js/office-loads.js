@@ -51,6 +51,9 @@ const elements = {
     concentration: byId('loadConcentration'),
     atDock: byId('loadAtDock'),
     incidentCount: byId('loadIncidentCount'),
+    truckDockPanel: byId('truckDockPanel'),
+    truckDockTitle: byId('truckDockTitle'),
+    truckDockDetail: byId('truckDockDetail'),
     concentrationMessage: byId('loadConcentrationMessage'),
     concentrationBar: byId('loadConcentrationBar'),
     concentratedFolios: byId('loadConcentratedFolios'),
@@ -78,6 +81,7 @@ const elements = {
     commandTitle: byId('loadCommandTitle'),
     commandDescription: byId('loadCommandDescription'),
     cancel: byId('cancelLoadButton'),
+    truckDock: byId('truckDockButton'),
     closeDispatch: byId('closeDispatchButton'),
     publish: byId('publishLoadButton'),
     incidentDialog: byId('incidentResolutionDialog'),
@@ -92,6 +96,14 @@ const elements = {
     closeForm: byId('closeDispatchForm'),
     closeContext: byId('closeDispatchContext'),
     closeError: byId('closeDispatchError'),
+    truckDockDialog: byId('truckDockDialog'),
+    truckDockForm: byId('truckDockForm'),
+    truckDockSelect: byId('truckDockSelect'),
+    truckDockError: byId('truckDockError'),
+    releaseDockDialog: byId('releaseDockDialog'),
+    releaseDockForm: byId('releaseDockForm'),
+    releaseDockContext: byId('releaseDockContext'),
+    releaseDockError: byId('releaseDockError'),
     directDialog: byId('directDispatchDialog'),
     directForm: byId('directDispatchForm'),
     directDock: byId('directDockSelect'),
@@ -395,6 +407,14 @@ function canCloseDispatch(load) {
         && load?.estado === 'despachada';
 }
 
+function canManageTruckPresence(load) {
+    if (state.identity?.puede_gestionar_cargas !== true || !load) return false;
+    if (load.camion_en_anden) return load.estado !== 'cerrada';
+
+    return ['pendiente', 'en_preparacion', 'despacho_parcial', 'en_separacion', 'separada', 'separacion_completa']
+        .includes(load.estado);
+}
+
 function parseFolios(value = elements.folioInput.value) {
     const seen = new Set();
 
@@ -500,6 +520,7 @@ function renderCatalog() {
 
     elements.list.innerHTML = loads.map((load) => {
         const selected = state.selected?.id === load.id;
+        const truck = load.camion_en_anden;
         return `
             <button class="load-card${selected ? ' is-selected' : ''}" data-load-id="${escapeHtml(load.id)}" type="button">
                 <div class="load-card__line load-card__line--main">
@@ -510,7 +531,7 @@ function renderCatalog() {
                 <div class="load-card__line load-card__line--detail">
                     <span class="load-card__distribution">${escapeHtml(distributionText(load))}</span>
                     <span class="priority-dot priority-dot--${priorityClass(load.prioridad)}">${escapeHtml(priorityLabels[load.prioridad] || statusText(load.prioridad))}</span>
-                    <span class="load-card__count">${load.incidencias_abiertas ? `⚠ ${load.incidencias_abiertas} · ` : ''}${load.total_folios} / 26</span>
+                    <span class="load-card__count">${truck ? `🚚 ${escapeHtml(truck.anden?.nombre || 'En andén')} · ` : ''}${load.incidencias_abiertas ? `⚠ ${load.incidencias_abiertas} · ` : ''}${load.total_folios} / 26</span>
                 </div>
             </button>
         `;
@@ -553,6 +574,24 @@ function populateDirectDockOptions(selectedId = '') {
                 ${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}
             </option>
         `),
+    ].join('');
+}
+
+function populateTruckDockOptions(selectedId = '') {
+    elements.truckDockSelect.innerHTML = [
+        '<option value="">Selecciona un andén disponible</option>',
+        ...state.docks.map((dock) => {
+            const occupied = dock.ocupacion && dock.ocupacion.carga?.id !== state.selected?.id;
+            const occupation = occupied
+                ? ` · ocupado por ${dock.ocupacion.carga?.codigo || dock.ocupacion.patente}`
+                : '';
+
+            return `
+                <option value="${escapeHtml(dock.id)}"${dock.id === selectedId ? ' selected' : ''}${occupied ? ' disabled' : ''}>
+                    ${escapeHtml(dock.codigo)} · ${escapeHtml(dock.nombre)}${escapeHtml(occupation)}
+                </option>
+            `;
+        }),
     ].join('');
 }
 
@@ -796,6 +835,10 @@ function renderCommands(load) {
     elements.cancel.classList.toggle('is-hidden', !canCancel(load));
     elements.publish.classList.toggle('is-hidden', !draft);
     elements.closeDispatch.classList.toggle('is-hidden', !canCloseDispatch(load));
+    elements.truckDock.classList.toggle('is-hidden', !canManageTruckPresence(load));
+    elements.truckDock.textContent = load.camion_en_anden ? 'Liberar andén' : 'Camión en andén';
+    elements.truckDock.classList.toggle('danger-button', Boolean(load.camion_en_anden));
+    elements.truckDock.classList.toggle('secondary-button', !load.camion_en_anden);
     elements.publish.disabled = !canPublish(load);
 
     if (draft) {
@@ -825,6 +868,20 @@ function renderCommands(load) {
         elements.commandDescription.textContent = 'El encabezado y los folios quedan en modo de consulta.';
         elements.folioTableHint.textContent = 'La orden no admite modificaciones en su estado actual.';
     }
+}
+
+function renderTruckPresence(load) {
+    const presence = load.camion_en_anden;
+    elements.truckDockPanel.classList.toggle('is-hidden', !presence);
+    if (!presence) return;
+
+    const dock = presence.anden?.nombre || presence.anden?.codigo || 'andén';
+    elements.truckDockTitle.textContent = `${presence.patente} · ${dock}`;
+    elements.truckDockDetail.textContent = [
+        `Llegada ${formatDate(presence.ingresada_at)}`,
+        presence.conductor ? `conductor ${presence.conductor}` : null,
+        'el WMS prioriza sus pallets completos directamente a este andén',
+    ].filter(Boolean).join(' · ');
 }
 
 function renderSelected(load) {
@@ -873,6 +930,7 @@ function renderSelected(load) {
     elements.totalFolios.textContent = `${load.total_folios} / 26`;
     elements.totalCameras.textContent = String(load.distribucion?.length || 0);
     renderConcentration(load);
+    renderTruckPresence(load);
     renderDistribution(load);
     renderFolios(load);
     renderIncidents();
@@ -927,6 +985,7 @@ async function loadDocks() {
     state.docks = response.data;
     populateDockOptions(state.selected?.anden_previsto?.id || '');
     populateDirectDockOptions();
+    populateTruckDockOptions(state.selected?.camion_en_anden?.anden?.id || '');
 }
 
 async function loadIncidents(loadId) {
@@ -1177,8 +1236,31 @@ function openCloseDialog() {
     elements.closeError.textContent = '';
     elements.closeContext.textContent = `${state.selected.codigo} · ${state.selected.total_folios} folios en andén`;
     elements.closeForm.elements.ocurrido_at.value = localDateTimeValue();
+    elements.closeForm.elements.patente.value = state.selected.camion_en_anden?.patente || '';
+    elements.closeForm.elements.conductor.value = state.selected.camion_en_anden?.conductor || '';
     elements.closeDialog.showModal();
-    elements.closeForm.elements.patente.focus();
+    (elements.closeForm.elements.patente.value
+        ? elements.closeForm.elements.conductor
+        : elements.closeForm.elements.patente).focus();
+}
+
+function openTruckDockDialog() {
+    elements.truckDockForm.reset();
+    elements.truckDockError.textContent = '';
+    elements.truckDockForm.elements.ingresada_at.value = localDateTimeValue();
+    populateTruckDockOptions(state.selected?.anden_previsto?.id || '');
+    elements.truckDockDialog.showModal();
+    elements.truckDockSelect.focus();
+}
+
+function openReleaseDockDialog() {
+    const presence = state.selected?.camion_en_anden;
+    if (!presence) return;
+    elements.releaseDockForm.reset();
+    elements.releaseDockError.textContent = '';
+    elements.releaseDockContext.textContent = `${presence.patente} · ${presence.anden?.nombre || 'andén'} · llegada ${formatDate(presence.ingresada_at)}.`;
+    elements.releaseDockDialog.showModal();
+    elements.releaseDockForm.elements.motivo.focus();
 }
 
 elements.loginForm.addEventListener('submit', async (event) => {
@@ -1542,6 +1624,94 @@ elements.directDispatch.addEventListener('click', () => {
     if (state.identity?.puede_gestionar_cargas === true
         && state.identity?.puede_cerrar_despacho_frigorifico === true) {
         void openDirectDispatchDialog();
+    }
+});
+
+elements.truckDock.addEventListener('click', () => {
+    if (!canManageTruckPresence(state.selected)) return;
+    if (state.selected.camion_en_anden) openReleaseDockDialog();
+    else openTruckDockDialog();
+});
+
+elements.truckDockForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(elements.truckDockForm);
+    const dockId = String(form.get('anden_id') || '').trim();
+    const plate = String(form.get('patente') || '').trim().toUpperCase();
+    const driver = String(form.get('conductor') || '').trim();
+    const arrivedAt = localDateTimeToIso(String(form.get('ingresada_at') || ''));
+    const observation = String(form.get('observacion') || '').trim();
+    elements.truckDockError.textContent = '';
+
+    if (!dockId || !plate || !arrivedAt) {
+        elements.truckDockError.textContent = 'El andén, la patente y la fecha/hora de llegada son obligatorios.';
+        return;
+    }
+    if (new Date(arrivedAt).getTime() > Date.now()) {
+        elements.truckDockError.textContent = 'La fecha y hora de llegada no puede estar en el futuro.';
+        return;
+    }
+
+    setBusy(true, 'Activando prioridad directa a andén…');
+    try {
+        const response = await api(`/api/cargas/${state.selected.id}/camion-en-anden`, {
+            method: 'POST',
+            body: JSON.stringify({
+                operacion_id: operationId(),
+                version_esperada: state.selected.version,
+                anden_id: dockId,
+                patente: plate,
+                conductor: driver || null,
+                ingresada_at: arrivedAt,
+                observacion: observation || null,
+            }),
+        });
+        elements.truckDockDialog.close();
+        syncLoad(response.data);
+        await Promise.all([loadDocks(), loadCatalog(state.loadPagination.currentPage)]);
+        toast(`${response.data.codigo}: ${plate} presente; despacho directo priorizado.`);
+    } catch (error) {
+        if (await recoverConflict(error)) {
+            elements.truckDockError.textContent = 'La carga cambió en otra sesión. Revisa la información actualizada antes de confirmar.';
+        } else {
+            elements.truckDockError.textContent = error.message;
+        }
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.releaseDockForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const reason = String(new FormData(elements.releaseDockForm).get('motivo') || '').trim();
+    elements.releaseDockError.textContent = '';
+    if (!reason) {
+        elements.releaseDockError.textContent = 'Indica por qué el camión dejó el andén.';
+        return;
+    }
+
+    setBusy(true, 'Liberando andén y recalculando tareas…');
+    try {
+        const response = await api(`/api/cargas/${state.selected.id}/camion-en-anden/finalizar`, {
+            method: 'POST',
+            body: JSON.stringify({
+                operacion_id: operationId(),
+                version_esperada: state.selected.version,
+                motivo: reason,
+            }),
+        });
+        elements.releaseDockDialog.close();
+        syncLoad(response.data);
+        await Promise.all([loadDocks(), loadCatalog(state.loadPagination.currentPage)]);
+        toast(`${response.data.codigo}: andén liberado y prioridad directa finalizada.`);
+    } catch (error) {
+        if (await recoverConflict(error)) {
+            elements.releaseDockError.textContent = 'La carga cambió en otra sesión. Revisa si el camión continúa en andén.';
+        } else {
+            elements.releaseDockError.textContent = error.message;
+        }
+    } finally {
+        setBusy(false);
     }
 });
 

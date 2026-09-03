@@ -20,6 +20,7 @@ use App\Models\CargaFolio;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Cargas\PlanificadorExtraccionCarga;
 use App\Services\Cargas\RevisionCargaOperacional;
@@ -183,6 +184,9 @@ class DespachoFrigorificoController extends Controller
             versionCamaraConocida: $datos['version_camara_conocida'],
             generadoDispositivoAt: CarbonImmutable::parse($datos['generado_dispositivo_at']),
             advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
+            tareaMovimiento: isset($datos['tarea_movimiento_id'])
+                ? TareaMovimiento::query()->findOrFail($datos['tarea_movimiento_id'])
+                : null,
         );
 
         return new CargaResource($this->cargarCarga($asignacion->carga));
@@ -215,6 +219,8 @@ class DespachoFrigorificoController extends Controller
             ->load([
                 'camaraObjetivo:id,codigo,nombre',
                 'andenPrevisto:id,codigo,nombre',
+                'presenciaAndenActiva.anden:id,codigo,nombre',
+                'presenciaAndenActiva.ingresadaPor:id,name',
                 'creadaPor:id,name',
                 'actualizadaPor:id,name',
                 'publicadaPor:id,name',

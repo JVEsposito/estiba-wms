@@ -22,6 +22,7 @@ use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Cargas\ServicioPlanDespachoDirecto;
 use App\Services\Cargas\ServicioTareasCarga;
 use App\Services\Transiciones\ComandoTransicionOperacional;
 use App\Services\Transiciones\MotorTransicionesOperacionales;
@@ -56,6 +57,7 @@ class ServicioMovimientoEstiba
         private readonly ServicioTareasCarga $servicioTareasCarga,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
         private readonly ServicioReservasTareasMovimiento $reservasTareas,
+        private readonly ServicioPlanDespachoDirecto $planificadorDespachoDirecto,
     ) {}
 
     /**
@@ -599,6 +601,7 @@ class ServicioMovimientoEstiba
             if ($tareaEnEjecucion) {
                 $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
             }
+            $this->planificadorDespachoDirecto->sincronizarTrasMovimiento($movimiento, $usuario);
 
             return $movimiento->load('folio');
         }
@@ -654,6 +657,7 @@ class ServicioMovimientoEstiba
         if ($tareaEnEjecucion) {
             $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
         }
+        $this->planificadorDespachoDirecto->sincronizarTrasMovimiento($movimiento, $usuario);
 
         return $movimiento->load('folio');
     }
@@ -803,6 +807,7 @@ class ServicioMovimientoEstiba
         if ($tareaEnEjecucion) {
             $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
         }
+        $this->planificadorDespachoDirecto->sincronizarTrasMovimiento($movimiento, $usuario);
 
         return $movimiento;
     }
@@ -936,6 +941,7 @@ class ServicioMovimientoEstiba
         if ($tareaEnEjecucion) {
             $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
         }
+        $this->planificadorDespachoDirecto->sincronizarTrasMovimiento($movimiento, $usuario);
 
         return $movimiento;
     }

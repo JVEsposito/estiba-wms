@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'codigo',
@@ -36,6 +37,16 @@ class Anden extends Model
     public function cargasPrevistas(): HasMany
     {
         return $this->hasMany(Carga::class, 'anden_previsto_id');
+    }
+
+    public function presenciasCarga(): HasMany
+    {
+        return $this->hasMany(PresenciaCargaAnden::class);
+    }
+
+    public function presenciaActiva(): HasOne
+    {
+        return $this->hasOne(PresenciaCargaAnden::class, 'bloqueo_anden_id');
     }
 
     protected function casts(): array

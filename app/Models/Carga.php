@@ -107,6 +107,17 @@ class Carga extends Model
         return $this->hasMany(TareaCarga::class);
     }
 
+    public function presenciasAnden(): HasMany
+    {
+        return $this->hasMany(PresenciaCargaAnden::class)
+            ->orderBy('ingresada_at');
+    }
+
+    public function presenciaAndenActiva(): HasOne
+    {
+        return $this->hasOne(PresenciaCargaAnden::class, 'bloqueo_carga_id');
+    }
+
     public function incidencias(): HasManyThrough
     {
         return $this->hasManyThrough(

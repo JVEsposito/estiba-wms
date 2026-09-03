@@ -12,10 +12,17 @@ import {
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
-import { AuthSession, CameraPlan, LocatePayload, MovePayload } from '../domain/estiba';
+import {
+  AuthSession,
+  CameraPlan,
+  LocatePayload,
+  MovePayload,
+  SendLoadFolioToDockPayload,
+} from '../domain/estiba';
 import {
   folioScanMatches,
   OperationalTask,
+  operationalTaskDestinationLabel,
   operationalTaskLabel,
   operationalTaskPositionLabel,
   positionScanMatches,
@@ -157,7 +164,9 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       setTab('mias');
       resetScans();
       setNotice(
-        taken.reserva?.tipo_compromiso === 'fisica'
+        taken.tipo_movimiento === 'retiro'
+          ? `Tarea crítica tomada. Destino directo: ${operationalTaskDestinationLabel(taken)}.`
+          : taken.reserva?.tipo_compromiso === 'fisica'
           ? `Tarea ${operationalTaskLabel(taken.plan.tipo)} tomada con destino físico reservado.`
           : `Tarea ${operationalTaskLabel(taken.plan.tipo)} tomada. El destino se calculará con el snapshot vigente.`,
       );
@@ -258,7 +267,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setNotice(`Folio ${activeTask.folio.numero_folio} verificado. Calculando frontera con el estado vigente…`);
 
     if (activeTask.tipo_movimiento === 'retiro') {
-      setNotice('Folio verificado. El retiro lógico hacia andén será materializado por el flujo de despacho directo.');
+      setNotice(`Folio verificado. Destino prioritario: ${operationalTaskDestinationLabel(activeTask)}.`);
       return;
     }
     if (activeTask.reserva?.tipo_compromiso === 'fisica' && activeTask.destino?.posicion) {
@@ -335,11 +344,8 @@ export function OperationalTaskInbox({ api, auth }: Props) {
 
   async function startPhysicalTask() {
     if (!taskApi || !activeTask || !folioVerified || activeTask.estado === 'en_proceso') return;
-    if (activeTask.tipo_movimiento === 'retiro') {
-      setError('El retiro a andén todavía requiere el flujo específico de despacho directo del PR siguiente.');
-      return;
-    }
-    if (!activeTask.destino?.posicion || activeTask.reserva?.tipo_compromiso !== 'fisica') {
+    if (activeTask.tipo_movimiento !== 'retiro'
+      && (!activeTask.destino?.posicion || activeTask.reserva?.tipo_compromiso !== 'fisica')) {
       setError('Primero debe existir un destino físico validado por el servidor.');
       return;
     }
@@ -355,7 +361,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       replaceMine([started]);
       setNotice(
         `PALLET EN MOVIMIENTO · ${started.folio.numero_folio}. `
-        + `Desde este punto el destino ${operationalTaskPositionLabel(started.destino)} no puede recalcularse.`,
+        + `Desde este punto el destino ${operationalTaskDestinationLabel(started)} no puede recalcularse.`,
       );
     } catch (reason) {
       await closeTemporarySessions(sessions);
@@ -449,7 +455,71 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     }
   }
 
+  async function completeDirectWithdrawal() {
+    if (!taskApi
+      || !activeTask
+      || activeTask.estado !== 'en_proceso'
+      || activeTask.tipo_movimiento !== 'retiro'
+      || !activeTask.destino_logico?.carga_folio_id) return;
+
+    const task = activeTask;
+    const directDestination = activeTask.destino_logico;
+    const fromPrefrio = task.contexto?.origen_logico === 'tunel_prefrio';
+    const sessions = executionSessions.current.length
+      ? executionSessions.current
+      : [];
+    setBusy(true);
+    setError('');
+    setNotice('');
+
+    try {
+      if (fromPrefrio) {
+        await taskApi.completeDirectPrefrio(auth.token, task.id);
+      } else {
+        if (!sessions.length) await acquireExecutionSessions(task, sessions);
+        if (!task.origen?.camara) throw new Error('La tarea no conserva una cámara de origen.');
+        const sourceSession = sessionForCamera(sessions, task.origen.camara.id);
+        const payload: SendLoadFolioToDockPayload = {
+          operacion_id: Crypto.randomUUID(),
+          tarea_movimiento_id: task.id,
+          anden_id: directDestination.id,
+          sesion_estiba_id: sourceSession.sessionId,
+          version_camara_conocida: sourceSession.plan.version_plano,
+          generado_dispositivo_at: new Date().toISOString(),
+        };
+        await executeWithWarnings(
+          payload,
+          (confirmedPayload) => api.sendLoadFolioToDock(
+            auth.token,
+            directDestination.carga_folio_id,
+            confirmedPayload,
+          ).then(() => undefined),
+        );
+      }
+
+      setNotice(
+        `Retiro completado: ${task.folio.numero_folio} entregado en ${directDestination.nombre}.`,
+      );
+      setActiveTask(null);
+      resetScans();
+      await loadTasks({ quiet: true });
+    } catch (reason) {
+      setError(messageFrom(reason));
+      await loadTasks({ quiet: true });
+    } finally {
+      await closeTemporarySessions(sessions);
+      executionSessions.current = [];
+      setBusy(false);
+    }
+  }
+
   async function acquireExecutionSessions(task: OperationalTask, sessions: OpenSession[]) {
+    if (task.tipo_movimiento === 'retiro') {
+      if (task.contexto?.origen_logico === 'tunel_prefrio') return;
+      if (!task.origen?.camara) throw new Error('La tarea no posee cámara de origen.');
+      await acquireSession(task.origen.camara.id, sessions);
+      return;
+    }
     if (!task.destino?.camara) throw new Error('La tarea no posee cámara de destino materializada.');
     await acquireSession(task.destino.camara.id, sessions);
     if (task.origen?.camara && task.origen.camara.id !== task.destino.camara.id) {
@@ -646,7 +716,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
               <View style={styles.routeCard}>
                 <RouteLine label="Folio" value={activeTask.folio.numero_folio} strong />
                 <RouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
-                <RouteLine label="Destino" value={operationalTaskPositionLabel(activeTask.destino)} strong />
+                <RouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
                 <RouteLine label="Motivo" value={taskReason(activeTask)} />
               </View>
 
@@ -672,7 +742,9 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                     onPress={() => void verifyFolio()}
                     style={[styles.secondaryButton, (!folioScan.trim() || busy || leaseExpired) && styles.buttonDisabled]}
                   >
-                    <Text style={styles.secondaryButtonText}>Verificar y calcular</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      {activeTask.tipo_movimiento === 'retiro' ? 'Verificar folio' : 'Verificar y calcular'}
+                    </Text>
                   </Pressable>
                 </Step>
               ) : null}
@@ -696,17 +768,22 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                 </Step>
               ) : null}
 
-              {!inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
-                <Step number="3" title="Retirar pallet" complete={false} disabled={!folioVerified || !hasPhysicalDestination}>
+              {!inPhysicalMovement ? (
+                <Step
+                  number={activeTask.tipo_movimiento === 'retiro' ? '2' : '3'}
+                  title="Retirar pallet"
+                  complete={false}
+                  disabled={!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination)}
+                >
                   <Text style={styles.pointOfNoReturnCopy}>
                     Esta acción marca el pallet como físicamente en movimiento. Desde aquí el destino queda fijo.
                   </Text>
                   <Pressable
-                    disabled={!folioVerified || !hasPhysicalDestination || busy || leaseExpired}
+                    disabled={!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired}
                     onPress={() => void startPhysicalTask()}
                     style={[
                       styles.primaryButton,
-                      (!folioVerified || !hasPhysicalDestination || busy || leaseExpired) && styles.buttonDisabled,
+                      (!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired) && styles.buttonDisabled,
                     ]}
                   >
                     <Text style={styles.primaryButtonText}>RETIRAR PALLET · INICIAR MOVIMIENTO</Text>
@@ -717,7 +794,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                 </Step>
               ) : null}
 
-              {inPhysicalMovement ? (
+              {inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
                 <>
                   <Step number="4" title="Escanear destino fijo" complete={positionVerified}>
                     <Text style={styles.destinationHint}>
@@ -761,13 +838,22 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                 </>
               ) : null}
 
-              {activeTask.tipo_movimiento === 'retiro' ? (
-                <View style={styles.pendingFlow}>
-                  <Text style={styles.pendingFlowTitle}>Retiro lógico pendiente de integración</Text>
-                  <Text style={styles.pendingFlowCopy}>
-                    El claim puede existir desde ahora, pero el despacho directo hacia andén se conectará al estado de camión en el PR correspondiente. No se inicia el pallet para evitar dejarlo sin destino físico auditable.
+              {inPhysicalMovement && activeTask.tipo_movimiento === 'retiro' ? (
+                <Step number="3" title="Confirmar entrega en andén" complete={false}>
+                  <Text style={styles.destinationHint}>
+                    Destino comprometido: {operationalTaskDestinationLabel(activeTask)}
                   </Text>
-                </View>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void completeDirectWithdrawal()}
+                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
+                  >
+                    <Text style={styles.primaryButtonText}>CONFIRMAR ENTREGA EN ANDÉN</Text>
+                  </Pressable>
+                  <Text style={styles.pointOfNoReturnCopy}>
+                    Confirma solo cuando el pallet haya salido físicamente de su origen y esté en el andén indicado.
+                  </Text>
+                </Step>
               ) : null}
             </>
           ) : (
@@ -822,7 +908,7 @@ function TaskCard({
       <Text style={styles.taskFolio}>{task.folio.numero_folio}</Text>
       <Text style={styles.taskCommitment}>{commitment}</Text>
       <Text style={styles.taskRoute}>Origen · {operationalTaskPositionLabel(task.origen)}</Text>
-      <Text style={styles.taskRoute}>Destino · {operationalTaskPositionLabel(task.destino)}</Text>
+      <Text style={styles.taskRoute}>Destino · {operationalTaskDestinationLabel(task)}</Text>
       <Text numberOfLines={2} style={styles.taskInstruction}>{taskReason(task)}</Text>
       <View style={styles.taskFooter}>
         <Text style={styles.taskMeta}>Secuencia {task.secuencia}</Text>

@@ -67,6 +67,14 @@ export class OperationalTasksApi {
     )).data;
   }
 
+  async completeDirectPrefrio(token: string, taskId: string) {
+    return (await this.request<{ data: OperationalTask }>(
+      `/api/tareas-movimiento/${encodeURIComponent(taskId)}/completar-prefrio-directo`,
+      token,
+      { method: 'POST' },
+    )).data;
+  }
+
   async renew(token: string, taskId: string) {
     return (await this.request<{ data: OperationalTask }>(
       `/api/tareas-movimiento/${encodeURIComponent(taskId)}/renovar`,

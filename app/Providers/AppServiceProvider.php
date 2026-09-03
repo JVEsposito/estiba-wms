@@ -20,6 +20,7 @@ use App\Models\LoteInspeccionSag;
 use App\Models\LoteInspeccionSagFolio;
 use App\Models\Movimiento;
 use App\Models\PersonalAccessToken;
+use App\Models\PresenciaCargaAnden;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Models\RegistroHabilitacionAlmacenamiento;
@@ -102,6 +103,7 @@ class AppServiceProvider extends ServiceProvider
             ReservaCargaFolio::class,
             EventoCarga::class,
             IncidenciaCargaFolio::class,
+            PresenciaCargaAnden::class,
             Repaletizaje::class,
             RepaletizajeDetalle::class,
             RepaletizajeResultado::class,

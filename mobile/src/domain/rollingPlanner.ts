@@ -130,6 +130,9 @@ function cameraAllowedForTask(task: OperationalTask, cameraId: string) {
   if (explicitDestinationCamera && explicitDestinationCamera !== cameraId) return false;
 
   const originCamera = task.origen?.camara.id;
+  if (task.contexto?.tipo_decision === 'despeje_salida_directa') {
+    return Boolean(originCamera);
+  }
   if (task.tipo_movimiento === 'reubicacion') return Boolean(originCamera && originCamera === cameraId);
   if (task.tipo_movimiento === 'traslado_entre_camaras') return Boolean(originCamera && originCamera !== cameraId);
   if (task.tipo_movimiento === 'ubicacion_inicial') return true;

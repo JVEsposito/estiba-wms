@@ -181,6 +181,16 @@
                                 <article><span>INCIDENCIAS ABIERTAS</span><strong id="loadIncidentCount">0</strong></article>
                             </div>
 
+                            <section class="truck-dock-panel is-hidden" id="truckDockPanel" aria-live="polite">
+                                <div class="truck-dock-panel__icon" aria-hidden="true">🚚</div>
+                                <div>
+                                    <p class="eyebrow">PRIORIDAD DE DESPACHO DIRECTO</p>
+                                    <h2 id="truckDockTitle">Camión presente en andén</h2>
+                                    <p id="truckDockDetail">El WMS priorizará los pallets completos de esta carga hacia el andén.</p>
+                                </div>
+                                <span class="truck-dock-panel__status">EN ANDÉN</span>
+                            </section>
+
                             <section class="concentration-panel" aria-labelledby="concentrationTitle">
                                 <div class="concentration-panel__summary">
                                     <p class="eyebrow">SEGUIMIENTO FÍSICO</p>
@@ -308,6 +318,7 @@
                                 </div>
                                 <div>
                                     <button class="danger-button" id="cancelLoadButton" type="button">Cancelar orden</button>
+                                    <button class="secondary-button is-hidden" id="truckDockButton" type="button">Camión en andén</button>
                                     <button class="primary-button is-hidden" id="closeDispatchButton" type="button">Confirmar salida del camión <span>→</span></button>
                                     <button class="primary-button" id="publishLoadButton" type="button">Publicar para operación <span>→</span></button>
                                 </div>
@@ -374,6 +385,53 @@
                 <footer>
                     <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
                     <button class="primary-button" type="submit">Cerrar despacho <span>→</span></button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="office-dialog" id="truckDockDialog" aria-labelledby="truckDockDialogTitle">
+            <form id="truckDockForm" method="dialog" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">PRESENCIA FÍSICA</p>
+                        <h2 id="truckDockDialogTitle">Registrar camión en andén</h2>
+                        <p>Activa la prioridad crítica: los pallets completos saldrán directamente al andén cuando estén accesibles.</p>
+                    </div>
+                    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+                </header>
+                <div class="dialog-grid">
+                    <label class="field field--full"><span>Andén *</span><select id="truckDockSelect" name="anden_id" required><option value="">Selecciona un andén disponible</option></select></label>
+                    <label class="field"><span>Patente *</span><input name="patente" maxlength="20" autocomplete="off" required placeholder="ABCD12"></label>
+                    <label class="field"><span>Conductor</span><input name="conductor" maxlength="150" placeholder="Opcional"></label>
+                    <label class="field field--full"><span>Fecha y hora de llegada *</span><input name="ingresada_at" type="datetime-local" required></label>
+                    <label class="field field--full"><span>Observación</span><textarea name="observacion" maxlength="1000" rows="3" placeholder="Ej.: camión listo para iniciar carga"></textarea></label>
+                </div>
+                <p class="form-error" id="truckDockError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Confirmar presencia <span>→</span></button>
+                </footer>
+            </form>
+        </dialog>
+
+        <dialog class="office-dialog" id="releaseDockDialog" aria-labelledby="releaseDockDialogTitle">
+            <form id="releaseDockForm" method="dialog" novalidate>
+                <header>
+                    <div>
+                        <p class="eyebrow">LIBERAR ANDÉN</p>
+                        <h2 id="releaseDockDialogTitle">Finalizar presencia del camión</h2>
+                        <p id="releaseDockContext">La prioridad de despacho directo dejará de generar movimientos.</p>
+                    </div>
+                    <button class="dialog-close" data-close-dialog type="button" aria-label="Cerrar">×</button>
+                </header>
+                <label class="field">
+                    <span>Motivo *</span>
+                    <textarea name="motivo" maxlength="1000" rows="4" required placeholder="Ej.: camión retirado del andén"></textarea>
+                </label>
+                <p class="form-error" id="releaseDockError" role="alert"></p>
+                <footer>
+                    <button class="secondary-button" data-close-dialog type="button">Cancelar</button>
+                    <button class="danger-button" type="submit">Liberar andén</button>
                 </footer>
             </form>
         </dialog>
