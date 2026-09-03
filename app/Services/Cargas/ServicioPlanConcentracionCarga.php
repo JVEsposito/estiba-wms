@@ -440,10 +440,11 @@ class ServicioPlanConcentracionCarga
             return 0;
         }
 
-        return (int) $puntos->min(fn (array $punto): int =>
-            abs($posicion->nivel - $punto['nivel']) * 10000
-            + abs($posicion->banda - $punto['banda']) * 100
-            + abs($posicion->posicion - $punto['posicion']));
+        return (int) $puntos->min(function (array $punto) use ($posicion): int {
+            return abs($posicion->nivel - $punto['nivel']) * 10000
+                + abs($posicion->banda - $punto['banda']) * 100
+                + abs($posicion->posicion - $punto['posicion']);
+        });
     }
 
     /** @return array<string, mixed> */
