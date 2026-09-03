@@ -11,7 +11,7 @@ import { DemoDataScreen } from './src/screens/DemoDataScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
-import { OperationalScreen } from './src/screens/OperationalScreen';
+import { OperationalWorkspaceScreen } from './src/screens/OperationalWorkspaceScreen';
 import { PrefrioWorkspaceScreen } from './src/screens/PrefrioWorkspaceScreen';
 import { ValidationWorkspaceScreen } from './src/screens/ValidationWorkspaceScreen';
 import { ValidationMpScreen } from './src/screens/ValidationMpScreen';
@@ -140,7 +140,7 @@ export default function App() {
                 onLogout={() => void logoutPersistentModule()}
               />
             ) : (
-              <OperationalScreen api={api} auth={auth} onLogout={clearSession} />
+              <OperationalWorkspaceScreen api={api} auth={auth} onLogout={clearSession} />
             )}
           </View>
         ) : (
