@@ -20,11 +20,12 @@ export type OperationalTaskEndpoint = {
 export type OperationalTaskReservation = {
   id: string;
   estado: string;
+  tipo_compromiso: 'claim' | 'fisica';
   destino_reservado: boolean;
   reservada_at: string | null;
   renovada_at: string | null;
   vence_at: string | null;
-  segundos_restantes: number;
+  segundos_restantes: number | null;
   version: number;
 };
 
@@ -37,11 +38,13 @@ export type OperationalTask = {
     prioridad: OperationalTaskPriority;
     titulo: string;
     version: number;
+    horizon?: 'batch' | 'rolling';
   };
   secuencia: number;
   tipo_movimiento: MovementType;
   estado: OperationalTaskState;
   prioridad: OperationalTaskPriority;
+  punto_no_retorno: boolean;
   folio: {
     id: string;
     numero_folio: string;
@@ -69,6 +72,73 @@ export type OperationalTask = {
   created_at: string;
 };
 
+export type PlannerMode = 'off' | 'shadow' | 'guided';
+export type PlannerCompute = 'server' | 'tablet';
+export type PlannerHorizon = 'batch' | 'rolling';
+
+export type OperationalSnapshot = {
+  snapshot_version: string;
+  generado_at: string;
+  planner: {
+    mode: PlannerMode;
+    compute: PlannerCompute;
+    horizon: PlannerHorizon;
+    frontier_max: number;
+  };
+  plan: {
+    id: string;
+    tipo: string;
+    estado: string;
+    prioridad: OperationalTaskPriority;
+    titulo: string;
+    version: number;
+  };
+  camaras: Array<{
+    id: string;
+    codigo: string;
+    nombre: string;
+    version_plano: number;
+    revision_reservas: number;
+  }>;
+  tareas: Array<{
+    id: string;
+    version: number;
+    estado: OperationalTaskState;
+    folio_id: string;
+    camara_origen_id: string | null;
+    posicion_origen_id: string | null;
+    camara_destino_id: string | null;
+    posicion_destino_id: string | null;
+    destino_reservado: boolean;
+  }>;
+};
+
+export type OperationalFrontierProposal = {
+  tarea_id: string;
+  posicion_destino_id: string;
+  tarea_version: number;
+  plan_version: number;
+  version_camara_conocida: number;
+  score?: number;
+  motivo?: string;
+};
+
+export type OperationalFrontierResult = {
+  aceptadas: Array<{
+    tarea: OperationalTask;
+    score: number | null;
+    motivo: string | null;
+    planner_version: string;
+  }>;
+  rechazadas: Array<{
+    tarea_id: string;
+    posicion_destino_id?: string;
+    motivo: string;
+  }>;
+  recalcular: boolean;
+  snapshot: OperationalSnapshot;
+};
+
 export type OperationalTaskAssignment = 'disponibles' | 'mias';
 
 export const OPERATIONAL_TASK_LABELS: Record<string, string> = {
@@ -91,8 +161,8 @@ export function operationalTaskLabel(type: string) {
 }
 
 export function operationalTaskPositionLabel(endpoint: OperationalTaskEndpoint) {
-  if (!endpoint) return 'Origen/destino lógico';
-  if (!endpoint.posicion) return endpoint.camara.nombre;
+  if (!endpoint) return 'Por calcular';
+  if (!endpoint.posicion) return `${endpoint.camara.nombre} · posición por calcular`;
 
   const position = endpoint.posicion;
   const physical = position.etiqueta
