@@ -64,6 +64,16 @@ class Camara extends Model
         return $this->hasMany(Movimiento::class, 'camara_destino_id');
     }
 
+    public function tareasMovimientoOrigen(): HasMany
+    {
+        return $this->hasMany(TareaMovimiento::class, 'camara_origen_id');
+    }
+
+    public function tareasMovimientoDestino(): HasMany
+    {
+        return $this->hasMany(TareaMovimiento::class, 'camara_destino_id');
+    }
+
     public function asignacionesLotesMateriaPrima(): HasMany
     {
         return $this->hasMany(AsignacionCamaraLoteMateriaPrima::class);

@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'operacion_id',
+    'plan_operacional_id',
+    'tarea_movimiento_id',
     'folio_id',
     'tipo_movimiento',
     'camara_origen_id',
@@ -55,6 +57,16 @@ class Movimiento extends Model
     public function operacion(): BelongsTo
     {
         return $this->belongsTo(OperacionSincronizacion::class, 'operacion_id');
+    }
+
+    public function planOperacional(): BelongsTo
+    {
+        return $this->belongsTo(PlanOperacional::class);
+    }
+
+    public function tareaMovimiento(): BelongsTo
+    {
+        return $this->belongsTo(TareaMovimiento::class);
     }
 
     public function folio(): BelongsTo

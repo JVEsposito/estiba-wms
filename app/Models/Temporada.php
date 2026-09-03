@@ -37,6 +37,11 @@ class Temporada extends Model
         return $this->hasMany(Folio::class);
     }
 
+    public function planesOperacionales(): HasMany
+    {
+        return $this->hasMany(PlanOperacional::class);
+    }
+
     public function embarques(): HasMany
     {
         return $this->hasMany(Embarque::class);
