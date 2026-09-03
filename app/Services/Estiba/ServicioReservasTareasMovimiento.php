@@ -255,6 +255,7 @@ class ServicioReservasTareasMovimiento
             'iniciada_at' => now(),
             'version' => $tareaBloqueada->version + 1,
         ]);
+
         // Desde aquí el lease deja de ser descartable: esta reserva no expirará
         // automáticamente hasta completar el movimiento o registrar incidencia.
         return $this->renovarReserva($reserva);

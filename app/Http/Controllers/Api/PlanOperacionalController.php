@@ -216,6 +216,7 @@ class PlanOperacionalController extends Controller
                     'tarea_id' => $propuesta['tarea_id'],
                     'motivo' => 'La tarea no pertenece al plan solicitado.',
                 ];
+
                 continue;
             }
 
