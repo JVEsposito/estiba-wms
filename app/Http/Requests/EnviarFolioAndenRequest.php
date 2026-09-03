@@ -20,6 +20,7 @@ class EnviarFolioAndenRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
+            'tarea_movimiento_id' => ['nullable', 'uuid', 'exists:tareas_movimiento,id'],
             'anden_id' => [
                 'required',
                 'uuid',

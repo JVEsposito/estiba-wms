@@ -21,8 +21,10 @@ use App\Models\Dispositivo;
 use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
+use App\Models\PresenciaCargaAnden;
 use App\Models\ReservaCargaFolio;
 use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
@@ -44,6 +46,8 @@ class ServicioDespachoFrigorifico
         private readonly ServicioTareasCarga $servicioTareas,
         private readonly ServicioMovimientoEstiba $servicioMovimientos,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
+        private readonly ServicioPlanDespachoDirecto $planificadorDespachoDirecto,
+        private readonly ServicioPresenciaCargaAnden $presenciasAnden,
     ) {}
 
     public function reportarIncidencia(
@@ -359,6 +363,7 @@ class ServicioDespachoFrigorifico
         int $versionCamaraConocida,
         DateTimeInterface $generadoDispositivoAt,
         array $advertenciasConfirmadas = [],
+        ?TareaMovimiento $tareaMovimiento = null,
     ): CargaFolio {
         if (! $this->alcance->puedeEnviarFoliosAnden($usuario)) {
             throw new OperacionNoAutorizada(
@@ -373,6 +378,7 @@ class ServicioDespachoFrigorifico
             'version_camara_conocida' => $versionCamaraConocida,
             'generado_dispositivo_at' => $generadoDispositivoAt,
             'advertencias_confirmadas' => $advertenciasConfirmadas,
+            'tarea_movimiento_id' => $tareaMovimiento?->id,
         ];
 
         $accion = function () use (
@@ -385,6 +391,7 @@ class ServicioDespachoFrigorifico
             $versionCamaraConocida,
             $generadoDispositivoAt,
             $advertenciasConfirmadas,
+            $tareaMovimiento,
         ): CargaFolio {
             $asignacionLeida = CargaFolio::query()->findOrFail($asignacion->id);
             $carga = Carga::query()->lockForUpdate()->findOrFail($asignacionLeida->carga_id);
@@ -392,6 +399,31 @@ class ServicioDespachoFrigorifico
 
             if (! $andenBloqueado->activo) {
                 throw new DomainException('El andén seleccionado no se encuentra activo.');
+            }
+
+            $presencia = $carga->presenciaAndenActiva()->lockForUpdate()->first();
+            $ocupacionAnden = PresenciaCargaAnden::query()
+                ->where('bloqueo_anden_id', $andenBloqueado->id)
+                ->lockForUpdate()
+                ->first();
+            if ($ocupacionAnden && $ocupacionAnden->carga_id !== $carga->id) {
+                throw new ConflictoOperacion(
+                    'El andén está ocupado por el camión de otra carga.',
+                );
+            }
+            if ($tareaMovimiento) {
+                if (! $presencia
+                    || $presencia->anden_id !== $andenBloqueado->id
+                    || ($tareaMovimiento->contexto['carga_folio_id'] ?? null) !== $asignacion->id
+                    || ($tareaMovimiento->contexto['presencia_carga_anden_id'] ?? null) !== $presencia->id) {
+                    throw new ConflictoOperacion(
+                        'La tarea ya no coincide con el camión, la carga o el andén activos.',
+                    );
+                }
+            } elseif ($presencia && $presencia->anden_id !== $andenBloqueado->id) {
+                throw new DomainException(
+                    'La carga posee un camión activo en otro andén; use el destino confirmado por oficina.',
+                );
             }
 
             $asignacionBloqueada = CargaFolio::query()
@@ -423,6 +455,7 @@ class ServicioDespachoFrigorifico
                 $generadoDispositivoAt,
                 "Envío a andén {$andenBloqueado->codigo} de la carga {$carga->codigo}",
                 $advertenciasConfirmadas,
+                $tareaMovimiento,
             );
             $carga->refresh();
 
@@ -472,6 +505,9 @@ class ServicioDespachoFrigorifico
                 ],
             );
             $this->servicioTareas->sincronizar($carga);
+            if ($presencia) {
+                $this->planificadorDespachoDirecto->sincronizar($presencia, $usuario);
+            }
 
             return $asignacionBloqueada->refresh();
         };
@@ -642,6 +678,11 @@ class ServicioDespachoFrigorifico
                 ],
             );
             $this->servicioTareas->sincronizar($cargaBloqueada);
+            $this->presenciasAnden->finalizarPorCierre(
+                $cargaBloqueada,
+                $usuario,
+                $operacionId,
+            );
 
             return $cargaBloqueada->refresh();
         };

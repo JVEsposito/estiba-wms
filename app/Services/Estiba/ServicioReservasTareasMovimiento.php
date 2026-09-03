@@ -321,6 +321,31 @@ class ServicioReservasTareasMovimiento
         $this->devolverTareaALaBandeja($reserva->tarea_movimiento_id);
     }
 
+    /**
+     * Libera el claim o destino de una tarea que será reemplazada por una
+     * decisión rolling más prioritaria. Nunca atraviesa el punto de no retorno.
+     */
+    public function liberarParaReplanificacion(
+        TareaMovimiento $tarea,
+        string $motivo,
+    ): bool {
+        $tareaBloqueada = TareaMovimiento::query()->lockForUpdate()->findOrFail($tarea->id);
+
+        if ($tareaBloqueada->estado === EstadoTareaMovimiento::EnProceso) {
+            return false;
+        }
+
+        $reserva = $this->reservaActivaTarea($tareaBloqueada->id, true);
+        if ($reserva) {
+            $this->finalizarReserva($reserva, EstadoReservaTareaMovimiento::Liberada, [
+                'liberada_at' => now(),
+                'motivo_liberacion' => trim($motivo),
+            ]);
+        }
+
+        return true;
+    }
+
     public function validarParaMovimiento(
         ?TareaMovimiento $tarea,
         Folio $folio,

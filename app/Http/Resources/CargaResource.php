@@ -49,6 +49,25 @@ class CargaResource extends JsonResource
                 'codigo' => $this->andenPrevisto->codigo,
                 'nombre' => $this->andenPrevisto->nombre,
             ] : null),
+            'camion_en_anden' => $this->whenLoaded(
+                'presenciaAndenActiva',
+                fn () => $this->presenciaAndenActiva ? [
+                    'id' => $this->presenciaAndenActiva->id,
+                    'patente' => $this->presenciaAndenActiva->patente,
+                    'conductor' => $this->presenciaAndenActiva->conductor,
+                    'observacion' => $this->presenciaAndenActiva->observacion_ingreso,
+                    'ingresada_at' => $this->presenciaAndenActiva->ingresada_at?->toAtomString(),
+                    'anden' => $this->presenciaAndenActiva->relationLoaded('anden') ? [
+                        'id' => $this->presenciaAndenActiva->anden->id,
+                        'codigo' => $this->presenciaAndenActiva->anden->codigo,
+                        'nombre' => $this->presenciaAndenActiva->anden->nombre,
+                    ] : null,
+                    'registrada_por' => $this->presenciaAndenActiva->relationLoaded('ingresadaPor') ? [
+                        'id' => $this->presenciaAndenActiva->ingresadaPor->id,
+                        'nombre' => $this->presenciaAndenActiva->ingresadaPor->name,
+                    ] : null,
+                ] : null,
+            ),
             'embarque' => $this->whenLoaded('embarque', fn () => $this->embarque ? [
                 'id' => $this->embarque->id,
                 'codigo' => $this->embarque->codigo,

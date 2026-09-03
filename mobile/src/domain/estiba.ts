@@ -462,6 +462,7 @@ export type ReportLoadIncidentPayload = {
 
 export type SendLoadFolioToDockPayload = {
   operacion_id: string;
+  tarea_movimiento_id?: string;
   anden_id: string;
   sesion_estiba_id: string;
   version_camara_conocida: number;

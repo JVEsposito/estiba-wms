@@ -168,6 +168,75 @@ class ServicioPlanesOperacionales
         }, attempts: 3);
     }
 
+    /**
+     * Agrega una sola decisión a la frontera de un objetivo rolling vigente.
+     *
+     * @param  array<string, mixed>  $datosTarea
+     */
+    public function agregarTareaRolling(
+        PlanOperacional $plan,
+        array $datosTarea,
+    ): TareaMovimiento {
+        return DB::transaction(function () use ($plan, $datosTarea): TareaMovimiento {
+            $planBloqueado = PlanOperacional::query()
+                ->with('temporada')
+                ->lockForUpdate()
+                ->findOrFail($plan->id);
+
+            if ($this->horizonte($planBloqueado) !== 'rolling'
+                || $planBloqueado->estado->esFinal()
+                || ! $planBloqueado->temporada?->activa) {
+                throw new DomainException('El objetivo ya no admite nuevas decisiones rolling.');
+            }
+
+            $secuencia = ((int) TareaMovimiento::query()
+                ->where('plan_operacional_id', $planBloqueado->id)
+                ->lockForUpdate()
+                ->max('secuencia')) + 1;
+            $tarea = $this->crearTarea(
+                $planBloqueado,
+                $secuencia,
+                $datosTarea,
+                $planBloqueado->prioridad,
+            );
+            $planBloqueado->update(['version' => $planBloqueado->version + 1]);
+
+            return $this->cargarTarea($tarea);
+        }, attempts: 3);
+    }
+
+    public function cancelarPorReplanificacion(
+        TareaMovimiento $tarea,
+        User $usuario,
+        string $motivo,
+    ): ?TareaMovimiento {
+        return DB::transaction(function () use ($tarea, $usuario, $motivo): ?TareaMovimiento {
+            $tareaBloqueada = TareaMovimiento::query()
+                ->with('planOperacional')
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+
+            if ($tareaBloqueada->estado->esFinal()) {
+                return $tareaBloqueada;
+            }
+            if (! $this->reservas->liberarParaReplanificacion($tareaBloqueada, $motivo)) {
+                return null;
+            }
+
+            $tareaBloqueada->update([
+                'estado' => EstadoTareaMovimiento::Cancelada,
+                'cancelada_at' => now(),
+                'cancelada_por_user_id' => $usuario->id,
+                'motivo_cancelacion' => Str::limit(trim($motivo), 255, ''),
+                'version' => $tareaBloqueada->version + 1,
+            ]);
+            $plan = $tareaBloqueada->planOperacional;
+            $plan->update(['version' => $plan->version + 1]);
+
+            return $tareaBloqueada->refresh();
+        }, attempts: 3);
+    }
+
     public function materializarDestino(
         TareaMovimiento $tarea,
         Posicion $posicion,

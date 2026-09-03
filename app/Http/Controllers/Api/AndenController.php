@@ -24,6 +24,7 @@ class AndenController extends Controller
         return AndenResource::collection(
             Anden::query()
                 ->when(! $incluirInactivos, fn ($consulta) => $consulta->where('activo', true))
+                ->with('presenciaActiva.carga:id,codigo')
                 ->orderBy('codigo')
                 ->get(),
         );

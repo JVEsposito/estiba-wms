@@ -35,6 +35,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'iniciada_at',
     'completada_at',
     'cancelada_at',
+    'reemplazada_por_tarea_id',
+    'cancelada_por_user_id',
+    'motivo_cancelacion',
     'version',
 ])]
 class TareaMovimiento extends Model
@@ -96,6 +99,16 @@ class TareaMovimiento extends Model
     public function reservaActiva(): HasOne
     {
         return $this->hasOne(ReservaTareaMovimiento::class, 'bloqueo_tarea_id');
+    }
+
+    public function reemplazadaPor(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reemplazada_por_tarea_id');
+    }
+
+    public function canceladaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelada_por_user_id');
     }
 
     protected function casts(): array
