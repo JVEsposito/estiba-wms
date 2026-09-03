@@ -11,6 +11,7 @@ use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
@@ -423,6 +424,59 @@ class PrefrioApiTest extends TestCase
 
         $this->assertSame('cargando', $recargado['estado']);
         $this->assertSame($folio->id, $recargado['folios'][0]['folio']['id']);
+    }
+
+    public function test_aprobacion_genera_un_solo_objetivo_rolling_reintentable(): void
+    {
+        config([
+            'planificador.generacion_automatica' => true,
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+        ]);
+        [$tunel, $posicion, $tokenOperador] = $this->contexto();
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'PF-SUP-ROLL');
+        $folio = $this->folioPendiente('PAL-PF-ROLL');
+        $folio->update(['exportadora' => 'Exportadora rolling']);
+        $proceso = $this->llevarAVerificacion(
+            $tokenOperador,
+            $tunel,
+            $posicion,
+            $folio,
+        );
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 4,
+            'resultados' => [[
+                'folio_id' => $folio->id,
+                'temperatura_final' => -0.5,
+                'observacion' => 'Pulpa conforme.',
+            ]],
+            'ocurrido_at' => now()->toAtomString(),
+        ];
+
+        $primera = $this->accion(
+            $tokenSupervisor,
+            "/api/prefrio/procesos/{$proceso['id']}/aprobar",
+            $payload,
+        );
+        $segunda = $this->accion(
+            $tokenSupervisor,
+            "/api/prefrio/procesos/{$proceso['id']}/aprobar",
+            $payload,
+        );
+
+        $this->assertSame('aprobado', $primera['estado']);
+        $this->assertSame($primera['id'], $segunda['id']);
+        $plan = PlanOperacional::query()
+            ->where('referencia_tipo', 'proceso_prefrio')
+            ->where('referencia_id', $proceso['id'])
+            ->firstOrFail();
+        $this->assertSame('rolling', $plan->contexto['planner_horizon']);
+        $this->assertSame(1, $plan->tareas()->count());
+        $this->assertSame(
+            'Exportadora rolling',
+            $plan->tareas()->firstOrFail()->contexto['cliente'] ?? null,
+        );
     }
 
     public function test_aprobacion_habilita_almacenamiento_y_permite_ingreso_inicial_a_camara(): void

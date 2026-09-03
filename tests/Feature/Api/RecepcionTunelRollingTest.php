@@ -43,9 +43,27 @@ class RecepcionTunelRollingTest extends TestCase
         $this->assertDatabaseCount('planes_operacionales', 0);
     }
 
+    public function test_no_genera_objetivo_si_el_planificador_no_puede_resolver_rolling(): void
+    {
+        config([
+            'planificador.generacion_automatica' => true,
+            'planificador.mode' => 'off',
+            'planificador.compute' => 'server',
+        ]);
+        $contexto = $this->crearProcesoAprobado(1);
+
+        $plan = app(ServicioGeneracionRecepcionTunel::class)->generar(
+            $contexto['proceso'],
+            $contexto['usuario'],
+        );
+
+        $this->assertNull($plan);
+        $this->assertDatabaseCount('planes_operacionales', 0);
+    }
+
     public function test_genera_un_objetivo_rolling_sin_preasignar_destinos_y_es_idempotente(): void
     {
-        config(['planificador.generacion_automatica' => true]);
+        $this->habilitarGeneracion();
         $contexto = $this->crearProcesoAprobado(2);
         $servicio = app(ServicioGeneracionRecepcionTunel::class);
 
@@ -71,12 +89,14 @@ class RecepcionTunelRollingTest extends TestCase
             $this->assertNull($tarea->camara_destino_id);
             $this->assertNull($tarea->posicion_destino_id);
             $this->assertNotNull($tarea->contexto['posicion_tunel_prefrio_id'] ?? null);
+            $this->assertSame('Exportadora 251', $tarea->contexto['cliente'] ?? null);
+            $this->assertSame('Exportadora 251', $tarea->contexto['exportadora'] ?? null);
         });
     }
 
     public function test_excluye_saldos_folios_inactivos_y_salida_directa_prefrio(): void
     {
-        config(['planificador.generacion_automatica' => true]);
+        $this->habilitarGeneracion();
         $contexto = $this->crearProcesoAprobado(4, [
             2 => TipoBulto::Saldo,
         ]);
@@ -97,7 +117,7 @@ class RecepcionTunelRollingTest extends TestCase
 
     public function test_cierra_recepcion_solo_cuando_todos_los_pallets_se_completan(): void
     {
-        config(['planificador.generacion_automatica' => true]);
+        $this->habilitarGeneracion();
         $contexto = $this->crearProcesoAprobado(2);
         $plan = app(ServicioGeneracionRecepcionTunel::class)->generar(
             $contexto['proceso'],
@@ -128,7 +148,7 @@ class RecepcionTunelRollingTest extends TestCase
 
     public function test_una_tarea_cancelada_no_declara_recibido_el_tunel(): void
     {
-        config(['planificador.generacion_automatica' => true]);
+        $this->habilitarGeneracion();
         $contexto = $this->crearProcesoAprobado(2);
         $plan = app(ServicioGeneracionRecepcionTunel::class)->generar(
             $contexto['proceso'],
@@ -232,6 +252,15 @@ class RecepcionTunelRollingTest extends TestCase
         }
 
         return compact('temporada', 'usuario', 'tunel', 'proceso', 'folios');
+    }
+
+    private function habilitarGeneracion(): void
+    {
+        config([
+            'planificador.generacion_automatica' => true,
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+        ]);
     }
 
     private function asignarSalidaDirecta(Folio $folio, Temporada $temporada, User $usuario): void
