@@ -20,6 +20,12 @@ export type RollingFrontier = {
   unresolvedTaskIds: string[];
 };
 
+type ConcentrationPoint = {
+  banda: number;
+  posicion: number;
+  nivel: number;
+};
+
 const PRIORITY_WEIGHT: Record<OperationalTaskPriority, number> = {
   critica: 4,
   urgente: 3,
@@ -130,7 +136,9 @@ function cameraAllowedForTask(task: OperationalTask, cameraId: string) {
   if (explicitDestinationCamera && explicitDestinationCamera !== cameraId) return false;
 
   const originCamera = task.origen?.camara.id;
-  if (task.contexto?.tipo_decision === 'despeje_salida_directa') {
+  if (['despeje_salida_directa', 'despeje_concentracion'].includes(
+    String(task.contexto?.tipo_decision ?? ''),
+  )) {
     return Boolean(originCamera);
   }
   if (task.tipo_movimiento === 'reubicacion') return Boolean(originCamera && originCamera === cameraId);
@@ -159,6 +167,16 @@ function positionAllowed(
   if (!band.usos_permitidos.includes('transito_pt')) return false;
   if (band.modo !== 'operativa' || band.estado === 'bloqueada' || band.estado === 'en_vaciado') return false;
 
+  if (task.contexto?.tipo_decision === 'concentrar_carga') {
+    const targetCamera = taskContext(task, ['camara_objetivo_id']);
+    if (targetCamera && targetCamera !== plan.id) return false;
+
+    const points = concentrationPoints(task);
+    if (points.length > 0 && !points.some((point) => areConcentrationNeighbors(point, position))) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -174,6 +192,19 @@ function scoreCandidate(task: OperationalTask, plan: CameraPlan, position: Posit
   if (task.destino?.camara.id === plan.id) {
     score += 5_000;
     reasons.push('respeta la cámara objetivo');
+  }
+
+  if (task.contexto?.tipo_decision === 'concentrar_carga') {
+    const connected = concentrationPoints(task)
+      .filter((point) => areConcentrationNeighbors(point, position))
+      .length;
+    if (connected > 0) {
+      score += connected * 10_000;
+      reasons.push(`extiende el grupo principal por ${connected} contacto${connected === 1 ? '' : 's'}`);
+    } else {
+      score += 2_000;
+      reasons.push('establece el primer punto en la cámara objetivo');
+    }
   }
 
   const client = taskContext(task, ['cliente', 'cliente_codigo', 'cliente_nombre']);
@@ -205,6 +236,28 @@ function scoreCandidate(task: OperationalTask, plan: CameraPlan, position: Posit
 
   if (!reasons.length) reasons.push('posición libre y compatible; prioriza llenado desde el fondo');
   return { score, reason: reasons.join('; ') };
+}
+
+function concentrationPoints(task: OperationalTask): ConcentrationPoint[] {
+  const raw = task.contexto?.concentracion_puntos;
+  if (!Array.isArray(raw)) return [];
+
+  return raw.filter((item): item is ConcentrationPoint => (
+    typeof item === 'object'
+    && item !== null
+    && typeof (item as ConcentrationPoint).banda === 'number'
+    && typeof (item as ConcentrationPoint).posicion === 'number'
+    && typeof (item as ConcentrationPoint).nivel === 'number'
+  ));
+}
+
+function areConcentrationNeighbors(point: ConcentrationPoint, position: Position) {
+  if (point.nivel !== position.nivel) return false;
+  const bandDistance = Math.abs(point.banda - position.banda);
+  const positionDistance = Math.abs(point.posicion - position.posicion);
+
+  return (bandDistance === 0 && positionDistance === 1)
+    || (bandDistance === 1 && positionDistance <= 1);
 }
 
 function taskContext(task: OperationalTask, keys: string[]) {
