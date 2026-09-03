@@ -6,7 +6,9 @@ use App\Enums\EstadoCarga;
 use App\Enums\ModalidadSalidaCarga;
 use App\Enums\PrioridadCarga;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Observers\ReplanificarConcentracionCargaObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+#[ObservedBy([ReplanificarConcentracionCargaObserver::class])]
 #[Fillable([
     'temporada_id',
     'codigo',
