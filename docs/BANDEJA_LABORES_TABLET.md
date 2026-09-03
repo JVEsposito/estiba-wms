@@ -90,7 +90,7 @@ La API de frontera permite aceptación parcial. Si tres propuestas siguen siendo
 - ausencia de otra reserva física;
 - compatibilidad del destino con el tipo de movimiento.
 
-La tablet nunca puede forzar una posición ocupada o ya reservada.
+La tablet nunca puede forzar una posición ocupada o ya reservada. El cálculo puede estar distribuido; la autoridad operacional no lo está.
 
 ## Punto de no retorno
 
