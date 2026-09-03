@@ -103,6 +103,11 @@ class ServicioPlanesOperacionales
                 throw new DomainException('El usuario que origina el plan no se encuentra activo.');
             }
 
+            $contextoPlan = [
+                ...$contexto,
+                'planner_horizon' => $contexto['planner_horizon'] ?? config('planificador.horizon'),
+            ];
+
             $plan = PlanOperacional::create([
                 'temporada_id' => $temporadaActiva->id,
                 'tipo' => $tipo,
@@ -112,7 +117,7 @@ class ServicioPlanesOperacionales
                 'motivo' => $motivo,
                 'referencia_tipo' => $referenciaTipo,
                 'referencia_id' => $referenciaId,
-                'contexto' => $contexto !== [] ? $contexto : null,
+                'contexto' => $contextoPlan,
                 'creado_por_user_id' => $creadoPor->id,
                 'programado_at' => now(),
             ]);
@@ -158,6 +163,57 @@ class ServicioPlanesOperacionales
                     'version' => $plan->version + 1,
                 ]);
             }
+
+            return $this->cargarTarea($tareaBloqueada->refresh());
+        }, attempts: 3);
+    }
+
+    public function materializarDestino(
+        TareaMovimiento $tarea,
+        Posicion $posicion,
+        User $usuario,
+        Dispositivo $dispositivo,
+        ?int $versionTarea = null,
+        ?int $versionPlan = null,
+        ?int $versionCamara = null,
+    ): TareaMovimiento {
+        return DB::transaction(function () use (
+            $tarea,
+            $posicion,
+            $usuario,
+            $dispositivo,
+            $versionTarea,
+            $versionPlan,
+            $versionCamara,
+        ): TareaMovimiento {
+            $this->validarActor($usuario, $dispositivo);
+            $this->reservas->materializarDestino(
+                $tarea,
+                $posicion,
+                $usuario,
+                $dispositivo,
+                $versionTarea,
+                $versionPlan,
+                $versionCamara,
+            );
+
+            return $this->cargarTarea($tarea->refresh());
+        }, attempts: 3);
+    }
+
+    public function iniciar(
+        TareaMovimiento $tarea,
+        User $usuario,
+        Dispositivo $dispositivo,
+    ): TareaMovimiento {
+        return DB::transaction(function () use ($tarea, $usuario, $dispositivo): TareaMovimiento {
+            $tareaBloqueada = TareaMovimiento::query()
+                ->with('planOperacional.temporada')
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+            $this->validarActor($usuario, $dispositivo);
+            $this->validarPlanAsignable($tareaBloqueada->planOperacional);
+            $this->reservas->iniciar($tareaBloqueada, $usuario, $dispositivo);
 
             return $this->cargarTarea($tareaBloqueada->refresh());
         }, attempts: 3);
@@ -210,6 +266,68 @@ class ServicioPlanesOperacionales
         }, attempts: 3);
     }
 
+    /** @return array<string, mixed> */
+    public function snapshot(PlanOperacional $plan): array
+    {
+        $plan = $this->cargar($plan->refresh());
+        $cameraIds = $plan->tareas
+            ->flatMap(fn (TareaMovimiento $tarea): array => array_filter([
+                $tarea->camara_origen_id,
+                $tarea->camara_destino_id,
+            ]))
+            ->unique()
+            ->values();
+        $camaras = Camara::query()
+            ->whereIn('id', $cameraIds)
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nombre', 'version_plano', 'revision_reservas'])
+            ->map(fn (Camara $camara): array => [
+                'id' => $camara->id,
+                'codigo' => $camara->codigo,
+                'nombre' => $camara->nombre,
+                'version_plano' => $camara->version_plano,
+                'revision_reservas' => $camara->revision_reservas,
+            ])
+            ->values();
+        $tareas = $plan->tareas->map(fn (TareaMovimiento $tarea): array => [
+            'id' => $tarea->id,
+            'version' => $tarea->version,
+            'estado' => $tarea->estado->value,
+            'folio_id' => $tarea->folio_id,
+            'camara_origen_id' => $tarea->camara_origen_id,
+            'posicion_origen_id' => $tarea->posicion_origen_id,
+            'camara_destino_id' => $tarea->camara_destino_id,
+            'posicion_destino_id' => $tarea->posicion_destino_id,
+            'destino_reservado' => (bool) $tarea->reservaActiva?->bloqueo_posicion_id,
+        ])->values();
+        $versionData = [
+            'plan' => [$plan->id, $plan->version, $plan->estado->value],
+            'camaras' => $camaras->all(),
+            'tareas' => $tareas->all(),
+        ];
+
+        return [
+            'snapshot_version' => hash('sha256', json_encode($versionData, JSON_THROW_ON_ERROR)),
+            'generado_at' => now()->toIso8601String(),
+            'planner' => [
+                'mode' => config('planificador.mode'),
+                'compute' => config('planificador.compute'),
+                'horizon' => config('planificador.horizon'),
+                'frontier_max' => config('planificador.frontier_max'),
+            ],
+            'plan' => [
+                'id' => $plan->id,
+                'tipo' => $plan->tipo->value,
+                'estado' => $plan->estado->value,
+                'prioridad' => $plan->prioridad->value,
+                'titulo' => $plan->titulo,
+                'version' => $plan->version,
+            ],
+            'camaras' => $camaras,
+            'tareas' => $tareas,
+        ];
+    }
+
     /**
      * @param  array<string, mixed>  $datos
      */
@@ -249,10 +367,13 @@ class ServicioPlanesOperacionales
         $posicionOrigen = $this->posicion($datos['posicion_origen_id'] ?? null);
         $camaraDestino = $this->camara($datos['camara_destino_id'] ?? null);
         $posicionDestino = $this->posicion($datos['posicion_destino_id'] ?? null);
+        $rolling = ($plan->contexto['planner_horizon'] ?? config('planificador.horizon')) === 'rolling';
 
         $this->validarExtremo($camaraOrigen, $posicionOrigen, 'origen');
-        $this->validarExtremo($camaraDestino, $posicionDestino, 'destino');
-        $this->validarEstructura($tipo, $camaraOrigen, $posicionOrigen, $camaraDestino, $posicionDestino);
+        $this->validarExtremo($camaraDestino, $posicionDestino, 'destino', $rolling);
+        $rolling
+            ? $this->validarEstructuraRolling($tipo, $camaraOrigen, $posicionOrigen, $camaraDestino, $posicionDestino)
+            : $this->validarEstructuraBatch($tipo, $camaraOrigen, $posicionOrigen, $camaraDestino, $posicionDestino);
 
         $prioridad = $datos['prioridad'] ?? $prioridadPlan;
         if (! $prioridad instanceof PrioridadOperacional) {
@@ -311,9 +432,16 @@ class ServicioPlanesOperacionales
         return $id ? Posicion::query()->findOrFail($id) : null;
     }
 
-    private function validarExtremo(?Camara $camara, ?Posicion $posicion, string $nombre): void
-    {
-        if (($camara === null) !== ($posicion === null)) {
+    private function validarExtremo(
+        ?Camara $camara,
+        ?Posicion $posicion,
+        string $nombre,
+        bool $permitirCamaraSinPosicion = false,
+    ): void {
+        if ($posicion && ! $camara) {
+            throw new DomainException("La posición de {$nombre} requiere indicar su cámara.");
+        }
+        if (! $permitirCamaraSinPosicion && $camara && ! $posicion) {
             throw new DomainException("El extremo de {$nombre} debe incluir cámara y posición.");
         }
         if ($camara && $posicion?->camara_id !== $camara->id) {
@@ -322,12 +450,12 @@ class ServicioPlanesOperacionales
         if ($camara
             && ($camara->contenido !== ContenidoCamara::Productos
                 || $camara->estado !== EstadoCamara::Activa
-                || $posicion?->estado !== EstadoPosicion::Activa)) {
+                || ($posicion && $posicion->estado !== EstadoPosicion::Activa))) {
             throw new DomainException("El extremo de {$nombre} no está habilitado para pallets de producto terminado.");
         }
     }
 
-    private function validarEstructura(
+    private function validarEstructuraBatch(
         TipoMovimiento $tipo,
         ?Camara $camaraOrigen,
         ?Posicion $posicionOrigen,
@@ -352,6 +480,32 @@ class ServicioPlanesOperacionales
         }
     }
 
+    private function validarEstructuraRolling(
+        TipoMovimiento $tipo,
+        ?Camara $camaraOrigen,
+        ?Posicion $posicionOrigen,
+        ?Camara $camaraDestino,
+        ?Posicion $posicionDestino,
+    ): void {
+        $origen = $camaraOrigen !== null && $posicionOrigen !== null;
+        $sinOrigen = $camaraOrigen === null && $posicionOrigen === null;
+        $sinDestino = $camaraDestino === null && $posicionDestino === null;
+        $valida = match ($tipo) {
+            TipoMovimiento::UbicacionInicial => $sinOrigen,
+            TipoMovimiento::Reubicacion => $origen
+                && ($sinDestino || ($camaraDestino?->id === $camaraOrigen->id
+                    && $posicionDestino?->id !== $posicionOrigen->id)),
+            TipoMovimiento::TrasladoEntreCamaras => $origen
+                && ($sinDestino || $camaraDestino?->id !== $camaraOrigen->id),
+            TipoMovimiento::Retiro => $origen && $sinDestino,
+            TipoMovimiento::Reversion => false,
+        };
+
+        if (! $valida) {
+            throw new DomainException('El objetivo rolling no corresponde al tipo de movimiento de la tarea.');
+        }
+    }
+
     private function cargar(PlanOperacional $plan): PlanOperacional
     {
         return $plan->load([
@@ -366,7 +520,7 @@ class ServicioPlanesOperacionales
     {
         return $tarea->load([
             ...$this->relacionesTarea(),
-            'planOperacional:id,temporada_id,tipo,estado,prioridad,titulo,version',
+            'planOperacional:id,temporada_id,tipo,estado,prioridad,titulo,version,contexto',
         ]);
     }
 
