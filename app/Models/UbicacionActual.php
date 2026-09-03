@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Observers\ReplanificarConcentracionUbicacionObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ObservedBy([ReplanificarConcentracionUbicacionObserver::class])]
 #[Fillable(['folio_id', 'camara_id', 'posicion_id', 'movimiento_id', 'ubicado_at'])]
 class UbicacionActual extends Model
 {
