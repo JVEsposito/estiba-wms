@@ -8,13 +8,19 @@ El objetivo no preasigna cámara ni posición. Cada pallet se incorpora como una
 
 ## Activación
 
-La generación conserva rollback explícito:
+La generación conserva rollback explícito y solo se habilita cuando el flujo
+rolling puede resolverse de extremo a extremo:
 
 ```env
-WMS_PLANIFICADOR_AUTOMATICO=false
+WMS_PLANIFICADOR_AUTOMATICO=true
+WMS_PLANNER_MODE=guided
+WMS_PLANNER_COMPUTE=tablet
 ```
 
-Con la bandera apagada, aprobar Prefrío mantiene el comportamiento histórico y no crea planes.
+Con `WMS_PLANIFICADOR_AUTOMATICO=false`, o si el planificador no está en
+`guided + tablet`, aprobar Prefrío mantiene el comportamiento histórico y no
+crea planes. Esta condición evita dejar tareas abstractas que el servidor no
+permitiría materializar.
 
 Con la bandera activada, los objetivos generados por este flujo fijan en su propio contexto:
 

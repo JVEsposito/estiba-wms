@@ -29,7 +29,9 @@ class ServicioGeneracionRecepcionTunel
         ProcesoPrefrio $proceso,
         User $usuario,
     ): ?PlanOperacional {
-        if (! config('planificador.generacion_automatica')) {
+        if (! config('planificador.generacion_automatica')
+            || config('planificador.mode') !== 'guided'
+            || config('planificador.compute') !== 'tablet') {
             return null;
         }
 
@@ -91,6 +93,7 @@ class ServicioGeneracionRecepcionTunel
                         'posicion_tunel' => $asignacion->posicion?->etiqueta,
                         'marca' => $folio->marca,
                         'formato' => $proceso->formato_referencia,
+                        'cliente' => $folio->exportadora,
                         'exportadora' => $folio->exportadora,
                         'variedad' => $folio->variedad,
                         'calibre' => $folio->calibre,
