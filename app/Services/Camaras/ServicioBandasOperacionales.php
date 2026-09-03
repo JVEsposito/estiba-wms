@@ -8,6 +8,7 @@ use App\Enums\ModoBandaOperacional;
 use App\Enums\UsoBandaOperacional;
 use App\Models\BandaOperacional;
 use App\Models\Camara;
+use App\Models\Posicion;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -107,7 +108,7 @@ class ServicioBandasOperacionales
             'posiciones.ubicacionesActuales:id,posicion_id',
         ]);
 
-        /** @var Collection<int, \App\Models\Posicion> $posiciones */
+        /** @var Collection<int, Posicion> $posiciones */
         $posiciones = $camara->posiciones
             ->filter(fn ($posicion): bool => $posicion->banda <= $camara->cantidad_bandas
                 && $posicion->posicion <= $camara->posiciones_por_banda
