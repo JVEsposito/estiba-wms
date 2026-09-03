@@ -456,13 +456,15 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   }
 
   async function completeDirectWithdrawal() {
-    if (!activeTask
+    if (!taskApi
+      || !activeTask
       || activeTask.estado !== 'en_proceso'
       || activeTask.tipo_movimiento !== 'retiro'
       || !activeTask.destino_logico?.carga_folio_id) return;
 
     const task = activeTask;
     const directDestination = activeTask.destino_logico;
+    const fromPrefrio = task.contexto?.origen_logico === 'tunel_prefrio';
     const sessions = executionSessions.current.length
       ? executionSessions.current
       : [];
@@ -471,25 +473,30 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setNotice('');
 
     try {
-      if (!sessions.length) await acquireExecutionSessions(task, sessions);
-      if (!task.origen?.camara) throw new Error('La tarea no conserva una cámara de origen.');
-      const sourceSession = sessionForCamera(sessions, task.origen.camara.id);
-      const payload: SendLoadFolioToDockPayload = {
-        operacion_id: Crypto.randomUUID(),
-        tarea_movimiento_id: task.id,
-        anden_id: directDestination.id,
-        sesion_estiba_id: sourceSession.sessionId,
-        version_camara_conocida: sourceSession.plan.version_plano,
-        generado_dispositivo_at: new Date().toISOString(),
-      };
-      await executeWithWarnings(
-        payload,
-        (confirmedPayload) => api.sendLoadFolioToDock(
-          auth.token,
-          directDestination.carga_folio_id,
-          confirmedPayload,
-        ).then(() => undefined),
-      );
+      if (fromPrefrio) {
+        await taskApi.completeDirectPrefrio(auth.token, task.id);
+      } else {
+        if (!sessions.length) await acquireExecutionSessions(task, sessions);
+        if (!task.origen?.camara) throw new Error('La tarea no conserva una cámara de origen.');
+        const sourceSession = sessionForCamera(sessions, task.origen.camara.id);
+        const payload: SendLoadFolioToDockPayload = {
+          operacion_id: Crypto.randomUUID(),
+          tarea_movimiento_id: task.id,
+          anden_id: directDestination.id,
+          sesion_estiba_id: sourceSession.sessionId,
+          version_camara_conocida: sourceSession.plan.version_plano,
+          generado_dispositivo_at: new Date().toISOString(),
+        };
+        await executeWithWarnings(
+          payload,
+          (confirmedPayload) => api.sendLoadFolioToDock(
+            auth.token,
+            directDestination.carga_folio_id,
+            confirmedPayload,
+          ).then(() => undefined),
+        );
+      }
+
       setNotice(
         `Retiro completado: ${task.folio.numero_folio} entregado en ${directDestination.nombre}.`,
       );
@@ -508,6 +515,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
 
   async function acquireExecutionSessions(task: OperationalTask, sessions: OpenSession[]) {
     if (task.tipo_movimiento === 'retiro') {
+      if (task.contexto?.origen_logico === 'tunel_prefrio') return;
       if (!task.origen?.camara) throw new Error('La tarea no posee cámara de origen.');
       await acquireSession(task.origen.camara.id, sessions);
       return;
@@ -843,7 +851,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                     <Text style={styles.primaryButtonText}>CONFIRMAR ENTREGA EN ANDÉN</Text>
                   </Pressable>
                   <Text style={styles.pointOfNoReturnCopy}>
-                    Confirma solo cuando el pallet haya salido físicamente de la cámara y esté en el andén indicado.
+                    Confirma solo cuando el pallet haya salido físicamente de su origen y esté en el andén indicado.
                   </Text>
                 </Step>
               ) : null}
