@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\DespachoDirectoPlanificadorController;
 use App\Http\Controllers\Api\PlanOperacionalController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,5 +16,9 @@ Route::middleware(['auth:sanctum', 'can:operar-camaras-productos'])->group(funct
     Route::post(
         '/tareas-movimiento/{tareaMovimiento}/iniciar',
         [PlanOperacionalController::class, 'iniciar'],
+    );
+    Route::post(
+        '/tareas-movimiento/{tareaMovimiento}/completar-prefrio-directo',
+        [DespachoDirectoPlanificadorController::class, 'completarPrefrio'],
     );
 });
