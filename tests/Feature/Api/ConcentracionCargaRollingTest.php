@@ -14,7 +14,6 @@ use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\Dispositivo;
 use App\Models\Folio;
-use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\ReservaCargaFolio;
 use App\Models\Temporada;
