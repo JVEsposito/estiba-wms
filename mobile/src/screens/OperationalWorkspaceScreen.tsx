@@ -18,6 +18,16 @@ type WorkspaceView = 'labores' | 'operacion';
 export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
   const [view, setView] = useState<WorkspaceView>(api.mode === 'connected' ? 'labores' : 'operacion');
 
+  async function logoutFromTasks() {
+    try {
+      await api.logout(auth.token);
+    } catch {
+      // La sesión local se cierra aunque el servidor no responda.
+    } finally {
+      onLogout();
+    }
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.switcher}>
@@ -41,7 +51,7 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
             <Text style={[styles.buttonText, view === 'operacion' && styles.buttonTextActive]}>Plano y operación</Text>
           </Pressable>
           {view === 'labores' ? (
-            <Pressable onPress={onLogout} style={styles.logout}>
+            <Pressable onPress={() => void logoutFromTasks()} style={styles.logout}>
               <Text style={styles.logoutText}>Salir</Text>
             </Pressable>
           ) : null}
