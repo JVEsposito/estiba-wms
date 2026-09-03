@@ -119,8 +119,7 @@ class ConfiguracionCamaraController extends Controller
     private function cargarDetalle(
         Camara $camara,
         ServicioBandasOperacionales $bandasOperacionales,
-    ): Camara
-    {
+    ): Camara {
         $camara->load(['actualizadoPor:id,name', 'creadoPor:id,name']);
         $camara->loadCount([
             'posiciones as posiciones_activas_count' => fn ($consulta) => $consulta
