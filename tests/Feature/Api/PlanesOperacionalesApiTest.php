@@ -462,7 +462,7 @@ class PlanesOperacionalesApiTest extends TestCase
             'posiciones_por_banda' => 4,
             'cantidad_niveles' => 1,
         ]);
-        app(ServicioBandasOperacionales::class)->sincronizar($camara, $supervisor);
+        app(ServicioBandasOperacionales::class)->sincronizar($camara->refresh(), $supervisor);
         $posiciones = [];
 
         for ($indice = 1; $indice <= 4; $indice++) {
