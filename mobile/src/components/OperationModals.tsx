@@ -500,6 +500,7 @@ export function MoveModal({
   const originClientId = originPosition?.folio?.material?.item.cliente.id ?? null;
   const freePositions = destinationPlan?.posiciones.filter((position) => (
     position.estado === 'activa'
+    && !position.reservada
     && position.id !== originPosition?.id
     && positionAcceptsMaterialClient(position, originClientId)
   )) ?? [];
@@ -839,6 +840,7 @@ function DestinationBand({
         const isOrigin = position.id === originPositionId;
         const available = position.estado === 'activa'
           && !isOrigin
+          && !position.reservada
           && positionAcceptsMaterialClient(position, originClientId);
         const status = isOrigin
           ? 'ORIGEN'
@@ -846,7 +848,9 @@ function DestinationBand({
             ? available
               ? `BULTO COMPATIBLE · ${position.folios?.length ?? 1} ítems`
               : `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
-            : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
+            : position.reservada
+              ? 'RESERVADA · TAREA EN EJECUCIÓN'
+              : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
 
         return (
           <Pressable
@@ -873,6 +877,7 @@ function DestinationBand({
 }
 
 function positionAcceptsMaterialClient(position: Position, clientId: string | null): boolean {
+  if (position.reservada) return false;
   if (!position.ocupada) return true;
   if (!clientId) return false;
   const folios = position.folios?.length ? position.folios : (position.folio ? [position.folio] : []);

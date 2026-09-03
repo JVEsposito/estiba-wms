@@ -40,6 +40,23 @@ class TareaMovimientoResource extends JsonResource
                 'codigo' => $this->dispositivo->codigo,
                 'nombre' => $this->dispositivo->nombre,
             ] : null),
+            'reserva' => $this->whenLoaded('reservaActiva', function (): ?array {
+                $reserva = $this->reservaActiva;
+
+                return $reserva ? [
+                    'id' => $reserva->id,
+                    'estado' => $reserva->estado->value,
+                    'destino_reservado' => $reserva->bloqueo_posicion_id !== null,
+                    'reservada_at' => $reserva->reservada_at?->toAtomString(),
+                    'renovada_at' => $reserva->renovada_at?->toAtomString(),
+                    'vence_at' => $reserva->vence_at?->toAtomString(),
+                    'segundos_restantes' => max(0, (int) now()->diffInSeconds(
+                        $reserva->vence_at,
+                        false,
+                    )),
+                    'version' => $reserva->version,
+                ] : null;
+            }),
             'instruccion' => $this->instruccion,
             'contexto' => $this->contexto ?? [],
             'asumida_at' => $this->asumida_at?->toAtomString(),

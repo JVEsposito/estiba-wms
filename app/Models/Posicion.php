@@ -53,6 +53,11 @@ class Posicion extends Model
         return $this->hasMany(TareaMovimiento::class, 'posicion_destino_id');
     }
 
+    public function reservaTareaActiva(): HasOne
+    {
+        return $this->hasOne(ReservaTareaMovimiento::class, 'bloqueo_posicion_id');
+    }
+
     protected function casts(): array
     {
         return [

@@ -26,6 +26,9 @@ class PosicionPlanoResource extends JsonResource
             ->map(fn (UbicacionActual $ubicacion): ?array => $this->serializarFolio($ubicacion))
             ->filter()
             ->values();
+        $reserva = $this->resource->relationLoaded('reservaTareaActiva')
+            ? $this->reservaTareaActiva
+            : null;
 
         return [
             'id' => $this->id,
@@ -35,6 +38,21 @@ class PosicionPlanoResource extends JsonResource
             'etiqueta' => $this->etiqueta,
             'estado' => $this->estado->value,
             'ocupada' => $folios->isNotEmpty(),
+            'reservada' => $reserva !== null,
+            'reserva_operacional' => $reserva ? [
+                'id' => $reserva->id,
+                'tarea_movimiento_id' => $reserva->tarea_movimiento_id,
+                'prioridad' => $reserva->tareaMovimiento?->prioridad?->value,
+                'responsable' => $reserva->usuario ? [
+                    'id' => $reserva->usuario->id,
+                    'nombre' => $reserva->usuario->name,
+                ] : null,
+                'dispositivo' => $reserva->dispositivo ? [
+                    'id' => $reserva->dispositivo->id,
+                    'nombre' => $reserva->dispositivo->nombre,
+                ] : null,
+                'vence_at' => $reserva->vence_at?->toAtomString(),
+            ] : null,
             // Se conserva `folio` durante la transición para clientes anteriores de la API.
             'folio' => $folios->first(),
             'folios' => $folios->all(),

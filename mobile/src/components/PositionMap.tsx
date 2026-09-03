@@ -178,6 +178,7 @@ function Band({
 
         const blocked = position.estado !== 'activa';
         const occupied = position.ocupada;
+        const reserved = position.reservada;
         const saldo = position.folio?.tipo_bulto === 'saldo';
         const selected = position.id === selectedPositionId;
         const loadFolio = Boolean(position.folio && highlightedFolioIds?.includes(position.folio.id));
@@ -185,13 +186,14 @@ function Band({
 
         return (
           <Pressable
-            accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : 'libre')}`}
+            accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : reserved ? 'reservada' : 'libre')}`}
             accessibilityRole="button"
             key={position.id}
             onPress={() => onSelectPosition(position)}
             style={({ pressed }) => [
               styles.cell,
               occupied && styles.occupied,
+              reserved && styles.reserved,
               saldo && styles.saldo,
               blocked && styles.blocked,
               loadFolio && styles.loadFolio,
@@ -207,7 +209,7 @@ function Band({
             <Text numberOfLines={1} style={styles.cellFolio}>
               {(position.folios?.length ?? 0) > 1
                 ? `${position.folios?.length} ítems · ${position.folio?.material?.item.cliente.nombre ?? ''}`
-                : position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : 'LIBRE')}
+                : position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : reserved ? 'RESERVADA' : 'LIBRE')}
             </Text>
             {position.folio?.carga_actual ? (
               <Text numberOfLines={1} style={styles.loadCode}>
@@ -218,9 +220,14 @@ function Band({
               <Text numberOfLines={1} style={styles.cellMeta}>
                 {position.folio?.material
                   ? `${position.folio.material.item.cliente.temporada.codigo}/${position.folio.material.item.cliente.codigo}/${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
-                  : position.folio?.variedad ?? (blocked ? position.estado : 'Disponible')}
+                  : position.folio?.variedad
+                    ?? (blocked
+                      ? position.estado
+                      : reserved
+                        ? position.reserva_operacional?.responsable?.nombre ?? 'Tarea en ejecución'
+                        : 'Disponible')}
               </Text>
-              <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : '○'}</Text>
+              <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : reserved ? 'R' : '○'}</Text>
             </View>
           </Pressable>
         );
@@ -408,6 +415,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   occupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
+  reserved: { borderColor: colors.amber, backgroundColor: colors.amberDark },
   saldo: { borderColor: colors.saldoBorder, backgroundColor: colors.saldo },
   blocked: { borderColor: colors.blockedBorder, backgroundColor: colors.blocked, opacity: 0.82 },
   loadFolio: { borderWidth: 2, borderColor: colors.amber },

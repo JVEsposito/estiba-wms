@@ -11,6 +11,7 @@ use App\Models\Camara;
 use App\Models\PersonalAccessToken;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Camaras\ServicioBandasOperacionales;
+use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -57,9 +58,13 @@ class CamaraController extends Controller
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
         ServicioBandasOperacionales $bandasOperacionales,
+        ServicioReservasTareasMovimiento $reservasTareas,
     ): Response {
         abort_unless($camara->estado === EstadoCamara::Activa, 404);
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
+        if ($reservasTareas->expirarVencidas() > 0) {
+            $camara->refresh();
+        }
 
         $camara->load('bloqueo.sesionEstiba');
         $etag = $this->etagPlano($request, $camara);
@@ -97,6 +102,13 @@ class CamaraController extends Controller
                     'ubicacionesActuales.folio.condicionSag',
                     'ubicacionesActuales.folio.material.item.cliente.temporada',
                     'ubicacionesActuales.folio.asignacionCargaActual.carga',
+                    'reservaTareaActiva' => fn ($reservas) => $reservas
+                        ->where('vence_at', '>', now())
+                        ->with([
+                            'tareaMovimiento:id,prioridad',
+                            'usuario:id,name',
+                            'dispositivo:id,nombre',
+                        ]),
                 ])
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
@@ -174,6 +186,7 @@ class CamaraController extends Controller
             'sesion_dispositivo_id' => $sesion?->dispositivo_id,
             'sesion_estado' => $sesion?->estado?->value,
             'sesion_ultima_actividad_at' => $sesion?->ultima_actividad_at?->toAtomString(),
+            'revision_reservas' => $camara->revision_reservas,
         ], JSON_THROW_ON_ERROR);
 
         return 'plano-'.hash('sha256', $huella);

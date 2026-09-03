@@ -14,6 +14,7 @@ use App\Models\Folio;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
@@ -142,6 +143,9 @@ class MovimientoController extends Controller
             datosFolio: $datos['datos_folio'] ?? [],
             datosMaterial: $datos['datos_material'] ?? [],
             advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
+            tareaMovimiento: isset($datos['tarea_movimiento_id'])
+                ? TareaMovimiento::query()->findOrFail($datos['tarea_movimiento_id'])
+                : null,
         );
 
         return (new MovimientoResource($this->cargarRelaciones($movimiento)))
@@ -170,6 +174,9 @@ class MovimientoController extends Controller
                 $datos['generado_dispositivo_at'],
             ),
             advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
+            tareaMovimiento: isset($datos['tarea_movimiento_id'])
+                ? TareaMovimiento::query()->findOrFail($datos['tarea_movimiento_id'])
+                : null,
         );
 
         return (new MovimientoResource($this->cargarRelaciones($movimiento)))

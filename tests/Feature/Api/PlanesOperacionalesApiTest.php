@@ -13,9 +13,13 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\ReservaTareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Camaras\ServicioBandasOperacionales;
+use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Estiba\ServicioSesionEstiba;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -105,19 +109,38 @@ class PlanesOperacionalesApiTest extends TestCase
             ->assertJsonPath('data.0.id', $tarea->id)
             ->assertJsonPath('data.0.folio.numero_folio', 'PALLET-001')
             ->assertJsonPath('data.0.destino.camara.nombre', 'Cámara tránsito');
+        $planoLibre = $this->conToken($contexto['token'])
+            ->getJson("/api/camaras/{$contexto['camara']->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.posiciones.0.reservada', false);
+        $etagPlanoLibre = $planoLibre->headers->get('ETag');
+        $this->assertNotNull($etagPlanoLibre);
 
         $this->conToken($contexto['token'])
             ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
             ->assertOk()
             ->assertJsonPath('data.estado', 'asumida')
             ->assertJsonPath('data.responsable.id', $contexto['camarero']->id)
-            ->assertJsonPath('data.dispositivo.id', $contexto['dispositivo']->id);
+            ->assertJsonPath('data.dispositivo.id', $contexto['dispositivo']->id)
+            ->assertJsonPath('data.reserva.destino_reservado', true)
+            ->assertJsonPath('data.reserva.version', 1);
 
         $this->assertDatabaseHas('planes_operacionales', [
             'id' => $plan->id,
             'estado' => 'en_ejecucion',
             'iniciado_por_user_id' => $contexto['camarero']->id,
         ]);
+        $this->conToken($contexto['token'])
+            ->withHeader('If-None-Match', $etagPlanoLibre)
+            ->getJson("/api/camaras/{$contexto['camara']->id}/plano")
+            ->assertOk()
+            ->assertJsonPath('data.bandas_operacionales.0.capacidad.reservadas', 1)
+            ->assertJsonPath('data.bandas_operacionales.0.capacidad.disponibles', 3)
+            ->assertJsonPath('data.posiciones.0.reservada', true)
+            ->assertJsonPath(
+                'data.posiciones.0.reserva_operacional.tarea_movimiento_id',
+                $tarea->id,
+            );
 
         $this->conToken($contexto['token'])
             ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
@@ -134,11 +157,205 @@ class PlanesOperacionalesApiTest extends TestCase
             ->assertConflict();
 
         $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/renovar")
+            ->assertOk()
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.reserva.version', 3);
+
+        $this->conToken($contexto['token'])
             ->postJson("/api/tareas-movimiento/{$tarea->id}/liberar")
             ->assertOk()
             ->assertJsonPath('data.estado', 'pendiente')
             ->assertJsonPath('data.responsable', null)
             ->assertJsonPath('data.version', 3);
+
+        $this->assertDatabaseHas('reservas_tareas_movimiento', [
+            'tarea_movimiento_id' => $tarea->id,
+            'estado' => 'liberada',
+            'bloqueo_tarea_id' => null,
+            'bloqueo_posicion_id' => null,
+        ]);
+    }
+
+    public function test_dos_tareas_no_pueden_reservar_el_mismo_destino(): void
+    {
+        $contexto = $this->crearContexto();
+        $primera = $this->crearPlan($contexto)->tareas->firstOrFail();
+        $segundoPlan = app(ServicioPlanesOperacionales::class)->crear(
+            temporada: $contexto['temporada'],
+            tipo: TipoPlanOperacional::AlmacenamientoPallet,
+            titulo: 'Segundo pallet al mismo destino',
+            creadoPor: $contexto['supervisor'],
+            tareas: [[
+                'folio_id' => $contexto['folios'][1]->id,
+                'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
+                'camara_destino_id' => $contexto['camara']->id,
+                'posicion_destino_id' => $contexto['posiciones'][0]->id,
+            ]],
+        );
+        $segunda = $segundoPlan->tareas->firstOrFail();
+
+        $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$primera->id}/asumir")
+            ->assertOk();
+
+        $this->conToken($contexto['tokenOtro'])
+            ->postJson("/api/tareas-movimiento/{$segunda->id}/asumir")
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $this->assertSame(1, ReservaTareaMovimiento::query()
+            ->whereNotNull('bloqueo_posicion_id')
+            ->count());
+        $this->assertSame('pendiente', $segunda->refresh()->estado->value);
+    }
+
+    public function test_un_lease_vencido_libera_tarea_y_destino_para_otra_tablet(): void
+    {
+        $contexto = $this->crearContexto();
+        $tarea = $this->crearPlan($contexto)->tareas->firstOrFail();
+
+        $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
+            ->assertOk();
+
+        $this->travel(11)->minutes();
+
+        $this->conToken($contexto['tokenOtro'])
+            ->getJson('/api/tareas-movimiento')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.estado', 'pendiente')
+            ->assertJsonPath('data.0.reserva', null);
+
+        $this->assertDatabaseHas('reservas_tareas_movimiento', [
+            'tarea_movimiento_id' => $tarea->id,
+            'estado' => 'expirada',
+            'bloqueo_tarea_id' => null,
+            'bloqueo_posicion_id' => null,
+        ]);
+
+        $this->conToken($contexto['tokenOtro'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
+            ->assertOk()
+            ->assertJsonPath('data.responsable.id', $contexto['otroCamarero']->id);
+    }
+
+    public function test_el_movimiento_reservado_completa_tarea_plan_y_lease_atomicamente(): void
+    {
+        $contexto = $this->crearContexto();
+        $plan = $this->crearPlan($contexto);
+        $tarea = $plan->tareas->firstOrFail();
+
+        app(ServicioPlanesOperacionales::class)->asumir(
+            $tarea,
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+        $sesion = app(ServicioSesionEstiba::class)->abrir(
+            $contexto['camara'],
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+
+        $movimiento = app(ServicioMovimientoEstiba::class)->ubicar(
+            operacionId: (string) Str::uuid(),
+            numeroFolio: $contexto['folios'][0]->numero_folio,
+            tipoBulto: TipoBulto::Pallet,
+            posicionDestino: $contexto['posiciones'][0],
+            sesionDestino: $sesion,
+            usuario: $contexto['camarero'],
+            dispositivo: $contexto['dispositivo'],
+            versionDestinoConocida: 0,
+            generadoDispositivoAt: now(),
+            tareaMovimiento: $tarea,
+        );
+
+        $this->assertSame($plan->id, $movimiento->plan_operacional_id);
+        $this->assertSame($tarea->id, $movimiento->tarea_movimiento_id);
+        $this->assertSame('completada', $tarea->refresh()->estado->value);
+        $this->assertSame('completado', $plan->refresh()->estado->value);
+        $this->assertDatabaseHas('reservas_tareas_movimiento', [
+            'tarea_movimiento_id' => $tarea->id,
+            'estado' => 'completada',
+            'bloqueo_tarea_id' => null,
+            'bloqueo_posicion_id' => null,
+        ]);
+    }
+
+    public function test_un_movimiento_manual_no_puede_ocupar_un_pallet_o_destino_reservado(): void
+    {
+        $contexto = $this->crearContexto();
+        $tarea = $this->crearPlan($contexto)->tareas->firstOrFail();
+        app(ServicioPlanesOperacionales::class)->asumir(
+            $tarea,
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+        $sesion = app(ServicioSesionEstiba::class)->abrir(
+            $contexto['camara'],
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+
+        try {
+            app(ServicioMovimientoEstiba::class)->ubicar(
+                operacionId: (string) Str::uuid(),
+                numeroFolio: $contexto['folios'][0]->numero_folio,
+                tipoBulto: TipoBulto::Pallet,
+                posicionDestino: $contexto['posiciones'][0],
+                sesionDestino: $sesion,
+                usuario: $contexto['camarero'],
+                dispositivo: $contexto['dispositivo'],
+                versionDestinoConocida: 0,
+                generadoDispositivoAt: now(),
+            );
+            $this->fail('Se esperaba el rechazo del movimiento sin su tarea reservada.');
+        } catch (ConflictoOperacion $exception) {
+            $this->assertStringContainsString('reservad', $exception->getMessage());
+        }
+
+        try {
+            app(ServicioMovimientoEstiba::class)->ubicar(
+                operacionId: (string) Str::uuid(),
+                numeroFolio: $contexto['folios'][0]->numero_folio,
+                tipoBulto: TipoBulto::Pallet,
+                posicionDestino: $contexto['posiciones'][1],
+                sesionDestino: $sesion,
+                usuario: $contexto['camarero'],
+                dispositivo: $contexto['dispositivo'],
+                versionDestinoConocida: 0,
+                generadoDispositivoAt: now(),
+            );
+            $this->fail('Se esperaba el rechazo del pallet reservado hacia otro destino.');
+        } catch (ConflictoOperacion $exception) {
+            $this->assertStringContainsString('pallet', $exception->getMessage());
+        }
+
+        try {
+            app(ServicioMovimientoEstiba::class)->ubicar(
+                operacionId: (string) Str::uuid(),
+                numeroFolio: 'PALLET-MANUAL-NUEVO',
+                tipoBulto: TipoBulto::Pallet,
+                posicionDestino: $contexto['posiciones'][0],
+                sesionDestino: $sesion,
+                usuario: $contexto['camarero'],
+                dispositivo: $contexto['dispositivo'],
+                versionDestinoConocida: 0,
+                generadoDispositivoAt: now(),
+            );
+            $this->fail('Se esperaba el rechazo del destino reservado.');
+        } catch (ConflictoOperacion $exception) {
+            $this->assertStringContainsString('posición', $exception->getMessage());
+        }
+
+        $this->assertSame('asumida', $tarea->refresh()->estado->value);
+        $this->assertDatabaseMissing('folios', [
+            'numero_folio' => 'PALLET-MANUAL-NUEVO',
+        ]);
+        $this->assertDatabaseMissing('movimientos', [
+            'folio_id' => $contexto['folios'][0]->id,
+        ]);
     }
 
     public function test_las_consultas_se_limitan_a_la_temporada_activa_y_al_rol_operacional(): void
@@ -245,6 +462,7 @@ class PlanesOperacionalesApiTest extends TestCase
             'posiciones_por_banda' => 4,
             'cantidad_niveles' => 1,
         ]);
+        app(ServicioBandasOperacionales::class)->sincronizar($camara->refresh(), $supervisor);
         $posiciones = [];
 
         for ($indice = 1; $indice <= 4; $indice++) {

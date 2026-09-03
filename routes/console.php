@@ -17,3 +17,7 @@ if (app()->environment('local') &&
 Schedule::command('folios:auditar-integridad --origen=programada')
     ->everyFifteenMinutes()
     ->withoutOverlapping(20);
+
+Schedule::command('tareas:expirar-reservas --limite=250')
+    ->everyMinute()
+    ->withoutOverlapping(2);

@@ -110,6 +110,8 @@ class ServicioBandasOperacionales
                 ->where('numero', '<=', $camara->cantidad_bandas)
                 ->with('actualizadoPor:id,name'),
             'posiciones.ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo',
+            'posiciones.reservaTareaActiva' => fn ($consulta) => $consulta
+                ->where('vence_at', '>', now()),
         ]);
 
         /** @var Collection<int, Posicion> $posiciones */
@@ -127,10 +129,15 @@ class ServicioBandasOperacionales
             $ocupadas = $activas->filter(
                 fn ($posicion): bool => $posicion->ubicacionesActuales->isNotEmpty(),
             )->count();
+            $reservadas = $activas->filter(
+                fn ($posicion): bool => $posicion->ubicacionesActuales->isEmpty()
+                    && $posicion->reservaTareaActiva !== null,
+            )->count();
 
             $banda->setAttribute('capacidad_fisica_calculada', $coordenadas->count());
             $banda->setAttribute('capacidad_efectiva_calculada', $activas->count());
             $banda->setAttribute('ocupadas_calculadas', $ocupadas);
+            $banda->setAttribute('reservadas_calculadas', $reservadas);
             $banda->setAttribute('afinidad_calculada', $this->afinidad->resumir(
                 $activas
                     ->flatMap(fn (Posicion $posicion): Collection => $posicion->ubicacionesActuales
