@@ -697,13 +697,33 @@ function renderOperationalBandHeading(band, operationalBand) {
     const uses = (operationalBand.usos_permitidos || [])
         .map((use) => useLabels[use] || use)
         .join(' · ');
+    const affinity = operationalBandAffinityLabel(operationalBand);
 
     return `
         <div class="band-heading">
             <strong>BANDA ${String(band).padStart(2, '0')}</strong>
             <span>${escapeHtml(stateLabels[operationalBand.estado] || operationalBand.estado)} · ${Number(operationalBand.capacidad?.disponibles || 0)}/${Number(operationalBand.capacidad?.efectiva || 0)} libres</span>
+            <small class="band-heading__affinity">${escapeHtml(affinity)}</small>
             <small>${escapeHtml(uses)}</small>
         </div>`;
+}
+
+function operationalBandAffinityLabel(operationalBand) {
+    const affinity = operationalBand.afinidad;
+
+    if (! affinity?.activa) {
+        return affinity?.fuera_alcance
+            ? `${affinity.fuera_alcance} bulto(s) fuera del planificador`
+            : 'Sin afinidad · banda liberada';
+    }
+
+    const profile = [affinity.cliente?.valor, affinity.marca?.valor, affinity.formato?.valor]
+        .filter(Boolean)
+        .join(' › ') || 'Afinidad sin datos completos';
+
+    return affinity.perfiles_diferentes > 1
+        ? `${profile} · MIX ${affinity.perfiles_diferentes}`
+        : profile;
 }
 
 function renderPositionCell(position) {
@@ -1004,10 +1024,29 @@ function applyLocateLookup(data) {
     const compatibilityMessage = compatible
         ? data.mensaje_disponibilidad
         : 'El tipo de folio no corresponde a esta cámara.';
+    const recommendationMessage = locateRecommendationMessage(data);
     setLocateLookupStatus(
-        `${source} ${compatibilityMessage}`,
+        `${source} ${compatibilityMessage}${recommendationMessage ? ` ${recommendationMessage}` : ''}`,
         available ? 'success' : 'warning',
     );
+}
+
+function locateRecommendationMessage(data) {
+    const recommendation = data.recomendacion_ubicacion;
+
+    if (! recommendation?.aplica) return '';
+    if (! recommendation.disponible || ! recommendation.mejor) {
+        return `Sugerencia WMS: ${recommendation.motivo}`;
+    }
+
+    const best = recommendation.mejor;
+    const position = best.posicion.etiqueta
+        || `B${String(best.banda.numero).padStart(2, '0')} · P${String(best.posicion.posicion).padStart(2, '0')} · N${best.posicion.nivel}`;
+    const currentDestination = state.selectedPosition?.id === best.posicion.id
+        ? 'El destino seleccionado es el recomendado.'
+        : `${best.camara.nombre} · Banda ${String(best.banda.numero).padStart(2, '0')} · ${position}.`;
+
+    return `Sugerencia WMS: ${currentDestination} ${best.afinidad.motivo}`;
 }
 
 async function lookupLocateFolio(numeroFolio) {
@@ -1027,7 +1066,8 @@ async function lookupLocateFolio(numeroFolio) {
     elements.locateSubmitButton.disabled = true;
 
     try {
-        const response = await api(`/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(normalized)}`);
+        const camera = state.plan?.id ? `&camara_id=${encodeURIComponent(state.plan.id)}` : '';
+        const response = await api(`/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(normalized)}${camera}`);
 
         if (sequence !== state.locateLookupSequence
             || normalizedFolioNumber(elements.locateFolioNumber.value) !== normalized) {

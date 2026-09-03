@@ -974,6 +974,11 @@ select:focus {
     white-space: nowrap;
 }
 
+.band-heading .band-heading__affinity {
+    color: var(--cyan);
+    white-space: normal;
+}
+
 .position-cell {
     position: relative;
     display: grid;

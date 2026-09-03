@@ -18,6 +18,7 @@ use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Estiba\ServicioMovimientoEstiba;
+use App\Services\Estiba\ServicioRecomendacionUbicacion;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -31,6 +32,7 @@ class MovimientoController extends Controller
     public function consultarFolio(
         ConsultarFolioUbicacionRequest $request,
         ServicioHabilitacionAlmacenamiento $habilitacion,
+        ServicioRecomendacionUbicacion $recomendaciones,
     ): JsonResponse {
         $numeroFolio = mb_strtoupper(trim((string) $request->validated('numero_folio')));
         $folio = Folio::query()
@@ -59,6 +61,13 @@ class MovimientoController extends Controller
         $ubicacion = $folio->ubicacionActual;
         $camaraUbicacion = $ubicacion?->camara ?? $ubicacion?->posicion?->camara;
         $material = $folio->material;
+        $recomendacion = $disponible
+            ? $recomendaciones->recomendar(
+                $folio,
+                $request->user(),
+                $request->validated('camara_id'),
+            )
+            : null;
 
         return response()->json([
             'data' => [
@@ -81,6 +90,7 @@ class MovimientoController extends Controller
                 'calibre' => $folio->calibre,
                 'marca' => $folio->marca,
                 'exportadora' => $folio->exportadora,
+                'recomendacion_ubicacion' => $recomendacion,
                 'ubicacion_actual' => $ubicacion && $camaraUbicacion ? [
                     'camara' => [
                         'id' => $camaraUbicacion->id,

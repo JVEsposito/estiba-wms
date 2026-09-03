@@ -62,7 +62,7 @@ export interface EstibaApi {
   refreshRecent(token: string, cameraId: string): Promise<Movement[] | null>;
   openSession(token: string, cameraId: string): Promise<OpenedSession>;
   closeSession(token: string, sessionId: string): Promise<void>;
-  lookupFolio(token: string, folioNumber: string): Promise<FolioLookup>;
+  lookupFolio(token: string, folioNumber: string, cameraId?: string): Promise<FolioLookup>;
   locate(token: string, payload: LocatePayload): Promise<void>;
   move(token: string, payload: MovePayload): Promise<void>;
   getMaterialCatalog(token: string): Promise<MaterialCatalog>;
@@ -332,8 +332,9 @@ class HttpEstibaApi implements EstibaApi {
     });
   }
 
-  async lookupFolio(token: string, folioNumber: string) {
-    const path = `/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(folioNumber)}`;
+  async lookupFolio(token: string, folioNumber: string, cameraId?: string) {
+    const camera = cameraId ? `&camara_id=${encodeURIComponent(cameraId)}` : '';
+    const path = `/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(folioNumber)}${camera}`;
     return (await this.request<ApiItem<FolioLookup>>(path, token)).data;
   }
 

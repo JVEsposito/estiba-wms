@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioBandasOperacionales
 {
+    public function __construct(
+        private readonly CalculadorAfinidadBanda $afinidad,
+    ) {}
+
     public function sincronizar(Camara $camara, ?User $usuario = null): void
     {
         if ($camara->contenido !== ContenidoCamara::Productos) {
@@ -105,7 +109,7 @@ class ServicioBandasOperacionales
             'bandasOperacionales' => fn ($consulta) => $consulta
                 ->where('numero', '<=', $camara->cantidad_bandas)
                 ->with('actualizadoPor:id,name'),
-            'posiciones.ubicacionesActuales:id,posicion_id',
+            'posiciones.ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo',
         ]);
 
         /** @var Collection<int, Posicion> $posiciones */
@@ -127,6 +131,13 @@ class ServicioBandasOperacionales
             $banda->setAttribute('capacidad_fisica_calculada', $coordenadas->count());
             $banda->setAttribute('capacidad_efectiva_calculada', $activas->count());
             $banda->setAttribute('ocupadas_calculadas', $ocupadas);
+            $banda->setAttribute('afinidad_calculada', $this->afinidad->resumir(
+                $activas
+                    ->flatMap(fn (Posicion $posicion): Collection => $posicion->ubicacionesActuales
+                        ->pluck('folio')
+                        ->filter())
+                    ->values(),
+            ));
         }
 
         return $camara;

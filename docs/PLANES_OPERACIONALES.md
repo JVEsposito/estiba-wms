@@ -20,7 +20,23 @@ Cada banda vigente de una cámara de producto terminado dispone de una identidad
 - estado calculado: `libre`, `parcial`, `completa`, `bloqueada` o `en_vaciado`;
 - versión y responsable de la última configuración.
 
-El plano web y la tablet muestran este resumen sobre cada banda. La configuración de la banda incrementa la versión del plano para invalidar sus ETag. Todavía no se crean movimientos ni afinidades automáticas: esos comportamientos consumirán esta base en los siguientes incrementos.
+El plano web y la tablet muestran este resumen sobre cada banda. La configuración de la banda incrementa la versión del plano para invalidar sus ETag.
+
+## Afinidad y ubicación recomendada
+
+La afinidad no se configura manualmente ni se persiste como una reserva. Se deriva de los pallets completos que ocupan actualmente cada banda y se libera cuando la banda queda vacía.
+
+La jerarquía de recomendación es:
+
+1. mismo cliente, marca/etiqueta y formato/envase;
+2. mismo cliente y marca/etiqueta;
+3. mismo cliente;
+4. banda libre;
+5. mezcla excepcional como última alternativa.
+
+Solo participan bandas operativas, habilitadas para `transito_pt`, con capacidad disponible y sin saldos ni materiales. La posición propuesta respeta el orden desde el fondo y el soporte del nivel inferior. La respuesta conserva la versión de cámara y banda, explica el criterio aplicado y expone hasta cuatro alternativas.
+
+La consulta previa del folio entrega esta recomendación a web y tablet/PDA. Es deliberadamente consultiva: no reserva el destino, no genera una tarea y no ejecuta un movimiento. Esas garantías se incorporarán en los siguientes incrementos.
 
 ## Estados
 

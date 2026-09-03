@@ -156,6 +156,11 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 18. Saldos y repaletizaje permanecen fuera del planificador de pallets completos.
 19. Configurar una banda exige administración, versión vigente y ausencia de una sesión de estiba abierta.
 20. Crear o ampliar una cámara PT sincroniza las bandas nuevas sin sobrescribir la configuración de las existentes.
+21. La afinidad de una banda se deriva de sus pallets completos actuales y no se configura manualmente.
+22. La jerarquía de afinidad es cliente, marca/etiqueta y formato/envase; una banda vacía no conserva afinidad histórica.
+23. Una recomendación de tránsito solo considera bandas operativas, con uso `transito_pt`, capacidad y posiciones físicamente viables.
+24. Una banda ocupada por saldos o materiales queda fuera de la recomendación para pallets completos.
+25. La recomendación es consultiva: no reserva una posición, no crea una tarea y no ejecuta movimientos.
 
 ## 10. Folios y ubicaciones
 

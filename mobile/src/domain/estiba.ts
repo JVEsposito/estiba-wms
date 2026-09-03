@@ -182,6 +182,7 @@ export type FolioLookup = {
   calibre: string | null;
   marca: string | null;
   exportadora: string | null;
+  recomendacion_ubicacion?: LocationRecommendation | null;
   ubicacion_actual: {
     camara: { id: string; codigo: string; nombre: string };
     posicion: { id: string; etiqueta: string | null } | null;
@@ -495,8 +496,68 @@ export type OperationalBand = {
     disponibles: number;
     porcentaje: number;
   };
+  afinidad?: {
+    activa: boolean;
+    cliente: { valor: string; pallets: number } | null;
+    marca: { valor: string; pallets: number } | null;
+    formato: { valor: string; pallets: number } | null;
+    pallets_completos: number;
+    perfiles_diferentes: number;
+    fuera_alcance: number;
+  } | null;
   version: number;
   updated_at: string;
+};
+
+export type LocationRecommendationCandidate = {
+  orden: number;
+  camara: {
+    id: string;
+    codigo: string;
+    nombre: string;
+    version_plano: number;
+  };
+  banda: {
+    id: string;
+    numero: number;
+    capacidad_disponible: number;
+    version: number;
+  };
+  posicion: {
+    id: string;
+    etiqueta: string | null;
+    banda: number;
+    posicion: number;
+    nivel: number;
+  };
+  afinidad: {
+    nivel: 'cliente_marca_formato' | 'cliente_marca' | 'cliente' | 'banda_libre' | 'sin_afinidad';
+    puntaje: number;
+    coincidencias: {
+      cliente_marca_formato: number;
+      cliente_marca: number;
+      cliente: number;
+    };
+    mezclaria_clientes: boolean;
+    motivo: string;
+  };
+  en_camara_consultada: boolean;
+};
+
+export type LocationRecommendation = {
+  aplica: boolean;
+  disponible: boolean;
+  uso: 'transito_pt' | null;
+  motivo: string;
+  criterio: {
+    jerarquia: string[];
+    solo_pallets_completos: boolean;
+    afinidad_dinamica: boolean;
+    genera_movimiento: boolean;
+    reserva_destino: boolean;
+  };
+  mejor: LocationRecommendationCandidate | null;
+  alternativas: LocationRecommendationCandidate[];
 };
 
 export type CameraPlan = CameraSummary & {

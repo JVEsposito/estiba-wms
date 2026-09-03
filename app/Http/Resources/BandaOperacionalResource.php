@@ -35,6 +35,7 @@ class BandaOperacionalResource extends JsonResource
                     ? round(($ocupadas / $efectiva) * 100, 1)
                     : 0.0,
             ],
+            'afinidad' => $this->afinidad_calculada,
             'version' => $this->version,
             'actualizado_por' => $this->whenLoaded('actualizadoPor', fn (): ?array => $this->actualizadoPor ? [
                 'id' => $this->actualizadoPor->id,

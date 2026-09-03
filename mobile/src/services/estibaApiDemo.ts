@@ -309,7 +309,7 @@ export class DemoEstibaApi implements EstibaApi {
     return closeDemoSession(sessionId);
   }
 
-  async lookupFolio(_token: string, folioNumber: string) {
+  async lookupFolio(_token: string, folioNumber: string, _cameraId?: string) {
     return lookupDemoFolio(folioNumber);
   }
 
