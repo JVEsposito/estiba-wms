@@ -462,6 +462,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       || !activeTask.destino_logico?.carga_folio_id) return;
 
     const task = activeTask;
+    const directDestination = activeTask.destino_logico;
     const sessions = executionSessions.current.length
       ? executionSessions.current
       : [];
@@ -476,7 +477,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       const payload: SendLoadFolioToDockPayload = {
         operacion_id: Crypto.randomUUID(),
         tarea_movimiento_id: task.id,
-        anden_id: task.destino_logico.id,
+        anden_id: directDestination.id,
         sesion_estiba_id: sourceSession.sessionId,
         version_camara_conocida: sourceSession.plan.version_plano,
         generado_dispositivo_at: new Date().toISOString(),
@@ -485,12 +486,12 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         payload,
         (confirmedPayload) => api.sendLoadFolioToDock(
           auth.token,
-          task.destino_logico!.carga_folio_id,
+          directDestination.carga_folio_id,
           confirmedPayload,
         ).then(() => undefined),
       );
       setNotice(
-        `Retiro completado: ${task.folio.numero_folio} entregado en ${task.destino_logico.nombre}.`,
+        `Retiro completado: ${task.folio.numero_folio} entregado en ${directDestination.nombre}.`,
       );
       setActiveTask(null);
       resetScans();
