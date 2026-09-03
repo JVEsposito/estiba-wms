@@ -121,8 +121,8 @@ class ServicioGeneracionRecepcionTunel
                     'tunel_prefrio_id' => $proceso->tunel_prefrio_id,
                     'tunel_codigo' => $tunel?->codigo,
                     'tunel_nombre' => $tunel?->nombre,
-                    'condicion_termino' => 'folios_recepcion_resueltos',
-                    'total_folios_proceso' => $proceso->folios->count(),
+                    'condicion_termino' => 'todos_pallets_recepcion_completados',
+                    'total_folios_aprobados' => $proceso->folios->count(),
                     'total_pallets_planificados' => count($tareas),
                 ],
             );
