@@ -10,6 +10,7 @@ use App\Http\Resources\CamaraResumenResource;
 use App\Models\Camara;
 use App\Models\PersonalAccessToken;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Camaras\ServicioBandasOperacionales;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -55,6 +56,7 @@ class CamaraController extends Controller
         Request $request,
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
+        ServicioBandasOperacionales $bandasOperacionales,
     ): Response {
         abort_unless($camara->estado === EstadoCamara::Activa, 404);
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
@@ -79,6 +81,9 @@ class CamaraController extends Controller
         $camara->loadCount('ubicacionesSinPosicion');
         $camara->loadMissing($this->relacionesBloqueo());
         $camara->load([
+            'bandasOperacionales' => fn ($consulta) => $consulta
+                ->where('numero', '<=', $camara->cantidad_bandas)
+                ->with('actualizadoPor:id,name'),
             'ubicacionesSinPosicion' => fn ($consulta) => $consulta
                 ->with([
                     'folio.condicionSag',
@@ -100,6 +105,7 @@ class CamaraController extends Controller
                 ->orderBy('nivel')
                 ->orderBy('posicion'),
         ]);
+        $bandasOperacionales->enriquecer($camara);
 
         return $this->configurarCache(
             (new CamaraPlanoResource($camara))->response(),

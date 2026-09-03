@@ -138,6 +138,7 @@ Las guías son documentos operacionales internos y no DTE legales.
 - Creación y edición de cámaras.
 - Contenido separado entre producto terminado, materiales y materia prima.
 - Bandas, posiciones, niveles y estado de cada posición.
+- Bandas PT como unidades operacionales con capacidad efectiva, usos permitidos y estado calculado.
 - Consulta concurrente del plano.
 - Una sesión exclusiva de edición por cámara.
 - Ubicación inicial, reubicación, traslado y retiro.

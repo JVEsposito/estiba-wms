@@ -9,6 +9,7 @@ use App\Http\Requests\CrearCamaraRequest;
 use App\Http\Resources\CamaraConfiguracionResource;
 use App\Models\Camara;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
+use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Camaras\ServicioConfiguracionCamara;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,17 +74,21 @@ class ConfiguracionCamaraController extends Controller
         Request $request,
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
+        ServicioBandasOperacionales $bandasOperacionales,
     ): CamaraConfiguracionResource {
         Gate::authorize('consultar-configuracion-camaras');
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
 
-        return new CamaraConfiguracionResource($this->cargarDetalle($camara));
+        return new CamaraConfiguracionResource(
+            $this->cargarDetalle($camara, $bandasOperacionales),
+        );
     }
 
     public function update(
         ActualizarCamaraRequest $request,
         Camara $camara,
         ServicioConfiguracionCamara $servicio,
+        ServicioBandasOperacionales $bandasOperacionales,
     ): CamaraConfiguracionResource {
         $actualizada = $servicio->actualizar(
             $camara,
@@ -91,23 +96,30 @@ class ConfiguracionCamaraController extends Controller
             $request->user(),
         );
 
-        return new CamaraConfiguracionResource($this->cargarDetalle($actualizada));
+        return new CamaraConfiguracionResource(
+            $this->cargarDetalle($actualizada, $bandasOperacionales),
+        );
     }
 
     public function destroy(
         Request $request,
         Camara $camara,
         ServicioConfiguracionCamara $servicio,
+        ServicioBandasOperacionales $bandasOperacionales,
     ): CamaraConfiguracionResource {
         Gate::authorize('administrar-camaras');
 
         $desactivada = $servicio->desactivar($camara, $request->user());
 
-        return new CamaraConfiguracionResource($this->cargarDetalle($desactivada));
+        return new CamaraConfiguracionResource(
+            $this->cargarDetalle($desactivada, $bandasOperacionales),
+        );
     }
 
-    private function cargarDetalle(Camara $camara): Camara
-    {
+    private function cargarDetalle(
+        Camara $camara,
+        ServicioBandasOperacionales $bandasOperacionales,
+    ): Camara {
         $camara->load(['actualizadoPor:id,name', 'creadoPor:id,name']);
         $camara->loadCount([
             'posiciones as posiciones_activas_count' => fn ($consulta) => $consulta
@@ -122,7 +134,11 @@ class ConfiguracionCamaraController extends Controller
                 ->where('nivel', '<=', $camara->cantidad_niveles),
         ]);
         $camara->load([
+            'bandasOperacionales' => fn ($consulta) => $consulta
+                ->where('numero', '<=', $camara->cantidad_bandas)
+                ->with('actualizadoPor:id,name'),
             'posiciones' => fn ($consulta) => $consulta
+                ->with('ubicacionesActuales:id,posicion_id')
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
                 ->where('nivel', '<=', $camara->cantidad_niveles)
@@ -130,6 +146,8 @@ class ConfiguracionCamaraController extends Controller
                 ->orderBy('posicion')
                 ->orderBy('nivel'),
         ]);
+
+        $bandasOperacionales->enriquecer($camara);
 
         return $camara;
     }

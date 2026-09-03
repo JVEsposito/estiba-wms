@@ -37,6 +37,9 @@ class CamaraConfiguracionResource extends JsonResource
                 'fuera_servicio' => max(0, $total - $activas),
                 'ocupadas' => (int) ($this->posiciones_ocupadas_count ?? 0),
             ],
+            'bandas_operacionales' => BandaOperacionalResource::collection(
+                $this->whenLoaded('bandasOperacionales'),
+            ),
             'posiciones_fuera_servicio' => $this->whenLoaded(
                 'posiciones',
                 fn () => $this->posiciones

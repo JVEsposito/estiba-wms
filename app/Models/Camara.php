@@ -34,6 +34,11 @@ class Camara extends Model
         return $this->hasMany(Posicion::class);
     }
 
+    public function bandasOperacionales(): HasMany
+    {
+        return $this->hasMany(BandaOperacional::class)->orderBy('numero');
+    }
+
     public function ubicacionesActuales(): HasMany
     {
         return $this->hasMany(UbicacionActual::class);

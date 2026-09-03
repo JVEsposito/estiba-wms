@@ -149,6 +149,13 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 11. Un traslado requiere sesiones válidas sobre origen y destino cuando corresponda.
 12. Los bloqueos se adquieren en un orden estable para evitar interbloqueos.
 13. Cada movimiento incrementa las versiones de las cámaras afectadas.
+14. Cada banda vigente de una cámara de producto terminado posee una identidad operacional estable.
+15. La capacidad efectiva de una banda considera únicamente posiciones activas del plano vigente.
+16. El estado `libre`, `parcial` o `completa` se deriva de capacidad efectiva y ocupación; `bloqueada` y `en_vaciado` responden a su modo explícito.
+17. Las bandas operacionales solo admiten los usos `transito_pt`, `inspeccion` y `retenidos` en esta etapa.
+18. Saldos y repaletizaje permanecen fuera del planificador de pallets completos.
+19. Configurar una banda exige administración, versión vigente y ausencia de una sesión de estiba abierta.
+20. Crear o ampliar una cámara PT sincroniza las bandas nuevas sin sobrescribir la configuración de las existentes.
 
 ## 10. Folios y ubicaciones
 
