@@ -58,14 +58,11 @@ export function calculateRollingFrontier(
     if (proposals.length >= limit) break;
 
     const candidate = bestCandidate(task, cameraPlans, usedDestinations, protectedOrigins);
-    if (!candidate) {
-      unresolvedTaskIds.push(task.id);
-      continue;
-    }
-
     const taskSnapshot = snapshot.tareas.find((item) => item.id === task.id);
-    const cameraSnapshot = snapshot.camaras.find((camera) => camera.id === candidate.cameraId);
-    if (!taskSnapshot || !cameraSnapshot) {
+    const candidatePlan = candidate
+      ? cameraPlans.find((plan) => plan.id === candidate.cameraId)
+      : null;
+    if (!candidate || !taskSnapshot || !candidatePlan) {
       unresolvedTaskIds.push(task.id);
       continue;
     }
@@ -77,7 +74,7 @@ export function calculateRollingFrontier(
       posicion_destino_id: candidate.position.id,
       tarea_version: taskSnapshot.version,
       plan_version: snapshot.plan.version,
-      version_camara_conocida: cameraSnapshot.version_plano,
+      version_camara_conocida: candidatePlan.version_plano,
       score: candidate.score,
       motivo: candidate.reason,
     });
