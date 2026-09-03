@@ -6,7 +6,7 @@ use App\Enums\EstadoCarga;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\ModalidadSalidaCarga;
-use App\Enums\PrioridadOperacional;
+use App\Enums\PrioridadCarga;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Carga;
@@ -74,7 +74,7 @@ class RecepcionTunelRollingTest extends TestCase
         });
     }
 
-    public function test_excluye_saldos_pallets_ya_ubicados_y_salida_directa_prefrio(): void
+    public function test_excluye_saldos_folios_inactivos_y_salida_directa_prefrio(): void
     {
         config(['planificador.generacion_automatica' => true]);
         $contexto = $this->crearProcesoAprobado(4, [
@@ -242,7 +242,7 @@ class RecepcionTunelRollingTest extends TestCase
             'numero_orden_externa' => 'DIRECTA-251',
             'estado' => EstadoCarga::Pendiente,
             'modalidad_salida' => ModalidadSalidaCarga::DirectaPrefrio,
-            'prioridad' => PrioridadOperacional::Alta,
+            'prioridad' => PrioridadCarga::Alta,
             'creada_por_user_id' => $usuario->id,
             'actualizada_por_user_id' => $usuario->id,
         ]);
