@@ -78,24 +78,14 @@ class ServicioReservasTareasMovimiento
             throw new ConflictoOperacion('La tarea cambió de estado antes de ser reservada.');
         }
 
-        $posicion = $this->bloquearDestinoDisponible($tarea);
+        // En horizonte rolling, asumir significa exclusivamente reclamar la tarea.
+        // Batch conserva el comportamiento histórico para planes estáticos.
+        $posicion = $this->esHorizonteBatch($tarea)
+            ? $this->bloquearDestinoDisponible($tarea)
+            : null;
 
         if ($posicion) {
-            $reservaDestino = ReservaTareaMovimiento::query()
-                ->where('bloqueo_posicion_id', $posicion->id)
-                ->lockForUpdate()
-                ->first();
-
-            if ($reservaDestino && $this->estaVencida($reservaDestino)) {
-                $this->expirar($reservaDestino);
-                $reservaDestino = null;
-            }
-
-            if ($reservaDestino) {
-                throw new ConflictoOperacion(
-                    'La posición de destino ya fue reservada por otra tarea.',
-                );
-            }
+            $this->validarDestinoSinConflicto($posicion->id);
         }
 
         $ahora = now();
@@ -132,6 +122,145 @@ class ServicioReservasTareasMovimiento
         return $reserva;
     }
 
+    public function materializarDestino(
+        TareaMovimiento $tarea,
+        Posicion $posicion,
+        User $usuario,
+        Dispositivo $dispositivo,
+        ?int $versionTarea = null,
+        ?int $versionPlan = null,
+        ?int $versionCamara = null,
+    ): ReservaTareaMovimiento {
+        $tareaBloqueada = TareaMovimiento::query()
+            ->with('planOperacional')
+            ->lockForUpdate()
+            ->findOrFail($tarea->id);
+        $reserva = $this->reservaActivaTarea($tareaBloqueada->id, true);
+
+        if (! $reserva || $this->estaVencida($reserva)) {
+            if ($reserva) {
+                $this->expirar($reserva);
+            }
+            throw new ConflictoOperacion(
+                'La tarea perdió su claim; vuelva a asumirla antes de reservar destino.',
+            );
+        }
+
+        $this->validarPropietario($reserva, $usuario, $dispositivo);
+        if ($tareaBloqueada->estado !== EstadoTareaMovimiento::Asumida) {
+            throw new ConflictoOperacion('Solo una tarea asumida y no iniciada puede recibir un nuevo destino.');
+        }
+        if ($versionTarea !== null && $tareaBloqueada->version !== $versionTarea) {
+            throw new ConflictoOperacion('La tarea cambió desde el snapshot utilizado por la tablet.');
+        }
+        if ($versionPlan !== null && $tareaBloqueada->planOperacional->version !== $versionPlan) {
+            throw new ConflictoOperacion('El plan cambió desde el snapshot utilizado por la tablet.');
+        }
+
+        $posicionBloqueada = Posicion::query()->lockForUpdate()->findOrFail($posicion->id);
+        $camara = Camara::query()->lockForUpdate()->findOrFail($posicionBloqueada->camara_id);
+        if ($versionCamara !== null && $camara->version_plano !== $versionCamara) {
+            throw new ConflictoOperacion('La cámara cambió desde el snapshot utilizado por la tablet.');
+        }
+        if ($posicionBloqueada->estado !== EstadoPosicion::Activa) {
+            throw new ConflictoOperacion('La posición propuesta ya no está habilitada.');
+        }
+        if (UbicacionActual::query()
+            ->where('posicion_id', $posicionBloqueada->id)
+            ->lockForUpdate()
+            ->exists()) {
+            throw new ConflictoOperacion('La posición propuesta ya se encuentra ocupada.');
+        }
+
+        $this->validarDestinoParaTipo($tareaBloqueada, $posicionBloqueada);
+        $this->validarDestinoSinConflicto($posicionBloqueada->id, $reserva->id);
+
+        $destinoAnterior = $reserva->posicion_destino_id;
+        if ($destinoAnterior && $destinoAnterior !== $posicionBloqueada->id) {
+            $this->incrementarRevisionCamara($destinoAnterior);
+        }
+
+        try {
+            $reserva->update([
+                'posicion_destino_id' => $posicionBloqueada->id,
+                'bloqueo_posicion_id' => $posicionBloqueada->id,
+                'renovada_at' => now(),
+                'vence_at' => $this->nuevoVencimiento(),
+                'version' => $reserva->version + 1,
+            ]);
+        } catch (UniqueConstraintViolationException $exception) {
+            throw new ConflictoOperacion(
+                'La posición propuesta acaba de ser reservada por otra tarea.',
+                previous: $exception,
+            );
+        }
+
+        $tareaBloqueada->update([
+            'camara_destino_id' => $posicionBloqueada->camara_id,
+            'posicion_destino_id' => $posicionBloqueada->id,
+            'version' => $tareaBloqueada->version + 1,
+        ]);
+        $this->incrementarRevisionCamara($posicionBloqueada->id);
+
+        return $reserva->refresh();
+    }
+
+    public function iniciar(
+        TareaMovimiento $tarea,
+        User $usuario,
+        Dispositivo $dispositivo,
+    ): ReservaTareaMovimiento {
+        $tareaBloqueada = TareaMovimiento::query()
+            ->with('planOperacional')
+            ->lockForUpdate()
+            ->findOrFail($tarea->id);
+        $reserva = $this->reservaActivaTarea($tareaBloqueada->id, true);
+
+        if (! $reserva || $this->estaVencida($reserva)) {
+            if ($reserva) {
+                $this->expirar($reserva);
+            }
+            throw new ConflictoOperacion('La tarea perdió su reserva antes de iniciar el movimiento.');
+        }
+        $this->validarPropietario($reserva, $usuario, $dispositivo);
+
+        if ($tareaBloqueada->estado === EstadoTareaMovimiento::EnProceso) {
+            return $reserva;
+        }
+        if ($tareaBloqueada->estado !== EstadoTareaMovimiento::Asumida) {
+            throw new ConflictoOperacion('Solo una tarea asumida puede iniciar movimiento físico.');
+        }
+        if ($tareaBloqueada->tipo_movimiento !== TipoMovimiento::Retiro
+            && (! $tareaBloqueada->posicion_destino_id || ! $reserva->bloqueo_posicion_id)) {
+            throw new ConflictoOperacion(
+                'La tarea todavía no posee un destino físico validado y reservado.',
+            );
+        }
+
+        $otraEnProceso = TareaMovimiento::query()
+            ->where('id', '!=', $tareaBloqueada->id)
+            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+            ->where('responsable_user_id', $usuario->id)
+            ->where('dispositivo_id', $dispositivo->id)
+            ->lockForUpdate()
+            ->exists();
+        if ($otraEnProceso) {
+            throw new ConflictoOperacion(
+                'El camarero ya posee otro pallet físicamente en movimiento en esta tablet.',
+            );
+        }
+
+        $tareaBloqueada->update([
+            'estado' => EstadoTareaMovimiento::EnProceso,
+            'iniciada_at' => now(),
+            'version' => $tareaBloqueada->version + 1,
+        ]);
+
+        // Desde aquí el lease deja de ser descartable: esta reserva no expirará
+        // automáticamente hasta completar el movimiento o registrar incidencia.
+        return $this->renovarReserva($reserva);
+    }
+
     public function renovar(
         TareaMovimiento $tarea,
         User $usuario,
@@ -159,11 +288,18 @@ class ServicioReservasTareasMovimiento
         Dispositivo $dispositivo,
         string $motivo = 'Liberada por el camarero.',
     ): void {
-        $reserva = $this->reservaActivaTarea($tarea->id, true);
+        $tareaBloqueada = TareaMovimiento::query()->lockForUpdate()->findOrFail($tarea->id);
+        if ($tareaBloqueada->estado === EstadoTareaMovimiento::EnProceso) {
+            throw new ConflictoOperacion(
+                'Una tarea físicamente en movimiento no puede liberarse; debe completarse o entrar en incidencia.',
+            );
+        }
+
+        $reserva = $this->reservaActivaTarea($tareaBloqueada->id, true);
 
         if (! $reserva) {
-            if ($tarea->estado === EstadoTareaMovimiento::Pendiente
-                && $tarea->responsable_user_id === null) {
+            if ($tareaBloqueada->estado === EstadoTareaMovimiento::Pendiente
+                && $tareaBloqueada->responsable_user_id === null) {
                 return;
             }
 
@@ -245,6 +381,10 @@ class ServicioReservasTareasMovimiento
             );
         }
 
+        if ($posicionDestinoId && $reserva->bloqueo_posicion_id !== $posicionDestinoId) {
+            throw new ConflictoOperacion('El destino físico no corresponde a la reserva materializada.');
+        }
+
         return $tareaBloqueada;
     }
 
@@ -317,6 +457,12 @@ class ServicioReservasTareasMovimiento
             'version' => $tareaBloqueada->version + 1,
         ]);
 
+        // Batch conserva el cierre histórico. En rolling, la inexistencia temporal
+        // de tareas no significa que el objetivo del plan se haya cumplido.
+        if (! $this->esHorizonteBatch($tareaBloqueada)) {
+            return;
+        }
+
         $plan = $tareaBloqueada->planOperacional;
         $poseePendientes = TareaMovimiento::query()
             ->where('plan_operacional_id', $plan->id)
@@ -342,6 +488,10 @@ class ServicioReservasTareasMovimiento
             ->where('estado', EstadoReservaTareaMovimiento::Activa->value)
             ->whereNotNull('bloqueo_tarea_id')
             ->where('vence_at', '<=', now())
+            ->whereDoesntHave(
+                'tareaMovimiento',
+                fn ($tareas) => $tareas->where('estado', EstadoTareaMovimiento::EnProceso->value),
+            )
             ->orderBy('vence_at')
             ->limit($limite)
             ->pluck('id');
@@ -392,6 +542,40 @@ class ServicioReservasTareasMovimiento
         return $posicion;
     }
 
+    private function validarDestinoParaTipo(TareaMovimiento $tarea, Posicion $posicion): void
+    {
+        $origenCamaraId = $tarea->camara_origen_id;
+        $valida = match ($tarea->tipo_movimiento) {
+            TipoMovimiento::UbicacionInicial => $origenCamaraId === null,
+            TipoMovimiento::Reubicacion => $origenCamaraId !== null
+                && $posicion->camara_id === $origenCamaraId
+                && $posicion->id !== $tarea->posicion_origen_id,
+            TipoMovimiento::TrasladoEntreCamaras => $origenCamaraId !== null
+                && $posicion->camara_id !== $origenCamaraId,
+            TipoMovimiento::Retiro, TipoMovimiento::Reversion => false,
+        };
+
+        if (! $valida) {
+            throw new ConflictoOperacion('El destino propuesto no corresponde al tipo de movimiento de la tarea.');
+        }
+    }
+
+    private function validarDestinoSinConflicto(string $posicionId, ?string $reservaPropiaId = null): void
+    {
+        $reservaDestino = ReservaTareaMovimiento::query()
+            ->where('bloqueo_posicion_id', $posicionId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($reservaDestino && $this->estaVencida($reservaDestino)) {
+            $this->expirar($reservaDestino);
+            $reservaDestino = null;
+        }
+        if ($reservaDestino && $reservaDestino->id !== $reservaPropiaId) {
+            throw new ConflictoOperacion('La posición de destino ya fue reservada por otra tarea.');
+        }
+    }
+
     private function validarPropietario(
         ReservaTareaMovimiento $reserva,
         User $usuario,
@@ -412,13 +596,21 @@ class ServicioReservasTareasMovimiento
         ?string $posicionOrigenId,
         ?string $posicionDestinoId,
     ): void {
-        if (! in_array($tarea->estado, [
-            EstadoTareaMovimiento::Asumida,
-            EstadoTareaMovimiento::EnProceso,
-        ], true)
+        $estadoEjecutable = $this->esHorizonteBatch($tarea)
+            ? in_array($tarea->estado, [
+                EstadoTareaMovimiento::Asumida,
+                EstadoTareaMovimiento::EnProceso,
+            ], true)
+            : $tarea->estado === EstadoTareaMovimiento::EnProceso;
+
+        if (! $estadoEjecutable
             || ! $tarea->planOperacional
             || $tarea->planOperacional->estado !== EstadoPlanOperacional::EnEjecucion) {
-            throw new ConflictoOperacion('La tarea no se encuentra habilitada para ejecución.');
+            throw new ConflictoOperacion(
+                $this->esHorizonteBatch($tarea)
+                    ? 'La tarea no se encuentra habilitada para ejecución.'
+                    : 'La tarea debe marcarse en proceso antes de ejecutar el movimiento físico.',
+            );
         }
         if ($tarea->folio_id !== $folio->id
             || $tarea->tipo_movimiento !== $tipo
@@ -440,6 +632,13 @@ class ServicioReservasTareasMovimiento
         $this->incrementarRevisionCamara($reserva->posicion_destino_id);
 
         return $reserva->refresh();
+    }
+
+    private function esHorizonteBatch(TareaMovimiento $tarea): bool
+    {
+        $contextoPlan = $tarea->planOperacional?->contexto ?? [];
+
+        return ($contextoPlan['planner_horizon'] ?? config('planificador.horizon')) === 'batch';
     }
 
     private function expirarRelacionadas(string $folioId, ?string $posicionDestinoId): void
@@ -467,6 +666,10 @@ class ServicioReservasTareasMovimiento
 
     private function expirar(ReservaTareaMovimiento $reserva): void
     {
+        if ($this->estaProtegidaPorMovimiento($reserva)) {
+            return;
+        }
+
         $this->finalizarReserva($reserva, EstadoReservaTareaMovimiento::Expirada, [
             'expirada_at' => now(),
             'motivo_liberacion' => 'Lease vencido por falta de renovación.',
@@ -507,7 +710,7 @@ class ServicioReservasTareasMovimiento
     {
         $tarea = TareaMovimiento::query()->lockForUpdate()->find($tareaId);
 
-        if (! $tarea || $tarea->estado->esFinal()) {
+        if (! $tarea || $tarea->estado->esFinal() || $tarea->estado === EstadoTareaMovimiento::EnProceso) {
             return;
         }
 
@@ -537,7 +740,13 @@ class ServicioReservasTareasMovimiento
     ): ?ReservaTareaMovimiento {
         $consulta = ReservaTareaMovimiento::query()
             ->where('bloqueo_posicion_id', $posicionId)
-            ->where('vence_at', '>', now());
+            ->where(function ($query): void {
+                $query->where('vence_at', '>', now())
+                    ->orWhereHas(
+                        'tareaMovimiento',
+                        fn ($tareas) => $tareas->where('estado', EstadoTareaMovimiento::EnProceso->value),
+                    );
+            });
 
         return ($bloquear ? $consulta->lockForUpdate() : $consulta)->first();
     }
@@ -548,7 +757,13 @@ class ServicioReservasTareasMovimiento
     ): ?ReservaTareaMovimiento {
         $consulta = ReservaTareaMovimiento::query()
             ->whereNotNull('bloqueo_tarea_id')
-            ->where('vence_at', '>', now())
+            ->where(function ($query): void {
+                $query->where('vence_at', '>', now())
+                    ->orWhereHas(
+                        'tareaMovimiento',
+                        fn ($tareas) => $tareas->where('estado', EstadoTareaMovimiento::EnProceso->value),
+                    );
+            })
             ->whereHas(
                 'tareaMovimiento',
                 fn ($tareas) => $tareas->where('folio_id', $folioId),
@@ -559,7 +774,15 @@ class ServicioReservasTareasMovimiento
 
     private function estaVencida(ReservaTareaMovimiento $reserva): bool
     {
-        return $reserva->vence_at->lte(now());
+        return ! $this->estaProtegidaPorMovimiento($reserva)
+            && $reserva->vence_at->lte(now());
+    }
+
+    private function estaProtegidaPorMovimiento(ReservaTareaMovimiento $reserva): bool
+    {
+        return $reserva->tareaMovimiento()
+            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+            ->exists();
     }
 
     private function nuevoVencimiento(): CarbonInterface
