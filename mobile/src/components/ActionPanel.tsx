@@ -40,7 +40,7 @@ export function ActionPanel({
   const readOnly = plan.acceso.modo === 'solo_lectura';
   const selectedSaldo = selectedPosition?.folio?.tipo_bulto === 'saldo';
   const selectedMaterial = selectedPosition?.folio?.tipo_bulto === 'material';
-  const locateDisabled = busy || !canOperate || !selectedPosition || (selectedPosition.ocupada && plan.contenido !== 'materiales') || selectedPosition.estado !== 'activa';
+  const locateDisabled = busy || !canOperate || !selectedPosition || selectedPosition.reservada || (selectedPosition.ocupada && plan.contenido !== 'materiales') || selectedPosition.estado !== 'activa';
   const moveDisabled = busy || !canOperate || !selectedPosition?.ocupada || selectedPosition.estado !== 'activa';
 
   return (
@@ -60,7 +60,9 @@ export function ActionPanel({
               ? 'Posición no disponible'
               : selectedPosition.ocupada
                 ? `${selectedPosition.folios?.length || 1} ítem${(selectedPosition.folios?.length || 1) === 1 ? '' : 's'} en el bulto`
-                : 'Libre para ubicación'}
+                : selectedPosition.reservada
+                  ? `Reservada · ${selectedPosition.reserva_operacional?.responsable?.nombre ?? 'tarea en ejecución'}`
+                  : 'Libre para ubicación'}
         </Text>
       </View>
 

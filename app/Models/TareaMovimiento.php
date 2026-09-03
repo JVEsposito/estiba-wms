@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'plan_operacional_id',
@@ -82,6 +83,16 @@ class TareaMovimiento extends Model
     public function movimientos(): HasMany
     {
         return $this->hasMany(Movimiento::class);
+    }
+
+    public function reservas(): HasMany
+    {
+        return $this->hasMany(ReservaTareaMovimiento::class);
+    }
+
+    public function reservaActiva(): HasOne
+    {
+        return $this->hasOne(ReservaTareaMovimiento::class, 'bloqueo_tarea_id');
     }
 
     protected function casts(): array

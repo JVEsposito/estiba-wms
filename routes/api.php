@@ -486,6 +486,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/planes-operacionales/{planOperacional}', [PlanOperacionalController::class, 'show']);
         Route::get('/tareas-movimiento', [PlanOperacionalController::class, 'tareas']);
         Route::post('/tareas-movimiento/{tareaMovimiento}/asumir', [PlanOperacionalController::class, 'asumir']);
+        Route::post('/tareas-movimiento/{tareaMovimiento}/renovar', [PlanOperacionalController::class, 'renovar']);
         Route::post('/tareas-movimiento/{tareaMovimiento}/liberar', [PlanOperacionalController::class, 'liberar']);
     });
 

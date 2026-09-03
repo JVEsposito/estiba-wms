@@ -36,13 +36,29 @@ La jerarquía de recomendación es:
 
 Solo participan bandas operativas, habilitadas para `transito_pt`, con capacidad disponible y sin saldos ni materiales. La posición propuesta respeta el orden desde el fondo y el soporte del nivel inferior. La respuesta conserva la versión de cámara y banda, explica el criterio aplicado y expone hasta cuatro alternativas.
 
-La consulta previa del folio entrega esta recomendación a web y tablet/PDA. Es deliberadamente consultiva: no reserva el destino, no genera una tarea y no ejecuta un movimiento. Esas garantías se incorporarán en los siguientes incrementos.
+La consulta previa del folio entrega esta recomendación a web y tablet/PDA. La recomendación sigue siendo consultiva: la reserva nace únicamente cuando el camarero asume una tarea operacional que ya posee un destino concreto.
+
+## Reservas durante la ejecución
+
+Al asumir una tarea se crea un lease auditable para la combinación tarea, camarero y dispositivo. Si la tarea posee una posición de destino, el mismo registro bloquea además esa posición mediante una restricción única en base de datos.
+
+- El lease dura 10 minutos de forma predeterminada y puede configurarse con `WMS_RESERVA_TAREA_MINUTOS`.
+- Repetir la toma desde el mismo usuario y dispositivo renueva el lease sin duplicar la reserva.
+- `POST /api/tareas-movimiento/{id}/renovar` prolonga explícitamente su vigencia.
+- Liberar o expirar devuelve la tarea a la bandeja y deja libres sus bloqueos, conservando el registro histórico.
+- El scheduler ejecuta `tareas:expirar-reservas` cada minuto; las consultas y movimientos realizan además una limpieza perezosa para no depender únicamente del cron.
+- Un movimiento manual no puede intervenir un pallet reservado ni ocupar una posición reservada.
+- Las recomendaciones omiten posiciones reservadas y el plano informa capacidad física ocupada, reservada y todavía disponible.
+- Para ejecutar la tarea, `movimientos/ubicar` o `movimientos/mover` debe incluir `tarea_movimiento_id`; el servicio valida folio, tipo, origen, destino, usuario y dispositivo dentro de la misma transacción.
+- El movimiento físico completa atómicamente la tarea y su reserva. Si era la última tarea pendiente, completa también el plan.
+
+La ubicación actual continúa siendo la verdad física. La reserva solo coordina el breve intervalo entre la toma de la tarea y la confirmación del movimiento; un lease abandonado se recupera automáticamente al vencer.
 
 ## Estados
 
 Los planes pasan por `programado`, `en_ejecucion`, `pausado`, `completado` o `cancelado`. Las tareas usan `pendiente`, `asumida`, `en_proceso`, `completada` o `cancelada`.
 
-Al asumir la primera tarea, el plan pasa de `programado` a `en_ejecucion` y registra usuario y hora. Este PR no completa tareas automáticamente: esa transición se conectará al movimiento físico cuando la bandeja operacional llegue a tablet.
+Al asumir la primera tarea, el plan pasa de `programado` a `en_ejecucion` y registra usuario y hora. Al confirmar el movimiento asociado, la tarea pasa a `completada`; el plan se completa cuando ya no conserva tareas pendientes.
 
 ## Activación gradual
 
@@ -54,6 +70,7 @@ Al asumir la primera tarea, el plan pasa de `programado` a `en_ejecucion` y regi
 - `GET /api/planes-operacionales/{id}`
 - `GET /api/tareas-movimiento`
 - `POST /api/tareas-movimiento/{id}/asumir`
+- `POST /api/tareas-movimiento/{id}/renovar`
 - `POST /api/tareas-movimiento/{id}/liberar`
 
 Las rutas exigen un usuario autorizado para operar cámaras de producto terminado. Asumir y liberar requieren además un token vinculado a una tablet activa.

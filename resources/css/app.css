@@ -1018,6 +1018,12 @@ select:focus {
     background: linear-gradient(145deg, var(--state-material), #284635);
 }
 
+.position-cell.is-reserved {
+    border-color: var(--amber);
+    background: repeating-linear-gradient(135deg, #46371f 0 8px, #342a1d 8px 16px);
+    color: #f3dca8;
+}
+
 .position-cell.is-blocked {
     border-color: var(--state-blocked-border);
     background: repeating-linear-gradient(135deg, var(--state-blocked) 0 7px, #4f252f 7px 14px);

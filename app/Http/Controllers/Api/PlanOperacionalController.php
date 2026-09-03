@@ -13,6 +13,7 @@ use App\Models\PlanOperacional;
 use App\Models\TareaMovimiento;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -58,9 +59,12 @@ class PlanOperacionalController extends Controller
         return PlanOperacionalResource::collection($planes);
     }
 
-    public function show(PlanOperacional $planOperacional): PlanOperacionalResource
-    {
+    public function show(
+        PlanOperacional $planOperacional,
+        ServicioReservasTareasMovimiento $reservas,
+    ): PlanOperacionalResource {
         abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
+        $reservas->expirarVencidas();
 
         return new PlanOperacionalResource($planOperacional->load([
             'temporada:id,codigo,nombre',
@@ -73,11 +77,14 @@ class PlanOperacionalController extends Controller
             'tareas.posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
             'tareas.responsable:id,name',
             'tareas.dispositivo:id,codigo,nombre',
+            'tareas.reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
         ]));
     }
 
-    public function tareas(Request $request): AnonymousResourceCollection
-    {
+    public function tareas(
+        Request $request,
+        ServicioReservasTareasMovimiento $reservas,
+    ): AnonymousResourceCollection {
         $filtros = $request->validate([
             'estado' => ['nullable', Rule::enum(EstadoTareaMovimiento::class)],
             'prioridad' => ['nullable', Rule::enum(PrioridadOperacional::class)],
@@ -86,6 +93,7 @@ class PlanOperacionalController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $asignacion = $filtros['asignacion'] ?? 'disponibles';
+        $reservas->expirarVencidas();
 
         $tareas = TareaMovimiento::query()
             ->whereHas('planOperacional.temporada', fn (Builder $consulta): Builder => $consulta->where('activa', true))
@@ -151,6 +159,19 @@ class PlanOperacionalController extends Controller
         );
     }
 
+    public function renovar(
+        Request $request,
+        TareaMovimiento $tareaMovimiento,
+        ContextoOperacional $contexto,
+        ServicioPlanesOperacionales $servicio,
+    ): TareaMovimientoResource {
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+
+        return new TareaMovimientoResource(
+            $servicio->renovar($tareaMovimiento, $usuario, $dispositivo),
+        );
+    }
+
     /** @return array<int, string> */
     private function relacionesTarea(): array
     {
@@ -163,6 +184,7 @@ class PlanOperacionalController extends Controller
             'posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
             'responsable:id,name',
             'dispositivo:id,codigo,nombre',
+            'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
         ];
     }
 

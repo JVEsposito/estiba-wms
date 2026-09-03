@@ -49,6 +49,7 @@ class UbicarFolioRequest extends FormRequest
             'camara_destino_id' => ['required', 'uuid', 'exists:camaras,id'],
             'posicion_destino_id' => ['nullable', 'uuid', 'exists:posiciones,id'],
             'sesion_destino_id' => ['required', 'uuid', 'exists:sesiones_estiba,id'],
+            'tarea_movimiento_id' => ['nullable', 'uuid', 'exists:tareas_movimiento,id'],
             'version_destino_conocida' => ['required', 'integer', 'min:0'],
             'generado_dispositivo_at' => ['required', 'date'],
             'advertencias_confirmadas' => ['sometimes', 'array', 'max:5'],

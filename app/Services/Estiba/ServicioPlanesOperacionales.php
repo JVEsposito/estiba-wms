@@ -26,6 +26,10 @@ use Illuminate\Support\Str;
 
 class ServicioPlanesOperacionales
 {
+    public function __construct(
+        private readonly ServicioReservasTareasMovimiento $reservas,
+    ) {}
+
     /**
      * Punto único de creación para los generadores operacionales futuros.
      *
@@ -144,25 +148,7 @@ class ServicioPlanesOperacionales
             if ($tareaBloqueada->estado->esFinal()) {
                 throw new DomainException('La tarea ya se encuentra finalizada.');
             }
-            if ($tareaBloqueada->responsable_user_id !== null) {
-                if ($tareaBloqueada->responsable_user_id === $usuario->id
-                    && $tareaBloqueada->dispositivo_id === $dispositivo->id) {
-                    return $this->cargarTarea($tareaBloqueada);
-                }
-
-                throw new ConflictoOperacion('La tarea ya fue asumida por otro camarero o dispositivo.');
-            }
-            if ($tareaBloqueada->estado !== EstadoTareaMovimiento::Pendiente) {
-                throw new ConflictoOperacion('La tarea cambió de estado antes de ser asumida.');
-            }
-
-            $tareaBloqueada->update([
-                'estado' => EstadoTareaMovimiento::Asumida,
-                'responsable_user_id' => $usuario->id,
-                'dispositivo_id' => $dispositivo->id,
-                'asumida_at' => now(),
-                'version' => $tareaBloqueada->version + 1,
-            ]);
+            $this->reservas->asumir($tareaBloqueada, $usuario, $dispositivo);
 
             if ($plan->estado === EstadoPlanOperacional::Programado) {
                 $plan->update([
@@ -175,6 +161,33 @@ class ServicioPlanesOperacionales
 
             return $this->cargarTarea($tareaBloqueada->refresh());
         }, attempts: 3);
+    }
+
+    public function renovar(
+        TareaMovimiento $tarea,
+        User $usuario,
+        Dispositivo $dispositivo,
+    ): TareaMovimiento {
+        $tareaRenovada = DB::transaction(function () use ($tarea, $usuario, $dispositivo): ?TareaMovimiento {
+            $tareaBloqueada = TareaMovimiento::query()
+                ->with('planOperacional.temporada')
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+
+            $this->validarActor($usuario, $dispositivo);
+            $this->validarPlanAsignable($tareaBloqueada->planOperacional);
+            $reserva = $this->reservas->renovar($tareaBloqueada, $usuario, $dispositivo);
+
+            return $reserva ? $this->cargarTarea($tareaBloqueada->refresh()) : null;
+        }, attempts: 3);
+
+        if (! $tareaRenovada) {
+            throw new ConflictoOperacion(
+                'La reserva de la tarea expiró; vuelva a asumirla antes de continuar.',
+            );
+        }
+
+        return $tareaRenovada;
     }
 
     public function liberar(
@@ -191,25 +204,7 @@ class ServicioPlanesOperacionales
             $this->validarActor($usuario, $dispositivo);
             $this->validarPlanAsignable($tareaBloqueada->planOperacional);
 
-            if ($tareaBloqueada->estado === EstadoTareaMovimiento::Pendiente
-                && $tareaBloqueada->responsable_user_id === null) {
-                return $this->cargarTarea($tareaBloqueada);
-            }
-            if ($tareaBloqueada->estado !== EstadoTareaMovimiento::Asumida) {
-                throw new DomainException('Solo una tarea asumida puede volver a la bandeja.');
-            }
-            if ($tareaBloqueada->responsable_user_id !== $usuario->id
-                || $tareaBloqueada->dispositivo_id !== $dispositivo->id) {
-                throw new ConflictoOperacion('La tarea pertenece a otro camarero o dispositivo.');
-            }
-
-            $tareaBloqueada->update([
-                'estado' => EstadoTareaMovimiento::Pendiente,
-                'responsable_user_id' => null,
-                'dispositivo_id' => null,
-                'asumida_at' => null,
-                'version' => $tareaBloqueada->version + 1,
-            ]);
+            $this->reservas->liberar($tareaBloqueada, $usuario, $dispositivo);
 
             return $this->cargarTarea($tareaBloqueada->refresh());
         }, attempts: 3);
@@ -386,6 +381,7 @@ class ServicioPlanesOperacionales
             'posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
             'responsable:id,name',
             'dispositivo:id,codigo,nombre',
+            'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
         ];
     }
 }

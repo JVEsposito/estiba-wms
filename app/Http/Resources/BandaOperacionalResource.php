@@ -14,8 +14,10 @@ class BandaOperacionalResource extends JsonResource
         $fisica = (int) ($this->capacidad_fisica_calculada ?? 0);
         $efectiva = (int) ($this->capacidad_efectiva_calculada ?? 0);
         $ocupadas = (int) ($this->ocupadas_calculadas ?? 0);
-        $disponibles = max(0, $efectiva - $ocupadas);
-        $estado = $this->estadoCalculado($efectiva, $ocupadas);
+        $reservadas = (int) ($this->reservadas_calculadas ?? 0);
+        $comprometidas = $ocupadas + $reservadas;
+        $disponibles = max(0, $efectiva - $comprometidas);
+        $estado = $this->estadoCalculado($efectiva, $comprometidas);
 
         return [
             'id' => $this->id,
@@ -30,9 +32,10 @@ class BandaOperacionalResource extends JsonResource
                 'fisica' => $fisica,
                 'efectiva' => $efectiva,
                 'ocupadas' => $ocupadas,
+                'reservadas' => $reservadas,
                 'disponibles' => $disponibles,
                 'porcentaje' => $efectiva > 0
-                    ? round(($ocupadas / $efectiva) * 100, 1)
+                    ? round(($comprometidas / $efectiva) * 100, 1)
                     : 0.0,
             ],
             'afinidad' => $this->afinidad_calculada,

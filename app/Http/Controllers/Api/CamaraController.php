@@ -9,8 +9,10 @@ use App\Http\Resources\CamaraPlanoResource;
 use App\Http\Resources\CamaraResumenResource;
 use App\Models\Camara;
 use App\Models\PersonalAccessToken;
+use App\Models\ReservaTareaMovimiento;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Camaras\ServicioBandasOperacionales;
+use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -57,9 +59,11 @@ class CamaraController extends Controller
         Camara $camara,
         AlcanceOperacionalUsuario $alcance,
         ServicioBandasOperacionales $bandasOperacionales,
+        ServicioReservasTareasMovimiento $reservasTareas,
     ): Response {
         abort_unless($camara->estado === EstadoCamara::Activa, 404);
         abort_unless($alcance->puedeVerCamara($request->user(), $camara), 403);
+        $reservasTareas->expirarVencidas();
 
         $camara->load('bloqueo.sesionEstiba');
         $etag = $this->etagPlano($request, $camara);
@@ -97,6 +101,13 @@ class CamaraController extends Controller
                     'ubicacionesActuales.folio.condicionSag',
                     'ubicacionesActuales.folio.material.item.cliente.temporada',
                     'ubicacionesActuales.folio.asignacionCargaActual.carga',
+                    'reservaTareaActiva' => fn ($reservas) => $reservas
+                        ->where('vence_at', '>', now())
+                        ->with([
+                            'tareaMovimiento:id,prioridad',
+                            'usuario:id,name',
+                            'dispositivo:id,nombre',
+                        ]),
                 ])
                 ->where('banda', '<=', $camara->cantidad_bandas)
                 ->where('posicion', '<=', $camara->posiciones_por_banda)
@@ -161,6 +172,14 @@ class CamaraController extends Controller
         $dispositivoId = $token instanceof PersonalAccessToken
             ? $token->dispositivo_id
             : null;
+        $revisionReserva = ReservaTareaMovimiento::query()
+            ->whereHas(
+                'posicionDestino',
+                fn ($posiciones) => $posiciones->where('camara_id', $camara->id),
+            )
+            ->latest('updated_at')
+            ->latest('id')
+            ->first(['id', 'estado', 'bloqueo_posicion_id', 'vence_at', 'updated_at']);
         $huella = json_encode([
             'camara_id' => $camara->id,
             'camara_actualizada_at' => $camara->updated_at?->toAtomString(),
@@ -174,6 +193,7 @@ class CamaraController extends Controller
             'sesion_dispositivo_id' => $sesion?->dispositivo_id,
             'sesion_estado' => $sesion?->estado?->value,
             'sesion_ultima_actividad_at' => $sesion?->ultima_actividad_at?->toAtomString(),
+            'reserva_revision' => $revisionReserva?->getAttributes(),
         ], JSON_THROW_ON_ERROR);
 
         return 'plano-'.hash('sha256', $huella);

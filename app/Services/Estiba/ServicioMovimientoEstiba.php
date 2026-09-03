@@ -18,6 +18,7 @@ use App\Models\Movimiento;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
@@ -54,6 +55,7 @@ class ServicioMovimientoEstiba
         private readonly DetectorAdvertenciasMovimiento $detectorAdvertencias,
         private readonly ServicioTareasCarga $servicioTareasCarga,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
+        private readonly ServicioReservasTareasMovimiento $reservasTareas,
     ) {}
 
     /**
@@ -77,6 +79,7 @@ class ServicioMovimientoEstiba
         array $datosMaterial = [],
         array $advertenciasConfirmadas = [],
         ?Camara $camaraDestino = null,
+        ?TareaMovimiento $tareaMovimiento = null,
     ): Movimiento {
         $camaraDestino ??= $posicionDestino?->camara;
 
@@ -100,6 +103,9 @@ class ServicioMovimientoEstiba
             'datos_material' => $this->normalizarDatosMaterial($datosMaterial),
             'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
+        if ($tareaMovimiento) {
+            $payload['tarea_movimiento_id'] = $tareaMovimiento->id;
+        }
 
         return $this->ejecutarOperacion(
             $operacionId,
@@ -123,6 +129,7 @@ class ServicioMovimientoEstiba
                 $datosFolio,
                 $datosMaterial,
                 $advertenciasConfirmadas,
+                $tareaMovimiento,
             ),
         );
     }
@@ -144,6 +151,7 @@ class ServicioMovimientoEstiba
         int $versionDestinoConocida,
         DateTimeInterface $generadoDispositivoAt,
         array $advertenciasConfirmadas = [],
+        ?TareaMovimiento $tareaMovimiento = null,
     ): Movimiento {
         $tipo = $sesionOrigen->camara_id === $posicionDestino->camara_id
             ? TipoMovimiento::Reubicacion
@@ -160,6 +168,9 @@ class ServicioMovimientoEstiba
             'generado_dispositivo_at' => $generadoDispositivoAt->format(DATE_ATOM),
             'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
+        if ($tareaMovimiento) {
+            $payload['tarea_movimiento_id'] = $tareaMovimiento->id;
+        }
 
         return $this->ejecutarOperacion(
             $operacionId,
@@ -182,6 +193,7 @@ class ServicioMovimientoEstiba
                 $generadoDispositivoAt,
                 $recibidoServidorAt,
                 $advertenciasConfirmadas,
+                $tareaMovimiento,
             ),
         );
     }
@@ -203,6 +215,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $generadoDispositivoAt,
         string $motivo,
         array $advertenciasConfirmadas = [],
+        ?TareaMovimiento $tareaMovimiento = null,
     ): Movimiento {
         sort($advertenciasConfirmadas, SORT_STRING);
 
@@ -214,6 +227,9 @@ class ServicioMovimientoEstiba
             'motivo' => trim($motivo),
             'advertencias_confirmadas' => $advertenciasConfirmadas,
         ];
+        if ($tareaMovimiento) {
+            $payload['tarea_movimiento_id'] = $tareaMovimiento->id;
+        }
 
         return $this->ejecutarOperacion(
             $operacionId,
@@ -233,6 +249,7 @@ class ServicioMovimientoEstiba
                 $recibidoServidorAt,
                 trim($motivo),
                 $advertenciasConfirmadas,
+                $tareaMovimiento,
             ),
         );
     }
@@ -483,6 +500,7 @@ class ServicioMovimientoEstiba
         array $datosFolio,
         array $datosMaterial,
         array $advertenciasConfirmadas,
+        ?TareaMovimiento $tareaMovimiento,
     ): Movimiento {
         $camara = Camara::query()->lockForUpdate()->findOrFail($camaraDestino->id);
         $posicion = $posicionDestino
@@ -498,6 +516,9 @@ class ServicioMovimientoEstiba
         }
         if (! $posicion && $tipoBulto !== TipoBulto::Material) {
             throw new DomainException('Los pallets y saldos requieren una posición exacta.');
+        }
+        if (! $tareaMovimiento) {
+            $this->reservasTareas->validarDestinoManual($posicion?->id);
         }
 
         $this->validarContenidoCamara($camara, $tipoBulto);
@@ -535,10 +556,21 @@ class ServicioMovimientoEstiba
             }
 
             $this->validarCompatibilidadPosicionDestino($folio, $posicion);
+            $tareaEnEjecucion = $this->reservasTareas->validarParaMovimiento(
+                $tareaMovimiento,
+                $folio,
+                TipoMovimiento::Reubicacion,
+                null,
+                $posicion->id,
+                $usuario,
+                $dispositivo,
+            );
             $advertencias = $this->detectorAdvertencias->paraUbicacion($posicion, $advertenciasConfirmadas);
             $versionResultante = $camara->version_plano + 1;
             $movimiento = Movimiento::create([
                 'operacion_id' => $operacion->id,
+                'plan_operacional_id' => $tareaEnEjecucion?->plan_operacional_id,
+                'tarea_movimiento_id' => $tareaEnEjecucion?->id,
                 'folio_id' => $folio->id,
                 'tipo_movimiento' => TipoMovimiento::Reubicacion,
                 'camara_origen_id' => $camara->id,
@@ -564,6 +596,9 @@ class ServicioMovimientoEstiba
             ]);
             $this->actualizarVersionCamara($camara, $versionResultante);
             $this->actualizarActividadSesiones(collect([$sesion]), $recibidoServidorAt);
+            if ($tareaEnEjecucion) {
+                $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
+            }
 
             return $movimiento->load('folio');
         }
@@ -571,12 +606,23 @@ class ServicioMovimientoEstiba
         if ($posicion) {
             $this->validarCompatibilidadPosicionDestino($folio, $posicion);
         }
+        $tareaEnEjecucion = $this->reservasTareas->validarParaMovimiento(
+            $tareaMovimiento,
+            $folio,
+            TipoMovimiento::UbicacionInicial,
+            null,
+            $posicion?->id,
+            $usuario,
+            $dispositivo,
+        );
         $advertencias = $posicion
             ? $this->detectorAdvertencias->paraUbicacion($posicion, $advertenciasConfirmadas)
             : [];
         $versionResultante = $camara->version_plano + 1;
         $movimiento = Movimiento::create([
             'operacion_id' => $operacion->id,
+            'plan_operacional_id' => $tareaEnEjecucion?->plan_operacional_id,
+            'tarea_movimiento_id' => $tareaEnEjecucion?->id,
             'folio_id' => $folio->id,
             'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
             'camara_destino_id' => $camara->id,
@@ -605,6 +651,9 @@ class ServicioMovimientoEstiba
 
         $this->actualizarVersionCamara($camara, $versionResultante);
         $this->actualizarActividadSesiones(collect([$sesion]), $recibidoServidorAt);
+        if ($tareaEnEjecucion) {
+            $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
+        }
 
         return $movimiento->load('folio');
     }
@@ -623,6 +672,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $generadoDispositivoAt,
         DateTimeInterface $recibidoServidorAt,
         array $advertenciasConfirmadas,
+        ?TareaMovimiento $tareaMovimiento,
     ): Movimiento {
         $ubicacionLeida = UbicacionActual::query()
             ->where('folio_id', $folio->id)
@@ -686,6 +736,16 @@ class ServicioMovimientoEstiba
         $this->validarVersion($camaraOrigen, $versionOrigenConocida, 'origen');
         $this->validarVersion($camaraDestino, $versionDestinoConocida, 'destino');
 
+        $tareaEnEjecucion = $this->reservasTareas->validarParaMovimiento(
+            $tareaMovimiento,
+            $folioBloqueado,
+            $tipo,
+            $posicionOrigen->id,
+            $destino->id,
+            $usuario,
+            $dispositivo,
+        );
+
         $advertencias = $this->detectorAdvertencias->paraMovimiento(
             $posicionOrigen,
             $destino,
@@ -699,6 +759,8 @@ class ServicioMovimientoEstiba
 
         $movimiento = Movimiento::create([
             'operacion_id' => $operacion->id,
+            'plan_operacional_id' => $tareaEnEjecucion?->plan_operacional_id,
+            'tarea_movimiento_id' => $tareaEnEjecucion?->id,
             'folio_id' => $folioBloqueado->id,
             'tipo_movimiento' => $tipo,
             'camara_origen_id' => $camaraOrigen->id,
@@ -738,6 +800,9 @@ class ServicioMovimientoEstiba
             $movimiento,
             $usuario,
         );
+        if ($tareaEnEjecucion) {
+            $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
+        }
 
         return $movimiento;
     }
@@ -794,6 +859,7 @@ class ServicioMovimientoEstiba
         DateTimeInterface $recibidoServidorAt,
         string $motivo,
         array $advertenciasConfirmadas,
+        ?TareaMovimiento $tareaMovimiento,
     ): Movimiento {
         if ($motivo === '') {
             throw new DomainException('Debe indicar el motivo del retiro del folio.');
@@ -825,6 +891,15 @@ class ServicioMovimientoEstiba
 
         $this->validarContenidoCamara($camara, $folioBloqueado->tipo_bulto);
         $this->validarVersion($camara, $versionOrigenConocida, 'origen');
+        $tareaEnEjecucion = $this->reservasTareas->validarParaMovimiento(
+            $tareaMovimiento,
+            $folioBloqueado,
+            TipoMovimiento::Retiro,
+            $posicion->id,
+            null,
+            $usuario,
+            $dispositivo,
+        );
         $advertencias = $this->detectorAdvertencias->paraRetiro(
             $posicion,
             $advertenciasConfirmadas,
@@ -833,6 +908,8 @@ class ServicioMovimientoEstiba
 
         $movimiento = Movimiento::create([
             'operacion_id' => $operacion->id,
+            'plan_operacional_id' => $tareaEnEjecucion?->plan_operacional_id,
+            'tarea_movimiento_id' => $tareaEnEjecucion?->id,
             'folio_id' => $folioBloqueado->id,
             'tipo_movimiento' => TipoMovimiento::Retiro,
             'camara_origen_id' => $camara->id,
@@ -856,6 +933,9 @@ class ServicioMovimientoEstiba
             $movimiento,
             $usuario,
         );
+        if ($tareaEnEjecucion) {
+            $this->reservasTareas->completar($tareaEnEjecucion, $movimiento);
+        }
 
         return $movimiento;
     }

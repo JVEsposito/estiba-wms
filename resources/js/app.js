@@ -730,6 +730,7 @@ function renderPositionCell(position) {
     const selected = state.selectedPosition?.id === position.id;
     const blocked = position.estado !== 'activa';
     const occupied = position.ocupada;
+    const reserved = position.reservada;
     const saldo = position.folio?.tipo_bulto === 'saldo';
     const material = position.folio?.tipo_bulto === 'material';
     const classes = [
@@ -738,18 +739,24 @@ function renderPositionCell(position) {
         occupied ? 'is-occupied' : '',
         saldo ? 'is-saldo' : '',
         material ? 'is-material' : '',
+        reserved ? 'is-reserved' : '',
         blocked ? 'is-blocked' : '',
     ].filter(Boolean).join(' ');
-    const folio = position.folio?.numero_folio || (blocked ? 'NO DISPONIBLE' : 'LIBRE');
+    const folio = position.folio?.numero_folio
+        || (blocked ? 'NO DISPONIBLE' : reserved ? 'RESERVADA' : 'LIBRE');
     const detail = occupied
         ? (position.folio?.material?.item?.nombre || position.folio?.variedad || position.folio?.tipo_bulto || 'Bulto')
-        : (blocked ? position.estado.replaceAll('_', ' ') : 'Disponible');
+        : (blocked
+            ? position.estado.replaceAll('_', ' ')
+            : reserved
+                ? position.reserva_operacional?.responsable?.nombre || 'Tarea en ejecución'
+                : 'Disponible');
 
     return `
         <button class="${classes}" type="button" data-position-id="${escapeHtml(position.id)}">
             <span class="position-cell__location">${escapeHtml(position.etiqueta || `B${position.banda} · P${position.posicion}`)}</span>
             <strong class="position-cell__folio">${escapeHtml(folio)}</strong>
-            <span class="position-cell__meta"><span>${escapeHtml(detail)}</span><span>${occupied ? (material ? 'M' : saldo ? 'S' : 'P') : '○'}</span></span>
+            <span class="position-cell__meta"><span>${escapeHtml(detail)}</span><span>${occupied ? (material ? 'M' : saldo ? 'S' : 'P') : reserved ? 'R' : '○'}</span></span>
         </button>`;
 }
 
@@ -775,7 +782,11 @@ function renderSelection() {
     elements.selectedPositionLabel.textContent = positionLabel(position);
     elements.selectedPositionState.textContent = position.estado !== 'activa'
         ? 'Posición no disponible'
-        : position.ocupada ? 'Ocupada por un folio' : 'Libre para ubicación';
+        : position.ocupada
+            ? 'Ocupada por un folio'
+            : position.reservada
+                ? `Reservada · ${position.reserva_operacional?.responsable?.nombre || 'tarea en ejecución'}`
+                : 'Libre para ubicación';
 
     if (! position.folio) {
         elements.folioCard.classList.add('is-hidden');
@@ -817,6 +828,7 @@ function updateActions() {
     elements.locateButton.disabled = ! operating
         || ! position
         || position.ocupada
+        || position.reservada
         || position.estado !== 'activa';
     elements.moveButton.disabled = ! operating
         || ! position?.ocupada
@@ -877,7 +889,7 @@ async function toggleSession() {
 
 function openLocateDialog() {
     const position = state.selectedPosition;
-    if (! position || position.ocupada || ! canOperate()) return;
+    if (! position || position.ocupada || position.reservada || ! canOperate()) return;
 
     elements.locateForm.reset();
     elements.locateError.textContent = '';
@@ -1403,6 +1415,7 @@ function renderDestinations() {
 function isAvailableDestination(position) {
     return position.estado === 'activa'
         && ! position.ocupada
+        && ! position.reservada
         && position.id !== state.selectedPosition?.id;
 }
 
@@ -1413,7 +1426,9 @@ function renderDestinationPosition(position) {
         ? 'ORIGEN'
         : position.ocupada
             ? `OCUPADA${position.folio?.numero_folio ? ` · ${position.folio.numero_folio}` : ''}`
-            : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
+            : position.reservada
+                ? 'RESERVADA · TAREA EN EJECUCIÓN'
+                : position.estado === 'activa' ? 'LIBRE' : 'NO DISPONIBLE';
     const content = `
         <span class="destination-position__number">P${String(position.posicion).padStart(2, '0')}</span>
         <strong>${escapeHtml(positionLabel(position))}</strong>

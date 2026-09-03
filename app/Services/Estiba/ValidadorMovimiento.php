@@ -28,6 +28,7 @@ class ValidadorMovimiento
     public function __construct(
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ServicioHabilitacionAlmacenamiento $habilitacion,
+        private readonly ServicioReservasTareasMovimiento $reservasTareas,
     ) {}
 
     public function validar(Movimiento $movimiento): void
@@ -69,6 +70,8 @@ class ValidadorMovimiento
             && $movimiento->posicion_origen_id === $movimiento->posicion_destino_id) {
             throw new DomainException('El origen y el destino deben ser posiciones diferentes.');
         }
+
+        $this->reservasTareas->validarIntegridadMovimiento($movimiento);
     }
 
     private function validarActorYOperacion(

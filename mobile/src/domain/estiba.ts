@@ -477,6 +477,15 @@ export type Position = {
   etiqueta: string | null;
   estado: string;
   ocupada: boolean;
+  reservada?: boolean;
+  reserva_operacional?: {
+    id: string;
+    tarea_movimiento_id: string;
+    prioridad: 'normal' | 'alta' | 'urgente' | 'critica' | null;
+    responsable: { id: number; nombre: string } | null;
+    dispositivo: { id: string; nombre: string } | null;
+    vence_at: string;
+  } | null;
   folio: Folio | null;
   folios?: Folio[];
 };
@@ -493,6 +502,7 @@ export type OperationalBand = {
     fisica: number;
     efectiva: number;
     ocupadas: number;
+    reservadas?: number;
     disponibles: number;
     porcentaje: number;
   };
@@ -555,6 +565,7 @@ export type LocationRecommendation = {
     afinidad_dinamica: boolean;
     genera_movimiento: boolean;
     reserva_destino: boolean;
+    excluye_destinos_reservados?: boolean;
   };
   mejor: LocationRecommendationCandidate | null;
   alternativas: LocationRecommendationCandidate[];
@@ -608,6 +619,7 @@ export type OpenedSession = {
 
 export type LocatePayload = {
   operacion_id: string;
+  tarea_movimiento_id?: string;
   numero_folio: string;
   tipo_bulto: 'pallet' | 'saldo' | 'material';
   camara_destino_id: string;
@@ -639,6 +651,7 @@ export type WithdrawMaterialPayload = {
 
 export type MovePayload = {
   operacion_id: string;
+  tarea_movimiento_id?: string;
   folio_id: string;
   posicion_destino_id: string;
   sesion_origen_id: string;

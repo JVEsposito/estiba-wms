@@ -12,4 +12,15 @@ return [
     |
     */
     'generacion_automatica' => (bool) env('WMS_PLANIFICADOR_AUTOMATICO', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lease de tareas operacionales
+    |--------------------------------------------------------------------------
+    |
+    | Una tarea asumida y su destino quedan reservados por este intervalo. La
+    | tablet debe renovar el lease mientras la operación física continúa.
+    |
+    */
+    'reserva_tarea_minutos' => max(1, (int) env('WMS_RESERVA_TAREA_MINUTOS', 10)),
 ];

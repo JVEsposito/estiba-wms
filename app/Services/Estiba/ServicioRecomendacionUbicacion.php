@@ -64,7 +64,11 @@ class ServicioRecomendacionUbicacion
                     ->orderBy('numero'),
                 'posiciones' => fn ($consulta) => $consulta
                     ->where('estado', EstadoPosicion::Activa->value)
-                    ->with('ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo')
+                    ->with([
+                        'ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo',
+                        'reservaTareaActiva' => fn ($reservas) => $reservas
+                            ->where('vence_at', '>', now()),
+                    ])
                     ->orderBy('banda')
                     ->orderBy('posicion')
                     ->orderBy('nivel'),
@@ -153,7 +157,8 @@ class ServicioRecomendacionUbicacion
                 }
 
                 $libres = $posiciones
-                    ->filter(fn (Posicion $posicion): bool => $posicion->ubicacionesActuales->isEmpty())
+                    ->filter(fn (Posicion $posicion): bool => $posicion->ubicacionesActuales->isEmpty()
+                        && $posicion->reservaTareaActiva === null)
                     ->values();
                 $destino = $this->primeraPosicionViable($posiciones, $libres);
 
@@ -248,6 +253,7 @@ class ServicioRecomendacionUbicacion
             'afinidad_dinamica' => true,
             'genera_movimiento' => false,
             'reserva_destino' => false,
+            'excluye_destinos_reservados' => true,
         ];
     }
 }
