@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoTareaMovimiento;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,11 +20,14 @@ class TareaMovimientoResource extends JsonResource
                 'prioridad' => $this->planOperacional->prioridad->value,
                 'titulo' => $this->planOperacional->titulo,
                 'version' => $this->planOperacional->version,
+                'horizon' => ($this->planOperacional->contexto ?? [])['planner_horizon']
+                    ?? config('planificador.horizon'),
             ]),
             'secuencia' => $this->secuencia,
             'tipo_movimiento' => $this->tipo_movimiento->value,
             'estado' => $this->estado->value,
             'prioridad' => $this->prioridad->value,
+            'punto_no_retorno' => $this->estado === EstadoTareaMovimiento::EnProceso,
             'folio' => $this->whenLoaded('folio', fn (): array => [
                 'id' => $this->folio->id,
                 'numero_folio' => $this->folio->numero_folio,
@@ -46,14 +50,14 @@ class TareaMovimientoResource extends JsonResource
                 return $reserva ? [
                     'id' => $reserva->id,
                     'estado' => $reserva->estado->value,
+                    'tipo_compromiso' => $reserva->bloqueo_posicion_id !== null ? 'fisica' : 'claim',
                     'destino_reservado' => $reserva->bloqueo_posicion_id !== null,
                     'reservada_at' => $reserva->reservada_at?->toAtomString(),
                     'renovada_at' => $reserva->renovada_at?->toAtomString(),
                     'vence_at' => $reserva->vence_at?->toAtomString(),
-                    'segundos_restantes' => max(0, (int) now()->diffInSeconds(
-                        $reserva->vence_at,
-                        false,
-                    )),
+                    'segundos_restantes' => $this->estado === EstadoTareaMovimiento::EnProceso
+                        ? null
+                        : max(0, (int) now()->diffInSeconds($reserva->vence_at, false)),
                     'version' => $reserva->version,
                 ] : null;
             }),
