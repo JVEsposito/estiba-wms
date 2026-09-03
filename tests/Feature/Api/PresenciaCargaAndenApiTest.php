@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Exceptions\ConflictoOperacion;
 use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
@@ -17,6 +18,7 @@ use App\Models\PresenciaCargaAnden;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Cargas\ServicioCarga;
 use App\Services\Cargas\ServicioPlanDespachoDirecto;
 use App\Services\Estiba\ServicioMovimientoEstiba;
@@ -42,7 +44,6 @@ class PresenciaCargaAndenApiTest extends TestCase
             'anden_id' => $contexto['anden']->id,
             'patente' => 'ab-cd-12',
             'conductor' => 'María Pérez',
-            'ingresada_at' => now()->toAtomString(),
         ];
         $ruta = "/api/cargas/{$carga->id}/camion-en-anden";
 
@@ -232,11 +233,33 @@ class PresenciaCargaAndenApiTest extends TestCase
 
         $tarea = TareaMovimiento::query()->sole();
         $this->assertSame($contexto['folios'][1]->id, $tarea->folio_id);
-        $this->assertSame('reubicacion', $tarea->tipo_movimiento->value);
+        $this->assertSame('traslado_entre_camaras', $tarea->tipo_movimiento->value);
         $this->assertSame('critica', $tarea->prioridad->value);
         $this->assertSame('despeje_salida_directa', $tarea->contexto['tipo_decision']);
         $this->assertSame($contexto['folios'][0]->id, $tarea->contexto['habilita_folio_id']);
         $this->assertNull($tarea->posicion_destino_id);
+
+        $destino = Posicion::create([
+            'camara_id' => $contexto['camara']->id,
+            'banda' => 2,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B02-P01-N1',
+        ]);
+        app(ServicioPlanesOperacionales::class)->asumir(
+            $tarea,
+            $contexto['operador'],
+            $contexto['dispositivo'],
+        );
+        app(ServicioPlanesOperacionales::class)->materializarDestino(
+            $tarea->refresh(),
+            $destino,
+            $contexto['operador'],
+            $contexto['dispositivo'],
+        );
+
+        $this->assertSame('reubicacion', $tarea->refresh()->tipo_movimiento->value);
+        $this->assertSame($destino->id, $tarea->posicion_destino_id);
     }
 
     public function test_reemplaza_la_tarea_pendiente_si_cambia_la_accesibilidad_fisica(): void
@@ -339,6 +362,61 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertDatabaseCount('tareas_movimiento', 0);
     }
 
+    public function test_guided_server_registra_presencia_sin_publicar_despejes_inmaterializables(): void
+    {
+        config([
+            'planificador.mode' => 'guided',
+            'planificador.generacion_automatica' => true,
+            'planificador.compute' => 'server',
+        ]);
+        $contexto = $this->crearContexto(2, 3, configurarPlanificador: false);
+        $carga = $this->crearCargaPublicada($contexto, [$contexto['folios'][0]]);
+
+        $this->registrarPresencia($contexto, $carga, $contexto['anden']);
+
+        $this->assertDatabaseHas('presencias_carga_anden', [
+            'carga_id' => $carga->id,
+            'bloqueo_carga_id' => $carga->id,
+        ]);
+        $this->assertDatabaseCount('planes_operacionales', 0);
+        $this->assertDatabaseCount('tareas_movimiento', 0);
+    }
+
+    public function test_servidor_rechaza_destino_en_banda_bloqueada(): void
+    {
+        $contexto = $this->crearContexto(2, 3);
+        $carga = $this->crearCargaPublicada($contexto, [$contexto['folios'][0]]);
+        $this->registrarPresencia($contexto, $carga, $contexto['anden']);
+        $tarea = TareaMovimiento::query()->sole();
+        $destino = Posicion::create([
+            'camara_id' => $contexto['camara']->id,
+            'banda' => 2,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B02-P01-N1',
+        ]);
+        $banda = $contexto['camara']->bandasOperacionales()
+            ->where('numero', 2)
+            ->firstOrFail();
+        $banda->update([
+            'modo' => 'bloqueada',
+            'motivo_estado' => 'Bloqueo de prueba.',
+        ]);
+        $servicio = app(ServicioPlanesOperacionales::class);
+        $servicio->asumir($tarea, $contexto['operador'], $contexto['dispositivo']);
+
+        $this->expectException(ConflictoOperacion::class);
+        $this->expectExceptionMessage(
+            'La banda propuesta no admite nuevos ingresos de producto terminado.',
+        );
+        $servicio->materializarDestino(
+            $tarea->refresh(),
+            $destino,
+            $contexto['operador'],
+            $contexto['dispositivo'],
+        );
+    }
+
     public function test_shadow_registra_candidatos_sin_dirigir_trabajo(): void
     {
         config([
@@ -414,6 +492,7 @@ class PresenciaCargaAndenApiTest extends TestCase
             'posiciones_por_banda' => $cantidadPosiciones,
             'cantidad_niveles' => 1,
         ]);
+        app(ServicioBandasOperacionales::class)->sincronizar($camara, $administrador);
         $sesion = app(ServicioSesionEstiba::class)->abrir(
             $camara,
             $operador,

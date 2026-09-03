@@ -13,7 +13,6 @@ use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\Dispositivo;
 use App\Models\Folio;
-use App\Models\PlanOperacional;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
@@ -186,6 +185,42 @@ class DespachoDirectoDesdePrefrioRollingTest extends TestCase
         $this->assertNull($tareaDirecta->posicion_origen_id);
         $this->assertSame('tunel_prefrio', $tareaDirecta->contexto['origen_logico']);
         $this->assertSame($tunel->id, $tareaDirecta->contexto['tunel_prefrio_id']);
+
+        $primeraTareaDirecta = $tareaDirecta;
+        $this->conToken($tokenOficina)
+            ->postJson("/api/cargas/{$carga->id}/camion-en-anden/finalizar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_esperada' => $carga->refresh()->version,
+                'motivo' => 'El camión se retiró antes de iniciar la carga.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.camion_en_anden', null);
+
+        $tareaRestaurada = $planRecepcion->tareas()
+            ->where('estado', 'pendiente')
+            ->sole();
+        $this->assertSame('cancelada', $primeraTareaDirecta->refresh()->estado->value);
+        $this->assertSame($tareaRestaurada->id, $primeraTareaDirecta->reemplazada_por_tarea_id);
+        $this->assertSame('ubicacion_inicial', $tareaRestaurada->tipo_movimiento->value);
+        $this->assertTrue($tareaRestaurada->contexto['restaurada_por_salida_camion']);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/cargas/{$carga->id}/camion-en-anden", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_esperada' => $carga->refresh()->version,
+                'anden_id' => $anden->id,
+                'patente' => 'PF2520',
+            ])
+            ->assertOk();
+
+        $tareaDirecta = TareaMovimiento::query()
+            ->whereHas('planOperacional', fn ($consulta) => $consulta
+                ->where('tipo', 'despacho_directo'))
+            ->where('folio_id', $folio->id)
+            ->where('estado', 'pendiente')
+            ->sole();
+        $this->assertSame('cancelada', $tareaRestaurada->refresh()->estado->value);
+        $this->assertSame($tareaDirecta->id, $tareaRestaurada->reemplazada_por_tarea_id);
 
         $servicioTareas = app(ServicioPlanesOperacionales::class);
         $servicioTareas->asumir($tareaDirecta, $operador, $dispositivo);

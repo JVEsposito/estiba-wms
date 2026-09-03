@@ -129,7 +129,11 @@ El horizonte del plan `despacho_directo` queda fijado en `rolling` dentro del pr
 
 ## Finalización
 
-Oficina puede liberar el andén indicando un motivo. Las tareas todavía reversibles se cancelan y se liberan sus claims o destinos. Si alguna tarea está `en_proceso`, la liberación se rechaza.
+Oficina puede liberar el andén indicando un motivo. Las tareas todavía reversibles se cancelan y se liberan sus claims o destinos. Si una recepción de túnel había sido reemplazada y el pallet continúa sin ubicación, el WMS restaura una nueva tarea de recepción y conserva toda la cadena de reemplazos. Si alguna tarea está `en_proceso`, la liberación se rechaza.
+
+En modo `guided`, las tareas solo se publican cuando el cálculo está configurado
+en `tablet`. Una combinación `guided + server` conserva y audita la presencia,
+pero no crea despejes que no podrían materializarse.
 
 Cuando ya no quedan pallets completos pendientes de la carga fuera del andén, el objetivo `despacho_directo` se completa. El cierre documental de la carga puede finalizar automáticamente la presencia del camión.
 

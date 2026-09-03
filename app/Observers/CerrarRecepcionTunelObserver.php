@@ -25,7 +25,7 @@ class CerrarRecepcionTunelObserver
 
         $frontera = collect([$tarea->id]);
         $visitadas = [];
-        for ($profundidad = 0; $profundidad < 12 && $frontera->isNotEmpty(); $profundidad++) {
+        while ($frontera->isNotEmpty()) {
             $ids = $frontera
                 ->filter(fn (string $id): bool => ! in_array($id, $visitadas, true))
                 ->values();
@@ -84,13 +84,12 @@ class CerrarRecepcionTunelObserver
         $actual = $tarea;
         $visitadas = [];
 
-        for ($profundidad = 0; $profundidad < 12; $profundidad++) {
+        while (! in_array($actual->id, $visitadas, true)) {
             if ($actual->estado === EstadoTareaMovimiento::Completada) {
                 return true;
             }
             if ($actual->estado !== EstadoTareaMovimiento::Cancelada
-                || ! $actual->reemplazada_por_tarea_id
-                || in_array($actual->id, $visitadas, true)) {
+                || ! $actual->reemplazada_por_tarea_id) {
                 return false;
             }
 

@@ -34,7 +34,8 @@ class ServicioPresenciaCargaAnden
     public function registrar(Carga $carga, array $datos, User $usuario): PresenciaCargaAnden
     {
         $operacionId = (string) $datos['operacion_id'];
-        $ingresadaAt = isset($datos['ingresada_at'])
+        $ingresadaAtInformada = isset($datos['ingresada_at']);
+        $ingresadaAt = $ingresadaAtInformada
             ? CarbonImmutable::parse($datos['ingresada_at'])
             : CarbonImmutable::now();
         $patente = Str::upper(Str::squish((string) $datos['patente']));
@@ -47,7 +48,9 @@ class ServicioPresenciaCargaAnden
             'patente' => $patente,
             'conductor' => $conductor,
             'observacion' => $observacion,
-            'ingresada_at' => $ingresadaAt->toAtomString(),
+            'ingresada_at' => $ingresadaAtInformada
+                ? $ingresadaAt->toAtomString()
+                : null,
             'usuario_id' => $usuario->id,
         ];
         $payloadHash = $this->normalizador->hash($payload);

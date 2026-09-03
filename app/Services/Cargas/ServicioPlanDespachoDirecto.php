@@ -45,8 +45,10 @@ class ServicioPlanDespachoDirecto
         PresenciaCargaAnden $presencia,
         User $usuario,
     ): ?PlanOperacional {
-        if (config('planificador.mode') === 'off'
-            || ! config('planificador.generacion_automatica')) {
+        $modo = config('planificador.mode');
+        if (! config('planificador.generacion_automatica')
+            || $modo === 'off'
+            || ($modo === 'guided' && config('planificador.compute') !== 'tablet')) {
             return null;
         }
 
@@ -125,6 +127,16 @@ class ServicioPlanDespachoDirecto
         if (config('planificador.mode') === 'off'
             || ! config('planificador.generacion_automatica')) {
             return;
+        }
+
+        if ($movimiento->tarea_movimiento_id) {
+            $tarea = TareaMovimiento::query()->find($movimiento->tarea_movimiento_id);
+            if (($tarea?->contexto['tipo_decision'] ?? null) === 'retiro_directo_anden') {
+                // El servicio de despacho sincroniza nuevamente después de
+                // cambiar la asignación a en_anden. Hacerlo aquí todavía la
+                // vería pendiente y podría publicar una tarea transitoria falsa.
+                return;
+            }
         }
 
         $cargaIds = CargaFolio::query()
@@ -341,7 +353,14 @@ class ServicioPlanDespachoDirecto
         }
 
         foreach ($tareas as $tarea) {
-            $this->planes->cancelarPorReplanificacion($tarea, $usuario, $motivo);
+            $cancelada = $this->planes->cancelarPorReplanificacion(
+                $tarea,
+                $usuario,
+                $motivo,
+            );
+            if ($cancelada) {
+                $this->restaurarRecepcionTunel($cancelada, $usuario);
+            }
         }
 
         $plan->refresh()->update([
@@ -655,6 +674,8 @@ class ServicioPlanDespachoDirecto
             $cambio = true;
             if ($cancelada) {
                 $cancelada->update(['reemplazada_por_tarea_id' => $nueva->id]);
+            } else {
+                $this->enlazarReemplazoDentroDelPlan($plan, $nueva, $candidato);
             }
         }
 
@@ -718,6 +739,87 @@ class ServicioPlanDespachoDirecto
             'completado_at' => now(),
             'version' => $plan->version + 1,
         ]);
+    }
+
+    /** @param array<string, mixed> $candidato */
+    private function enlazarReemplazoDentroDelPlan(
+        PlanOperacional $plan,
+        TareaMovimiento $nueva,
+        array $candidato,
+    ): void {
+        $objetivoFolioId = $candidato['contexto']['habilita_folio_id']
+            ?? $candidato['folio_id'];
+        $anterior = $plan->tareas()
+            ->where('estado', EstadoTareaMovimiento::Cancelada->value)
+            ->whereNull('reemplazada_por_tarea_id')
+            ->orderByDesc('secuencia')
+            ->lockForUpdate()
+            ->get()
+            ->first(fn (TareaMovimiento $tarea): bool => (
+                ($tarea->contexto['habilita_folio_id'] ?? $tarea->folio_id)
+                === $objetivoFolioId
+            ));
+
+        $anterior?->update(['reemplazada_por_tarea_id' => $nueva->id]);
+    }
+
+    private function restaurarRecepcionTunel(
+        TareaMovimiento $cancelada,
+        User $usuario,
+    ): void {
+        $anterior = $this->buscarAntecesoraRecepcionTunel($cancelada);
+        if (! $anterior
+            || $anterior->planOperacional->estado->esFinal()
+            || UbicacionActual::query()->where('folio_id', $anterior->folio_id)->exists()) {
+            return;
+        }
+
+        $restaurada = $this->planes->agregarTareaRolling(
+            $anterior->planOperacional,
+            [
+                'folio_id' => $anterior->folio_id,
+                'tipo_movimiento' => $anterior->tipo_movimiento,
+                'prioridad' => $anterior->prioridad,
+                'camara_origen_id' => $anterior->camara_origen_id,
+                'posicion_origen_id' => $anterior->posicion_origen_id,
+                'camara_destino_id' => $anterior->camara_destino_id,
+                'posicion_destino_id' => $anterior->posicion_destino_id,
+                'instruccion' => $anterior->instruccion,
+                'contexto' => [
+                    ...($anterior->contexto ?? []),
+                    'restaurada_por_salida_camion' => true,
+                    'restaurada_por_user_id' => $usuario->id,
+                ],
+            ],
+        );
+        $cancelada->update(['reemplazada_por_tarea_id' => $restaurada->id]);
+    }
+
+    private function buscarAntecesoraRecepcionTunel(
+        TareaMovimiento $tarea,
+    ): ?TareaMovimiento {
+        $actual = $tarea;
+        $visitadas = [];
+
+        while (! in_array($actual->id, $visitadas, true)) {
+            $visitadas[] = $actual->id;
+            $anterior = TareaMovimiento::query()
+                ->with('planOperacional')
+                ->where('reemplazada_por_tarea_id', $actual->id)
+                ->orderByDesc('created_at')
+                ->lockForUpdate()
+                ->first();
+            if (! $anterior) {
+                return null;
+            }
+            if ($anterior->planOperacional->tipo === TipoPlanOperacional::RecepcionTunel) {
+                return $anterior;
+            }
+
+            $actual = $anterior;
+        }
+
+        return null;
     }
 
     /**

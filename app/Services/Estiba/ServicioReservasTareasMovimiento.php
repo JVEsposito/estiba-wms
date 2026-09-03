@@ -6,8 +6,11 @@ use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
+use App\Enums\ModoBandaOperacional;
 use App\Enums\TipoMovimiento;
+use App\Enums\UsoBandaOperacional;
 use App\Exceptions\ConflictoOperacion;
+use App\Models\BandaOperacional;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -172,6 +175,7 @@ class ServicioReservasTareasMovimiento
             throw new ConflictoOperacion('La posición propuesta ya se encuentra ocupada.');
         }
 
+        $this->validarBandaOperacional($posicionBloqueada);
         $this->validarDestinoParaTipo($tareaBloqueada, $posicionBloqueada);
         $this->validarDestinoSinConflicto($posicionBloqueada->id, $reserva->id);
 
@@ -582,6 +586,26 @@ class ServicioReservasTareasMovimiento
 
         if (! $valida) {
             throw new ConflictoOperacion('El destino propuesto no corresponde al tipo de movimiento de la tarea.');
+        }
+    }
+
+    private function validarBandaOperacional(Posicion $posicion): void
+    {
+        $banda = BandaOperacional::query()
+            ->where('camara_id', $posicion->camara_id)
+            ->where('numero', $posicion->banda)
+            ->lockForUpdate()
+            ->first();
+        if (! $banda
+            || $banda->modo !== ModoBandaOperacional::Operativa
+            || ! in_array(
+                UsoBandaOperacional::TransitoProductoTerminado->value,
+                $banda->usos_permitidos ?? [],
+                true,
+            )) {
+            throw new ConflictoOperacion(
+                'La banda propuesta no admite nuevos ingresos de producto terminado.',
+            );
         }
     }
 
