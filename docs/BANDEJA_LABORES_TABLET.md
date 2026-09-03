@@ -139,7 +139,7 @@ No intenta adelantar la simulación avanzada de concentración, SAG, retenciones
 
 ## Alcance del PR #250
 
-Este PR define **cómo una tarea abstracta llega a convertirse de manera segura en trabajo físico**. No genera todavía objetivos de negocio automáticamente.
+Este PR define **cómo una tarea abstracta llega a convertirse de manera segura en trabajo físico**. No genera todavía objetivos de negocio automáticamente ni implementa los evaluadores de término específicos de esos objetivos.
 
 Quedan para los siguientes incrementos:
 
