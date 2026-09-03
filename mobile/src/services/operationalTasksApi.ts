@@ -1,6 +1,14 @@
-import { OperationalTask, OperationalTaskAssignment } from '../domain/operationalTasks';
+import {
+  OperationalFrontierProposal,
+  OperationalFrontierResult,
+  OperationalSnapshot,
+  OperationalTask,
+  OperationalTaskAssignment,
+} from '../domain/operationalTasks';
 import { ApiError } from './apiError';
 import { fetchWithTimeout } from './httpClient';
+
+export const TABLET_PLANNER_VERSION = 'rolling-1';
 
 export class OperationalTasksApi {
   constructor(private readonly baseUrl: string) {}
@@ -16,9 +24,44 @@ export class OperationalTasksApi {
     )).data;
   }
 
+  async snapshot(token: string, planId: string) {
+    return (await this.request<{ data: OperationalSnapshot }>(
+      `/api/planes-operacionales/${encodeURIComponent(planId)}/snapshot`,
+      token,
+    )).data;
+  }
+
   async take(token: string, taskId: string) {
     return (await this.request<{ data: OperationalTask }>(
       `/api/tareas-movimiento/${encodeURIComponent(taskId)}/asumir`,
+      token,
+      { method: 'POST' },
+    )).data;
+  }
+
+  async materializeFrontier(
+    token: string,
+    planId: string,
+    snapshotVersion: string,
+    proposals: OperationalFrontierProposal[],
+  ) {
+    return (await this.request<{ data: OperationalFrontierResult }>(
+      `/api/planes-operacionales/${encodeURIComponent(planId)}/frontera`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          snapshot_version: snapshotVersion,
+          planner_version: TABLET_PLANNER_VERSION,
+          propuestas: proposals,
+        }),
+      },
+    )).data;
+  }
+
+  async start(token: string, taskId: string) {
+    return (await this.request<{ data: OperationalTask }>(
+      `/api/tareas-movimiento/${encodeURIComponent(taskId)}/iniciar`,
       token,
       { method: 'POST' },
     )).data;
