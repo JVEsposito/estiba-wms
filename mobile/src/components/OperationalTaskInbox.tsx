@@ -21,6 +21,7 @@ import {
 import {
   ManeuverDiscrepancyType,
   OperationalTask,
+  TemporaryExtractionPayload,
   operationalTaskDestinationLabel,
   operationalTaskLabel,
   operationalTaskPositionLabel,
@@ -488,7 +489,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       if (!sessions.length) await acquireExecutionSessions(task, sessions);
       if (!task.origen?.camara) throw new Error('La extracción no conserva su cámara de origen.');
       const sourceSession = sessionForCamera(sessions, task.origen.camara.id);
-      const payload = {
+      const payload: TemporaryExtractionPayload = {
         operacion_id: Crypto.randomUUID(),
         sesion_origen_id: sourceSession.sessionId,
         version_origen_conocida: sourceSession.plan.version_plano,
