@@ -68,6 +68,7 @@ class ServicioRecomendacionUbicacion
                         'ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo',
                         'reservaTareaActiva' => fn ($reservas) => $reservas
                             ->where('vence_at', '>', now()),
+                        'reservaPreparacionSagActiva',
                     ])
                     ->orderBy('banda')
                     ->orderBy('posicion')
@@ -158,7 +159,8 @@ class ServicioRecomendacionUbicacion
 
                 $libres = $posiciones
                     ->filter(fn (Posicion $posicion): bool => $posicion->ubicacionesActuales->isEmpty()
-                        && $posicion->reservaTareaActiva === null)
+                        && $posicion->reservaTareaActiva === null
+                        && $posicion->reservaPreparacionSagActiva === null)
                     ->values();
                 $destino = $this->primeraPosicionViable($posiciones, $libres);
 

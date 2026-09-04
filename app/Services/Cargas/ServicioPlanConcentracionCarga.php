@@ -425,6 +425,7 @@ class ServicioPlanConcentracionCarga
             ->where('estado', EstadoPosicion::Activa->value)
             ->whereDoesntHave('ubicacionActual')
             ->whereDoesntHave('reservaTareaActiva')
+            ->whereDoesntHave('reservaPreparacionSagActiva')
             ->get()
             ->filter(function (Posicion $posicion) use ($bandas, $puntos): bool {
                 if (! $bandas->has($posicion->banda)) {

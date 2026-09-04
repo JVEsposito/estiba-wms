@@ -422,7 +422,18 @@ class InspeccionSagController extends Controller
             return $base;
         }
 
+        $planPreparacion = $lote->planPreparacion;
+
         return $base + [
+            'preparacion_fisica' => $planPreparacion ? [
+                'plan_id' => $planPreparacion->id,
+                'estado' => $planPreparacion->estado->value,
+                'prioridad' => $planPreparacion->prioridad->value,
+                'capacidad' => $planPreparacion->contexto ?? [],
+                'programado_at' => $planPreparacion->programado_at?->toAtomString(),
+                'completado_at' => $planPreparacion->completado_at?->toAtomString(),
+                'cancelado_at' => $planPreparacion->cancelado_at?->toAtomString(),
+            ] : null,
             'folios' => $lote->folios->map(fn ($asignacion): array => [
                 'id' => $asignacion->id,
                 'estado' => $asignacion->estado->value,

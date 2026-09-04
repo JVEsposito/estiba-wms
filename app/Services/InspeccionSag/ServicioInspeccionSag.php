@@ -33,6 +33,7 @@ class ServicioInspeccionSag
     public function __construct(
         private readonly ServicioEstadoSagFolio $estadoSag,
         private readonly ServicioCorrelativoInspeccionSag $correlativos,
+        private readonly ServicioPreparacionFisicaSag $preparacionFisica,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
     ) {}
 
@@ -55,6 +56,8 @@ class ServicioInspeccionSag
                 if (! hash_equals($existente->payload_hash, $hash)) {
                     throw new DomainException('La operación ya fue utilizada con datos diferentes.');
                 }
+
+                $this->preparacionFisica->sincronizar($existente, $usuario);
 
                 return $this->cargar($existente);
             }
@@ -155,6 +158,8 @@ class ServicioInspeccionSag
                 }
             }
 
+            $this->preparacionFisica->sincronizar($lote, $usuario);
+
             return $this->cargar($lote);
         };
 
@@ -177,6 +182,7 @@ class ServicioInspeccionSag
                 'iniciado_por_user_id' => $usuario->id,
                 'iniciado_at' => now(),
             ]);
+            $this->preparacionFisica->completar($lote, $usuario);
 
             return $this->cargar($lote);
         };
@@ -294,6 +300,11 @@ class ServicioInspeccionSag
                 'finalizado_por_user_id' => $usuario->id,
                 'finalizado_at' => now(),
             ]);
+            $this->preparacionFisica->liberar(
+                $lote,
+                $usuario,
+                'Inspección SAG finalizada.',
+            );
 
             return $this->cargar($lote);
         };
@@ -321,6 +332,12 @@ class ServicioInspeccionSag
                 'cancelado_por_user_id' => $usuario->id,
                 'cancelado_at' => now(),
             ]);
+            $this->preparacionFisica->liberar(
+                $lote,
+                $usuario,
+                'Lote de inspección SAG cancelado.',
+                cancelarObjetivo: true,
+            );
 
             return $this->cargar($lote);
         };
@@ -364,6 +381,7 @@ class ServicioInspeccionSag
             'temporada:id,codigo,nombre',
             'cliente:id,codigo,nombre,codigo_folio_materiales',
             'creadoPor:id,name',
+            'planPreparacion',
             'destinos',
             'folios.folio.ubicacionActual.camara',
             'folios.folio.ubicacionActual.posicion',

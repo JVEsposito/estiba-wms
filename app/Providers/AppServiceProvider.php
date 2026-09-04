@@ -28,6 +28,7 @@ use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
 use App\Models\RepaletizajeResultado;
 use App\Models\ReservaCargaFolio;
+use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\ResultadoDestinoInspeccionSag;
 use App\Models\UbicacionActual;
 use App\Models\User;
@@ -112,6 +113,7 @@ class AppServiceProvider extends ServiceProvider
             DestinoLoteInspeccionSag::class,
             ResultadoDestinoInspeccionSag::class,
             AutorizacionSagFolio::class,
+            ReservaPosicionInspeccionSag::class,
         ] as $modeloAuditable) {
             $modeloAuditable::observe(AuditarCambioTransicionOperacionalObserver::class);
         }

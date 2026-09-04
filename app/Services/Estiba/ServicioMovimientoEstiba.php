@@ -520,7 +520,7 @@ class ServicioMovimientoEstiba
             throw new DomainException('Los pallets y saldos requieren una posición exacta.');
         }
         if (! $tareaMovimiento) {
-            $this->reservasTareas->validarDestinoManual($posicion?->id);
+            $this->reservasTareas->validarDestinoManual($posicion?->id, $numeroFolio);
         }
 
         $this->validarContenidoCamara($camara, $tipoBulto);

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'temporada_id', 'cliente_id', 'codigo', 'numero_correlativo', 'numero_inspeccion_sag',
@@ -42,6 +43,18 @@ class LoteInspeccionSag extends Model
     public function folios(): HasMany
     {
         return $this->hasMany(LoteInspeccionSagFolio::class);
+    }
+
+    public function planPreparacion(): HasOne
+    {
+        return $this->hasOne(PlanOperacional::class, 'referencia_id')
+            ->where('referencia_tipo', 'lote_inspeccion_sag_preparacion');
+    }
+
+    public function reservasPreparacion(): HasMany
+    {
+        return $this->hasMany(ReservaPosicionInspeccionSag::class)
+            ->orderBy('orden');
     }
 
     public function creadoPor(): BelongsTo
