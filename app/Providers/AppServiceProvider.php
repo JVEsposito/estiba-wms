@@ -37,6 +37,7 @@ use App\Observers\AuditarCambioTransicionOperacionalObserver;
 use App\Observers\EventoCargaObserver;
 use App\Observers\InvalidarBandejasOperacionalesObserver;
 use App\Observers\InvalidarPanelGerencialObserver;
+use App\Observers\ReplanificarSegregacionMovimientoObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Transiciones\ContextoEjecucionTransicionOperacional;
@@ -88,6 +89,7 @@ class AppServiceProvider extends ServiceProvider
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
         EventoCarga::observe(EventoCargaObserver::class);
         UbicacionActual::observe(UbicacionActualObserver::class);
+        Movimiento::observe(ReplanificarSegregacionMovimientoObserver::class);
         foreach ([
             Folio::class,
             UbicacionActual::class,

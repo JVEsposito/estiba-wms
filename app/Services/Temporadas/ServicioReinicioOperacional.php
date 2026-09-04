@@ -232,6 +232,9 @@ class ServicioReinicioOperacional
                 'folios_prefrio' => DB::table('procesos_prefrio_folios')
                     ->whereIn('proceso_prefrio_id', clone $procesos)
                     ->count(),
+                'retenciones_operacionales' => DB::table('retenciones_operacionales_folios')
+                    ->whereIn('folio_id', clone $folios)
+                    ->count(),
                 'movimientos_camara' => DB::table('movimientos')
                     ->whereIn('folio_id', clone $folios)
                     ->count(),
@@ -342,6 +345,9 @@ class ServicioReinicioOperacional
             ->delete();
         $eliminados['procesos_prefrio'] = DB::table('procesos_prefrio')
             ->where('temporada_id', $temporada->id)
+            ->delete();
+        $eliminados['retenciones_operacionales'] = DB::table('retenciones_operacionales_folios')
+            ->whereIn('folio_id', clone $folios)
             ->delete();
 
         DB::table('carga_folios')
