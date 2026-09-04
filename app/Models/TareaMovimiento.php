@@ -4,8 +4,8 @@ namespace App\Models;
 
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
-use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use App\Observers\CerrarRecepcionTunelObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;

@@ -699,9 +699,10 @@ class ServicioPlanesOperacionales
         $contexto = $tarea->contexto ?? [];
         if ($posicion->camara_id !== ($contexto['camara_retorno_id'] ?? null)
             || (int) $posicion->banda !== (int) ($contexto['banda_retorno'] ?? 0)
-            || (int) $posicion->nivel !== (int) ($contexto['nivel_retorno'] ?? 0)) {
+            || (int) $posicion->nivel !== (int) ($contexto['nivel_retorno'] ?? 0)
+            || (int) $posicion->posicion !== (int) ($contexto['profundidad_resultante'] ?? 0)) {
             throw new ConflictoOperacion(
-                'El retorno debe mantener la banda y nivel protegidos por la maniobra.',
+                'El retorno debe mantener la banda, nivel y profundidad resultante de la maniobra.',
             );
         }
     }

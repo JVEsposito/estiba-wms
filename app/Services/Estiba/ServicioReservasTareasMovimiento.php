@@ -364,6 +364,10 @@ class ServicioReservasTareasMovimiento
         Dispositivo $dispositivo,
     ): ?TareaMovimiento {
         $this->expirarRelacionadas($folio->id, $posicionDestinoId);
+        $this->validarPalletManiobraActiva(
+            $folio->id,
+            $tarea?->maniobra_operacional_id,
+        );
 
         if (! $tarea) {
             $this->validarBandasSinManiobra($posicionOrigenId, $posicionDestinoId);
@@ -632,8 +636,7 @@ class ServicioReservasTareasMovimiento
     private function validarBandaOperacional(
         Posicion $posicion,
         ?TareaMovimiento $tarea = null,
-    ): void
-    {
+    ): void {
         $banda = BandaOperacional::query()
             ->where('camara_id', $posicion->camara_id)
             ->where('numero', $posicion->banda)
@@ -672,6 +675,37 @@ class ServicioReservasTareasMovimiento
         ?string $posicionDestinoId,
     ): void {
         $this->validarBandasDeTarea($posicionOrigenId, $posicionDestinoId, null);
+    }
+
+    private function validarPalletManiobraActiva(
+        string $folioId,
+        ?string $maniobraPermitidaId,
+    ): void {
+        $maniobra = ManiobraOperacional::query()
+            ->whereIn('estado', [
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
+            ])
+            ->when(
+                $maniobraPermitidaId,
+                fn ($consulta) => $consulta->whereKeyNot($maniobraPermitidaId),
+            )
+            ->whereHas('pasos', fn ($consulta) => $consulta
+                ->where('folio_id', $folioId)
+                ->whereIn('estado', [
+                    EstadoTareaMovimiento::Bloqueada->value,
+                    EstadoTareaMovimiento::Pendiente->value,
+                    EstadoTareaMovimiento::Asumida->value,
+                    EstadoTareaMovimiento::EnProceso->value,
+                ]))
+            ->lockForUpdate()
+            ->first();
+
+        if ($maniobra) {
+            throw new ConflictoOperacion(
+                'El pallet está protegido por una maniobra física asumida.',
+            );
+        }
     }
 
     private function validarBandasDeTarea(

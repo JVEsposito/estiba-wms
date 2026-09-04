@@ -30,6 +30,8 @@ use Illuminate\Support\Str;
 
 class ServicioManiobrasOperacionales
 {
+    private const MAX_MANIOBRAS_SIMULTANEAS = 3;
+
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
     ) {}
@@ -203,6 +205,16 @@ class ServicioManiobrasOperacionales
             && ($maniobra->responsable_user_id !== $usuario->id
                 || $maniobra->dispositivo_id !== $dispositivo->id)) {
             throw new ConflictoOperacion('La maniobra ya pertenece a otro camarero o tablet.');
+        }
+        if ($maniobra->estado !== EstadoManiobraOperacional::EnEjecucion
+            && ManiobraOperacional::query()
+                ->whereKeyNot($maniobra->id)
+                ->where('estado', EstadoManiobraOperacional::EnEjecucion->value)
+                ->lockForUpdate()
+                ->count() >= self::MAX_MANIOBRAS_SIMULTANEAS) {
+            throw new ConflictoOperacion(
+                'Ya existen tres maniobras asumidas; la cuarta debe permanecer como alternativa.',
+            );
         }
 
         $this->bloquearBandas($maniobra);
@@ -513,6 +525,11 @@ class ServicioManiobrasOperacionales
                     || ($paso['contexto']['nivel_retorno'] ?? null) !== $temporal['nivel']) {
                     throw new DomainException(
                         'El retorno debe resolver la custodia en la misma banda y nivel protegidos.',
+                    );
+                }
+                if ((int) ($paso['contexto']['profundidad_resultante'] ?? 0) < 1) {
+                    throw new DomainException(
+                        'El retorno debe declarar una profundidad resultante válida.',
                     );
                 }
                 unset($temporales[$folioId]);

@@ -20,6 +20,7 @@ use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
 use App\Models\Dispositivo;
+use App\Models\EventoCarga;
 use App\Models\Folio;
 use App\Models\Posicion;
 use App\Models\PresenciaCargaAnden;
@@ -135,6 +136,10 @@ class ConcentracionCargaRollingTest extends TestCase
         $this->assertSame($blocker->id, $pasos[0]->folio_id);
         $this->assertSame($objetivo->id, $pasos[1]->folio_id);
         $this->assertSame($blocker->id, $pasos[2]->folio_id);
+        $this->assertSame(
+            $posicionObjetivo->posicion,
+            $pasos[2]->contexto['profundidad_resultante'],
+        );
         $this->assertSame(1, $maniobra->reservasBandas()->count());
         $this->assertTrue($maniobra->contexto['cerrable']);
     }
@@ -265,6 +270,20 @@ class ConcentracionCargaRollingTest extends TestCase
 
         $extraccion = $maniobra->pasos()->where('secuencia_maniobra', 1)->sole();
         $planes->asumir($extraccion, $operador, $dispositivo);
+        try {
+            app(ServicioReservasTareasMovimiento::class)->validarParaMovimiento(
+                null,
+                $objetivo,
+                TipoMovimiento::Retiro,
+                $posicionObjetivo->id,
+                null,
+                $operador,
+                $dispositivo,
+            );
+            $this->fail('Un movimiento ajeno pudo intervenir un pallet futuro de la maniobra.');
+        } catch (ConflictoOperacion $exception) {
+            $this->assertStringContainsString('maniobra física asumida', $exception->getMessage());
+        }
         $planes->iniciar($extraccion->refresh(), $operador, $dispositivo);
         $movimientos->retirar(
             operacionId: (string) Str::uuid(),
@@ -323,8 +342,19 @@ class ConcentracionCargaRollingTest extends TestCase
 
         $retorno = $maniobra->pasos()->where('secuencia_maniobra', 3)->sole();
         $this->assertSame(EstadoTareaMovimiento::Asumida, $retorno->estado);
+        try {
+            $planes->materializarDestino(
+                $retorno,
+                $posicionBlocker,
+                $operador,
+                $dispositivo,
+            );
+            $this->fail('El servidor aceptó una profundidad distinta de la resultante.');
+        } catch (ConflictoOperacion $exception) {
+            $this->assertStringContainsString('profundidad resultante', $exception->getMessage());
+        }
         $retorno = $planes->materializarDestino(
-            $retorno,
+            $retorno->refresh(),
             $posicionObjetivo,
             $operador,
             $dispositivo,
@@ -481,6 +511,133 @@ class ConcentracionCargaRollingTest extends TestCase
         $this->assertTrue($plan->maniobras()->get()->every(
             fn ($maniobra): bool => $maniobra->costo_movimientos === 1,
         ));
+    }
+
+    public function test_solo_tres_maniobras_pueden_quedar_asumidas_simultaneamente(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 4, fuera: 6);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        $tareas = $plan->tareas()->orderBy('secuencia')->get();
+        $servicio = app(ServicioPlanesOperacionales::class);
+
+        foreach ($tareas->take(3) as $tarea) {
+            [$operador, $dispositivo] = $this->crearOperador();
+            $servicio->asumir($tarea, $operador, $dispositivo);
+        }
+
+        [$cuartoOperador, $cuartaTablet] = $this->crearOperador();
+        $this->expectException(ConflictoOperacion::class);
+        $this->expectExceptionMessage('tres maniobras asumidas');
+        $servicio->asumir($tareas[3], $cuartoOperador, $cuartaTablet);
+    }
+
+    public function test_un_pallet_no_puede_pertenecer_a_dos_maniobras_activas(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        $existente = $plan->tareas()->sole();
+
+        $this->expectException(ConflictoOperacion::class);
+        $this->expectExceptionMessage('ya posee otra labor activa');
+        app(ServicioManiobrasOperacionales::class)->crearCerrada(
+            $plan,
+            $contexto['usuario'],
+            [
+                'candidate_key' => 'duplicada:'.$existente->folio_id,
+                'titulo' => 'Maniobra duplicada',
+                'pasos' => [[
+                    'folio_id' => $existente->folio_id,
+                    'tipo_movimiento' => $existente->tipo_movimiento,
+                    'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+                    'camara_origen_id' => $existente->camara_origen_id,
+                    'posicion_origen_id' => $existente->posicion_origen_id,
+                    'camara_destino_id' => $existente->camara_destino_id,
+                    'posicion_destino_id' => $existente->posicion_destino_id,
+                ]],
+            ],
+        );
+    }
+
+    public function test_dos_camareros_no_pueden_asumir_maniobras_de_la_misma_banda_protegida(): void
+    {
+        $contexto = $this->crearContexto(total: 5, concentrados: 3, fuera: 1, sinUbicacion: 1);
+        $objetivo = $contexto['foliosFuera'][0];
+        $origen = $objetivo->ubicacionActual->posicion;
+        $posicionBlocker = Posicion::create([
+            'camara_id' => $contexto['camaraFuera']->id,
+            'banda' => $origen->banda,
+            'posicion' => 2,
+            'nivel' => $origen->nivel,
+            'etiqueta' => 'B01-P02-N1-BLOQUEO',
+        ]);
+        $blocker = Folio::create([
+            'temporada_id' => $contexto['temporada']->id,
+            'numero_folio' => 'PAL-254-BANDA-A',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $this->ubicarSinEventos($blocker, $contexto['camaraFuera'], $posicionBlocker);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        $primera = $plan->maniobras()->sole();
+
+        $posicionAlterna = Posicion::create([
+            'camara_id' => $contexto['camaraFuera']->id,
+            'banda' => 2,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'B02-P01-N1-ALTERNA',
+        ]);
+        $alterno = Folio::create([
+            'temporada_id' => $contexto['temporada']->id,
+            'numero_folio' => 'PAL-254-BANDA-B',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $this->ubicarSinEventos($alterno, $contexto['camaraFuera'], $posicionAlterna);
+        $segunda = app(ServicioManiobrasOperacionales::class)->crearCerrada(
+            $plan,
+            $contexto['usuario'],
+            [
+                'candidate_key' => 'banda-incompatible:'.$alterno->id,
+                'titulo' => 'Alternativa incompatible',
+                'bloqueos_banda' => [[
+                    'camara_id' => $origen->camara_id,
+                    'banda' => $origen->banda,
+                    'nivel' => $origen->nivel,
+                ]],
+                'pasos' => [[
+                    'folio_id' => $alterno->id,
+                    'tipo_movimiento' => TipoMovimiento::TrasladoEntreCamaras,
+                    'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+                    'camara_origen_id' => $posicionAlterna->camara_id,
+                    'posicion_origen_id' => $posicionAlterna->id,
+                    'camara_destino_id' => $contexto['camaraObjetivo']->id,
+                    'posicion_destino_id' => null,
+                ]],
+            ],
+        );
+        [$operadorA, $tabletA] = $this->crearOperador();
+        [$operadorB, $tabletB] = $this->crearOperador();
+        $servicio = app(ServicioPlanesOperacionales::class);
+        $servicio->asumir($primera->pasos()->firstOrFail(), $operadorA, $tabletA);
+
+        $this->expectException(ConflictoOperacion::class);
+        $this->expectExceptionMessage('banda requerida');
+        $servicio->asumir($segunda->pasos()->firstOrFail(), $operadorB, $tabletB);
     }
 
     public function test_una_maniobra_puede_superar_cuatro_movimientos_para_cerrar_fisicamente(): void
@@ -680,6 +837,120 @@ class ConcentracionCargaRollingTest extends TestCase
         $this->assertSame($vecina->id, $materializada->posicion_destino_id);
         $this->assertSame($contexto['camaraObjetivo']->id, $materializada->camara_destino_id);
         $this->assertSame('asumida', $materializada->estado->value);
+    }
+
+    public function test_al_llegar_al_80_por_ciento_no_publica_movimientos_adicionales(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        [$operador, $dispositivo] = $this->crearOperador();
+        $planes = app(ServicioPlanesOperacionales::class);
+        $tarea = $planes->asumir($plan->tareas()->sole(), $operador, $dispositivo);
+        $tarea = $planes->materializarDestino(
+            $tarea,
+            $contexto['posicionesObjetivo'][7],
+            $operador,
+            $dispositivo,
+        );
+        $planes->iniciar($tarea, $operador, $dispositivo);
+        $sesiones = app(ServicioSesionEstiba::class);
+        $sesionOrigen = $sesiones->abrir($tarea->camaraOrigen, $operador, $dispositivo);
+        $sesionDestino = $sesiones->abrir($tarea->camaraDestino, $operador, $dispositivo);
+
+        app(ServicioMovimientoEstiba::class)->mover(
+            operacionId: (string) Str::uuid(),
+            folio: $tarea->folio,
+            posicionDestino: $tarea->posicionDestino,
+            sesionOrigen: $sesionOrigen,
+            sesionDestino: $sesionDestino,
+            usuario: $operador,
+            dispositivo: $dispositivo,
+            versionOrigenConocida: $tarea->camaraOrigen->refresh()->version_plano,
+            versionDestinoConocida: $tarea->camaraDestino->refresh()->version_plano,
+            generadoDispositivoAt: now(),
+            tareaMovimiento: $tarea->refresh(),
+        );
+        app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga']->refresh(),
+            $contexto['usuario'],
+        );
+
+        $this->assertSame('completado', $plan->refresh()->estado->value);
+        $this->assertSame(1, $plan->maniobras()->count());
+        $this->assertSame(1, $plan->tareas()->count());
+    }
+
+    public function test_una_solucion_directa_vence_a_otra_que_requiere_despeje(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $objetivoBloqueado = $contexto['foliosFuera'][0];
+        $origen = $objetivoBloqueado->ubicacionActual->posicion;
+        $posicionBlocker = Posicion::create([
+            'camara_id' => $origen->camara_id,
+            'banda' => $origen->banda,
+            'posicion' => 2,
+            'nivel' => $origen->nivel,
+            'etiqueta' => 'B01-P02-N1-COSTO',
+        ]);
+        $blocker = Folio::create([
+            'temporada_id' => $contexto['temporada']->id,
+            'numero_folio' => 'PAL-254-COSTO-BLOCKER',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $this->ubicarSinEventos($blocker, $contexto['camaraFuera'], $posicionBlocker);
+
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+
+        $this->assertNotNull($plan);
+        $maniobra = $plan->maniobras()->sole();
+        $this->assertSame(1, $maniobra->costo_movimientos);
+        $this->assertNotSame($objetivoBloqueado->id, $maniobra->pasos()->sole()->folio_id);
+    }
+
+    public function test_off_retira_trabajo_reversible_y_shadow_solo_audita(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+
+        config(['planificador.mode' => 'off']);
+        app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertSame(0, $plan->maniobras()->whereIn('estado', [
+            EstadoManiobraOperacional::Pendiente->value,
+            EstadoManiobraOperacional::EnEjecucion->value,
+        ])->count());
+
+        config(['planificador.mode' => 'shadow']);
+        app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+
+        $evento = EventoCarga::query()
+            ->where('carga_id', $contexto['carga']->id)
+            ->where('tipo', 'tareas_generadas')
+            ->latest('created_at')
+            ->firstOrFail();
+        $this->assertSame('shadow', $evento->datos['planner_mode']);
+        $this->assertSame(0, $plan->maniobras()->whereIn('estado', [
+            EstadoManiobraOperacional::Pendiente->value,
+            EstadoManiobraOperacional::EnEjecucion->value,
+        ])->count());
     }
 
     /** @return array<string, mixed> */

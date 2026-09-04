@@ -191,8 +191,10 @@ function positionAllowed(
   if (task.tipo_paso_maniobra === 'retorno_banda') {
     const returnBand = taskContextNumber(task, 'banda_retorno');
     const returnLevel = taskContextNumber(task, 'nivel_retorno');
+    const resultingDepth = taskContextNumber(task, 'profundidad_resultante');
     if (returnBand !== null && position.banda !== returnBand) return false;
     if (returnLevel !== null && position.nivel !== returnLevel) return false;
+    if (resultingDepth !== null && position.posicion !== resultingDepth) return false;
   }
 
   return true;

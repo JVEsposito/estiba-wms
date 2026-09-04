@@ -45,7 +45,11 @@ class ServicioPlanConcentracionCarga
     {
         if (! config('planificador.generacion_automatica')
             || config('planificador.mode') === 'off') {
-            return null;
+            return $this->suspenderTrabajoDirigido(
+                $carga,
+                $usuario,
+                'Planificador apagado: se retiró la concentración reversible de la bandeja.',
+            );
         }
 
         return DB::transaction(function () use ($carga, $usuario): ?PlanOperacional {
@@ -95,6 +99,13 @@ class ServicioPlanConcentracionCarga
             $geometriaHash = $this->geometriaHash($camaraObjetivoId, $analisis);
 
             if (config('planificador.mode') === 'shadow') {
+                if ($plan) {
+                    $this->cancelarReversibles(
+                        $plan,
+                        $usuario,
+                        'Modo shadow: la recomendación se audita sin dirigir trabajo.',
+                    );
+                }
                 $this->registrarShadow(
                     $carga,
                     $usuario,
@@ -572,12 +583,18 @@ class ServicioPlanConcentracionCarga
             ],
         ];
 
-        foreach (array_reverse($temporales) as $bloqueador) {
+        $profundidadResultante = (int) $habilitada
+            ->folio
+            ->ubicacionActual
+            ->posicion
+            ->posicion;
+        foreach (array_values(array_reverse($temporales)) as $indice => $bloqueador) {
             $pasos[] = $this->pasoRetornoBanda(
                 $bloqueador,
                 $carga,
                 $habilitada,
                 $geometriaHash,
+                $profundidadResultante + $indice,
             );
         }
 
@@ -658,6 +675,7 @@ class ServicioPlanConcentracionCarga
         Carga $carga,
         CargaFolio $habilitada,
         string $geometriaHash,
+        int $profundidadResultante,
     ): array {
         $posicion = $bloqueador->posicion;
 
@@ -678,6 +696,7 @@ class ServicioPlanConcentracionCarga
                 'banda_retorno' => $posicion->banda,
                 'nivel_retorno' => $posicion->nivel,
                 'posicion_original' => $posicion->posicion,
+                'profundidad_resultante' => $profundidadResultante,
                 'concentracion_geometry_hash' => $geometriaHash,
             ],
         ];
@@ -1036,6 +1055,23 @@ class ServicioPlanConcentracionCarga
             ->where('referencia_id', $cargaId);
 
         return ($bloquear ? $consulta->lockForUpdate() : $consulta)->first();
+    }
+
+    private function suspenderTrabajoDirigido(
+        Carga $carga,
+        User $usuario,
+        string $motivo,
+    ): ?PlanOperacional {
+        return DB::transaction(function () use ($carga, $usuario, $motivo): ?PlanOperacional {
+            $plan = $this->planExistente($carga->id, bloquear: true);
+            if (! $plan) {
+                return null;
+            }
+
+            $this->cancelarReversibles($plan, $usuario, $motivo);
+
+            return $plan->refresh();
+        }, attempts: 3);
     }
 
     /** @param array<string, mixed> $analisis */
