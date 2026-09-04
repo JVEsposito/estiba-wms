@@ -258,6 +258,27 @@ class InspeccionSagApiTest extends TestCase
         );
     }
 
+    public function test_preparacion_fisica_solo_reserva_en_modo_guided_tablet_rolling(): void
+    {
+        $administrador = $this->administradorConTemporada();
+        $this->crearZonaInspeccion($administrador, posiciones: 2);
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+        $folio = $this->crearFolioUbicado('SAG-HORIZONTE-BATCH-001');
+
+        config()->set([
+            'planificador.generacion_automatica' => true,
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'batch',
+        ]);
+
+        $lote = $this->crearLoteEnPreparacion($administrador, [$folio], $chile);
+
+        $this->assertNull($lote['preparacion_fisica']);
+        $this->assertDatabaseCount('planes_operacionales', 0);
+        $this->assertDatabaseCount('reservas_posiciones_inspeccion_sag', 0);
+    }
+
     public function test_catalogo_contiene_todos_los_destinos_y_bloque_ue_con_fotografia_de_27_miembros(): void
     {
         $administrador = $this->administradorConTemporada();

@@ -201,7 +201,8 @@ class ServicioPreparacionFisicaSag
     {
         return config('planificador.generacion_automatica')
             && config('planificador.mode') === 'guided'
-            && config('planificador.compute') === 'tablet';
+            && config('planificador.compute') === 'tablet'
+            && config('planificador.horizon') === 'rolling';
     }
 
     private function asegurarPlan(
