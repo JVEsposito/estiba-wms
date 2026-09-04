@@ -10,15 +10,15 @@ return new class extends Migration
     {
         Schema::create('reservas_posiciones_inspeccion_sag', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('lote_inspeccion_sag_id')
-                ->constrained('lotes_inspeccion_sag')
-                ->restrictOnDelete();
-            $table->foreignUuid('plan_operacional_id')
-                ->constrained('planes_operacionales')
-                ->restrictOnDelete();
-            $table->foreignUuid('posicion_id')
-                ->constrained('posiciones')
-                ->restrictOnDelete();
+            $table->foreignUuid('lote_inspeccion_sag_id');
+            $table->foreignUuid('plan_operacional_id');
+            $table->foreignUuid('posicion_id');
+            $table->foreign('lote_inspeccion_sag_id', 'reservas_sag_lote_fk')
+                ->references('id')->on('lotes_inspeccion_sag')->restrictOnDelete();
+            $table->foreign('plan_operacional_id', 'reservas_sag_plan_fk')
+                ->references('id')->on('planes_operacionales')->restrictOnDelete();
+            $table->foreign('posicion_id', 'reservas_sag_posicion_fk')
+                ->references('id')->on('posiciones')->restrictOnDelete();
             $table->string('tipo_espacio', 20);
             $table->unsignedInteger('orden');
             // Mientras la reserva está activa contiene el UUID de la posición.
