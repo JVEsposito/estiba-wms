@@ -499,6 +499,7 @@ class ConcentracionCargaRollingTest extends TestCase
     public function test_frontier_cuatro_limita_maniobras_y_no_sus_pasos_internos(): void
     {
         $contexto = $this->crearContexto(total: 10, concentrados: 4, fuera: 6);
+        $this->habilitarCuatroDestinosVecinos($contexto);
 
         $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
             $contexto['carga'],
@@ -516,6 +517,7 @@ class ConcentracionCargaRollingTest extends TestCase
     public function test_solo_tres_maniobras_pueden_quedar_asumidas_simultaneamente(): void
     {
         $contexto = $this->crearContexto(total: 10, concentrados: 4, fuera: 6);
+        $this->habilitarCuatroDestinosVecinos($contexto);
         $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
             $contexto['carga'],
             $contexto['usuario'],
@@ -1091,6 +1093,17 @@ class ConcentracionCargaRollingTest extends TestCase
         app(ServicioBandasOperacionales::class)->sincronizar($camara, $usuario);
 
         return $camara;
+    }
+
+    /** @param array<string, mixed> $contexto */
+    private function habilitarCuatroDestinosVecinos(array $contexto): void
+    {
+        $contexto['camaraObjetivo']->update(['cantidad_bandas' => 2]);
+        app(ServicioBandasOperacionales::class)->sincronizar(
+            $contexto['camaraObjetivo'],
+            $contexto['usuario'],
+        );
+        $this->crearPosicionesBanda($contexto['camaraObjetivo'], banda: 2, cantidad: 4);
     }
 
     /** @return array<int, Posicion> */

@@ -17,6 +17,7 @@ use App\Models\Camara;
 use App\Models\CustodiaTemporalManiobra;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\ManiobraOperacional;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\ReservaBandaManiobra;
