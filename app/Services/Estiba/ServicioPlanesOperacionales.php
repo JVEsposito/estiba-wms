@@ -10,6 +10,7 @@ use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\Camara;
@@ -28,6 +29,7 @@ class ServicioPlanesOperacionales
 {
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
+        private readonly ServicioManiobrasOperacionales $maniobras,
     ) {}
 
     /**
@@ -153,7 +155,11 @@ class ServicioPlanesOperacionales
             if ($tareaBloqueada->estado->esFinal()) {
                 throw new DomainException('La tarea ya se encuentra finalizada.');
             }
-            $this->reservas->asumir($tareaBloqueada, $usuario, $dispositivo);
+            if ($tareaBloqueada->maniobra_operacional_id) {
+                $this->maniobras->asumirPaso($tareaBloqueada, $usuario, $dispositivo);
+            } else {
+                $this->reservas->asumir($tareaBloqueada, $usuario, $dispositivo);
+            }
 
             if ($plan->estado === EstadoPlanOperacional::Programado) {
                 $plan->update([
@@ -219,6 +225,15 @@ class ServicioPlanesOperacionales
             if ($tareaBloqueada->estado->esFinal()) {
                 return $tareaBloqueada;
             }
+            if ($tareaBloqueada->maniobra_operacional_id) {
+                $cancelada = $this->maniobras->cancelarReversible(
+                    $tareaBloqueada->maniobraOperacional()->firstOrFail(),
+                    $usuario,
+                    $motivo,
+                );
+
+                return $cancelada ? $tareaBloqueada->refresh() : null;
+            }
             if (! $this->reservas->liberarParaReplanificacion($tareaBloqueada, $motivo)) {
                 return null;
             }
@@ -269,6 +284,13 @@ class ServicioPlanesOperacionales
 
             $contexto = $tareaBloqueada->contexto ?? [];
             $tipoDecision = $contexto['tipo_decision'] ?? null;
+            $this->maniobras->validarPasoActual($tareaBloqueada);
+            if (($contexto['destino_precalculado_inmutable'] ?? false) === true
+                && $tareaBloqueada->posicion_destino_id !== $posicion->id) {
+                throw new ConflictoOperacion(
+                    'El destino útil precalculado pertenece a la maniobra cerrada y no puede sustituirse.',
+                );
+            }
             if (in_array($tipoDecision, ['despeje_salida_directa', 'despeje_concentracion'], true)
                 && ($contexto['tipo_movimiento_materializable'] ?? false) === true) {
                 if ($versionTarea !== null && $tareaBloqueada->version !== $versionTarea) {
@@ -297,6 +319,9 @@ class ServicioPlanesOperacionales
             if ($tipoDecision === 'concentrar_carga') {
                 $this->validarDestinoConcentracion($tareaBloqueada, $posicion);
             }
+            if ($tareaBloqueada->tipo_paso_maniobra === TipoPasoManiobra::RetornoBanda) {
+                $this->validarDestinoRetorno($tareaBloqueada, $posicion);
+            }
 
             $this->reservas->materializarDestino(
                 $tareaBloqueada,
@@ -324,6 +349,7 @@ class ServicioPlanesOperacionales
                 ->findOrFail($tarea->id);
             $this->validarActor($usuario, $dispositivo);
             $this->validarPlanAsignable($tareaBloqueada->planOperacional);
+            $this->maniobras->validarPasoActual($tareaBloqueada);
             $this->reservas->iniciar($tareaBloqueada, $usuario, $dispositivo);
 
             return $this->cargarTarea($tareaBloqueada->refresh());
@@ -371,7 +397,15 @@ class ServicioPlanesOperacionales
             $this->validarActor($usuario, $dispositivo);
             $this->validarPlanAsignable($tareaBloqueada->planOperacional);
 
-            $this->reservas->liberar($tareaBloqueada, $usuario, $dispositivo);
+            if ($tareaBloqueada->maniobra_operacional_id) {
+                $this->maniobras->liberarAntesDeIniciar(
+                    $tareaBloqueada,
+                    $usuario,
+                    $dispositivo,
+                );
+            } else {
+                $this->reservas->liberar($tareaBloqueada, $usuario, $dispositivo);
+            }
 
             return $this->cargarTarea($tareaBloqueada->refresh());
         }, attempts: 3);
@@ -411,6 +445,9 @@ class ServicioPlanesOperacionales
             'camara_destino_id' => $tarea->camara_destino_id,
             'posicion_destino_id' => $tarea->posicion_destino_id,
             'destino_reservado' => (bool) $tarea->reservaActiva?->bloqueo_posicion_id,
+            'maniobra_id' => $tarea->maniobra_operacional_id,
+            'secuencia_maniobra' => $tarea->secuencia_maniobra,
+            'tipo_paso_maniobra' => $tarea->tipo_paso_maniobra?->value,
         ])->values();
         $versionData = [
             'plan' => [$plan->id, $plan->version, $plan->estado->value],
@@ -465,6 +502,7 @@ class ServicioPlanesOperacionales
         $tareaActiva = TareaMovimiento::query()
             ->where('folio_id', $folio->id)
             ->whereIn('estado', [
+                EstadoTareaMovimiento::Bloqueada->value,
                 EstadoTareaMovimiento::Pendiente->value,
                 EstadoTareaMovimiento::Asumida->value,
                 EstadoTareaMovimiento::EnProceso->value,
@@ -556,7 +594,7 @@ class ServicioPlanesOperacionales
         if (! $permitirCamaraSinPosicion && $camara && ! $posicion) {
             throw new DomainException("El extremo de {$nombre} debe incluir cámara y posición.");
         }
-        if ($camara && $posicion?->camara_id !== $camara->id) {
+        if ($camara && $posicion && $posicion->camara_id !== $camara->id) {
             throw new DomainException("La posición de {$nombre} no pertenece a la cámara indicada.");
         }
         if ($camara
@@ -656,6 +694,18 @@ class ServicioPlanesOperacionales
         }
     }
 
+    private function validarDestinoRetorno(TareaMovimiento $tarea, Posicion $posicion): void
+    {
+        $contexto = $tarea->contexto ?? [];
+        if ($posicion->camara_id !== ($contexto['camara_retorno_id'] ?? null)
+            || (int) $posicion->banda !== (int) ($contexto['banda_retorno'] ?? 0)
+            || (int) $posicion->nivel !== (int) ($contexto['nivel_retorno'] ?? 0)) {
+            throw new ConflictoOperacion(
+                'El retorno debe mantener la banda y nivel protegidos por la maniobra.',
+            );
+        }
+    }
+
     private function cargar(PlanOperacional $plan): PlanOperacional
     {
         return $plan->load([
@@ -692,6 +742,8 @@ class ServicioPlanesOperacionales
             'responsable:id,name',
             'dispositivo:id,codigo,nombre',
             'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
+            'maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
+            'maniobraOperacional.custodiasTemporales:id,maniobra_operacional_id,estado',
         ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Cargas;
 
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
+use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoTareaMovimiento;
@@ -13,6 +14,7 @@ use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
 use App\Enums\TipoEventoCarga;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Models\BandaOperacional;
 use App\Models\Carga;
@@ -24,6 +26,7 @@ use App\Models\Posicion;
 use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +38,7 @@ class ServicioPlanConcentracionCarga
     public function __construct(
         private readonly CalculadorConcentracionCarga $calculador,
         private readonly ServicioPlanesOperacionales $planes,
+        private readonly ServicioManiobrasOperacionales $maniobras,
     ) {}
 
     public function sincronizar(Carga $carga, User $usuario): ?PlanOperacional
@@ -161,7 +165,7 @@ class ServicioPlanConcentracionCarga
                 $camaraObjetivoId,
                 $geometriaHash,
             );
-            $this->sincronizarTareas(
+            $this->sincronizarManiobras(
                 $plan,
                 $usuario,
                 $candidatos,
@@ -329,7 +333,11 @@ class ServicioPlanConcentracionCarga
 
         $directos = $rutas
             ->filter(fn (array $ruta): bool => $ruta['bloqueadores']->isEmpty())
-            ->pluck('candidato')
+            ->map(fn (array $ruta): array => $this->maniobraDirecta(
+                $ruta['candidato'],
+                $carga,
+                $geometriaHash,
+            ))
             ->values();
         if ($directos->isNotEmpty()) {
             if ($puntos->isEmpty()) {
@@ -343,25 +351,20 @@ class ServicioPlanConcentracionCarga
 
         return $rutas
             ->map(function (array $ruta) use ($carga, $grupoIds, $geometriaHash): ?array {
-                /** @var UbicacionActual|null $bloqueador */
-                $bloqueador = $ruta['bloqueadores']->first();
-                if (! $bloqueador
-                    || ! $bloqueador->folio?->activo
-                    || $bloqueador->folio->tipo_bulto !== TipoBulto::Pallet
-                    || $grupoIds->contains($bloqueador->folio_id)) {
+                $bloqueadores = $ruta['bloqueadores'];
+                if ($bloqueadores->isEmpty()
+                    || $bloqueadores->contains(fn (UbicacionActual $bloqueador): bool => ! $bloqueador->folio?->activo
+                        || $bloqueador->folio->tipo_bulto !== TipoBulto::Pallet
+                        || $grupoIds->contains($bloqueador->folio_id))) {
                     return null;
                 }
 
-                $otraCarga = $bloqueador->folio->asignacionCargaActual;
-                if ($otraCarga && $otraCarga->carga_id !== $carga->id) {
-                    return null;
-                }
-
-                return $this->candidatoDespeje(
-                    $bloqueador,
+                return $this->maniobraConBloqueadores(
+                    $bloqueadores,
                     $ruta['asignacion'],
                     $carga,
                     $geometriaHash,
+                    $ruta['candidato'],
                 );
             })
             ->filter()
@@ -489,34 +492,221 @@ class ServicioPlanConcentracionCarga
         ];
     }
 
-    /** @return array<string, mixed> */
-    private function candidatoDespeje(
-        UbicacionActual $bloqueador,
-        CargaFolio $habilitada,
+    /** @param array<string, mixed> $paso */
+    private function maniobraDirecta(
+        array $paso,
         Carga $carga,
         string $geometriaHash,
     ): array {
-        $posicion = $bloqueador->posicion;
-        $clave = "despeje_concentracion:{$bloqueador->folio_id}:{$habilitada->folio_id}";
+        return [
+            'candidate_key' => $paso['candidate_key'],
+            'titulo' => "Concentrar {$carga->codigo}",
+            'motivo' => 'Movimiento directo que amplía el grupo principal de la carga.',
+            'beneficio_estimado' => 1000,
+            'riesgo_operacional' => 0,
+            'contexto' => [
+                'tipo_objetivo' => TipoPlanOperacional::ConcentracionCarga->value,
+                'concentracion_geometry_hash' => $geometriaHash,
+                'blockers' => 0,
+                'movimientos_totales' => 1,
+                'cerrable' => true,
+            ],
+            'bloqueos_banda' => [],
+            'pasos' => [[
+                ...$paso,
+                'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+            ]],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, UbicacionActual>  $bloqueadores
+     * @param  array<string, mixed>  $pasoObjetivo
+     * @return array<string, mixed>
+     */
+    private function maniobraConBloqueadores(
+        Collection $bloqueadores,
+        CargaFolio $habilitada,
+        Carga $carga,
+        string $geometriaHash,
+        array $pasoObjetivo,
+    ): array {
+        $pasos = [];
+        $temporales = [];
+        $destinosUsados = collect();
+
+        foreach ($bloqueadores as $bloqueador) {
+            $destinoUtil = $this->destinoUtilBloqueador(
+                $bloqueador,
+                $carga,
+                $destinosUsados,
+            );
+            if ($destinoUtil) {
+                $destinosUsados->push($destinoUtil->id);
+                $pasos[] = $this->pasoBlockerDestinoUtil(
+                    $bloqueador,
+                    $destinoUtil,
+                    $carga,
+                    $habilitada,
+                    $geometriaHash,
+                );
+
+                continue;
+            }
+
+            $temporales[] = $bloqueador;
+            $pasos[] = $this->pasoExtraccionTemporal(
+                $bloqueador,
+                $carga,
+                $habilitada,
+                $geometriaHash,
+            );
+        }
+
+        $pasos[] = [
+            ...$pasoObjetivo,
+            'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+            'contexto' => [
+                ...$pasoObjetivo['contexto'],
+                'blockers_resueltos' => $bloqueadores->count(),
+            ],
+        ];
+
+        foreach (array_reverse($temporales) as $bloqueador) {
+            $pasos[] = $this->pasoRetornoBanda(
+                $bloqueador,
+                $carga,
+                $habilitada,
+                $geometriaHash,
+            );
+        }
+
+        $blockerIds = $bloqueadores->pluck('folio_id')->sort()->values()->implode(':');
+        $clave = 'maniobra_concentracion:'.hash(
+            'sha256',
+            "{$habilitada->folio_id}:{$blockerIds}:{$geometriaHash}",
+        );
+        $bloqueosBanda = $temporales !== []
+            ? collect($temporales)
+                ->map(fn (UbicacionActual $ubicacion): array => [
+                    'camara_id' => $ubicacion->posicion->camara_id,
+                    'banda' => $ubicacion->posicion->banda,
+                    'nivel' => $ubicacion->posicion->nivel,
+                ])
+                ->unique(fn (array $item): string => implode(':', $item))
+                ->values()
+                ->all()
+            : [];
 
         return [
             'candidate_key' => $clave,
+            'titulo' => "Despejar y concentrar {$carga->codigo}",
+            'motivo' => sprintf(
+                'Resolver %d blocker(s), integrar %s y cerrar físicamente la banda.',
+                $bloqueadores->count(),
+                $habilitada->folio->numero_folio,
+            ),
+            'beneficio_estimado' => 1000 + (($bloqueadores->count() - count($temporales)) * 300),
+            'riesgo_operacional' => count($temporales) * 25,
+            'contexto' => [
+                'tipo_objetivo' => TipoPlanOperacional::ConcentracionCarga->value,
+                'concentracion_geometry_hash' => $geometriaHash,
+                'folio_objetivo_id' => $habilitada->folio_id,
+                'blockers' => $bloqueadores->count(),
+                'blockers_destino_util' => $bloqueadores->count() - count($temporales),
+                'blockers_retorno' => count($temporales),
+                'movimientos_totales' => count($pasos),
+                'cerrable' => true,
+            ],
+            'bloqueos_banda' => $bloqueosBanda,
+            'pasos' => $pasos,
+        ];
+    }
+
+    private function pasoExtraccionTemporal(
+        UbicacionActual $bloqueador,
+        Carga $carga,
+        CargaFolio $habilitada,
+        string $geometriaHash,
+    ): array {
+        $posicion = $bloqueador->posicion;
+
+        return [
             'folio_id' => $bloqueador->folio_id,
-            'tipo_movimiento' => TipoMovimiento::Reubicacion,
+            'tipo_movimiento' => TipoMovimiento::Retiro,
+            'tipo_paso_maniobra' => TipoPasoManiobra::ExtraccionTemporal,
             'camara_origen_id' => $posicion->camara_id,
             'posicion_origen_id' => $posicion->id,
             'camara_destino_id' => null,
             'posicion_destino_id' => null,
-            'instruccion' => sprintf(
-                'Despejar %s para poder integrar %s a la carga %s.',
-                $bloqueador->folio->numero_folio,
-                $habilitada->folio->numero_folio,
-                $carga->codigo,
-            ),
+            'instruccion' => "Retirar temporalmente {$bloqueador->folio->numero_folio}; no abandonar la maniobra.",
             'contexto' => [
-                'candidate_key' => $clave,
-                'tipo_decision' => 'despeje_concentracion',
-                'tipo_movimiento_materializable' => true,
+                'tipo_decision' => 'extraccion_temporal_blocker',
+                'carga_id' => $carga->id,
+                'habilita_folio_id' => $habilitada->folio_id,
+                'camara_retorno_id' => $posicion->camara_id,
+                'banda_retorno' => $posicion->banda,
+                'nivel_retorno' => $posicion->nivel,
+                'posicion_original' => $posicion->posicion,
+                'concentracion_geometry_hash' => $geometriaHash,
+            ],
+        ];
+    }
+
+    private function pasoRetornoBanda(
+        UbicacionActual $bloqueador,
+        Carga $carga,
+        CargaFolio $habilitada,
+        string $geometriaHash,
+    ): array {
+        $posicion = $bloqueador->posicion;
+
+        return [
+            'folio_id' => $bloqueador->folio_id,
+            'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
+            'tipo_paso_maniobra' => TipoPasoManiobra::RetornoBanda,
+            'camara_origen_id' => null,
+            'posicion_origen_id' => null,
+            'camara_destino_id' => $posicion->camara_id,
+            'posicion_destino_id' => null,
+            'instruccion' => "Devolver {$bloqueador->folio->numero_folio} a la profundidad resultante de la banda.",
+            'contexto' => [
+                'tipo_decision' => 'retorno_blocker_banda',
+                'carga_id' => $carga->id,
+                'habilita_folio_id' => $habilitada->folio_id,
+                'camara_retorno_id' => $posicion->camara_id,
+                'banda_retorno' => $posicion->banda,
+                'nivel_retorno' => $posicion->nivel,
+                'posicion_original' => $posicion->posicion,
+                'concentracion_geometry_hash' => $geometriaHash,
+            ],
+        ];
+    }
+
+    private function pasoBlockerDestinoUtil(
+        UbicacionActual $bloqueador,
+        Posicion $destino,
+        Carga $carga,
+        CargaFolio $habilitada,
+        string $geometriaHash,
+    ): array {
+        $origen = $bloqueador->posicion;
+
+        return [
+            'folio_id' => $bloqueador->folio_id,
+            'tipo_movimiento' => $origen->camara_id === $destino->camara_id
+                ? TipoMovimiento::Reubicacion
+                : TipoMovimiento::TrasladoEntreCamaras,
+            'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+            'camara_origen_id' => $origen->camara_id,
+            'posicion_origen_id' => $origen->id,
+            'camara_destino_id' => $destino->camara_id,
+            'posicion_destino_id' => $destino->id,
+            'instruccion' => "Mover {$bloqueador->folio->numero_folio} a un destino útil; no requiere retorno.",
+            'contexto' => [
+                'tipo_decision' => 'blocker_destino_util',
+                'beneficio_secundario' => 'concentracion_otra_carga',
+                'destino_precalculado_inmutable' => true,
                 'carga_id' => $carga->id,
                 'habilita_folio_id' => $habilitada->folio_id,
                 'concentracion_geometry_hash' => $geometriaHash,
@@ -524,10 +714,42 @@ class ServicioPlanConcentracionCarga
         ];
     }
 
+    private function destinoUtilBloqueador(
+        UbicacionActual $bloqueador,
+        Carga $cargaObjetivo,
+        Collection $destinosUsados,
+    ): ?Posicion {
+        $asignacion = $bloqueador->folio->asignacionCargaActual;
+        if (! $asignacion || $asignacion->carga_id === $cargaObjetivo->id) {
+            return null;
+        }
+
+        $otraCarga = Carga::query()->find($asignacion->carga_id);
+        if (! $otraCarga || ! in_array($otraCarga->estado, EstadoCarga::visiblesEnOperacion(), true)) {
+            return null;
+        }
+        $asignaciones = $this->asignaciones($otraCarga);
+        if ($asignaciones->isEmpty()) {
+            return null;
+        }
+        $analisisGeneral = $this->calculador->analizar($asignaciones);
+        $camaraObjetivoId = $otraCarga->camara_objetivo_id
+            ?? ($analisisGeneral['grupo_principal']['camara']['id'] ?? null);
+        if (! $camaraObjetivoId) {
+            return null;
+        }
+        $analisis = $this->calculador->analizar($asignaciones, $camaraObjetivoId);
+
+        return $this->destinosLibresVecinos(
+            $camaraObjetivoId,
+            collect($analisis['grupo_principal_puntos']),
+        )->first(fn (Posicion $posicion): bool => ! $destinosUsados->contains($posicion->id));
+    }
+
     /**
      * @param  Collection<int, array<string, mixed>>  $candidatos
      */
-    private function sincronizarTareas(
+    private function sincronizarManiobras(
         PlanOperacional $plan,
         User $usuario,
         Collection $candidatos,
@@ -535,40 +757,40 @@ class ServicioPlanConcentracionCarga
         string $geometriaHash,
     ): void {
         $deseados = $candidatos->keyBy('candidate_key');
-        $activas = $plan->tareas()
+        $activas = $plan->maniobras()
             ->whereIn('estado', [
-                EstadoTareaMovimiento::Pendiente->value,
-                EstadoTareaMovimiento::Asumida->value,
-                EstadoTareaMovimiento::EnProceso->value,
+                EstadoManiobraOperacional::Pendiente->value,
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
             ])
-            ->orderBy('secuencia')
+            ->orderBy('created_at')
             ->lockForUpdate()
             ->get();
 
-        foreach ($activas as $tarea) {
-            $clave = $tarea->contexto['candidate_key'] ?? null;
-            $mismaGeometria = ($tarea->contexto['concentracion_geometry_hash'] ?? null) === $geometriaHash;
-            if ($tarea->estado === EstadoTareaMovimiento::EnProceso) {
+        foreach ($activas as $maniobra) {
+            if ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia) {
                 continue;
             }
-            if ($clave && $deseados->has($clave) && $mismaGeometria) {
+            $mismaGeometria = ($maniobra->contexto['concentracion_geometry_hash'] ?? null)
+                === $geometriaHash;
+            if ($deseados->has($maniobra->candidate_key) && $mismaGeometria) {
                 continue;
             }
 
-            $this->planes->cancelarPorReplanificacion(
-                $tarea,
+            $this->maniobras->cancelarReversible(
+                $maniobra,
                 $usuario,
                 'La geometría o la frontera de concentración cambió.',
             );
         }
 
-        $activas = $plan->tareas()
+        $activas = $plan->maniobras()
             ->whereIn('estado', [
-                EstadoTareaMovimiento::Pendiente->value,
-                EstadoTareaMovimiento::Asumida->value,
-                EstadoTareaMovimiento::EnProceso->value,
+                EstadoManiobraOperacional::Pendiente->value,
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
             ])
-            ->orderBy('secuencia')
+            ->orderBy('created_at')
             ->get();
         $cupos = max(0, $maxActivas - $activas->count());
         if ($cupos === 0) {
@@ -576,8 +798,7 @@ class ServicioPlanConcentracionCarga
         }
 
         $clavesActivas = $activas
-            ->map(fn (TareaMovimiento $tarea): ?string => $tarea->contexto['candidate_key'] ?? null)
-            ->filter()
+            ->pluck('candidate_key')
             ->flip();
 
         foreach ($candidatos as $candidato) {
@@ -585,9 +806,11 @@ class ServicioPlanConcentracionCarga
                 continue;
             }
 
+            $folios = collect($candidato['pasos'])->pluck('folio_id')->unique();
             $otraTarea = TareaMovimiento::query()
-                ->where('folio_id', $candidato['folio_id'])
+                ->whereIn('folio_id', $folios)
                 ->whereIn('estado', [
+                    EstadoTareaMovimiento::Bloqueada->value,
                     EstadoTareaMovimiento::Pendiente->value,
                     EstadoTareaMovimiento::Asumida->value,
                     EstadoTareaMovimiento::EnProceso->value,
@@ -598,29 +821,14 @@ class ServicioPlanConcentracionCarga
                 continue;
             }
 
-            $this->planes->agregarTareaRolling(
+            $this->maniobras->crearCerrada(
                 $plan,
-                $this->datosTarea($candidato, $plan->prioridad),
+                $usuario,
+                $candidato,
             );
             $clavesActivas->put($candidato['candidate_key'], true);
             $cupos--;
         }
-    }
-
-    /** @param array<string, mixed> $candidato */
-    private function datosTarea(array $candidato, PrioridadOperacional $prioridad): array
-    {
-        return [
-            'folio_id' => $candidato['folio_id'],
-            'tipo_movimiento' => $candidato['tipo_movimiento'],
-            'prioridad' => $prioridad,
-            'camara_origen_id' => $candidato['camara_origen_id'],
-            'posicion_origen_id' => $candidato['posicion_origen_id'],
-            'camara_destino_id' => $candidato['camara_destino_id'],
-            'posicion_destino_id' => $candidato['posicion_destino_id'],
-            'instruccion' => $candidato['instruccion'],
-            'contexto' => $candidato['contexto'],
-        ];
     }
 
     private function asegurarPlan(
@@ -736,8 +944,11 @@ class ServicioPlanConcentracionCarga
 
     private function completarSiCorresponde(PlanOperacional $plan, User $usuario): void
     {
-        $enProceso = $plan->tareas()
-            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+        $enProceso = $plan->maniobras()
+            ->whereIn('estado', [
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
+            ])
             ->lockForUpdate()
             ->exists();
         if ($enProceso || $plan->estado->esFinal()) {
@@ -757,7 +968,19 @@ class ServicioPlanConcentracionCarga
         User $usuario,
         string $motivo,
     ): void {
+        $maniobras = $plan->maniobras()
+            ->whereIn('estado', [
+                EstadoManiobraOperacional::Pendiente->value,
+                EstadoManiobraOperacional::EnEjecucion->value,
+            ])
+            ->lockForUpdate()
+            ->get();
+        foreach ($maniobras as $maniobra) {
+            $this->maniobras->cancelarReversible($maniobra, $usuario, $motivo);
+        }
+
         $tareas = $plan->tareas()
+            ->whereNull('maniobra_operacional_id')
             ->whereIn('estado', [
                 EstadoTareaMovimiento::Pendiente->value,
                 EstadoTareaMovimiento::Asumida->value,
@@ -783,6 +1006,15 @@ class ServicioPlanConcentracionCarga
         $this->cancelarReversibles($plan, $usuario, $motivo);
         if ($plan->tareas()
             ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+            ->lockForUpdate()
+            ->exists()) {
+            return;
+        }
+        if ($plan->maniobras()
+            ->whereIn('estado', [
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
+            ])
             ->lockForUpdate()
             ->exists()) {
             return;

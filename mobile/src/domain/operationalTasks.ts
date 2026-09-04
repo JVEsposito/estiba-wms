@@ -1,7 +1,12 @@
 import { MovementType } from './estiba';
 
 export type OperationalTaskPriority = 'normal' | 'alta' | 'urgente' | 'critica';
-export type OperationalTaskState = 'pendiente' | 'asumida' | 'en_proceso' | 'completada' | 'cancelada';
+export type OperationalTaskState = 'bloqueada' | 'pendiente' | 'asumida' | 'en_proceso' | 'completada' | 'cancelada';
+export type ManeuverStepType =
+  | 'movimiento_permanente'
+  | 'extraccion_temporal'
+  | 'retorno_banda'
+  | 'entrega_anden';
 
 export type OperationalTaskEndpoint = {
   camara: {
@@ -41,6 +46,20 @@ export type OperationalTask = {
     horizon?: 'batch' | 'rolling';
   };
   secuencia: number;
+  maniobra: {
+    id: string;
+    estado: 'pendiente' | 'en_ejecucion' | 'pausada_discrepancia' | 'completada' | 'cancelada';
+    titulo: string;
+    secuencia_actual: number;
+    pasos_totales: number;
+    costo_movimientos: number;
+    beneficio_estimado: number;
+    riesgo_operacional: number;
+    version: number;
+    custodia_temporal_activa: boolean;
+  } | null;
+  secuencia_maniobra: number | null;
+  tipo_paso_maniobra: ManeuverStepType | null;
   tipo_movimiento: MovementType;
   estado: OperationalTaskState;
   prioridad: OperationalTaskPriority;
@@ -117,8 +136,27 @@ export type OperationalSnapshot = {
     camara_destino_id: string | null;
     posicion_destino_id: string | null;
     destino_reservado: boolean;
+    maniobra_id: string | null;
+    secuencia_maniobra: number | null;
+    tipo_paso_maniobra: ManeuverStepType | null;
   }>;
 };
+
+export type TemporaryExtractionPayload = {
+  operacion_id: string;
+  sesion_origen_id: string;
+  version_origen_conocida: number;
+  generado_dispositivo_at: string;
+  advertencias_confirmadas?: string[];
+};
+
+export type ManeuverDiscrepancyType =
+  | 'pallet_no_coincide'
+  | 'posicion_no_coincide'
+  | 'posicion_vacia'
+  | 'obstaculo'
+  | 'pallet_no_movible'
+  | 'otra';
 
 export type OperationalFrontierProposal = {
   tarea_id: string;

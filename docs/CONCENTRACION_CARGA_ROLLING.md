@@ -47,12 +47,13 @@ Si no existe ninguna de las dos señales, el planificador no inventa una cámara
 
 Cuando existe una cámara objetivo explícita pero todavía no hay un grupo dentro de ella, la frontera publica como máximo un pallet semilla. Después de ejecutarlo se recalcula la geometría antes de publicar más trabajo.
 
-## Frontera corta
+## Frontera corta de maniobras
 
-La cantidad de tareas activas queda limitada por:
+La frontera limita **maniobras independientes ejecutables**, no la profundidad
+de razonamiento ni la cantidad de pasos físicos internos:
 
 ```text
-min(WMS_PLANNER_FRONTIER_MAX, movimientos mínimos necesarios para alcanzar 80 %)
+min(WMS_PLANNER_FRONTIER_MAX, maniobras mínimas necesarias para alcanzar 80 %)
 ```
 
 Ejemplo:
@@ -62,10 +63,13 @@ Ejemplo:
 7 concentrados
 objetivo = 8
 
-→ se publica como máximo 1 movimiento de concentración
+→ se publica como máximo 1 maniobra de concentración
 ```
 
-No se publican tres movimientos solo porque existan tres pallets dispersos.
+Una maniobra puede contener más de cuatro pasos si necesita retirar blockers,
+mover el pallet objetivo y devolver los pallets temporales. Con el valor por
+defecto `4`, tres camareros pueden ejecutar hasta tres maniobras incompatibles
+entre sí y la cuarta puede permanecer ofrecida sin reservar demasiado futuro.
 
 ## Selección de candidatos
 
@@ -78,12 +82,9 @@ Primero se consideran pallets de la propia carga que:
 
 Si existe al menos un candidato directo, se prefiere sobre cualquier despeje.
 
-Solo cuando no existe un pallet directo accesible puede publicarse un `despeje_concentracion` para retirar el bloqueador exterior necesario.
-
-No se desplaza como despeje:
-
-- un pallet perteneciente al grupo principal; ni
-- un pallet comprometido activamente con otra carga.
+Solo cuando no existe un pallet directo accesible se simula la cadena completa
+de blockers. Antes de publicar, el planificador debe demostrar que cada pallet
+desplazado termina en un destino útil o posee un retorno obligatorio.
 
 ## Destino calculado en tablet
 
@@ -100,14 +101,39 @@ La puntuación favorece posiciones que tengan más contactos con el grupo princi
 
 El servidor vuelve a validar la misma geometría antes de materializar la reserva física. Una propuesta que no aumente el componente es rechazada.
 
-## Despejes
+## Maniobras cerradas y blockers
 
-`despeje_concentracion` conserva el origen físico, pero deja abierto el tipo definitivo hasta materializar destino:
+La unidad auditable es:
 
-- destino en la misma cámara → `reubicacion`;
-- destino en otra cámara → `traslado_entre_camaras`.
+```text
+objetivo → maniobra → pasos físicos → movimientos inmutables
+```
 
-La tablet propone; el servidor normaliza el tipo, valida y reserva.
+Para cada blocker se intenta primero un destino permanente que ayude a otro
+objetivo activo. Si no existe, la maniobra contiene explícitamente:
+
+1. extracción temporal;
+2. movimiento del pallet objetivo;
+3. retorno a la banda en su nueva profundidad lógica.
+
+La extracción temporal crea custodia operacional, no una posición ficticia.
+La banda queda protegida durante la secuencia y la maniobra no puede declararse
+completa mientras exista una custodia activa. Los pasos futuros permanecen
+bloqueados; solo el paso actual puede ser asumido o iniciado.
+
+El costo de la maniobra cuenta pallet objetivo, blockers, destinos útiles y
+retornos. El scoring conceptual es `beneficio total - costo físico total -
+riesgo operacional`.
+
+## Ejecución scanless
+
+La tablet muestra el folio, origen, destino y `paso X de Y`. El camino normal no
+exige escanear folio ni posición porque ambos ya forman parte del estado
+autoritativo y de la secuencia validada.
+
+Al pulsar `RETIRAR PALLET`, el paso cruza el punto de no retorno. Si la realidad
+no coincide, el camarero usa `NO COINCIDE`; la maniobra se pausa, se conserva lo
+ya ejecutado y solo puede recalcularse el sufijo todavía no iniciado.
 
 ## Prioridad de despacho directo
 
@@ -116,8 +142,9 @@ La presencia de un camión en andén domina la concentración.
 Cuando existe una presencia activa:
 
 - no se publica nuevo trabajo de concentración;
-- las tareas `pendiente` o `asumida` de concentración se cancelan de forma reversible;
-- una tarea `en_proceso` conserva su destino y termina normalmente.
+- las maniobras todavía reversibles se cancelan;
+- una maniobra que ya modificó la realidad física debe cerrar sus pasos y
+  retornos antes de cambiar de objetivo.
 
 Cuando el camión deja el andén, la carga vuelve a evaluarse desde su estado físico real.
 
@@ -125,8 +152,9 @@ Cuando el camión deja el andén, la carga vuelve a evaluarse desde su estado f�
 
 Si el porcentaje llega a 80 %:
 
-- se cancelan tareas reversibles que hayan dejado de ser necesarias;
-- el plan se completa cuando no queda ninguna tarea físicamente `en_proceso`.
+- se cancelan maniobras reversibles que hayan dejado de ser necesarias;
+- el plan se completa cuando no queda ninguna maniobra física abierta ni
+  custodia temporal pendiente.
 
 Si posteriormente la carga sigue operativa y vuelve a quedar bajo el umbral, el mismo objetivo persistente puede reactivarse manteniendo trazabilidad.
 

@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
@@ -20,12 +19,11 @@ import {
   SendLoadFolioToDockPayload,
 } from '../domain/estiba';
 import {
-  folioScanMatches,
+  ManeuverDiscrepancyType,
   OperationalTask,
   operationalTaskDestinationLabel,
   operationalTaskLabel,
   operationalTaskPositionLabel,
-  positionScanMatches,
 } from '../domain/operationalTasks';
 import { calculateRollingFrontier } from '../domain/rollingPlanner';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
@@ -63,10 +61,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   const [mine, setMine] = useState<OperationalTask[]>([]);
   const [tab, setTab] = useState<TaskTab>('mias');
   const [activeTask, setActiveTask] = useState<OperationalTask | null>(null);
-  const [folioScan, setFolioScan] = useState('');
-  const [positionScan, setPositionScan] = useState('');
-  const [folioVerified, setFolioVerified] = useState(false);
-  const [positionVerified, setPositionVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -77,11 +71,13 @@ export function OperationalTaskInbox({ api, auth }: Props) {
 
   const inPhysicalMovement = activeTask?.estado === 'en_proceso';
   const secondsRemaining = useMemo(() => {
-    if (!activeTask?.reserva || activeTask.estado === 'en_proceso') return null;
+    if (!activeTask?.reserva
+      || activeTask.estado === 'en_proceso'
+      || activeTask.maniobra?.custodia_temporal_activa) return null;
     const expiresAt = activeTask.reserva.vence_at;
     if (!expiresAt) return null;
     return Math.max(0, Math.floor((new Date(expiresAt).getTime() - clock) / 1000));
-  }, [activeTask?.estado, activeTask?.reserva, clock]);
+  }, [activeTask?.estado, activeTask?.maniobra?.custodia_temporal_activa, activeTask?.reserva, clock]);
   const leaseExpired = Boolean(activeTask && !inPhysicalMovement && secondsRemaining === 0);
   const hasPhysicalDestination = Boolean(
     activeTask?.destino?.posicion && activeTask?.reserva?.tipo_compromiso === 'fisica',
@@ -92,10 +88,17 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   }, [taskApi, auth.token]);
 
   useEffect(() => {
-    if (!activeTask?.reserva?.vence_at || activeTask.estado === 'en_proceso') return undefined;
+    if (!activeTask?.reserva?.vence_at
+      || activeTask.estado === 'en_proceso'
+      || activeTask.maniobra?.custodia_temporal_activa) return undefined;
     const interval = setInterval(() => setClock(Date.now()), 1_000);
     return () => clearInterval(interval);
-  }, [activeTask?.id, activeTask?.estado, activeTask?.reserva?.vence_at]);
+  }, [
+    activeTask?.id,
+    activeTask?.estado,
+    activeTask?.maniobra?.custodia_temporal_activa,
+    activeTask?.reserva?.vence_at,
+  ]);
 
   useEffect(() => {
     if (!taskApi || !activeTask?.reserva || activeTask.estado === 'en_proceso' || leaseExpired) {
@@ -108,8 +111,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   useEffect(() => {
     if (!leaseExpired || !activeTask) return;
     setError('El claim venció antes de iniciar el movimiento. Actualiza la bandeja y vuelve a tomar la tarea.');
-    setFolioVerified(false);
-    setPositionVerified(false);
   }, [leaseExpired, activeTask?.id]);
 
   useOperationalPolling(
@@ -145,6 +146,8 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         initialLoad.current = false;
         setTab(nextMine.length > 0 ? 'mias' : 'disponibles');
       }
+
+      return { mine: nextMine, available: nextAvailable };
     } catch (reason) {
       setError(messageFrom(reason));
     } finally {
@@ -162,7 +165,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       const taken = await taskApi.take(auth.token, task.id);
       setActiveTask(taken);
       setTab('mias');
-      resetScans();
       setNotice(
         taken.tipo_movimiento === 'retiro'
           ? `Tarea crítica tomada. Destino directo: ${operationalTaskDestinationLabel(taken)}.`
@@ -170,6 +172,10 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           ? `Tarea ${operationalTaskLabel(taken.plan.tipo)} tomada con destino físico reservado.`
           : `Tarea ${operationalTaskLabel(taken.plan.tipo)} tomada. El destino se calculará con el snapshot vigente.`,
       );
+      if (taken.tipo_movimiento !== 'retiro'
+        && (!taken.destino?.posicion || taken.reserva?.tipo_compromiso !== 'fisica')) {
+        await calculateAndMaterializeFrontier(taken);
+      }
       await loadTasks({ quiet: true });
     } catch (reason) {
       setError(messageFrom(reason));
@@ -183,13 +189,15 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setActiveTask(task);
     setError('');
     setNotice('');
-    resetScans();
     if (task.estado === 'en_proceso') {
-      setFolioVerified(true);
       setNotice('Movimiento ya iniciado: el destino está fijo hasta completar o registrar una incidencia.');
       return;
     }
     if ((task.reserva?.segundos_restantes ?? 600) < 180) void renewActiveTaskById(task.id);
+    if (task.tipo_movimiento !== 'retiro'
+      && (!task.destino?.posicion || task.reserva?.tipo_compromiso !== 'fisica')) {
+      void calculateAndMaterializeFrontier(task);
+    }
   }
 
   async function renewActiveTask() {
@@ -239,7 +247,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       await taskApi.release(auth.token, task.id);
       if (activeTask?.id === task.id) {
         setActiveTask(null);
-        resetScans();
       }
       setNotice('Tarea liberada y devuelta a la bandeja.');
       await loadTasks({ quiet: true });
@@ -249,33 +256,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function verifyFolio() {
-    if (!activeTask || activeTask.estado === 'en_proceso') return;
-    if (!folioScanMatches(activeTask, folioScan)) {
-      setFolioVerified(false);
-      setPositionVerified(false);
-      setError(
-        `Folio incorrecto. Esperado: ${activeTask.folio.numero_folio}. Escaneado: ${folioScan.trim() || 'sin lectura'}.`,
-      );
-      return;
-    }
-
-    setFolioVerified(true);
-    setError('');
-    setNotice(`Folio ${activeTask.folio.numero_folio} verificado. Calculando frontera con el estado vigente…`);
-
-    if (activeTask.tipo_movimiento === 'retiro') {
-      setNotice(`Folio verificado. Destino prioritario: ${operationalTaskDestinationLabel(activeTask)}.`);
-      return;
-    }
-    if (activeTask.reserva?.tipo_compromiso === 'fisica' && activeTask.destino?.posicion) {
-      setNotice(`Destino físico vigente: ${operationalTaskPositionLabel(activeTask.destino)}.`);
-      return;
-    }
-
-    await calculateAndMaterializeFrontier(activeTask);
   }
 
   async function calculateAndMaterializeFrontier(anchorTask: OperationalTask) {
@@ -343,7 +323,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   }
 
   async function startPhysicalTask() {
-    if (!taskApi || !activeTask || !folioVerified || activeTask.estado === 'en_proceso') return;
+    if (!taskApi || !activeTask || activeTask.estado === 'en_proceso') return;
     if (activeTask.tipo_movimiento !== 'retiro'
       && (!activeTask.destino?.posicion || activeTask.reserva?.tipo_compromiso !== 'fisica')) {
       setError('Primero debe existir un destino físico validado por el servidor.');
@@ -372,24 +352,8 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     }
   }
 
-  function verifyPosition() {
-    if (!activeTask?.destino?.posicion || activeTask.estado !== 'en_proceso') return;
-    if (!positionScanMatches(activeTask, positionScan)) {
-      setPositionVerified(false);
-      setError(
-        `Posición incorrecta. Destino fijo: ${operationalTaskPositionLabel(activeTask.destino)}. `
-        + `Escaneado: ${positionScan.trim() || 'sin lectura'}.`,
-      );
-      return;
-    }
-
-    setPositionVerified(true);
-    setError('');
-    setNotice(`Destino ${operationalTaskPositionLabel(activeTask.destino)} verificado.`);
-  }
-
   async function completeTask() {
-    if (!activeTask || activeTask.estado !== 'en_proceso' || !positionVerified) return;
+    if (!activeTask || activeTask.estado !== 'en_proceso') return;
     const task = activeTask;
     const destination = task.destino;
     if (!destination?.posicion) {
@@ -442,9 +406,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       }
 
       setNotice(`Movimiento completado: ${task.folio.numero_folio} → ${operationalTaskPositionLabel(task.destino)}.`);
-      setActiveTask(null);
-      resetScans();
-      await loadTasks({ quiet: true });
+      await continueManeuver(task);
     } catch (reason) {
       setError(messageFrom(reason));
       await loadTasks({ quiet: true });
@@ -501,7 +463,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         `Retiro completado: ${task.folio.numero_folio} entregado en ${directDestination.nombre}.`,
       );
       setActiveTask(null);
-      resetScans();
       await loadTasks({ quiet: true });
     } catch (reason) {
       setError(messageFrom(reason));
@@ -510,6 +471,104 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       await closeTemporarySessions(sessions);
       executionSessions.current = [];
       setBusy(false);
+    }
+  }
+
+  async function completeTemporaryExtraction() {
+    if (!taskApi
+      || !activeTask
+      || activeTask.estado !== 'en_proceso'
+      || activeTask.tipo_paso_maniobra !== 'extraccion_temporal') return;
+
+    const task = activeTask;
+    const sessions = executionSessions.current.length ? executionSessions.current : [];
+    setBusy(true);
+    setError('');
+    try {
+      if (!sessions.length) await acquireExecutionSessions(task, sessions);
+      if (!task.origen?.camara) throw new Error('La extracción no conserva su cámara de origen.');
+      const sourceSession = sessionForCamera(sessions, task.origen.camara.id);
+      const payload = {
+        operacion_id: Crypto.randomUUID(),
+        sesion_origen_id: sourceSession.sessionId,
+        version_origen_conocida: sourceSession.plan.version_plano,
+        generado_dispositivo_at: new Date().toISOString(),
+      };
+      await executeWithWarnings(
+        payload,
+        (confirmedPayload) => taskApi.completeTemporaryExtraction(
+          auth.token,
+          task.id,
+          confirmedPayload,
+        ),
+      );
+      setNotice(
+        `${task.folio.numero_folio} quedó bajo custodia temporal de la maniobra. Continúa con el siguiente paso mostrado.`,
+      );
+      await continueManeuver(task);
+    } catch (reason) {
+      setError(messageFrom(reason));
+      await loadTasks({ quiet: true });
+    } finally {
+      await closeTemporarySessions(sessions);
+      executionSessions.current = [];
+      setBusy(false);
+    }
+  }
+
+  function requestDiscrepancy() {
+    if (!activeTask?.maniobra) {
+      setError('La gestión NO COINCIDE está disponible para maniobras físicas del planificador.');
+      return;
+    }
+    Alert.alert(
+      'NO COINCIDE',
+      'Detendremos la maniobra sin cambiar pasos ya ejecutados. ¿Qué encontró físicamente?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Pallet distinto', onPress: () => void sendDiscrepancy('pallet_no_coincide') },
+        { text: 'Obstáculo / no movible', onPress: () => void sendDiscrepancy('obstaculo') },
+      ],
+    );
+  }
+
+  async function sendDiscrepancy(type: ManeuverDiscrepancyType) {
+    if (!taskApi || !activeTask) return;
+    setBusy(true);
+    setError('');
+    try {
+      await taskApi.reportDiscrepancy(auth.token, activeTask.id, type);
+      setNotice('Maniobra pausada. Supervisión recibió la discrepancia y el WMS recalculará desde el estado físico confirmado.');
+      setActiveTask(null);
+      await loadTasks({ quiet: true });
+    } catch (reason) {
+      setError(messageFrom(reason));
+      await loadTasks({ quiet: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function continueManeuver(completedTask: OperationalTask) {
+    setActiveTask(null);
+    const refreshed = await loadTasks({ quiet: true });
+    if (!completedTask.maniobra || !refreshed) return;
+
+    const next = refreshed.mine.find((task) => (
+      task.maniobra?.id === completedTask.maniobra?.id
+      && (task.secuencia_maniobra ?? 0) > (completedTask.secuencia_maniobra ?? 0)
+    ));
+    if (!next) return;
+
+    setActiveTask(next);
+    setTab('mias');
+    setNotice(
+      `Continúa la misma maniobra: paso ${next.secuencia_maniobra ?? next.maniobra?.secuencia_actual} `
+      + `de ${next.maniobra?.pasos_totales} · ${next.folio.numero_folio}.`,
+    );
+    if (next.tipo_movimiento !== 'retiro'
+      && (!next.destino?.posicion || next.reserva?.tipo_compromiso !== 'fisica')) {
+      await calculateAndMaterializeFrontier(next);
     }
   }
 
@@ -615,13 +674,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setMine((current) => current.map((task) => byId.get(task.id) ?? task));
   }
 
-  function resetScans() {
-    setFolioScan('');
-    setPositionScan('');
-    setFolioVerified(false);
-    setPositionVerified(false);
-  }
-
   if (!taskApi) {
     return (
       <View style={styles.emptyStandalone}>
@@ -718,49 +770,36 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                 <RouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
                 <RouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
                 <RouteLine label="Motivo" value={taskReason(activeTask)} />
+                {activeTask.maniobra ? (
+                  <RouteLine
+                    label="Maniobra"
+                    value={`Paso ${activeTask.secuencia_maniobra ?? activeTask.maniobra.secuencia_actual} de ${activeTask.maniobra.pasos_totales}`}
+                    strong
+                  />
+                ) : null}
               </View>
 
               {!inPhysicalMovement ? (
-                <Step number="1" title="Escanear folio" complete={folioVerified}>
-                  <TextInput
-                    autoCapitalize="characters"
-                    editable={!busy && !leaseExpired}
-                    onChangeText={(value) => {
-                      setFolioScan(value);
-                      setFolioVerified(false);
-                      setPositionVerified(false);
-                    }}
-                    onSubmitEditing={() => void verifyFolio()}
-                    placeholder={`Esperado: ${activeTask.folio.numero_folio}`}
-                    placeholderTextColor={colors.muted}
-                    returnKeyType="done"
-                    style={styles.scanInput}
-                    value={folioScan}
-                  />
-                  <Pressable
-                    disabled={!folioScan.trim() || busy || leaseExpired}
-                    onPress={() => void verifyFolio()}
-                    style={[styles.secondaryButton, (!folioScan.trim() || busy || leaseExpired) && styles.buttonDisabled]}
-                  >
-                    <Text style={styles.secondaryButtonText}>
-                      {activeTask.tipo_movimiento === 'retiro' ? 'Verificar folio' : 'Verificar y calcular'}
-                    </Text>
-                  </Pressable>
+                <Step number="1" title="Seguir el patrón mostrado" complete>
+                  <Text style={styles.destinationHint}>
+                    Retira exactamente {activeTask.folio.numero_folio} desde {operationalTaskPositionLabel(activeTask.origen)}.
+                    El WMS ya conoce el folio y la posición; no requiere escaneo mientras la realidad coincida.
+                  </Text>
                 </Step>
               ) : null}
 
               {!inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
-                <Step number="2" title="Materializar frontera" complete={hasPhysicalDestination} disabled={!folioVerified}>
+                <Step number="2" title="Confirmar destino calculado" complete={hasPhysicalDestination}>
                   <Text style={styles.destinationHint}>
                     {hasPhysicalDestination
                       ? `Servidor reservó: ${operationalTaskPositionLabel(activeTask.destino)}`
-                      : 'La tablet calcula candidatos; el servidor valida y reserva solo la frontera inmediata.'}
+                      : 'La tablet está simulando el destino y el servidor reservará únicamente este paso próximo.'}
                   </Text>
                   {!hasPhysicalDestination ? (
                     <Pressable
-                      disabled={!folioVerified || busy || leaseExpired}
+                      disabled={busy || leaseExpired}
                       onPress={() => void calculateAndMaterializeFrontier(activeTask)}
-                      style={[styles.secondaryButton, (!folioVerified || busy || leaseExpired) && styles.buttonDisabled]}
+                      style={[styles.secondaryButton, (busy || leaseExpired) && styles.buttonDisabled]}
                     >
                       <Text style={styles.secondaryButtonText}>Recalcular frontera</Text>
                     </Pressable>
@@ -773,17 +812,17 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                   number={activeTask.tipo_movimiento === 'retiro' ? '2' : '3'}
                   title="Retirar pallet"
                   complete={false}
-                  disabled={!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination)}
+                  disabled={activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination}
                 >
                   <Text style={styles.pointOfNoReturnCopy}>
                     Esta acción marca el pallet como físicamente en movimiento. Desde aquí el destino queda fijo.
                   </Text>
                   <Pressable
-                    disabled={!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired}
+                    disabled={(activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired}
                     onPress={() => void startPhysicalTask()}
                     style={[
                       styles.primaryButton,
-                      (!folioVerified || (activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired) && styles.buttonDisabled,
+                      ((activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired) && styles.buttonDisabled,
                     ]}
                   >
                     <Text style={styles.primaryButtonText}>RETIRAR PALLET · INICIAR MOVIMIENTO</Text>
@@ -791,54 +830,60 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                   <Pressable disabled={busy} onPress={() => requestRelease(activeTask)} style={styles.releaseButton}>
                     <Text style={styles.releaseButtonText}>Liberar antes de iniciar</Text>
                   </Pressable>
+                  {activeTask.maniobra ? (
+                    <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
+                      <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
+                    </Pressable>
+                  ) : null}
                 </Step>
               ) : null}
 
               {inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
-                <>
-                  <Step number="4" title="Escanear destino fijo" complete={positionVerified}>
-                    <Text style={styles.destinationHint}>
-                      Destino comprometido: {operationalTaskPositionLabel(activeTask.destino)}
-                    </Text>
-                    <TextInput
-                      autoCapitalize="characters"
-                      editable={!busy}
-                      onChangeText={(value) => {
-                        setPositionScan(value);
-                        setPositionVerified(false);
-                      }}
-                      onSubmitEditing={verifyPosition}
-                      placeholder="Escanea la posición de destino"
-                      placeholderTextColor={colors.muted}
-                      returnKeyType="done"
-                      style={styles.scanInput}
-                      value={positionScan}
-                    />
-                    <Pressable
-                      disabled={!positionScan.trim() || busy}
-                      onPress={verifyPosition}
-                      style={[styles.secondaryButton, (!positionScan.trim() || busy) && styles.buttonDisabled]}
-                    >
-                      <Text style={styles.secondaryButtonText}>Verificar posición</Text>
+                <Step number="4" title="Completar destino indicado" complete={false}>
+                  <Text style={styles.destinationHint}>
+                    Lleva {activeTask.folio.numero_folio} a {operationalTaskPositionLabel(activeTask.destino)}.
+                  </Text>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void completeTask()}
+                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
+                  >
+                    <Text style={styles.primaryButtonText}>CONFIRMAR MOVIMIENTO</Text>
+                  </Pressable>
+                  {activeTask.maniobra ? (
+                    <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
+                      <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
                     </Pressable>
-                  </Step>
-
-                  <Step number="5" title="Confirmar estado real" complete={false} disabled={!positionVerified}>
-                    <Pressable
-                      disabled={!positionVerified || busy}
-                      onPress={() => void completeTask()}
-                      style={[styles.primaryButton, (!positionVerified || busy) && styles.buttonDisabled]}
-                    >
-                      <Text style={styles.primaryButtonText}>CONFIRMAR MOVIMIENTO</Text>
-                    </Pressable>
-                    <Text style={styles.pointOfNoReturnCopy}>
-                      Si el destino no puede completarse físicamente, no liberes la tarea: debe resolverse como incidencia.
-                    </Text>
-                  </Step>
-                </>
+                  ) : null}
+                  <Text style={styles.pointOfNoReturnCopy}>
+                    Confirma solo cuando el pallet esté físicamente resuelto en el destino mostrado.
+                  </Text>
+                </Step>
               ) : null}
 
-              {inPhysicalMovement && activeTask.tipo_movimiento === 'retiro' ? (
+              {inPhysicalMovement
+                && activeTask.tipo_movimiento === 'retiro'
+                && activeTask.tipo_paso_maniobra === 'extraccion_temporal' ? (
+                <Step number="3" title="Confirmar extracción temporal" complete={false}>
+                  <Text style={styles.destinationHint}>
+                    Mantén {activeTask.folio.numero_folio} bajo control de esta maniobra. El WMS mostrará su retorno o destino definitivo antes de cerrar.
+                  </Text>
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => void completeTemporaryExtraction()}
+                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
+                  >
+                    <Text style={styles.primaryButtonText}>CONFIRMAR PALLET RETIRADO</Text>
+                  </Pressable>
+                  <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
+                    <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
+                  </Pressable>
+                </Step>
+              ) : null}
+
+              {inPhysicalMovement
+                && activeTask.tipo_movimiento === 'retiro'
+                && activeTask.tipo_paso_maniobra !== 'extraccion_temporal' ? (
                 <Step number="3" title="Confirmar entrega en andén" complete={false}>
                   <Text style={styles.destinationHint}>
                     Destino comprometido: {operationalTaskDestinationLabel(activeTask)}
@@ -1120,13 +1165,14 @@ const styles = StyleSheet.create({
   stepNumberTextComplete: { color: colors.green },
   stepBody: { flex: 1, gap: 7 },
   stepTitle: { color: colors.text, fontSize: 11, fontWeight: '900' },
-  scanInput: { minHeight: 38, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: colors.border, color: colors.text, backgroundColor: colors.background },
   secondaryButton: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.cyanDark },
   secondaryButtonText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
   primaryButton: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.cyan, alignItems: 'center' },
   primaryButtonText: { color: colors.accentText, fontSize: 9, fontWeight: '900' },
   releaseButton: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.red },
   releaseButtonText: { color: colors.red, fontSize: 9, fontWeight: '900' },
+  mismatchButton: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.red },
+  mismatchButtonText: { color: colors.text, fontSize: 9, fontWeight: '900' },
   buttonDisabled: { opacity: 0.4 },
   destinationHint: { color: colors.muted, fontSize: 9, lineHeight: 14 },
   pointOfNoReturnCopy: { color: colors.amber, fontSize: 9, lineHeight: 14 },

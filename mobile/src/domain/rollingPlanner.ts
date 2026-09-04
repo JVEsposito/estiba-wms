@@ -116,7 +116,7 @@ export function bestCandidate(
 
   candidates.sort((left, right) => (
     right.score - left.score
-    || right.position.posicion - left.position.posicion
+    || left.position.posicion - right.position.posicion
     || left.position.banda - right.position.banda
     || left.position.nivel - right.position.nivel
     || left.position.id.localeCompare(right.position.id)
@@ -127,11 +127,23 @@ export function bestCandidate(
 
 function compareTasks(left: OperationalTask, right: OperationalTask) {
   return PRIORITY_WEIGHT[right.prioridad] - PRIORITY_WEIGHT[left.prioridad]
+    || maneuverValue(right) - maneuverValue(left)
     || left.secuencia - right.secuencia
     || left.id.localeCompare(right.id);
 }
 
+function maneuverValue(task: OperationalTask) {
+  if (!task.maniobra) return 0;
+  return task.maniobra.beneficio_estimado
+    - task.maniobra.costo_movimientos * 100
+    - task.maniobra.riesgo_operacional;
+}
+
 function cameraAllowedForTask(task: OperationalTask, cameraId: string) {
+  const returnCamera = taskContext(task, ['camara_retorno_id']);
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    return Boolean(returnCamera && returnCamera === cameraId);
+  }
   const explicitDestinationCamera = task.destino?.camara.id;
   if (explicitDestinationCamera && explicitDestinationCamera !== cameraId) return false;
 
@@ -175,6 +187,12 @@ function positionAllowed(
     if (points.length > 0 && !points.some((point) => areConcentrationNeighbors(point, position))) {
       return false;
     }
+  }
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    const returnBand = taskContextNumber(task, 'banda_retorno');
+    const returnLevel = taskContextNumber(task, 'nivel_retorno');
+    if (returnBand !== null && position.banda !== returnBand) return false;
+    if (returnLevel !== null && position.nivel !== returnLevel) return false;
   }
 
   return true;
@@ -229,8 +247,12 @@ function scoreCandidate(task: OperationalTask, plan: CameraPlan, position: Posit
     }
   }
 
-  // Llenado desde el fondo: la posición física mayor gana dentro de una banda.
-  score += position.posicion * 10;
+  // P01 es el fondo. Preferir la menor profundidad libre vuelve a compactar
+  // la banda después de retirar el pallet objetivo y evita huecos interiores.
+  score += Math.max(0, 1_000 - position.posicion * 10);
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    reasons.push('compacta nuevamente la banda desde el fondo');
+  }
   score += Math.max(0, 10 - position.nivel);
   score += Math.min(100, band?.capacidad.disponibles ?? 0);
 
@@ -266,6 +288,11 @@ function taskContext(task: OperationalTask, keys: string[]) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return null;
+}
+
+function taskContextNumber(task: OperationalTask, key: string) {
+  const value = task.contexto?.[key];
+  return typeof value === 'number' ? value : null;
 }
 
 function sameText(left: string, right?: string | null) {

@@ -18,6 +18,14 @@ Route::middleware(['auth:sanctum', 'can:operar-camaras-productos'])->group(funct
         [PlanOperacionalController::class, 'iniciar'],
     );
     Route::post(
+        '/tareas-movimiento/{tareaMovimiento}/completar-extraccion-temporal',
+        [PlanOperacionalController::class, 'completarExtraccionTemporal'],
+    );
+    Route::post(
+        '/tareas-movimiento/{tareaMovimiento}/no-coincide',
+        [PlanOperacionalController::class, 'reportarDiscrepancia'],
+    );
+    Route::post(
         '/tareas-movimiento/{tareaMovimiento}/completar-prefrio-directo',
         [DespachoDirectoPlanificadorController::class, 'completarPrefrio'],
     );

@@ -2,22 +2,16 @@
 
 namespace App\Enums;
 
-enum EstadoTareaMovimiento: string
+enum EstadoManiobraOperacional: string
 {
-    case Bloqueada = 'bloqueada';
     case Pendiente = 'pendiente';
-    case Asumida = 'asumida';
-    case EnProceso = 'en_proceso';
+    case EnEjecucion = 'en_ejecucion';
+    case PausadaDiscrepancia = 'pausada_discrepancia';
     case Completada = 'completada';
     case Cancelada = 'cancelada';
 
     public function esFinal(): bool
     {
         return in_array($this, [self::Completada, self::Cancelada], true);
-    }
-
-    public function esActiva(): bool
-    {
-        return ! $this->esFinal();
     }
 }

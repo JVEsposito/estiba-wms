@@ -36,7 +36,7 @@ return [
     | tablet calcula, el servidor conserva la autoridad sobre estado y reservas.
     |
     | batch conserva compatibilidad con planes estáticos. rolling permite que el
-    | objetivo viva más que las tareas actualmente materializadas.
+    | objetivo viva más que las maniobras actualmente materializadas.
     |
     */
     'compute' => $compute,
@@ -60,11 +60,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Lease de tareas operacionales
+    | Lease de maniobras y pasos operacionales
     |--------------------------------------------------------------------------
     |
-    | En rolling, el lease comienza como claim exclusivo de la tarea. El destino
-    | físico se incorpora al mismo lease solo después del arbitraje del servidor.
+    | En rolling, el lease comienza como claim exclusivo del paso actual. El
+    | destino físico se incorpora al mismo lease solo después del arbitraje del
+    | servidor. Los pasos siguientes de una maniobra permanecen bloqueados.
     |
     */
     'reserva_tarea_minutos' => max(1, (int) env('WMS_RESERVA_TAREA_MINUTOS', 10)),

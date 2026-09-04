@@ -5,17 +5,24 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
+use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Exceptions\ConflictoOperacion;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PlanOperacionalResource;
 use App\Http\Resources\TareaMovimientoResource;
+use App\Models\Folio;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Estiba\ServicioManiobrasOperacionales;
+use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -82,6 +89,8 @@ class PlanOperacionalController extends Controller
             'tareas.responsable:id,name',
             'tareas.dispositivo:id,codigo,nombre',
             'tareas.reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
+            'tareas.maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
+            'tareas.maniobraOperacional.custodiasTemporales:id,maniobra_operacional_id,estado',
         ]));
     }
 
@@ -294,6 +303,85 @@ class PlanOperacionalController extends Controller
         );
     }
 
+    public function completarExtraccionTemporal(
+        Request $request,
+        TareaMovimiento $tareaMovimiento,
+        ContextoOperacional $contexto,
+        ServicioMovimientoEstiba $movimientos,
+    ): JsonResponse {
+        $datos = $request->validate([
+            'operacion_id' => ['required', 'uuid'],
+            'sesion_origen_id' => ['required', 'uuid', 'exists:sesiones_estiba,id'],
+            'version_origen_conocida' => ['required', 'integer', 'min:0'],
+            'generado_dispositivo_at' => ['required', 'date'],
+            'advertencias_confirmadas' => ['sometimes', 'array', 'max:5'],
+            'advertencias_confirmadas.*' => ['required', 'string', 'max:100', 'distinct'],
+        ]);
+        $tareaMovimiento->refresh();
+        if ($tareaMovimiento->tipo_paso_maniobra !== TipoPasoManiobra::ExtraccionTemporal
+            || $tareaMovimiento->tipo_movimiento !== TipoMovimiento::Retiro) {
+            throw new DomainException('La tarea no corresponde a una extracción temporal.');
+        }
+
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+        $movimiento = $movimientos->retirar(
+            operacionId: $datos['operacion_id'],
+            folio: Folio::query()->findOrFail($tareaMovimiento->folio_id),
+            sesionOrigen: SesionEstiba::query()->findOrFail($datos['sesion_origen_id']),
+            usuario: $usuario,
+            dispositivo: $dispositivo,
+            versionOrigenConocida: (int) $datos['version_origen_conocida'],
+            generadoDispositivoAt: CarbonImmutable::parse($datos['generado_dispositivo_at']),
+            motivo: 'Extracción temporal controlada por maniobra física.',
+            advertenciasConfirmadas: $datos['advertencias_confirmadas'] ?? [],
+            tareaMovimiento: $tareaMovimiento,
+        );
+
+        return response()->json([
+            'data' => [
+                'movimiento_id' => $movimiento->id,
+                'maniobra_id' => $tareaMovimiento->maniobra_operacional_id,
+                'estado' => 'extraido_temporalmente',
+            ],
+        ]);
+    }
+
+    public function reportarDiscrepancia(
+        Request $request,
+        TareaMovimiento $tareaMovimiento,
+        ContextoOperacional $contexto,
+        ServicioManiobrasOperacionales $maniobras,
+    ): JsonResponse {
+        $datos = $request->validate([
+            'tipo' => ['required', Rule::in([
+                'pallet_no_coincide',
+                'posicion_no_coincide',
+                'posicion_vacia',
+                'obstaculo',
+                'pallet_no_movible',
+                'otra',
+            ])],
+            'detalle' => ['nullable', 'string', 'max:500'],
+        ]);
+        [$usuario, $dispositivo] = $contexto->obtener($request);
+        $discrepancia = $maniobras->reportarDiscrepancia(
+            $tareaMovimiento,
+            $usuario,
+            $dispositivo,
+            $datos['tipo'],
+            $datos['detalle'] ?? null,
+        );
+
+        return response()->json([
+            'data' => [
+                'id' => $discrepancia->id,
+                'estado' => $discrepancia->estado->value,
+                'maniobra_id' => $discrepancia->maniobra_operacional_id,
+                'tarea_id' => $discrepancia->tarea_movimiento_id,
+            ],
+        ], 202);
+    }
+
     /** @return array<int, string> */
     private function relacionesTarea(): array
     {
@@ -307,6 +395,8 @@ class PlanOperacionalController extends Controller
             'responsable:id,name',
             'dispositivo:id,codigo,nombre',
             'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
+            'maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
+            'maniobraOperacional.custodiasTemporales:id,maniobra_operacional_id,estado',
         ];
     }
 
