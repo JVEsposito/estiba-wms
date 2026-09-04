@@ -98,6 +98,26 @@ class ServicioPlanConcentracionCarga
             );
             $geometriaHash = $this->geometriaHash($camaraObjetivoId, $analisis);
 
+            if ($carga->presenciaAndenActiva) {
+                if ($plan) {
+                    $this->cancelarReversibles(
+                        $plan,
+                        $usuario,
+                        'Camión presente en andén: despacho directo tiene prioridad sobre concentración.',
+                    );
+                    $this->actualizarContexto(
+                        $plan,
+                        $carga,
+                        $analisis,
+                        $camaraObjetivoId,
+                        $geometriaHash,
+                        suspendidoPorAnden: true,
+                    );
+                }
+
+                return $plan?->refresh();
+            }
+
             if (config('planificador.mode') === 'shadow') {
                 if ($plan) {
                     $this->cancelarReversibles(
@@ -118,26 +138,6 @@ class ServicioPlanConcentracionCarga
             }
             if (config('planificador.mode') !== 'guided'
                 || config('planificador.compute') !== 'tablet') {
-                return $plan?->refresh();
-            }
-
-            if ($carga->presenciaAndenActiva) {
-                if ($plan) {
-                    $this->cancelarReversibles(
-                        $plan,
-                        $usuario,
-                        'Camión presente en andén: despacho directo tiene prioridad sobre concentración.',
-                    );
-                    $this->actualizarContexto(
-                        $plan,
-                        $carga,
-                        $analisis,
-                        $camaraObjetivoId,
-                        $geometriaHash,
-                        suspendidoPorAnden: true,
-                    );
-                }
-
                 return $plan?->refresh();
             }
 
