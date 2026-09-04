@@ -4,6 +4,8 @@ import {
   OperationalSnapshot,
   OperationalTask,
   OperationalTaskAssignment,
+  ManeuverDiscrepancyType,
+  TemporaryExtractionPayload,
 } from '../domain/operationalTasks';
 import { ApiError } from './apiError';
 import { fetchWithTimeout } from './httpClient';
@@ -73,6 +75,34 @@ export class OperationalTasksApi {
       token,
       { method: 'POST' },
     )).data;
+  }
+
+  async completeTemporaryExtraction(
+    token: string,
+    taskId: string,
+    payload: TemporaryExtractionPayload,
+  ) {
+    await this.request(
+      `/api/tareas-movimiento/${encodeURIComponent(taskId)}/completar-extraccion-temporal`,
+      token,
+      { method: 'POST', body: JSON.stringify(payload) },
+    );
+  }
+
+  async reportDiscrepancy(
+    token: string,
+    taskId: string,
+    type: ManeuverDiscrepancyType,
+    detail?: string,
+  ) {
+    await this.request(
+      `/api/tareas-movimiento/${encodeURIComponent(taskId)}/no-coincide`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({ tipo: type, detalle: detail }),
+      },
+    );
   }
 
   async renew(token: string, taskId: string) {

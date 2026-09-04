@@ -28,18 +28,18 @@ Los valores por defecto conservan compatibilidad con la operación existente. La
 ## Flujo rolling
 
 1. Consultar **Mis tareas** o **Disponibles**.
-2. Tomar una tarea disponible.
-3. El servidor crea un **claim exclusivo** de tarea/folio, sin comprometer todavía una posición.
-4. Escanear y verificar el folio.
+2. Tomar una maniobra disponible.
+3. El servidor crea un **claim exclusivo** de maniobra/tarea/folio, sin comprometer todavía una posición lejana.
+4. La tablet muestra el folio, origen y paso físico que el camarero debe ejecutar.
 5. Descargar snapshot versionado del plan.
-6. La tablet calcula una frontera corta de tareas no conflictivas.
-7. La tablet envía las propuestas con versión de tarea, plan y cámara.
-8. El servidor acepta o rechaza cada propuesta y materializa solamente destinos todavía válidos.
+6. La tablet calcula una frontera corta de maniobras no conflictivas.
+7. La tablet envía la propuesta del paso actual con versión de tarea, plan y cámara.
+8. El servidor acepta o rechaza la propuesta y materializa solamente el destino próximo todavía válido.
 9. El camarero pulsa **RETIRAR PALLET · INICIAR MOVIMIENTO**.
-10. La tarea pasa a `en_proceso`: este es el punto de no retorno.
-11. Escanear la posición de destino fija.
-12. Confirmar el movimiento físico.
-13. El servidor registra el nuevo estado real y el siguiente ciclo recalcula sobre un snapshot nuevo.
+10. El paso pasa a `en_proceso`: este es el punto de no retorno.
+11. El camarero sigue el patrón mostrado, sin escanear en el camino normal.
+12. Confirmar el movimiento físico o usar **NO COINCIDE**.
+13. El servidor registra el nuevo estado real, muestra automáticamente el siguiente paso de la maniobra y recalcula solo el sufijo no iniciado.
 
 La pantalla conserva acceso explícito a **Plano y operación**, que continúa usando la interfaz anterior como respaldo.
 
@@ -59,13 +59,17 @@ El servidor añade `posicion_destino_id` y `bloqueo_posicion_id` al mismo lease 
 
 ### En proceso
 
-`en_proceso` significa que el pallet ya fue retirado físicamente. La tarea no puede liberarse ni cambiar de destino. La reserva deja de expirar automáticamente hasta que el movimiento se complete o, en una ampliación posterior, se resuelva mediante incidencia.
+`en_proceso` significa que el pallet ya fue retirado físicamente. La tarea no puede liberarse ni cambiar de destino. La reserva deja de expirar automáticamente hasta que el movimiento se complete o se detenga explícitamente mediante **NO COINCIDE**.
 
 ## Frontera corta
 
 La tablet puede mantener varias tareas tomadas como cola, pero el servidor impide que el mismo camarero/dispositivo tenga más de un pallet `en_proceso` simultáneamente.
 
-`WMS_PLANNER_FRONTIER_MAX` limita cuántas propuestas próximas puede materializar un plan en un ciclo. El valor no equivale necesariamente al número de camareros: el planificador solamente propone tareas para las que encuentra destinos compatibles y no repetidos.
+`WMS_PLANNER_FRONTIER_MAX` limita cuántas maniobras independientes puede ofrecer
+el plan en un ciclo. No limita los pasos internos: una maniobra cerrada puede
+superar cuatro movimientos cuando la geometría exige retirar blockers y
+devolverlos. El valor tampoco equivale al número de camareros; con tres
+operadores, la cuarta maniobra puede esperar sin una reserva física lejana.
 
 La API de frontera permite aceptación parcial. Si tres propuestas siguen siendo válidas y una quedó obsoleta, las tres válidas se reservan y la restante vuelve a cálculo.
 

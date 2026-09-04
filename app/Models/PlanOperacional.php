@@ -50,6 +50,11 @@ class PlanOperacional extends Model
         return $this->hasMany(TareaMovimiento::class)->orderBy('secuencia');
     }
 
+    public function maniobras(): HasMany
+    {
+        return $this->hasMany(ManiobraOperacional::class)->orderBy('created_at');
+    }
+
     public function movimientos(): HasMany
     {
         return $this->hasMany(Movimiento::class);

@@ -642,6 +642,7 @@ class ServicioPlanDespachoDirecto
                 ->with('planOperacional')
                 ->where('folio_id', $candidato['folio_id'])
                 ->whereIn('estado', [
+                    EstadoTareaMovimiento::Bloqueada->value,
                     EstadoTareaMovimiento::Pendiente->value,
                     EstadoTareaMovimiento::Asumida->value,
                     EstadoTareaMovimiento::EnProceso->value,

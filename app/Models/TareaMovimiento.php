@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use App\Observers\CerrarRecepcionTunelObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -18,8 +19,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[ObservedBy([CerrarRecepcionTunelObserver::class])]
 #[Fillable([
     'plan_operacional_id',
+    'maniobra_operacional_id',
     'secuencia',
+    'secuencia_maniobra',
     'tipo_movimiento',
+    'tipo_paso_maniobra',
     'estado',
     'prioridad',
     'folio_id',
@@ -49,6 +53,11 @@ class TareaMovimiento extends Model
     public function planOperacional(): BelongsTo
     {
         return $this->belongsTo(PlanOperacional::class);
+    }
+
+    public function maniobraOperacional(): BelongsTo
+    {
+        return $this->belongsTo(ManiobraOperacional::class);
     }
 
     public function folio(): BelongsTo
@@ -115,7 +124,9 @@ class TareaMovimiento extends Model
     {
         return [
             'secuencia' => 'integer',
+            'secuencia_maniobra' => 'integer',
             'tipo_movimiento' => TipoMovimiento::class,
+            'tipo_paso_maniobra' => TipoPasoManiobra::class,
             'estado' => EstadoTareaMovimiento::class,
             'prioridad' => PrioridadOperacional::class,
             'contexto' => 'array',

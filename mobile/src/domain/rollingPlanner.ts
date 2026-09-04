@@ -20,6 +20,12 @@ export type RollingFrontier = {
   unresolvedTaskIds: string[];
 };
 
+type ConcentrationPoint = {
+  banda: number;
+  posicion: number;
+  nivel: number;
+};
+
 const PRIORITY_WEIGHT: Record<OperationalTaskPriority, number> = {
   critica: 4,
   urgente: 3,
@@ -110,7 +116,7 @@ export function bestCandidate(
 
   candidates.sort((left, right) => (
     right.score - left.score
-    || right.position.posicion - left.position.posicion
+    || left.position.posicion - right.position.posicion
     || left.position.banda - right.position.banda
     || left.position.nivel - right.position.nivel
     || left.position.id.localeCompare(right.position.id)
@@ -121,16 +127,30 @@ export function bestCandidate(
 
 function compareTasks(left: OperationalTask, right: OperationalTask) {
   return PRIORITY_WEIGHT[right.prioridad] - PRIORITY_WEIGHT[left.prioridad]
+    || maneuverValue(right) - maneuverValue(left)
     || left.secuencia - right.secuencia
     || left.id.localeCompare(right.id);
 }
 
+function maneuverValue(task: OperationalTask) {
+  if (!task.maniobra) return 0;
+  return task.maniobra.beneficio_estimado
+    - task.maniobra.costo_movimientos * 100
+    - task.maniobra.riesgo_operacional;
+}
+
 function cameraAllowedForTask(task: OperationalTask, cameraId: string) {
+  const returnCamera = taskContext(task, ['camara_retorno_id']);
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    return Boolean(returnCamera && returnCamera === cameraId);
+  }
   const explicitDestinationCamera = task.destino?.camara.id;
   if (explicitDestinationCamera && explicitDestinationCamera !== cameraId) return false;
 
   const originCamera = task.origen?.camara.id;
-  if (task.contexto?.tipo_decision === 'despeje_salida_directa') {
+  if (['despeje_salida_directa', 'despeje_concentracion'].includes(
+    String(task.contexto?.tipo_decision ?? ''),
+  )) {
     return Boolean(originCamera);
   }
   if (task.tipo_movimiento === 'reubicacion') return Boolean(originCamera && originCamera === cameraId);
@@ -159,6 +179,24 @@ function positionAllowed(
   if (!band.usos_permitidos.includes('transito_pt')) return false;
   if (band.modo !== 'operativa' || band.estado === 'bloqueada' || band.estado === 'en_vaciado') return false;
 
+  if (task.contexto?.tipo_decision === 'concentrar_carga') {
+    const targetCamera = taskContext(task, ['camara_objetivo_id']);
+    if (targetCamera && targetCamera !== plan.id) return false;
+
+    const points = concentrationPoints(task);
+    if (points.length > 0 && !points.some((point) => areConcentrationNeighbors(point, position))) {
+      return false;
+    }
+  }
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    const returnBand = taskContextNumber(task, 'banda_retorno');
+    const returnLevel = taskContextNumber(task, 'nivel_retorno');
+    const resultingDepth = taskContextNumber(task, 'profundidad_resultante');
+    if (returnBand !== null && position.banda !== returnBand) return false;
+    if (returnLevel !== null && position.nivel !== returnLevel) return false;
+    if (resultingDepth !== null && position.posicion !== resultingDepth) return false;
+  }
+
   return true;
 }
 
@@ -174,6 +212,19 @@ function scoreCandidate(task: OperationalTask, plan: CameraPlan, position: Posit
   if (task.destino?.camara.id === plan.id) {
     score += 5_000;
     reasons.push('respeta la cámara objetivo');
+  }
+
+  if (task.contexto?.tipo_decision === 'concentrar_carga') {
+    const connected = concentrationPoints(task)
+      .filter((point) => areConcentrationNeighbors(point, position))
+      .length;
+    if (connected > 0) {
+      score += connected * 10_000;
+      reasons.push(`extiende el grupo principal por ${connected} contacto${connected === 1 ? '' : 's'}`);
+    } else {
+      score += 2_000;
+      reasons.push('establece el primer punto en la cámara objetivo');
+    }
   }
 
   const client = taskContext(task, ['cliente', 'cliente_codigo', 'cliente_nombre']);
@@ -198,13 +249,39 @@ function scoreCandidate(task: OperationalTask, plan: CameraPlan, position: Posit
     }
   }
 
-  // Llenado desde el fondo: la posición física mayor gana dentro de una banda.
-  score += position.posicion * 10;
+  // P01 es el fondo. Preferir la menor profundidad libre vuelve a compactar
+  // la banda después de retirar el pallet objetivo y evita huecos interiores.
+  score += Math.max(0, 1_000 - position.posicion * 10);
+  if (task.tipo_paso_maniobra === 'retorno_banda') {
+    reasons.push('compacta nuevamente la banda desde el fondo');
+  }
   score += Math.max(0, 10 - position.nivel);
   score += Math.min(100, band?.capacidad.disponibles ?? 0);
 
   if (!reasons.length) reasons.push('posición libre y compatible; prioriza llenado desde el fondo');
   return { score, reason: reasons.join('; ') };
+}
+
+function concentrationPoints(task: OperationalTask): ConcentrationPoint[] {
+  const raw = task.contexto?.concentracion_puntos;
+  if (!Array.isArray(raw)) return [];
+
+  return raw.filter((item): item is ConcentrationPoint => (
+    typeof item === 'object'
+    && item !== null
+    && typeof (item as ConcentrationPoint).banda === 'number'
+    && typeof (item as ConcentrationPoint).posicion === 'number'
+    && typeof (item as ConcentrationPoint).nivel === 'number'
+  ));
+}
+
+function areConcentrationNeighbors(point: ConcentrationPoint, position: Position) {
+  if (point.nivel !== position.nivel) return false;
+  const bandDistance = Math.abs(point.banda - position.banda);
+  const positionDistance = Math.abs(point.posicion - position.posicion);
+
+  return (bandDistance === 0 && positionDistance === 1)
+    || (bandDistance === 1 && positionDistance <= 1);
 }
 
 function taskContext(task: OperationalTask, keys: string[]) {
@@ -213,6 +290,11 @@ function taskContext(task: OperationalTask, keys: string[]) {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return null;
+}
+
+function taskContextNumber(task: OperationalTask, key: string) {
+  const value = task.contexto?.[key];
+  return typeof value === 'number' ? value : null;
 }
 
 function sameText(left: string, right?: string | null) {

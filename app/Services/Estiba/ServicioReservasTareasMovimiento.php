@@ -2,6 +2,8 @@
 
 namespace App\Services\Estiba;
 
+use App\Enums\EstadoCustodiaTemporal;
+use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaTareaMovimiento;
@@ -12,10 +14,13 @@ use App\Enums\UsoBandaOperacional;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\BandaOperacional;
 use App\Models\Camara;
+use App\Models\CustodiaTemporalManiobra;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\ManiobraOperacional;
 use App\Models\Movimiento;
 use App\Models\Posicion;
+use App\Models\ReservaBandaManiobra;
 use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
@@ -175,7 +180,7 @@ class ServicioReservasTareasMovimiento
             throw new ConflictoOperacion('La posición propuesta ya se encuentra ocupada.');
         }
 
-        $this->validarBandaOperacional($posicionBloqueada);
+        $this->validarBandaOperacional($posicionBloqueada, $tareaBloqueada);
         $this->validarDestinoParaTipo($tareaBloqueada, $posicionBloqueada);
         $this->validarDestinoSinConflicto($posicionBloqueada->id, $reserva->id);
 
@@ -360,8 +365,21 @@ class ServicioReservasTareasMovimiento
         Dispositivo $dispositivo,
     ): ?TareaMovimiento {
         $this->expirarRelacionadas($folio->id, $posicionDestinoId);
+        $this->validarPalletManiobraActiva(
+            $folio->id,
+            $tarea?->maniobra_operacional_id,
+        );
 
         if (! $tarea) {
+            $this->validarBandasSinManiobra($posicionOrigenId, $posicionDestinoId);
+            if (CustodiaTemporalManiobra::query()
+                ->where('bloqueo_folio_id', $folio->id)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new ConflictoOperacion(
+                    'El pallet está bajo custodia temporal de una maniobra activa.',
+                );
+            }
             if ($this->reservaActivaFolio($folio->id, true)) {
                 throw new ConflictoOperacion(
                     'El pallet se encuentra reservado por una tarea operacional.',
@@ -380,6 +398,21 @@ class ServicioReservasTareasMovimiento
             ->with('planOperacional')
             ->lockForUpdate()
             ->findOrFail($tarea->id);
+        $custodia = CustodiaTemporalManiobra::query()
+            ->where('bloqueo_folio_id', $folio->id)
+            ->lockForUpdate()
+            ->first();
+        if ($custodia
+            && $custodia->maniobra_operacional_id !== $tareaBloqueada->maniobra_operacional_id) {
+            throw new ConflictoOperacion(
+                'El pallet está bajo custodia temporal de otra maniobra.',
+            );
+        }
+        $this->validarBandasDeTarea(
+            $posicionOrigenId,
+            $posicionDestinoId,
+            $tareaBloqueada->maniobra_operacional_id,
+        );
         $reserva = $this->reservaActivaTarea($tareaBloqueada->id, true);
 
         if (! $reserva || $this->estaVencida($reserva)) {
@@ -486,6 +519,11 @@ class ServicioReservasTareasMovimiento
             'version' => $tareaBloqueada->version + 1,
         ]);
 
+        app(ServicioManiobrasOperacionales::class)->avanzarTrasMovimiento(
+            $tareaBloqueada->refresh(),
+            $movimiento,
+        );
+
         // Batch conserva el cierre histórico. En rolling, la inexistencia temporal
         // de tareas no significa que el objetivo del plan se haya cumplido.
         if (! $this->esHorizonteBatch($tareaBloqueada)) {
@@ -520,6 +558,13 @@ class ServicioReservasTareasMovimiento
             ->whereDoesntHave(
                 'tareaMovimiento',
                 fn ($tareas) => $tareas->where('estado', EstadoTareaMovimiento::EnProceso->value),
+            )
+            ->whereDoesntHave(
+                'tareaMovimiento.maniobraOperacional.custodiasTemporales',
+                fn ($custodias) => $custodias->where(
+                    'estado',
+                    EstadoCustodiaTemporal::Activa->value,
+                ),
             )
             ->orderBy('vence_at')
             ->limit($limite)
@@ -589,8 +634,10 @@ class ServicioReservasTareasMovimiento
         }
     }
 
-    private function validarBandaOperacional(Posicion $posicion): void
-    {
+    private function validarBandaOperacional(
+        Posicion $posicion,
+        ?TareaMovimiento $tarea = null,
+    ): void {
         $banda = BandaOperacional::query()
             ->where('camara_id', $posicion->camara_id)
             ->where('numero', $posicion->banda)
@@ -606,6 +653,92 @@ class ServicioReservasTareasMovimiento
             throw new ConflictoOperacion(
                 'La banda propuesta no admite nuevos ingresos de producto terminado.',
             );
+        }
+
+        $reservaBanda = ReservaBandaManiobra::query()
+            ->where('clave_bloqueo', implode(':', [
+                $posicion->camara_id,
+                $posicion->banda,
+                $posicion->nivel,
+            ]))
+            ->lockForUpdate()
+            ->first();
+        if ($reservaBanda
+            && $reservaBanda->maniobra_operacional_id !== $tarea?->maniobra_operacional_id) {
+            throw new ConflictoOperacion(
+                'La banda está protegida por una maniobra física en ejecución.',
+            );
+        }
+    }
+
+    private function validarBandasSinManiobra(
+        ?string $posicionOrigenId,
+        ?string $posicionDestinoId,
+    ): void {
+        $this->validarBandasDeTarea($posicionOrigenId, $posicionDestinoId, null);
+    }
+
+    private function validarPalletManiobraActiva(
+        string $folioId,
+        ?string $maniobraPermitidaId,
+    ): void {
+        $maniobra = ManiobraOperacional::query()
+            ->whereIn('estado', [
+                EstadoManiobraOperacional::EnEjecucion->value,
+                EstadoManiobraOperacional::PausadaDiscrepancia->value,
+            ])
+            ->when(
+                $maniobraPermitidaId,
+                fn ($consulta) => $consulta->whereKeyNot($maniobraPermitidaId),
+            )
+            ->whereHas('pasos', fn ($consulta) => $consulta
+                ->where('folio_id', $folioId)
+                ->whereIn('estado', [
+                    EstadoTareaMovimiento::Bloqueada->value,
+                    EstadoTareaMovimiento::Pendiente->value,
+                    EstadoTareaMovimiento::Asumida->value,
+                    EstadoTareaMovimiento::EnProceso->value,
+                ]))
+            ->lockForUpdate()
+            ->first();
+
+        if ($maniobra) {
+            throw new ConflictoOperacion(
+                'El pallet está protegido por una maniobra física asumida.',
+            );
+        }
+    }
+
+    private function validarBandasDeTarea(
+        ?string $posicionOrigenId,
+        ?string $posicionDestinoId,
+        ?string $maniobraId,
+    ): void {
+        $posiciones = Posicion::query()
+            ->whereIn('id', array_values(array_filter([
+                $posicionOrigenId,
+                $posicionDestinoId,
+            ])))
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($posiciones as $posicion) {
+            $reserva = ReservaBandaManiobra::query()
+                ->where('clave_bloqueo', implode(':', [
+                    $posicion->camara_id,
+                    $posicion->banda,
+                    $posicion->nivel,
+                ]))
+                ->lockForUpdate()
+                ->first();
+            if ($reserva) {
+                if ($reserva?->maniobra_operacional_id === $maniobraId) {
+                    continue;
+                }
+                throw new ConflictoOperacion(
+                    'La banda está protegida por una maniobra física en ejecución.',
+                );
+            }
         }
     }
 
@@ -771,6 +904,44 @@ class ServicioReservasTareasMovimiento
             'iniciada_at' => null,
             'version' => $tarea->version + 1,
         ]);
+        $this->restablecerManiobraTrasExpirar($tarea);
+    }
+
+    private function restablecerManiobraTrasExpirar(TareaMovimiento $tarea): void
+    {
+        if (! $tarea->maniobra_operacional_id) {
+            return;
+        }
+
+        $maniobra = $tarea->maniobraOperacional()->lockForUpdate()->first();
+        if (! $maniobra
+            || $maniobra->estado->esFinal()
+            || $maniobra->custodiasTemporales()
+                ->where('estado', EstadoCustodiaTemporal::Activa->value)
+                ->lockForUpdate()
+                ->exists()) {
+            return;
+        }
+
+        $maniobra->reservasBandas()
+            ->whereNull('liberada_at')
+            ->update([
+                'clave_bloqueo' => null,
+                'liberada_at' => now(),
+                'motivo_liberacion' => 'Claim vencido antes del siguiente movimiento físico.',
+            ]);
+        $poseePrefijoFisico = $maniobra->pasos()
+            ->where('estado', EstadoTareaMovimiento::Completada->value)
+            ->lockForUpdate()
+            ->exists();
+        $maniobra->update([
+            'estado' => EstadoManiobraOperacional::Pendiente,
+            'responsable_user_id' => null,
+            'dispositivo_id' => null,
+            'asumida_at' => $poseePrefijoFisico ? $maniobra->asumida_at : null,
+            'iniciada_at' => $poseePrefijoFisico ? $maniobra->iniciada_at : null,
+            'version' => $maniobra->version + 1,
+        ]);
     }
 
     private function reservaActivaTarea(
@@ -829,9 +1000,20 @@ class ServicioReservasTareasMovimiento
 
     private function estaProtegidaPorMovimiento(ReservaTareaMovimiento $reserva): bool
     {
-        return $reserva->tareaMovimiento()
-            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
-            ->exists();
+        $tarea = $reserva->tareaMovimiento()
+            ->first(['id', 'estado', 'maniobra_operacional_id']);
+        if (! $tarea) {
+            return false;
+        }
+        if ($tarea->estado === EstadoTareaMovimiento::EnProceso) {
+            return true;
+        }
+
+        return $tarea->maniobra_operacional_id !== null
+            && CustodiaTemporalManiobra::query()
+                ->where('maniobra_operacional_id', $tarea->maniobra_operacional_id)
+                ->where('estado', EstadoCustodiaTemporal::Activa->value)
+                ->exists();
     }
 
     private function nuevoVencimiento(): CarbonInterface

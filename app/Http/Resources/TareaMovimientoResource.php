@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoTareaMovimiento;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -24,6 +25,24 @@ class TareaMovimientoResource extends JsonResource
                     ?? config('planificador.horizon'),
             ]),
             'secuencia' => $this->secuencia,
+            'maniobra' => $this->whenLoaded('maniobraOperacional', function (): ?array {
+                $maniobra = $this->maniobraOperacional;
+
+                return $maniobra ? [
+                    'id' => $maniobra->id,
+                    'estado' => $maniobra->estado->value,
+                    'titulo' => $maniobra->titulo,
+                    'secuencia_actual' => $maniobra->secuencia_actual,
+                    'pasos_totales' => $maniobra->costo_movimientos,
+                    'costo_movimientos' => $maniobra->costo_movimientos,
+                    'beneficio_estimado' => $maniobra->beneficio_estimado,
+                    'riesgo_operacional' => $maniobra->riesgo_operacional,
+                    'version' => $maniobra->version,
+                    'custodia_temporal_activa' => $this->custodiaTemporalActiva(),
+                ] : null;
+            }),
+            'secuencia_maniobra' => $this->secuencia_maniobra,
+            'tipo_paso_maniobra' => $this->tipo_paso_maniobra?->value,
             'tipo_movimiento' => $this->tipo_movimiento->value,
             'estado' => $this->estado->value,
             'prioridad' => $this->prioridad->value,
@@ -57,6 +76,7 @@ class TareaMovimientoResource extends JsonResource
                     'renovada_at' => $reserva->renovada_at?->toAtomString(),
                     'vence_at' => $reserva->vence_at?->toAtomString(),
                     'segundos_restantes' => $this->estado === EstadoTareaMovimiento::EnProceso
+                        || $this->custodiaTemporalActiva()
                         ? null
                         : max(0, (int) now()->diffInSeconds($reserva->vence_at, false)),
                     'version' => $reserva->version,
@@ -75,6 +95,19 @@ class TareaMovimientoResource extends JsonResource
             'version' => $this->version,
             'created_at' => $this->created_at?->toAtomString(),
         ];
+    }
+
+    private function custodiaTemporalActiva(): bool
+    {
+        $maniobra = $this->relationLoaded('maniobraOperacional')
+            ? $this->maniobraOperacional
+            : null;
+
+        return $maniobra
+            && $maniobra->relationLoaded('custodiasTemporales')
+            && $maniobra->custodiasTemporales->contains(
+                fn ($custodia): bool => $custodia->estado === EstadoCustodiaTemporal::Activa,
+            );
     }
 
     /** @return array<string, mixed>|null */
