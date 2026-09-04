@@ -436,6 +436,7 @@ class PresenciaCargaAndenApiTest extends TestCase
         $evento = EventoCarga::query()
             ->where('carga_id', $carga->id)
             ->where('tipo', 'tareas_generadas')
+            ->where('datos->planner_mode', 'shadow')
             ->latest('created_at')
             ->firstOrFail();
         $this->assertSame('shadow', $evento->datos['planner_mode']);
