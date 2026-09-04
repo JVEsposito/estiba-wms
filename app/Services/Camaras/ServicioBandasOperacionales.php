@@ -9,6 +9,7 @@ use App\Enums\UsoBandaOperacional;
 use App\Models\BandaOperacional;
 use App\Models\Camara;
 use App\Models\Posicion;
+use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -83,6 +84,21 @@ class ServicioBandasOperacionales
                 ->values()
                 ->all();
             $modo = ModoBandaOperacional::from($datos['modo']);
+            $retiraDisponibilidadInspeccion = $modo !== ModoBandaOperacional::Operativa
+                || ! in_array(UsoBandaOperacional::Inspeccion->value, $usos, true);
+
+            if ($retiraDisponibilidadInspeccion
+                && ReservaPosicionInspeccionSag::query()
+                    ->whereNotNull('clave_bloqueo')
+                    ->whereHas('posicion', fn ($consulta) => $consulta
+                        ->where('camara_id', $camaraBloqueada->id)
+                        ->where('banda', $bandaBloqueada->numero))
+                    ->lockForUpdate()
+                    ->exists()) {
+                throw new DomainException(
+                    'La banda conserva capacidad reservada para una inspección SAG activa.',
+                );
+            }
 
             $bandaBloqueada->update([
                 'usos_permitidos' => $usos,
@@ -112,6 +128,7 @@ class ServicioBandasOperacionales
             'posiciones.ubicacionesActuales.folio:id,tipo_bulto,marca,exportadora,datos_externos,activo',
             'posiciones.reservaTareaActiva' => fn ($consulta) => $consulta
                 ->where('vence_at', '>', now()),
+            'posiciones.reservaPreparacionSagActiva',
         ]);
 
         /** @var Collection<int, Posicion> $posiciones */
@@ -131,7 +148,8 @@ class ServicioBandasOperacionales
             )->count();
             $reservadas = $activas->filter(
                 fn ($posicion): bool => $posicion->ubicacionesActuales->isEmpty()
-                    && $posicion->reservaTareaActiva !== null,
+                    && ($posicion->reservaTareaActiva !== null
+                        || $posicion->reservaPreparacionSagActiva !== null),
             )->count();
 
             $banda->setAttribute('capacidad_fisica_calculada', $coordenadas->count());

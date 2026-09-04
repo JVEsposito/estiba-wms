@@ -6,8 +6,10 @@ use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoPosicion;
 use App\Exceptions\OperacionNoAutorizada;
+use App\Models\BandaOperacional;
 use App\Models\Camara;
 use App\Models\Posicion;
+use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Secuencias\ServicioSecuenciaDocumento;
@@ -122,6 +124,8 @@ class ServicioConfiguracionCamara
         return DB::transaction(function () use ($camara, $datos, $usuario): Camara {
             $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $this->asegurarSinSesionActiva($camaraBloqueada);
+            $this->bloquearBandasOperacionales($camaraBloqueada);
+            $this->asegurarSinReservaSag($camaraBloqueada);
 
             $posiciones = Posicion::query()
                 ->where('camara_id', $camaraBloqueada->id)
@@ -170,6 +174,8 @@ class ServicioConfiguracionCamara
         return DB::transaction(function () use ($camara, $usuario): Camara {
             $camaraBloqueada = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $this->asegurarSinSesionActiva($camaraBloqueada);
+            $this->bloquearBandasOperacionales($camaraBloqueada);
+            $this->asegurarSinReservaSag($camaraBloqueada);
 
             $posiciones = Posicion::query()
                 ->where('camara_id', $camaraBloqueada->id)
@@ -204,6 +210,28 @@ class ServicioConfiguracionCamara
         if ($camara->bloqueo()->exists()) {
             throw new DomainException(
                 'La cámara está siendo modificada desde una tablet. Cierre esa sesión antes de administrarla.',
+            );
+        }
+    }
+
+    private function bloquearBandasOperacionales(Camara $camara): void
+    {
+        BandaOperacional::query()
+            ->where('camara_id', $camara->id)
+            ->orderBy('numero')
+            ->lockForUpdate()
+            ->get(['id']);
+    }
+
+    private function asegurarSinReservaSag(Camara $camara): void
+    {
+        if (ReservaPosicionInspeccionSag::query()
+            ->whereNotNull('clave_bloqueo')
+            ->whereHas('posicion', fn ($consulta) => $consulta->where('camara_id', $camara->id))
+            ->lockForUpdate()
+            ->exists()) {
+            throw new DomainException(
+                'La cámara conserva capacidad reservada para una inspección SAG activa.',
             );
         }
     }

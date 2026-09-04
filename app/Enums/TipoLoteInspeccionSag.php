@@ -36,4 +36,9 @@ enum TipoLoteInspeccionSag: string
     {
         return $this === self::InspeccionLinea;
     }
+
+    public function requierePreparacionFisica(): bool
+    {
+        return in_array($this, [self::MuestreoUsda, self::InspeccionOrigen], true);
+    }
 }

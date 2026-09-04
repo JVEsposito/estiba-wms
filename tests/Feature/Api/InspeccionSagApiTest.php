@@ -10,7 +10,10 @@ use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Enums\TipoEspacioPreparacionSag;
+use App\Exceptions\ConflictoOperacion;
 use App\Models\ArticuloValidacion;
+use App\Models\BandaOperacional;
 use App\Models\BloqueMercado;
 use App\Models\Camara;
 use App\Models\CategoriaValidacion;
@@ -24,11 +27,15 @@ use App\Models\EspecieValidacion;
 use App\Models\Folio;
 use App\Models\OrigenValidacion;
 use App\Models\Pais;
+use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Models\ValidacionPallet;
 use App\Models\VariedadValidacion;
+use App\Services\Camaras\ServicioBandasOperacionales;
+use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use App\Services\Existencias\ServicioExistencias;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -38,6 +45,218 @@ use Tests\TestCase;
 class InspeccionSagApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_preparacion_fisica_reserva_tramo_contiguo_idempotente_con_factor_uno_coma_cinco_en_nivel_uno(): void
+    {
+        $this->activarPlanificadorDirigido();
+        $administrador = $this->administradorConTemporada();
+        $folios = collect([
+            $this->crearFolioUbicado('SAG-PREP-001'),
+            $this->crearFolioUbicado('SAG-PREP-002'),
+            $this->crearFolioUbicado('SAG-PREP-003'),
+        ]);
+        $zona = $this->crearZonaInspeccion($administrador, posiciones: 5, niveles: 2);
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'tipo' => 'inspeccion_origen',
+            'folios' => $folios->pluck('id')->all(),
+            'destinos' => [['tipo' => 'pais', 'id' => $chile->id]],
+        ];
+
+        $primera = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/inspeccion-sag/lotes', $payload)
+            ->assertCreated()
+            ->assertJsonPath('preparacion_fisica.estado', 'programado')
+            ->assertJsonPath('preparacion_fisica.capacidad.factor_capacidad', 1.5)
+            ->assertJsonPath('preparacion_fisica.capacidad.nivel_reservado', 1)
+            ->assertJsonPath('preparacion_fisica.capacidad.espacios_requeridos', 5)
+            ->assertJsonPath('preparacion_fisica.capacidad.espacios_pallet', 3)
+            ->assertJsonPath('preparacion_fisica.capacidad.espacios_separacion', 2)
+            ->assertJsonPath('preparacion_fisica.capacidad.capacidad_estado', 'reservada')
+            ->json();
+
+        $segunda = $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/inspeccion-sag/lotes', $payload)
+            ->assertCreated()
+            ->json();
+
+        $this->assertSame($primera['id'], $segunda['id']);
+        $this->assertSame($primera['preparacion_fisica']['plan_id'], $segunda['preparacion_fisica']['plan_id']);
+        $this->assertDatabaseCount('planes_operacionales', 1);
+        $this->assertSame(5, ReservaPosicionInspeccionSag::query()->count());
+        $this->assertSame(5, ReservaPosicionInspeccionSag::query()->whereNotNull('clave_bloqueo')->count());
+        $this->assertSame(3, ReservaPosicionInspeccionSag::query()
+            ->where('tipo_espacio', TipoEspacioPreparacionSag::Pallet->value)
+            ->count());
+        $this->assertSame(2, ReservaPosicionInspeccionSag::query()
+            ->where('tipo_espacio', TipoEspacioPreparacionSag::Separacion->value)
+            ->count());
+        $this->assertSame(0, ReservaPosicionInspeccionSag::query()
+            ->whereHas('posicion', fn ($consulta) => $consulta->where('nivel', '>', 1))
+            ->count());
+        $this->assertSame(
+            range(1, 5),
+            ReservaPosicionInspeccionSag::query()
+                ->with('posicion')
+                ->orderBy('orden')
+                ->get()
+                ->pluck('posicion.posicion')
+                ->all(),
+        );
+        $this->assertSame($zona->id, $primera['preparacion_fisica']['capacidad']['sector']['camara_id']);
+
+        $banda = BandaOperacional::query()
+            ->where('camara_id', $zona->id)
+            ->where('numero', 1)
+            ->firstOrFail();
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/configuracion/camaras/{$zona->id}/bandas/{$banda->id}", [
+                'usos_permitidos' => ['transito_pt'],
+                'modo' => 'operativa',
+                'version' => $banda->version,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson("/api/configuracion/camaras/{$zona->id}", [
+                'nombre' => $zona->nombre,
+                'tipo' => 'almacenaje',
+                'contenido' => $zona->contenido->value,
+                'estado' => 'activa',
+                'bandas' => $zona->cantidad_bandas,
+                'posiciones_por_banda' => 4,
+                'niveles' => $zona->cantidad_niveles,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $reservaPallet = ReservaPosicionInspeccionSag::query()
+            ->where('tipo_espacio', TipoEspacioPreparacionSag::Pallet->value)
+            ->firstOrFail();
+        $reservaSeparacion = ReservaPosicionInspeccionSag::query()
+            ->where('tipo_espacio', TipoEspacioPreparacionSag::Separacion->value)
+            ->firstOrFail();
+        $reservasMovimientos = app(ServicioReservasTareasMovimiento::class);
+        $reservasMovimientos->validarDestinoManual(
+            $reservaPallet->posicion_id,
+            $folios->first()->numero_folio,
+        );
+
+        foreach ([
+            [$reservaSeparacion->posicion_id, $folios->first()->numero_folio],
+            [$reservaPallet->posicion_id, 'FOLIO-AJENO-A-SAG'],
+        ] as [$posicionId, $numeroFolio]) {
+            try {
+                $reservasMovimientos->validarDestinoManual($posicionId, $numeroFolio);
+                $this->fail('La reserva SAG debía impedir el uso ajeno de la posición.');
+            } catch (ConflictoOperacion $exception) {
+                $this->assertStringContainsString('inspección SAG', $exception->getMessage());
+            }
+        }
+    }
+
+    public function test_preparacion_completa_el_objetivo_al_iniciar_y_libera_capacidad_al_finalizar_o_cancelar(): void
+    {
+        $this->activarPlanificadorDirigido();
+        $administrador = $this->administradorConTemporada();
+        $this->crearZonaInspeccion($administrador, posiciones: 4);
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+        $folioFinalizado = $this->crearFolioUbicado('SAG-CIERRE-001');
+        $loteFinalizado = $this->crearLoteEnPreparacion(
+            $administrador,
+            [$folioFinalizado],
+            $chile,
+        );
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/inspeccion-sag/lotes/{$loteFinalizado['id']}/iniciar")
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'La inspección no puede comenzar hasta ubicar todos sus pallets en el sector SAG reservado.',
+            );
+        $destinoPreparacion = ReservaPosicionInspeccionSag::query()
+            ->where('lote_inspeccion_sag_id', $loteFinalizado['id'])
+            ->where('tipo_espacio', TipoEspacioPreparacionSag::Pallet->value)
+            ->with('posicion')
+            ->firstOrFail();
+        $folioFinalizado->ubicacionActual()->update([
+            'camara_id' => $destinoPreparacion->posicion->camara_id,
+            'posicion_id' => $destinoPreparacion->posicion_id,
+            'ubicado_at' => now(),
+        ]);
+
+        $iniciado = $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/inspeccion-sag/lotes/{$loteFinalizado['id']}/iniciar")
+            ->assertOk()
+            ->assertJsonPath('preparacion_fisica.estado', 'completado')
+            ->assertJsonPath('preparacion_fisica.capacidad.porcentaje_preparado', 100)
+            ->json();
+        $this->assertSame(2, ReservaPosicionInspeccionSag::query()->whereNotNull('clave_bloqueo')->count());
+
+        $resultadoId = $iniciado['folios'][0]['resultados'][0]['id'];
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/inspeccion-sag/lotes/{$loteFinalizado['id']}/resultados/{$resultadoId}/resolver", [
+                'resultado' => 'aprobado',
+            ])
+            ->assertOk();
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/inspeccion-sag/lotes/{$loteFinalizado['id']}/finalizar")
+            ->assertOk()
+            ->assertJsonPath('preparacion_fisica.estado', 'completado')
+            ->assertJsonPath('preparacion_fisica.capacidad.capacidad_estado', 'liberada')
+            ->assertJsonPath('preparacion_fisica.capacidad.espacios_reservados', 0);
+        $this->assertSame(0, ReservaPosicionInspeccionSag::query()->whereNotNull('clave_bloqueo')->count());
+        $this->assertSame(2, ReservaPosicionInspeccionSag::query()->whereNotNull('liberada_at')->count());
+
+        $folioCancelado = $this->crearFolioUbicado('SAG-CIERRE-002');
+        $loteCancelado = $this->crearLoteEnPreparacion(
+            $administrador,
+            [$folioCancelado],
+            $chile,
+        );
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/inspeccion-sag/lotes/{$loteCancelado['id']}/cancelar")
+            ->assertOk()
+            ->assertJsonPath('preparacion_fisica.estado', 'cancelado')
+            ->assertJsonPath('preparacion_fisica.capacidad.capacidad_estado', 'liberada');
+        $this->assertSame(0, ReservaPosicionInspeccionSag::query()->whereNotNull('clave_bloqueo')->count());
+    }
+
+    public function test_falta_de_tramo_no_inventa_ocupacion_ni_impide_crear_el_lote(): void
+    {
+        $this->activarPlanificadorDirigido();
+        $administrador = $this->administradorConTemporada();
+        $zona = $this->crearZonaInspeccion($administrador, posiciones: 3);
+        $bloqueador = $this->crearFolioUbicado('SAG-BLOQUEADOR-001');
+        $posicionIntermedia = Posicion::query()
+            ->where('camara_id', $zona->id)
+            ->where('banda', 1)
+            ->where('posicion', 2)
+            ->where('nivel', 1)
+            ->firstOrFail();
+        $bloqueador->ubicacionActual()->update([
+            'camara_id' => $zona->id,
+            'posicion_id' => $posicionIntermedia->id,
+            'ubicado_at' => now(),
+        ]);
+        $folio = $this->crearFolioUbicado('SAG-SIN-CAPACIDAD-001');
+        $chile = Pais::query()->where('iso_alpha2', 'CL')->firstOrFail();
+
+        $lote = $this->crearLoteEnPreparacion($administrador, [$folio], $chile);
+
+        $this->assertSame('pendiente', $lote['preparacion_fisica']['capacidad']['capacidad_estado']);
+        $this->assertSame(2, $lote['preparacion_fisica']['capacidad']['espacios_requeridos']);
+        $this->assertSame(0, $lote['preparacion_fisica']['capacidad']['espacios_reservados']);
+        $this->assertDatabaseCount('reservas_posiciones_inspeccion_sag', 0);
+        $this->assertDatabaseCount('ubicaciones_actuales', 2);
+        $this->assertSame(
+            'programado',
+            PlanOperacional::query()->findOrFail($lote['preparacion_fisica']['plan_id'])->estado->value,
+        );
+    }
 
     public function test_catalogo_contiene_todos_los_destinos_y_bloque_ue_con_fotografia_de_27_miembros(): void
     {
@@ -269,6 +488,72 @@ class InspeccionSagApiTest extends TestCase
             'pais_id' => $chile->id,
             'activa' => true,
         ]);
+    }
+
+    private function activarPlanificadorDirigido(): void
+    {
+        config()->set([
+            'planificador.generacion_automatica' => true,
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'rolling',
+        ]);
+    }
+
+    private function crearZonaInspeccion(
+        User $usuario,
+        int $posiciones,
+        int $niveles = 1,
+    ): Camara {
+        $camara = Camara::create([
+            'codigo' => 'CAM-INSPECCION',
+            'nombre' => 'Zona de inspección SAG',
+            'contenido' => ContenidoCamara::Productos,
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => $posiciones,
+            'cantidad_niveles' => $niveles,
+            'creado_por_user_id' => $usuario->id,
+            'actualizado_por_user_id' => $usuario->id,
+        ]);
+        app(ServicioBandasOperacionales::class)->sincronizar($camara, $usuario);
+        BandaOperacional::query()
+            ->where('camara_id', $camara->id)
+            ->where('numero', 1)
+            ->firstOrFail();
+
+        for ($nivel = 1; $nivel <= $niveles; $nivel++) {
+            for ($numero = 1; $numero <= $posiciones; $numero++) {
+                Posicion::create([
+                    'camara_id' => $camara->id,
+                    'banda' => 1,
+                    'posicion' => $numero,
+                    'nivel' => $nivel,
+                    'etiqueta' => sprintf('B01-P%02d-N%d', $numero, $nivel),
+                ]);
+            }
+        }
+
+        return $camara;
+    }
+
+    /**
+     * @param  array<int, Folio>  $folios
+     * @return array<string, mixed>
+     */
+    private function crearLoteEnPreparacion(
+        User $usuario,
+        array $folios,
+        Pais $destino,
+    ): array {
+        return $this->actingAs($usuario, 'sanctum')
+            ->postJson('/api/inspeccion-sag/lotes', [
+                'operacion_id' => (string) Str::uuid(),
+                'tipo' => 'inspeccion_origen',
+                'folios' => collect($folios)->pluck('id')->all(),
+                'destinos' => [['tipo' => 'pais', 'id' => $destino->id]],
+            ])
+            ->assertCreated()
+            ->json();
     }
 
     private function administradorConTemporada(): User

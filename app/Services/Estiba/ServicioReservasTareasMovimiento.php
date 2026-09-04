@@ -9,6 +9,7 @@ use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\ModoBandaOperacional;
+use App\Enums\TipoEspacioPreparacionSag;
 use App\Enums\TipoMovimiento;
 use App\Enums\UsoBandaOperacional;
 use App\Exceptions\ConflictoOperacion;
@@ -21,6 +22,7 @@ use App\Models\ManiobraOperacional;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\ReservaBandaManiobra;
+use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
@@ -32,8 +34,10 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioReservasTareasMovimiento
 {
-    public function validarDestinoManual(?string $posicionDestinoId): void
-    {
+    public function validarDestinoManual(
+        ?string $posicionDestinoId,
+        ?string $numeroFolio = null,
+    ): void {
         if (! $posicionDestinoId) {
             return;
         }
@@ -43,18 +47,20 @@ class ServicioReservasTareasMovimiento
             ->lockForUpdate()
             ->first();
 
-        if (! $reserva) {
-            return;
+        if ($reserva) {
+            if ($this->estaVencida($reserva)) {
+                $this->expirar($reserva);
+            } else {
+                throw new ConflictoOperacion(
+                    'La posición de destino se encuentra reservada por una tarea operacional.',
+                );
+            }
         }
-        if ($this->estaVencida($reserva)) {
-            $this->expirar($reserva);
 
-            return;
-        }
-
-        throw new ConflictoOperacion(
-            'La posición de destino se encuentra reservada por una tarea operacional.',
-        );
+        $folioId = $numeroFolio
+            ? Folio::query()->where('numero_folio', $numeroFolio)->value('id')
+            : null;
+        $this->validarReservaPreparacionSag($posicionDestinoId, $folioId);
     }
 
     public function asumir(
@@ -93,7 +99,10 @@ class ServicioReservasTareasMovimiento
             : null;
 
         if ($posicion) {
-            $this->validarDestinoSinConflicto($posicion->id);
+            $this->validarDestinoSinConflicto(
+                $posicion->id,
+                folioId: $tarea->folio_id,
+            );
         }
 
         $ahora = now();
@@ -182,7 +191,11 @@ class ServicioReservasTareasMovimiento
 
         $this->validarBandaOperacional($posicionBloqueada, $tareaBloqueada);
         $this->validarDestinoParaTipo($tareaBloqueada, $posicionBloqueada);
-        $this->validarDestinoSinConflicto($posicionBloqueada->id, $reserva->id);
+        $this->validarDestinoSinConflicto(
+            $posicionBloqueada->id,
+            $reserva->id,
+            $tareaBloqueada->folio_id,
+        );
 
         $destinoAnterior = $reserva->posicion_destino_id;
         if ($destinoAnterior && $destinoAnterior !== $posicionBloqueada->id) {
@@ -390,6 +403,9 @@ class ServicioReservasTareasMovimiento
                     'La posición de destino se encuentra reservada por otra tarea.',
                 );
             }
+            if ($posicionDestinoId) {
+                $this->validarReservaPreparacionSag($posicionDestinoId, $folio->id);
+            }
 
             return null;
         }
@@ -446,6 +462,9 @@ class ServicioReservasTareasMovimiento
         if ($posicionDestinoId && $reserva->bloqueo_posicion_id !== $posicionDestinoId) {
             throw new ConflictoOperacion('El destino físico no corresponde a la reserva materializada.');
         }
+        if ($posicionDestinoId) {
+            $this->validarReservaPreparacionSag($posicionDestinoId, $folio->id);
+        }
 
         return $tareaBloqueada;
     }
@@ -464,6 +483,12 @@ class ServicioReservasTareasMovimiento
                 && $this->reservaActivaDestino($movimiento->posicion_destino_id)) {
                 throw new ConflictoOperacion(
                     'La posición de destino se encuentra reservada por una tarea operacional.',
+                );
+            }
+            if ($movimiento->posicion_destino_id) {
+                $this->validarReservaPreparacionSag(
+                    $movimiento->posicion_destino_id,
+                    $movimiento->folio_id,
                 );
             }
 
@@ -494,6 +519,12 @@ class ServicioReservasTareasMovimiento
             $movimiento->posicion_origen_id,
             $movimiento->posicion_destino_id,
         );
+        if ($movimiento->posicion_destino_id) {
+            $this->validarReservaPreparacionSag(
+                $movimiento->posicion_destino_id,
+                $movimiento->folio_id,
+            );
+        }
     }
 
     public function completar(TareaMovimiento $tarea, Movimiento $movimiento): void
@@ -742,8 +773,11 @@ class ServicioReservasTareasMovimiento
         }
     }
 
-    private function validarDestinoSinConflicto(string $posicionId, ?string $reservaPropiaId = null): void
-    {
+    private function validarDestinoSinConflicto(
+        string $posicionId,
+        ?string $reservaPropiaId = null,
+        ?string $folioId = null,
+    ): void {
         $reservaDestino = ReservaTareaMovimiento::query()
             ->where('bloqueo_posicion_id', $posicionId)
             ->lockForUpdate()
@@ -756,6 +790,34 @@ class ServicioReservasTareasMovimiento
         if ($reservaDestino && $reservaDestino->id !== $reservaPropiaId) {
             throw new ConflictoOperacion('La posición de destino ya fue reservada por otra tarea.');
         }
+
+        $this->validarReservaPreparacionSag($posicionId, $folioId);
+    }
+
+    private function validarReservaPreparacionSag(
+        string $posicionId,
+        ?string $folioId,
+    ): void {
+        $reserva = ReservaPosicionInspeccionSag::query()
+            ->where('clave_bloqueo', $posicionId)
+            ->lockForUpdate()
+            ->first();
+        if (! $reserva) {
+            return;
+        }
+
+        $perteneceAlLote = $folioId !== null
+            && $reserva->tipo_espacio === TipoEspacioPreparacionSag::Pallet
+            && $reserva->lote()
+                ->whereHas('folios', fn ($consulta) => $consulta->where('folio_id', $folioId))
+                ->exists();
+        if ($perteneceAlLote) {
+            return;
+        }
+
+        throw new ConflictoOperacion(
+            'La posición está reservada para la preparación de una inspección SAG.',
+        );
     }
 
     private function validarPropietario(

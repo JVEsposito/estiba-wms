@@ -58,6 +58,11 @@ class Posicion extends Model
         return $this->hasOne(ReservaTareaMovimiento::class, 'bloqueo_posicion_id');
     }
 
+    public function reservaPreparacionSagActiva(): HasOne
+    {
+        return $this->hasOne(ReservaPosicionInspeccionSag::class, 'clave_bloqueo');
+    }
+
     protected function casts(): array
     {
         return [
