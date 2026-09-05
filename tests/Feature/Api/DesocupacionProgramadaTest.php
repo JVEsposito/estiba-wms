@@ -92,7 +92,7 @@ class DesocupacionProgramadaTest extends TestCase
             ->postJson("/api/desocupaciones-camara/{$contexto['origen']->id}", [
                 'motivo' => 'Apagado programado por mantención.',
             ])
-            ->assertOk()
+            ->assertCreated()
             ->assertJsonPath('data.tipo', TipoPlanOperacional::DesocupacionCamara->value)
             ->assertJsonPath('data.prioridad', PrioridadOperacional::Alta->value)
             ->assertJsonPath('data.contexto.estado_desocupacion', 'publicada')
