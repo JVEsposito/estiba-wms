@@ -37,6 +37,7 @@ use App\Observers\AuditarCambioTransicionOperacionalObserver;
 use App\Observers\EventoCargaObserver;
 use App\Observers\InvalidarBandejasOperacionalesObserver;
 use App\Observers\InvalidarPanelGerencialObserver;
+use App\Observers\ReplanificarDesocupacionMovimientoObserver;
 use App\Observers\ReplanificarOportunidadReordenamientoObserver;
 use App\Observers\ReplanificarSegregacionMovimientoObserver;
 use App\Observers\UbicacionActualObserver;
@@ -92,6 +93,7 @@ class AppServiceProvider extends ServiceProvider
         UbicacionActual::observe(UbicacionActualObserver::class);
         Movimiento::observe(ReplanificarSegregacionMovimientoObserver::class);
         Movimiento::observe(ReplanificarOportunidadReordenamientoObserver::class);
+        Movimiento::observe(ReplanificarDesocupacionMovimientoObserver::class);
         foreach ([
             Folio::class,
             UbicacionActual::class,
