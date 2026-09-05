@@ -669,6 +669,8 @@ class ServicioReservasTareasMovimiento
         Posicion $posicion,
         ?TareaMovimiento $tarea = null,
     ): void {
+        $usoRequerido = $tarea?->contexto['uso_banda_destino']
+            ?? UsoBandaOperacional::TransitoProductoTerminado->value;
         $banda = BandaOperacional::query()
             ->where('camara_id', $posicion->camara_id)
             ->where('numero', $posicion->banda)
@@ -677,12 +679,14 @@ class ServicioReservasTareasMovimiento
         if (! $banda
             || $banda->modo !== ModoBandaOperacional::Operativa
             || ! in_array(
-                UsoBandaOperacional::TransitoProductoTerminado->value,
+                $usoRequerido,
                 $banda->usos_permitidos ?? [],
                 true,
             )) {
             throw new ConflictoOperacion(
-                'La banda propuesta no admite nuevos ingresos de producto terminado.',
+                $usoRequerido === UsoBandaOperacional::TransitoProductoTerminado->value
+                    ? 'La banda propuesta no admite nuevos ingresos de producto terminado.'
+                    : 'La banda propuesta no admite el uso requerido por la tarea.',
             );
         }
 

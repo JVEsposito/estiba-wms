@@ -139,6 +139,16 @@ class Folio extends Model
         return $this->hasMany(RegistroHabilitacionAlmacenamiento::class);
     }
 
+    public function retencionesOperacionales(): HasMany
+    {
+        return $this->hasMany(RetencionOperacionalFolio::class);
+    }
+
+    public function retencionOperacionalActiva(): HasOne
+    {
+        return $this->hasOne(RetencionOperacionalFolio::class, 'bloqueo_folio_id');
+    }
+
     public function habilitadoAlmacenamientoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'habilitado_almacenamiento_por_user_id');

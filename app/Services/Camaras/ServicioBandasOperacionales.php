@@ -4,12 +4,17 @@ namespace App\Services\Camaras;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoPosicion;
+use App\Enums\EstadoTareaMovimiento;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\ModoBandaOperacional;
+use App\Enums\TipoPlanOperacional;
 use App\Enums\UsoBandaOperacional;
 use App\Models\BandaOperacional;
 use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\ReservaPosicionInspeccionSag;
+use App\Models\TareaMovimiento;
+use App\Models\UbicacionActual;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -86,6 +91,8 @@ class ServicioBandasOperacionales
             $modo = ModoBandaOperacional::from($datos['modo']);
             $retiraDisponibilidadInspeccion = $modo !== ModoBandaOperacional::Operativa
                 || ! in_array(UsoBandaOperacional::Inspeccion->value, $usos, true);
+            $retiraDisponibilidadRetenidos = $modo !== ModoBandaOperacional::Operativa
+                || ! in_array(UsoBandaOperacional::Retenidos->value, $usos, true);
 
             if ($retiraDisponibilidadInspeccion
                 && ReservaPosicionInspeccionSag::query()
@@ -97,6 +104,35 @@ class ServicioBandasOperacionales
                     ->exists()) {
                 throw new DomainException(
                     'La banda conserva capacidad reservada para una inspección SAG activa.',
+                );
+            }
+
+            if ($retiraDisponibilidadRetenidos
+                && (UbicacionActual::query()
+                    ->whereHas('folio', fn ($consulta) => $consulta
+                        ->where('habilitacion_almacenamiento',
+                            HabilitacionAlmacenamientoFolio::Retenido->value))
+                    ->whereHas('posicion', fn ($consulta) => $consulta
+                        ->where('camara_id', $camaraBloqueada->id)
+                        ->where('banda', $bandaBloqueada->numero))
+                    ->lockForUpdate()
+                    ->exists()
+                    || TareaMovimiento::query()
+                        ->whereIn('estado', [
+                            EstadoTareaMovimiento::Bloqueada->value,
+                            EstadoTareaMovimiento::Pendiente->value,
+                            EstadoTareaMovimiento::Asumida->value,
+                            EstadoTareaMovimiento::EnProceso->value,
+                        ])
+                        ->whereHas('planOperacional', fn ($consulta) => $consulta
+                            ->where('tipo', TipoPlanOperacional::SegregacionRetenido->value))
+                        ->whereHas('posicionDestino', fn ($consulta) => $consulta
+                            ->where('camara_id', $camaraBloqueada->id)
+                            ->where('banda', $bandaBloqueada->numero))
+                        ->lockForUpdate()
+                        ->exists())) {
+                throw new DomainException(
+                    'La banda conserva pallets o maniobras activas de producto retenido.',
                 );
             }
 

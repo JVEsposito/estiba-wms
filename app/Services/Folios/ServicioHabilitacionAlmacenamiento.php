@@ -11,10 +11,16 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\RegistroHabilitacionAlmacenamiento;
 use App\Models\User;
+use App\Services\Retenciones\ServicioRetencionesOperacionales;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 
 class ServicioHabilitacionAlmacenamiento
 {
+    public function __construct(
+        private readonly ServicioRetencionesOperacionales $retenciones,
+    ) {}
+
     public function prepararFolioManual(
         Folio $folio,
         ?User $usuario = null,
@@ -68,37 +74,55 @@ class ServicioHabilitacionAlmacenamiento
         ?string $referenciaOrigen = null,
         ?string $observacion = null,
     ): Folio {
-        $this->validarProducto($folio);
-
-        $cambios = [
-            'condicion_termica' => $condicion,
-            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
-            'fuente_habilitacion_almacenamiento' => $fuente,
-            'habilitado_almacenamiento_at' => now(),
-            'habilitado_almacenamiento_por_user_id' => $usuario->id,
-            'retencion_termica_motivo' => null,
-        ];
-
-        if ($condicion === CondicionTermicaFolio::PrefrioAprobado) {
-            $cambios['estado_operacional'] = $folio->ubicacionActual()->exists()
-                ? EstadoOperacionalFolio::Disponible
-                : EstadoOperacionalFolio::PendienteUbicacion;
-        }
-
-        $folio->update($cambios);
-
-        $this->registrar(
+        return DB::transaction(function () use (
             $folio,
-            HabilitacionAlmacenamientoFolio::Habilitado,
+            $condicion,
+            $fuente,
             $usuario,
             $dispositivo,
             $procesoOrigen,
             $referenciaOrigen,
-            'Habilitación de almacenamiento otorgada.',
             $observacion,
-        );
+        ): Folio {
+            $folio = Folio::query()->lockForUpdate()->findOrFail($folio->id);
+            $this->validarProducto($folio);
+            $teniaRetencion = $folio->habilitacion_almacenamiento
+                === HabilitacionAlmacenamientoFolio::Retenido
+                || $folio->retencionOperacionalActiva()->exists();
 
-        return $folio->refresh();
+            $cambios = [
+                'condicion_termica' => $condicion,
+                'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+                'fuente_habilitacion_almacenamiento' => $fuente,
+                'habilitado_almacenamiento_at' => now(),
+                'habilitado_almacenamiento_por_user_id' => $usuario->id,
+                'retencion_termica_motivo' => null,
+            ];
+
+            if ($condicion === CondicionTermicaFolio::PrefrioAprobado) {
+                $cambios['estado_operacional'] = $folio->ubicacionActual()->exists()
+                    ? EstadoOperacionalFolio::Disponible
+                    : EstadoOperacionalFolio::PendienteUbicacion;
+            }
+
+            $folio->update($cambios);
+            $this->registrar(
+                $folio,
+                HabilitacionAlmacenamientoFolio::Habilitado,
+                $usuario,
+                $dispositivo,
+                $procesoOrigen,
+                $referenciaOrigen,
+                'Habilitación de almacenamiento otorgada.',
+                $observacion,
+            );
+
+            if ($teniaRetencion) {
+                $this->retenciones->liberar($folio->refresh(), $usuario);
+            }
+
+            return $folio->refresh();
+        }, attempts: 3);
     }
 
     public function retener(
@@ -110,29 +134,50 @@ class ServicioHabilitacionAlmacenamiento
         ?string $procesoOrigen = null,
         ?string $referenciaOrigen = null,
     ): Folio {
-        $this->validarProducto($folio);
-
-        $folio->update([
-            'condicion_termica' => $condicion,
-            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Retenido,
-            'fuente_habilitacion_almacenamiento' => null,
-            'habilitado_almacenamiento_at' => null,
-            'habilitado_almacenamiento_por_user_id' => null,
-            'retencion_termica_motivo' => trim($motivo),
-            'estado_operacional' => EstadoOperacionalFolio::Bloqueado,
-        ]);
-
-        $this->registrar(
+        return DB::transaction(function () use (
             $folio,
-            HabilitacionAlmacenamientoFolio::Retenido,
+            $condicion,
+            $motivo,
             $usuario,
             $dispositivo,
             $procesoOrigen,
             $referenciaOrigen,
-            trim($motivo),
-        );
+        ): Folio {
+            $folio = Folio::query()->lockForUpdate()->findOrFail($folio->id);
+            $this->validarProducto($folio);
+            $estadoAnterior = [
+                'estado_operacional' => $folio->estado_operacional,
+                'condicion_termica' => $folio->condicion_termica,
+                'habilitacion_almacenamiento' => $folio->habilitacion_almacenamiento,
+            ];
 
-        return $folio->refresh();
+            $folio->update([
+                'condicion_termica' => $condicion,
+                'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Retenido,
+                'fuente_habilitacion_almacenamiento' => null,
+                'habilitado_almacenamiento_at' => null,
+                'habilitado_almacenamiento_por_user_id' => null,
+                'retencion_termica_motivo' => trim($motivo),
+                'estado_operacional' => EstadoOperacionalFolio::Bloqueado,
+            ]);
+            $this->registrar(
+                $folio,
+                HabilitacionAlmacenamientoFolio::Retenido,
+                $usuario,
+                $dispositivo,
+                $procesoOrigen,
+                $referenciaOrigen,
+                trim($motivo),
+            );
+            $this->retenciones->activar(
+                $folio->refresh(),
+                $estadoAnterior,
+                $motivo,
+                $usuario,
+            );
+
+            return $folio->refresh();
+        }, attempts: 3);
     }
 
     public function marcarEnProceso(
@@ -201,6 +246,20 @@ class ServicioHabilitacionAlmacenamiento
             CondicionTermicaFolio::Retenido,
         ], true)) {
             throw new DomainException('La condición térmica del folio no permite su ingreso a cámara.');
+        }
+    }
+
+    public function validarIngresoCamaraRetenido(Folio $folio): void
+    {
+        $this->validarProducto($folio);
+
+        if (! $folio->activo
+            || $folio->estado_operacional !== EstadoOperacionalFolio::Bloqueado
+            || $folio->habilitacion_almacenamiento
+                !== HabilitacionAlmacenamientoFolio::Retenido) {
+            throw new DomainException(
+                'Solo una segregación dirigida puede ingresar un pallet retenido a cámara.',
+            );
         }
     }
 

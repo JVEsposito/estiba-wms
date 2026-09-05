@@ -334,7 +334,13 @@ class ServicioManiobrasOperacionales
 
         $usuario = User::query()->findOrFail($maniobra->responsable_user_id);
         $dispositivo = Dispositivo::query()->findOrFail($maniobra->dispositivo_id);
-        $this->reservas->asumir($siguiente->refresh(), $usuario, $dispositivo);
+        $siguiente = $siguiente->refresh();
+        $this->reservas->asumir($siguiente, $usuario, $dispositivo);
+        $this->materializarDestinoPrecalculado(
+            $siguiente->refresh(),
+            $usuario,
+            $dispositivo,
+        );
     }
 
     public function reportarDiscrepancia(

@@ -7,8 +7,11 @@ use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoSesionEstiba;
+use App\Enums\EstadoTareaMovimiento;
+use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPlanOperacional;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
 use App\Models\Camara;
@@ -18,6 +21,7 @@ use App\Models\Movimiento;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
@@ -138,6 +142,10 @@ class ValidadorMovimiento
             throw new DomainException('El folio no se encuentra disponible para movimientos.');
         }
 
+        if ($this->esMovimientoRetenidoAutorizado($movimiento, $folio)) {
+            return;
+        }
+
         if ($tipo === TipoMovimiento::UbicacionInicial) {
             $this->habilitacion->validarUbicacionInicial($folio);
 
@@ -148,6 +156,34 @@ class ValidadorMovimiento
             || $folio->estado_operacional !== EstadoOperacionalFolio::Disponible) {
             throw new DomainException('El folio no se encuentra disponible para movimientos.');
         }
+    }
+
+    private function esMovimientoRetenidoAutorizado(
+        Movimiento $movimiento,
+        Folio $folio,
+    ): bool {
+        if (! $folio->activo
+            || $folio->estado_operacional !== EstadoOperacionalFolio::Bloqueado
+            || $folio->habilitacion_almacenamiento
+                !== HabilitacionAlmacenamientoFolio::Retenido
+            || ! $movimiento->tarea_movimiento_id) {
+            return false;
+        }
+
+        $tarea = TareaMovimiento::query()
+            ->with('planOperacional')
+            ->find($movimiento->tarea_movimiento_id);
+        if (! $tarea
+            || $tarea->folio_id !== $folio->id
+            || $tarea->estado !== EstadoTareaMovimiento::EnProceso) {
+            return false;
+        }
+
+        // Una labor que ya cruzó el punto de no retorno puede terminar antes de
+        // que la retención la replanifique. Las nuevas labores solo se admiten
+        // cuando pertenecen al objetivo crítico de segregación.
+        return $tarea->planOperacional?->tipo === TipoPlanOperacional::SegregacionRetenido
+            || $tarea->iniciada_at?->lte($folio->updated_at) === true;
     }
 
     private function validarEstructura(Movimiento $movimiento, TipoMovimiento $tipo): void
