@@ -20,7 +20,6 @@ use App\Enums\UsoBandaOperacional;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\BandaOperacional;
 use App\Models\Folio;
-use App\Models\ManiobraOperacional;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\RetencionOperacionalFolio;
