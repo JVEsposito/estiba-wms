@@ -24,10 +24,14 @@ class UbicacionActualObserver
             ->with('tareaMovimiento.planOperacional')
             ->first();
         $tarea = $movimiento?->tareaMovimiento;
-        $esSegregacionRetenido = $tarea?->planOperacional?->tipo
+        $esFolioRetenido = $folio->habilitacion_almacenamiento
+            === HabilitacionAlmacenamientoFolio::Retenido;
+        $esSegregacionRetenido = $esFolioRetenido
+            && $tarea?->planOperacional?->tipo
             === TipoPlanOperacional::SegregacionRetenido
             && ($tarea->contexto['folio_objetivo_retenido'] ?? false) === true;
-        $esTareaPreviaEnCurso = $tarea?->estado === EstadoTareaMovimiento::EnProceso
+        $esTareaPreviaEnCurso = $esFolioRetenido
+            && $tarea?->estado === EstadoTareaMovimiento::EnProceso
             && $tarea->iniciada_at?->lte($folio->updated_at) === true;
 
         ($esSegregacionRetenido || $esTareaPreviaEnCurso)

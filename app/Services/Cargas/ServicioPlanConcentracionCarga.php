@@ -1125,6 +1125,7 @@ class ServicioPlanConcentracionCarga
             'tipo' => TipoEventoCarga::TareasGeneradas,
             'datos' => [
                 'planner_mode' => 'shadow',
+                'planner_compute' => config('planificador.compute'),
                 'objetivo' => 'concentracion_carga',
                 'porcentaje_actual' => $analisis['porcentaje'],
                 'umbral_porcentaje' => CalculadorConcentracionCarga::UMBRAL_PORCENTAJE,
