@@ -3,9 +3,9 @@
 namespace App\Services\Camaras;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoPosicion;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
-use App\Enums\EstadoPosicion;
 use App\Enums\ModoBandaOperacional;
 use App\Enums\TipoPlanOperacional;
 use App\Enums\UsoBandaOperacional;

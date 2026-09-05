@@ -318,7 +318,7 @@ class ServicioPlanSegregacionRetenidos
     }
 
     /**
-     * @param Collection<int, UbicacionActual> $bloqueadores
+     * @param  Collection<int, UbicacionActual>  $bloqueadores
      * @return array<string, mixed>
      */
     private function candidato(
