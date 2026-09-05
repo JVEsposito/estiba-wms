@@ -21,7 +21,6 @@ use App\Enums\TipoBulto;
 use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Enums\UsoBandaOperacional;
-use App\Models\BandaOperacional;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
