@@ -6,6 +6,7 @@ use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoTareaMovimiento;
+use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
