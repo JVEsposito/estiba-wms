@@ -47,6 +47,7 @@ use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class ControlEvacuacionEmergenciaTest extends TestCase
@@ -512,6 +513,77 @@ class ControlEvacuacionEmergenciaTest extends TestCase
         $this->assertTrue($contexto['emergencia']->bandasOperacionales()
             ->get()
             ->every(fn ($banda): bool => $banda->modo !== ModoBandaOperacional::Operativa));
+    }
+
+    #[DataProvider('cierresDeCiclo')]
+    public function test_nueva_emergencia_conserva_el_historial_y_cancela_solo_el_ciclo_vigente(string $cierre): void
+    {
+        $this->freezeTime();
+        $contexto = $this->crearContexto();
+        $camara = $contexto['emergencia'];
+        $usuario = $contexto['supervisor'];
+        $servicio = app(ServicioControlEvacuacionEmergencia::class);
+        $this->ubicar($contexto, $camara, 1, 1, 'PAL-263-EMERGENCIA-1');
+        $anterior = $servicio->declarar($camara, $usuario, 'Primer incidente.');
+
+        if ($cierre === 'completado') {
+            [$operador, $dispositivo] = $this->crearOperador();
+            $sesiones = app(ServicioSesionEstiba::class);
+            $origen = $sesiones->abrir($camara, $operador, $dispositivo);
+            $destino = $sesiones->abrir($contexto['otra'], $operador, $dispositivo);
+            $this->ejecutarSiguiente($anterior, $operador, $dispositivo, $origen, $destino);
+            $sesiones->cerrar($origen, $operador);
+            $sesiones->cerrar($destino, $operador);
+            foreach ($camara->bandasOperacionales()->get() as $banda) {
+                app(ServicioBandasOperacionales::class)->configurar($camara, $banda, [
+                    'modo' => 'operativa',
+                    'usos_permitidos' => $banda->usos_permitidos,
+                    'version' => $banda->version,
+                ], $usuario);
+            }
+            $this->ubicar($contexto, $camara, 1, 1, 'PAL-263-EMERGENCIA-2');
+        } else {
+            $servicio->cancelar($camara, $usuario, 'Primer incidente resuelto antes de mover.');
+        }
+
+        $this->assertSame($cierre, $anterior->refresh()->estado->value);
+        $historial = $anterior->getAttributes();
+        $tareas = $anterior->tareas()->get()->map->getAttributes()->all();
+        $maniobras = $anterior->maniobras()->get()->map->getAttributes()->all();
+        $movimientos = $anterior->movimientos()->pluck('id')->all();
+        $nuevo = $servicio->declarar($camara, $usuario, 'Segundo incidente.');
+
+        $this->assertNotSame($anterior->id, $nuevo->id);
+        $this->assertSame(1, $anterior->ciclo_referencia);
+        $this->assertSame(2, $nuevo->ciclo_referencia);
+        $this->assertSame('Segundo incidente.', $nuevo->motivo);
+        $this->assertSame($nuevo->id, $servicio->declarar($camara, $usuario, 'Aviso repetido.')->id);
+        $this->assertSame(2, PlanOperacional::query()
+            ->where('referencia_tipo', ServicioControlEvacuacionEmergencia::REFERENCIA)
+            ->where('referencia_id', $camara->id)->count());
+        $this->assertSame(1, $nuevo->tareas()->count());
+        $this->assertSame(1, $nuevo->maniobras()->count());
+        $this->assertSame(0, $nuevo->movimientos()->count());
+
+        $this->withToken($contexto['token'])
+            ->postJson("/api/evacuaciones-emergencia/{$camara->id}/cancelar", [
+                'motivo' => 'Cancelar únicamente el segundo incidente.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $nuevo->id)
+            ->assertJsonPath('data.estado', 'cancelado');
+        $this->assertSame($historial, $anterior->refresh()->getAttributes());
+        $this->assertSame($tareas, $anterior->tareas()->get()->map->getAttributes()->all());
+        $this->assertSame($maniobras, $anterior->maniobras()->get()->map->getAttributes()->all());
+        $this->assertSame($movimientos, $anterior->movimientos()->pluck('id')->all());
+    }
+
+    public static function cierresDeCiclo(): array
+    {
+        return [
+            'tras completar' => ['completado'],
+            'tras cancelar' => ['cancelado'],
+        ];
     }
 
     public function test_descarta_bandas_con_retencion_o_inspeccion_sag_activa(): void

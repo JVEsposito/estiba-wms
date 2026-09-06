@@ -104,41 +104,20 @@ class ServicioDesocupacionProgramada
             $total = UbicacionActual::query()->where('camara_id', $camara->id)->count();
             $contexto = $this->contextoBase($camara, $total, $motivo);
 
-            if ($existente) {
-                $existente->update([
-                    'temporada_id' => $temporada->id,
-                    'estado' => EstadoPlanOperacional::Programado,
-                    'prioridad' => PrioridadOperacional::Alta,
-                    'titulo' => "Desocupar {$camara->codigo}",
-                    'motivo' => $motivo,
-                    'contexto' => $contexto,
-                    'creado_por_user_id' => $usuario->id,
-                    'iniciado_por_user_id' => null,
-                    'completado_por_user_id' => null,
-                    'cancelado_por_user_id' => null,
-                    'programado_at' => now(),
-                    'iniciado_at' => null,
-                    'completado_at' => null,
-                    'cancelado_at' => null,
-                    'motivo_cancelacion' => null,
-                    'version' => $existente->version + 1,
-                ]);
-                $plan = $existente->refresh();
-            } else {
-                $plan = PlanOperacional::create([
-                    'temporada_id' => $temporada->id,
-                    'tipo' => TipoPlanOperacional::DesocupacionCamara,
-                    'estado' => EstadoPlanOperacional::Programado,
-                    'prioridad' => PrioridadOperacional::Alta,
-                    'titulo' => "Desocupar {$camara->codigo}",
-                    'motivo' => $motivo,
-                    'referencia_tipo' => self::REFERENCIA,
-                    'referencia_id' => $camara->id,
-                    'contexto' => $contexto,
-                    'creado_por_user_id' => $usuario->id,
-                    'programado_at' => now(),
-                ]);
-            }
+            $plan = PlanOperacional::create([
+                'temporada_id' => $temporada->id,
+                'tipo' => TipoPlanOperacional::DesocupacionCamara,
+                'estado' => EstadoPlanOperacional::Programado,
+                'prioridad' => PrioridadOperacional::Alta,
+                'titulo' => "Desocupar {$camara->codigo}",
+                'motivo' => $motivo,
+                'referencia_tipo' => self::REFERENCIA,
+                'referencia_id' => $camara->id,
+                'ciclo_referencia' => ($existente?->ciclo_referencia ?? 0) + 1,
+                'contexto' => $contexto,
+                'creado_por_user_id' => $usuario->id,
+                'programado_at' => now(),
+            ]);
 
             if ($modo === 'shadow') {
                 $this->actualizarContexto($plan, [
@@ -1088,7 +1067,8 @@ class ServicioDesocupacionProgramada
     {
         $consulta = PlanOperacional::query()
             ->where('referencia_tipo', self::REFERENCIA)
-            ->where('referencia_id', $camaraId);
+            ->where('referencia_id', $camaraId)
+            ->orderByDesc('ciclo_referencia');
 
         return ($bloquear ? $consulta->lockForUpdate() : $consulta)->first();
     }
@@ -1115,7 +1095,7 @@ class ServicioDesocupacionProgramada
                 EstadoPlanOperacional::Completado->value,
                 EstadoPlanOperacional::Cancelado->value,
             ])
-            ->latest('created_at')
+            ->orderByDesc('ciclo_referencia')
             ->first();
     }
 

@@ -42,6 +42,7 @@ use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class DesocupacionProgramadaTest extends TestCase
@@ -152,6 +153,77 @@ class DesocupacionProgramadaTest extends TestCase
             ModoBandaOperacional::EnVaciado,
             $contexto['origen']->bandasOperacionales()->sole()->modo,
         );
+    }
+
+    #[DataProvider('cierresDeCiclo')]
+    public function test_nuevo_ciclo_conserva_el_historial_y_opera_solo_el_plan_vigente(string $cierre): void
+    {
+        $this->freezeTime();
+        $contexto = $this->crearContexto();
+        $camara = $contexto['origen'];
+        $usuario = $contexto['supervisor'];
+        $servicio = app(ServicioDesocupacionProgramada::class);
+        $this->ubicar($contexto, $camara, 1, 'PAL-263-DESOCUPACION-1');
+        $anterior = $servicio->iniciar($camara, $usuario, 'Primera mantención.');
+
+        if ($cierre === 'completado') {
+            [$operador, $dispositivo] = $this->crearOperador();
+            $sesiones = app(ServicioSesionEstiba::class);
+            $origen = $sesiones->abrir($camara, $operador, $dispositivo);
+            $destino = $sesiones->abrir($contexto['destino'], $operador, $dispositivo);
+            $this->ejecutarSiguiente($anterior, $operador, $dispositivo, $origen, $destino);
+            $sesiones->cerrar($origen, $operador);
+            $sesiones->cerrar($destino, $operador);
+            $banda = $camara->bandasOperacionales()->sole();
+            app(ServicioBandasOperacionales::class)->configurar($camara, $banda, [
+                'modo' => 'operativa',
+                'usos_permitidos' => $banda->usos_permitidos,
+                'version' => $banda->version,
+            ], $usuario);
+            $this->ubicar($contexto, $camara, 1, 'PAL-263-DESOCUPACION-2');
+        } else {
+            $servicio->cancelar($camara, $usuario, 'Mantención postergada.');
+        }
+
+        $this->assertSame($cierre, $anterior->refresh()->estado->value);
+        $historial = $anterior->getAttributes();
+        $tareas = $anterior->tareas()->get()->map->getAttributes()->all();
+        $maniobras = $anterior->maniobras()->get()->map->getAttributes()->all();
+        $movimientos = $anterior->movimientos()->pluck('id')->all();
+        $nuevo = $servicio->iniciar($camara, $usuario, 'Segunda mantención.');
+
+        $this->assertNotSame($anterior->id, $nuevo->id);
+        $this->assertSame(1, $anterior->ciclo_referencia);
+        $this->assertSame(2, $nuevo->ciclo_referencia);
+        $this->assertSame('Segunda mantención.', $nuevo->motivo);
+        $this->assertSame($nuevo->id, $servicio->iniciar($camara, $usuario, 'Aviso repetido.')->id);
+        $this->assertSame($nuevo->id, $servicio->sincronizar($camara, $usuario)->id);
+        $this->assertSame(2, PlanOperacional::query()
+            ->where('referencia_tipo', ServicioDesocupacionProgramada::REFERENCIA)
+            ->where('referencia_id', $camara->id)->count());
+        $this->assertSame(1, $nuevo->tareas()->count());
+        $this->assertSame(1, $nuevo->maniobras()->count());
+        $this->assertSame(0, $nuevo->movimientos()->count());
+
+        $this->actingAs($usuario, 'sanctum')
+            ->postJson("/api/desocupaciones-camara/{$camara->id}/cancelar", [
+                'motivo' => 'Cancelar únicamente la segunda mantención.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.id', $nuevo->id)
+            ->assertJsonPath('data.estado', 'cancelado');
+        $this->assertSame($historial, $anterior->refresh()->getAttributes());
+        $this->assertSame($tareas, $anterior->tareas()->get()->map->getAttributes()->all());
+        $this->assertSame($maniobras, $anterior->maniobras()->get()->map->getAttributes()->all());
+        $this->assertSame($movimientos, $anterior->movimientos()->pluck('id')->all());
+    }
+
+    public static function cierresDeCiclo(): array
+    {
+        return [
+            'tras completar' => ['completado'],
+            'tras cancelar' => ['cancelado'],
+        ];
     }
 
     public function test_sin_destino_compatible_conserva_el_objetivo_sin_publicar_trabajo_incompleto(): void

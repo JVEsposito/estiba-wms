@@ -69,6 +69,7 @@ class ServicioControlEvacuacionEmergencia
             if ($existente) {
                 return $existente;
             }
+            $ultimo = $this->ultimoPlan($camara->id, bloquear: true);
 
             $temporada = Temporada::query()
                 ->where('activa', true)
@@ -95,6 +96,7 @@ class ServicioControlEvacuacionEmergencia
                 'motivo' => $motivo,
                 'referencia_tipo' => self::REFERENCIA,
                 'referencia_id' => $camara->id,
+                'ciclo_referencia' => ($ultimo?->ciclo_referencia ?? 0) + 1,
                 'creado_por_user_id' => $usuario->id,
                 'iniciado_por_user_id' => $modo === 'guided'
                     ? $usuario->id
@@ -455,7 +457,7 @@ class ServicioControlEvacuacionEmergencia
                 EstadoPlanOperacional::Completado->value,
                 EstadoPlanOperacional::Cancelado->value,
             ])
-            ->latest('created_at');
+            ->orderByDesc('ciclo_referencia');
 
         return ($bloquear ? $consulta->lockForUpdate() : $consulta)->first();
     }
@@ -466,7 +468,7 @@ class ServicioControlEvacuacionEmergencia
             ->where('tipo', TipoPlanOperacional::EvacuacionEmergencia->value)
             ->where('referencia_tipo', self::REFERENCIA)
             ->where('referencia_id', $camaraId)
-            ->latest('created_at');
+            ->orderByDesc('ciclo_referencia');
 
         return ($bloquear ? $consulta->lockForUpdate() : $consulta)->first();
     }
