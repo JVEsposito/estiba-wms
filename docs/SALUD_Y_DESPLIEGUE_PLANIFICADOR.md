@@ -12,6 +12,10 @@ WMS_PLANIFICADOR_AUTOMATICO=true
 WMS_PLANNER_ROLLOUT_CAMERAS=CAM-01
 ```
 
+Una emergencia solo dirige y bloquea la cámara cuando `guided` coincide con
+generación automática, cálculo `tablet` y horizonte `rolling`. Una combinación
+incompleta se rechaza antes de crear el plan o modificar labores y bandas.
+
 `WMS_PLANNER_ROLLOUT_CAMERAS` admite UUID o códigos separados por coma. Si la
 lista está vacía, se conserva el comportamiento global anterior. Si contiene
 cámaras y el modo global es `guided`, solo ellas publican trabajo dirigido; las

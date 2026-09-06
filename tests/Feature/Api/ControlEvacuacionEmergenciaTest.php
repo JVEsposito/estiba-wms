@@ -91,6 +91,60 @@ class ControlEvacuacionEmergenciaTest extends TestCase
         );
     }
 
+    public function test_guided_incompleto_rechaza_la_emergencia_antes_de_mutar_la_operacion(): void
+    {
+        $contexto = $this->crearContexto();
+        $planNormal = $this->crearPlan($contexto, PrioridadOperacional::Normal);
+        $tareaReversible = $this->crearTarea(
+            $contexto,
+            $planNormal,
+            EstadoTareaMovimiento::Pendiente,
+            PrioridadOperacional::Normal,
+            $contexto['otra'],
+            $contexto['emergencia'],
+        );
+        $casos = [
+            ['planificador.generacion_automatica' => false],
+            ['planificador.compute' => 'server'],
+            ['planificador.horizon' => 'batch'],
+        ];
+
+        foreach ($casos as $indice => $configuracionInvalida) {
+            config(array_merge([
+                'planificador.mode' => 'guided',
+                'planificador.generacion_automatica' => true,
+                'planificador.compute' => 'tablet',
+                'planificador.horizon' => 'rolling',
+                'planificador.rollout_camaras' => [],
+            ], $configuracionInvalida));
+            $camara = $indice === 0
+                ? $contexto['emergencia']
+                : $this->crearCamara($contexto['supervisor'], "CAM-262-INVALIDA-{$indice}");
+
+            $this->withToken($contexto['token'])
+                ->postJson("/api/evacuaciones-emergencia/{$camara->id}", [
+                    'motivo' => 'La configuración incompleta no debe modificar la operación.',
+                ])
+                ->assertUnprocessable()
+                ->assertJsonPath(
+                    'message',
+                    'La emergencia dirigida requiere generación automática, cálculo tablet y horizonte rolling.',
+                );
+
+            $this->assertDatabaseMissing('planes_operacionales', [
+                'referencia_tipo' => ServicioControlEvacuacionEmergencia::REFERENCIA,
+                'referencia_id' => $camara->id,
+            ]);
+            $this->assertTrue($camara->bandasOperacionales()
+                ->get()
+                ->every(fn ($banda): bool => $banda->modo === ModoBandaOperacional::Operativa));
+        }
+
+        $this->assertDatabaseCount('maniobras_operacionales', 0);
+        $this->assertSame(EstadoTareaMovimiento::Pendiente, $tareaReversible->refresh()->estado);
+        $this->assertSame(EstadoPlanOperacional::Programado, $planNormal->refresh()->estado);
+    }
+
     public function test_declara_bloquea_y_antepone_solo_trabajo_reversible_de_menor_prioridad(): void
     {
         $contexto = $this->crearContexto();
