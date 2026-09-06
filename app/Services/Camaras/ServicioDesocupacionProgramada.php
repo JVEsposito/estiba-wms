@@ -190,15 +190,53 @@ class ServicioDesocupacionProgramada
         return $plan ? $this->cargar($plan) : null;
     }
 
+    public function sincronizarPlan(
+        Camara $camara,
+        PlanOperacional $plan,
+        User $usuario,
+    ): PlanOperacional {
+        $plan = DB::transaction(function () use ($camara, $plan, $usuario): PlanOperacional {
+            $camara = Camara::query()->lockForUpdate()->findOrFail($camara->id);
+            $plan = PlanOperacional::query()->lockForUpdate()->findOrFail($plan->id);
+            $referenciaEsperada = match ($plan->tipo) {
+                TipoPlanOperacional::DesocupacionCamara => self::REFERENCIA,
+                TipoPlanOperacional::EvacuacionEmergencia => InterbloqueoEvacuacionEmergencia::REFERENCIA,
+                default => null,
+            };
+            if ($plan->referencia_id !== $camara->id
+                || $plan->referencia_tipo !== $referenciaEsperada) {
+                throw new DomainException('El plan no corresponde a un vaciado de esta cámara.');
+            }
+            if ($plan->estado->esFinal()) {
+                return $plan;
+            }
+
+            $this->sincronizarRetencionesExpuestas($camara, $plan, $usuario);
+
+            return $this->sincronizarInterno($camara, $plan, $usuario);
+        }, attempts: 3);
+
+        return $this->cargar($plan);
+    }
+
     public function sincronizarTrasMovimiento(Movimiento $movimiento, User $usuario): void
     {
         if (! $movimiento->camara_origen_id) {
             return;
         }
         $camara = Camara::query()->find($movimiento->camara_origen_id);
-        if ($camara) {
-            $this->sincronizar($camara, $usuario);
+        if (! $camara) {
+            return;
         }
+
+        $emergencia = $this->planEmergenciaActivo($camara->id);
+        if ($emergencia) {
+            $this->sincronizarPlan($camara, $emergencia, $usuario);
+
+            return;
+        }
+
+        $this->sincronizar($camara, $usuario);
     }
 
     public function cancelar(Camara $camara, User $usuario, string $motivo): PlanOperacional
@@ -287,8 +325,9 @@ class ServicioDesocupacionProgramada
         PlanOperacional $plan,
         User $usuario,
     ): PlanOperacional {
+        $claveEstado = $this->claveEstado($plan);
         if (config('planificador.mode') === 'shadow') {
-            $this->actualizarContexto($plan, ['estado_desocupacion' => 'shadow']);
+            $this->actualizarContexto($plan, [$claveEstado => 'shadow']);
 
             return $plan->refresh();
         }
@@ -305,7 +344,7 @@ class ServicioDesocupacionProgramada
             EstadoManiobraOperacional::PausadaDiscrepancia,
         ], true)) {
             $this->actualizarProgreso($plan, $camara, [
-                'estado_desocupacion' => 'en_ejecucion',
+                $claveEstado => 'en_ejecucion',
                 'motivo_pendiente' => 'maniobra_en_ejecucion',
             ]);
 
@@ -322,7 +361,7 @@ class ServicioDesocupacionProgramada
                 );
             }
             $this->actualizarProgreso($plan, $camara, [
-                'estado_desocupacion' => 'completada',
+                $claveEstado => 'completada',
                 'motivo_pendiente' => null,
                 'lista_para_apagar' => true,
             ]);
@@ -342,7 +381,7 @@ class ServicioDesocupacionProgramada
                 );
             }
             $this->actualizarProgreso($plan, $camara, [
-                'estado_desocupacion' => 'pendiente',
+                $claveEstado => 'pendiente',
                 'motivo_pendiente' => $resultado['motivo_pendiente'],
                 'pendientes_prioridad' => $resultado['pendientes_prioridad'],
                 'pendientes_inspeccion' => $resultado['pendientes_inspeccion'],
@@ -365,7 +404,7 @@ class ServicioDesocupacionProgramada
                 $this->maniobras->crearCerrada($plan, $usuario, $candidato);
             } catch (ConflictoOperacion) {
                 $this->actualizarProgreso($plan, $camara, [
-                    'estado_desocupacion' => 'pendiente',
+                    $claveEstado => 'pendiente',
                     'motivo_pendiente' => 'labor_activa_previa',
                     'lista_para_apagar' => false,
                 ]);
@@ -375,7 +414,7 @@ class ServicioDesocupacionProgramada
         }
 
         $this->actualizarProgreso($plan, $camara, [
-            'estado_desocupacion' => 'publicada',
+            $claveEstado => 'publicada',
             'motivo_pendiente' => null,
             'pendientes_prioridad' => $resultado['pendientes_prioridad'],
             'pendientes_inspeccion' => $resultado['pendientes_inspeccion'],
@@ -498,6 +537,7 @@ class ServicioDesocupacionProgramada
 
         return [
             'candidato' => $this->candidato(
+                $plan,
                 $camara,
                 $origen,
                 $destino['posicion'],
@@ -554,6 +594,31 @@ class ServicioDesocupacionProgramada
             ->get();
         $porPosicion = $ubicaciones->keyBy('posicion_id');
         $posicionPorId = $posiciones->keyBy('id');
+        $bandasProtegidas = collect();
+        if ($this->esEmergencia($plan)) {
+            $folioIdsDestino = $ubicaciones->pluck('folio_id')->unique()->values();
+            $foliosProtegidos = RetencionOperacionalFolio::query()
+                ->whereIn('bloqueo_folio_id', $folioIdsDestino)
+                ->where('estado', EstadoRetencionOperacional::Activa->value)
+                ->pluck('bloqueo_folio_id')
+                ->merge(LoteInspeccionSagFolio::query()
+                    ->whereIn('folio_id', $folioIdsDestino)
+                    ->whereHas('lote', fn ($consulta) => $consulta->whereIn('estado', [
+                        EstadoLoteInspeccionSag::Preparacion->value,
+                        EstadoLoteInspeccionSag::EnInspeccion->value,
+                        EstadoLoteInspeccionSag::ResultadoParcial->value,
+                    ]))
+                    ->pluck('folio_id'))
+                ->flip();
+            $bandasProtegidas = $ubicaciones
+                ->filter(fn (UbicacionActual $ubicacion): bool => $foliosProtegidos->has($ubicacion->folio_id))
+                ->map(function (UbicacionActual $ubicacion) use ($posicionPorId): string {
+                    $posicion = $posicionPorId->get($ubicacion->posicion_id);
+
+                    return "{$posicion->camara_id}:{$posicion->banda}";
+                })
+                ->flip();
+        }
         $foliosPorBanda = $ubicaciones->groupBy(function (UbicacionActual $ubicacion) use ($posicionPorId): string {
             $posicion = $posicionPorId->get($ubicacion->posicion_id);
 
@@ -577,7 +642,10 @@ class ServicioDesocupacionProgramada
         $cargasDestino = $this->cargasPorFolio($ubicaciones->pluck('folio_id')->unique()->values());
 
         return $posiciones
-            ->filter(fn (Posicion $posicion): bool => ! $porPosicion->has($posicion->id)
+            ->filter(fn (Posicion $posicion): bool => ! $bandasProtegidas->has(
+                "{$posicion->camara_id}:{$posicion->banda}",
+            )
+                && ! $porPosicion->has($posicion->id)
                 && ! $destinosOcupados->has($posicion->id)
                 && ! $reservadosTarea->has($posicion->id)
                 && ! $reservadosSag->has($posicion->id)
@@ -620,6 +688,7 @@ class ServicioDesocupacionProgramada
 
     /** @param array<string, mixed> $afinidad */
     private function candidato(
+        PlanOperacional $plan,
         Camara $camara,
         UbicacionActual $origen,
         Posicion $destino,
@@ -627,6 +696,13 @@ class ServicioDesocupacionProgramada
         ?string $cargaId,
         int $palletsMismaCarga,
     ): array {
+        $emergencia = $this->esEmergencia($plan);
+        $tipoObjetivo = $emergencia
+            ? TipoPlanOperacional::EvacuacionEmergencia
+            : TipoPlanOperacional::DesocupacionCamara;
+        $prioridad = $emergencia
+            ? PrioridadOperacional::Critica
+            : PrioridadOperacional::Alta;
         $geometria = hash('sha256', json_encode([
             'camara' => $camara->id,
             'folio' => $origen->folio_id,
@@ -635,13 +711,17 @@ class ServicioDesocupacionProgramada
         ], JSON_THROW_ON_ERROR));
 
         return [
-            'candidate_key' => 'desocupar:'.$geometria,
-            'titulo' => "Evacuar {$origen->folio->numero_folio}",
-            'motivo' => 'Avanza el vaciado programado con un traslado permanente y cerrable.',
+            'candidate_key' => ($emergencia ? 'evacuacion-emergencia:' : 'desocupar:').$geometria,
+            'titulo' => $emergencia
+                ? "Evacuar por emergencia {$origen->folio->numero_folio}"
+                : "Evacuar {$origen->folio->numero_folio}",
+            'motivo' => $emergencia
+                ? 'Lleva el pallet a una posición segura mediante un traslado permanente y cerrable.'
+                : 'Avanza el vaciado programado con un traslado permanente y cerrable.',
             'beneficio_estimado' => 1000,
             'riesgo_operacional' => 0,
             'contexto' => [
-                'tipo_objetivo' => TipoPlanOperacional::DesocupacionCamara->value,
+                'tipo_objetivo' => $tipoObjetivo->value,
                 'folio_objetivo_id' => $origen->folio_id,
                 'posicion_origen_id' => $origen->posicion_id,
                 'posicion_destino_id' => $destino->id,
@@ -651,6 +731,7 @@ class ServicioDesocupacionProgramada
                 'blockers' => 0,
                 'movimientos_totales' => 1,
                 'cerrable' => true,
+                'sin_custodia_temporal' => $emergencia,
                 'geometry_hash' => $geometria,
             ],
             'bloqueos_banda' => [],
@@ -658,15 +739,15 @@ class ServicioDesocupacionProgramada
                 'folio_id' => $origen->folio_id,
                 'tipo_movimiento' => TipoMovimiento::TrasladoEntreCamaras,
                 'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
-                'prioridad' => PrioridadOperacional::Alta,
+                'prioridad' => $prioridad,
                 'camara_origen_id' => $camara->id,
                 'posicion_origen_id' => $origen->posicion_id,
                 'camara_destino_id' => $destino->camara_id,
                 'posicion_destino_id' => $destino->id,
                 'instruccion' => "Trasladar {$origen->folio->numero_folio} fuera de {$camara->codigo}.",
                 'contexto' => [
-                    'tipo_decision' => TipoPlanOperacional::DesocupacionCamara->value,
-                    'camara_desocupacion_id' => $camara->id,
+                    'tipo_decision' => $tipoObjetivo->value,
+                    ($emergencia ? 'camara_emergencia_id' : 'camara_desocupacion_id') => $camara->id,
                     'carga_id' => $cargaId,
                     'uso_banda_destino' => UsoBandaOperacional::TransitoProductoTerminado->value,
                     'destino_precalculado_inmutable' => true,
@@ -916,7 +997,9 @@ class ServicioDesocupacionProgramada
         array $datos,
     ): void {
         $restantes = UbicacionActual::query()->where('camara_id', $camara->id)->count();
-        $total = max((int) (($plan->contexto ?? [])['total_inicial'] ?? $restantes), $restantes);
+        $total = max((int) (($plan->contexto ?? [])['total_inicial']
+            ?? ($plan->contexto ?? [])['pallets_objetivo']
+            ?? $restantes), $restantes);
         $evacuados = max(0, $total - $restantes);
         $this->actualizarContexto($plan, [
             ...$datos,
@@ -930,12 +1013,13 @@ class ServicioDesocupacionProgramada
     private function actualizarContexto(PlanOperacional $plan, array $datos): void
     {
         $contexto = [...($plan->contexto ?? []), ...$datos];
-        if ($contexto === $plan->contexto && $plan->prioridad === PrioridadOperacional::Alta) {
+        $prioridad = $this->prioridad($plan);
+        if ($contexto === $plan->contexto && $plan->prioridad === $prioridad) {
             return;
         }
         $plan->update([
             'contexto' => $contexto,
-            'prioridad' => PrioridadOperacional::Alta,
+            'prioridad' => $prioridad,
             'version' => $plan->version + 1,
         ]);
     }
@@ -1011,6 +1095,37 @@ class ServicioDesocupacionProgramada
                 EstadoPlanOperacional::Cancelado->value,
             ])
             ->exists();
+    }
+
+    private function planEmergenciaActivo(string $camaraId): ?PlanOperacional
+    {
+        return PlanOperacional::query()
+            ->where('tipo', TipoPlanOperacional::EvacuacionEmergencia->value)
+            ->where('referencia_tipo', InterbloqueoEvacuacionEmergencia::REFERENCIA)
+            ->where('referencia_id', $camaraId)
+            ->whereNotIn('estado', [
+                EstadoPlanOperacional::Completado->value,
+                EstadoPlanOperacional::Cancelado->value,
+            ])
+            ->latest('created_at')
+            ->first();
+    }
+
+    private function esEmergencia(PlanOperacional $plan): bool
+    {
+        return $plan->tipo === TipoPlanOperacional::EvacuacionEmergencia;
+    }
+
+    private function claveEstado(PlanOperacional $plan): string
+    {
+        return $this->esEmergencia($plan) ? 'estado_emergencia' : 'estado_desocupacion';
+    }
+
+    private function prioridad(PlanOperacional $plan): PrioridadOperacional
+    {
+        return $this->esEmergencia($plan)
+            ? PrioridadOperacional::Critica
+            : PrioridadOperacional::Alta;
     }
 
     /** @return array<int, string> */

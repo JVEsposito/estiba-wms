@@ -5,9 +5,11 @@ namespace Tests\Feature\Api;
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCustodiaTemporal;
+use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPlanOperacional;
+use App\Enums\EstadoRetencionOperacional;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\FuenteHabilitacionAlmacenamiento;
 use App\Enums\HabilitacionAlmacenamientoFolio;
@@ -15,7 +17,9 @@ use App\Enums\ModoBandaOperacional;
 use App\Enums\PrioridadOperacional;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Enums\TipoLoteInspeccionSag;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Enums\UsoBandaOperacional;
 use App\Exceptions\ConflictoOperacion;
@@ -23,16 +27,24 @@ use App\Models\Camara;
 use App\Models\CustodiaTemporalManiobra;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\LoteInspeccionSag;
+use App\Models\LoteInspeccionSagFolio;
 use App\Models\ManiobraOperacional;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\RetencionOperacionalFolio;
+use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
+use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Observers\ReplanificarDesocupacionMovimientoObserver;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Camaras\ServicioControlEvacuacionEmergencia;
+use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
+use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -80,6 +92,10 @@ class ControlEvacuacionEmergenciaTest extends TestCase
             PrioridadOperacional::Critica,
             $contexto['emergencia'],
             $contexto['otra'],
+        );
+        $this->ubicarFolio(
+            $critica->folio()->firstOrFail(),
+            $contexto['emergencia']->posiciones()->where('banda', 1)->where('posicion', 1)->sole(),
         );
         $maniobra = ManiobraOperacional::create([
             'plan_operacional_id' => $planNormal->id,
@@ -144,8 +160,8 @@ class ControlEvacuacionEmergenciaTest extends TestCase
             ->assertJsonPath('data.estado', EstadoPlanOperacional::EnEjecucion->value)
             ->assertJsonPath('data.prioridad', PrioridadOperacional::Critica->value)
             ->assertJsonPath('data.contexto.ingreso_bloqueado', true)
-            ->assertJsonPath('data.contexto.genera_destinos', false)
-            ->assertJsonPath('data.contexto.genera_tareas', false)
+            ->assertJsonPath('data.contexto.genera_destinos', true)
+            ->assertJsonPath('data.contexto.genera_tareas', true)
             ->assertJsonPath('data.contexto.tareas_canceladas', 1)
             ->assertJsonPath('data.contexto.total_impedimentos', 4)
             ->assertJsonPath(
@@ -229,6 +245,7 @@ class ControlEvacuacionEmergenciaTest extends TestCase
     public function test_cancelacion_restaura_solo_el_estado_de_banda_que_la_emergencia_conserva(): void
     {
         $contexto = $this->crearContexto();
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 1, 'PAL-260-CANCELAR');
         $bandas = $contexto['emergencia']->bandasOperacionales()->get()->values();
         $bandas[0]->update([
             'modo' => ModoBandaOperacional::EnVaciado,
@@ -272,6 +289,7 @@ class ControlEvacuacionEmergenciaTest extends TestCase
     {
         $contexto = $this->crearContexto();
         $planNormal = $this->crearPlan($contexto, PrioridadOperacional::Normal);
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 1, 'PAL-260-REGENERAR-ORIGEN');
         app(ServicioControlEvacuacionEmergencia::class)->declarar(
             $contexto['emergencia'],
             $contexto['supervisor'],
@@ -292,6 +310,7 @@ class ControlEvacuacionEmergenciaTest extends TestCase
     public function test_bloqueo_impide_un_ingreso_manual_nuevo(): void
     {
         $contexto = $this->crearContexto();
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 1, 'PAL-260-BLOQUEO-ACTIVO');
         app(ServicioControlEvacuacionEmergencia::class)->declarar(
             $contexto['emergencia'],
             $contexto['supervisor'],
@@ -311,6 +330,206 @@ class ControlEvacuacionEmergenciaTest extends TestCase
             usuario: $operador,
             dispositivo: $dispositivo,
         );
+    }
+
+    public function test_publica_una_maniobra_critica_permanente_y_relaja_marca_y_formato(): void
+    {
+        $contexto = $this->crearContexto();
+        $objetivo = $this->ubicar(
+            $contexto,
+            $contexto['emergencia'],
+            1,
+            2,
+            'PAL-260-OBJETIVO',
+            'Cliente emergencia',
+            'Marca origen',
+            'Envase origen',
+        );
+        $this->ubicar(
+            $contexto,
+            $contexto['otra'],
+            1,
+            1,
+            'PAL-260-COMPANERO',
+            'Cliente emergencia',
+            'Marca distinta',
+            'Envase distinto',
+        );
+
+        $plan = app(ServicioControlEvacuacionEmergencia::class)->declarar(
+            $contexto['emergencia'],
+            $contexto['supervisor'],
+            'Evacuar producto ante una alarma confirmada.',
+            $contexto['dispositivo']->id,
+        );
+        $tarea = $plan->tareas()->sole();
+
+        $this->assertSame(EstadoPlanOperacional::EnEjecucion, $plan->estado);
+        $this->assertSame('publicada', $plan->contexto['estado_emergencia']);
+        $this->assertSame(1, $plan->contexto['pallets_restantes']);
+        $this->assertSame(0, $plan->contexto['porcentaje_actual']);
+        $this->assertSame(['marca', 'formato'], $plan->contexto['afinidad_relajada']);
+        $this->assertSame($objetivo->id, $tarea->folio_id);
+        $this->assertSame(PrioridadOperacional::Critica, $tarea->prioridad);
+        $this->assertSame(TipoPasoManiobra::MovimientoPermanente, $tarea->tipo_paso_maniobra);
+        $this->assertSame(PrioridadOperacional::Critica, $plan->maniobras()->sole()->prioridad);
+        $this->assertSame($contexto['otra']->id, $tarea->camara_destino_id);
+        $this->assertSame(1, $tarea->posicionDestino()->sole()->banda);
+        $this->assertSame(2, $tarea->posicionDestino()->sole()->posicion);
+        $this->assertTrue($tarea->contexto['destino_precalculado_inmutable']);
+        $this->assertTrue($plan->maniobras()->sole()->contexto['sin_custodia_temporal']);
+        $this->assertSame(0, CustodiaTemporalManiobra::query()
+            ->where('maniobra_operacional_id', $tarea->maniobra_operacional_id)
+            ->count());
+    }
+
+    public function test_recalcula_rolling_y_completa_solo_al_evacuarse_el_cien_por_ciento(): void
+    {
+        $contexto = $this->crearContexto();
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 1, 'PAL-260-ROLLING-1');
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 2, 'PAL-260-ROLLING-2');
+        $plan = app(ServicioControlEvacuacionEmergencia::class)->declarar(
+            $contexto['emergencia'],
+            $contexto['supervisor'],
+            'Evacuación rolling hasta alcanzar estado seguro.',
+        );
+        [$operador, $dispositivo] = $this->crearOperador();
+        $sesionOrigen = app(ServicioSesionEstiba::class)->abrir(
+            $contexto['emergencia'],
+            $operador,
+            $dispositivo,
+        );
+        $sesionDestino = app(ServicioSesionEstiba::class)->abrir(
+            $contexto['otra'],
+            $operador,
+            $dispositivo,
+        );
+
+        $this->ejecutarSiguiente($plan, $operador, $dispositivo, $sesionOrigen, $sesionDestino);
+        $this->assertSame(EstadoPlanOperacional::EnEjecucion, $plan->refresh()->estado);
+        $this->assertSame(50, $plan->contexto['porcentaje_actual']);
+        $this->assertSame(1, $plan->contexto['pallets_restantes']);
+        $this->assertSame(1, $plan->tareas()
+            ->where('estado', EstadoTareaMovimiento::Pendiente->value)
+            ->count());
+
+        $this->ejecutarSiguiente($plan, $operador, $dispositivo, $sesionOrigen, $sesionDestino);
+        $this->assertSame(EstadoPlanOperacional::Completado, $plan->refresh()->estado);
+        $this->assertSame('completada', $plan->contexto['estado_emergencia']);
+        $this->assertSame(100, $plan->contexto['porcentaje_actual']);
+        $this->assertSame(0, $plan->contexto['pallets_restantes']);
+        $this->assertTrue($plan->contexto['lista_para_apagar']);
+        $this->assertSame(2, $plan->maniobras()->count());
+        $this->assertSame(2, $plan->maniobras()
+            ->where('estado', EstadoManiobraOperacional::Completada->value)
+            ->count());
+        $this->assertSame(0, CustodiaTemporalManiobra::query()
+            ->whereIn('maniobra_operacional_id', $plan->maniobras()->pluck('id'))
+            ->count());
+        $this->assertSame(0, UbicacionActual::query()
+            ->where('camara_id', $contexto['emergencia']->id)
+            ->count());
+        $this->assertTrue($contexto['emergencia']->bandasOperacionales()
+            ->get()
+            ->every(fn ($banda): bool => $banda->modo !== ModoBandaOperacional::Operativa));
+    }
+
+    public function test_descarta_bandas_con_retencion_o_inspeccion_sag_activa(): void
+    {
+        $contexto = $this->crearContexto();
+        $segura = $this->crearCamara($contexto['supervisor'], 'ZZ-CAM-260-SEGURA');
+        $this->ubicar(
+            $contexto,
+            $contexto['emergencia'],
+            1,
+            1,
+            'PAL-260-SALIDA-SEGURA',
+            'Cliente protegido',
+        );
+        $sag = $this->ubicar(
+            $contexto,
+            $contexto['otra'],
+            1,
+            1,
+            'PAL-260-SAG',
+            'Cliente protegido',
+        );
+        $retenido = $this->ubicar(
+            $contexto,
+            $contexto['otra'],
+            2,
+            1,
+            'PAL-260-RETENIDO',
+            'Cliente protegido',
+        );
+        $retenido->update([
+            'estado_operacional' => EstadoOperacionalFolio::Bloqueado,
+            'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Retenido,
+        ]);
+        RetencionOperacionalFolio::create([
+            'folio_id' => $retenido->id,
+            'bloqueo_folio_id' => $retenido->id,
+            'estado' => EstadoRetencionOperacional::Activa,
+            'motivo' => 'Retención activa en banda de destino.',
+            'estado_operacional_anterior' => EstadoOperacionalFolio::Disponible,
+            'condicion_termica_anterior' => CondicionTermicaFolio::PrefrioAprobado,
+            'habilitacion_almacenamiento_anterior' => HabilitacionAlmacenamientoFolio::Habilitado,
+            'retenido_por_user_id' => $contexto['supervisor']->id,
+            'retenido_at' => now(),
+        ]);
+        $lote = LoteInspeccionSag::create([
+            'temporada_id' => $contexto['temporada']->id,
+            'codigo' => 'SAG-260-0001',
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', 'SAG-260-0001'),
+            'tipo' => TipoLoteInspeccionSag::MuestreoUsda,
+            'estado' => EstadoLoteInspeccionSag::Preparacion,
+            'cantidad_solicitada' => 1,
+            'creado_por_user_id' => $contexto['supervisor']->id,
+        ]);
+        LoteInspeccionSagFolio::create([
+            'lote_inspeccion_sag_id' => $lote->id,
+            'folio_id' => $sag->id,
+            'estado_sag_anterior' => [],
+        ]);
+
+        $plan = app(ServicioControlEvacuacionEmergencia::class)->declarar(
+            $contexto['emergencia'],
+            $contexto['supervisor'],
+            'Usar solamente ubicaciones sanitariamente seguras.',
+        );
+        $tarea = $plan->tareas()->sole();
+
+        $this->assertSame($segura->id, $tarea->camara_destino_id);
+        $this->assertNotSame($contexto['otra']->id, $tarea->camara_destino_id);
+    }
+
+    public function test_no_permite_cancelar_una_maniobra_que_cruzo_el_punto_de_no_retorno(): void
+    {
+        $contexto = $this->crearContexto();
+        $this->ubicar($contexto, $contexto['emergencia'], 1, 1, 'PAL-260-EN-PROCESO');
+        $plan = app(ServicioControlEvacuacionEmergencia::class)->declarar(
+            $contexto['emergencia'],
+            $contexto['supervisor'],
+            'Evacuación que iniciará movimiento físico.',
+        );
+        [$operador, $dispositivo] = $this->crearOperador();
+        $planes = app(ServicioPlanesOperacionales::class);
+        $tarea = $planes->asumir($plan->tareas()->sole(), $operador, $dispositivo);
+        $planes->iniciar($tarea, $operador, $dispositivo);
+
+        $this->withToken($contexto['token'])
+            ->postJson("/api/evacuaciones-emergencia/{$contexto['emergencia']->id}/cancelar", [
+                'motivo' => 'Intento de cancelación con pallet ya retirado.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'conflicto_operacional');
+
+        $this->assertSame(EstadoPlanOperacional::EnEjecucion, $plan->refresh()->estado);
+        $this->assertSame(EstadoTareaMovimiento::EnProceso, $tarea->refresh()->estado);
+        $this->assertTrue($contexto['emergencia']->bandasOperacionales()
+            ->get()
+            ->every(fn ($banda): bool => $banda->modo !== ModoBandaOperacional::Operativa));
     }
 
     public function test_requiere_permiso_de_supervision_y_motivo_auditable(): void
@@ -455,6 +674,42 @@ class ControlEvacuacionEmergenciaTest extends TestCase
         ]);
     }
 
+    private function ubicar(
+        array $contexto,
+        Camara $camara,
+        int $banda,
+        int $profundidad,
+        string $numero,
+        string $cliente = 'Cliente común',
+        string $marca = 'Marca común',
+        string $envase = 'Caja común',
+    ): Folio {
+        $folio = $this->crearFolio($contexto['temporada'], $numero);
+        $folio->update([
+            'exportadora' => $cliente,
+            'marca' => $marca,
+            'datos_externos' => ['envase' => $envase],
+        ]);
+        $posicion = $camara->posiciones()
+            ->where('banda', $banda)
+            ->where('posicion', $profundidad)
+            ->where('nivel', 1)
+            ->sole();
+        $this->ubicarFolio($folio, $posicion);
+
+        return $folio;
+    }
+
+    private function ubicarFolio(Folio $folio, Posicion $posicion): void
+    {
+        UbicacionActual::withoutEvents(fn (): UbicacionActual => UbicacionActual::create([
+            'folio_id' => $folio->id,
+            'camara_id' => $posicion->camara_id,
+            'posicion_id' => $posicion->id,
+            'ubicado_at' => now(),
+        ]));
+    }
+
     /** @return array{User, Dispositivo} */
     private function crearOperador(): array
     {
@@ -469,5 +724,34 @@ class ControlEvacuacionEmergenciaTest extends TestCase
                 'activo' => true,
             ]),
         ];
+    }
+
+    private function ejecutarSiguiente(
+        PlanOperacional $plan,
+        User $operador,
+        Dispositivo $dispositivo,
+        SesionEstiba $sesionOrigen,
+        SesionEstiba $sesionDestino,
+    ): void {
+        $tarea = $plan->tareas()
+            ->where('estado', EstadoTareaMovimiento::Pendiente->value)
+            ->firstOrFail();
+        $planes = app(ServicioPlanesOperacionales::class);
+        $tarea = $planes->asumir($tarea, $operador, $dispositivo);
+        $planes->iniciar($tarea, $operador, $dispositivo);
+        $movimiento = app(ServicioMovimientoEstiba::class)->mover(
+            operacionId: (string) Str::uuid(),
+            folio: $tarea->folio,
+            posicionDestino: $tarea->posicionDestino,
+            sesionOrigen: $sesionOrigen,
+            sesionDestino: $sesionDestino,
+            usuario: $operador,
+            dispositivo: $dispositivo,
+            versionOrigenConocida: $sesionOrigen->camara()->firstOrFail()->version_plano,
+            versionDestinoConocida: $sesionDestino->camara()->firstOrFail()->version_plano,
+            generadoDispositivoAt: now(),
+            tareaMovimiento: $tarea->refresh(),
+        );
+        app(ReplanificarDesocupacionMovimientoObserver::class)->created($movimiento);
     }
 }
