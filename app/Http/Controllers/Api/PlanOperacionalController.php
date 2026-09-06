@@ -22,6 +22,7 @@ use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
@@ -175,6 +176,7 @@ class PlanOperacionalController extends Controller
         PlanOperacional $planOperacional,
         ContextoOperacional $contexto,
         ServicioPlanesOperacionales $servicio,
+        ServicioDesplieguePlanificador $despliegue,
     ): JsonResponse {
         abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
         $horizon = ($planOperacional->contexto ?? [])['planner_horizon']
@@ -230,9 +232,15 @@ class PlanOperacionalController extends Controller
             }
 
             try {
+                $posicion = Posicion::query()->findOrFail($propuesta['posicion_destino_id']);
+                if ($despliegue->modoParaCamara($posicion->camara_id) !== 'guided') {
+                    throw new DomainException(
+                        'La cámara propuesta permanece en shadow y no admite trabajo dirigido.',
+                    );
+                }
                 $materializada = $servicio->materializarDestino(
                     tarea: $tarea,
-                    posicion: Posicion::query()->findOrFail($propuesta['posicion_destino_id']),
+                    posicion: $posicion,
                     usuario: $usuario,
                     dispositivo: $dispositivo,
                     versionTarea: (int) $propuesta['tarea_version'],

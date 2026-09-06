@@ -22,6 +22,7 @@ use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -32,6 +33,7 @@ class ServicioPlanesOperacionales
         private readonly ServicioReservasTareasMovimiento $reservas,
         private readonly ServicioManiobrasOperacionales $maniobras,
         private readonly InterbloqueoEvacuacionEmergencia $emergencias,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     /**
@@ -451,8 +453,16 @@ class ServicioPlanesOperacionales
             'secuencia_maniobra' => $tarea->secuencia_maniobra,
             'tipo_paso_maniobra' => $tarea->tipo_paso_maniobra?->value,
         ])->values();
+        $modoEfectivo = $this->despliegue->modoEfectivo($cameraIds);
         $versionData = [
             'plan' => [$plan->id, $plan->version, $plan->estado->value],
+            'planner' => [
+                config('planificador.mode'),
+                $modoEfectivo,
+                config('planificador.compute'),
+                config('planificador.horizon'),
+                config('planificador.rollout_camaras', []),
+            ],
             'camaras' => $camaras->all(),
             'tareas' => $tareas->all(),
         ];
@@ -462,9 +472,11 @@ class ServicioPlanesOperacionales
             'generado_at' => now()->toIso8601String(),
             'planner' => [
                 'mode' => config('planificador.mode'),
+                'mode_efectivo' => $modoEfectivo,
                 'compute' => config('planificador.compute'),
                 'horizon' => $horizon,
                 'frontier_max' => config('planificador.frontier_max'),
+                'rollout_limitado' => config('planificador.rollout_camaras', []) !== [],
             ],
             'plan' => [
                 'id' => $plan->id,

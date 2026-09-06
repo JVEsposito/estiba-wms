@@ -21,7 +21,9 @@ use App\Models\ReservaPosicionInspeccionSag;
 use App\Models\ReservaTareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use DomainException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -33,6 +35,10 @@ class ServicioPreparacionFisicaSag
     public const NIVEL_RESERVADO = 1;
 
     public const REFERENCIA_PLAN = 'lote_inspeccion_sag_preparacion';
+
+    public function __construct(
+        private readonly ServicioDesplieguePlanificador $despliegue,
+    ) {}
 
     public function sincronizar(
         LoteInspeccionSag $lote,
@@ -199,10 +205,9 @@ class ServicioPreparacionFisicaSag
 
     private function planificadorDirigidoActivo(): bool
     {
-        return config('planificador.generacion_automatica')
-            && config('planificador.mode') === 'guided'
-            && config('planificador.compute') === 'tablet'
-            && config('planificador.horizon') === 'rolling';
+        $camaras = $this->despliegue->idsCamarasDirigidas();
+
+        return $camaras === null || $camaras !== [];
     }
 
     private function asegurarPlan(
@@ -248,6 +253,10 @@ class ServicioPreparacionFisicaSag
         if ($requeridos === 0) {
             return collect();
         }
+        $camarasDirigidas = $this->despliegue->idsCamarasDirigidas();
+        if ($camarasDirigidas === []) {
+            return null;
+        }
 
         $bandas = BandaOperacional::query()
             ->with('camara:id,codigo,contenido,estado,cantidad_bandas,posiciones_por_banda')
@@ -255,6 +264,10 @@ class ServicioPreparacionFisicaSag
             ->whereHas('camara', fn ($consulta) => $consulta
                 ->where('estado', EstadoCamara::Activa->value)
                 ->where('contenido', ContenidoCamara::Productos->value))
+            ->when(
+                $camarasDirigidas !== null,
+                fn (Builder $consulta) => $consulta->whereIn('camara_id', $camarasDirigidas),
+            )
             ->orderBy('camara_id')
             ->orderBy('numero')
             ->lockForUpdate()

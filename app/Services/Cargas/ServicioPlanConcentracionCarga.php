@@ -28,6 +28,7 @@ use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +40,7 @@ class ServicioPlanConcentracionCarga
         private readonly CalculadorConcentracionCarga $calculador,
         private readonly ServicioPlanesOperacionales $planes,
         private readonly ServicioManiobrasOperacionales $maniobras,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     public function sincronizar(Carga $carga, User $usuario): ?PlanOperacional
@@ -88,6 +90,17 @@ class ServicioPlanConcentracionCarga
             if ($camaraObjetivoId === null) {
                 return $plan?->refresh();
             }
+            $camarasInvolucradas = $asignaciones
+                ->map(fn (CargaFolio $asignacion): ?string => $asignacion
+                    ->folio
+                    ?->ubicacionActual
+                    ?->posicion
+                    ?->camara_id)
+                ->filter()
+                ->push($camaraObjetivoId)
+                ->unique()
+                ->values();
+            $modo = $this->despliegue->modoEfectivo($camarasInvolucradas);
 
             $analisis = $this->calculador->analizar($asignaciones, $camaraObjetivoId);
             $necesarios = max(
@@ -118,7 +131,7 @@ class ServicioPlanConcentracionCarga
                 return $plan?->refresh();
             }
 
-            if (config('planificador.mode') === 'shadow') {
+            if ($modo === 'shadow') {
                 if ($plan) {
                     $this->cancelarReversibles(
                         $plan,
@@ -136,7 +149,7 @@ class ServicioPlanConcentracionCarga
 
                 return $plan?->refresh();
             }
-            if (config('planificador.mode') !== 'guided'
+            if ($modo !== 'guided'
                 || config('planificador.compute') !== 'tablet') {
                 return $plan?->refresh();
             }

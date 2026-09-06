@@ -29,6 +29,7 @@ use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -39,16 +40,15 @@ class ServicioPlanDespachoDirecto
 
     public function __construct(
         private readonly ServicioPlanesOperacionales $planes,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     public function sincronizar(
         PresenciaCargaAnden $presencia,
         User $usuario,
     ): ?PlanOperacional {
-        $modo = config('planificador.mode');
         if (! config('planificador.generacion_automatica')
-            || $modo === 'off'
-            || ($modo === 'guided' && config('planificador.compute') !== 'tablet')) {
+            || config('planificador.mode') === 'off') {
             return null;
         }
 
@@ -65,9 +65,20 @@ class ServicioPlanDespachoDirecto
             }
 
             $candidatos = $this->candidatos($presencia);
-            if (config('planificador.mode') === 'shadow') {
+            $camaraIds = $candidatos
+                ->pluck('camara_origen_id')
+                ->filter()
+                ->unique()
+                ->values();
+            $modo = $camaraIds->isEmpty()
+                ? $this->despliegue->modoGlobal()
+                : $this->despliegue->modoEfectivo($camaraIds);
+            if ($modo === 'shadow') {
                 $this->registrarShadow($presencia, $usuario, $candidatos);
 
+                return $this->planExistente($presencia->id);
+            }
+            if ($modo !== 'guided' || config('planificador.compute') !== 'tablet') {
                 return $this->planExistente($presencia->id);
             }
 

@@ -3,6 +3,10 @@
 $mode = strtolower((string) env('WMS_PLANNER_MODE', 'off'));
 $compute = strtolower((string) env('WMS_PLANNER_COMPUTE', 'server'));
 $horizon = strtolower((string) env('WMS_PLANNER_HORIZON', 'batch'));
+$rolloutCamaras = array_values(array_unique(array_filter(array_map(
+    static fn (string $camara): string => trim($camara),
+    explode(',', (string) env('WMS_PLANNER_ROLLOUT_CAMERAS', '')),
+))));
 
 if (! in_array($mode, ['off', 'shadow', 'guided'], true)) {
     $mode = 'off';
@@ -45,6 +49,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Despliegue progresivo por cámara
+    |--------------------------------------------------------------------------
+    |
+    | Cuando la lista está vacía, el modo global conserva el comportamiento
+    | histórico. En guided, una lista no vacía limita la dirección a esos UUID
+    | o códigos de cámara; el resto continúa observándose como shadow. Cambiar
+    | el modo global a off siempre prevalece como rollback operacional.
+    |
+    */
+    'rollout_camaras' => $rolloutCamaras,
+
+    /*
+    |--------------------------------------------------------------------------
     | Compatibilidad con la bandera histórica
     |--------------------------------------------------------------------------
     |
@@ -69,4 +86,5 @@ return [
     |
     */
     'reserva_tarea_minutos' => max(1, (int) env('WMS_RESERVA_TAREA_MINUTOS', 10)),
+    'tarea_estancada_minutos' => max(5, (int) env('WMS_PLANNER_STALE_TASK_MINUTES', 30)),
 ];
