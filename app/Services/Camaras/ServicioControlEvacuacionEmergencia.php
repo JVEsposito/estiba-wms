@@ -34,6 +34,7 @@ class ServicioControlEvacuacionEmergencia
     public function __construct(
         private readonly ServicioManiobrasOperacionales $maniobras,
         private readonly ServicioPlanesOperacionales $planes,
+        private readonly ServicioDesocupacionProgramada $vaciado,
     ) {}
 
     public function declarar(
@@ -113,10 +114,17 @@ class ServicioControlEvacuacionEmergencia
                     'declarado_desde_dispositivo_id' => $dispositivoId,
                     'declarado_at' => $ahora->toAtomString(),
                     'ingreso_bloqueado' => config('planificador.mode') === 'guided',
-                    'genera_destinos' => false,
-                    'genera_tareas' => false,
+                    'genera_destinos' => config('planificador.mode') === 'guided',
+                    'genera_tareas' => config('planificador.mode') === 'guided',
                     'requiere_ejecucion' => true,
                     'pallets_objetivo' => $totalPallets,
+                    'pallets_restantes' => $totalPallets,
+                    'pallets_evacuados' => 0,
+                    'porcentaje_actual' => $totalPallets === 0 ? 100 : 0,
+                    'umbral_porcentaje' => 100,
+                    'una_maniobra_por_recalculo' => true,
+                    'sin_custodia_temporal' => true,
+                    'afinidad_relajada' => ['marca', 'formato'],
                     'bandas_anteriores' => $bandasAnteriores,
                     ...$analisis,
                 ],
@@ -126,7 +134,15 @@ class ServicioControlEvacuacionEmergencia
             return $plan->refresh();
         }, attempts: 3);
 
-        return $this->cargar($plan);
+        $fueCreado = $plan->wasRecentlyCreated;
+        if (config('planificador.mode') === 'guided' && ! $plan->estado->esFinal()) {
+            $plan = $this->vaciado->sincronizarPlan($camara, $plan, $usuario);
+        }
+
+        $plan = $this->cargar($plan);
+        $plan->wasRecentlyCreated = $fueCreado;
+
+        return $plan;
     }
 
     public function cancelar(
@@ -154,6 +170,23 @@ class ServicioControlEvacuacionEmergencia
                 throw new ConflictoOperacion('Una emergencia completada no puede cancelarse.');
             }
 
+            $maniobras = $plan->maniobras()
+                ->whereIn('estado', [
+                    EstadoManiobraOperacional::Pendiente->value,
+                    EstadoManiobraOperacional::EnEjecucion->value,
+                    EstadoManiobraOperacional::PausadaDiscrepancia->value,
+                ])
+                ->lockForUpdate()
+                ->get();
+            foreach ($maniobras as $maniobra) {
+                if ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
+                    || ! $this->maniobras->cancelarReversible($maniobra, $usuario, $motivo)) {
+                    throw new ConflictoOperacion(
+                        'La evacuación ya modificó la realidad física; termine la maniobra en curso antes de cancelarla.',
+                    );
+                }
+            }
+
             [$restauradas, $noRestauradas] = $this->restaurarBandas($camara, $plan, $usuario);
             $plan->update([
                 'estado' => EstadoPlanOperacional::Cancelado,
@@ -166,6 +199,9 @@ class ServicioControlEvacuacionEmergencia
                     'ingreso_bloqueado' => false,
                     'bandas_restauradas' => $restauradas,
                     'bandas_no_restauradas' => $noRestauradas,
+                    'movimientos_completados' => $plan->tareas()
+                        ->where('estado', EstadoTareaMovimiento::Completada->value)
+                        ->count(),
                     'cancelado_por_user_id' => $usuario->id,
                     'cancelado_desde_dispositivo_id' => $dispositivoId,
                     'cancelado_at' => now()->toAtomString(),
