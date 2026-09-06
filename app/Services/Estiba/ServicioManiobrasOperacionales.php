@@ -6,6 +6,7 @@ use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoTareaMovimiento;
+use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
@@ -22,6 +23,7 @@ use App\Models\Posicion;
 use App\Models\ReservaBandaManiobra;
 use App\Models\TareaMovimiento;
 use App\Models\User;
+use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
 use App\Services\Cargas\ServicioPlanConcentracionCarga;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -34,6 +36,7 @@ class ServicioManiobrasOperacionales
 
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
+        private readonly InterbloqueoEvacuacionEmergencia $emergencias,
     ) {}
 
     /**
@@ -137,6 +140,19 @@ class ServicioManiobrasOperacionales
                 if (! $tipo instanceof TipoMovimiento || ! $tipoPaso instanceof TipoPasoManiobra) {
                     throw new DomainException('Cada paso requiere un tipo físico y un tipo de maniobra válidos.');
                 }
+                $prioridad = $paso['prioridad'] ?? $plan->prioridad;
+                if (is_string($prioridad)) {
+                    $prioridad = PrioridadOperacional::tryFrom($prioridad);
+                }
+                if (! $prioridad instanceof PrioridadOperacional) {
+                    throw new DomainException('Cada paso requiere una prioridad operacional válida.');
+                }
+                $this->emergencias->validarNuevaLabor(
+                    $plan,
+                    $prioridad,
+                    $paso['camara_origen_id'] ?? null,
+                    $paso['camara_destino_id'] ?? null,
+                );
 
                 TareaMovimiento::create([
                     'plan_operacional_id' => $plan->id,
@@ -148,7 +164,7 @@ class ServicioManiobrasOperacionales
                     'estado' => $indice === 0
                         ? EstadoTareaMovimiento::Pendiente
                         : EstadoTareaMovimiento::Bloqueada,
-                    'prioridad' => $paso['prioridad'] ?? $plan->prioridad,
+                    'prioridad' => $prioridad,
                     'folio_id' => $paso['folio_id'],
                     'camara_origen_id' => $paso['camara_origen_id'] ?? null,
                     'posicion_origen_id' => $paso['posicion_origen_id'] ?? null,

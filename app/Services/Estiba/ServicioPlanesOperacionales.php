@@ -21,6 +21,7 @@ use App\Models\Posicion;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -30,6 +31,7 @@ class ServicioPlanesOperacionales
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
         private readonly ServicioManiobrasOperacionales $maniobras,
+        private readonly InterbloqueoEvacuacionEmergencia $emergencias,
     ) {}
 
     /**
@@ -529,6 +531,12 @@ class ServicioPlanesOperacionales
         if (! $prioridad instanceof PrioridadOperacional) {
             throw new DomainException('La prioridad de la tarea no es válida.');
         }
+        $this->emergencias->validarNuevaLabor(
+            $plan,
+            $prioridad,
+            $camaraOrigen?->id,
+            $camaraDestino?->id,
+        );
         if (isset($datos['contexto']) && ! is_array($datos['contexto'])) {
             throw new DomainException('El contexto de la tarea debe ser una estructura válida.');
         }

@@ -258,6 +258,12 @@ class ServicioReservasTareasMovimiento
                 'La tarea todavía no posee un destino físico validado y reservado.',
             );
         }
+        if ($tareaBloqueada->posicion_destino_id) {
+            $this->validarBandaOperacional(
+                Posicion::query()->lockForUpdate()->findOrFail($tareaBloqueada->posicion_destino_id),
+                $tareaBloqueada,
+            );
+        }
 
         $otraEnProceso = TareaMovimiento::query()
             ->where('id', '!=', $tareaBloqueada->id)
@@ -676,8 +682,14 @@ class ServicioReservasTareasMovimiento
             ->where('numero', $posicion->banda)
             ->lockForUpdate()
             ->first();
-        if (! $banda
-            || $banda->modo !== ModoBandaOperacional::Operativa
+        // Cámaras creadas antes de que existiera el catálogo de bandas (o
+        // fixtures de compatibilidad) conservan el flujo histórico. Una
+        // emergencia no entra en esta excepción: su declaración exige bandas
+        // sincronizadas y las cambia a en_vaciado/bloqueada.
+        if (! $banda) {
+            return;
+        }
+        if ($banda->modo !== ModoBandaOperacional::Operativa
             || ! in_array(
                 $usoRequerido,
                 $banda->usos_permitidos ?? [],
@@ -711,6 +723,11 @@ class ServicioReservasTareasMovimiento
         ?string $posicionDestinoId,
     ): void {
         $this->validarBandasDeTarea($posicionOrigenId, $posicionDestinoId, null);
+        if ($posicionDestinoId) {
+            $this->validarBandaOperacional(
+                Posicion::query()->lockForUpdate()->findOrFail($posicionDestinoId),
+            );
+        }
     }
 
     private function validarPalletManiobraActiva(
