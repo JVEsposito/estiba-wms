@@ -258,6 +258,12 @@ class ServicioReservasTareasMovimiento
                 'La tarea todavía no posee un destino físico validado y reservado.',
             );
         }
+        if ($tareaBloqueada->posicion_destino_id) {
+            $this->validarBandaOperacional(
+                Posicion::query()->lockForUpdate()->findOrFail($tareaBloqueada->posicion_destino_id),
+                $tareaBloqueada,
+            );
+        }
 
         $otraEnProceso = TareaMovimiento::query()
             ->where('id', '!=', $tareaBloqueada->id)
@@ -711,6 +717,11 @@ class ServicioReservasTareasMovimiento
         ?string $posicionDestinoId,
     ): void {
         $this->validarBandasDeTarea($posicionOrigenId, $posicionDestinoId, null);
+        if ($posicionDestinoId) {
+            $this->validarBandaOperacional(
+                Posicion::query()->lockForUpdate()->findOrFail($posicionDestinoId),
+            );
+        }
     }
 
     private function validarPalletManiobraActiva(

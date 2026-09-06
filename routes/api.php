@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\DesocupacionCamaraController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
 use App\Http\Controllers\Api\EmbarqueController;
+use App\Http\Controllers\Api\EvacuacionEmergenciaController;
 use App\Http\Controllers\Api\FolioPrefrioController;
 use App\Http\Controllers\Api\FrutaProcesoController;
 use App\Http\Controllers\Api\GuiaDespachoEnvaseController;
@@ -132,6 +133,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/candidatas', [DesocupacionCamaraController::class, 'candidatas']);
             Route::post('/{camara}', [DesocupacionCamaraController::class, 'store']);
             Route::post('/{camara}/cancelar', [DesocupacionCamaraController::class, 'cancelar']);
+        });
+    Route::middleware('can:supervisar-camaras-productos')
+        ->prefix('evacuaciones-emergencia')
+        ->group(function () {
+            Route::post('/{camara}', [EvacuacionEmergenciaController::class, 'store']);
+            Route::post('/{camara}/cancelar', [EvacuacionEmergenciaController::class, 'cancelar']);
         });
 
     Route::middleware('can:consultar-inspeccion-sag')->prefix('inspeccion-sag')->group(function () {
