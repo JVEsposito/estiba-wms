@@ -140,6 +140,9 @@ class ServicioManiobrasOperacionales
                     throw new DomainException('Cada paso requiere un tipo físico y un tipo de maniobra válidos.');
                 }
                 $prioridad = $paso['prioridad'] ?? $plan->prioridad;
+                if (is_string($prioridad)) {
+                    $prioridad = PrioridadOperacional::tryFrom($prioridad);
+                }
                 if (! $prioridad instanceof PrioridadOperacional) {
                     throw new DomainException('Cada paso requiere una prioridad operacional válida.');
                 }
