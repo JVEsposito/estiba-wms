@@ -27,6 +27,7 @@ use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -36,6 +37,7 @@ class ServicioPlanSegregacionRetenidos
 
     public function __construct(
         private readonly ServicioManiobrasOperacionales $maniobras,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     public function sincronizar(
@@ -49,6 +51,7 @@ class ServicioPlanSegregacionRetenidos
                 ->findOrFail($retencion->id);
             $folio = $retencion->folio;
             $plan = $this->planExistente($retencion->id, bloquear: true);
+            $camaraOrigenId = $folio->ubicacionActual?->posicion?->camara_id;
 
             if ($retencion->estado !== EstadoRetencionOperacional::Activa
                 || $retencion->bloqueo_folio_id === null
@@ -67,7 +70,7 @@ class ServicioPlanSegregacionRetenidos
                 return $plan?->refresh();
             }
 
-            if (! $this->planificadorDirigidoActivo()) {
+            if (! $this->planificadorDirigidoActivo([$camaraOrigenId])) {
                 if ($plan) {
                     $this->cancelarManiobrasReversibles(
                         $plan,
@@ -157,6 +160,22 @@ class ServicioPlanSegregacionRetenidos
                 $this->actualizarContexto($plan, $folio, false, [
                     'estado_capacidad' => 'pendiente',
                     'motivo_pendiente' => 'sin_posicion_retenidos_disponible',
+                ]);
+
+                return $plan->refresh();
+            }
+            if (! $this->planificadorDirigidoActivo([$camaraOrigenId, $destino->camara_id])) {
+                if ($maniobraActiva) {
+                    $this->maniobras->cancelarReversible(
+                        $maniobraActiva,
+                        $usuario,
+                        'La ruta de segregación sale del rollout guided habilitado.',
+                    );
+                }
+                $this->actualizarContexto($plan, $folio, false, [
+                    'estado_capacidad' => 'shadow',
+                    'motivo_pendiente' => 'camara_fuera_rollout_guided',
+                    'camara_destino_id' => $destino->camara_id,
                 ]);
 
                 return $plan->refresh();
@@ -577,11 +596,9 @@ class ServicioPlanSegregacionRetenidos
         ];
     }
 
-    private function planificadorDirigidoActivo(): bool
+    /** @param iterable<int, string|null> $camaras */
+    private function planificadorDirigidoActivo(iterable $camaras): bool
     {
-        return config('planificador.generacion_automatica')
-            && config('planificador.mode') === 'guided'
-            && config('planificador.compute') === 'tablet'
-            && config('planificador.horizon') === 'rolling';
+        return $this->despliegue->dirige($camaras);
     }
 }

@@ -35,6 +35,7 @@ use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use App\Services\Retenciones\ServicioPlanSegregacionRetenidos;
 use DomainException;
 use Illuminate\Support\Collection;
@@ -49,6 +50,7 @@ class ServicioDesocupacionProgramada
         private readonly CalculadorAfinidadBanda $afinidad,
         private readonly ServicioManiobrasOperacionales $maniobras,
         private readonly ServicioPlanSegregacionRetenidos $segregacionRetenidos,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     /** @return array<int, array<string, mixed>> */
@@ -81,11 +83,12 @@ class ServicioDesocupacionProgramada
         if (mb_strlen($motivo) < 3 || mb_strlen($motivo) > 500) {
             throw new DomainException('La desocupación programada requiere un motivo de 3 a 500 caracteres.');
         }
-        if (config('planificador.mode') === 'off') {
+        $modo = $this->despliegue->modoParaCamara($camara);
+        if ($modo === 'off') {
             throw new DomainException('El planificador está desactivado; no se inició la desocupación.');
         }
 
-        $plan = DB::transaction(function () use ($camara, $usuario, $motivo): PlanOperacional {
+        $plan = DB::transaction(function () use ($camara, $usuario, $motivo, $modo): PlanOperacional {
             $camara = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $existente = $this->planExistente($camara->id, bloquear: true);
             if ($existente && ! $existente->estado->esFinal()) {
@@ -137,7 +140,7 @@ class ServicioDesocupacionProgramada
                 ]);
             }
 
-            if (config('planificador.mode') === 'shadow') {
+            if ($modo === 'shadow') {
                 $this->actualizarContexto($plan, [
                     'estado_desocupacion' => 'shadow',
                     'motivo_pendiente' => null,
@@ -145,7 +148,7 @@ class ServicioDesocupacionProgramada
 
                 return $plan->refresh();
             }
-            if (! $this->planificadorDirigidoActivo()) {
+            if (! $this->planificadorDirigidoActivo($camara)) {
                 throw new DomainException(
                     'La desocupación dirigida requiere generación automática, cálculo tablet y horizonte rolling.',
                 );
@@ -326,12 +329,12 @@ class ServicioDesocupacionProgramada
         User $usuario,
     ): PlanOperacional {
         $claveEstado = $this->claveEstado($plan);
-        if (config('planificador.mode') === 'shadow') {
+        if ($this->despliegue->modoParaCamara($camara) === 'shadow') {
             $this->actualizarContexto($plan, [$claveEstado => 'shadow']);
 
             return $plan->refresh();
         }
-        if (! $this->planificadorDirigidoActivo()) {
+        if (! $this->planificadorDirigidoActivo($camara)) {
             return $plan;
         }
 
@@ -561,9 +564,14 @@ class ServicioDesocupacionProgramada
         PlanOperacional $plan,
         ?string $cargaId,
     ): ?array {
+        $camarasDirigidas = $this->despliegue->idsCamarasDirigidas();
         $bandas = BandaOperacional::query()
             ->where('modo', ModoBandaOperacional::Operativa->value)
             ->where('camara_id', '!=', $origen->id)
+            ->when(
+                $camarasDirigidas !== null,
+                fn ($consulta) => $consulta->whereIn('camara_id', $camarasDirigidas),
+            )
             ->whereHas('camara', fn ($consulta) => $consulta
                 ->where('estado', EstadoCamara::Activa->value)
                 ->where('contenido', ContenidoCamara::Productos->value))
@@ -1149,12 +1157,9 @@ class ServicioDesocupacionProgramada
         ];
     }
 
-    private function planificadorDirigidoActivo(): bool
+    private function planificadorDirigidoActivo(Camara $camara): bool
     {
-        return config('planificador.generacion_automatica')
-            && config('planificador.mode') === 'guided'
-            && config('planificador.compute') === 'tablet'
-            && config('planificador.horizon') === 'rolling';
+        return $this->despliegue->dirige([$camara]);
     }
 
     private function marcaMotivo(PlanOperacional $plan, string $motivo): string

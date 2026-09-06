@@ -31,6 +31,7 @@ use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -51,6 +52,7 @@ class ServicioOportunidadReordenamiento
     public function __construct(
         private readonly CalculadorAfinidadBanda $afinidad,
         private readonly ServicioManiobrasOperacionales $maniobras,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     public function sincronizarTrasMovimiento(Movimiento $movimiento, User $usuario): void
@@ -111,7 +113,7 @@ class ServicioOportunidadReordenamiento
         ?string $huecoRecienteId = null,
         ?string $movimientoDisparadorId = null,
     ): ?PlanOperacional {
-        if (! $this->planificadorObserva()) {
+        if (! $this->planificadorObserva($camara)) {
             return $this->planExistente($camara->id);
         }
 
@@ -213,7 +215,7 @@ class ServicioOportunidadReordenamiento
                 return $plan->refresh();
             }
 
-            if (config('planificador.mode') === 'shadow') {
+            if ($this->despliegue->modoParaCamara($camara) === 'shadow') {
                 if ($maniobraActiva) {
                     $this->maniobras->cancelarReversible(
                         $maniobraActiva,
@@ -838,9 +840,9 @@ class ServicioOportunidadReordenamiento
         ];
     }
 
-    private function planificadorObserva(): bool
+    private function planificadorObserva(?Camara $camara = null): bool
     {
-        $modo = config('planificador.mode');
+        $modo = $this->despliegue->modoEfectivo($camara ? [$camara] : []);
 
         return config('planificador.horizon') === 'rolling'
             && ($modo === 'shadow'

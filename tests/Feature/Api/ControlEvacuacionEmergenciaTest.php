@@ -65,6 +65,32 @@ class ControlEvacuacionEmergenciaTest extends TestCase
         ]);
     }
 
+    public function test_rollout_fuera_de_la_camara_registra_shadow_sin_bloquear_ni_publicar(): void
+    {
+        $contexto = $this->crearContexto();
+        config([
+            'planificador.rollout_camaras' => [$contexto['otra']->codigo],
+        ]);
+
+        $plan = app(ServicioControlEvacuacionEmergencia::class)->declarar(
+            $contexto['emergencia'],
+            $contexto['supervisor'],
+            'Simulación fuera del rollout dirigido.',
+            $contexto['dispositivo']->id,
+        );
+
+        $this->assertSame('programado', $plan->estado->value);
+        $this->assertSame('shadow', $plan->contexto['planner_mode']);
+        $this->assertFalse($plan->contexto['ingreso_bloqueado']);
+        $this->assertDatabaseCount('maniobras_operacionales', 0);
+        $this->assertSame(
+            0,
+            $contexto['emergencia']->bandasOperacionales()
+                ->where('modo', ModoBandaOperacional::Bloqueada->value)
+                ->count(),
+        );
+    }
+
     public function test_declara_bloquea_y_antepone_solo_trabajo_reversible_de_menor_prioridad(): void
     {
         $contexto = $this->crearContexto();

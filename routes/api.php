@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\RecepcionMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\ReinicioOperacionalController;
 use App\Http\Controllers\Api\RetornoPackingController;
+use App\Http\Controllers\Api\SaludPlanificadorController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TransformacionMaterialController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -68,6 +69,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:consultar-integridad-operacional');
     Route::post('/administracion/integridad-operacional/auditar', [IntegridadOperacionalController::class, 'auditar'])
         ->middleware('can:ejecutar-integridad-operacional');
+    Route::get('/administracion/planificador/salud', SaludPlanificadorController::class)
+        ->middleware('can:consultar-integridad-operacional');
 
     Route::middleware('can:consultar-oficina-consultas')->prefix('consultas')->group(function () {
         Route::get('/resumen', [ConsultaOficinaController::class, 'resumen']);

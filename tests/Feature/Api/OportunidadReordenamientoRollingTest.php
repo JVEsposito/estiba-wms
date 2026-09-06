@@ -169,7 +169,10 @@ class OportunidadReordenamientoRollingTest extends TestCase
 
     public function test_shadow_registra_la_decision_sin_materializar_trabajo(): void
     {
-        config(['planificador.mode' => 'shadow']);
+        config([
+            'planificador.mode' => 'shadow',
+            'planificador.generacion_automatica' => false,
+        ]);
         $contexto = $this->crearContexto();
         $this->ubicarPerfil($contexto, 'PAL-257-A1', 'Cliente A', 1, 1);
         $this->ubicarPerfil($contexto, 'PAL-257-A2', 'Cliente A', 1, 2);

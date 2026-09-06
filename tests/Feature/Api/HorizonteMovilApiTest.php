@@ -193,6 +193,48 @@ class HorizonteMovilApiTest extends TestCase
         ]);
     }
 
+    public function test_frontera_rechaza_un_destino_fuera_del_rollout_guided(): void
+    {
+        $contexto = $this->crearContexto();
+        config(['planificador.rollout_camaras' => ['CAM-OTRA']]);
+        $plan = $this->crearPlanRolling($contexto, [$contexto['folios'][0]]);
+        $tarea = $plan->tareas->firstOrFail();
+        $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
+            ->assertOk();
+        $snapshot = $this->conToken($contexto['token'])
+            ->getJson("/api/planes-operacionales/{$plan->id}/snapshot")
+            ->assertOk()
+            ->assertJsonPath('data.planner.mode_efectivo', 'shadow')
+            ->json('data');
+
+        $this->conToken($contexto['token'])
+            ->postJson("/api/planes-operacionales/{$plan->id}/frontera", [
+                'snapshot_version' => $snapshot['snapshot_version'],
+                'planner_version' => 'rolling-rollout-test',
+                'propuestas' => [[
+                    'tarea_id' => $tarea->id,
+                    'posicion_destino_id' => $contexto['posiciones'][0]->id,
+                    'tarea_version' => $snapshot['tareas'][0]['version'],
+                    'plan_version' => $snapshot['plan']['version'],
+                    'version_camara_conocida' => $contexto['camara']->version_plano,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonCount(0, 'data.aceptadas')
+            ->assertJsonCount(1, 'data.rechazadas')
+            ->assertJsonPath('data.recalcular', true)
+            ->assertJsonPath(
+                'data.rechazadas.0.motivo',
+                'La cámara propuesta permanece en shadow y no admite trabajo dirigido.',
+            );
+
+        $this->assertDatabaseMissing('reservas_tareas_movimiento', [
+            'tarea_movimiento_id' => $tarea->id,
+            'bloqueo_posicion_id' => $contexto['posiciones'][0]->id,
+        ]);
+    }
+
     public function test_en_proceso_es_punto_de_no_retorno_y_no_expira(): void
     {
         $contexto = $this->crearContexto();

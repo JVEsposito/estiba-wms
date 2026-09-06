@@ -22,6 +22,7 @@ use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Planificador\ServicioDesplieguePlanificador;
 use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +36,7 @@ class ServicioControlEvacuacionEmergencia
         private readonly ServicioManiobrasOperacionales $maniobras,
         private readonly ServicioPlanesOperacionales $planes,
         private readonly ServicioDesocupacionProgramada $vaciado,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     public function declarar(
@@ -45,7 +47,8 @@ class ServicioControlEvacuacionEmergencia
     ): PlanOperacional {
         $motivo = trim($motivo);
         $this->validarMotivo($motivo, 'La emergencia');
-        if (config('planificador.mode') === 'off') {
+        $modo = $this->despliegue->modoParaCamara($camara);
+        if ($modo === 'off') {
             throw new DomainException('El planificador está desactivado; no se declaró la emergencia.');
         }
 
@@ -54,6 +57,7 @@ class ServicioControlEvacuacionEmergencia
             $usuario,
             $motivo,
             $dispositivoId,
+            $modo,
         ): PlanOperacional {
             $camara = Camara::query()->lockForUpdate()->findOrFail($camara->id);
             $existente = $this->planActivo($camara->id, bloquear: true);
@@ -72,13 +76,13 @@ class ServicioControlEvacuacionEmergencia
             $analisis = $this->anteponerEmergencia(
                 $trabajo,
                 $usuario,
-                aplicar: config('planificador.mode') === 'guided',
+                aplicar: $modo === 'guided',
             );
             $ahora = now();
             $plan = PlanOperacional::create([
                 'temporada_id' => $temporada->id,
                 'tipo' => TipoPlanOperacional::EvacuacionEmergencia,
-                'estado' => config('planificador.mode') === 'shadow'
+                'estado' => $modo === 'shadow'
                     ? EstadoPlanOperacional::Programado
                     : EstadoPlanOperacional::EnEjecucion,
                 'prioridad' => PrioridadOperacional::Critica,
@@ -87,35 +91,35 @@ class ServicioControlEvacuacionEmergencia
                 'referencia_tipo' => self::REFERENCIA,
                 'referencia_id' => $camara->id,
                 'creado_por_user_id' => $usuario->id,
-                'iniciado_por_user_id' => config('planificador.mode') === 'guided'
+                'iniciado_por_user_id' => $modo === 'guided'
                     ? $usuario->id
                     : null,
                 'programado_at' => $ahora,
-                'iniciado_at' => config('planificador.mode') === 'guided' ? $ahora : null,
+                'iniciado_at' => $modo === 'guided' ? $ahora : null,
                 'contexto' => [],
             ]);
 
             $bandasAnteriores = [];
-            if (config('planificador.mode') === 'guided') {
+            if ($modo === 'guided') {
                 $bandasAnteriores = $this->bloquearIngreso($camara, $plan, $usuario, $motivo);
             }
             $totalPallets = UbicacionActual::query()->where('camara_id', $camara->id)->count();
             $plan->update([
                 'contexto' => [
                     'alcance' => 'control_emergencia',
-                    'estado_emergencia' => config('planificador.mode') === 'shadow'
+                    'estado_emergencia' => $modo === 'shadow'
                         ? 'shadow'
                         : 'declarada',
-                    'planner_mode' => config('planificador.mode'),
+                    'planner_mode' => $modo,
                     'camara_id' => $camara->id,
                     'camara_codigo' => $camara->codigo,
                     'motivo_declaracion' => $motivo,
                     'declarado_por_user_id' => $usuario->id,
                     'declarado_desde_dispositivo_id' => $dispositivoId,
                     'declarado_at' => $ahora->toAtomString(),
-                    'ingreso_bloqueado' => config('planificador.mode') === 'guided',
-                    'genera_destinos' => config('planificador.mode') === 'guided',
-                    'genera_tareas' => config('planificador.mode') === 'guided',
+                    'ingreso_bloqueado' => $modo === 'guided',
+                    'genera_destinos' => $modo === 'guided',
+                    'genera_tareas' => $modo === 'guided',
                     'requiere_ejecucion' => true,
                     'pallets_objetivo' => $totalPallets,
                     'pallets_restantes' => $totalPallets,
@@ -135,7 +139,7 @@ class ServicioControlEvacuacionEmergencia
         }, attempts: 3);
 
         $fueCreado = $plan->wasRecentlyCreated;
-        if (config('planificador.mode') === 'guided' && ! $plan->estado->esFinal()) {
+        if ($modo === 'guided' && ! $plan->estado->esFinal()) {
             $plan = $this->vaciado->sincronizarPlan($camara, $plan, $usuario);
         }
 
