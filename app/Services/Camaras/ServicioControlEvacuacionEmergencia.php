@@ -51,6 +51,11 @@ class ServicioControlEvacuacionEmergencia
         if ($modo === 'off') {
             throw new DomainException('El planificador está desactivado; no se declaró la emergencia.');
         }
+        if ($modo === 'guided' && ! $this->despliegue->dirige([$camara])) {
+            throw new DomainException(
+                'La emergencia dirigida requiere generación automática, cálculo tablet y horizonte rolling.',
+            );
+        }
 
         $plan = DB::transaction(function () use (
             $camara,
