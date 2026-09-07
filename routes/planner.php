@@ -35,6 +35,7 @@ Route::middleware(['auth:sanctum', 'can:operar-camaras-productos'])->group(funct
 Route::middleware(['auth:sanctum', 'can:supervisar-camaras-productos'])
     ->prefix('discrepancias-maniobra')
     ->group(function () {
+        Route::get('/', [DiscrepanciaManiobraController::class, 'index']);
         Route::post(
             '/{discrepanciaManiobra}/resolver',
             [DiscrepanciaManiobraController::class, 'resolver'],
