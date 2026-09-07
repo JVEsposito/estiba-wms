@@ -31,6 +31,20 @@ WMS_PLANNER_MODE=off
 maniobras que ya cruzaron `en_proceso` conservan la realidad física como fuente
 de verdad y deben cerrarse de acuerdo con sus interbloqueos.
 
+## Ciclos de cámara
+
+Las emergencias y desocupaciones de una misma cámara se registran en ciclos
+independientes. Repetir el aviso de un ciclo activo devuelve ese plan; después
+de completarlo o cancelarlo, un nuevo aviso crea otro plan y conserva intactos
+el motivo, responsables, fechas, tareas, maniobras y movimientos del anterior.
+La apertura mantiene el bloqueo transaccional de la cámara para serializar
+avisos simultáneos. La selección del último ciclo no depende de la hora del aviso.
+
+La migración asigna el ciclo 1 a las referencias existentes. Los demás
+generadores conservan ese valor y su unicidad habitual. Si ya existen ciclos
+posteriores, revertir esa migración se rechaza antes de modificar el esquema;
+el rollback operacional mediante `WMS_PLANNER_MODE=off` sigue disponible.
+
 ## Snapshot de salud
 
 `GET /api/administracion/planificador/salud` requiere permiso de consulta de

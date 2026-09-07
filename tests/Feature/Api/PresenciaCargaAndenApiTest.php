@@ -420,6 +420,7 @@ class PresenciaCargaAndenApiTest extends TestCase
 
     public function test_shadow_registra_candidatos_sin_dirigir_trabajo(): void
     {
+        $this->freezeTime();
         config([
             'planificador.mode' => 'shadow',
             'planificador.generacion_automatica' => true,
@@ -437,8 +438,8 @@ class PresenciaCargaAndenApiTest extends TestCase
             ->where('carga_id', $carga->id)
             ->where('tipo', 'tareas_generadas')
             ->where('datos->planner_mode', 'shadow')
-            ->latest('created_at')
-            ->firstOrFail();
+            ->where('datos->presencia_carga_anden_id', PresenciaCargaAnden::query()->sole()->id)
+            ->sole();
         $this->assertSame('shadow', $evento->datos['planner_mode']);
         $this->assertSame('tablet', $evento->datos['planner_compute']);
         $this->assertCount(1, $evento->datos['candidatos']);
