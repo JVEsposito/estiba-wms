@@ -58,7 +58,7 @@ class DiscrepanciaManiobraApiTest extends TestCase
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.id', $abierta->id)
             ->assertJsonPath('data.0.folio.numero', 'PAL-DISC-ABIERTA')
-            ->assertJsonPath('data.0.maniobra.estado', 'pausada')
+            ->assertJsonPath('data.0.maniobra.estado', 'pausada_discrepancia')
             ->assertJsonPath('data.0.maniobra.version', 3)
             ->assertJsonPath('data.0.tarea.estado', 'en_proceso')
             ->assertJsonPath('data.0.restricciones.cancelar', 'tarea_en_proceso')
@@ -162,7 +162,7 @@ class DiscrepanciaManiobraApiTest extends TestCase
         $maniobra = ManiobraOperacional::create([
             'plan_operacional_id' => $plan->id,
             'creado_por_user_id' => $reportante->id,
-            'estado' => $resuelta ? 'pendiente' : 'pausada',
+            'estado' => $resuelta ? 'pendiente' : 'pausada_discrepancia',
             'prioridad' => 'normal',
             'candidate_key' => "discrepancia-{$indice}",
             'titulo' => "Mover {$numeroFolio}",
