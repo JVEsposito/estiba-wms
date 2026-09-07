@@ -41,6 +41,26 @@ class DiscrepanciaManiobra extends Model
         return $this->belongsTo(TareaMovimiento::class);
     }
 
+    public function folio(): BelongsTo
+    {
+        return $this->belongsTo(Folio::class);
+    }
+
+    public function reportadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reportada_por_user_id');
+    }
+
+    public function resueltaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resuelta_por_user_id');
+    }
+
+    public function dispositivo(): BelongsTo
+    {
+        return $this->belongsTo(Dispositivo::class);
+    }
+
     protected function casts(): array
     {
         return [

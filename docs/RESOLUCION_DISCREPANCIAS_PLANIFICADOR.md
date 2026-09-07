@@ -10,6 +10,16 @@ La resolución pertenece a supervisión de frío. El backend ofrece:
 POST /api/discrepancias-maniobra/{discrepancia}/resolver
 ```
 
+La bandeja supervisora consulta exclusivamente la temporada activa mediante:
+
+```text
+GET /api/discrepancias-maniobra
+```
+
+Admite estado, búsqueda y paginación. Cada caso entrega folio, maniobra y su
+versión, paso afectado, origen, destino, reportante, dispositivo, auditoría de
+resolución y la causa que impide cancelar cuando existe trabajo físico en curso.
+
 ## Acciones
 
 ### `reanudar_maniobra`
