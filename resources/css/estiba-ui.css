@@ -77,6 +77,7 @@
 .estiba-ui .eui-table :where(th, td) { height: var(--eui-row-height); padding: var(--eui-cell-padding) var(--eui-space-4); border-bottom: 1px solid var(--eui-color-border); vertical-align: middle; }
 .estiba-ui .eui-table th { color: var(--eui-color-muted); background: var(--eui-color-subtle); font-weight: var(--eui-font-weight-strong); white-space: nowrap; }
 .estiba-ui .eui-table tbody tr:last-child td { border-bottom: 0; }
+.estiba-ui .eui-table .eui-code { white-space: nowrap; }
 .estiba-ui .eui-table .eui-numeric { text-align: right; font-variant-numeric: tabular-nums; }
 .estiba-ui .eui-field { display: grid; gap: var(--eui-space-2); color: var(--eui-color-text); font-weight: var(--eui-font-weight-strong); }
 .estiba-ui .eui-input { width: 100%; min-width: 0; min-height: var(--eui-control-height); border: 1px solid var(--eui-color-input-border); border-radius: var(--eui-radius-control); background: var(--eui-color-surface); color: var(--eui-color-text); padding: var(--eui-space-1) var(--eui-space-3); }
