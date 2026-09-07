@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'reportada_at',
     'resuelta_por_user_id',
     'resuelta_at',
+    'accion_resolucion',
     'resolucion',
 ])]
 class DiscrepanciaManiobra extends Model
@@ -43,6 +45,7 @@ class DiscrepanciaManiobra extends Model
     {
         return [
             'estado' => EstadoDiscrepanciaManiobra::class,
+            'accion_resolucion' => AccionResolucionDiscrepancia::class,
             'reportada_at' => 'datetime',
             'resuelta_at' => 'datetime',
         ];

@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCarga;
 use App\Enums\EstadoCargaFolio;
+use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPresenciaCargaAnden;
 use App\Enums\EstadoTareaMovimiento;
@@ -387,7 +388,7 @@ class ConcentracionCargaRollingTest extends TestCase
         ]);
     }
 
-    public function test_no_coincide_con_blocker_extraido_mantiene_protegida_la_banda(): void
+    public function test_no_coincide_con_blocker_extraido_rechaza_cancelar_y_reanuda_protegiendo_banda(): void
     {
         $contexto = $this->crearContexto(total: 5, concentrados: 3, fuera: 1, sinUbicacion: 1);
         $objetivo = $contexto['foliosFuera'][0];
@@ -438,7 +439,7 @@ class ConcentracionCargaRollingTest extends TestCase
         );
 
         $siguiente = $maniobra->pasos()->where('secuencia_maniobra', 2)->sole();
-        app(ServicioManiobrasOperacionales::class)->reportarDiscrepancia(
+        $discrepancia = app(ServicioManiobrasOperacionales::class)->reportarDiscrepancia(
             $siguiente,
             $operador,
             $dispositivo,
@@ -461,6 +462,36 @@ class ConcentracionCargaRollingTest extends TestCase
             'camara_id' => $contexto['camaraFuera']->id,
             'banda' => $posicionObjetivo->banda,
             'nivel' => $posicionObjetivo->nivel,
+            'liberada_at' => null,
+        ]);
+
+        $version = $maniobra->refresh()->version;
+        $ruta = "/api/discrepancias-maniobra/{$discrepancia->id}/resolver";
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'cancelar_maniobra',
+                'version_maniobra' => $version,
+                'resolucion' => 'El blocker ya está fuera de su ubicación.',
+            ])
+            ->assertConflict();
+
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'reanudar_maniobra',
+                'version_maniobra' => $version,
+                'resolucion' => 'Se mantiene la secuencia para devolver el blocker.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'resuelta')
+            ->assertJsonPath('data.maniobra.estado', 'pendiente')
+            ->assertJsonPath('data.tarea.estado', 'pendiente');
+
+        $this->assertSame(EstadoCustodiaTemporal::Activa, $maniobra
+            ->custodiasTemporales()
+            ->sole()
+            ->estado);
+        $this->assertDatabaseHas('reservas_bandas_maniobra', [
+            'maniobra_operacional_id' => $maniobra->id,
             'liberada_at' => null,
         ]);
     }
@@ -719,6 +750,127 @@ class ConcentracionCargaRollingTest extends TestCase
             $tarea->maniobraOperacional->refresh()->estado,
         );
         $this->assertNull($tarea->reservaActiva()->first());
+
+        $version = $tarea->maniobraOperacional->refresh()->version;
+        $ruta = "/api/discrepancias-maniobra/{$discrepancia->id}/resolver";
+        $payload = [
+            'accion' => 'reanudar_maniobra',
+            'version_maniobra' => $version,
+            'resolucion' => 'Supervisión verificó el patrón en terreno.',
+        ];
+        $this->actingAs($operador, 'sanctum')
+            ->postJson($ruta, $payload)
+            ->assertForbidden();
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [...$payload, 'version_maniobra' => $version - 1])
+            ->assertConflict();
+
+        $respuesta = $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'resuelta')
+            ->assertJsonPath('data.accion_resolucion', 'reanudar_maniobra')
+            ->assertJsonPath('data.maniobra.estado', 'pendiente')
+            ->assertJsonPath('data.tarea.estado', 'pendiente');
+        $resueltaAt = $respuesta->json('data.resuelta_at');
+
+        $this->assertNull($tarea->refresh()->responsable_user_id);
+        $this->assertNull($tarea->dispositivo_id);
+        $this->assertDatabaseHas('discrepancias_maniobra', [
+            'id' => $discrepancia->id,
+            'accion_resolucion' => 'reanudar_maniobra',
+            'resuelta_por_user_id' => $contexto['usuario']->id,
+        ]);
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, $payload)
+            ->assertOk()
+            ->assertJsonPath('data.resuelta_at', $resueltaAt);
+    }
+
+    public function test_supervision_cancela_una_maniobra_reversible_tras_no_coincide(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        $tarea = $plan->tareas()->sole();
+        [$operador, $dispositivo] = $this->crearOperador();
+        app(ServicioPlanesOperacionales::class)->asumir($tarea, $operador, $dispositivo);
+        $discrepancia = app(ServicioManiobrasOperacionales::class)->reportarDiscrepancia(
+            $tarea->refresh(),
+            $operador,
+            $dispositivo,
+            'posicion_vacia',
+        );
+        $maniobra = $tarea->maniobraOperacional->refresh();
+
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson("/api/discrepancias-maniobra/{$discrepancia->id}/resolver", [
+                'accion' => 'cancelar_maniobra',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'El estado físico cambió y requiere un cálculo nuevo.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'resuelta')
+            ->assertJsonPath('data.accion_resolucion', 'cancelar_maniobra')
+            ->assertJsonPath('data.maniobra.estado', 'cancelada')
+            ->assertJsonPath('data.tarea.estado', 'cancelada');
+
+        $this->assertSame(EstadoManiobraOperacional::Cancelada, $maniobra->refresh()->estado);
+        $this->assertSame(EstadoTareaMovimiento::Cancelada, $tarea->refresh()->estado);
+    }
+
+    public function test_no_coincide_en_proceso_solo_reanuda_con_el_mismo_actor_y_reserva(): void
+    {
+        $contexto = $this->crearContexto(total: 10, concentrados: 7, fuera: 3);
+        $plan = app(ServicioPlanConcentracionCarga::class)->sincronizar(
+            $contexto['carga'],
+            $contexto['usuario'],
+        );
+        $this->assertNotNull($plan);
+        $tarea = $plan->tareas()->sole();
+        [$operador, $dispositivo] = $this->crearOperador();
+        $planes = app(ServicioPlanesOperacionales::class);
+        $planes->asumir($tarea, $operador, $dispositivo);
+        $planes->materializarDestino(
+            $tarea->refresh(),
+            $contexto['posicionesObjetivo'][7],
+            $operador,
+            $dispositivo,
+        );
+        $planes->iniciar($tarea->refresh(), $operador, $dispositivo);
+        $reservaId = $tarea->reservaActiva()->sole()->id;
+        $discrepancia = app(ServicioManiobrasOperacionales::class)->reportarDiscrepancia(
+            $tarea->refresh(),
+            $operador,
+            $dispositivo,
+            'posicion_no_coincide',
+        );
+        $maniobra = $tarea->maniobraOperacional->refresh();
+        $ruta = "/api/discrepancias-maniobra/{$discrepancia->id}/resolver";
+
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'cancelar_maniobra',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'No se debe poder cancelar este movimiento.',
+            ])
+            ->assertConflict();
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'reanudar_maniobra',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'El camarero debe terminar el movimiento iniciado.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.maniobra.estado', 'en_ejecucion')
+            ->assertJsonPath('data.tarea.estado', 'en_proceso');
+
+        $this->assertSame($operador->id, $maniobra->refresh()->responsable_user_id);
+        $this->assertSame($dispositivo->id, $maniobra->dispositivo_id);
+        $this->assertSame($reservaId, $tarea->reservaActiva()->sole()->id);
     }
 
     public function test_camion_en_anden_cancela_concentracion_reversible(): void
