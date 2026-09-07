@@ -2,9 +2,11 @@
 
 namespace App\Services\Estiba;
 
+use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
+use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
@@ -21,6 +23,7 @@ use App\Models\Movimiento;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\ReservaBandaManiobra;
+use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
 use App\Models\User;
 use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
@@ -429,6 +432,189 @@ class ServicioManiobrasOperacionales
 
             return $discrepancia;
         }, attempts: 3);
+    }
+
+    public function resolverDiscrepancia(
+        DiscrepanciaManiobra $discrepancia,
+        User $supervisor,
+        AccionResolucionDiscrepancia $accion,
+        int $versionManiobra,
+        string $resolucion,
+    ): DiscrepanciaManiobra {
+        return DB::transaction(function () use (
+            $discrepancia,
+            $supervisor,
+            $accion,
+            $versionManiobra,
+            $resolucion,
+        ): DiscrepanciaManiobra {
+            $referencia = DiscrepanciaManiobra::query()->findOrFail($discrepancia->id);
+            $tarea = TareaMovimiento::query()
+                ->lockForUpdate()
+                ->findOrFail($referencia->tarea_movimiento_id);
+            $maniobra = ManiobraOperacional::query()
+                ->with('planOperacional.temporada')
+                ->lockForUpdate()
+                ->findOrFail($referencia->maniobra_operacional_id);
+            $discrepancia = DiscrepanciaManiobra::query()
+                ->lockForUpdate()
+                ->findOrFail($referencia->id);
+
+            if ($discrepancia->estado === EstadoDiscrepanciaManiobra::Resuelta) {
+                if ($discrepancia->accion_resolucion === $accion) {
+                    return $discrepancia;
+                }
+
+                throw new ConflictoOperacion(
+                    'La discrepancia ya fue resuelta mediante otra acción.',
+                );
+            }
+            if (! $maniobra->planOperacional?->temporada?->activa) {
+                throw new DomainException(
+                    'La discrepancia no pertenece a la temporada activa.',
+                );
+            }
+            if ($maniobra->version !== $versionManiobra) {
+                throw new ConflictoOperacion(
+                    'La maniobra cambió desde que supervisión consultó la discrepancia.',
+                );
+            }
+            if ($tarea->maniobra_operacional_id !== $maniobra->id
+                || $discrepancia->maniobra_operacional_id !== $maniobra->id
+                || $discrepancia->folio_id !== $tarea->folio_id) {
+                throw new DomainException(
+                    'La discrepancia perdió correspondencia con su maniobra física.',
+                );
+            }
+            if ($maniobra->estado !== EstadoManiobraOperacional::PausadaDiscrepancia) {
+                throw new ConflictoOperacion(
+                    'La maniobra ya no se encuentra pausada por discrepancia.',
+                );
+            }
+
+            match ($accion) {
+                AccionResolucionDiscrepancia::ReanudarManiobra => $this
+                    ->reanudarTrasDiscrepancia($maniobra),
+                AccionResolucionDiscrepancia::CancelarManiobra => $this
+                    ->cancelarTrasDiscrepancia($maniobra, $supervisor),
+            };
+
+            $discrepancia->update([
+                'estado' => EstadoDiscrepanciaManiobra::Resuelta,
+                'resuelta_por_user_id' => $supervisor->id,
+                'resuelta_at' => now(),
+                'accion_resolucion' => $accion,
+                'resolucion' => trim($resolucion),
+            ]);
+
+            return $discrepancia->refresh();
+        }, attempts: 3);
+    }
+
+    private function reanudarTrasDiscrepancia(ManiobraOperacional $maniobra): void
+    {
+        $enProceso = $maniobra->pasos()
+            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+            ->lockForUpdate()
+            ->first();
+
+        if ($enProceso) {
+            $reserva = ReservaTareaMovimiento::query()
+                ->where('tarea_movimiento_id', $enProceso->id)
+                ->where('estado', EstadoReservaTareaMovimiento::Activa->value)
+                ->whereNotNull('bloqueo_tarea_id')
+                ->lockForUpdate()
+                ->first();
+            if (! $reserva
+                || $maniobra->responsable_user_id !== $reserva->user_id
+                || $maniobra->dispositivo_id !== $reserva->dispositivo_id) {
+                throw new ConflictoOperacion(
+                    'El paso en movimiento perdió su actor o reserva y no puede reanudarse.',
+                );
+            }
+
+            $maniobra->update([
+                'estado' => EstadoManiobraOperacional::EnEjecucion,
+                'version' => $maniobra->version + 1,
+            ]);
+
+            return;
+        }
+
+        $siguiente = $maniobra->pasos()
+            ->whereNotIn('estado', [
+                EstadoTareaMovimiento::Completada->value,
+                EstadoTareaMovimiento::Cancelada->value,
+            ])
+            ->orderBy('secuencia_maniobra')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $siguiente) {
+            if ($maniobra->custodiasTemporales()
+                ->where('estado', EstadoCustodiaTemporal::Activa->value)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new ConflictoOperacion(
+                    'La maniobra no posee un paso disponible para cerrar la custodia temporal.',
+                );
+            }
+
+            $this->liberarBandas($maniobra, 'Discrepancia resuelta al completar el último paso.');
+            $maniobra->update([
+                'estado' => EstadoManiobraOperacional::Completada,
+                'completada_at' => now(),
+                'version' => $maniobra->version + 1,
+            ]);
+
+            return;
+        }
+
+        if (! $this->reservas->liberarParaReplanificacion(
+            $siguiente,
+            'Discrepancia resuelta: el paso vuelve a la bandeja.',
+        )) {
+            throw new ConflictoOperacion(
+                'El paso actual ya cruzó el punto de no retorno.',
+            );
+        }
+
+        $siguiente->update([
+            'estado' => EstadoTareaMovimiento::Pendiente,
+            'responsable_user_id' => null,
+            'dispositivo_id' => null,
+            'asumida_at' => null,
+            'iniciada_at' => null,
+            'version' => $siguiente->version + 1,
+        ]);
+        $poseePrefijoFisico = $maniobra->pasos()
+            ->where('estado', EstadoTareaMovimiento::Completada->value)
+            ->lockForUpdate()
+            ->exists();
+        $maniobra->update([
+            'estado' => EstadoManiobraOperacional::Pendiente,
+            'responsable_user_id' => null,
+            'dispositivo_id' => null,
+            'asumida_at' => $poseePrefijoFisico ? $maniobra->asumida_at : null,
+            'iniciada_at' => $poseePrefijoFisico ? $maniobra->iniciada_at : null,
+            'secuencia_actual' => $siguiente->secuencia_maniobra,
+            'version' => $maniobra->version + 1,
+        ]);
+    }
+
+    private function cancelarTrasDiscrepancia(
+        ManiobraOperacional $maniobra,
+        User $supervisor,
+    ): void {
+        if (! $this->cancelarReversible(
+            $maniobra,
+            $supervisor,
+            'Discrepancia resuelta por supervisión: se invalida el sufijo reversible.',
+        )) {
+            throw new ConflictoOperacion(
+                'La maniobra ya modificó la realidad física; debe reanudarse para cerrar el movimiento o la custodia.',
+            );
+        }
     }
 
     public function cancelarReversible(

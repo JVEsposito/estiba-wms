@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\DespachoDirectoPlanificadorController;
+use App\Http\Controllers\Api\DiscrepanciaManiobraController;
 use App\Http\Controllers\Api\PlanOperacionalController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,3 +31,12 @@ Route::middleware(['auth:sanctum', 'can:operar-camaras-productos'])->group(funct
         [DespachoDirectoPlanificadorController::class, 'completarPrefrio'],
     );
 });
+
+Route::middleware(['auth:sanctum', 'can:supervisar-camaras-productos'])
+    ->prefix('discrepancias-maniobra')
+    ->group(function () {
+        Route::post(
+            '/{discrepanciaManiobra}/resolver',
+            [DiscrepanciaManiobraController::class, 'resolver'],
+        );
+    });
