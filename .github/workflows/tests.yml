@@ -86,7 +86,18 @@ jobs:
         run: npm run test:js
 
       - name: Compilar interfaz tablet
-        run: npm run build
+        run: npm run design:check && npm run build
+
+      - name: Exportar catálogo visual
+        run: php artisan ui:catalogo
+
+      - name: Conservar catálogo visual para revisión
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: estiba-catalogo-visual
+          path: storage/app/ui/catalogo.html
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Validar estilo
         run: vendor/bin/pint --test
