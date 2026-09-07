@@ -84,7 +84,11 @@
     $activeOffices = $offices[$domain] ?? [];
 @endphp
 
-<header class="office-topbar office-domain-topbar" data-active-domain="{{ $domain }}" data-active-office="{{ $office }}">
+<header
+    class="office-topbar office-domain-topbar office-shell__topbar estiba-ui"
+    data-active-domain="{{ $domain }}"
+    data-active-office="{{ $office }}"
+>
     <div class="brand-lockup">
         <span class="office-brand-mark" aria-hidden="true">
             <svg viewBox="0 0 40 40" role="img">
@@ -104,14 +108,15 @@
                 data-domain-key="{{ $domainKey }}"
                 data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                 href="{{ $definition['href'] }}"
+                @if($domain === $domainKey) aria-current="location" @endif
             >
-                <span aria-hidden="true">{{ $definition['icon'] }}</span>
+                <span class="office-domain-link__code" aria-hidden="true">{{ $definition['icon'] }}</span>
                 <strong>{{ $definition['label'] }}</strong>
             </a>
         @endforeach
     </nav>
 
-    <div class="identity">
+    <div class="identity" aria-label="Cuenta de usuario">
         <span class="identity__avatar" id="officeInitials">OF</span>
         <span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small></span>
         <button id="officeLogoutButton" type="button">Cerrar sesión</button>
@@ -129,7 +134,7 @@
     </div>
 </header>
 
-<nav class="office-subnavigation" aria-label="Oficinas de {{ $activeDomain['label'] }}">
+<nav class="office-subnavigation office-shell__subnavigation estiba-ui" aria-label="Oficinas de {{ $activeDomain['label'] }}">
     <div class="office-subnavigation__heading">
         <span>MACROMÓDULO</span>
         <strong>{{ $activeDomain['label'] }}</strong>
@@ -143,6 +148,7 @@
                 data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
                 data-navigation-module="{{ $definition['module'] }}"
                 href="{{ $definition['href'] }}"
+                @if($office === $definition['key']) aria-current="page" @endif
             >{{ $definition['label'] }}</a>
         @endforeach
     </div>
@@ -150,6 +156,6 @@
 
 @once
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @vite(['resources/css/office-corporate.css', 'resources/js/office-navigation.js'])
+        @vite(['resources/css/estiba-ui.css', 'resources/css/office-corporate.css', 'resources/js/office-navigation.js'])
     @endif
 @endonce

@@ -339,10 +339,10 @@ function ensureThemeSelector() {
     control.innerHTML = `
         <span class="office-visually-hidden">Tema visual</span>
         <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
-            <option value="dark-industrial">Dark Industrial</option>
-            <option value="light-professional">Light Profesional</option>
-            <option value="light-natural">Light Natural</option>
-            <option value="light-warm">Light Cálido</option>
+            <option value="dark-industrial">Industrial oscuro</option>
+            <option value="light-professional">Profesional claro</option>
+            <option value="light-natural">Natural claro</option>
+            <option value="light-warm">Cálido claro</option>
         </select>
     `;
 

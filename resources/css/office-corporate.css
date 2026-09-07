@@ -410,7 +410,7 @@ textarea:focus-visible {
     min-height: 72px !important;
     border-bottom: 1px solid var(--corporate-border) !important;
     background: var(--header-bg) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, .08) !important;
+    box-shadow: none !important;
     color: var(--text) !important;
     backdrop-filter: none !important;
 }
@@ -626,6 +626,54 @@ textarea:focus-visible {
     background: var(--surface-selected) !important;
     box-shadow: none !important;
     color: var(--corporate-blue) !important;
+}
+
+/*
+ * Adopción del shell Estiba.
+ *
+ * Los nombres de las variables legacy se redefinen localmente para mantener
+ * compatibles las oficinas todavía no migradas, mientras cabecera y
+ * subnavegación consumen la paleta única de las fundaciones visuales.
+ */
+.office-shell__topbar {
+    --header-bg: var(--eui-color-navy);
+    --corporate-border: rgba(255, 255, 255, .2);
+    --text: var(--eui-color-on-navy);
+    --text-strong: var(--eui-color-on-navy);
+    --text-secondary: rgba(255, 255, 255, .88);
+    --text-subtle: rgba(255, 255, 255, .68);
+    --muted: rgba(255, 255, 255, .76);
+    --corporate-blue: var(--eui-color-on-navy);
+    --logo-border: rgba(255, 255, 255, .34);
+    --logo-bg: rgba(255, 255, 255, .06);
+    --icon-surface: rgba(255, 255, 255, .06);
+    --surface-hover: rgba(255, 255, 255, .08);
+    --surface-selected: rgba(255, 255, 255, .14);
+    --button-secondary: rgba(255, 255, 255, .04);
+    --button-secondary-hover: rgba(255, 255, 255, .1);
+    --panel: var(--eui-color-navy);
+    --focus-ring: var(--eui-color-on-navy);
+    color-scheme: dark;
+}
+
+.office-shell__subnavigation {
+    --subnav-bg: var(--eui-color-surface);
+    --corporate-border: var(--eui-color-border);
+    --text: var(--eui-color-text);
+    --text-strong: var(--eui-color-text);
+    --text-subtle: var(--eui-color-muted);
+    --muted: var(--eui-color-muted);
+    --corporate-blue: var(--eui-color-primary);
+    --logo-border: var(--eui-color-input-border);
+    --surface-muted: var(--eui-color-subtle);
+    --surface-hover: var(--eui-color-selected);
+    --surface-selected: var(--eui-color-selected);
+    color-scheme: light;
+}
+
+.office-shell__topbar .office-domain-link[aria-current="location"],
+.office-shell__subnavigation a[aria-current="page"] {
+    font-weight: var(--eui-font-weight-bold);
 }
 
 /* Formularios y controles */
@@ -1177,17 +1225,17 @@ canvas {
 }
 
 @media (max-width: 1250px) {
-    .office-domain-topbar {
-        min-width: 1040px;
+    .office-shell__topbar {
+        min-width: 0;
     }
 }
 
 @media (max-width: 900px) {
-    .office-domain-topbar {
+    .office-shell__topbar {
         min-width: 0;
     }
 
-    .office-domain-navigation {
+    .office-shell__topbar .office-domain-navigation {
         border-top: 1px solid var(--corporate-border) !important;
     }
 

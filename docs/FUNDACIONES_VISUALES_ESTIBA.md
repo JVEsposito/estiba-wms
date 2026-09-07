@@ -197,7 +197,8 @@ npm run typecheck
 1. Fundaciones visuales: esta entrega.
 2. Bandeja supervisora: integrar el contrato de consulta del PR 265 y la
    resolución del PR 264 con estas piezas.
-3. Shell de Oficina: navegación/cabecera conservando dominios, rutas y permisos.
+3. Shell de Oficina: navegación/cabecera integradas con la paleta Estiba,
+   conservando dominios, rutas, permisos y los temas guardados de cada usuario.
 4. Control ambiental horario: capturar el registro manual que ya realiza el
    camarero; identificar cámara, operador, dispositivo y hora, y mostrar vigencia.
 5. Operación ahora: leer datos reales, incluidos los controles ambientales.
