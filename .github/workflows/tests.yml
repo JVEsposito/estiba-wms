@@ -91,11 +91,16 @@ jobs:
       - name: Exportar catálogo visual
         run: php artisan ui:catalogo
 
+      - name: Verificar y exportar estructura de Oficina
+        env:
+          ESTIBA_EXPORTAR_UI_TESTS: '1'
+        run: php artisan test --filter=EstructuraOficinaTest
+
       - name: Conservar catálogo visual para revisión
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: estiba-catalogo-visual
-          path: storage/app/ui/catalogo.html
+          path: storage/app/ui/
           if-no-files-found: error
           retention-days: 14
 

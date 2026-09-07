@@ -84,40 +84,64 @@
     $activeOffices = $offices[$domain] ?? [];
 @endphp
 
-<header class="office-topbar office-domain-topbar" data-active-domain="{{ $domain }}" data-active-office="{{ $office }}">
-    <div class="brand-lockup">
-        <span class="office-brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 40 40" role="img">
-                <path d="M20 3 34 10.5 20 18 6 10.5 20 3Z" />
-                <path d="M6 10.5V27L20 35V18L6 10.5Z" />
-                <path d="M34 10.5V27L20 35V18L34 10.5Z" />
-                <path d="m13 14.3 14-7.5" />
-            </svg>
-        </span>
-        <span><strong>ESTIBA</strong><small>SUITE DE GESTIÓN WMS · {{ $context }}</small></span>
-    </div>
+<div class="estiba-ui estiba-office-shell" data-office-shell>
+    <a class="estiba-office-skip" href="#officeContent" data-office-skip>Saltar al contenido</a>
+    <header class="estiba-office-header" data-office-shell-header data-active-domain="{{ $domain }}" data-active-office="{{ $office }}">
+        <div class="estiba-office-brand">
+            <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true">Menú</button>
+            <strong>ESTIBA</strong>
+            <span>{{ $activeDomain['label'] }}<small>{{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
+        </div>
+        <div class="estiba-office-context">
+            <span>Planta<strong data-office-plant>Sin consultar</strong></span>
+            <span>Temporada<strong data-office-season>Sin consultar</strong></span>
+        </div>
+        <div class="estiba-office-identity">
+            <span class="estiba-office-avatar" id="officeInitials" aria-hidden="true">OF</span>
+            <span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small><small data-office-readonly hidden>Solo consulta</small></span>
+            <button id="officeLogoutButton" type="button">Cerrar sesión</button>
+        </div>
+    </header>
 
-    <nav class="office-domain-navigation" aria-label="Macromódulos del sistema">
-        @foreach ($domains as $domainKey => $definition)
-            <a
-                class="office-domain-link {{ $domain === $domainKey ? 'is-active' : '' }}"
-                data-domain-key="{{ $domainKey }}"
-                data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
-                href="{{ $definition['href'] }}"
-            >
-                <span aria-hidden="true">{{ $definition['icon'] }}</span>
-                <strong>{{ $definition['label'] }}</strong>
-            </a>
-        @endforeach
-    </nav>
+    <aside class="estiba-office-sidebar" id="officeSidebar" aria-label="Navegación de Oficina">
+        <nav aria-label="Áreas del sistema">
+            <p class="estiba-office-nav-label">ÁREAS</p>
+            @foreach ($domains as $domainKey => $definition)
+                <a class="estiba-office-domain {{ $domain === $domainKey ? 'is-active' : '' }}"
+                    data-domain-key="{{ $domainKey }}"
+                    data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
+                    href="{{ $definition['href'] }}"
+                    @if ($domain === $domainKey) aria-current="true" @endif
+                ><span aria-hidden="true">{{ $definition['icon'] }}</span><strong>{{ $definition['label'] }}</strong></a>
+            @endforeach
+        </nav>
+        <nav class="estiba-office-offices" aria-label="Oficinas de {{ $activeDomain['label'] }}">
+            <p class="estiba-office-nav-label">{{ $activeDomain['label'] }}</p>
+            @foreach ($activeOffices as $definition)
+                <a class="{{ $office === $definition['key'] ? 'is-active' : '' }}"
+                    data-office-key="{{ $definition['key'] }}"
+                    data-office-domain="{{ $domain }}"
+                    data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
+                    data-navigation-module="{{ $definition['module'] }}"
+                    href="{{ $definition['href'] }}"
+                    @if ($office === $definition['key']) aria-current="page" @endif
+                >{{ $definition['label'] }}</a>
+            @endforeach
+        </nav>
+        <div class="estiba-office-preferences">
+            <label for="officeThemeSelector">Apariencia del contenido</label>
+            <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
+                <option value="dark-industrial">Oscuro industrial</option>
+                <option value="light-professional">Claro profesional</option>
+                <option value="light-natural">Claro natural</option>
+                <option value="light-warm">Claro cálido</option>
+            </select>
+            <button type="button" data-office-context-refresh>Actualizar contexto</button>
+            <p data-office-context-status role="status">Contexto sin consultar</p>
+        </div>
+    </aside>
 
-    <div class="identity">
-        <span class="identity__avatar" id="officeInitials">OF</span>
-        <span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small></span>
-        <button id="officeLogoutButton" type="button">Cerrar sesión</button>
-    </div>
-
-    <div class="office-navigation-legacy" aria-hidden="true">
+    <div class="office-navigation-legacy" hidden aria-hidden="true">
         <a id="officeManagementNav" href="/oficina/gerencia" tabindex="-1"></a>
         <a id="officeRomanaNav" href="/oficina/romana" tabindex="-1"></a>
         <a id="officeRawMaterialNav" href="/oficina/materia-prima" tabindex="-1"></a>
@@ -127,29 +151,10 @@
         <a id="officePrefrioNav" href="/oficina/prefrio" tabindex="-1"></a>
         <a id="officeAccessesNav" href="/oficina/accesos" tabindex="-1"></a>
     </div>
-</header>
-
-<nav class="office-subnavigation" aria-label="Oficinas de {{ $activeDomain['label'] }}">
-    <div class="office-subnavigation__heading">
-        <span>MACROMÓDULO</span>
-        <strong>{{ $activeDomain['label'] }}</strong>
-    </div>
-    <div class="office-subnavigation__links">
-        @foreach ($activeOffices as $definition)
-            <a
-                class="{{ $office === $definition['key'] ? 'is-active' : '' }}"
-                data-office-key="{{ $definition['key'] }}"
-                data-office-domain="{{ $domain }}"
-                data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
-                data-navigation-module="{{ $definition['module'] }}"
-                href="{{ $definition['href'] }}"
-            >{{ $definition['label'] }}</a>
-        @endforeach
-    </div>
-</nav>
+</div>
 
 @once
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-        @vite(['resources/css/office-corporate.css', 'resources/js/office-navigation.js'])
+        @vite(['resources/css/office-corporate.css', 'resources/css/office-shell.css', 'resources/js/office-navigation.js'])
     @endif
 @endonce

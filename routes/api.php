@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\ConsultaOficinaController;
 use App\Http\Controllers\Api\ConsultaSagController;
+use App\Http\Controllers\Api\ContextoOficinaController;
 use App\Http\Controllers\Api\CorreccionItemMaterialController;
 use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DesocupacionCamaraController;
@@ -61,6 +62,7 @@ Route::post('/acceso-tablet', [AccesoTabletController::class, 'store'])->middlew
 Route::post('/acceso-oficina', [AccesoOficinaController::class, 'store'])->middleware('throttle:6,1');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/oficina/contexto', ContextoOficinaController::class);
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/demo/autorizar', [AccesoOficinaController::class, 'autorizarDemo']);
     Route::get('/gerencia/resumen', PanelGerencialController::class)

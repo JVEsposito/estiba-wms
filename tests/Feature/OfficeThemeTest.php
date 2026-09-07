@@ -31,7 +31,7 @@ class OfficeThemeTest extends TestCase
             $css,
         );
         $this->assertStringContainsString(
-            "const defaultTheme = 'dark-industrial';",
+            "const defaultTheme = 'light-professional';",
             $javascript,
         );
         $this->assertStringContainsString(
