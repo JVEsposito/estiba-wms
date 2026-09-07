@@ -30,7 +30,7 @@ class DiscrepanciaManiobraOfficeTest extends TestCase
         $this->assertStringContainsString('/resolver', $script);
         $this->assertStringContainsString('version_maniobra', $script);
         $this->assertStringContainsString('restricciones?.cancelar', $script);
-        $this->assertStringContainsString("error.status === 409", $script);
+        $this->assertStringContainsString('error.status === 409', $script);
         $this->assertStringContainsString('var(--eui-color-border)', $styles);
     }
 }
