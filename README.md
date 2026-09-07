@@ -252,6 +252,11 @@ TELESCOPE_ENABLED=false
 
 ## Validación automática
 
+Las [fundaciones visuales Estiba](docs/FUNDACIONES_VISUALES_ESTIBA.md) incluyen
+tokens compartidos, componentes para Oficina/tablet y un catálogo sin datos reales.
+`npm run design:check` verifica la sincronía de los tokens y `php artisan ui:catalogo`
+exporta la muestra a `storage/app/ui/catalogo.html` para revisarla en el navegador.
+
 Cada PR y cada push a `main` ejecutan:
 
 ```text

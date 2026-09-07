@@ -1,0 +1,117 @@
+@import './estiba-tokens.css';
+
+/* Adopción explícita por pantalla. No modifica :root, body ni componentes legacy. */
+.estiba-ui {
+    --eui-control-height: var(--eui-density-comfortable-control);
+    --eui-row-height: var(--eui-density-comfortable-row);
+    --eui-cell-padding: var(--eui-density-comfortable-cell-padding);
+    color-scheme: light;
+    background: var(--eui-color-canvas);
+    color: var(--eui-color-text);
+    font: var(--eui-font-weight-regular) var(--eui-font-size-body) / var(--eui-line-height-body) "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.estiba-ui[data-density="compact"] {
+    --eui-control-height: var(--eui-density-compact-control);
+    --eui-row-height: var(--eui-density-compact-row);
+    --eui-cell-padding: var(--eui-density-compact-cell-padding);
+}
+.estiba-ui[data-density="touch"] {
+    --eui-control-height: var(--eui-density-touch-control);
+    --eui-row-height: var(--eui-density-touch-row);
+    --eui-cell-padding: var(--eui-density-touch-cell-padding);
+}
+.estiba-ui, .estiba-ui *, .estiba-ui *::before, .estiba-ui *::after { box-sizing: border-box; }
+.estiba-ui :where(button, input, select, textarea) { font: inherit; }
+.estiba-ui :where(button, a, input, select, textarea, [tabindex]):focus-visible {
+    outline: 3px solid var(--eui-color-focus);
+    outline-offset: 3px;
+}
+.estiba-ui :where(a) { color: var(--eui-color-primary); text-underline-offset: 3px; }
+.estiba-ui .eui-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--eui-space-4); }
+.estiba-ui .eui-heading__copy { min-width: 0; }
+.estiba-ui .eui-heading__eyebrow { margin: 0 0 var(--eui-space-2); color: var(--eui-color-muted); font-size: var(--eui-font-size-caption); font-weight: var(--eui-font-weight-bold); letter-spacing: .08em; text-transform: uppercase; }
+.estiba-ui .eui-heading__title { margin: 0; font-size: var(--eui-font-size-title); line-height: var(--eui-line-height-heading); font-weight: var(--eui-font-weight-bold); overflow-wrap: anywhere; }
+.estiba-ui .eui-heading__description { margin: var(--eui-space-2) 0 0; color: var(--eui-color-muted); max-width: 70ch; }
+.estiba-ui .eui-panel { min-width: 0; border: 1px solid var(--eui-color-border); border-radius: var(--eui-radius-panel); background: var(--eui-color-surface); }
+.estiba-ui .eui-panel__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--eui-space-3); padding: var(--eui-space-3) var(--eui-space-4); border-bottom: 1px solid var(--eui-color-border); }
+.estiba-ui .eui-panel__title { margin: 0; font-size: var(--eui-font-size-body); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-panel__body { padding: var(--eui-space-4); }
+.estiba-ui .eui-panel__body > :first-child { margin-top: 0; }
+.estiba-ui .eui-panel__body > :last-child { margin-bottom: 0; }
+.estiba-ui .eui-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--eui-space-3); }
+.estiba-ui .eui-button {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--eui-space-2);
+    min-height: var(--eui-control-height); max-width: 100%; padding: var(--eui-space-1) var(--eui-space-4);
+    border: 1px solid var(--eui-color-primary); border-radius: var(--eui-radius-control);
+    background: var(--eui-color-primary); color: var(--eui-color-on-primary);
+    font-weight: var(--eui-font-weight-strong); font-size: inherit; line-height: var(--eui-line-height-body);
+    cursor: pointer; text-align: center; text-decoration: none; overflow-wrap: anywhere;
+}
+.estiba-ui .eui-button:hover:enabled { background: var(--eui-color-primary-hover); border-color: var(--eui-color-primary-hover); }
+.estiba-ui .eui-button--secondary { color: var(--eui-color-text); background: var(--eui-color-surface); border-color: var(--eui-color-input-border); }
+.estiba-ui .eui-button--secondary:hover:enabled { background: var(--eui-color-subtle); border-color: var(--eui-color-text); }
+.estiba-ui .eui-button--critical { color: var(--eui-signal-critical-text); background: var(--eui-color-surface); border-color: var(--eui-signal-critical-text); }
+.estiba-ui .eui-button--critical:hover:enabled { background: var(--eui-signal-critical-surface); border-color: var(--eui-signal-critical-text); }
+.estiba-ui .eui-button--confirm { color: var(--eui-color-on-primary); background: var(--eui-signal-success-text); border-color: var(--eui-signal-success-text); }
+.estiba-ui .eui-button--confirm:hover:enabled { background: var(--eui-color-confirm-hover); border-color: var(--eui-color-confirm-hover); }
+.estiba-ui .eui-button:disabled { color: var(--eui-color-disabled-text); background: var(--eui-color-disabled-surface); border-color: var(--eui-color-border); cursor: not-allowed; }
+.estiba-ui .eui-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.estiba-ui .eui-tone-neutral { --eui-signal-text: var(--eui-signal-neutral-text); --eui-signal-surface: var(--eui-signal-neutral-surface); --eui-signal-border: var(--eui-signal-neutral-border); }
+.estiba-ui .eui-tone-info { --eui-signal-text: var(--eui-signal-info-text); --eui-signal-surface: var(--eui-signal-info-surface); --eui-signal-border: var(--eui-signal-info-border); }
+.estiba-ui .eui-tone-success { --eui-signal-text: var(--eui-signal-success-text); --eui-signal-surface: var(--eui-signal-success-surface); --eui-signal-border: var(--eui-signal-success-border); }
+.estiba-ui .eui-tone-warning { --eui-signal-text: var(--eui-signal-warning-text); --eui-signal-surface: var(--eui-signal-warning-surface); --eui-signal-border: var(--eui-signal-warning-border); }
+.estiba-ui .eui-tone-critical { --eui-signal-text: var(--eui-signal-critical-text); --eui-signal-surface: var(--eui-signal-critical-surface); --eui-signal-border: var(--eui-signal-critical-border); }
+.estiba-ui .eui-tone-reserved { --eui-signal-text: var(--eui-signal-reserved-text); --eui-signal-surface: var(--eui-signal-reserved-surface); --eui-signal-border: var(--eui-signal-reserved-border); }
+.estiba-ui .eui-tone-temporary { --eui-signal-text: var(--eui-signal-temporary-text); --eui-signal-surface: var(--eui-signal-temporary-surface); --eui-signal-border: var(--eui-signal-temporary-border); }
+.estiba-ui .eui-tone-blocked { --eui-signal-text: var(--eui-signal-blocked-text); --eui-signal-surface: var(--eui-signal-blocked-surface); --eui-signal-border: var(--eui-signal-blocked-border); }
+.estiba-ui .eui-signal { display: inline-flex; gap: var(--eui-space-2); align-items: center; color: var(--eui-signal-text); font-size: var(--eui-font-size-small); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-signal__marker { width: 8px; height: 8px; flex: 0 0 8px; border: 1px solid currentColor; background: currentColor; border-radius: 50%; }
+.estiba-ui .eui-tone-neutral .eui-signal__marker { background: transparent; }
+.estiba-ui :is(.eui-tone-blocked, .eui-tone-critical) .eui-signal__marker { border-radius: 0; }
+.estiba-ui :is(.eui-tone-warning, .eui-tone-reserved, .eui-tone-temporary) .eui-signal__marker { border-radius: 0; transform: rotate(45deg); }
+.estiba-ui .eui-code { font-family: ui-monospace, Consolas, monospace; font-size: 1em; font-weight: var(--eui-font-weight-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.estiba-ui .eui-code--large { font-size: var(--eui-font-size-title); line-height: var(--eui-line-height-heading); }
+.estiba-ui .eui-table-scroll { max-width: 100%; overflow-x: auto; }
+.estiba-ui .eui-table { width: 100%; border-collapse: collapse; text-align: left; font-size: var(--eui-font-size-small); }
+.estiba-ui .eui-table caption { padding: var(--eui-space-3) var(--eui-space-4); color: var(--eui-color-muted); text-align: left; }
+.estiba-ui .eui-table :where(th, td) { height: var(--eui-row-height); padding: var(--eui-cell-padding) var(--eui-space-4); border-bottom: 1px solid var(--eui-color-border); vertical-align: middle; }
+.estiba-ui .eui-table th { color: var(--eui-color-muted); background: var(--eui-color-subtle); font-weight: var(--eui-font-weight-strong); white-space: nowrap; }
+.estiba-ui .eui-table tbody tr:last-child td { border-bottom: 0; }
+.estiba-ui .eui-table .eui-numeric { text-align: right; font-variant-numeric: tabular-nums; }
+.estiba-ui .eui-field { display: grid; gap: var(--eui-space-2); color: var(--eui-color-text); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-input { width: 100%; min-width: 0; min-height: var(--eui-control-height); border: 1px solid var(--eui-color-input-border); border-radius: var(--eui-radius-control); background: var(--eui-color-surface); color: var(--eui-color-text); padding: var(--eui-space-1) var(--eui-space-3); }
+.estiba-ui .eui-input[aria-invalid="true"] { border-color: var(--eui-signal-critical-text); }
+.estiba-ui .eui-input:disabled { color: var(--eui-color-disabled-text); background: var(--eui-color-disabled-surface); }
+.estiba-ui .eui-field__hint { color: var(--eui-color-muted); font-size: var(--eui-font-size-small); font-weight: var(--eui-font-weight-regular); }
+.estiba-ui .eui-field__error { color: var(--eui-signal-critical-text); font-size: var(--eui-font-size-small); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-metric { min-width: 0; }
+.estiba-ui .eui-metric__heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--eui-space-3); margin-bottom: var(--eui-space-2); }
+.estiba-ui .eui-metric__value { color: var(--eui-color-text); font-variant-numeric: tabular-nums; font-weight: var(--eui-font-weight-bold); }
+.estiba-ui .eui-meter { height: 8px; overflow: hidden; background: var(--eui-color-disabled-surface); }
+.estiba-ui .eui-meter__fill { height: 100%; background: var(--eui-signal-text); }
+.estiba-ui .eui-metric__detail { margin: var(--eui-space-2) 0 0; color: var(--eui-color-muted); font-size: var(--eui-font-size-small); }
+.estiba-ui .eui-alert { display: flex; align-items: flex-start; gap: var(--eui-space-3); padding: var(--eui-space-4); border: 1px solid var(--eui-signal-border); border-left: 4px solid var(--eui-signal-text); border-radius: var(--eui-radius-control); background: var(--eui-signal-surface); color: var(--eui-signal-text); }
+.estiba-ui .eui-alert__body { min-width: 0; flex: 1; }
+.estiba-ui .eui-alert__title { margin: 0; font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-alert__detail { margin-top: var(--eui-space-1); }
+.estiba-ui .eui-alert__detail > :first-child { margin-top: 0; }
+.estiba-ui .eui-alert__detail > :last-child { margin-bottom: 0; }
+.estiba-ui .eui-empty { padding: var(--eui-space-6); }
+.estiba-ui .eui-empty__title { margin: 0 0 var(--eui-space-2); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-empty__description { margin: 0; max-width: 60ch; color: var(--eui-color-muted); }
+.estiba-ui .eui-empty__action { margin-top: var(--eui-space-4); }
+.estiba-ui .eui-progress { display: grid; gap: var(--eui-space-3); list-style: none; margin: 0; padding: 0; }
+.estiba-ui .eui-progress__step { display: flex; align-items: flex-start; gap: var(--eui-space-3); color: var(--eui-color-muted); }
+.estiba-ui .eui-progress__step[aria-current="step"] { color: var(--eui-color-text); font-weight: var(--eui-font-weight-bold); }
+.estiba-ui .eui-progress__number { display: grid; flex: 0 0 28px; min-height: 28px; place-items: center; border: 1px solid var(--eui-color-input-border); border-radius: var(--eui-radius-control); font-variant-numeric: tabular-nums; }
+.estiba-ui .eui-progress__step[aria-current="step"] .eui-progress__number { color: var(--eui-color-on-primary); background: var(--eui-color-primary); border-color: var(--eui-color-primary); }
+.estiba-ui .eui-progress__state { display: block; font-size: var(--eui-font-size-small); font-weight: var(--eui-font-weight-regular); }
+.estiba-ui[data-density="touch"] :is(.eui-table, .eui-signal) { font-size: var(--eui-font-size-body); }
+@media (pointer: coarse) {
+    .estiba-ui, .estiba-ui[data-density="compact"] {
+        --eui-control-height: var(--eui-density-touch-control);
+        --eui-row-height: var(--eui-density-touch-row);
+        --eui-cell-padding: var(--eui-density-touch-cell-padding);
+    }
+    .estiba-ui :is(.eui-table, .eui-signal) { font-size: var(--eui-font-size-body); }
+}

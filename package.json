@@ -5,7 +5,10 @@
     "scripts": {
         "build": "vite build",
         "dev": "vite",
-        "test:js": "node --test tests/JavaScript/*.mjs"
+        "test:js": "node --test tests/JavaScript/*.mjs",
+        "design:tokens": "node scripts/build-design-tokens.mjs",
+        "design:check": "node scripts/build-design-tokens.mjs --check",
+        "ui:catalog": "php artisan ui:catalogo"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",

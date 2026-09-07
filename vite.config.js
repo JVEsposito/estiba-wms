@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/js/app.js',
                 'resources/css/office.css',
                 'resources/css/office-corporate.css',
+                'resources/css/estiba-ui.css',
                 'resources/js/office-navigation.js',
                 'resources/css/office-domain-lobby.css',
                 'resources/js/office-domain-lobby.js',
