@@ -15,6 +15,7 @@ Route::view('/oficina/frigorifico/camaras', 'office.cameras', [
     'navigationOffice' => 'camaras',
     'cameraMode' => 'operacion',
 ]);
+Route::view('/oficina/frigorifico/discrepancias', 'office.discrepancies');
 Route::view('/oficina/administracion/camaras', 'office.cameras', [
     'navigationDomain' => 'administracion',
     'navigationOffice' => 'configuracion-camaras',
