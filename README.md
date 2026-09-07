@@ -190,6 +190,7 @@ Ocultar una acción en la interfaz nunca reemplaza la autorización del backend.
 - [Arquitectura](docs/arquitectura.md)
 - [Perfil operativo y rendimiento](docs/operacion-rendimiento.md)
 - [Configuración de cámaras y cargas](docs/configuracion-camaras-y-preparacion-cargas.md)
+- [Control ambiental horario](docs/CONTROL_AMBIENTAL_HORARIO.md)
 - [Segmentación operacional por área](docs/segmentacion-operacional-por-area.md)
 - [Validación de pallets/PT](docs/MODULO_VALIDACION_PALLETS.md)
 - [Prefrío](docs/MODULO_PREFRIO.md)

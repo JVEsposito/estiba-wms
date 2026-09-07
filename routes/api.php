@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\ConsultaOficinaController;
 use App\Http\Controllers\Api\ConsultaSagController;
 use App\Http\Controllers\Api\ContextoOficinaController;
+use App\Http\Controllers\Api\ControlAmbientalController;
 use App\Http\Controllers\Api\CorreccionItemMaterialController;
 use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DesocupacionCamaraController;
@@ -131,6 +132,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/camaras', [CamaraController::class, 'index']);
     Route::get('/camaras/{camara}/plano', [CamaraController::class, 'plano']);
     Route::get('/condiciones-sag', [CondicionSagController::class, 'index']);
+
+    Route::middleware('can:consultar-control-ambiental')
+        ->prefix('control-ambiental')
+        ->group(function () {
+            Route::get('/estado', [ControlAmbientalController::class, 'estado']);
+            Route::get('/registros', [ControlAmbientalController::class, 'index']);
+        });
+    Route::post(
+        '/control-ambiental/camaras/{camara}/registros',
+        [ControlAmbientalController::class, 'store'],
+    )->middleware('can:registrar-control-ambiental');
+    Route::put(
+        '/control-ambiental/registros/{registro}/corregir',
+        [ControlAmbientalController::class, 'corregir'],
+    )->middleware('can:corregir-control-ambiental');
 
     Route::middleware('can:supervisar-camaras-productos')
         ->prefix('desocupaciones-camara')

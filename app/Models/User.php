@@ -83,6 +83,16 @@ class User extends Authenticatable
         return $this->hasMany(TareaMovimiento::class, 'responsable_user_id');
     }
 
+    public function registrosControlAmbiental(): HasMany
+    {
+        return $this->hasMany(RegistroControlAmbiental::class, 'registrado_por_user_id');
+    }
+
+    public function correccionesControlAmbiental(): HasMany
+    {
+        return $this->hasMany(CorreccionControlAmbiental::class, 'corregido_por_user_id');
+    }
+
     public function perfilAcceso(): BelongsTo
     {
         return $this->belongsTo(PerfilAcceso::class);
