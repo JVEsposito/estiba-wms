@@ -152,7 +152,7 @@ class ControlAmbientalApiTest extends TestCase
             'temperatura_fondo_c' => '-0.70',
             'motivo' => 'La lectura inicial se transcribió incorrectamente.',
         ];
-        $tokenSupervisor = $supervisor->createToken('oficina')->plainTextToken;
+        $tokenSupervisor = $supervisor->createToken('oficina', ['oficina'])->plainTextToken;
         $ruta = "/api/control-ambiental/registros/{$registroId}/corregir";
 
         $this->withToken($tokenSupervisor)
@@ -191,7 +191,7 @@ class ControlAmbientalApiTest extends TestCase
             $camara,
             '2026-09-07T15:45:00Z',
         );
-        $tokenOficina = $camarero->createToken('oficina')->plainTextToken;
+        $tokenOficina = $camarero->createToken('oficina', ['oficina'])->plainTextToken;
 
         $this->withToken($tokenOficina)
             ->putJson("/api/control-ambiental/registros/{$registroId}/corregir", [
