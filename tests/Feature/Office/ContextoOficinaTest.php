@@ -28,6 +28,7 @@ class ContextoOficinaTest extends TestCase
     {
         Sanctum::actingAs(User::factory()->create(['rol' => RolUsuario::Administrador]));
         config(['oficina.planta' => null]);
+        Temporada::query()->update(['activa' => false]);
         $before = Temporada::count();
         $this->getJson('/api/oficina/contexto')->assertOk()
             ->assertJsonPath('data.planta', null)->assertJsonPath('data.temporada', null);

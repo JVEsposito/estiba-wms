@@ -777,11 +777,11 @@ a[aria-disabled="true"] {
     color: var(--text) !important;
 }
 
-.office-app h1,
-.office-app h2,
-.office-app h3,
-.office-app h4,
-.office-app strong {
+.office-app h1:not([data-office-shell] *),
+.office-app h2:not([data-office-shell] *),
+.office-app h3:not([data-office-shell] *),
+.office-app h4:not([data-office-shell] *),
+.office-app strong:not([data-office-shell] *) {
     color: var(--text-strong);
 }
 
@@ -796,12 +796,12 @@ a[aria-disabled="true"] {
     letter-spacing: -.012em !important;
 }
 
-.office-app p,
-.office-app small,
-.office-app [class*="help"],
-.office-app [class*="description"],
-.office-app [class*="subtitle"],
-.office-app [class*="meta"] {
+.office-app p:not([data-office-shell] *),
+.office-app small:not([data-office-shell] *),
+.office-app [class*="help"]:not([data-office-shell] *),
+.office-app [class*="description"]:not([data-office-shell] *),
+.office-app [class*="subtitle"]:not([data-office-shell] *),
+.office-app [class*="meta"]:not([data-office-shell] *) {
     color: var(--muted);
 }
 
