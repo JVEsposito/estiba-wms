@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\IntegridadOperacionalController;
 use App\Http\Controllers\Api\MateriaPrimaController;
 use App\Http\Controllers\Api\MovimientoController;
 use App\Http\Controllers\Api\NotificacionOperacionalController;
+use App\Http\Controllers\Api\OperacionAhoraController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\PerfilAccesoController;
 use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
@@ -67,6 +68,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/demo/autorizar', [AccesoOficinaController::class, 'autorizarDemo']);
     Route::get('/gerencia/resumen', PanelGerencialController::class)
+        ->middleware('can:consultar-panel-gerencial');
+    Route::get('/operacion-ahora', OperacionAhoraController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/administracion/integridad-operacional', [IntegridadOperacionalController::class, 'index'])
         ->middleware('can:consultar-integridad-operacional');
