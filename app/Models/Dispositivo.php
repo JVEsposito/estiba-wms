@@ -33,6 +33,11 @@ class Dispositivo extends Model
         return $this->hasMany(TareaMovimiento::class);
     }
 
+    public function registrosControlAmbiental(): HasMany
+    {
+        return $this->hasMany(RegistroControlAmbiental::class);
+    }
+
     public function tokens(): HasMany
     {
         return $this->hasMany(PersonalAccessToken::class);

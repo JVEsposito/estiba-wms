@@ -206,6 +206,30 @@ class AlcanceOperacionalUsuario
         return $this->puedeSupervisarCamara($usuario, $camara);
     }
 
+    public function puedeConsultarControlAmbiental(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::CamareroFrio,
+            RolUsuario::Consulta,
+        ], 'frigorifico.camaras');
+    }
+
+    public function puedeRegistrarControlAmbiental(User $usuario): bool
+    {
+        return $this->puedeOperarCamara($usuario, ContenidoCamara::Productos)
+            && $this->permiteModuloTablet(
+                $usuario,
+                CatalogoModulosAcceso::TABLET_OPERACION_FRIGORIFICO,
+            );
+    }
+
+    public function puedeCorregirControlAmbiental(User $usuario): bool
+    {
+        return $this->puedeSupervisarCamara($usuario, ContenidoCamara::Productos);
+    }
+
     public function puedeGestionarCargas(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
@@ -829,6 +853,9 @@ class AlcanceOperacionalUsuario
                 || $this->puedeSupervisarCamara($usuario, ContenidoCamara::Materiales),
             'puede_operar_productos' => $this->puedeOperarCamara($usuario, ContenidoCamara::Productos),
             'puede_operar_materiales' => $this->puedeOperarCamara($usuario, ContenidoCamara::Materiales),
+            'puede_consultar_control_ambiental' => $this->puedeConsultarControlAmbiental($usuario),
+            'puede_registrar_control_ambiental' => $this->puedeRegistrarControlAmbiental($usuario),
+            'puede_corregir_control_ambiental' => $this->puedeCorregirControlAmbiental($usuario),
             'puede_consultar_materia_prima' => $this->puedeConsultarMateriaPrima($usuario),
             'puede_gestionar_lotes_materia_prima' => $this->puedeGestionarLotesMateriaPrima($usuario),
             'puede_supervisar_lotes_materia_prima' => $this->puedeSupervisarLotesMateriaPrima($usuario),

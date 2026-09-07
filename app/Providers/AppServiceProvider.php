@@ -187,6 +187,18 @@ class AppServiceProvider extends ServiceProvider
             ),
         );
         Gate::define(
+            'consultar-control-ambiental',
+            fn (User $usuario): bool => $alcance->puedeConsultarControlAmbiental($usuario),
+        );
+        Gate::define(
+            'registrar-control-ambiental',
+            fn (User $usuario): bool => $alcance->puedeRegistrarControlAmbiental($usuario),
+        );
+        Gate::define(
+            'corregir-control-ambiental',
+            fn (User $usuario): bool => $alcance->puedeCorregirControlAmbiental($usuario),
+        );
+        Gate::define(
             'administrar-camaras',
             fn (User $usuario): bool => $alcance->puedeAdministrarCamaras($usuario),
         );

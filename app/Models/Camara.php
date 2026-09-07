@@ -54,6 +54,11 @@ class Camara extends Model
         return $this->hasMany(SesionEstiba::class);
     }
 
+    public function registrosControlAmbiental(): HasMany
+    {
+        return $this->hasMany(RegistroControlAmbiental::class);
+    }
+
     public function bloqueo(): HasOne
     {
         return $this->hasOne(BloqueoCamara::class);
