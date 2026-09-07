@@ -1,0 +1,62 @@
+@import './estiba-tokens.css';
+
+/* Estructura compartida. Los espacios de trabajo conservan sus estilos y reglas. */
+.office-app:has(> [data-office-shell]) { --office-sidebar-width: 248px; --office-header-height: 88px; padding-inline-start: var(--office-sidebar-width); }
+.estiba-office-shell { position: sticky; top: 0; z-index: 40; margin-inline-start: calc(-1 * var(--office-sidebar-width)); color: var(--eui-color-on-navy); font: 400 14px/1.5 "Segoe UI", Roboto, Arial, sans-serif; }
+.estiba-office-shell * { box-sizing: border-box; }
+.estiba-office-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px 24px; min-height: 88px; padding: 16px 24px; background: var(--eui-color-navy); border-bottom: 1px solid #617885; }
+.estiba-office-brand, .estiba-office-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.estiba-office-brand > strong { font-size: 28px; letter-spacing: .03em; }
+.estiba-office-brand > span { border-left: 1px solid #617885; padding-left: 16px; }
+.estiba-office-shell small { display: block; font-size: 12px; color: #D0DEE6; }
+.estiba-office-shell [hidden] { display: none; }
+.estiba-office-context { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.estiba-office-context > span { color: #D0DEE6; font-size: 12px; max-width: 240px; overflow-wrap: anywhere; }
+.estiba-office-context strong { display: block; font-size: 14px; color: var(--eui-color-on-navy); font-weight: 600; }
+.estiba-office-identity > span:nth-child(2) { max-width: 220px; overflow-wrap: anywhere; }
+.estiba-office-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid #617885; border-radius: 4px; font-weight: 600; }
+.estiba-office-shell button, .estiba-office-shell select { min-height: 44px; border: 1px solid #9DB2BE; border-radius: 4px; padding: 8px 12px; background: var(--eui-color-navy); color: var(--eui-color-on-navy); font: inherit; cursor: pointer; }
+.estiba-office-shell button:hover, .estiba-office-shell select:hover { background: #2B4A5A; }
+.estiba-office-shell button:disabled { opacity: .65; cursor: wait; }
+.estiba-office-shell :is(button, a, select):focus-visible { outline: 3px solid #FFFFFF; outline-offset: -4px; }
+.estiba-office-shell .estiba-office-menu { display: none; }
+.estiba-office-sidebar { position: fixed; top: var(--office-header-height); bottom: 0; left: 0; width: var(--office-sidebar-width); padding: 20px 12px; overflow-y: auto; overscroll-behavior: contain; background: var(--eui-color-navy); border-right: 1px solid #617885; }
+.estiba-office-nav-label { margin: 0 12px 8px; color: #D0DEE6; font-size: 12px; font-weight: 600; letter-spacing: .06em; }
+.estiba-office-sidebar a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border-left: 3px solid transparent; border-radius: 0 4px 4px 0; color: var(--eui-color-on-navy); text-decoration: none; overflow-wrap: anywhere; }
+.estiba-office-sidebar a:hover { background: #2B4A5A; }
+.estiba-office-sidebar a.is-active { border-left-color: #FFFFFF; background: #2B4A5A; }
+.estiba-office-sidebar a strong { font-size: 14px; font-weight: 600; }
+.estiba-office-domain > span { min-width: 24px; font: 12px ui-monospace, Consolas, monospace; color: #D0DEE6; }
+.estiba-office-offices { margin-top: 20px; padding-top: 20px; border-top: 1px solid #617885; }
+.estiba-office-preferences { display: grid; gap: 10px; margin: 20px 12px 0; padding-top: 20px; border-top: 1px solid #617885; }
+.estiba-office-preferences label { color: #D0DEE6; font-size: 12px; }
+.estiba-office-preferences select { width: 100%; min-width: 0; }
+.estiba-office-preferences p { margin: 0; color: #D0DEE6; font-size: 12px; }
+.estiba-office-skip { position: absolute; top: -100px; left: 12px; padding: 12px; background: var(--eui-color-navy); color: #FFFFFF; z-index: 2; }
+.estiba-office-skip:focus { top: 8px; }
+@media (max-width: 1199px) {
+    .office-app:has(> [data-office-shell]) { --office-sidebar-width: 0px; }
+    .estiba-office-shell .estiba-office-menu { display: inline-flex; align-items: center; }
+    .estiba-office-sidebar { position: static; width: 100%; max-height: 65vh; max-height: 65dvh; border-bottom: 1px solid #617885; }
+    .estiba-office-shell[data-menu-ready]:not([data-menu-open]) .estiba-office-sidebar { display: none; }
+    .estiba-office-header { padding: 12px 16px; }
+    .estiba-office-context { flex: 1; }
+}
+@media (max-width: 599px) {
+    .estiba-office-header { gap: 12px; }
+    .estiba-office-brand { width: 100%; }
+    .estiba-office-brand > strong { font-size: 24px; }
+    .estiba-office-brand > span { padding-left: 12px; font-size: 12px; }
+    .estiba-office-context { width: 100%; flex-basis: 100%; gap: 12px; }
+    .estiba-office-context > span { flex: 1; min-width: 0; }
+    .estiba-office-identity { width: 100%; }
+    .estiba-office-identity > span:nth-child(2) { flex: 1; }
+    .estiba-office-identity button { margin-left: auto; }
+}
+@media (pointer: coarse) {
+    .estiba-office-shell button, .estiba-office-shell select, .estiba-office-sidebar a { min-height: 56px; font-size: 16px; }
+}
+@media print {
+    .office-app:has(> [data-office-shell]) { padding-inline-start: 0; }
+    .estiba-office-shell { display: none; }
+}

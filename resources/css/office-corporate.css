@@ -629,15 +629,15 @@ textarea:focus-visible {
 }
 
 /* Formularios y controles */
-input,
-select,
-textarea,
-.office-app input,
-.office-app select,
-.office-app textarea,
-.office-access input,
-.office-access select,
-.office-access textarea {
+input:not([data-office-shell] *),
+select:not([data-office-shell] *),
+textarea:not([data-office-shell] *),
+.office-app input:not([data-office-shell] *),
+.office-app select:not([data-office-shell] *),
+.office-app textarea:not([data-office-shell] *),
+.office-access input:not([data-office-shell] *),
+.office-access select:not([data-office-shell] *),
+.office-access textarea:not([data-office-shell] *) {
     border: 1px solid var(--corporate-border) !important;
     border-radius: 5px !important;
     background: var(--input-bg) !important;
@@ -645,40 +645,40 @@ textarea,
     box-shadow: none !important;
 }
 
-input::placeholder,
-textarea::placeholder {
+input:not([data-office-shell] *)::placeholder,
+textarea:not([data-office-shell] *)::placeholder {
     color: var(--text-subtle) !important;
 }
 
-input:hover,
-select:hover,
-textarea:hover {
+input:not([data-office-shell] *):hover,
+select:not([data-office-shell] *):hover,
+textarea:not([data-office-shell] *):hover {
     border-color: var(--logo-border) !important;
 }
 
-input:focus,
-select:focus,
-textarea:focus {
+input:not([data-office-shell] *):focus,
+select:not([data-office-shell] *):focus,
+textarea:not([data-office-shell] *):focus {
     border-color: var(--corporate-blue) !important;
     box-shadow: 0 0 0 3px var(--focus-ring) !important;
 }
 
-input:disabled,
-select:disabled,
-textarea:disabled {
+input:not([data-office-shell] *):disabled,
+select:not([data-office-shell] *):disabled,
+textarea:not([data-office-shell] *):disabled {
     background: var(--surface-muted) !important;
     color: var(--text-subtle) !important;
 }
 
-label,
+label:not([data-office-shell] *),
 .field,
-.office-app label,
-.office-access label {
+.office-app label:not([data-office-shell] *),
+.office-access label:not([data-office-shell] *) {
     color: var(--muted) !important;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
+input:not([data-office-shell] *)[type="checkbox"],
+input:not([data-office-shell] *)[type="radio"] {
     accent-color: var(--corporate-blue) !important;
 }
 
@@ -687,8 +687,8 @@ input[type="radio"] {
 .secondary-button,
 .danger-button,
 .refresh-button,
-.office-app button,
-.office-app a[class*="button"] {
+.office-app button:not([data-office-shell] *),
+.office-app a[class*="button"]:not([data-office-shell] *) {
     border-radius: 5px !important;
     box-shadow: none !important;
     font-weight: 750 !important;
@@ -777,11 +777,11 @@ a[aria-disabled="true"] {
     color: var(--text) !important;
 }
 
-.office-app h1,
-.office-app h2,
-.office-app h3,
-.office-app h4,
-.office-app strong {
+.office-app h1:not([data-office-shell] *),
+.office-app h2:not([data-office-shell] *),
+.office-app h3:not([data-office-shell] *),
+.office-app h4:not([data-office-shell] *),
+.office-app strong:not([data-office-shell] *) {
     color: var(--text-strong);
 }
 
@@ -796,12 +796,12 @@ a[aria-disabled="true"] {
     letter-spacing: -.012em !important;
 }
 
-.office-app p,
-.office-app small,
-.office-app [class*="help"],
-.office-app [class*="description"],
-.office-app [class*="subtitle"],
-.office-app [class*="meta"] {
+.office-app p:not([data-office-shell] *),
+.office-app small:not([data-office-shell] *),
+.office-app [class*="help"]:not([data-office-shell] *),
+.office-app [class*="description"]:not([data-office-shell] *),
+.office-app [class*="subtitle"]:not([data-office-shell] *),
+.office-app [class*="meta"]:not([data-office-shell] *) {
     color: var(--muted);
 }
 

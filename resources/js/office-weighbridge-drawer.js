@@ -107,8 +107,7 @@ function initializeWeighbridgeDrawer() {
         }
 
         const bars = [
-            document.querySelector('.office-domain-topbar'),
-            document.querySelector('.office-subnavigation'),
+            document.querySelector('[data-office-shell-header]'),
         ].filter(Boolean);
         const visibleBottoms = bars
             .map((bar) => bar.getBoundingClientRect().bottom)
@@ -219,7 +218,7 @@ function initializeWeighbridgeDrawer() {
     window.addEventListener('scroll', scheduleDrawerOffset, { passive: true });
     if ('ResizeObserver' in window) {
         const resizeObserver = new ResizeObserver(scheduleDrawerOffset);
-        document.querySelectorAll('.office-domain-topbar, .office-subnavigation').forEach((bar) => resizeObserver.observe(bar));
+        document.querySelectorAll('[data-office-shell-header]').forEach((bar) => resizeObserver.observe(bar));
     }
 
     activateTab('summary');

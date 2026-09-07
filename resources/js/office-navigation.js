@@ -1,16 +1,17 @@
 import './office-material-inventory-actions.js';
+import { initializeOfficeShell, refreshOfficeShell } from './office-shell.js';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
 const themeKey = 'estiba_wms_office_theme';
-const defaultTheme = 'dark-industrial';
+const defaultTheme = 'light-professional';
 const moduleAliases = {
     'administracion.maestros-temporada': ['frigorifico.catalogos'],
 };
 const availableThemes = new Set([
     defaultTheme,
-    'light-professional',
+    'dark-industrial',
     'light-natural',
     'light-warm',
 ]);
@@ -129,7 +130,7 @@ function firstAccessibleTarget(identity, targets) {
 }
 
 function redirectFromUnavailableOffice(identity) {
-    const header = document.querySelector('.office-domain-topbar');
+    const header = document.querySelector('[data-office-shell-header]');
     const activeOffice = header?.dataset.activeOffice;
     const activeDomain = header?.dataset.activeDomain;
     if (!activeOffice || !activeDomain) return;
@@ -192,9 +193,10 @@ function refreshNavigation() {
         if (target) link.href = target.href;
     });
 
-    const activeDomain = document.querySelector('.office-domain-topbar')?.dataset.activeDomain;
+    const activeDomain = document.querySelector('[data-office-shell-header]')?.dataset.activeDomain;
     if (hasSession && activeDomain) localStorage.setItem(lastDomainKey, activeDomain);
     if (hasSession) redirectFromUnavailableOffice(identity);
+    refreshOfficeShell(identity, hasSession);
 }
 
 const panelStoragePrefix = 'estiba_wms_office_panel:';
@@ -535,6 +537,7 @@ function initializeOfficeActionMenus() {
 
 document.addEventListener('DOMContentLoaded', () => {
     applyTheme(storedTheme());
+    initializeOfficeShell();
     initializeThemeSelector();
     refreshNavigation();
     observeApplication();
