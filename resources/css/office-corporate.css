@@ -1383,3 +1383,374 @@ td > .office-action-select,
         display: none !important;
     }
 }
+
+/*
+ * Lenguaje operacional ESTIBA.
+ *
+ * La oficina utiliza una sola composición verificable: shell navy, contenido
+ * claro, paneles rectos y tablas densas. Este bloque es deliberadamente
+ * transversal; evita que cada módulo conserve una apariencia distinta.
+ */
+:root,
+:root[data-office-theme="dark-industrial"],
+:root[data-office-theme="light-professional"],
+:root[data-office-theme="light-natural"],
+:root[data-office-theme="light-warm"] {
+    color-scheme: light;
+    --bg: #eaf0f4;
+    --deep: #ffffff;
+    --panel: #ffffff;
+    --raised: #f4f7f9;
+    --soft: #dfe8ee;
+    --line: #b9c8d2;
+    --border: #b9c8d2;
+    --cyan: #176fae;
+    --cyan-light: #145d96;
+    --accent: #176fae;
+    --green: #20844f;
+    --amber: #b57000;
+    --red: #c32e3d;
+    --text: #1a3040;
+    --muted: #5f7381;
+    --corporate-navy: #102f43;
+    --corporate-blue: #176fae;
+    --corporate-blue-dark: #0e568c;
+    --corporate-orange: #e59d17;
+    --corporate-canvas: #eaf0f4;
+    --corporate-card: #ffffff;
+    --corporate-border: #b9c8d2;
+    --corporate-shadow: 0 1px 3px rgba(15, 39, 55, .1);
+    --corporate-shadow-raised: 0 14px 36px rgba(15, 39, 55, .22);
+    --header-bg: #102f43;
+    --subnav-bg: #ffffff;
+    --surface-muted: #edf2f5;
+    --surface-hover: #eaf2f9;
+    --surface-selected: #dcecf7;
+    --input-bg: #ffffff;
+    --table-head: #e6edf2;
+    --row-bg: #ffffff;
+    --row-hover: #eef5fa;
+    --text-strong: #102d41;
+    --text-secondary: #304b5d;
+    --text-subtle: #6c808e;
+    --icon-surface: #edf4f8;
+    --button-secondary: #ffffff;
+    --button-secondary-hover: #eaf2f9;
+    --success-bg: #edf8f1;
+    --success-text: #20844f;
+    --warning-bg: #fff8e8;
+    --warning-text: #a96a00;
+    --danger-bg: #fff0f1;
+    --danger-text: #b92736;
+    --info-bg: #edf6fc;
+    --info-text: #176fae;
+    --overlay: rgba(7, 25, 37, .62);
+    --focus-ring: rgba(23, 111, 174, .28);
+    --selection-bg: rgba(23, 111, 174, .2);
+    --kpi-surface: #ffffff;
+    --logo-border: #7893a2;
+    --logo-bg: #ffffff;
+    --radius: 2px;
+    font-family: "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+}
+
+body,
+.office-app {
+    background: #eaf0f4 !important;
+    color: #1a3040 !important;
+    font-family: "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif !important;
+}
+
+.office-theme-selector { display: none !important; }
+
+.office-app .panel,
+.office-app [class$="-panel"],
+.office-app [class*="-panel "],
+.office-app [class$="__panel"],
+.office-app [class*="__panel "] {
+    border: 1px solid #aebfca !important;
+    border-radius: 2px !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(15, 39, 55, .1) !important;
+    color: #1a3040 !important;
+}
+
+.office-app [class$="-card"],
+.office-app [class*="-card "],
+.office-app [class$="__card"],
+.office-app [class*="__card "],
+.office-app :is(.camera-item, .material-row, .dispatch-row, .validation-row, .tunnel-card, .result-card, .producer-card) {
+    border-color: #c3d0d9 !important;
+    border-radius: 2px !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    color: #1a3040 !important;
+}
+
+.office-app :is(
+    .management-heading,
+    .admin-heading,
+    .accounts-heading,
+    .dispatch-heading,
+    .weighbridge-heading,
+    .validation-heading,
+    .materials-heading,
+    .prefrio-heading,
+    .hydrocooler-heading,
+    .sag-heading,
+    .shipment-heading,
+    .raw-material-heading,
+    .return-heading,
+    .repa-heading,
+    .annulment-heading,
+    .process-heading,
+    .queries-heading,
+    .integrity-heading,
+    .inventory-heading,
+    .custody-heading,
+    .discrepancies-heading,
+    .domain-lobby-heading
+) {
+    min-height: 82px;
+    padding: 13px 16px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #b9c8d2;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.office-app h1:not([data-office-shell] *) {
+    color: #0a2035 !important;
+    font-size: clamp(1.9rem, 2.4vw, 2.55rem) !important;
+    font-weight: 800 !important;
+    line-height: 1.05 !important;
+}
+
+.office-app :is(
+    .panel > .panel-heading,
+    .management-panel > header,
+    .inventory-connections-panel > header,
+    .demo-card > header,
+    .validation-panel__heading,
+    .materials-panel__heading,
+    .prefrio-panel__heading,
+    .process-panel__heading,
+    .sag-panel-heading,
+    .list-heading,
+    .return-panel__heading,
+    .repa-panel-heading,
+    .admin-panel__heading,
+    .weighbridge-panel-heading,
+    .raw-material-panel-heading,
+    .annulment-panel-heading,
+    .integrity-panel__heading,
+    .discrepancies-panel__heading
+) {
+    min-height: 44px;
+    margin: -16px -16px 13px !important;
+    padding: 8px 12px !important;
+    border-bottom: 1px solid #0d293b !important;
+    background: #17394b !important;
+    color: #ffffff !important;
+}
+
+.office-app :is(
+    .panel > .panel-heading,
+    .management-panel > header,
+    .inventory-connections-panel > header,
+    .demo-card > header,
+    .validation-panel__heading,
+    .materials-panel__heading,
+    .prefrio-panel__heading,
+    .process-panel__heading,
+    .sag-panel-heading,
+    .list-heading,
+    .return-panel__heading,
+    .repa-panel-heading,
+    .admin-panel__heading,
+    .weighbridge-panel-heading,
+    .raw-material-panel-heading,
+    .annulment-panel-heading,
+    .integrity-panel__heading,
+    .discrepancies-panel__heading
+) :is(h2, h3, strong) {
+    color: #ffffff !important;
+}
+
+.office-app :is(
+    .panel > .panel-heading,
+    .management-panel > header,
+    .inventory-connections-panel > header,
+    .demo-card > header,
+    .validation-panel__heading,
+    .materials-panel__heading,
+    .prefrio-panel__heading,
+    .process-panel__heading,
+    .sag-panel-heading,
+    .list-heading,
+    .return-panel__heading,
+    .repa-panel-heading,
+    .admin-panel__heading,
+    .weighbridge-panel-heading,
+    .raw-material-panel-heading,
+    .annulment-panel-heading,
+    .integrity-panel__heading,
+    .discrepancies-panel__heading
+) :is(.eyebrow, p, span) {
+    color: #cfe0e8 !important;
+}
+
+.office-app :is(
+    .management-kpi,
+    .validation-metrics > article,
+    .discrepancies-metrics > article,
+    .custody-metrics > article,
+    .weighbridge-kpis > article,
+    .raw-material-kpis > article,
+    .materials-metrics > article,
+    .prefrio-metrics > article,
+    .sag-metrics > article,
+    .query-kpis > article,
+    .integrity-metrics > article,
+    .return-kpis > article,
+    .domain-lobby-metrics > article
+) {
+    min-height: 82px !important;
+    padding: 11px 13px !important;
+    border: 1px solid #b9c8d2 !important;
+    border-top: 3px solid #176fae !important;
+    border-radius: 2px !important;
+    background: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(15, 39, 55, .08) !important;
+}
+
+.office-app :is(
+    .management-kpi,
+    .validation-metrics > article,
+    .discrepancies-metrics > article,
+    .custody-metrics > article,
+    .weighbridge-kpis > article,
+    .raw-material-kpis > article,
+    .materials-metrics > article,
+    .prefrio-metrics > article,
+    .sag-metrics > article,
+    .query-kpis > article,
+    .integrity-metrics > article,
+    .return-kpis > article,
+    .domain-lobby-metrics > article
+) > strong {
+    color: #102d41 !important;
+    font-size: clamp(1.3rem, 1.8vw, 1.75rem) !important;
+}
+
+.office-app table {
+    border-collapse: collapse !important;
+    background: #ffffff !important;
+    color: #1a3040 !important;
+}
+
+.office-app table :where(th, td) {
+    padding: 7px 8px !important;
+    border-right: 1px solid #d4dee5 !important;
+    border-bottom: 1px solid #d4dee5 !important;
+}
+
+.office-app table th {
+    border-top: 0 !important;
+    background: #e6edf2 !important;
+    color: #425b6c !important;
+    font-size: .7rem !important;
+    letter-spacing: .025em !important;
+    text-transform: none !important;
+}
+
+.office-app table td {
+    background: #ffffff !important;
+    color: #1a3040 !important;
+}
+
+.office-app table tbody tr:nth-child(even) td { background: #f7f9fb !important; }
+.office-app table tbody tr:hover td { background: #eef5fa !important; }
+
+.office-app :is(
+    .status-pill,
+    .validation-result,
+    .area-chip,
+    .usage-chip,
+    .state-badge,
+    [class*="status-chip"],
+    [class*="state-chip"],
+    [class*="badge"]
+) {
+    border-radius: 2px !important;
+}
+
+.office-app :is(input, select, textarea):not([data-office-shell] *),
+.office-app :is(.primary-button, .secondary-button, .danger-button, .refresh-button, .icon-button, .office-action-select) {
+    border-radius: 2px !important;
+}
+
+.office-app :is(.primary-button, .secondary-button, .danger-button, .refresh-button) {
+    min-height: 38px !important;
+}
+
+.office-app :is(
+    .loads-workspace,
+    .prefrio-workspace,
+    .materials-workspace,
+    .validation-workspace,
+    .admin-workspace,
+    .accounts-workspace,
+    .dispatch-workspace,
+    .annulment-workspace,
+    .catalog-workspace,
+    .hydrocooler-workspace,
+    .inventory-workspace,
+    .process-workspace,
+    .repa-workspace,
+    .sag-workspace,
+    .shipment-workspace,
+    .raw-material-workspace,
+    .return-workspace,
+    .weighbridge-workspace,
+    .integrity-shell,
+    .custody-shell,
+    .discrepancies-shell,
+    .office-workspace,
+    .domain-lobby-workspace
+) {
+    gap: 10px !important;
+    padding: 10px 12px 14px !important;
+}
+
+.domain-lobby-grid { gap: 9px !important; }
+.domain-lobby-card { min-height: 104px !important; padding: 13px !important; transform: none !important; }
+
+@media (max-width: 1199px) {
+    .office-app :is(
+        .management-heading,
+        .admin-heading,
+        .accounts-heading,
+        .dispatch-heading,
+        .weighbridge-heading,
+        .validation-heading,
+        .materials-heading,
+        .prefrio-heading,
+        .hydrocooler-heading,
+        .sag-heading,
+        .shipment-heading,
+        .raw-material-heading,
+        .return-heading,
+        .repa-heading,
+        .annulment-heading,
+        .process-heading,
+        .queries-heading,
+        .integrity-heading,
+        .inventory-heading,
+        .custody-heading,
+        .discrepancies-heading,
+        .domain-lobby-heading
+    ) {
+        min-height: 0;
+    }
+}

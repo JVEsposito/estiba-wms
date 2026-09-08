@@ -100,6 +100,11 @@
             <span>Temporada<strong data-office-season>Sin consultar</strong></span>
             <span>Planta<strong data-office-plant>Sin consultar</strong></span>
         </div>
+        <button class="estiba-office-status" type="button" data-office-context-refresh aria-label="Actualizar temporada y planta">
+            <i aria-hidden="true"></i>
+            <span><strong data-office-context-label>Verificando contexto</strong><small data-office-context-status>Temporada y planta</small></span>
+            <x-estiba.icon name="refresh" />
+        </button>
         <div class="estiba-office-identity">
             <span class="estiba-office-avatar" id="officeInitials" aria-hidden="true">OF</span>
             <span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small><small data-office-readonly hidden>Solo consulta</small></span>
@@ -145,18 +150,6 @@
                 >{{ $definition['label'] }}</a>
             @endforeach
         </nav>
-        <details class="estiba-office-preferences">
-            <summary>Preferencias de interfaz</summary>
-            <label for="officeThemeSelector">Apariencia del contenido</label>
-            <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
-                <option value="dark-industrial">Oscuro industrial</option>
-                <option value="light-professional">Claro profesional</option>
-                <option value="light-natural">Claro natural</option>
-                <option value="light-warm">Claro cálido</option>
-            </select>
-            <button type="button" data-office-context-refresh>Actualizar contexto</button>
-            <p data-office-context-status role="status">Contexto sin consultar</p>
-        </details>
         <div class="estiba-office-signature" aria-hidden="true">
             <span></span><strong>FRÍO QUE<br>MANTIENE VALOR</strong>
         </div>

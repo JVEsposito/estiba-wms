@@ -11,7 +11,7 @@
     @endif
 </head>
 <body>
-<main id="custodyApp" class="is-hidden">
+<main id="custodyApp" class="office-app is-hidden">
     <x-office.navigation domain="materiales" office="custodia" context="INVENTARIO CC" icon="⌖" />
 
     <div class="custody-shell">
@@ -152,4 +152,3 @@
 </main>
 </body>
 </html>
-

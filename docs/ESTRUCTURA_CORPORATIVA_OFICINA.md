@@ -1,8 +1,9 @@
 # Estructura corporativa de Oficina
 
-Esta entrega adopta la identidad del PR 266 en la cabecera y la navegación. Se apoya
-en main con la consulta y bandeja de discrepancias de los PR 265 y 267 integradas.
-Las pantallas de trabajo conservan sus funciones y se migrarán por separado.
+Esta entrega adopta la identidad ESTIBA en la cabecera, la navegación y las
+superficies compartidas de Oficina. Conserva los contratos funcionales de cada
+módulo, pero unifica paneles, tablas, indicadores, formularios y estados para que
+la experiencia no cambie de lenguaje visual al navegar entre áreas.
 
 ## Qué cambia
 
@@ -13,10 +14,10 @@ Las pantallas de trabajo conservan sus funciones y se migrarán por separado.
   Por debajo se abre con Menú, sin cubrir ni bloquear los formularios de trabajo.
   Escape lo cierra y devuelve el foco al botón. Saltar al contenido evita recorrerlo.
 - Controles de 44 px como mínimo y 56 px con puntero táctil.
-- Apariencia inicial clara profesional. Las preferencias guardadas y las cuatro
-  apariencias existentes continúan disponibles en el menú lateral.
-- Consulta de contexto al iniciar sesión/abrir una oficina y mediante Actualizar
-  contexto. No existe sondeo periódico ni consultas masivas adicionales.
+- Apariencia operacional única: shell azul marino, área de trabajo clara, paneles
+  rectos, tablas densas y color reservado para estados verificables.
+- Consulta de contexto al iniciar sesión/abrir una oficina y desde el indicador
+  de la cabecera. No existe sondeo periódico ni consultas masivas adicionales.
 
 ## Contexto verificable
 
@@ -43,14 +44,15 @@ descartan y las consultas tienen tiempo máximo de espera.
 | Permisos y módulos asignados | Mismos filtros y destinos accesibles |
 | Usuario y perfil | Cabecera, con indicación Solo consulta cuando corresponde |
 | Cerrar sesión | Mismo botón e identificador, gestionado por cada módulo |
-| Cuatro apariencias | Apariencia del contenido, en el menú lateral |
+| Temporada y planta | Indicador verificable y actualizable en la cabecera |
 | Expediente lateral de Romana | Conservado; calcula su posición desde la nueva cabecera |
 | Formularios, tablas, acciones y paneles de los módulos | Conservados en el espacio de trabajo |
 | Funciones eliminadas | Ninguna |
 
-Los identificadores usados por los scripts de cada módulo se conservan. Los nuevos
-estilos tienen alcance propio y los selectores genéricos heredados de formularios
-excluyen la cabecera, en lugar de añadir otra capa de `!important`.
+Los identificadores usados por los scripts de cada módulo se conservan. La capa
+corporativa se carga después de los estilos históricos para normalizar las
+superficies visibles sin duplicar esa migración en cada una de las oficinas; el
+shell queda excluido y mantiene sus controles y contrastes propios.
 
 ## Validación y despliegue
 

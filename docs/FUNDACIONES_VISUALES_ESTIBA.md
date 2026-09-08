@@ -8,9 +8,10 @@ fotografías, planos y supuestas integraciones no son datos del producto.
 ## Alcance de esta entrega
 
 Esta entrega prepara piezas reutilizables, un catálogo exportable y una muestra
-nativa. La adopción es explícita por pantalla. No registra rutas web/API, no cambia
-permisos, modelos o migraciones y no activa el planificador. Los temas y módulos
-existentes siguen disponibles mientras se migra cada flujo.
+nativa. Oficina adopta además la estructura compartida en todas sus pantallas;
+los flujos especializados pueden profundizar la composición sin volver a crear
+paleta, paneles, tablas o estados. No registra rutas web/API, no cambia permisos,
+modelos o migraciones y no activa el planificador.
 
 El catálogo usa los mismos componentes Blade que utilizarán las pantallas. Se
 exporta sin base de datos, sesión, fuentes remotas o dependencias de red. Todos sus
@@ -34,15 +35,16 @@ el despliegue no depende de ejecutar un generador en el dispositivo.
 | Acción principal | Azul `#145DA0`, una acción principal por decisión. |
 | Área de trabajo | Gris frío `#F3F5F7`, paneles blancos y bordes definidos. |
 | Texto | `#182B3A`; texto secundario `#536777`. |
-| Tipografía | Segoe UI / Roboto / sistema. Sin descarga de fuentes. |
+| Tipografía | Arial Narrow / Roboto Condensed en Oficina; Segoe UI / sistema como respaldo. Sin descarga de fuentes. |
 | Identificadores | Monoespaciados; conservar el código completo y permitir salto de línea. |
 | Tamaños de lectura | Cuerpo 16, secundario 14, encabezados 20/28; 12 solo metadatos. |
 | Espaciado | 4, 8, 12, 16, 24, 32, 48. |
-| Radios | Control 4, panel 6. Sin esquinas exageradas. |
+| Radios | Base 4/6; paneles operacionales de Oficina 2. Sin esquinas exageradas. |
 | Profundidad | Bordes y superficies. Sin gradientes decorativos ni sombras de panel. |
 
-La marca del producto es ESTIBA. Empresa y planta son contexto configurable;
-no se añade un eslogan o logotipo de una maqueta como si ya estuviera aprobado.
+La marca del producto es ESTIBA. Empresa y planta son contexto configurable. La
+firma “Frío que mantiene valor” forma parte del shell visual de referencia; no se
+usa para inferir una empresa, planta ni estado operacional.
 
 ## Estados: significado antes que color
 
@@ -218,12 +220,14 @@ del módulo, no copiando literalmente el menú incompleto de una maqueta.
 
 | Funciones antes de estas fundaciones | Después |
 | --- | --- |
-| Navegación y temas actuales de Oficina | Continúan sin cambio; adopción por pantalla futura. |
+| Navegación y apariencia de Oficina | Shell y lenguaje operacional único compartido. |
 | Labores y operaciones móviles | Continúan usando su tema actual. |
 | Permisos, autenticación y rutas | Sin cambio. |
 | Reglas del planificador, custodia y reservas | Sin cambio; `off` no se altera. |
 | Funciones eliminadas | Ninguna. |
 
-El componente compartido reemplaza estilos duplicados a medida que migra cada
-pantalla. No añadir nuevas capas globales de `!important` ni renombrar IDs usados
-por JavaScript durante un cambio visual.
+La capa corporativa se carga al final de los estilos históricos de Oficina y
+normaliza únicamente superficies bajo `.office-app`. Sus reglas de compatibilidad
+pueden elevar especificidad para corregir los temas heredados, pero no alcanzan
+Labores ni la aplicación móvil. No renombrar IDs usados por JavaScript durante un
+cambio visual.

@@ -2,8 +2,8 @@
 
 /* Shell corporativo compartido. Mantiene intactos los contratos de navegación y permisos. */
 .office-app:has(> [data-office-shell]) {
-    --office-sidebar-width: 206px;
-    --office-header-height: 66px;
+    --office-sidebar-width: 194px;
+    --office-header-height: 62px;
     padding-inline-start: var(--office-sidebar-width);
 }
 
@@ -23,7 +23,7 @@
 
 .estiba-office-header {
     display: grid;
-    grid-template-columns: var(--office-sidebar-width) minmax(205px, 250px) minmax(330px, 1fr) auto;
+    grid-template-columns: var(--office-sidebar-width) minmax(210px, 245px) minmax(300px, 1fr) minmax(210px, 255px) auto;
     align-items: stretch;
     min-height: var(--office-header-height);
     background: #102f43;
@@ -34,6 +34,7 @@
 .estiba-office-brand,
 .estiba-office-system,
 .estiba-office-context,
+.estiba-office-status,
 .estiba-office-identity {
     display: flex;
     align-items: center;
@@ -49,7 +50,7 @@
 .estiba-office-brand > strong {
     flex: 0 0 auto;
     color: #fff;
-    font-size: 29px;
+    font-size: 27px;
     font-weight: 800;
     letter-spacing: .035em;
 }
@@ -60,7 +61,7 @@
     gap: 2px;
     border-right: 1px solid #49677a;
     color: #d6e1e7;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: .035em;
 }
@@ -86,9 +87,9 @@
 }
 
 .estiba-office-context > span {
-    min-width: 145px;
+    min-width: 136px;
     max-width: 310px;
-    padding: 0 20px;
+    padding: 0 16px;
     border-left: 1px solid #49677a;
     color: #bbccd6;
     font-size: 11px;
@@ -97,6 +98,38 @@
 
 .estiba-office-context > span:last-child { border-right: 1px solid #49677a; }
 .estiba-office-context strong { display: block; margin-top: 2px; color: #fff; font-size: 14px; font-weight: 700; }
+
+.estiba-office-status {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-content: center;
+    gap: 9px;
+    min-height: 100% !important;
+    padding: 8px 14px !important;
+    border-width: 0 1px !important;
+    border-color: #49677a !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    text-align: left;
+}
+
+.estiba-office-status:hover { background: #17394b !important; }
+
+.estiba-office-status > i {
+    width: 10px;
+    height: 10px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background: currentColor;
+    color: #9cb0bc;
+}
+
+.estiba-office-status[data-tone="success"] > i { color: #39c978; }
+.estiba-office-status[data-tone="critical"] > i { color: #f06470; }
+.estiba-office-status > span { min-width: 0; }
+.estiba-office-status strong { display: block; overflow: hidden; color: #fff; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.estiba-office-status small { overflow: hidden; color: #b8c9d3; text-overflow: ellipsis; white-space: nowrap; }
+.estiba-office-status > .eui-icon { width: 17px; height: 17px; color: #b8c9d3; fill: none; stroke: currentColor; }
 
 .estiba-office-identity {
     justify-content: flex-end;
@@ -145,7 +178,7 @@
     bottom: 0;
     left: 0;
     width: var(--office-sidebar-width);
-    padding: 12px 0 18px;
+    padding: 8px 0 18px;
     overflow-y: auto;
     overscroll-behavior: contain;
     background: #102f43;
@@ -153,7 +186,7 @@
 }
 
 .estiba-office-nav-label {
-    margin: 10px 17px 6px;
+    margin: 8px 15px 5px;
     color: #91a8b6;
     font-size: 10px;
     font-weight: 800;
@@ -165,8 +198,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 39px;
-    padding: 7px 16px;
+    min-height: 38px;
+    padding: 6px 13px;
     border-left: 4px solid transparent;
     color: #e4edf2;
     text-decoration: none;
@@ -184,7 +217,7 @@
 .estiba-office-sidebar a:hover { background: #1c4358; color: #fff; }
 .estiba-office-sidebar a.is-active { border-left-color: #61b6ea; background: #106fc0; color: #fff; }
 .estiba-office-sidebar a.is-active::after { color: #fff; }
-.estiba-office-sidebar a strong { padding-right: 15px; font-size: 14px; font-weight: 700; }
+.estiba-office-sidebar a strong { padding-right: 15px; font-size: 13px; font-weight: 700; }
 
 .estiba-office-primary {
     margin-bottom: 8px;
@@ -234,31 +267,11 @@
 .estiba-office-offices a::before { width: 5px; height: 5px; flex: 0 0 5px; border: 1px solid #7893a3; content: ""; }
 .estiba-office-offices a.is-active::before { border-color: #fff; background: #fff; }
 
-.estiba-office-preferences {
-    margin: 14px 14px 0;
-    padding-top: 12px;
-    border-top: 1px solid #345468;
-    color: #c8d6de;
-}
-
-.estiba-office-preferences summary {
-    padding: 8px 2px;
-    color: #b9cad4;
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.estiba-office-preferences[open] { display: grid; gap: 8px; }
-.estiba-office-preferences label { color: #aebfca; font-size: 11px; }
-.estiba-office-preferences select { width: 100%; min-width: 0; }
-.estiba-office-preferences p { margin: 0; color: #aebfca; font-size: 11px; }
-
 .estiba-office-signature {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 24px 14px 0;
+    margin: 18px 14px 0;
     padding: 14px 3px 2px;
     border-top: 1px solid #345468;
     color: #a9bdc9;
@@ -289,6 +302,7 @@
     .estiba-office-header { grid-template-columns: minmax(250px, 1fr) auto; }
     .estiba-office-brand { border-right: 0; }
     .estiba-office-system,
+    .estiba-office-status,
     .estiba-office-context { display: none; }
     .estiba-office-sidebar {
         position: fixed;
