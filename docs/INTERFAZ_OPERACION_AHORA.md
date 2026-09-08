@@ -34,14 +34,19 @@ negocio.
 La composición toma como referencia las maquetas corporativas entregadas para
 ESTIBA: topbar navy, navegación lateral compacta, encabezados oscuros por bloque,
 tablas operacionales, barras de ocupación visibles y una jerarquía continua de
-centro de control. Las métricas se presentan como una sola franja y no como una
-colección de tarjetas decorativas.
+centro de control. Los indicadores redundantes no forman una franja adicional:
+se integran en los encabezados de cada panel, junto a la lectura que explican.
+La sincronización y sus cinco estados diarios se concentran en el bloque de
+estado de datos de la cabecera.
 
 Los paneles corresponden a consultas concretas: dónde están los camareros, qué
 cámaras requieren atención, qué túneles están activos, qué dispositivos están
 sincronizando y qué excepciones siguen abiertas. No se usan gradientes,
 sombras pesadas, radios grandes ni datos de muestra. Si no existe control
-ambiental, la columna de temperatura declara `SIN REGISTRO`.
+ambiental, la columna de temperatura declara `SIN REGISTRO`. En escritorio los
+seis bloques de información se distribuyen en una grilla compacta de tres filas,
+con altura acotada y desplazamiento interno cuando existen más registros. En
+pantallas angostas vuelven a una sola columna y recuperan su altura natural.
 
 `Operación ahora` se expone como acceso principal del shell, por encima de los
 módulos administrativos. El selector de apariencia y la actualización de contexto siguen disponibles,
