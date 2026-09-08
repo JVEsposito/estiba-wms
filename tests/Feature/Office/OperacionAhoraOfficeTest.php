@@ -12,7 +12,7 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertOk()
             ->assertSee('Operación ahora')
             ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
-            ->assertSee('Esquema de recintos')
+            ->assertSee('Vista operacional de recintos')
             ->assertSee('Camareros activos')
             ->assertSee('Prefrío')
             ->assertSee('Incidencias abiertas')
@@ -24,7 +24,9 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="operationIncidentRows"', false)
             ->assertSee('id="operationFacilityMap"', false)
             ->assertSee('id="operationAlertRows"', false)
+            ->assertSee('class="operation-now-command__sync"', false)
             ->assertSee('data-active-office="operacion-ahora"', false)
+            ->assertDontSee('class="operation-now-metrics"', false)
             ->assertDontSee('<form', false);
     }
 
@@ -69,7 +71,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
         $this->assertStringContainsString('background: #17394b', $styles);
         $this->assertStringContainsString('operation-now-facility__grid', $styles);
-        $this->assertStringContainsString('grid-template-columns: minmax(0, 3fr) minmax(330px, 2fr)', $styles);
+        $this->assertStringContainsString('grid-template-columns: repeat(12, minmax(0, 1fr))', $styles);
+        $this->assertStringContainsString('max-height: 232px', $styles);
         $this->assertStringNotContainsString('linear-gradient', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
@@ -82,10 +85,12 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertIsString($view);
         $this->assertIsString($styles);
         $this->assertStringContainsString('SISTEMA DE GESTIÓN', $view);
+        $this->assertStringContainsString('estiba-office-system', $view);
         $this->assertStringContainsString('aria-label="Operación en tiempo real"', $view);
         $this->assertStringContainsString('<details class="estiba-office-preferences">', $view);
         $this->assertStringContainsString('id="officeThemeSelector"', $view);
         $this->assertStringContainsString('data-office-context-refresh', $view);
+        $this->assertStringContainsString('FRÍO QUE', $view);
         $this->assertStringContainsString('background: #106fc0', $styles);
     }
 }

@@ -61,11 +61,11 @@
     ];
 
     $domains = [
-        'materia-prima' => ['label' => 'Materia Prima', 'icon' => 'MP'],
-        'frigorifico' => ['label' => 'Frigorífico (PT)', 'icon' => 'PT'],
-        'materiales' => ['label' => 'Materiales', 'icon' => 'MT'],
-        'administracion' => ['label' => 'Gerencia & Administración', 'icon' => 'GA'],
-        'consultas' => ['label' => 'Consultas', 'icon' => 'CO'],
+        'materia-prima' => ['label' => 'Materia Prima', 'icon' => 'warehouse'],
+        'frigorifico' => ['label' => 'Frigorífico (PT)', 'icon' => 'snowflake'],
+        'materiales' => ['label' => 'Materiales', 'icon' => 'boxes'],
+        'administracion' => ['label' => 'Gerencia & Administración', 'icon' => 'settings'],
+        'consultas' => ['label' => 'Consultas', 'icon' => 'search'],
     ];
 
     foreach ($domains as $domainKey => &$definition) {
@@ -91,7 +91,10 @@
         <div class="estiba-office-brand">
             <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true">Menú</button>
             <strong>ESTIBA</strong>
-            <span>SISTEMA DE GESTIÓN<small>{{ $activeDomain['label'] }} · {{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
+        </div>
+        <div class="estiba-office-system">
+            <span>SISTEMA DE GESTIÓN</span>
+            <small>{{ $context }} · {{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small>
         </div>
         <div class="estiba-office-context">
             <span>Temporada<strong data-office-season>Sin consultar</strong></span>
@@ -125,7 +128,7 @@
                     data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                     href="{{ $definition['href'] }}"
                     @if ($domain === $domainKey && $office !== 'operacion-ahora') aria-current="true" @endif
-                ><span aria-hidden="true">{{ $definition['icon'] }}</span><strong>{{ $definition['label'] }}</strong></a>
+                ><span aria-hidden="true"><x-estiba.icon :name="$definition['icon']" /></span><strong>{{ $definition['label'] }}</strong></a>
             @endforeach
         </nav>
         <nav class="estiba-office-offices" aria-label="Oficinas de {{ $activeDomain['label'] }}" @if ($office === 'operacion-ahora') hidden @endif>
@@ -154,6 +157,9 @@
             <button type="button" data-office-context-refresh>Actualizar contexto</button>
             <p data-office-context-status role="status">Contexto sin consultar</p>
         </details>
+        <div class="estiba-office-signature" aria-hidden="true">
+            <span></span><strong>FRÍO QUE<br>MANTIENE VALOR</strong>
+        </div>
     </aside>
 
     <div class="office-navigation-legacy" hidden aria-hidden="true">

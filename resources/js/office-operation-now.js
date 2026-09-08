@@ -299,21 +299,18 @@ function renderMetrics(data) {
     const precooling = data.prefrio?.resumen || {};
     const incidents = data.incidencias?.resumen || {};
 
-    setText('metricCameras', number(productCameras.length));
-    setText('metricCamerasDetail', `${number(occupied)} posiciones ocupadas`);
-    setText('metricOccupancy', percent(occupancy));
-    setText('metricOccupancyDetail', `${number(occupied)} de ${number(capacity)} posiciones PT`);
-    setText('metricEnvironmental', number(environmentalDue));
-    setText('metricEnvironmentalDetail', environmentalDue === 1 ? 'cámara requiere control' : 'cámaras requieren control');
-    setText('metricOperators', number(operators.length));
-    setText('metricOperatorsDetail', `${number(activeTasks)} con tarea vigente`);
-    setText('metricPrecooling', number(precooling.procesos_activos));
-    setText('metricPrecoolingDetail', `${number(precooling.procesos_fuera_objetivo)} fuera de objetivo`);
-    setText('metricIncidents', number(incidents.total_abiertas));
-    setText('metricIncidentsDetail', `${number(incidents.carga)} carga · ${number(incidents.maniobra)} maniobra`);
+    setText('cameraPanelSummary', `${number(productCameras.length)} · ${percent(occupancy)} · ${number(environmentalDue)} control`);
+    setText('operatorPanelCount', number(operators.length));
+    setText('precoolingPanelSummary', `${number(precooling.procesos_activos)} activos · ${number(precooling.procesos_fuera_objetivo)} fuera`);
+    setText('incidentPanelSummary', `${number(incidents.total_abiertas)} abiertas`);
 
-    byId('metricEnvironmental')?.closest('article')?.setAttribute('data-active', String(environmentalDue > 0));
-    byId('metricIncidents')?.closest('article')?.setAttribute('data-active', String(Number(incidents.total_abiertas || 0) > 0));
+    const cameraSummary = byId('cameraPanelSummary');
+    if (cameraSummary) {
+        cameraSummary.title = `${number(occupied)} de ${number(capacity)} posiciones PT; ${number(environmentalDue)} ${environmentalDue === 1 ? 'cámara requiere control' : 'cámaras requieren control'}`;
+    }
+
+    const operatorCount = byId('operatorPanelCount');
+    if (operatorCount) operatorCount.title = `${number(activeTasks)} con tarea vigente`;
 }
 
 function renderSync(sync = {}) {
@@ -342,11 +339,14 @@ function renderCameras(cameras = []) {
         const occupancyTone = toneForOccupancy(camera.nivel_ocupacion);
         const environmentTone = toneForEnvironment(control?.estado);
         const readings = control?.temperaturas_c;
+        const readingDetail = readings
+            ? `Inicio ${temperature(readings.inicio)} · Medio ${temperature(readings.medio)} · Fondo ${temperature(readings.fondo)}`
+            : '';
         const currentTemperature = readings
-            ? `<span class="operation-now-temperature">${escapeHtml(temperature(readings.promedio))}</span><span class="operation-now-environment-readings"><span>I ${escapeHtml(temperature(readings.inicio))}</span><span>M ${escapeHtml(temperature(readings.medio))}</span><span>F ${escapeHtml(temperature(readings.fondo))}</span></span>`
+            ? `<span class="operation-now-temperature" title="${escapeHtml(readingDetail)}">${escapeHtml(temperature(readings.promedio))}</span>`
             : '<strong class="operation-now-no-reading">SIN REGISTRO</strong>';
         const controlStatus = control
-            ? `${signal(humanize(control.estado), environmentTone)}<span class="operation-now-subtext">${control.capturado_at ? `Registro ${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))} · vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}` : 'Sin captura informada'}</span>`
+            ? `${signal(humanize(control.estado), environmentTone)}<span class="operation-now-subtext"${control.vigente_hasta ? ` title="Vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}"` : ''}>${control.capturado_at ? `Registro ${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))}` : 'Sin captura informada'}</span>`
             : '<span class="operation-now-subtext">Sin control configurado</span>';
 
         return `<tr>
@@ -445,17 +445,16 @@ function renderAlerts(data) {
         : (alerts.length ? 'warning' : 'neutral');
 
     if (!alerts.length) {
-        elements.alertRows.innerHTML = `<tr><td colspan="5">${empty('Sin alertas operacionales', 'Ocupación, ambiente, prefrío y sincronización no presentan condiciones de alerta.')}</td></tr>`;
+        elements.alertRows.innerHTML = empty('Sin alertas operacionales', 'Ocupación, ambiente, prefrío y sincronización no presentan condiciones de alerta.');
         return;
     }
 
-    elements.alertRows.innerHTML = alerts.map((alert) => `<tr>
-        <td><span class="operation-now-code">${escapeHtml(alert.area)}</span></td>
-        <td>${signal(alert.severity === 'critical' ? 'Alta' : 'Media', alert.severity)}</td>
-        <td><strong>${escapeHtml(alert.condition)}</strong></td>
-        <td>${escapeHtml(alert.evidence)}</td>
-        <td><a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a></td>
-    </tr>`).join('');
+    elements.alertRows.innerHTML = alerts.map((alert) => `<article class="operation-now-alert">
+        <div class="operation-now-alert__heading"><span class="operation-now-code">${escapeHtml(alert.area)}</span>${signal(alert.severity === 'critical' ? 'Alta' : 'Media', alert.severity)}</div>
+        <strong>${escapeHtml(alert.condition)}</strong>
+        <p>${escapeHtml(alert.evidence)}</p>
+        <a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a>
+    </article>`).join('');
 }
 
 function tunnelProcess(tunnel) {
@@ -485,9 +484,8 @@ function renderTunnels(tunnels = []) {
             ${signal(humanize(tunnel.estado_operacional), toneForTunnel(tunnel))}
         </div>
         <div class="operation-now-tunnel__capacity">
-            <span><b>${number(tunnel.posiciones_ocupadas)}</b> ocupadas</span>
-            <span><b>${number(tunnel.capacidad_posiciones)}</b> capacidad</span>
-            <span><b>${percent(tunnel.ocupacion_porcentaje)}</b> uso</span>
+            <span><b>${number(tunnel.posiciones_ocupadas)} / ${number(tunnel.capacidad_posiciones)}</b> posiciones</span>
+            <span><b>${percent(tunnel.ocupacion_porcentaje)}</b> de uso</span>
         </div>
         ${tunnelProcess(tunnel)}
     </article>`).join('');
