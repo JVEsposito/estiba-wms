@@ -3,20 +3,27 @@
 namespace App\Services\Operacion;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoAdministrativoTunelPrefrio;
 use App\Enums\EstadoCamara;
+use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\EstadoPosicion;
+use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\EstadoSesionEstiba;
 use App\Enums\EstadoTareaMovimiento;
+use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Models\Camara;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
+use App\Models\ProcesoPrefrio;
 use App\Models\RegistroControlAmbiental;
 use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
+use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
@@ -46,6 +53,7 @@ class ServicioOperacionAhora
             ],
             'sincronizacion' => $this->sincronizacion($ahora, $horaOperacional),
             'camareros' => $this->camareros($temporada),
+            'prefrio' => $this->prefrio($temporada, $ahora),
             'camaras' => $this->camaras($ahora),
         ];
     }
@@ -229,6 +237,158 @@ class ServicioOperacionAhora
             'tipo' => 'anden',
             'id' => $contexto['anden_id'],
             'nombre' => $contexto['anden_nombre'] ?? 'Andén',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function prefrio(Temporada $temporada, CarbonImmutable $ahora): array
+    {
+        $estadosActivos = collect(EstadoProcesoPrefrio::cases())
+            ->filter->esActivo()
+            ->map->value
+            ->all();
+        $procesos = ProcesoPrefrio::query()
+            ->where('temporada_id', $temporada->id)
+            ->whereIn('estado', $estadosActivos)
+            ->with([
+                'folios' => fn (HasMany $consulta): HasMany => $consulta
+                    ->whereNotIn('estado', [
+                        EstadoFolioProcesoPrefrio::Retirado->value,
+                        EstadoFolioProcesoPrefrio::Cancelado->value,
+                    ]),
+            ])
+            ->latest('created_at')
+            ->get()
+            ->unique('tunel_prefrio_id')
+            ->keyBy('tunel_prefrio_id');
+        $tuneles = TunelPrefrio::query()
+            ->withCount([
+                'posiciones as posiciones_activas_count' => fn (Builder $consulta): Builder => $consulta
+                    ->where('activa', true),
+            ])
+            ->orderBy('codigo')
+            ->get()
+            ->map(function (TunelPrefrio $tunel) use ($procesos, $ahora): array {
+                /** @var ProcesoPrefrio|null $proceso */
+                $proceso = $procesos->get($tunel->id);
+                $operable = $tunel->estado_administrativo === EstadoAdministrativoTunelPrefrio::Activo
+                    && $tunel->estado_tecnico === EstadoTecnicoTunelPrefrio::Operativo;
+                $capacidad = (int) $tunel->posiciones_activas_count;
+                $folios = $proceso?->folios ?? collect();
+                $ocupadas = min(
+                    $capacidad,
+                    $folios->pluck('posicion_tunel_prefrio_id')->unique()->count(),
+                );
+                $admiteCarga = $operable && ($proceso === null || in_array($proceso->estado, [
+                    EstadoProcesoPrefrio::Borrador,
+                    EstadoProcesoPrefrio::Cargando,
+                    EstadoProcesoPrefrio::ListoParaIniciar,
+                ], true));
+
+                return [
+                    'id' => $tunel->id,
+                    'codigo' => $tunel->codigo,
+                    'nombre' => $tunel->nombre,
+                    'estado_administrativo' => $tunel->estado_administrativo->value,
+                    'estado_tecnico' => $tunel->estado_tecnico->value,
+                    'estado_operacional' => $this->estadoOperacionalTunel($tunel, $proceso),
+                    'operable' => $operable,
+                    'capacidad_posiciones' => $capacidad,
+                    'posiciones_ocupadas' => $ocupadas,
+                    'posiciones_disponibles' => $admiteCarga
+                        ? max(0, $capacidad - $ocupadas)
+                        : 0,
+                    'ocupacion_porcentaje' => $this->porcentaje($ocupadas, $capacidad),
+                    'proceso_activo' => $proceso
+                        ? $this->serializarProcesoPrefrio($proceso, $ahora, $ocupadas)
+                        : null,
+                ];
+            });
+        $tunelesOperables = $tuneles->where('operable', true);
+        $capacidad = (int) $tunelesOperables->sum('capacidad_posiciones');
+        $ocupadas = (int) $tunelesOperables->sum('posiciones_ocupadas');
+
+        return [
+            'resumen' => [
+                'tuneles_totales' => $tuneles->count(),
+                'tuneles_operables' => $tunelesOperables->count(),
+                'tuneles_disponibles' => $tuneles
+                    ->where('estado_operacional', 'disponible')
+                    ->count(),
+                'procesos_activos' => $procesos->count(),
+                'procesos_fuera_objetivo' => $tuneles
+                    ->filter(fn (array $tunel): bool => (bool) (
+                        $tunel['proceso_activo']['objetivo_excedido'] ?? false
+                    ))
+                    ->count(),
+                'folios_en_tunel' => $procesos->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count()),
+                'capacidad_operativa' => $capacidad,
+                'posiciones_ocupadas' => $ocupadas,
+                'ocupacion_porcentaje' => $this->porcentaje($ocupadas, $capacidad),
+            ],
+            'tuneles' => $tuneles->values()->all(),
+        ];
+    }
+
+    private function estadoOperacionalTunel(
+        TunelPrefrio $tunel,
+        ?ProcesoPrefrio $proceso,
+    ): string {
+        if ($tunel->estado_administrativo !== EstadoAdministrativoTunelPrefrio::Activo) {
+            return EstadoAdministrativoTunelPrefrio::Inactivo->value;
+        }
+
+        if ($tunel->estado_tecnico !== EstadoTecnicoTunelPrefrio::Operativo) {
+            return $tunel->estado_tecnico->value;
+        }
+
+        return $proceso?->estado->value ?? 'disponible';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializarProcesoPrefrio(
+        ProcesoPrefrio $proceso,
+        CarbonImmutable $ahora,
+        int $posicionesOcupadas,
+    ): array {
+        $inicio = $proceso->iniciado_at?->toImmutable();
+        $corte = $proceso->estado === EstadoProcesoPrefrio::PendienteVerificacion
+            ? $proceso->pendiente_verificacion_at?->toImmutable()
+            : $ahora;
+        $transcurridos = $inicio && $corte
+            ? max(0, (int) floor($inicio->diffInMinutes($corte, false)))
+            : null;
+        $objetivo = $proceso->duracion_objetivo_minutos;
+        $objetivoExcedido = $transcurridos !== null
+            && $objetivo !== null
+            && $transcurridos > $objetivo;
+
+        return [
+            'id' => $proceso->id,
+            'codigo' => $proceso->codigo,
+            'estado' => $proceso->estado->value,
+            'setpoint_c' => $proceso->setpoint !== null ? (float) $proceso->setpoint : null,
+            'formato_referencia' => $proceso->formato_referencia,
+            'folios_cargados' => $proceso->folios->count(),
+            'posiciones_ocupadas' => $posicionesOcupadas,
+            'iniciado_at' => $inicio?->toAtomString(),
+            'pendiente_verificacion_at' => $proceso->pendiente_verificacion_at?->toAtomString(),
+            'duracion_objetivo_minutos' => $objetivo,
+            'transcurridos_minutos' => $transcurridos,
+            'fin_objetivo_at' => $inicio && $objetivo !== null
+                ? $inicio->addMinutes($objetivo)->toAtomString()
+                : null,
+            'avance_tiempo_objetivo_porcentaje' => $transcurridos !== null && $objetivo !== null
+                ? min(100, $this->porcentaje($transcurridos, $objetivo))
+                : null,
+            'objetivo_excedido' => $objetivoExcedido,
+            'minutos_sobre_objetivo' => $transcurridos !== null && $objetivo !== null
+                ? max(0, $transcurridos - $objetivo)
+                : null,
         ];
     }
 
