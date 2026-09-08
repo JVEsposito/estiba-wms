@@ -44,6 +44,7 @@
         ],
         'administracion' => [
             ['key' => 'resumen', 'module' => '', 'label' => 'Resumen', 'href' => '/oficina/administracion', 'permissions' => ['puede_consultar_panel_gerencial', 'puede_consultar_accesos', 'puede_administrar_catalogos_validacion', 'puede_consultar_configuracion_camaras', 'puede_consultar_integridad_operacional']],
+            ['key' => 'operacion-ahora', 'module' => 'gerencia.panel', 'label' => 'Operación ahora', 'href' => '/oficina/operacion-ahora', 'permissions' => ['puede_consultar_panel_gerencial']],
             ['key' => 'panel', 'module' => 'gerencia.panel', 'label' => 'Panel Gerencial', 'href' => '/oficina/gerencia', 'permissions' => ['puede_consultar_panel_gerencial']],
             ['key' => 'accesos', 'module' => 'administracion.accesos', 'label' => 'Accesos & Temporadas', 'href' => '/oficina/accesos', 'permissions' => ['puede_consultar_accesos']],
             ['key' => 'maestros-temporada', 'module' => 'administracion.maestros-temporada', 'label' => 'Maestros de temporada', 'href' => '/oficina/administracion/maestros-temporada', 'permissions' => ['puede_administrar_catalogos_validacion']],

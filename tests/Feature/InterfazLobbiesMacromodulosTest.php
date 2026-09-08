@@ -43,6 +43,7 @@ class InterfazLobbiesMacromodulosTest extends TestCase
             ->assertSee('href="/oficina/cargas"', false);
 
         $this->get('/oficina/administracion')
+            ->assertSee('href="/oficina/operacion-ahora"', false)
             ->assertSee('href="/oficina/gerencia"', false)
             ->assertSee('href="/oficina/accesos"', false)
             ->assertSee('href="/oficina/administracion/integridad-operacional"', false);

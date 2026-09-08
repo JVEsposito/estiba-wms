@@ -76,6 +76,7 @@
                     'prefrio_pending' => 'FOLIOS PENDIENTES PREFRÍO',
                 ],
                 'cards' => [
+                    ['module' => 'gerencia.panel', 'permissions' => ['puede_consultar_panel_gerencial'], 'href' => '/oficina/operacion-ahora', 'icon' => 'OA', 'eyebrow' => 'TIEMPO REAL', 'title' => 'Operación ahora', 'description' => 'Supervisa cámaras, ambiente, camareros, prefrío e incidencias en una sola lectura.'],
                     ['module' => 'gerencia.panel', 'permissions' => ['puede_consultar_panel_gerencial'], 'href' => '/oficina/gerencia', 'icon' => '◆', 'eyebrow' => 'INDICADORES', 'title' => 'Panel Gerencial', 'description' => 'Consolida capacidad, flujo, alertas y desempeño operacional.'],
                     ['module' => 'administracion.accesos', 'permissions' => ['puede_consultar_accesos'], 'href' => '/oficina/accesos', 'icon' => '⚙', 'eyebrow' => 'GOBERNANZA', 'title' => 'Accesos & Temporadas', 'description' => 'Administra usuarios, perfiles, tablets y ciclos operacionales.'],
                     ['module' => 'administracion.maestros-temporada', 'permissions' => ['puede_administrar_catalogos_validacion'], 'href' => '/oficina/administracion/maestros-temporada', 'icon' => '≡', 'eyebrow' => 'CATÁLOGOS', 'title' => 'Maestros de temporada', 'description' => 'Mantiene clientes, especies, variedades, calibres y combinaciones.'],
