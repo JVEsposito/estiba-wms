@@ -5,7 +5,9 @@ namespace App\Services\Operacion;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoAdministrativoTunelPrefrio;
 use App\Enums\EstadoCamara;
+use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoIncidenciaCarga;
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoProcesoPrefrio;
@@ -13,6 +15,8 @@ use App\Enums\EstadoSesionEstiba;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Models\Camara;
+use App\Models\DiscrepanciaManiobra;
+use App\Models\IncidenciaCargaFolio;
 use App\Models\OperacionSincronizacion;
 use App\Models\Posicion;
 use App\Models\ProcesoPrefrio;
@@ -22,6 +26,7 @@ use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\JoinClause;
@@ -54,8 +59,200 @@ class ServicioOperacionAhora
             'sincronizacion' => $this->sincronizacion($ahora, $horaOperacional),
             'camareros' => $this->camareros($temporada),
             'prefrio' => $this->prefrio($temporada, $ahora),
+            'incidencias' => $this->incidencias($temporada, $ahora),
             'camaras' => $this->camaras($ahora),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function incidencias(Temporada $temporada, CarbonImmutable $ahora): array
+    {
+        $incidenciasCarga = IncidenciaCargaFolio::query()
+            ->where('estado', EstadoIncidenciaCarga::Abierta->value)
+            ->whereHas(
+                'asignacion.carga',
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('temporada_id', $temporada->id),
+            )
+            ->with([
+                'asignacion:id,carga_id,folio_id',
+                'asignacion.carga:id,temporada_id,codigo,numero_orden_externa,estado,prioridad',
+                'asignacion.folio:id,numero_folio,tipo_bulto',
+                'camara:id,codigo,nombre',
+                'posicion:id,camara_id,etiqueta,banda,posicion,nivel',
+                'reportadoPor:id,name',
+                'dispositivo:id,codigo,nombre',
+            ])
+            ->get()
+            ->map(fn (IncidenciaCargaFolio $incidencia): array => $this
+                ->serializarIncidenciaCarga($incidencia, $ahora));
+
+        $discrepanciasManiobra = DiscrepanciaManiobra::query()
+            ->where('estado', EstadoDiscrepanciaManiobra::Abierta->value)
+            ->whereHas(
+                'maniobraOperacional.planOperacional',
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('temporada_id', $temporada->id),
+            )
+            ->with([
+                'folio:id,numero_folio,tipo_bulto',
+                'reportadaPor:id,name',
+                'dispositivo:id,codigo,nombre',
+                'maniobraOperacional:id,plan_operacional_id,estado,prioridad,titulo',
+                'maniobraOperacional.planOperacional:id,temporada_id,tipo,titulo',
+                'tareaMovimiento:id,plan_operacional_id,maniobra_operacional_id,tipo_movimiento,tipo_paso_maniobra,estado,camara_origen_id,posicion_origen_id,camara_destino_id,posicion_destino_id',
+                'tareaMovimiento.camaraOrigen:id,codigo,nombre',
+                'tareaMovimiento.posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
+                'tareaMovimiento.camaraDestino:id,codigo,nombre',
+                'tareaMovimiento.posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
+            ])
+            ->get()
+            ->map(fn (DiscrepanciaManiobra $discrepancia): array => $this
+                ->serializarDiscrepanciaManiobra($discrepancia, $ahora));
+
+        $abiertas = $incidenciasCarga
+            ->concat($discrepanciasManiobra)
+            ->sortByDesc('reportada_at')
+            ->values();
+
+        return [
+            'resumen' => [
+                'total_abiertas' => $abiertas->count(),
+                'carga' => $incidenciasCarga->count(),
+                'maniobra' => $discrepanciasManiobra->count(),
+                'mas_antigua_at' => $abiertas->min('reportada_at'),
+                'antiguedad_maxima_minutos' => $abiertas->max('antiguedad_minutos'),
+            ],
+            'abiertas' => $abiertas->all(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializarIncidenciaCarga(
+        IncidenciaCargaFolio $incidencia,
+        CarbonImmutable $ahora,
+    ): array {
+        $asignacion = $incidencia->asignacion;
+        $carga = $asignacion->carga;
+        $folio = $asignacion->folio;
+
+        return [
+            'id' => $incidencia->id,
+            'origen' => 'carga',
+            'tipo' => $incidencia->tipo->value,
+            'detalle' => $incidencia->descripcion,
+            'estado' => $incidencia->estado->value,
+            'prioridad' => $carga->prioridad->value,
+            'folio' => [
+                'id' => $folio->id,
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => $folio->tipo_bulto->value,
+            ],
+            'reportado_por' => [
+                'id' => $incidencia->reportadoPor->id,
+                'nombre' => $incidencia->reportadoPor->name,
+            ],
+            'dispositivo' => [
+                'id' => $incidencia->dispositivo->id,
+                'codigo' => $incidencia->dispositivo->codigo,
+                'nombre' => $incidencia->dispositivo->nombre,
+            ],
+            'reportada_at' => $incidencia->reportada_at->toAtomString(),
+            'antiguedad_minutos' => $this->antiguedadMinutos(
+                $incidencia->reportada_at,
+                $ahora,
+            ),
+            'contexto' => [
+                'carga' => [
+                    'id' => $carga->id,
+                    'codigo' => $carga->codigo,
+                    'numero_orden_externa' => $carga->numero_orden_externa,
+                    'estado' => $carga->estado->value,
+                ],
+                'ubicacion_reportada' => $this->extremoTarea(
+                    $incidencia->camara,
+                    $incidencia->posicion,
+                ),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializarDiscrepanciaManiobra(
+        DiscrepanciaManiobra $discrepancia,
+        CarbonImmutable $ahora,
+    ): array {
+        $maniobra = $discrepancia->maniobraOperacional;
+        $plan = $maniobra->planOperacional;
+        $tarea = $discrepancia->tareaMovimiento;
+        $folio = $discrepancia->folio;
+
+        return [
+            'id' => $discrepancia->id,
+            'origen' => 'maniobra',
+            'tipo' => $discrepancia->tipo,
+            'detalle' => $discrepancia->detalle,
+            'estado' => $discrepancia->estado->value,
+            'prioridad' => $maniobra->prioridad->value,
+            'folio' => [
+                'id' => $folio->id,
+                'numero_folio' => $folio->numero_folio,
+                'tipo_bulto' => $folio->tipo_bulto->value,
+            ],
+            'reportado_por' => [
+                'id' => $discrepancia->reportadaPor->id,
+                'nombre' => $discrepancia->reportadaPor->name,
+            ],
+            'dispositivo' => [
+                'id' => $discrepancia->dispositivo->id,
+                'codigo' => $discrepancia->dispositivo->codigo,
+                'nombre' => $discrepancia->dispositivo->nombre,
+            ],
+            'reportada_at' => $discrepancia->reportada_at->toAtomString(),
+            'antiguedad_minutos' => $this->antiguedadMinutos(
+                $discrepancia->reportada_at,
+                $ahora,
+            ),
+            'contexto' => [
+                'plan' => [
+                    'id' => $plan->id,
+                    'tipo' => $plan->tipo->value,
+                    'titulo' => $plan->titulo,
+                ],
+                'maniobra' => [
+                    'id' => $maniobra->id,
+                    'titulo' => $maniobra->titulo,
+                    'estado' => $maniobra->estado->value,
+                ],
+                'tarea' => [
+                    'id' => $tarea->id,
+                    'estado' => $tarea->estado->value,
+                    'tipo_movimiento' => $tarea->tipo_movimiento->value,
+                    'tipo_paso_maniobra' => $tarea->tipo_paso_maniobra?->value,
+                    'origen' => $this->extremoTarea(
+                        $tarea->camaraOrigen,
+                        $tarea->posicionOrigen,
+                    ),
+                    'destino' => $this->extremoTarea(
+                        $tarea->camaraDestino,
+                        $tarea->posicionDestino,
+                    ),
+                ],
+            ],
+        ];
+    }
+
+    private function antiguedadMinutos(
+        CarbonInterface $reportadaAt,
+        CarbonImmutable $ahora,
+    ): int {
+        return max(0, (int) floor($reportadaAt->diffInMinutes($ahora, false)));
     }
 
     /**
