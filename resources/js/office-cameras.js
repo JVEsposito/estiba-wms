@@ -115,6 +115,7 @@ const state = {
     selectedOperationalBand: null,
     operationalEnvironment: null,
     operationalMovements: [],
+    operationalRequestGeneration: 0,
 };
 
 class ApiError extends Error {
@@ -644,6 +645,7 @@ function renderSelectedOperationalCamera() {
 }
 
 async function loadOperationalCamera(id) {
+    const requestGeneration = ++state.operationalRequestGeneration;
     state.selectedOperationalCameraId = id;
     renderOperationalCameraList();
     setBusy(true, 'Cargando operación de la cámara…');
@@ -659,6 +661,7 @@ async function loadOperationalCamera(id) {
                 return { unavailable: true, camaras: [] };
             }),
         ]);
+        if (requestGeneration !== state.operationalRequestGeneration) return;
         state.selectedOperationalPlan = planResponse.data;
         state.operationalMovements = movementsResponse.data || [];
         state.operationalEnvironment = environmentResponse;
@@ -666,10 +669,11 @@ async function loadOperationalCamera(id) {
         elements.cameraOpsStatus.textContent = 'Información vigente';
         elements.cameraOpsUpdatedAt.textContent = `Última lectura: ${formatDateTime(new Date().toISOString())}`;
     } catch (error) {
+        if (requestGeneration !== state.operationalRequestGeneration) return;
         elements.cameraOpsStatus.textContent = 'No fue posible actualizar';
         toast(error.message, true);
     } finally {
-        setBusy(false);
+        if (requestGeneration === state.operationalRequestGeneration) setBusy(false);
     }
 }
 
