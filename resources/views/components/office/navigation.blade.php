@@ -91,11 +91,11 @@
         <div class="estiba-office-brand">
             <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true">Menú</button>
             <strong>ESTIBA</strong>
-            <span>{{ $activeDomain['label'] }}<small>{{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
+            <span>SISTEMA DE GESTIÓN<small>{{ $activeDomain['label'] }} · {{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
         </div>
         <div class="estiba-office-context">
-            <span>Planta<strong data-office-plant>Sin consultar</strong></span>
             <span>Temporada<strong data-office-season>Sin consultar</strong></span>
+            <span>Planta<strong data-office-plant>Sin consultar</strong></span>
         </div>
         <div class="estiba-office-identity">
             <span class="estiba-office-avatar" id="officeInitials" aria-hidden="true">OF</span>
@@ -105,20 +105,33 @@
     </header>
 
     <aside class="estiba-office-sidebar" id="officeSidebar" aria-label="Navegación de Oficina">
+        @php($operationNowDefinition = collect($offices['administracion'])->firstWhere('key', 'operacion-ahora'))
+        <nav class="estiba-office-primary" aria-label="Operación en tiempo real">
+            <p class="estiba-office-nav-label">OPERACIÓN</p>
+            <a class="{{ $office === 'operacion-ahora' ? 'is-active' : '' }}"
+                data-office-key="operacion-ahora"
+                data-office-domain="administracion"
+                data-navigation-permissions="{{ implode(',', $operationNowDefinition['permissions']) }}"
+                data-navigation-module="{{ $operationNowDefinition['module'] }}"
+                href="{{ $operationNowDefinition['href'] }}"
+                @if ($office === 'operacion-ahora') aria-current="page" @endif
+            ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M9.5 20v-6h5v6" /></svg><strong>Operación ahora</strong></a>
+        </nav>
         <nav aria-label="Áreas del sistema">
-            <p class="estiba-office-nav-label">ÁREAS</p>
+            <p class="estiba-office-nav-label">MÓDULOS</p>
             @foreach ($domains as $domainKey => $definition)
-                <a class="estiba-office-domain {{ $domain === $domainKey ? 'is-active' : '' }}"
+                <a class="estiba-office-domain {{ $domain === $domainKey && $office !== 'operacion-ahora' ? 'is-active' : '' }}"
                     data-domain-key="{{ $domainKey }}"
                     data-navigation-targets="{{ json_encode($definition['targets'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"
                     href="{{ $definition['href'] }}"
-                    @if ($domain === $domainKey) aria-current="true" @endif
+                    @if ($domain === $domainKey && $office !== 'operacion-ahora') aria-current="true" @endif
                 ><span aria-hidden="true">{{ $definition['icon'] }}</span><strong>{{ $definition['label'] }}</strong></a>
             @endforeach
         </nav>
-        <nav class="estiba-office-offices" aria-label="Oficinas de {{ $activeDomain['label'] }}">
+        <nav class="estiba-office-offices" aria-label="Oficinas de {{ $activeDomain['label'] }}" @if ($office === 'operacion-ahora') hidden @endif>
             <p class="estiba-office-nav-label">{{ $activeDomain['label'] }}</p>
             @foreach ($activeOffices as $definition)
+                @continue($definition['key'] === 'operacion-ahora')
                 <a class="{{ $office === $definition['key'] ? 'is-active' : '' }}"
                     data-office-key="{{ $definition['key'] }}"
                     data-office-domain="{{ $domain }}"
@@ -129,7 +142,8 @@
                 >{{ $definition['label'] }}</a>
             @endforeach
         </nav>
-        <div class="estiba-office-preferences">
+        <details class="estiba-office-preferences">
+            <summary>Preferencias de interfaz</summary>
             <label for="officeThemeSelector">Apariencia del contenido</label>
             <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
                 <option value="dark-industrial">Oscuro industrial</option>
@@ -139,7 +153,7 @@
             </select>
             <button type="button" data-office-context-refresh>Actualizar contexto</button>
             <p data-office-context-status role="status">Contexto sin consultar</p>
-        </div>
+        </details>
     </aside>
 
     <div class="office-navigation-legacy" hidden aria-hidden="true">

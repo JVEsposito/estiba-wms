@@ -1,61 +1,282 @@
 @import './estiba-tokens.css';
 
-/* Estructura compartida. Los espacios de trabajo conservan sus estilos y reglas. */
-.office-app:has(> [data-office-shell]) { --office-sidebar-width: 248px; --office-header-height: 88px; padding-inline-start: var(--office-sidebar-width); }
-.estiba-office-shell { position: sticky; top: 0; z-index: 40; margin-inline-start: calc(-1 * var(--office-sidebar-width)); color: var(--eui-color-on-navy); font: 400 14px/1.5 "Segoe UI", Roboto, Arial, sans-serif; }
-.estiba-office-shell * { box-sizing: border-box; }
-.estiba-office-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px 24px; min-height: 88px; padding: 16px 24px; background: var(--eui-color-navy); border-bottom: 1px solid #617885; }
-.estiba-office-brand, .estiba-office-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.estiba-office-brand > strong { font-size: 28px; letter-spacing: .03em; }
-.estiba-office-brand > span { border-left: 1px solid #617885; padding-left: 16px; }
-.estiba-office-shell small { display: block; font-size: 12px; color: #D0DEE6; }
-.estiba-office-shell [hidden] { display: none; }
-.estiba-office-context { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-.estiba-office-context > span { color: #D0DEE6; font-size: 12px; max-width: 240px; overflow-wrap: anywhere; }
-.estiba-office-context strong { display: block; font-size: 14px; color: var(--eui-color-on-navy); font-weight: 600; }
-.estiba-office-identity > span:nth-child(2) { max-width: 220px; overflow-wrap: anywhere; }
-.estiba-office-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid #617885; border-radius: 4px; font-weight: 600; }
-.estiba-office-shell button, .estiba-office-shell select { min-height: 44px; border: 1px solid #9DB2BE; border-radius: 4px; padding: 8px 12px; background: var(--eui-color-navy); color: var(--eui-color-on-navy); font: inherit; cursor: pointer; }
-.estiba-office-shell button:hover, .estiba-office-shell select:hover { background: #2B4A5A; }
+/* Shell corporativo compartido. Mantiene intactos los contratos de navegación y permisos. */
+.office-app:has(> [data-office-shell]) {
+    --office-sidebar-width: 224px;
+    --office-header-height: 76px;
+    padding-inline-start: var(--office-sidebar-width);
+}
+
+.estiba-office-shell {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin-inline-start: calc(-1 * var(--office-sidebar-width));
+    color: #fff;
+    font: 400 14px/1.35 "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+}
+
+.estiba-office-shell *,
+.estiba-office-shell *::before,
+.estiba-office-shell *::after { box-sizing: border-box; }
+.estiba-office-shell [hidden] { display: none !important; }
+
+.estiba-office-header {
+    display: grid;
+    grid-template-columns: var(--office-sidebar-width) minmax(260px, 1fr) auto;
+    align-items: stretch;
+    min-height: var(--office-header-height);
+    background: #102f43;
+    border-bottom: 1px solid #49677a;
+    box-shadow: 0 1px 3px rgba(3, 18, 28, .3);
+}
+
+.estiba-office-brand,
+.estiba-office-context,
+.estiba-office-identity {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 10px 16px;
+}
+
+.estiba-office-brand {
+    gap: 12px;
+    border-right: 1px solid #49677a;
+}
+
+.estiba-office-brand > strong {
+    flex: 0 0 auto;
+    color: #fff;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: .035em;
+}
+
+.estiba-office-brand > span {
+    min-width: 0;
+    padding-left: 11px;
+    border-left: 1px solid #708898;
+    color: #d6e1e7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .035em;
+}
+
+.estiba-office-shell small {
+    display: block;
+    color: #c8d6de;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.estiba-office-context {
+    justify-content: center;
+    gap: 0;
+    padding-inline: 24px;
+}
+
+.estiba-office-context > span {
+    min-width: 150px;
+    max-width: 270px;
+    padding: 0 24px;
+    border-left: 1px solid #49677a;
+    color: #bbccd6;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.estiba-office-context > span:last-child { border-right: 1px solid #49677a; }
+.estiba-office-context strong { display: block; margin-top: 2px; color: #fff; font-size: 14px; font-weight: 700; }
+
+.estiba-office-identity {
+    justify-content: flex-end;
+    gap: 10px;
+    border-left: 1px solid #49677a;
+}
+
+.estiba-office-identity > span:nth-child(2) { max-width: 180px; overflow-wrap: anywhere; }
+.estiba-office-identity > span:nth-child(2) > strong { display: block; color: #fff; font-size: 14px; }
+
+.estiba-office-avatar {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    place-items: center;
+    border: 1px solid #78909f;
+    border-radius: 50%;
+    background: #254a60;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.estiba-office-shell button,
+.estiba-office-shell select {
+    min-height: 38px;
+    border: 1px solid #78909f;
+    border-radius: 2px;
+    padding: 7px 10px;
+    background: #17394b;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.estiba-office-shell button:hover,
+.estiba-office-shell select:hover { background: #234c62; }
 .estiba-office-shell button:disabled { opacity: .65; cursor: wait; }
-.estiba-office-shell :is(button, a, select):focus-visible { outline: 3px solid #FFFFFF; outline-offset: -4px; }
+.estiba-office-shell :is(button, a, select):focus-visible { outline: 3px solid #fff; outline-offset: -4px; }
 .estiba-office-shell .estiba-office-menu { display: none; }
-.estiba-office-sidebar { position: fixed; top: var(--office-header-height); bottom: 0; left: 0; width: var(--office-sidebar-width); padding: 20px 12px; overflow-y: auto; overscroll-behavior: contain; background: var(--eui-color-navy); border-right: 1px solid #617885; }
-.estiba-office-nav-label { margin: 0 12px 8px; color: #D0DEE6; font-size: 12px; font-weight: 600; letter-spacing: .06em; }
-.estiba-office-sidebar a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border-left: 3px solid transparent; border-radius: 0 4px 4px 0; color: var(--eui-color-on-navy); text-decoration: none; overflow-wrap: anywhere; }
-.estiba-office-sidebar a:hover { background: #2B4A5A; }
-.estiba-office-sidebar a.is-active { border-left-color: #FFFFFF; background: #2B4A5A; }
-.estiba-office-sidebar a strong { font-size: 14px; font-weight: 600; }
-.estiba-office-domain > span { min-width: 24px; font: 12px ui-monospace, Consolas, monospace; color: #D0DEE6; }
-.estiba-office-offices { margin-top: 20px; padding-top: 20px; border-top: 1px solid #617885; }
-.estiba-office-preferences { display: grid; gap: 10px; margin: 20px 12px 0; padding-top: 20px; border-top: 1px solid #617885; }
-.estiba-office-preferences label { color: #D0DEE6; font-size: 12px; }
+
+.estiba-office-sidebar {
+    position: fixed;
+    top: var(--office-header-height);
+    bottom: 0;
+    left: 0;
+    width: var(--office-sidebar-width);
+    padding: 12px 0 18px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #102f43;
+    border-right: 1px solid #49677a;
+}
+
+.estiba-office-nav-label {
+    margin: 10px 17px 6px;
+    color: #91a8b6;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+}
+
+.estiba-office-sidebar a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 39px;
+    padding: 7px 16px;
+    border-left: 4px solid transparent;
+    color: #e4edf2;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.estiba-office-sidebar a::after {
+    position: absolute;
+    right: 11px;
+    color: #7993a2;
+    content: "›";
+    font-size: 18px;
+}
+
+.estiba-office-sidebar a:hover { background: #1c4358; color: #fff; }
+.estiba-office-sidebar a.is-active { border-left-color: #61b6ea; background: #106fc0; color: #fff; }
+.estiba-office-sidebar a.is-active::after { color: #fff; }
+.estiba-office-sidebar a strong { padding-right: 15px; font-size: 14px; font-weight: 700; }
+
+.estiba-office-primary {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #345468;
+}
+
+.estiba-office-primary svg {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.estiba-office-domain > span {
+    display: grid;
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    place-items: center;
+    border: 1px solid #607f91;
+    color: #cfe0e9;
+    font: 800 9px ui-monospace, Consolas, monospace;
+}
+
+.estiba-office-domain.is-active > span { border-color: #d8edfa; color: #fff; }
+
+.estiba-office-offices {
+    margin-top: 10px;
+    padding-top: 6px;
+    border-top: 1px solid #345468;
+}
+
+.estiba-office-offices a { min-height: 38px; padding-left: 24px; color: #c7d6de; font-size: 13px; }
+.estiba-office-offices a::before { width: 5px; height: 5px; flex: 0 0 5px; border: 1px solid #7893a3; content: ""; }
+.estiba-office-offices a.is-active::before { border-color: #fff; background: #fff; }
+
+.estiba-office-preferences {
+    margin: 14px 14px 0;
+    padding-top: 12px;
+    border-top: 1px solid #345468;
+    color: #c8d6de;
+}
+
+.estiba-office-preferences summary {
+    padding: 8px 2px;
+    color: #b9cad4;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.estiba-office-preferences[open] { display: grid; gap: 8px; }
+.estiba-office-preferences label { color: #aebfca; font-size: 11px; }
 .estiba-office-preferences select { width: 100%; min-width: 0; }
-.estiba-office-preferences p { margin: 0; color: #D0DEE6; font-size: 12px; }
-.estiba-office-skip { position: absolute; top: -100px; left: 12px; padding: 12px; background: var(--eui-color-navy); color: #FFFFFF; z-index: 2; }
+.estiba-office-preferences p { margin: 0; color: #aebfca; font-size: 11px; }
+
+.estiba-office-skip { position: absolute; top: -100px; left: 12px; z-index: 2; padding: 10px; background: #102f43; color: #fff; }
 .estiba-office-skip:focus { top: 8px; }
+
 @media (max-width: 1199px) {
-    .office-app:has(> [data-office-shell]) { --office-sidebar-width: 0px; }
+    .office-app:has(> [data-office-shell]) { --office-sidebar-width: 0px; --office-header-height: auto; }
     .estiba-office-shell .estiba-office-menu { display: inline-flex; align-items: center; }
-    .estiba-office-sidebar { position: static; width: 100%; max-height: 65vh; max-height: 65dvh; border-bottom: 1px solid #617885; }
+    .estiba-office-header { grid-template-columns: minmax(250px, 1fr) auto; }
+    .estiba-office-brand { border-right: 0; }
+    .estiba-office-context { display: none; }
+    .estiba-office-sidebar {
+        position: fixed;
+        top: var(--office-header-height);
+        right: auto;
+        bottom: 0;
+        left: 0;
+        z-index: 45;
+        width: min(360px, 88vw);
+        max-height: none;
+        border-right: 1px solid #49677a;
+        border-bottom: 0;
+        box-shadow: 8px 10px 24px rgba(3, 18, 28, .32);
+    }
     .estiba-office-shell[data-menu-ready]:not([data-menu-open]) .estiba-office-sidebar { display: none; }
-    .estiba-office-header { padding: 12px 16px; }
-    .estiba-office-context { flex: 1; }
 }
+
 @media (max-width: 599px) {
-    .estiba-office-header { gap: 12px; }
+    .estiba-office-header { grid-template-columns: 1fr; }
     .estiba-office-brand { width: 100%; }
-    .estiba-office-brand > strong { font-size: 24px; }
-    .estiba-office-brand > span { padding-left: 12px; font-size: 12px; }
-    .estiba-office-context { width: 100%; flex-basis: 100%; gap: 12px; }
-    .estiba-office-context > span { flex: 1; min-width: 0; }
-    .estiba-office-identity { width: 100%; }
+    .estiba-office-brand > strong { font-size: 23px; }
+    .estiba-office-identity { justify-content: flex-start; border-top: 1px solid #49677a; border-left: 0; }
     .estiba-office-identity > span:nth-child(2) { flex: 1; }
-    .estiba-office-identity button { margin-left: auto; }
 }
+
 @media (pointer: coarse) {
-    .estiba-office-shell button, .estiba-office-shell select, .estiba-office-sidebar a { min-height: 56px; font-size: 16px; }
+    .estiba-office-shell button,
+    .estiba-office-shell select,
+    .estiba-office-sidebar a { min-height: 56px; font-size: 14px; }
 }
+
 @media print {
     .office-app:has(> [data-office-shell]) { padding-inline-start: 0; }
     .estiba-office-shell { display: none; }

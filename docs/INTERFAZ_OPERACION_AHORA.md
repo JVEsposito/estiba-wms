@@ -12,12 +12,41 @@ histórico.
 - camareros con sesión abierta, dispositivo, cámara actual y tarea vigente;
 - túneles de prefrío, capacidad física, proceso activo y avance temporal;
 - incidencias abiertas de carga y discrepancias de maniobra;
+- alertas verificables derivadas de ocupación PT, vigencia del control ambiental,
+  procesos de prefrío fuera de objetivo y conflictos de sincronización;
 - conteos diarios de sincronizaciones aceptadas, pendientes, en proceso,
-  rechazadas y con conflicto.
+  rechazadas y con conflicto;
+- vista esquemática construida únicamente con cámaras y túneles entregados por
+  el contrato, sin afirmar que representa coordenadas físicas;
+- accesos directos a cámaras, prefrío, cargas e incidencias existentes.
 
 El avance de prefrío se identifica explícitamente como tiempo transcurrido. La
 interfaz no lo presenta como progreso térmico ni inventa lecturas que el backend
 no entrega.
+
+Las alertas se calculan en el cliente exclusivamente desde el mismo snapshot y
+siempre incluyen evidencia y un acceso a la oficina donde puede revisarse la
+condición. No representan una nueva severidad persistida ni ejecutan acciones de
+negocio.
+
+## Contrato visual
+
+La composición toma como referencia las maquetas corporativas entregadas para
+ESTIBA: topbar navy, navegación lateral compacta, encabezados oscuros por bloque,
+tablas operacionales, barras de ocupación visibles y una jerarquía continua de
+centro de control. Las métricas se presentan como una sola franja y no como una
+colección de tarjetas decorativas.
+
+Los paneles corresponden a consultas concretas: dónde están los camareros, qué
+cámaras requieren atención, qué túneles están activos, qué dispositivos están
+sincronizando y qué excepciones siguen abiertas. No se usan gradientes,
+sombras pesadas, radios grandes ni datos de muestra. Si no existe control
+ambiental, la columna de temperatura declara `SIN REGISTRO`.
+
+`Operación ahora` se expone como acceso principal del shell, por encima de los
+módulos administrativos. El selector de apariencia y la actualización de contexto siguen disponibles,
+pero quedan dentro de `Preferencias de interfaz` para no competir con la
+navegación operacional.
 
 ## Actualización y fallos
 

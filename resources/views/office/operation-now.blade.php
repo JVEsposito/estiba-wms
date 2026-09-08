@@ -3,11 +3,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#183442">
-        <meta name="color-scheme" content="light dark">
-
+        <meta name="theme-color" content="#102f43">
+        <meta name="color-scheme" content="light">
         <title>Estiba WMS · Operación ahora</title>
-
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite([
                 'resources/css/office.css',
@@ -19,35 +17,30 @@
     </head>
     <body>
         <main class="office-app operation-now-app is-hidden" id="operationNowApp">
-            <x-office.navigation
-                domain="administracion"
-                office="operacion-ahora"
-                context="GERENCIA · OPERACIÓN"
-                icon="OA"
-            />
+            <x-office.navigation domain="administracion" office="operacion-ahora" context="CENTRO DE CONTROL" icon="OA" />
 
-            <div class="operation-now estiba-ui" id="officeContent" data-density="comfortable">
-                <header class="operation-now-heading">
-                    <div class="operation-now-heading__title">
-                        <p class="operation-now-eyebrow">CENTRO DE CONTROL · SOLO LECTURA</p>
+            <div class="operation-now estiba-ui" id="officeContent" data-density="compact">
+                <header class="operation-now-command">
+                    <div class="operation-now-command__title">
+                        <p class="operation-now-eyebrow">CENTRO DE CONTROL · INFORMACIÓN EN VIVO</p>
                         <h1>Operación ahora</h1>
-                        <p>Estado físico y actividad vigente de la temporada activa.</p>
+                        <p>Personal, infraestructura y excepciones vigentes de la planta.</p>
                     </div>
-                    <div class="operation-now-heading__clock" aria-label="Jornada operacional">
+                    <div class="operation-now-command__date" aria-label="Fecha y hora operacional">
                         <span id="operationDate">—</span>
                         <strong id="operationTime">--:--:--</strong>
                         <small id="operationTimezone">Hora operacional</small>
+                        <small id="operationShift">Turno sin configurar</small>
                     </div>
-                    <div class="operation-now-heading__status">
-                        <span class="operation-now-live" id="operationLiveSignal" data-tone="neutral">
-                            <i aria-hidden="true"></i><strong id="operationLiveText">Sin consultar</strong>
-                        </span>
-                        <span id="operationSeason">Temporada sin consultar</span>
+                    <div class="operation-now-command__shift">
+                        <span>ESTADO DE LOS DATOS</span>
+                        <strong class="operation-now-live" id="operationLiveSignal" data-tone="neutral">
+                            <i aria-hidden="true"></i><span id="operationLiveText">Sin consultar</span>
+                        </strong>
+                        <small id="operationSeason">Temporada sin consultar</small>
                         <small id="operationUpdatedAt">Última lectura: —</small>
                     </div>
-                    <button class="eui-button eui-button--secondary operation-now-refresh" id="operationRefresh" type="button">
-                        Actualizar ahora
-                    </button>
+                    <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
                 </header>
 
                 <div class="operation-now-connection" id="operationConnection" role="status" hidden>
@@ -55,146 +48,154 @@
                     <span id="operationConnectionDetail">Se mantiene la última lectura disponible.</span>
                 </div>
 
-                <section class="operation-now-metrics" aria-label="Situación general">
+                <section class="operation-now-metrics" aria-label="Resumen operacional">
                     <article>
-                        <span>CÁMARAS ACTIVAS</span>
-                        <strong id="metricCameras">—</strong>
-                        <small id="metricCamerasDetail">sin consultar</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12M8 20v-6h8v6M9 9h.01M15 9h.01"/></svg></span>
+                        <div><span>CÁMARAS PT</span><strong id="metricCameras">—</strong><small id="metricCamerasDetail">sin consultar</small></div>
                     </article>
                     <article>
-                        <span>OCUPACIÓN PT</span>
-                        <strong id="metricOccupancy">—</strong>
-                        <small id="metricOccupancyDetail">capacidad operativa</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3M20 16V6"/></svg></span>
+                        <div><span>OCUPACIÓN PT</span><strong id="metricOccupancy">—</strong><small id="metricOccupancyDetail">capacidad operativa</small></div>
                     </article>
                     <article data-metric-tone="warning">
-                        <span>CONTROL AMBIENTAL</span>
-                        <strong id="metricEnvironmental">—</strong>
-                        <small id="metricEnvironmentalDetail">pendientes o vencidos</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v10M8 13a5 5 0 1 0 8 0V7a4 4 0 0 0-8 0v6Z"/></svg></span>
+                        <div><span>CONTROL AMBIENTAL</span><strong id="metricEnvironmental">—</strong><small id="metricEnvironmentalDetail">pendientes o vencidos</small></div>
                     </article>
                     <article>
-                        <span>CAMAREROS ACTIVOS</span>
-                        <strong id="metricOperators">—</strong>
-                        <small id="metricOperatorsDetail">sesiones abiertas</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        <div><span>CAMAREROS ACTIVOS</span><strong id="metricOperators">—</strong><small id="metricOperatorsDetail">sesiones abiertas</small></div>
                     </article>
                     <article>
-                        <span>PREFRÍO ACTIVO</span>
-                        <strong id="metricPrecooling">—</strong>
-                        <small id="metricPrecoolingDetail">procesos en curso</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 1.5 5.5L18 4l-1.5 5.5L22 8l-4.5 3.5L22 14l-5.5-1.5L18 18l-4.5-3.5L12 22l-1.5-7.5L6 18l1.5-5.5L2 14l4.5-2.5L2 8l5.5 1.5L6 4l4.5 3.5L12 2Z"/></svg></span>
+                        <div><span>PREFRÍO ACTIVO</span><strong id="metricPrecooling">—</strong><small id="metricPrecoolingDetail">procesos en curso</small></div>
                     </article>
                     <article data-metric-tone="critical">
-                        <span>INCIDENCIAS ABIERTAS</span>
-                        <strong id="metricIncidents">—</strong>
-                        <small id="metricIncidentsDetail">requieren revisión</small>
+                        <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg></span>
+                        <div><span>INCIDENCIAS ABIERTAS</span><strong id="metricIncidents">—</strong><small id="metricIncidentsDetail">requieren revisión</small></div>
                     </article>
                 </section>
 
-                <section class="operation-now-sync" aria-label="Estado de sincronización">
-                    <div>
-                        <span>ÚLTIMA OPERACIÓN RECIBIDA</span>
-                        <strong id="syncLatestOperation">Sin actividad registrada</strong>
-                        <small id="syncLatestContext">Esperando evidencia de dispositivos</small>
-                    </div>
-                    <dl>
-                        <div><dt>Aceptadas hoy</dt><dd id="syncAccepted">0</dd></div>
-                        <div><dt>Pendientes</dt><dd id="syncPending">0</dd></div>
-                        <div><dt>Procesando</dt><dd id="syncProcessing">0</dd></div>
-                        <div><dt>Rechazadas</dt><dd id="syncRejected">0</dd></div>
-                        <div><dt>Con conflicto</dt><dd id="syncConflict">0</dd></div>
-                    </dl>
-                </section>
-
-                <div class="operation-now-grid" aria-busy="true" id="operationWorkspace">
-                    <section class="operation-now-panel operation-now-panel--cameras" aria-labelledby="operationCamerasTitle">
-                        <header class="operation-now-panel__heading">
-                            <div>
-                                <p class="operation-now-eyebrow">INFRAESTRUCTURA PT</p>
-                                <h2 id="operationCamerasTitle">Cámaras y ambiente</h2>
-                                <p>Capacidad física y vigencia del último control horario.</p>
-                            </div>
-                            <a href="/oficina/frigorifico/camaras">Abrir cámaras</a>
-                        </header>
-                        <div class="operation-now-table-scroll">
-                            <table class="operation-now-table operation-now-table--cameras">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Cámara</th>
-                                        <th scope="col">Área</th>
-                                        <th scope="col">Ocupación</th>
-                                        <th scope="col">Ambiente</th>
-                                        <th scope="col">Última lectura</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="operationCameraRows">
-                                    <tr><td colspan="5"><div class="operation-now-empty">Consultando cámaras…</div></td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-
+                <div class="operation-now-dashboard" aria-busy="true" id="operationWorkspace">
                     <section class="operation-now-panel operation-now-panel--operators" aria-labelledby="operationOperatorsTitle">
                         <header class="operation-now-panel__heading">
-                            <div>
-                                <p class="operation-now-eyebrow">PERSONAS EN TERRENO</p>
-                                <h2 id="operationOperatorsTitle">Camareros activos</h2>
-                                <p>Sesión, ubicación y tarea tomada.</p>
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                <div><h2 id="operationOperatorsTitle">Camareros activos</h2><span>Ubicación y labor vigente</span></div>
                             </div>
+                            <strong class="operation-now-panel__count" id="operatorPanelCount">—</strong>
                         </header>
-                        <div class="operation-now-operator-list" id="operationOperatorList">
-                            <div class="operation-now-empty">Consultando sesiones…</div>
+                        <div class="operation-now-panel__body operation-now-operator-list" id="operationOperatorList"><div class="operation-now-empty">Consultando sesiones…</div></div>
+                    </section>
+
+                    <section class="operation-now-panel operation-now-panel--cameras" aria-labelledby="operationCamerasTitle">
+                        <header class="operation-now-panel__heading">
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M8 20v-6h8v6M9 9h.01M15 9h.01"/></svg>
+                                <div><h2 id="operationCamerasTitle">Cámaras</h2><span>Ocupación y estado ambiental</span></div>
+                            </div>
+                            <a href="/oficina/frigorifico/camaras">Ver detalle <span aria-hidden="true">→</span></a>
+                        </header>
+                        <div class="operation-now-panel__body operation-now-table-scroll">
+                            <table class="operation-now-table operation-now-table--cameras">
+                                <caption class="office-visually-hidden">Ocupación y control ambiental de cámaras de producto terminado</caption>
+                                <thead><tr><th scope="col">Cámara</th><th scope="col">Ocupación</th><th scope="col">T° actual</th><th scope="col">Control</th></tr></thead>
+                                <tbody id="operationCameraRows"><tr><td colspan="4"><div class="operation-now-empty">Consultando cámaras…</div></td></tr></tbody>
+                            </table>
                         </div>
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--precooling" aria-labelledby="operationPrecoolingTitle">
                         <header class="operation-now-panel__heading">
-                            <div>
-                                <p class="operation-now-eyebrow">PREFRÍO</p>
-                                <h2 id="operationPrecoolingTitle">Operación de túneles</h2>
-                                <p>Estado administrativo, capacidad y avance contra el tiempo objetivo.</p>
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.5 5.5L18 4l-1.5 5.5L22 8l-4.5 3.5L22 14l-5.5-1.5L18 18l-4.5-3.5L12 22l-1.5-7.5L6 18l1.5-5.5L2 14l4.5-2.5L2 8l5.5 1.5L6 4l4.5 3.5L12 2Z"/></svg>
+                                <div><h2 id="operationPrecoolingTitle">Prefrío</h2><span>Túneles y avance temporal</span></div>
                             </div>
-                            <a href="/oficina/prefrio">Abrir prefrío</a>
+                            <a href="/oficina/prefrio">Ver detalle <span aria-hidden="true">→</span></a>
                         </header>
-                        <div class="operation-now-tunnels" id="operationTunnelList">
-                            <div class="operation-now-empty">Consultando túneles…</div>
+                        <div class="operation-now-panel__body operation-now-tunnels" id="operationTunnelList"><div class="operation-now-empty">Consultando túneles…</div></div>
+                    </section>
+
+                    <section class="operation-now-panel operation-now-panel--sync" aria-labelledby="operationSyncTitle">
+                        <header class="operation-now-panel__heading">
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg>
+                                <div><h2 id="operationSyncTitle">Sincronización</h2><span>Actividad de dispositivos</span></div>
+                            </div>
+                        </header>
+                        <div class="operation-now-panel__body operation-now-sync">
+                            <div class="operation-now-sync__latest">
+                                <span>ÚLTIMA OPERACIÓN RECIBIDA</span><strong id="syncLatestOperation">Sin actividad registrada</strong><small id="syncLatestContext">Esperando evidencia de dispositivos</small>
+                            </div>
+                            <dl>
+                                <div data-tone="success"><dt>Aceptadas hoy</dt><dd id="syncAccepted">0</dd></div>
+                                <div data-tone="warning"><dt>Pendientes</dt><dd id="syncPending">0</dd></div>
+                                <div data-tone="info"><dt>Procesando</dt><dd id="syncProcessing">0</dd></div>
+                                <div data-tone="critical"><dt>Rechazadas</dt><dd id="syncRejected">0</dd></div>
+                                <div data-tone="critical"><dt>Con conflicto</dt><dd id="syncConflict">0</dd></div>
+                            </dl>
                         </div>
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--incidents" aria-labelledby="operationIncidentsTitle">
                         <header class="operation-now-panel__heading">
-                            <div>
-                                <p class="operation-now-eyebrow">EXCEPCIONES ABIERTAS</p>
-                                <h2 id="operationIncidentsTitle">Incidencias y discrepancias</h2>
-                                <p>Reportes vigentes de la temporada, sin severidad inventada.</p>
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
+                                <div><h2 id="operationIncidentsTitle">Incidencias abiertas</h2><span>Condiciones que requieren atención</span></div>
                             </div>
-                            <a href="/oficina/frigorifico/discrepancias">Revisar discrepancias</a>
+                            <a href="/oficina/frigorifico/discrepancias">Revisar <span aria-hidden="true">→</span></a>
                         </header>
-                        <div class="operation-now-table-scroll">
+                        <div class="operation-now-panel__body operation-now-table-scroll">
                             <table class="operation-now-table operation-now-table--incidents">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Antigüedad</th>
-                                        <th scope="col">Origen</th>
-                                        <th scope="col">Prioridad</th>
-                                        <th scope="col">Folio / contexto</th>
-                                        <th scope="col">Reporte</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="operationIncidentRows">
-                                    <tr><td colspan="5"><div class="operation-now-empty">Consultando incidencias…</div></td></tr>
-                                </tbody>
+                                <caption class="office-visually-hidden">Incidencias y discrepancias operacionales abiertas</caption>
+                                <thead><tr><th scope="col">Antigüedad</th><th scope="col">Origen</th><th scope="col">Prioridad</th><th scope="col">Folio / contexto</th><th scope="col">Reporte</th></tr></thead>
+                                <tbody id="operationIncidentRows"><tr><td colspan="5"><div class="operation-now-empty">Consultando incidencias…</div></td></tr></tbody>
                             </table>
                         </div>
                     </section>
+
+                    <section class="operation-now-panel operation-now-panel--facility" aria-labelledby="operationFacilityTitle">
+                        <header class="operation-now-panel__heading">
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5"/></svg>
+                                <div><h2 id="operationFacilityTitle">Esquema de recintos</h2><span>Estado de cámaras y túneles</span></div>
+                            </div>
+                        </header>
+                        <div class="operation-now-panel__body operation-now-facility" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
+                    </section>
+
+                    <section class="operation-now-panel operation-now-panel--alerts" id="operationAlertsPanel" data-tone="neutral" aria-labelledby="operationAlertsTitle">
+                        <header class="operation-now-panel__heading">
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
+                                <div><h2 id="operationAlertsTitle">Alertas operacionales</h2><span>Condiciones verificables que requieren atención</span></div>
+                            </div>
+                            <strong class="operation-now-panel__count" id="operationAlertCount">—</strong>
+                        </header>
+                        <div class="operation-now-panel__body operation-now-table-scroll">
+                            <table class="operation-now-table operation-now-table--alerts">
+                                <caption class="office-visually-hidden">Alertas operacionales construidas desde la última lectura</caption>
+                                <thead><tr><th scope="col">Área</th><th scope="col">Severidad</th><th scope="col">Condición</th><th scope="col">Evidencia</th><th scope="col">Acción</th></tr></thead>
+                                <tbody id="operationAlertRows"><tr><td colspan="5"><div class="operation-now-empty">Evaluando alertas…</div></td></tr></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <nav class="operation-now-shortcuts" aria-label="Accesos rápidos">
+                        <strong>ACCESOS RÁPIDOS</strong>
+                        <a href="/oficina/frigorifico/camaras"><span>Cámaras</span><small>Ocupación y posiciones</small><b aria-hidden="true">→</b></a>
+                        <a href="/oficina/prefrio"><span>Prefrío</span><small>Procesos y túneles</small><b aria-hidden="true">→</b></a>
+                        <a href="/oficina/cargas"><span>Cargas</span><small>Despachos vigentes</small><b aria-hidden="true">→</b></a>
+                        <a href="/oficina/frigorifico/discrepancias"><span>Incidencias</span><small>Supervisión operativa</small><b aria-hidden="true">→</b></a>
+                    </nav>
                 </div>
 
                 <footer class="operation-now-footer">
                     <span>Los avances de prefrío representan tiempo transcurrido, no progreso térmico.</span>
-                    <span>Actualización automática según el intervalo informado por el servidor.</span>
+                    <span>El esquema de recintos no representa coordenadas ni posiciones físicas.</span>
                 </footer>
             </div>
 
-            <div class="operation-now-loading is-hidden" id="operationLoading" aria-hidden="true">
-                <span aria-hidden="true"></span><strong id="operationLoadingText">Consultando la operación…</strong>
-            </div>
+            <div class="operation-now-loading is-hidden" id="operationLoading" aria-hidden="true"><span aria-hidden="true"></span><strong id="operationLoadingText">Consultando la operación…</strong></div>
             <div class="toast-region" id="operationToasts" aria-live="polite"></div>
         </main>
     </body>

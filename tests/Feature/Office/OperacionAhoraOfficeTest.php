@@ -11,15 +11,19 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->get('/oficina/operacion-ahora')
             ->assertOk()
             ->assertSee('Operación ahora')
-            ->assertSee('CENTRO DE CONTROL · SOLO LECTURA')
-            ->assertSee('Cámaras y ambiente')
+            ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
+            ->assertSee('Esquema de recintos')
             ->assertSee('Camareros activos')
-            ->assertSee('Operación de túneles')
-            ->assertSee('Incidencias y discrepancias')
+            ->assertSee('Prefrío')
+            ->assertSee('Incidencias abiertas')
+            ->assertSee('Alertas operacionales')
+            ->assertSee('ACCESOS RÁPIDOS')
             ->assertSee('id="operationCameraRows"', false)
             ->assertSee('id="operationOperatorList"', false)
             ->assertSee('id="operationTunnelList"', false)
             ->assertSee('id="operationIncidentRows"', false)
+            ->assertSee('id="operationFacilityMap"', false)
+            ->assertSee('id="operationAlertRows"', false)
             ->assertSee('data-active-office="operacion-ahora"', false)
             ->assertDontSee('<form', false);
     }
@@ -46,6 +50,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('createOperationalPoller', $script);
         $this->assertStringContainsString('actualizacion_sugerida_segundos', $script);
         $this->assertStringContainsString('validateSnapshot', $script);
+        $this->assertStringContainsString('SIN REGISTRO', $script);
+        $this->assertStringContainsString('renderFacility', $script);
+        $this->assertStringContainsString('buildOperationalAlerts', $script);
         $this->assertStringContainsString('pauseWhenHidden', file_get_contents(resource_path('js/shared/operational-poller.js')));
         $this->assertStringNotContainsString("method: 'POST'", $script);
         $this->assertStringNotContainsString("method: 'PUT'", $script);
@@ -60,7 +67,25 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('@media (pointer: coarse)', $styles);
         $this->assertStringContainsString('--eui-density-touch-control', $styles);
         $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $styles);
+        $this->assertStringContainsString('background: #17394b', $styles);
+        $this->assertStringContainsString('operation-now-facility__grid', $styles);
+        $this->assertStringContainsString('grid-template-columns: minmax(0, 3fr) minmax(330px, 2fr)', $styles);
         $this->assertStringNotContainsString('linear-gradient', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
+    }
+
+    public function test_shell_conserva_funciones_y_relega_preferencias_visuales(): void
+    {
+        $view = file_get_contents(resource_path('views/components/office/navigation.blade.php'));
+        $styles = file_get_contents(resource_path('css/office-shell.css'));
+
+        $this->assertIsString($view);
+        $this->assertIsString($styles);
+        $this->assertStringContainsString('SISTEMA DE GESTIÓN', $view);
+        $this->assertStringContainsString('aria-label="Operación en tiempo real"', $view);
+        $this->assertStringContainsString('<details class="estiba-office-preferences">', $view);
+        $this->assertStringContainsString('id="officeThemeSelector"', $view);
+        $this->assertStringContainsString('data-office-context-refresh', $view);
+        $this->assertStringContainsString('background: #106fc0', $styles);
     }
 }
