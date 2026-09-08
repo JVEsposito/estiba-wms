@@ -6,9 +6,14 @@ use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionSincronizacion;
 use App\Enums\EstadoPosicion;
+use App\Enums\EstadoSesionEstiba;
+use App\Enums\EstadoTareaMovimiento;
 use App\Models\Camara;
 use App\Models\OperacionSincronizacion;
+use App\Models\Posicion;
 use App\Models\RegistroControlAmbiental;
+use App\Models\SesionEstiba;
+use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,7 +45,190 @@ class ServicioOperacionAhora
                 'nombre' => $temporada->nombre,
             ],
             'sincronizacion' => $this->sincronizacion($ahora, $horaOperacional),
+            'camareros' => $this->camareros($temporada),
             'camaras' => $this->camaras($ahora),
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function camareros(Temporada $temporada): array
+    {
+        $sesiones = SesionEstiba::query()
+            ->where('estado', EstadoSesionEstiba::Abierta->value)
+            ->with([
+                'usuario:id,name',
+                'dispositivo:id,codigo,nombre',
+                'camara:id,codigo,nombre,contenido',
+            ])
+            ->get()
+            ->sortBy(fn (SesionEstiba $sesion): string => mb_strtolower(
+                $sesion->usuario->name.'|'.$sesion->camara->codigo.'|'.$sesion->id,
+            ))
+            ->values();
+
+        if ($sesiones->isEmpty()) {
+            return [];
+        }
+
+        $tareasPorActor = TareaMovimiento::query()
+            ->whereIn('responsable_user_id', $sesiones->pluck('user_id')->unique())
+            ->whereIn('dispositivo_id', $sesiones->pluck('dispositivo_id')->unique())
+            ->whereIn('estado', [
+                EstadoTareaMovimiento::EnProceso->value,
+                EstadoTareaMovimiento::Asumida->value,
+            ])
+            ->whereHas(
+                'planOperacional',
+                fn (Builder $consulta): Builder => $consulta
+                    ->where('temporada_id', $temporada->id),
+            )
+            ->with([
+                'planOperacional:id,temporada_id,tipo,titulo',
+                'folio:id,numero_folio,tipo_bulto',
+                'camaraOrigen:id,codigo,nombre',
+                'posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
+                'camaraDestino:id,codigo,nombre',
+                'posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
+            ])
+            ->get()
+            ->groupBy(fn (TareaMovimiento $tarea): string => $this->claveActor(
+                $tarea->responsable_user_id,
+                $tarea->dispositivo_id,
+            ))
+            ->map(fn (Collection $tareas): ?TareaMovimiento => $tareas
+                ->sort(fn (TareaMovimiento $izquierda, TareaMovimiento $derecha): int => $this->ordenTarea($izquierda) <=> $this->ordenTarea($derecha))
+                ->first());
+
+        return $sesiones->map(function (SesionEstiba $sesion) use ($tareasPorActor): array {
+            /** @var TareaMovimiento|null $tarea */
+            $tarea = $tareasPorActor->get($this->claveActor(
+                $sesion->user_id,
+                $sesion->dispositivo_id,
+            ));
+
+            return [
+                'usuario' => [
+                    'id' => $sesion->usuario->id,
+                    'nombre' => $sesion->usuario->name,
+                ],
+                'dispositivo' => [
+                    'id' => $sesion->dispositivo->id,
+                    'codigo' => $sesion->dispositivo->codigo,
+                    'nombre' => $sesion->dispositivo->nombre,
+                ],
+                'sesion' => [
+                    'id' => $sesion->id,
+                    'estado' => $sesion->estado->value,
+                    'iniciada_at' => $sesion->iniciada_at?->toAtomString(),
+                    'ultima_actividad_at' => $sesion->ultima_actividad_at?->toAtomString(),
+                ],
+                'ubicacion_actual' => [
+                    'tipo' => 'camara',
+                    'camara' => [
+                        'id' => $sesion->camara->id,
+                        'codigo' => $sesion->camara->codigo,
+                        'nombre' => $sesion->camara->nombre,
+                        'contenido' => $sesion->camara->contenido->value,
+                    ],
+                ],
+                'tarea_actual' => $tarea ? $this->serializarTarea($tarea) : null,
+            ];
+        })->all();
+    }
+
+    private function claveActor(int $usuarioId, string $dispositivoId): string
+    {
+        return $usuarioId.'|'.$dispositivoId;
+    }
+
+    /**
+     * @return array{int, int, int, int, string}
+     */
+    private function ordenTarea(TareaMovimiento $tarea): array
+    {
+        $fecha = $tarea->iniciada_at ?? $tarea->asumida_at ?? $tarea->created_at;
+
+        return [
+            $tarea->estado === EstadoTareaMovimiento::EnProceso ? 0 : 1,
+            -$tarea->prioridad->peso(),
+            $fecha?->getTimestamp() ?? PHP_INT_MAX,
+            $tarea->secuencia,
+            $tarea->id,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializarTarea(TareaMovimiento $tarea): array
+    {
+        return [
+            'id' => $tarea->id,
+            'estado' => $tarea->estado->value,
+            'prioridad' => $tarea->prioridad->value,
+            'tipo_movimiento' => $tarea->tipo_movimiento->value,
+            'instruccion' => $tarea->instruccion,
+            'plan' => [
+                'id' => $tarea->planOperacional->id,
+                'tipo' => $tarea->planOperacional->tipo->value,
+                'titulo' => $tarea->planOperacional->titulo,
+            ],
+            'folio' => [
+                'id' => $tarea->folio->id,
+                'numero_folio' => $tarea->folio->numero_folio,
+                'tipo_bulto' => $tarea->folio->tipo_bulto->value,
+            ],
+            'origen' => $this->extremoTarea($tarea->camaraOrigen, $tarea->posicionOrigen),
+            'destino' => $this->extremoTarea($tarea->camaraDestino, $tarea->posicionDestino),
+            'destino_logico' => $this->destinoLogicoTarea($tarea),
+            'asumida_at' => $tarea->asumida_at?->toAtomString(),
+            'iniciada_at' => $tarea->iniciada_at?->toAtomString(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function extremoTarea(?Camara $camara, ?Posicion $posicion): ?array
+    {
+        if ($camara === null) {
+            return null;
+        }
+
+        return [
+            'camara' => [
+                'id' => $camara->id,
+                'codigo' => $camara->codigo,
+                'nombre' => $camara->nombre,
+            ],
+            'posicion' => $posicion ? [
+                'id' => $posicion->id,
+                'etiqueta' => $posicion->etiqueta,
+                'banda' => $posicion->banda,
+                'posicion' => $posicion->posicion,
+                'nivel' => $posicion->nivel,
+            ] : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function destinoLogicoTarea(TareaMovimiento $tarea): ?array
+    {
+        $contexto = $tarea->contexto ?? [];
+
+        if (($contexto['tipo_decision'] ?? null) !== 'retiro_directo_anden'
+            || empty($contexto['anden_id'])) {
+            return null;
+        }
+
+        return [
+            'tipo' => 'anden',
+            'id' => $contexto['anden_id'],
+            'nombre' => $contexto['anden_nombre'] ?? 'Andén',
         ];
     }
 
