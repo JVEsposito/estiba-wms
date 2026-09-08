@@ -1,0 +1,37 @@
+# Interfaz de Operación ahora
+
+La oficina `/oficina/operacion-ahora` representa el contrato de solo lectura
+`GET /api/operacion-ahora`. Su objetivo es entregar una vista operativa actual,
+densa y verificable para gerencia y supervisión, separada del panel gerencial
+histórico.
+
+## Contenido visible
+
+- jornada, temporada, hora del servidor y evidencia de la última actualización;
+- resumen de cámaras activas, ocupación PT y controles ambientales requeridos;
+- camareros con sesión abierta, dispositivo, cámara actual y tarea vigente;
+- túneles de prefrío, capacidad física, proceso activo y avance temporal;
+- incidencias abiertas de carga y discrepancias de maniobra;
+- conteos diarios de sincronizaciones aceptadas, pendientes, en proceso,
+  rechazadas y con conflicto.
+
+El avance de prefrío se identifica explícitamente como tiempo transcurrido. La
+interfaz no lo presenta como progreso térmico ni inventa lecturas que el backend
+no entrega.
+
+## Actualización y fallos
+
+La primera consulta bloquea el espacio de trabajo. Después, el cliente respeta
+`actualizacion_sugerida_segundos`, evita solicitudes superpuestas, pausa cuando
+la pestaña está oculta o el equipo está sin conexión y aplica retroceso gradual
+después de errores. Si una actualización falla, conserva la última lectura y
+muestra su hora en vez de reemplazarla por ceros.
+
+## Acceso y alcance
+
+La navegación y el cliente exigen `puede_consultar_panel_gerencial` y el módulo
+`gerencia.panel`. La pantalla no expone formularios ni acciones operativas. Los
+enlaces llevan a las oficinas existentes que poseen sus propios permisos.
+
+Este entregable no modifica el endpoint, reglas de negocio, permisos, modelos,
+migraciones ni aplicación móvil.

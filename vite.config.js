@@ -50,6 +50,8 @@ export default defineConfig({
                 'resources/js/office-sag-inspections.js',
                 'resources/css/office-management.css',
                 'resources/js/office-management.js',
+                'resources/css/office-operation-now.css',
+                'resources/js/office-operation-now.js',
                 'resources/css/office-operational-integrity.css',
                 'resources/js/office-operational-integrity.js',
                 'resources/css/office-inventory-exports.css',

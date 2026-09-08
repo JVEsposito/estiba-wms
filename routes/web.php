@@ -69,6 +69,7 @@ Route::view('/oficina/administracion/maestros-temporada', 'office.validation-cat
 Route::view('/oficina/administracion/integridad-operacional', 'office.operational-integrity');
 Route::view('/oficina/prefrio', 'office.precooling');
 Route::view('/oficina/frigorifico/inspeccion-sag', 'office.sag-inspections');
+Route::view('/oficina/operacion-ahora', 'office.operation-now');
 Route::view('/oficina/gerencia', 'office.management');
 Route::redirect('/oficina/existencias', '/oficina/materiales/exportaciones');
 Route::view('/oficina/frigorifico/existencias', 'office.inventory-exports', [
