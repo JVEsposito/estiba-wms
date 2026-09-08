@@ -3,24 +3,38 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
+use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoIncidenciaCarga;
+use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\EstadoTecnicoTunelPrefrio;
+use App\Enums\PrioridadCarga;
 use App\Enums\PrioridadOperacional;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Enums\TipoIncidenciaCarga;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Models\Camara;
+use App\Models\Carga;
+use App\Models\CargaFolio;
+use App\Models\DiscrepanciaManiobra;
 use App\Models\Dispositivo;
 use App\Models\Folio;
+use App\Models\IncidenciaCargaFolio;
+use App\Models\ManiobraOperacional;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
 use App\Models\ProcesoPrefrioFolio;
 use App\Models\RegistroControlAmbiental;
+use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\TunelPrefrio;
@@ -61,6 +75,9 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonCount(0, 'data.camareros')
             ->assertJsonPath('data.prefrio.resumen.tuneles_totales', 0)
             ->assertJsonCount(0, 'data.prefrio.tuneles')
+            ->assertJsonPath('data.incidencias.resumen.total_abiertas', 0)
+            ->assertJsonPath('data.incidencias.resumen.mas_antigua_at', null)
+            ->assertJsonCount(0, 'data.incidencias.abiertas')
             ->assertJsonCount(0, 'data.camaras');
     }
 
@@ -339,6 +356,101 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.prefrio.tuneles.3.posiciones_disponibles', 0);
     }
 
+    public function test_consolida_incidencias_abiertas_de_carga_y_maniobra(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-08 12:00:00 UTC'));
+        $temporada = $this->crearTemporada();
+        $temporadaAnterior = Temporada::create([
+            'codigo' => 'ANTERIOR-INC',
+            'nombre' => 'Temporada anterior de incidencias',
+            'fecha_inicio' => '2025-08-01',
+            'fecha_fin' => '2026-03-31',
+            'activa' => false,
+        ]);
+        $consulta = User::factory()->create(['rol' => RolUsuario::Consulta]);
+        $reportante = User::factory()->create([
+            'name' => 'Camarero que reporta',
+            'rol' => RolUsuario::CamareroFrio,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TAB-INC-01',
+            'nombre' => 'Tablet incidencias',
+        ]);
+        $camara = $this->crearCamara('CAM-INC-01', 'Cámara incidencias');
+        $sesion = app(ServicioSesionEstiba::class)->abrir(
+            $camara,
+            $reportante,
+            $dispositivo,
+        );
+        $reportadaCargaAt = now()->subMinutes(30);
+        $reportadaManiobraAt = now()->subMinutes(10);
+        $incidenciaCarga = $this->crearIncidenciaCarga(
+            $temporada,
+            $reportante,
+            $dispositivo,
+            $sesion,
+            EstadoIncidenciaCarga::Abierta,
+            $reportadaCargaAt,
+            'ACTIVA',
+        );
+        $discrepancia = $this->crearDiscrepanciaManiobra(
+            $temporada,
+            $reportante,
+            $dispositivo,
+            $camara,
+            EstadoDiscrepanciaManiobra::Abierta,
+            $reportadaManiobraAt,
+            'ACTIVA',
+        );
+        $this->crearIncidenciaCarga(
+            $temporada,
+            $reportante,
+            $dispositivo,
+            $sesion,
+            EstadoIncidenciaCarga::Resuelta,
+            now()->subMinutes(2),
+            'RESUELTA',
+        );
+        $this->crearDiscrepanciaManiobra(
+            $temporadaAnterior,
+            $reportante,
+            $dispositivo,
+            $camara,
+            EstadoDiscrepanciaManiobra::Abierta,
+            now()->subMinutes(5),
+            'ANTERIOR',
+        );
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.incidencias.resumen.total_abiertas', 2)
+            ->assertJsonPath('data.incidencias.resumen.carga', 1)
+            ->assertJsonPath('data.incidencias.resumen.maniobra', 1)
+            ->assertJsonPath('data.incidencias.resumen.mas_antigua_at', $reportadaCargaAt->toAtomString())
+            ->assertJsonPath('data.incidencias.resumen.antiguedad_maxima_minutos', 30)
+            ->assertJsonCount(2, 'data.incidencias.abiertas')
+            ->assertJsonPath('data.incidencias.abiertas.0.id', $discrepancia->id)
+            ->assertJsonPath('data.incidencias.abiertas.0.origen', 'maniobra')
+            ->assertJsonPath('data.incidencias.abiertas.0.estado', 'abierta')
+            ->assertJsonPath('data.incidencias.abiertas.0.prioridad', 'critica')
+            ->assertJsonPath('data.incidencias.abiertas.0.folio.numero_folio', 'PAL-MAN-ACTIVA')
+            ->assertJsonPath('data.incidencias.abiertas.0.contexto.plan.titulo', 'Plan ACTIVA')
+            ->assertJsonPath('data.incidencias.abiertas.0.contexto.maniobra.estado', 'pausada_discrepancia')
+            ->assertJsonPath('data.incidencias.abiertas.0.contexto.tarea.origen.camara.codigo', 'CAM-INC-01')
+            ->assertJsonPath('data.incidencias.abiertas.0.contexto.tarea.destino.camara.codigo', 'CAM-INC-01')
+            ->assertJsonPath('data.incidencias.abiertas.0.antiguedad_minutos', 10)
+            ->assertJsonPath('data.incidencias.abiertas.1.id', $incidenciaCarga->id)
+            ->assertJsonPath('data.incidencias.abiertas.1.origen', 'carga')
+            ->assertJsonPath('data.incidencias.abiertas.1.tipo', 'pallet_inestable')
+            ->assertJsonPath('data.incidencias.abiertas.1.prioridad', 'urgente')
+            ->assertJsonPath('data.incidencias.abiertas.1.contexto.carga.codigo', 'CAR-INC-ACTIVA')
+            ->assertJsonPath('data.incidencias.abiertas.1.contexto.ubicacion_reportada.camara.codigo', 'CAM-INC-01')
+            ->assertJsonPath('data.incidencias.abiertas.1.reportado_por.nombre', 'Camarero que reporta')
+            ->assertJsonPath('data.incidencias.abiertas.1.dispositivo.codigo', 'TAB-INC-01')
+            ->assertJsonPath('data.incidencias.abiertas.1.antiguedad_minutos', 30);
+    }
+
     private function crearCamara(string $codigo, string $nombre): Camara
     {
         $camara = Camara::create([
@@ -358,6 +470,109 @@ class OperacionAhoraApiTest extends TestCase
         ]);
 
         return $camara;
+    }
+
+    private function crearIncidenciaCarga(
+        Temporada $temporada,
+        User $reportante,
+        Dispositivo $dispositivo,
+        SesionEstiba $sesion,
+        EstadoIncidenciaCarga $estado,
+        CarbonInterface $reportadaAt,
+        string $sufijo,
+    ): IncidenciaCargaFolio {
+        $carga = Carga::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => "CAR-INC-{$sufijo}",
+            'numero_orden_externa' => "ORD-INC-{$sufijo}",
+            'estado' => EstadoCarga::EnPreparacion,
+            'prioridad' => PrioridadCarga::Urgente,
+            'creada_por_user_id' => $reportante->id,
+            'actualizada_por_user_id' => $reportante->id,
+        ]);
+        $folio = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => "PAL-CAR-{$sufijo}",
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+        ]);
+        $asignacion = CargaFolio::create([
+            'carga_id' => $carga->id,
+            'folio_id' => $folio->id,
+            'estado' => EstadoCargaFolio::ConIncidencia,
+            'asignado_por_user_id' => $reportante->id,
+            'asignado_at' => now(),
+        ]);
+
+        return IncidenciaCargaFolio::create([
+            'operacion_reporte_id' => (string) Str::uuid(),
+            'reporte_payload_hash' => hash('sha256', "incidencia-carga-{$sufijo}"),
+            'carga_folio_id' => $asignacion->id,
+            'tipo' => TipoIncidenciaCarga::PalletInestable,
+            'descripcion' => "Pallet inestable {$sufijo}",
+            'estado' => $estado,
+            'camara_id' => $sesion->camara_id,
+            'posicion_id' => $sesion->camara->posiciones()->firstOrFail()->id,
+            'reportado_por_user_id' => $reportante->id,
+            'dispositivo_id' => $dispositivo->id,
+            'sesion_estiba_id' => $sesion->id,
+            'reportada_at' => $reportadaAt,
+        ]);
+    }
+
+    private function crearDiscrepanciaManiobra(
+        Temporada $temporada,
+        User $reportante,
+        Dispositivo $dispositivo,
+        Camara $camara,
+        EstadoDiscrepanciaManiobra $estado,
+        CarbonInterface $reportadaAt,
+        string $sufijo,
+    ): DiscrepanciaManiobra {
+        $folio = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => "PAL-MAN-{$sufijo}",
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+        ]);
+        $plan = $this->crearPlan($temporada, $reportante, "Plan {$sufijo}");
+        $maniobra = ManiobraOperacional::create([
+            'plan_operacional_id' => $plan->id,
+            'creado_por_user_id' => $reportante->id,
+            'estado' => EstadoManiobraOperacional::PausadaDiscrepancia,
+            'prioridad' => PrioridadOperacional::Critica,
+            'candidate_key' => "maniobra-incidencia-{$sufijo}",
+            'titulo' => "Maniobra {$sufijo}",
+            'costo_movimientos' => 1,
+        ]);
+        $posicion = $camara->posiciones()->firstOrFail();
+        $tarea = TareaMovimiento::create([
+            'plan_operacional_id' => $plan->id,
+            'maniobra_operacional_id' => $maniobra->id,
+            'secuencia' => 1,
+            'secuencia_maniobra' => 1,
+            'tipo_movimiento' => TipoMovimiento::Reubicacion,
+            'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+            'estado' => EstadoTareaMovimiento::EnProceso,
+            'prioridad' => PrioridadOperacional::Critica,
+            'folio_id' => $folio->id,
+            'camara_origen_id' => $camara->id,
+            'posicion_origen_id' => $posicion->id,
+            'camara_destino_id' => $camara->id,
+            'posicion_destino_id' => $posicion->id,
+        ]);
+
+        return DiscrepanciaManiobra::create([
+            'maniobra_operacional_id' => $maniobra->id,
+            'tarea_movimiento_id' => $tarea->id,
+            'folio_id' => $folio->id,
+            'tipo' => 'posicion_no_coincide',
+            'detalle' => "La posición no coincide {$sufijo}",
+            'estado' => $estado,
+            'reportada_por_user_id' => $reportante->id,
+            'dispositivo_id' => $dispositivo->id,
+            'reportada_at' => $reportadaAt,
+        ]);
     }
 
     private function crearTunelPrefrio(

@@ -3,7 +3,8 @@
 `GET /api/operacion-ahora` expone el contrato incremental y no cacheado con el que
 la pantalla de Oficina representará la operación real. Cubre el estado actual de
 las cámaras, los controles ambientales, los camareros con sesión de estiba abierta
-y los túneles de prefrío. Requiere la capacidad existente
+y los túneles de prefrío, además de las incidencias operacionales abiertas.
+Requiere la capacidad existente
 `puede_consultar_panel_gerencial`; no agrega acciones ni modifica permisos de
 escritura.
 
@@ -16,6 +17,8 @@ La respuesta incluye:
   su tarea actual de la temporada activa;
 - túneles de prefrío, disponibilidad, ocupación física y proceso activo de la
   temporada;
+- incidencias abiertas de cargas y discrepancias abiertas de maniobras de la
+  temporada activa;
 - cámaras activas, ocupación de posiciones operativas y último control ambiental
   vigente, vencido o pendiente.
 
@@ -57,6 +60,19 @@ la verificación de temperatura. Al pasar a `pendiente_verificacion`, el tiempo 
 corta en ese evento en vez de continuar aumentando mientras espera la decisión
 del supervisor. Las mediciones térmicas continuas requerirán telemetría futura.
 
+`incidencias.abiertas` unifica dos fuentes existentes sin perder su procedencia:
+`carga` para incidencias de folios asignados a una carga y `maniobra` para
+discrepancias de una maniobra operacional. Solo incluye registros en estado
+`abierta` cuyo proceso pertenece exactamente a la temporada activa y los ordena
+por `reportada_at` descendente. Cada elemento expone los datos comunes del folio,
+reportante, dispositivo, antigüedad y la prioridad real de su carga o maniobra.
+`contexto` conserva los datos propios de cada origen: carga y ubicación reportada,
+o bien plan, maniobra y tarea. La API no deduce una severidad adicional.
+
+El resumen informa el total por origen y la antigüedad máxima. Si no existen
+incidencias abiertas, `mas_antigua_at` y `antiguedad_maxima_minutos` son `null` y
+`abiertas` es un arreglo vacío.
+
 La ruta responde con `Cache-Control: no-store, private`. El cliente puede usar
 `actualizacion_sugerida_segundos` para refrescar, sin asumir que el dato permanece
 vigente durante ese intervalo.
@@ -65,6 +81,6 @@ Este entregable es exclusivamente backend: no cambia Blade, CSS, JavaScript ni l
 aplicación móvil. El panel gerencial histórico continúa en
 `GET /api/gerencia/resumen`.
 
-La próxima entrega aditiva del mismo contrato incorporará incidencias. Mantener
-las fuentes separadas permite revisar cada una sin convertir la adopción de la
-pantalla en un PR monolítico.
+Con esta entrega queda completo el alcance backend planificado para la primera
+versión de Operación ahora. Cualquier ampliación del contrato debe partir de una
+fuente operacional real y mantenerse separada de la implementación visual.
