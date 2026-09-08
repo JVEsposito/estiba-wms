@@ -91,7 +91,7 @@
         <div class="estiba-office-brand">
             <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true">Menú</button>
             <strong>ESTIBA</strong>
-            <span>{{ $activeDomain['label'] }}<small>{{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
+            <span>SISTEMA DE GESTIÓN<small>{{ $activeDomain['label'] }} · {{ collect($activeOffices)->firstWhere('key', $office)['label'] ?? 'Oficina' }}</small></span>
         </div>
         <div class="estiba-office-context">
             <span>Planta<strong data-office-plant>Sin consultar</strong></span>
@@ -129,7 +129,8 @@
                 >{{ $definition['label'] }}</a>
             @endforeach
         </nav>
-        <div class="estiba-office-preferences">
+        <details class="estiba-office-preferences">
+            <summary>Preferencias de interfaz</summary>
             <label for="officeThemeSelector">Apariencia del contenido</label>
             <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
                 <option value="dark-industrial">Oscuro industrial</option>
@@ -139,7 +140,7 @@
             </select>
             <button type="button" data-office-context-refresh>Actualizar contexto</button>
             <p data-office-context-status role="status">Contexto sin consultar</p>
-        </div>
+        </details>
     </aside>
 
     <div class="office-navigation-legacy" hidden aria-hidden="true">

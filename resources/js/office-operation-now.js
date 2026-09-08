@@ -25,6 +25,7 @@ const elements = {
     operatorList: byId('operationOperatorList'),
     tunnelList: byId('operationTunnelList'),
     incidentRows: byId('operationIncidentRows'),
+    facilityMap: byId('operationFacilityMap'),
 };
 
 const state = {
@@ -266,7 +267,7 @@ function renderHeader(data) {
     elements.updatedAt.textContent = `Última lectura: ${dateTime(data.generado_at)}`;
 
     const status = data.sincronizacion?.estado || 'sin_actividad';
-    const tone = { aceptada: 'success', pendiente: 'warning', rechazada: 'critical', conflicto: 'critical' }[status] || 'neutral';
+    const tone = { aceptada: 'success', procesando: 'info', pendiente: 'warning', rechazada: 'critical', conflicto: 'critical' }[status] || 'neutral';
     elements.liveSignal.dataset.tone = tone;
     elements.liveText.textContent = status === 'sin_actividad' ? 'Sin actividad sincronizada' : `Sincronización ${humanize(status).toLowerCase()}`;
     startClock();
@@ -321,7 +322,7 @@ function cameraArea(content) {
 
 function renderCameras(cameras = []) {
     if (!cameras.length) {
-        elements.cameraRows.innerHTML = `<tr><td colspan="5">${empty('Sin cámaras activas', 'No existen cámaras disponibles para la temporada actual.')}</td></tr>`;
+        elements.cameraRows.innerHTML = `<tr><td colspan="3">${empty('Sin cámaras activas', 'No existen cámaras disponibles para la temporada actual.')}</td></tr>`;
         return;
     }
 
@@ -334,18 +335,16 @@ function renderCameras(cameras = []) {
             ? `${signal(humanize(control.estado), environmentTone)}${readings ? `<span class="operation-now-environment-readings"><span>I ${escapeHtml(temperature(readings.inicio))}</span><span>M ${escapeHtml(temperature(readings.medio))}</span><span>F ${escapeHtml(temperature(readings.fondo))}</span></span>` : ''}`
             : '<span class="operation-now-subtext">No aplica a esta cámara</span>';
         const lastReading = control?.capturado_at
-            ? `<span class="operation-now-code">${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))}</span><span class="operation-now-subtext">Vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}</span>`
-            : '<span class="operation-now-subtext">Sin lectura registrada</span>';
+            ? `<span class="operation-now-subtext">Registro ${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))} · vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}</span>`
+            : '<span class="operation-now-subtext">Temperatura: SIN REGISTRO</span>';
 
         return `<tr>
             <td><span class="operation-now-code">${escapeHtml(camera.codigo)}</span><span class="operation-now-subtext">${escapeHtml(camera.nombre)}</span></td>
-            <td>${escapeHtml(cameraArea(camera.contenido))}</td>
             <td>
                 ${signal(`${number(camera.ocupadas)} / ${number(camera.capacidad_operativa)} · ${percent(camera.ocupacion_porcentaje)}`, occupancyTone)}
                 <span class="operation-now-meter" data-tone="${occupancyTone}" style="--operation-progress:${clampedPercent(camera.ocupacion_porcentaje)}%"><i></i></span>
             </td>
-            <td>${environment}</td>
-            <td>${lastReading}</td>
+            <td>${environment}${lastReading}<span class="operation-now-subtext">${escapeHtml(cameraArea(camera.contenido))}</span></td>
         </tr>`;
     }).join('');
 }
@@ -356,6 +355,7 @@ function taskLocation(endpoint) {
 }
 
 function renderOperators(operators = []) {
+    setText('operatorPanelCount', number(operators.length));
     if (!operators.length) {
         elements.operatorList.innerHTML = empty('Sin camareros activos', 'No existen sesiones de estiba abiertas en este momento.');
         return;
@@ -365,8 +365,8 @@ function renderOperators(operators = []) {
         const task = operator.tarea_actual;
         const currentCamera = operator.ubicacion_actual?.camara;
         const taskMarkup = task ? `<div class="operation-now-operator__task">
-            <div class="operation-now-operator__heading">
-                <div><span class="operation-now-operator__meta">TAREA ${escapeHtml(humanize(task.estado).toUpperCase())}</span><p><span class="operation-now-code">${escapeHtml(task.folio?.numero_folio || 'Sin folio')}</span></p></div>
+            <div class="operation-now-operator__task-head">
+                <div><span class="operation-now-operator__label">TAREA ${escapeHtml(humanize(task.estado).toUpperCase())}</span><p><span class="operation-now-code">${escapeHtml(task.folio?.numero_folio || 'Sin folio')}</span></p></div>
                 ${signal(humanize(task.prioridad), toneForPriority(task.prioridad))}
             </div>
             <p>${escapeHtml(task.instruccion || task.plan?.titulo || humanize(task.tipo_movimiento))}</p>
@@ -374,14 +374,41 @@ function renderOperators(operators = []) {
         </div>` : `<div class="operation-now-operator__task">${signal('Disponible, sin tarea tomada', 'success')}</div>`;
 
         return `<article class="operation-now-operator">
-            <div class="operation-now-operator__heading">
-                <div><h3>${escapeHtml(operator.usuario?.nombre || 'Camarero')}</h3><p class="operation-now-operator__meta">${escapeHtml(operator.dispositivo?.codigo || 'Sin dispositivo')} · desde ${escapeHtml(dateTime(operator.sesion?.iniciada_at, { timeOnly: true }))}</p></div>
-                ${signal('Sesión abierta', 'success')}
+            <div class="operation-now-operator__identity">
+                <h3>${escapeHtml(operator.usuario?.nombre || 'Camarero')}</h3>
+                <span class="operation-now-operator__meta">${escapeHtml(operator.dispositivo?.codigo || 'Sin dispositivo')} · desde ${escapeHtml(dateTime(operator.sesion?.iniciada_at, { timeOnly: true }))}</span>
+                <div class="operation-now-operator__status">${signal('En operación', 'success')}</div>
             </div>
-            <div class="operation-now-operator__location"><span class="operation-now-operator__meta">UBICACIÓN ACTUAL</span><p><strong>${escapeHtml(currentCamera?.codigo || 'Sin cámara')}</strong> · ${escapeHtml(currentCamera?.nombre || 'No informada')}</p></div>
+            <div class="operation-now-operator__location"><span class="operation-now-operator__label">UBICACIÓN</span><p><strong>${escapeHtml(currentCamera?.codigo || 'Sin cámara')}</strong><span class="operation-now-subtext">${escapeHtml(currentCamera?.nombre || 'No informada')}</span></p></div>
             ${taskMarkup}
         </article>`;
     }).join('');
+}
+
+function renderFacility(data) {
+    const cameras = data.camaras || [];
+    const tunnels = data.prefrio?.tuneles || [];
+    if (!cameras.length && !tunnels.length) {
+        elements.facilityMap.innerHTML = empty('Sin infraestructura disponible', 'No existen cámaras ni túneles activos para representar.');
+        return;
+    }
+
+    const cells = (items, kind) => items.map((item) => {
+        const isCamera = kind === 'camera';
+        const tone = isCamera ? toneForOccupancy(item.nivel_ocupacion) : toneForTunnel(item);
+        const detail = isCamera
+            ? percent(item.ocupacion_porcentaje)
+            : (item.proceso_activo ? `${number(item.posiciones_ocupadas)} / ${number(item.capacidad_posiciones)}` : humanize(item.estado_operacional));
+
+        return `<div class="operation-now-facility__cell" data-tone="${tone}">
+            <strong>${escapeHtml(item.codigo)}</strong><small>${escapeHtml(detail)}</small>
+        </div>`;
+    }).join('');
+
+    elements.facilityMap.innerHTML = `
+        ${cameras.length ? `<div class="operation-now-facility__group"><strong>CÁMARAS</strong><div class="operation-now-facility__grid">${cells(cameras, 'camera')}</div></div>` : ''}
+        ${tunnels.length ? `<div class="operation-now-facility__group"><strong>TÚNELES DE PREFRÍO</strong><div class="operation-now-facility__grid">${cells(tunnels, 'tunnel')}</div></div>` : ''}
+        <p class="operation-now-facility__note">Esquema de estado; no representa coordenadas ni posición física.</p>`;
 }
 
 function tunnelProcess(tunnel) {
@@ -454,6 +481,7 @@ function render(data) {
     renderOperators(data.camareros);
     renderTunnels(data.prefrio?.tuneles);
     renderIncidents(data.incidencias?.abiertas);
+    renderFacility(data);
     elements.workspace.setAttribute('aria-busy', 'false');
 }
 
