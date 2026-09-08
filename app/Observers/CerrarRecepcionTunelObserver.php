@@ -19,7 +19,7 @@ class CerrarRecepcionTunelObserver
 
         $planes = collect();
         $planPropio = $tarea->planOperacional()->first();
-        if ($planPropio?->tipo === TipoPlanOperacional::RecepcionTunel) {
+        if ($this->esRecepcionConCierreAutomatico($planPropio)) {
             $planes->push($planPropio);
         }
 
@@ -39,7 +39,7 @@ class CerrarRecepcionTunelObserver
                 ->with('planOperacional')
                 ->get();
             $predecesoras->each(function (TareaMovimiento $reemplazada) use ($planes): void {
-                if ($reemplazada->planOperacional?->tipo === TipoPlanOperacional::RecepcionTunel) {
+                if ($this->esRecepcionConCierreAutomatico($reemplazada->planOperacional)) {
                     $planes->push($reemplazada->planOperacional);
                 }
             });
@@ -55,7 +55,7 @@ class CerrarRecepcionTunelObserver
     {
         $plan = PlanOperacional::query()->lockForUpdate()->find($plan->id);
         if (! $plan
-            || $plan->tipo !== TipoPlanOperacional::RecepcionTunel
+            || ! $this->esRecepcionConCierreAutomatico($plan)
             || $plan->estado->esFinal()) {
             return;
         }
@@ -77,6 +77,14 @@ class CerrarRecepcionTunelObserver
             'completado_at' => $disparadora->completada_at ?? now(),
             'version' => $plan->version + 1,
         ]);
+    }
+
+    private function esRecepcionConCierreAutomatico(?PlanOperacional $plan): bool
+    {
+        return $plan && in_array($plan->tipo, [
+            TipoPlanOperacional::RecepcionTunel,
+            TipoPlanOperacional::RecepcionRepaletizaje,
+        ], true);
     }
 
     private function estaResuelta(TareaMovimiento $tarea): bool

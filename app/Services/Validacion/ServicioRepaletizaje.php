@@ -29,6 +29,7 @@ class ServicioRepaletizaje
 {
     public function __construct(
         private readonly MotorTransicionesOperacionales $motorTransiciones,
+        private readonly ServicioGeneracionRecepcionRepaletizaje $generadorRecepcion,
     ) {}
 
     /** @param array<string, mixed> $datos */
@@ -68,6 +69,10 @@ class ServicioRepaletizaje
                     throw new ConflictoOperacion(
                         'El UUID del repaletizaje ya fue utilizado con datos diferentes.',
                     );
+                }
+
+                if ($existente->estado === 'confirmado') {
+                    $this->generadorRecepcion->generar($existente, $usuario);
                 }
 
                 return $this->cargar($existente);
@@ -384,6 +389,8 @@ class ServicioRepaletizaje
                 $folioResultado->update(['datos_externos' => $datosExternos]);
             }
 
+            $this->generadorRecepcion->generar($repa, $usuario);
+
             return $this->cargar($repa->refresh());
         };
 
@@ -611,6 +618,8 @@ class ServicioRepaletizaje
             'snapshot_despues' => $this->snapshotFolio($folio),
         ]);
 
+        $this->generadorRecepcion->generar($repa, $usuario);
+
         return $this->cargar($repa->refresh());
     }
 
@@ -701,6 +710,8 @@ class ServicioRepaletizaje
                     );
                 }
             }
+
+            $this->generadorRecepcion->cancelarPorAnulacion($repa, $usuario);
 
             foreach ($folios as $folio) {
                 $folio->ubicacionActual?->delete();

@@ -58,6 +58,12 @@ Cada operación registra:
 
 Solo supervisión o administración puede anular. La anulación se bloquea cuando un folio involucrado ya posee cargas, reservas, movimientos o procesos de prefrío posteriores. Cuando procede, restaura los saldos y ubicaciones originales; un folio nuevo resultante queda anulado e inactivo.
 
+## Integración con el planificador
+
+Cuando el planificador guiado para tablet está activo, cada resultado tipo pallet con prefrío aprobado genera un objetivo rolling `recepcion_repaletizaje`, aunque todavía no pertenezca a una carga. La labor conserva el origen físico cuando existe, no preasigna destino y declara que el pallet siempre puede salir del área REPA. Los saldos y los pallets pendientes de prefrío continúan en sus circuitos actuales.
+
+La referencia al repaletizaje hace la generación idempotente. Una anulación previa a la ejecución cancela el objetivo; si su retiro ya tuvo ejecución operacional, la anulación se bloquea.
+
 ## Interfaces
 
 - **Oficina:** `/oficina/validacion/repaletizajes`
