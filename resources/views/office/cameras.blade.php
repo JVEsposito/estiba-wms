@@ -9,7 +9,7 @@
         <title>Estiba WMS · Cámaras</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/office.css', 'resources/js/office-cameras.js'])
+            @vite(['resources/css/office.css', 'resources/css/office-cameras.css', 'resources/js/office-cameras.js'])
         @endif
     </head>
     <body>
@@ -48,6 +48,133 @@
         <main class="office-app is-hidden" id="officeApp" data-camera-mode="{{ $cameraMode ?? 'operacion' }}">
             
             <x-office.navigation :domain="$navigationDomain ?? 'frigorifico'" :office="$navigationOffice ?? 'camaras'" context="CÁMARAS" icon="❄" />
+
+            <section class="camera-ops" id="cameraOperations" aria-labelledby="cameraOperationsTitle">
+                <header class="camera-ops__command">
+                    <div>
+                        <p class="camera-ops__eyebrow">FRIGORÍFICO · CONTROL DE CÁMARAS</p>
+                        <h1 id="cameraOperationsTitle">Cámaras PT</h1>
+                        <p>Ocupación, bandas, afinidad y actividad física con información vigente del WMS.</p>
+                    </div>
+                    <div class="camera-ops__command-status" aria-live="polite">
+                        <span>ESTADO DE LA VISTA</span>
+                        <strong id="cameraOpsStatus">Consultando cámaras…</strong>
+                        <small id="cameraOpsUpdatedAt">Última lectura: —</small>
+                    </div>
+                    <button class="camera-ops__refresh" id="cameraOpsRefresh" type="button">
+                        <x-estiba.icon name="refresh" /> Actualizar
+                    </button>
+                </header>
+
+                <div class="camera-ops__layout">
+                    <aside class="camera-ops-panel camera-ops__catalog" aria-labelledby="cameraOpsCatalogTitle">
+                        <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                            <div>
+                                <h2 id="cameraOpsCatalogTitle">Cámaras disponibles</h2>
+                                <p>Selecciona una cámara para revisar su operación.</p>
+                            </div>
+                            <strong class="camera-ops-panel__count" id="cameraOpsCount">—</strong>
+                        </header>
+                        <div class="camera-ops__camera-list" id="operationalCameraList">
+                            <div class="camera-ops-empty">Consultando cámaras PT…</div>
+                        </div>
+                    </aside>
+
+                    <section class="camera-ops__detail" id="cameraOpsDetail" aria-live="polite">
+                        <div class="camera-ops-empty camera-ops-empty--page" id="cameraOpsEmpty">
+                            <strong>Selecciona una cámara</strong>
+                            <span>El plano, las bandas y los eventos se mostrarán aquí.</span>
+                        </div>
+
+                        <div class="camera-ops__workspace is-hidden" id="cameraOpsWorkspace">
+                            <header class="camera-ops__camera-heading">
+                                <div>
+                                    <p class="camera-ops__eyebrow">CÁMARA SELECCIONADA</p>
+                                    <h2><span id="cameraOpsCode">—</span> · <span id="cameraOpsName">—</span></h2>
+                                    <p id="cameraOpsMeta">Sin información operacional.</p>
+                                </div>
+                                <div class="camera-ops__access" id="cameraOpsAccess" data-tone="neutral">Sin consultar</div>
+                            </header>
+
+                            <section class="camera-ops__summary" aria-label="Resumen de capacidad">
+                                <div><span>CAPACIDAD EFECTIVA</span><strong id="cameraOpsCapacity">—</strong></div>
+                                <div><span>OCUPADAS</span><strong id="cameraOpsOccupied">—</strong></div>
+                                <div><span>RESERVADAS</span><strong id="cameraOpsReserved">—</strong></div>
+                                <div><span>DISPONIBLES</span><strong id="cameraOpsAvailable">—</strong></div>
+                                <div><span>SIN POSICIÓN</span><strong id="cameraOpsUnpositioned">—</strong></div>
+                                <div class="camera-ops__summary-meter">
+                                    <span>OCUPACIÓN COMPROMETIDA</span>
+                                    <strong id="cameraOpsOccupancy">—</strong>
+                                    <i aria-hidden="true"><b id="cameraOpsOccupancyBar"></b></i>
+                                </div>
+                            </section>
+
+                            <div class="camera-ops__grid">
+                                <section class="camera-ops-panel camera-ops-panel--map" aria-labelledby="cameraBandMapTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraBandMapTitle">Plano operacional por bandas</h2><p>Fondo arriba · entrada abajo</p></div>
+                                        <span class="camera-ops-panel__summary" id="cameraBandMapSummary">—</span>
+                                    </header>
+                                    <div class="camera-ops__band-map" id="cameraBandMap"></div>
+                                </section>
+
+                                <section class="camera-ops-panel camera-ops-panel--environment" aria-labelledby="cameraEnvironmentTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraEnvironmentTitle">Control ambiental</h2><p>Registro horario vigente</p></div>
+                                        <span class="camera-ops-panel__signal" id="cameraEnvironmentStatus" data-tone="neutral">Sin consultar</span>
+                                    </header>
+                                    <div class="camera-ops__environment">
+                                        <div class="camera-ops__temperature"><span>PROMEDIO</span><strong id="cameraTemperatureAverage">SIN REGISTRO</strong></div>
+                                        <dl>
+                                            <div><dt>Inicio</dt><dd id="cameraTemperatureStart">—</dd></div>
+                                            <div><dt>Medio</dt><dd id="cameraTemperatureMiddle">—</dd></div>
+                                            <div><dt>Fondo</dt><dd id="cameraTemperatureEnd">—</dd></div>
+                                        </dl>
+                                        <p id="cameraEnvironmentEvidence">No existe una lectura disponible.</p>
+                                    </div>
+                                </section>
+
+                                <section class="camera-ops-panel camera-ops-panel--band-detail" aria-labelledby="cameraBandDetailTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraBandDetailTitle">Detalle de banda</h2><p>Contexto de la selección actual</p></div>
+                                    </header>
+                                    <div class="camera-ops__band-detail" id="cameraBandDetail">
+                                        <div class="camera-ops-empty">Selecciona una banda del plano o de la tabla.</div>
+                                    </div>
+                                </section>
+
+                                <section class="camera-ops-panel camera-ops-panel--bands" aria-labelledby="cameraBandTableTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraBandTableTitle">Bandas operacionales</h2><p>Estado, capacidad, uso y afinidad real</p></div>
+                                    </header>
+                                    <div class="camera-ops__table-scroll">
+                                        <table class="camera-ops__table">
+                                            <caption class="office-visually-hidden">Bandas operacionales de la cámara seleccionada</caption>
+                                            <thead><tr><th>Banda</th><th>Estado</th><th>Capacidad</th><th>Usos</th><th>Afinidad</th></tr></thead>
+                                            <tbody id="cameraBandRows"></tbody>
+                                        </table>
+                                    </div>
+                                </section>
+
+                                <section class="camera-ops-panel camera-ops-panel--maneuvers" aria-labelledby="cameraManeuversTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraManeuversTitle">Maniobras activas</h2><p>Reservas físicas vigentes</p></div>
+                                        <strong class="camera-ops-panel__count" id="cameraManeuverCount">—</strong>
+                                    </header>
+                                    <div class="camera-ops__event-list" id="cameraManeuverList"></div>
+                                </section>
+
+                                <section class="camera-ops-panel camera-ops-panel--recent" aria-labelledby="cameraRecentTitle">
+                                    <header class="camera-ops-panel__header" data-estiba-contrast="navy">
+                                        <div><h2 id="cameraRecentTitle">Eventos recientes</h2><p>Movimientos registrados para esta cámara</p></div>
+                                    </header>
+                                    <div class="camera-ops__event-list" id="cameraRecentList"></div>
+                                </section>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </section>
 
 
             <div class="configuration-module-tabs is-hidden" id="configurationModuleTabs" role="tablist" aria-label="Configuración de infraestructura">
