@@ -21,9 +21,12 @@ class EstructuraOficinaTest extends TestCase
             $dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
             $xpath = new DOMXPath($dom);
             $this->assertSame(5, $xpath->query('//*[@data-domain-key]')->length, $path);
-            foreach (['officeUserName', 'officeUserRole', 'officeInitials', 'officeLogoutButton', 'officeThemeSelector', 'officeSidebar'] as $id) {
+            foreach (['officeUserName', 'officeUserRole', 'officeInitials', 'officeLogoutButton', 'officeSidebar'] as $id) {
                 $this->assertSame(1, $xpath->query('//*[@id="'.$id.'"]')->length, $path.' '.$id);
             }
+            $this->assertSame(1, $xpath->query('//*[@data-office-context-refresh]')->length, $path);
+            $this->assertSame(1, $xpath->query('//*[@data-office-context-status]')->length, $path);
+            $this->assertSame(0, $xpath->query('//*[@id="officeThemeSelector"]')->length, $path);
             $this->assertSame(1, $xpath->query('//a[@aria-current="page"]')->length, $path);
             $this->assertSame(0, $xpath->query('//*[@data-office-shell]//button[not(@type)]')->length, $path);
         }

@@ -36,8 +36,9 @@ ESTIBA: topbar navy, navegación lateral compacta, encabezados oscuros por bloqu
 tablas operacionales, barras de ocupación visibles y una jerarquía continua de
 centro de control. Los indicadores redundantes no forman una franja adicional:
 se integran en los encabezados de cada panel, junto a la lectura que explican.
-La sincronización y sus cinco estados diarios se concentran en el bloque de
-estado de datos de la cabecera.
+La sincronización y sus cinco estados diarios se concentran en una franja
+operacional compacta bajo el título, separada de la fecha, el turno y la acción
+de actualización.
 
 Los paneles corresponden a consultas concretas: dónde están los camareros, qué
 cámaras requieren atención, qué túneles están activos, qué dispositivos están
@@ -49,9 +50,9 @@ con altura acotada y desplazamiento interno cuando existen más registros. En
 pantallas angostas vuelven a una sola columna y recuperan su altura natural.
 
 `Operación ahora` se expone como acceso principal del shell, por encima de los
-módulos administrativos. El selector de apariencia y la actualización de contexto siguen disponibles,
-pero quedan dentro de `Preferencias de interfaz` para no competir con la
-navegación operacional.
+módulos administrativos. La oficina usa una sola apariencia operacional ESTIBA;
+la actualización verificable de temporada y planta se integra en la cabecera y
+no compite con la navegación lateral.
 
 ## Actualización y fallos
 

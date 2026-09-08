@@ -15,6 +15,13 @@ function text(name, value) {
     if (element) element.textContent = value;
 }
 
+function contextState(label, detail, tone = 'neutral') {
+    text('context-label', label);
+    text('context-status', detail);
+    const status = field('context-refresh');
+    if (status) status.dataset.tone = tone;
+}
+
 async function loadContext() {
     if (!shell()) return;
     const currentToken = token();
@@ -25,7 +32,7 @@ async function loadContext() {
     const currentGeneration = ++generation;
     const button = field('context-refresh');
     button.disabled = true;
-    text('context-status', 'Consultando contexto…');
+    contextState('Verificando contexto', 'Consultando temporada y planta…', 'neutral');
     const timeout = setTimeout(() => requestController.abort(), 10000);
     try {
         const response = await fetch('/api/oficina/contexto', {
@@ -40,12 +47,20 @@ async function loadContext() {
         if (currentGeneration !== generation || currentToken !== token()) return;
         text('plant', data.planta || 'Sin configurar');
         text('season', data.temporada?.codigo || 'Sin temporada activa');
-        text('context-status', `Contexto consultado a las ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`);
+        contextState(
+            'Contexto verificado',
+            `Actualizado ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`,
+            'success',
+        );
     } catch (error) {
         if (currentGeneration !== generation || currentToken !== token()) return;
         text('plant', 'Sin verificar');
         text('season', 'Sin verificar');
-        text('context-status', error.name === 'AbortError' ? 'La consulta tardó demasiado. Reintenta.' : `${error.message} Reintenta la consulta.`);
+        contextState(
+            'Contexto no verificado',
+            error.name === 'AbortError' ? 'La consulta tardó demasiado' : error.message,
+            'critical',
+        );
     } finally {
         clearTimeout(timeout);
         if (currentGeneration === generation) button.disabled = !token();
@@ -63,7 +78,7 @@ export function refreshOfficeShell(identity, hasSession) {
         controller?.abort();
         text('plant', 'Sin consultar');
         text('season', 'Sin consultar');
-        text('context-status', 'Contexto sin consultar');
+        contextState('Contexto sin consultar', 'Inicia sesión para verificarlo', 'neutral');
         field('context-refresh').disabled = true;
     } else if (contextToken !== currentToken) {
         contextToken = currentToken;
@@ -117,6 +132,6 @@ export function initializeOfficeShell() {
     new ResizeObserver(size).observe(header);
     size();
     field('context-refresh').addEventListener('click', () => void loadContext());
-    window.addEventListener('offline', () => text('context-status', 'Sin conexión. El contexto mostrado puede estar desactualizado.'));
-    window.addEventListener('online', () => text('context-status', 'Revisa el contexto con Actualizar contexto.'));
+    window.addEventListener('offline', () => contextState('Sin conexión', 'El contexto puede estar desactualizado', 'critical'));
+    window.addEventListener('online', () => contextState('Conexión recuperada', 'Actualiza para verificar el contexto', 'neutral'));
 }

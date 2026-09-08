@@ -4,53 +4,11 @@ import { initializeOfficeShell, refreshOfficeShell } from './office-shell.js';
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
-const themeKey = 'estiba_wms_office_theme';
-const defaultTheme = 'light-professional';
+const officeTheme = 'light-professional';
 const moduleAliases = {
     'administracion.maestros-temporada': ['frigorifico.catalogos'],
 };
-const availableThemes = new Set([
-    defaultTheme,
-    'dark-industrial',
-    'light-natural',
-    'light-warm',
-]);
-
-function normalizeTheme(value) {
-    return availableThemes.has(value) ? value : defaultTheme;
-}
-
-function storedTheme() {
-    try {
-        return normalizeTheme(localStorage.getItem(themeKey));
-    } catch {
-        return defaultTheme;
-    }
-}
-
-function applyTheme(theme, { persist = false } = {}) {
-    const normalized = normalizeTheme(theme);
-    document.documentElement.dataset.officeTheme = normalized;
-
-    if (persist) {
-        try {
-            localStorage.setItem(themeKey, normalized);
-        } catch {
-            // El tema sigue aplicado aunque el navegador no permita persistencia.
-        }
-    }
-
-    const selector = document.getElementById('officeThemeSelector');
-    if (selector && selector.value !== normalized) selector.value = normalized;
-
-    document.dispatchEvent(new CustomEvent('estiba:office-theme', {
-        detail: { theme: normalized },
-    }));
-
-    return normalized;
-}
-
-applyTheme(storedTheme());
+document.documentElement.dataset.officeTheme = officeTheme;
 
 if (window.location.pathname.startsWith('/oficina/romana')) {
     import('./office-weighbridge-drawer.js').catch((error) => {
@@ -328,43 +286,6 @@ function observeApplication() {
     });
 }
 
-function ensureThemeSelector() {
-    const existing = document.getElementById('officeThemeSelector');
-    if (existing) return existing;
-
-    const identity = document.querySelector('.office-domain-topbar .identity');
-    if (!identity) return null;
-
-    const control = document.createElement('label');
-    control.className = 'office-theme-selector';
-    control.title = 'Cambiar apariencia de las oficinas';
-    control.innerHTML = `
-        <span class="office-visually-hidden">Tema visual</span>
-        <select id="officeThemeSelector" aria-label="Tema visual de las oficinas">
-            <option value="dark-industrial">Dark Industrial</option>
-            <option value="light-professional">Light Profesional</option>
-            <option value="light-natural">Light Natural</option>
-            <option value="light-warm">Light Cálido</option>
-        </select>
-    `;
-
-    const logout = document.getElementById('officeLogoutButton');
-    identity.insertBefore(control, logout || null);
-
-    return control.querySelector('select');
-}
-
-function initializeThemeSelector() {
-    const selector = ensureThemeSelector();
-    if (!selector) return;
-
-    selector.value = storedTheme();
-    selector.addEventListener('change', () => {
-        applyTheme(selector.value, { persist: true });
-    });
-}
-
-
 const officeActionHostSelector = [
     '[data-office-action-menu]',
     '.camera-item__actions',
@@ -536,9 +457,7 @@ function initializeOfficeActionMenus() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    applyTheme(storedTheme());
     initializeOfficeShell();
-    initializeThemeSelector();
     refreshNavigation();
     observeApplication();
     initializeOfficePanelSwitchers();
@@ -550,15 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.addEventListener('storage', (event) => {
-    if (event.key === themeKey) applyTheme(event.newValue);
+window.addEventListener('storage', () => {
     refreshNavigation();
 });
 window.addEventListener('estiba:office-session', refreshNavigation);
 
 window.EstibaOfficeTheme = {
-    apply: (theme) => applyTheme(theme, { persist: true }),
-    current: () => normalizeTheme(document.documentElement.dataset.officeTheme),
-    themes: [...availableThemes],
+    apply: () => officeTheme,
+    current: () => officeTheme,
+    themes: [officeTheme],
 };
 window.EstibaOfficeNavigation = { refresh: refreshNavigation };

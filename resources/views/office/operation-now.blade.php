@@ -32,25 +32,31 @@
                         <small id="operationTimezone">Hora operacional</small>
                         <small id="operationShift">Turno sin configurar</small>
                     </div>
-                    <div class="operation-now-command__state">
+                    <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
+                </header>
+
+                <section class="operation-now-syncbar" aria-label="Estado y sincronización de la operación">
+                    <div class="operation-now-syncbar__state">
                         <span>ESTADO DE LOS DATOS</span>
                         <strong class="operation-now-live" id="operationLiveSignal" data-tone="neutral">
                             <i aria-hidden="true"></i><span id="operationLiveText">Sin consultar</span>
                         </strong>
                         <small id="operationSeason">Temporada sin consultar</small>
                         <small id="operationUpdatedAt">Última lectura: —</small>
+                    </div>
+                    <div class="operation-now-syncbar__latest">
+                        <span>ÚLTIMA OPERACIÓN RECIBIDA</span>
                         <small class="operation-now-command__latest" id="syncLatestOperation">Sin actividad registrada</small>
                         <small class="operation-now-command__latest-context" id="syncLatestContext">Esperando evidencia de dispositivos</small>
-                        <dl class="operation-now-command__sync" aria-label="Sincronizaciones de hoy">
-                            <div data-tone="success"><dt>Aceptadas</dt><dd id="syncAccepted">0</dd></div>
-                            <div data-tone="warning"><dt>Pendientes</dt><dd id="syncPending">0</dd></div>
-                            <div data-tone="info"><dt>Procesando</dt><dd id="syncProcessing">0</dd></div>
-                            <div data-tone="critical"><dt>Rechazadas</dt><dd id="syncRejected">0</dd></div>
-                            <div data-tone="critical"><dt>Conflictos</dt><dd id="syncConflict">0</dd></div>
-                        </dl>
                     </div>
-                    <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
-                </header>
+                    <dl class="operation-now-syncbar__metrics" aria-label="Sincronizaciones de hoy">
+                        <div data-tone="success"><dt>Aceptadas</dt><dd id="syncAccepted">0</dd></div>
+                        <div data-tone="warning"><dt>Pendientes</dt><dd id="syncPending">0</dd></div>
+                        <div data-tone="info"><dt>Procesando</dt><dd id="syncProcessing">0</dd></div>
+                        <div data-tone="critical"><dt>Rechazadas</dt><dd id="syncRejected">0</dd></div>
+                        <div data-tone="critical"><dt>Conflictos</dt><dd id="syncConflict">0</dd></div>
+                    </dl>
+                </section>
 
                 <div class="operation-now-connection" id="operationConnection" role="status" hidden>
                     <strong id="operationConnectionTitle">Información conservada</strong>

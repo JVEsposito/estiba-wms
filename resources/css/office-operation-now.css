@@ -38,11 +38,11 @@
 
 .operation-now-command {
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) auto minmax(330px, 390px) auto;
+    grid-template-columns: minmax(280px, 1fr) auto auto;
     align-items: center;
-    gap: 12px;
-    min-height: 96px;
-    padding: 3px 2px 9px;
+    gap: 14px;
+    min-height: 82px;
+    padding: 2px 2px 8px;
     border-bottom: 1px solid #b9c8d2;
 }
 
@@ -69,9 +69,7 @@
 }
 
 .operation-now-command__date span,
-.operation-now-command__date small,
-.operation-now-command__state > span,
-.operation-now-command__state > small {
+.operation-now-command__date small {
     display: block;
     color: #516777;
     font-size: .78rem;
@@ -85,60 +83,82 @@
     font-variant-numeric: tabular-nums;
 }
 
-.operation-now-command__state {
+.operation-now-syncbar {
     display: grid;
-    gap: 3px;
-    min-width: 330px;
-    padding: 8px 10px;
-    border: 1px solid #274c61;
-    background: #17394b;
-    color: #fff;
+    grid-template-columns: minmax(195px, .75fr) minmax(250px, 1.4fr) minmax(420px, 1.6fr);
+    align-items: stretch;
+    min-height: 58px;
+    margin-top: 8px;
+    border: 1px solid #aebfca;
+    background: #fff;
+    color: #1a3040;
 }
 
-.operation-now-command__state > span,
-.operation-now-command__state > small { color: #cedde5; }
+.operation-now-syncbar__state,
+.operation-now-syncbar__latest {
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px 11px;
+    border-right: 1px solid #d1dce3;
+}
 
-.operation-now-command__state > .operation-now-command__latest {
-    margin-top: 2px;
+.operation-now-syncbar__state > span,
+.operation-now-syncbar__latest > span {
+    color: #607583;
+    font-size: .65rem;
+    font-weight: 800;
+    letter-spacing: .055em;
+}
+
+.operation-now-syncbar__state > small { color: #607583; font-size: .72rem; }
+
+.operation-now-syncbar__latest > .operation-now-command__latest {
     overflow: hidden;
-    color: #fff;
-    font-weight: 700;
+    color: #102d41;
+    font-size: .82rem;
+    font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .operation-now-command__latest-context {
     overflow: hidden;
+    color: #607583;
+    font-size: .72rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.operation-now-command__sync {
+.operation-now-syncbar__metrics {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
-    margin: 4px 0 0;
+    align-items: center;
+    margin: 0;
+    padding: 7px 9px;
 }
 
-.operation-now-command__sync div {
+.operation-now-syncbar__metrics div {
     min-width: 0;
-    padding: 2px 4px;
+    padding: 3px 6px;
     border-left: 3px solid #8ca0ad;
-    background: rgba(255, 255, 255, .05);
+    background: #f4f7f9;
 }
 
-.operation-now-command__sync div[data-tone="success"] { border-left-color: #62d694; }
-.operation-now-command__sync div[data-tone="warning"] { border-left-color: #ffcb64; }
-.operation-now-command__sync div[data-tone="info"] { border-left-color: #5bb8f1; }
-.operation-now-command__sync div[data-tone="critical"] { border-left-color: #ff8994; }
-.operation-now-command__sync dt { overflow: hidden; color: #b8cad5; font-size: .62rem; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
-.operation-now-command__sync dd { margin: 2px 0 0; color: #fff; font-size: .78rem; font-weight: 800; line-height: 1; }
+.operation-now-syncbar__metrics div[data-tone="success"] { border-left-color: #2aa55f; }
+.operation-now-syncbar__metrics div[data-tone="warning"] { border-left-color: #efa91f; }
+.operation-now-syncbar__metrics div[data-tone="info"] { border-left-color: #1974b7; }
+.operation-now-syncbar__metrics div[data-tone="critical"] { border-left-color: #e43e4d; }
+.operation-now-syncbar__metrics dt { overflow: hidden; color: #607583; font-size: .62rem; line-height: 1; text-overflow: ellipsis; white-space: nowrap; }
+.operation-now-syncbar__metrics dd { margin: 3px 0 0; color: #102d41; font-size: .88rem; font-weight: 800; line-height: 1; }
 
 .operation-now-live {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #fff;
+    color: #536978;
     font-size: .86rem;
     line-height: 1.2;
 }
@@ -152,10 +172,10 @@
     background: currentColor;
 }
 
-.operation-now-live[data-tone="success"] { color: #62d694; }
-.operation-now-live[data-tone="warning"] { color: #ffcb64; }
-.operation-now-live[data-tone="critical"] { color: #ff8994; }
-.operation-now-live[data-tone="neutral"] { color: #c8d6df; }
+.operation-now-live[data-tone="success"] { color: #20844f; }
+.operation-now-live[data-tone="warning"] { color: #b57000; }
+.operation-now-live[data-tone="critical"] { color: #c32e3d; }
+.operation-now-live[data-tone="neutral"] { color: #607583; }
 
 .operation-now-refresh {
     display: inline-flex;
@@ -238,14 +258,14 @@
 
 .operation-now-panel__heading h2 {
     margin: 0;
-    color: #fff;
+    color: #fff !important;
     font-size: 1rem;
     font-weight: 800;
     line-height: 1.08;
 }
 
 .operation-now-panel__heading span {
-    color: #cfdee6;
+    color: #cfdee6 !important;
     font-size: .78rem;
 }
 
@@ -303,7 +323,7 @@
 .operation-now-panel--facility .operation-now-panel__body,
 .operation-now-panel--incidents .operation-now-panel__body,
 .operation-now-panel--alerts .operation-now-panel__body {
-    max-height: 232px;
+    max-height: 196px;
     overflow-y: auto;
     scrollbar-gutter: stable;
 }
@@ -623,21 +643,22 @@
 
 @media (max-width: 1500px) {
     .operation-now { padding-inline: 12px; }
-    .operation-now-command { grid-template-columns: minmax(270px, 1fr) auto minmax(300px, 360px) auto; gap: 10px; }
+    .operation-now-command { grid-template-columns: minmax(270px, 1fr) auto auto; gap: 10px; }
     .operation-now-command__date { min-width: 155px; padding-inline: 12px; }
+    .operation-now-syncbar { grid-template-columns: minmax(180px, .7fr) minmax(220px, 1.1fr) minmax(390px, 1.5fr); }
 }
 
 @media (max-width: 1199px) {
     .operation-now-loading { left: 0; }
-    .operation-now-command { grid-template-columns: minmax(250px, 1fr) minmax(300px, 360px) auto; }
+    .operation-now-command { grid-template-columns: minmax(250px, 1fr) auto; }
     .operation-now-command__date { display: none; }
+    .operation-now-syncbar { grid-template-columns: minmax(180px, .7fr) minmax(220px, 1.2fr); }
+    .operation-now-syncbar__metrics { grid-column: 1 / -1; border-top: 1px solid #d1dce3; }
     .operation-now-panel__summary { display: none; }
 }
 
 @media (max-width: 899px) {
     .operation-now-command { grid-template-columns: 1fr auto; }
-    .operation-now-command__state { grid-column: 1; grid-row: 2; }
-    .operation-now-refresh { grid-column: 2; grid-row: 1 / 3; }
     .operation-now-dashboard { grid-template-columns: 1fr; }
     .operation-now-panel { grid-column: 1; grid-row: auto; }
     .operation-now-panel--operators { order: 1; }
@@ -660,7 +681,6 @@
     .operation-now { padding: 10px 8px 16px; }
     .operation-now-command { grid-template-columns: 1fr; }
     .operation-now-command__title h1 { font-size: 1.8rem; }
-    .operation-now-command__state,
     .operation-now-refresh { grid-column: 1; grid-row: auto; width: 100%; }
     .operation-now-operator { grid-template-columns: 1fr; }
     .operation-now-operator__identity,
@@ -670,8 +690,10 @@
     .operation-now-tunnel { grid-template-columns: 1fr; }
     .operation-now-tunnel > div { border-right: 0; border-bottom: 1px solid #d8e1e7; }
     .operation-now-tunnel > div:last-child { border-bottom: 0; }
-    .operation-now-command__state { min-width: 0; }
-    .operation-now-command__sync { grid-template-columns: repeat(5, minmax(42px, 1fr)); overflow-x: auto; }
+    .operation-now-syncbar { grid-template-columns: 1fr; }
+    .operation-now-syncbar__state,
+    .operation-now-syncbar__latest { border-right: 0; border-bottom: 1px solid #d1dce3; }
+    .operation-now-syncbar__metrics { grid-column: 1; grid-template-columns: repeat(5, minmax(42px, 1fr)); overflow-x: auto; }
     .operation-now-panel__title > div > span { display: none; }
     .operation-now-panel__tools { margin-left: auto; }
     .operation-now-panel__heading a { padding-inline: 6px; }
