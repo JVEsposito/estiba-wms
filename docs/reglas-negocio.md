@@ -153,7 +153,7 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 15. La capacidad efectiva de una banda considera únicamente posiciones activas del plano vigente.
 16. El estado `libre`, `parcial` o `completa` se deriva de capacidad efectiva y ocupación; `bloqueada` y `en_vaciado` responden a su modo explícito.
 17. Las bandas operacionales solo admiten los usos `transito_pt`, `inspeccion` y `retenidos` en esta etapa.
-18. Saldos y repaletizaje permanecen fuera del planificador de pallets completos.
+18. Los saldos permanecen fuera del planificador de pallets completos; cada resultado pallet de un repaletizaje confirmado y con prefrío aprobado genera una recepción rolling idempotente.
 19. Configurar una banda exige administración, versión vigente y ausencia de una sesión de estiba abierta.
 20. Crear o ampliar una cámara PT sincroniza las bandas nuevas sin sobrescribir la configuración de las existentes.
 21. La afinidad de una banda se deriva de sus pallets completos actuales y no se configura manualmente.

@@ -138,7 +138,7 @@ No intenta adelantar la simulación avanzada de concentración, SAG, retenciones
 - los movimientos manuales existentes continúan disponibles fuera de tareas operacionales;
 - `batch` conserva la semántica previa de reservas para planes estáticos;
 - la bandera histórica `WMS_PLANIFICADOR_AUTOMATICO` se mantiene temporalmente mientras los generadores migran a `WMS_PLANNER_MODE`;
-- saldos y REPA continúan fuera del planificador;
+- los saldos continúan fuera del planificador de pallets completos; los resultados pallet de REPA con prefrío aprobado ingresan mediante `recepcion_repaletizaje`;
 - el bloqueo completo actual de cámara se conserva durante el piloto.
 
 ## Alcance del PR #250

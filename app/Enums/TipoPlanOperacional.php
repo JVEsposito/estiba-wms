@@ -5,6 +5,7 @@ namespace App\Enums;
 enum TipoPlanOperacional: string
 {
     case RecepcionTunel = 'recepcion_tunel';
+    case RecepcionRepaletizaje = 'recepcion_repaletizaje';
     case AlmacenamientoPallet = 'almacenamiento_pallet';
     case ConcentracionCarga = 'concentracion_carga';
     case PreparacionInspeccion = 'preparacion_inspeccion';
