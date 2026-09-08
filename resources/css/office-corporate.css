@@ -1383,3 +1383,170 @@ td > .office-action-select,
         display: none !important;
     }
 }
+
+/*
+ * Contrato explícito para superficies corporativas oscuras.
+ * Evita que las reglas tipográficas temáticas conviertan encabezados navy en
+ * texto navy y mantiene el contraste cuando el usuario cambia de apariencia.
+ */
+[data-estiba-contrast="navy"] {
+    color: #ffffff !important;
+}
+
+[data-estiba-contrast="navy"] :is(h1, h2, h3, h4, p, small, strong, span, dt, dd, a, button) {
+    color: inherit !important;
+}
+
+/* Compatibilidad de Operación ahora con los cuatro temas de oficina. */
+.operation-now-app,
+.operation-now {
+    background: var(--corporate-canvas) !important;
+    color: var(--text) !important;
+}
+
+.operation-now-command {
+    border-bottom-color: var(--corporate-border) !important;
+}
+
+.operation-now-eyebrow { color: var(--corporate-blue) !important; }
+.operation-now-command__title h1,
+.operation-now-command__date strong { color: var(--text-strong) !important; }
+.operation-now-command__title > p:last-child,
+.operation-now-command__date :is(span, small) { color: var(--muted) !important; }
+.operation-now-command__date { border-inline-color: var(--corporate-border) !important; }
+
+.operation-now-command__state,
+.operation-now-panel__heading,
+.operation-now-shortcuts > strong {
+    border-color: #274c61 !important;
+    background: #17394b !important;
+}
+
+.operation-now-live[data-tone="success"] { color: #62d694 !important; }
+.operation-now-live[data-tone="warning"] { color: #ffcb64 !important; }
+.operation-now-live[data-tone="critical"] { color: #ff8994 !important; }
+.operation-now-live[data-tone="neutral"] { color: #c8d6df !important; }
+
+.operation-now-refresh {
+    border-color: var(--corporate-border) !important;
+    background: var(--button-secondary) !important;
+    color: var(--text-strong) !important;
+}
+
+.operation-now-refresh:hover {
+    border-color: var(--corporate-blue) !important;
+    background: var(--button-secondary-hover) !important;
+}
+
+.operation-now-panel,
+.operation-now-shortcuts {
+    border-color: var(--corporate-border) !important;
+    background: var(--corporate-card) !important;
+    box-shadow: var(--corporate-shadow) !important;
+}
+
+.operation-now-panel--alerts[data-tone="critical"] .operation-now-panel__heading {
+    border-color: #7f1824 !important;
+    background: #8f202c !important;
+}
+
+.operation-now-panel--alerts[data-tone="warning"] .operation-now-panel__heading {
+    border-color: #603e00 !important;
+    background: #704900 !important;
+}
+
+.operation-now-table {
+    background: var(--row-bg) !important;
+    color: var(--text) !important;
+}
+
+.operation-now-table :where(th, td),
+.operation-now-operator,
+.operation-now-operator :is(.operation-now-operator__identity, .operation-now-operator__location, .operation-now-operator__task),
+.operation-now-tunnel,
+.operation-now-tunnel > div,
+.operation-now-alert,
+.operation-now-shortcuts a {
+    border-color: var(--corporate-border) !important;
+}
+
+.operation-now-table th { background: var(--table-head) !important; color: var(--text-secondary) !important; }
+.operation-now-table tbody tr:nth-child(even),
+.operation-now-operator:nth-child(even),
+.operation-now-tunnel:nth-child(even),
+.operation-now-alert:nth-child(even) { background: var(--surface-muted) !important; }
+.operation-now-table tbody tr:hover { background: var(--row-hover) !important; }
+
+.operation-now-table strong,
+.operation-now-code,
+.operation-now-temperature,
+.operation-now-operator h3,
+.operation-now-tunnel h3,
+.operation-now-tunnel__capacity b,
+.operation-now-tunnel__process strong,
+.operation-now-alert > strong,
+.operation-now-empty strong { color: var(--text-strong) !important; }
+
+.operation-now-subtext,
+.operation-now-operator__meta,
+.operation-now-tunnel__capacity,
+.operation-now-tunnel__process small,
+.operation-now-alert > p,
+.operation-now-empty,
+.operation-now-footer { color: var(--muted) !important; }
+
+.operation-now-route { color: var(--text-secondary) !important; }
+.operation-now-route b { color: var(--corporate-blue) !important; }
+.operation-now-meter { background: var(--surface-muted) !important; }
+
+.operation-now-facility {
+    background: var(--surface-muted) !important;
+}
+
+.operation-now-facility__group > strong,
+.operation-now-facility__note { color: var(--text-secondary) !important; }
+
+.operation-now-facility__cell {
+    border-color: var(--corporate-border) !important;
+    background: var(--corporate-card) !important;
+    color: var(--text-strong) !important;
+}
+
+.operation-now-facility__cell small { color: var(--muted) !important; }
+.operation-now-facility__cell[data-tone="success"] { border-color: var(--success-text) !important; background: var(--success-bg) !important; }
+.operation-now-facility__cell[data-tone="warning"] { border-color: var(--warning-text) !important; background: var(--warning-bg) !important; }
+.operation-now-facility__cell[data-tone="critical"] { border-color: var(--danger-text) !important; background: var(--danger-bg) !important; }
+.operation-now-facility__cell[data-tone="info"] { border-color: var(--info-text) !important; background: var(--info-bg) !important; }
+
+.operation-now-action {
+    border-color: var(--corporate-border) !important;
+    color: var(--corporate-blue) !important;
+}
+
+.operation-now-action:hover,
+.operation-now-shortcuts a:hover {
+    border-color: var(--corporate-blue) !important;
+    background: var(--surface-hover) !important;
+}
+
+.operation-now-alert-list { background: var(--corporate-card) !important; }
+.operation-now-shortcuts a { color: var(--text-strong) !important; }
+.operation-now-shortcuts small { color: var(--muted) !important; }
+.operation-now-shortcuts b { color: var(--corporate-blue) !important; }
+
+.operation-now-connection {
+    border-color: var(--warning-text) !important;
+    background: var(--warning-bg) !important;
+    color: var(--warning-text) !important;
+}
+
+.operation-now-connection[data-tone="critical"] {
+    border-color: var(--danger-text) !important;
+    background: var(--danger-bg) !important;
+    color: var(--danger-text) !important;
+}
+
+.operation-now-loading {
+    background: var(--overlay) !important;
+    color: var(--text-strong) !important;
+}
