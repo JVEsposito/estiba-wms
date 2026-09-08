@@ -115,6 +115,126 @@ class RecepcionRepaletizajeRollingTest extends TestCase
         $this->assertSame('repaletizaje', $tarea->contexto['origen_logico']);
     }
 
+    public function test_escala_todo_el_buffer_a_alta_desde_ocho_y_a_urgente_desde_diez_pallets(): void
+    {
+        $this->habilitarGeneracion();
+        [$temporada, $usuario] = $this->contexto();
+
+        foreach (range(1, 7) as $indice) {
+            $this->registrar(
+                $temporada,
+                $usuario,
+                sprintf('BUFFER-%02d', $indice),
+                CondicionTermicaFolio::PrefrioAprobado,
+            );
+        }
+
+        $this->assertSame(
+            7,
+            PlanOperacional::query()->where('prioridad', 'normal')->count(),
+        );
+
+        $this->registrar(
+            $temporada,
+            $usuario,
+            'BUFFER-08',
+            CondicionTermicaFolio::PrefrioAprobado,
+        );
+
+        $planesAltos = PlanOperacional::query()->get();
+        $this->assertCount(8, $planesAltos);
+        $this->assertTrue($planesAltos->every(
+            fn (PlanOperacional $plan): bool => $plan->prioridad->value === 'alta'
+                && $plan->contexto['buffer_repa_pallets_pendientes'] === 8
+                && $plan->contexto['buffer_repa_umbral_alta'] === 8
+                && $plan->contexto['buffer_repa_maximo'] === 10,
+        ));
+        $this->assertSame(
+            8,
+            $planesAltos->flatMap->tareas->where('prioridad.value', 'alta')->count(),
+        );
+
+        $this->registrar(
+            $temporada,
+            $usuario,
+            'BUFFER-09',
+            CondicionTermicaFolio::PrefrioAprobado,
+        );
+        $this->registrar(
+            $temporada,
+            $usuario,
+            'BUFFER-10',
+            CondicionTermicaFolio::PrefrioAprobado,
+        );
+
+        $planesUrgentes = PlanOperacional::query()->with('tareas')->get();
+        $this->assertCount(10, $planesUrgentes);
+        $this->assertTrue($planesUrgentes->every(
+            fn (PlanOperacional $plan): bool => $plan->prioridad->value === 'urgente'
+                && $plan->contexto['buffer_repa_prioridad'] === 'urgente'
+                && $plan->contexto['buffer_repa_pallets_pendientes'] === 10,
+        ));
+        $this->assertSame(
+            10,
+            $planesUrgentes->flatMap->tareas->where('prioridad.value', 'urgente')->count(),
+        );
+    }
+
+    public function test_desescala_las_labores_pendientes_cuando_el_movimiento_libera_el_buffer(): void
+    {
+        $this->habilitarGeneracion();
+        config([
+            'planificador.repa_buffer_high_from_pallets' => 2,
+            'planificador.repa_buffer_max_pallets' => 3,
+        ]);
+        [$temporada, $usuario] = $this->contexto();
+
+        foreach (range(1, 3) as $indice) {
+            $this->registrar(
+                $temporada,
+                $usuario,
+                "LIBERA-{$indice}",
+                CondicionTermicaFolio::PrefrioAprobado,
+            );
+        }
+
+        $tareas = PlanOperacional::query()
+            ->with('tareas')
+            ->orderBy('created_at')
+            ->get()
+            ->map->tareas
+            ->flatten()
+            ->values();
+        $this->assertTrue($tareas->every(
+            fn ($tarea): bool => $tarea->prioridad->value === 'urgente',
+        ));
+
+        $tareas[0]->update(['estado' => EstadoTareaMovimiento::Asumida]);
+        $tareas[0]->update(['estado' => EstadoTareaMovimiento::EnProceso]);
+
+        $restantes = PlanOperacional::query()
+            ->whereKeyNot($tareas[0]->plan_operacional_id)
+            ->with('tareas')
+            ->get();
+        $this->assertTrue($restantes->every(
+            fn (PlanOperacional $plan): bool => $plan->prioridad->value === 'alta'
+                && $plan->contexto['buffer_repa_pallets_pendientes'] === 2
+                && $plan->tareas->first()->prioridad->value === 'alta',
+        ));
+
+        $tareas[1]->refresh()->update(['estado' => EstadoTareaMovimiento::Asumida]);
+        $tareas[1]->refresh()->update(['estado' => EstadoTareaMovimiento::EnProceso]);
+
+        $ultimo = PlanOperacional::query()
+            ->whereKeyNot($tareas[0]->plan_operacional_id)
+            ->whereKeyNot($tareas[1]->plan_operacional_id)
+            ->with('tareas')
+            ->sole();
+        $this->assertSame('normal', $ultimo->prioridad->value);
+        $this->assertSame(1, $ultimo->contexto['buffer_repa_pallets_pendientes']);
+        $this->assertSame('normal', $ultimo->tareas->first()->prioridad->value);
+    }
+
     public function test_excluye_resultados_saldo_y_pallets_pendientes_de_prefrio(): void
     {
         $this->habilitarGeneracion();

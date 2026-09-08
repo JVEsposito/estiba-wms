@@ -49,6 +49,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Buffer operacional de Repaletizaje
+    |--------------------------------------------------------------------------
+    |
+    | Los pallets completos aprobados siempre pueden retirarse desde REPA. La
+    | prioridad sube antes de alcanzar la capacidad práctica y pasa a urgente
+    | cuando el buffer llega al máximo, sin desplazar labores críticas.
+    |
+    */
+    'repa_buffer_max_pallets' => max(1, (int) env('WMS_REPA_BUFFER_MAX_PALLETS', 10)),
+    'repa_buffer_high_from_pallets' => max(1, (int) env('WMS_REPA_BUFFER_HIGH_FROM_PALLETS', 8)),
+
+    /*
+    |--------------------------------------------------------------------------
     | Despliegue progresivo por cámara
     |--------------------------------------------------------------------------
     |

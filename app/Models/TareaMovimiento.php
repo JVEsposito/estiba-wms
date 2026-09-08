@@ -8,6 +8,7 @@ use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use App\Observers\CerrarRecepcionTunelObserver;
+use App\Observers\RecalcularPrioridadBufferRepaletizajeObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -16,7 +17,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[ObservedBy([CerrarRecepcionTunelObserver::class])]
+#[ObservedBy([
+    CerrarRecepcionTunelObserver::class,
+    RecalcularPrioridadBufferRepaletizajeObserver::class,
+])]
 #[Fillable([
     'plan_operacional_id',
     'maniobra_operacional_id',

@@ -64,6 +64,11 @@ Cuando el planificador guiado para tablet está activo, cada resultado tipo pall
 
 La referencia al repaletizaje hace la generación idempotente. Una anulación previa a la ejecución cancela el objetivo; si su retiro ya tuvo ejecución operacional, la anulación se bloquea.
 
+El buffer operacional considera únicamente pallets cuya labor continúa pendiente o
+asumida. Menos de ocho conserva prioridad normal, desde ocho usa alta y al llegar
+al máximo práctico de diez usa urgente. La categoría crítica permanece reservada
+para restricciones superiores como emergencias, retenciones y camión en andén.
+
 ## Interfaces
 
 - **Oficina:** `/oficina/validacion/repaletizajes`
