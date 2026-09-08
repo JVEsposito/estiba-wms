@@ -12,16 +12,18 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertOk()
             ->assertSee('Operación ahora')
             ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
-            ->assertSee('Vista operacional')
+            ->assertSee('Esquema de recintos')
             ->assertSee('Camareros activos')
             ->assertSee('Prefrío')
             ->assertSee('Incidencias abiertas')
+            ->assertSee('Alertas operacionales')
             ->assertSee('ACCESOS RÁPIDOS')
             ->assertSee('id="operationCameraRows"', false)
             ->assertSee('id="operationOperatorList"', false)
             ->assertSee('id="operationTunnelList"', false)
             ->assertSee('id="operationIncidentRows"', false)
             ->assertSee('id="operationFacilityMap"', false)
+            ->assertSee('id="operationAlertRows"', false)
             ->assertSee('data-active-office="operacion-ahora"', false)
             ->assertDontSee('<form', false);
     }
@@ -48,8 +50,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('createOperationalPoller', $script);
         $this->assertStringContainsString('actualizacion_sugerida_segundos', $script);
         $this->assertStringContainsString('validateSnapshot', $script);
-        $this->assertStringContainsString('Temperatura: SIN REGISTRO', $script);
+        $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
+        $this->assertStringContainsString('buildOperationalAlerts', $script);
         $this->assertStringContainsString('pauseWhenHidden', file_get_contents(resource_path('js/shared/operational-poller.js')));
         $this->assertStringNotContainsString("method: 'POST'", $script);
         $this->assertStringNotContainsString("method: 'PUT'", $script);
@@ -79,6 +82,7 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertIsString($view);
         $this->assertIsString($styles);
         $this->assertStringContainsString('SISTEMA DE GESTIÓN', $view);
+        $this->assertStringContainsString('aria-label="Operación en tiempo real"', $view);
         $this->assertStringContainsString('<details class="estiba-office-preferences">', $view);
         $this->assertStringContainsString('id="officeThemeSelector"', $view);
         $this->assertStringContainsString('data-office-context-refresh', $view);

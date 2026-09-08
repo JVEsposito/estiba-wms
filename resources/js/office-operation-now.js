@@ -1,4 +1,5 @@
 import { createOperationalPoller } from './shared/operational-poller';
+import { buildOperationalAlerts } from './shared/operation-now-alerts';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
@@ -21,11 +22,14 @@ const elements = {
     date: byId('operationDate'),
     time: byId('operationTime'),
     timezone: byId('operationTimezone'),
+    shift: byId('operationShift'),
     cameraRows: byId('operationCameraRows'),
     operatorList: byId('operationOperatorList'),
     tunnelList: byId('operationTunnelList'),
     incidentRows: byId('operationIncidentRows'),
     facilityMap: byId('operationFacilityMap'),
+    alertsPanel: byId('operationAlertsPanel'),
+    alertRows: byId('operationAlertRows'),
 };
 
 const state = {
@@ -265,11 +269,21 @@ function renderHeader(data) {
         ? `${data.temporada.codigo} · ${data.temporada.nombre}`
         : 'Sin temporada activa';
     elements.updatedAt.textContent = `Última lectura: ${dateTime(data.generado_at)}`;
+    elements.shift.textContent = data.jornada?.turno
+        ? `Turno: ${humanize(data.jornada.turno)}`
+        : 'Turno sin configurar';
 
     const status = data.sincronizacion?.estado || 'sin_actividad';
     const tone = { aceptada: 'success', procesando: 'info', pendiente: 'warning', rechazada: 'critical', conflicto: 'critical' }[status] || 'neutral';
+    const statusLabel = {
+        aceptada: 'Sincronizado',
+        procesando: 'Procesando',
+        pendiente: 'Pendiente',
+        rechazada: 'Con rechazo',
+        conflicto: 'Con conflicto',
+    }[status] || 'Sin actividad sincronizada';
     elements.liveSignal.dataset.tone = tone;
-    elements.liveText.textContent = status === 'sin_actividad' ? 'Sin actividad sincronizada' : `Sincronización ${humanize(status).toLowerCase()}`;
+    elements.liveText.textContent = statusLabel;
     startClock();
 }
 
@@ -285,8 +299,8 @@ function renderMetrics(data) {
     const precooling = data.prefrio?.resumen || {};
     const incidents = data.incidencias?.resumen || {};
 
-    setText('metricCameras', number(cameras.length));
-    setText('metricCamerasDetail', `${number(productCameras.length)} de producto terminado`);
+    setText('metricCameras', number(productCameras.length));
+    setText('metricCamerasDetail', `${number(occupied)} posiciones ocupadas`);
     setText('metricOccupancy', percent(occupancy));
     setText('metricOccupancyDetail', `${number(occupied)} de ${number(capacity)} posiciones PT`);
     setText('metricEnvironmental', number(environmentalDue));
@@ -316,27 +330,24 @@ function renderSync(sync = {}) {
     setText('syncConflict', number(counts.conflicto));
 }
 
-function cameraArea(content) {
-    return { productos: 'Producto terminado', materiales: 'Materiales', materia_prima: 'Materia prima' }[content] || humanize(content);
-}
-
 function renderCameras(cameras = []) {
-    if (!cameras.length) {
-        elements.cameraRows.innerHTML = `<tr><td colspan="3">${empty('Sin cámaras activas', 'No existen cámaras disponibles para la temporada actual.')}</td></tr>`;
+    const productCameras = cameras.filter((camera) => camera.contenido === 'productos');
+    if (!productCameras.length) {
+        elements.cameraRows.innerHTML = `<tr><td colspan="4">${empty('Sin cámaras PT activas', 'No existen cámaras de producto terminado disponibles.')}</td></tr>`;
         return;
     }
 
-    elements.cameraRows.innerHTML = cameras.map((camera) => {
+    elements.cameraRows.innerHTML = productCameras.map((camera) => {
         const control = camera.control_ambiental;
         const occupancyTone = toneForOccupancy(camera.nivel_ocupacion);
         const environmentTone = toneForEnvironment(control?.estado);
         const readings = control?.temperaturas_c;
-        const environment = control
-            ? `${signal(humanize(control.estado), environmentTone)}${readings ? `<span class="operation-now-environment-readings"><span>I ${escapeHtml(temperature(readings.inicio))}</span><span>M ${escapeHtml(temperature(readings.medio))}</span><span>F ${escapeHtml(temperature(readings.fondo))}</span></span>` : ''}`
-            : '<span class="operation-now-subtext">No aplica a esta cámara</span>';
-        const lastReading = control?.capturado_at
-            ? `<span class="operation-now-subtext">Registro ${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))} · vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}</span>`
-            : '<span class="operation-now-subtext">Temperatura: SIN REGISTRO</span>';
+        const currentTemperature = readings
+            ? `<span class="operation-now-temperature">${escapeHtml(temperature(readings.promedio))}</span><span class="operation-now-environment-readings"><span>I ${escapeHtml(temperature(readings.inicio))}</span><span>M ${escapeHtml(temperature(readings.medio))}</span><span>F ${escapeHtml(temperature(readings.fondo))}</span></span>`
+            : '<strong class="operation-now-no-reading">SIN REGISTRO</strong>';
+        const controlStatus = control
+            ? `${signal(humanize(control.estado), environmentTone)}<span class="operation-now-subtext">${control.capturado_at ? `Registro ${escapeHtml(dateTime(control.capturado_at, { timeOnly: true }))} · vigente hasta ${escapeHtml(dateTime(control.vigente_hasta, { timeOnly: true }))}` : 'Sin captura informada'}</span>`
+            : '<span class="operation-now-subtext">Sin control configurado</span>';
 
         return `<tr>
             <td><span class="operation-now-code">${escapeHtml(camera.codigo)}</span><span class="operation-now-subtext">${escapeHtml(camera.nombre)}</span></td>
@@ -344,7 +355,8 @@ function renderCameras(cameras = []) {
                 ${signal(`${number(camera.ocupadas)} / ${number(camera.capacidad_operativa)} · ${percent(camera.ocupacion_porcentaje)}`, occupancyTone)}
                 <span class="operation-now-meter" data-tone="${occupancyTone}" style="--operation-progress:${clampedPercent(camera.ocupacion_porcentaje)}%"><i></i></span>
             </td>
-            <td>${environment}${lastReading}<span class="operation-now-subtext">${escapeHtml(cameraArea(camera.contenido))}</span></td>
+            <td>${currentTemperature}</td>
+            <td>${controlStatus}</td>
         </tr>`;
     }).join('');
 }
@@ -355,13 +367,21 @@ function taskLocation(endpoint) {
 }
 
 function renderOperators(operators = []) {
-    setText('operatorPanelCount', number(operators.length));
-    if (!operators.length) {
+    const orderedOperators = [...operators].sort((left, right) => {
+        const weight = { critica: 0, urgente: 0, alta: 1, normal: 2 };
+        const leftTask = left.tarea_actual;
+        const rightTask = right.tarea_actual;
+        return Number(!leftTask) - Number(!rightTask)
+            || (weight[leftTask?.prioridad] ?? 9) - (weight[rightTask?.prioridad] ?? 9)
+            || String(left.usuario?.nombre || '').localeCompare(String(right.usuario?.nombre || ''), 'es');
+    });
+    setText('operatorPanelCount', number(orderedOperators.length));
+    if (!orderedOperators.length) {
         elements.operatorList.innerHTML = empty('Sin camareros activos', 'No existen sesiones de estiba abiertas en este momento.');
         return;
     }
 
-    elements.operatorList.innerHTML = operators.map((operator) => {
+    elements.operatorList.innerHTML = orderedOperators.map((operator) => {
         const task = operator.tarea_actual;
         const currentCamera = operator.ubicacion_actual?.camara;
         const taskMarkup = task ? `<div class="operation-now-operator__task">
@@ -376,7 +396,7 @@ function renderOperators(operators = []) {
         return `<article class="operation-now-operator">
             <div class="operation-now-operator__identity">
                 <h3>${escapeHtml(operator.usuario?.nombre || 'Camarero')}</h3>
-                <span class="operation-now-operator__meta">${escapeHtml(operator.dispositivo?.codigo || 'Sin dispositivo')} · desde ${escapeHtml(dateTime(operator.sesion?.iniciada_at, { timeOnly: true }))}</span>
+                <span class="operation-now-operator__meta">${escapeHtml(operator.dispositivo?.codigo || 'Sin dispositivo')} · actividad ${escapeHtml(dateTime(operator.sesion?.ultima_actividad_at, { timeOnly: true }))}</span>
                 <div class="operation-now-operator__status">${signal('En operación', 'success')}</div>
             </div>
             <div class="operation-now-operator__location"><span class="operation-now-operator__label">UBICACIÓN</span><p><strong>${escapeHtml(currentCamera?.codigo || 'Sin cámara')}</strong><span class="operation-now-subtext">${escapeHtml(currentCamera?.nombre || 'No informada')}</span></p></div>
@@ -405,10 +425,37 @@ function renderFacility(data) {
         </div>`;
     }).join('');
 
+    const cameraGroups = [
+        ['CÁMARAS PT', cameras.filter((camera) => camera.contenido === 'productos')],
+        ['MATERIA PRIMA', cameras.filter((camera) => camera.contenido === 'materia_prima')],
+        ['MATERIALES', cameras.filter((camera) => camera.contenido === 'materiales')],
+    ].filter(([, items]) => items.length);
+
     elements.facilityMap.innerHTML = `
-        ${cameras.length ? `<div class="operation-now-facility__group"><strong>CÁMARAS</strong><div class="operation-now-facility__grid">${cells(cameras, 'camera')}</div></div>` : ''}
+        ${cameraGroups.map(([label, items]) => `<div class="operation-now-facility__group"><strong>${label}</strong><div class="operation-now-facility__grid">${cells(items, 'camera')}</div></div>`).join('')}
         ${tunnels.length ? `<div class="operation-now-facility__group"><strong>TÚNELES DE PREFRÍO</strong><div class="operation-now-facility__grid">${cells(tunnels, 'tunnel')}</div></div>` : ''}
         <p class="operation-now-facility__note">Esquema de estado; no representa coordenadas ni posición física.</p>`;
+}
+
+function renderAlerts(data) {
+    const alerts = buildOperationalAlerts(data);
+    setText('operationAlertCount', number(alerts.length));
+    elements.alertsPanel.dataset.tone = alerts.some((alert) => alert.severity === 'critical')
+        ? 'critical'
+        : (alerts.length ? 'warning' : 'neutral');
+
+    if (!alerts.length) {
+        elements.alertRows.innerHTML = `<tr><td colspan="5">${empty('Sin alertas operacionales', 'Ocupación, ambiente, prefrío y sincronización no presentan condiciones de alerta.')}</td></tr>`;
+        return;
+    }
+
+    elements.alertRows.innerHTML = alerts.map((alert) => `<tr>
+        <td><span class="operation-now-code">${escapeHtml(alert.area)}</span></td>
+        <td>${signal(alert.severity === 'critical' ? 'Alta' : 'Media', alert.severity)}</td>
+        <td><strong>${escapeHtml(alert.condition)}</strong></td>
+        <td>${escapeHtml(alert.evidence)}</td>
+        <td><a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a></td>
+    </tr>`).join('');
 }
 
 function tunnelProcess(tunnel) {
@@ -482,6 +529,7 @@ function render(data) {
     renderTunnels(data.prefrio?.tuneles);
     renderIncidents(data.incidencias?.abiertas);
     renderFacility(data);
+    renderAlerts(data);
     elements.workspace.setAttribute('aria-busy', 'false');
 }
 

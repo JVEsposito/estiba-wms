@@ -30,19 +30,17 @@
                         <span id="operationDate">—</span>
                         <strong id="operationTime">--:--:--</strong>
                         <small id="operationTimezone">Hora operacional</small>
+                        <small id="operationShift">Turno sin configurar</small>
                     </div>
                     <div class="operation-now-command__shift">
-                        <span>ESTADO DE LA PLANTA</span>
+                        <span>ESTADO DE LOS DATOS</span>
                         <strong class="operation-now-live" id="operationLiveSignal" data-tone="neutral">
                             <i aria-hidden="true"></i><span id="operationLiveText">Sin consultar</span>
                         </strong>
                         <small id="operationSeason">Temporada sin consultar</small>
                         <small id="operationUpdatedAt">Última lectura: —</small>
                     </div>
-                    <button class="operation-now-refresh" id="operationRefresh" type="button">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/></svg>
-                        Actualizar
-                    </button>
+                    <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
                 </header>
 
                 <div class="operation-now-connection" id="operationConnection" role="status" hidden>
@@ -53,7 +51,7 @@
                 <section class="operation-now-metrics" aria-label="Resumen operacional">
                     <article>
                         <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12M8 20v-6h8v6M9 9h.01M15 9h.01"/></svg></span>
-                        <div><span>CÁMARAS ACTIVAS</span><strong id="metricCameras">—</strong><small id="metricCamerasDetail">sin consultar</small></div>
+                        <div><span>CÁMARAS PT</span><strong id="metricCameras">—</strong><small id="metricCamerasDetail">sin consultar</small></div>
                     </article>
                     <article>
                         <span class="operation-now-metric__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3M20 16V6"/></svg></span>
@@ -99,8 +97,9 @@
                         </header>
                         <div class="operation-now-panel__body operation-now-table-scroll">
                             <table class="operation-now-table operation-now-table--cameras">
-                                <thead><tr><th scope="col">Cámara</th><th scope="col">Ocupación</th><th scope="col">Ambiente</th></tr></thead>
-                                <tbody id="operationCameraRows"><tr><td colspan="3"><div class="operation-now-empty">Consultando cámaras…</div></td></tr></tbody>
+                                <caption class="office-visually-hidden">Ocupación y control ambiental de cámaras de producto terminado</caption>
+                                <thead><tr><th scope="col">Cámara</th><th scope="col">Ocupación</th><th scope="col">T° actual</th><th scope="col">Control</th></tr></thead>
+                                <tbody id="operationCameraRows"><tr><td colspan="4"><div class="operation-now-empty">Consultando cámaras…</div></td></tr></tbody>
                             </table>
                         </div>
                     </section>
@@ -147,6 +146,7 @@
                         </header>
                         <div class="operation-now-panel__body operation-now-table-scroll">
                             <table class="operation-now-table operation-now-table--incidents">
+                                <caption class="office-visually-hidden">Incidencias y discrepancias operacionales abiertas</caption>
                                 <thead><tr><th scope="col">Antigüedad</th><th scope="col">Origen</th><th scope="col">Prioridad</th><th scope="col">Folio / contexto</th><th scope="col">Reporte</th></tr></thead>
                                 <tbody id="operationIncidentRows"><tr><td colspan="5"><div class="operation-now-empty">Consultando incidencias…</div></td></tr></tbody>
                             </table>
@@ -157,10 +157,27 @@
                         <header class="operation-now-panel__heading">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5"/></svg>
-                                <div><h2 id="operationFacilityTitle">Vista operacional</h2><span>Estado real de cámaras y túneles</span></div>
+                                <div><h2 id="operationFacilityTitle">Esquema de recintos</h2><span>Estado de cámaras y túneles</span></div>
                             </div>
                         </header>
                         <div class="operation-now-panel__body operation-now-facility" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
+                    </section>
+
+                    <section class="operation-now-panel operation-now-panel--alerts" id="operationAlertsPanel" data-tone="neutral" aria-labelledby="operationAlertsTitle">
+                        <header class="operation-now-panel__heading">
+                            <div class="operation-now-panel__title">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
+                                <div><h2 id="operationAlertsTitle">Alertas operacionales</h2><span>Condiciones verificables que requieren atención</span></div>
+                            </div>
+                            <strong class="operation-now-panel__count" id="operationAlertCount">—</strong>
+                        </header>
+                        <div class="operation-now-panel__body operation-now-table-scroll">
+                            <table class="operation-now-table operation-now-table--alerts">
+                                <caption class="office-visually-hidden">Alertas operacionales construidas desde la última lectura</caption>
+                                <thead><tr><th scope="col">Área</th><th scope="col">Severidad</th><th scope="col">Condición</th><th scope="col">Evidencia</th><th scope="col">Acción</th></tr></thead>
+                                <tbody id="operationAlertRows"><tr><td colspan="5"><div class="operation-now-empty">Evaluando alertas…</div></td></tr></tbody>
+                            </table>
+                        </div>
                     </section>
 
                     <nav class="operation-now-shortcuts" aria-label="Accesos rápidos">
@@ -174,7 +191,7 @@
 
                 <footer class="operation-now-footer">
                     <span>Los avances de prefrío representan tiempo transcurrido, no progreso térmico.</span>
-                    <span>La vista operacional no representa la posición física de los recintos.</span>
+                    <span>El esquema de recintos no representa coordenadas ni posiciones físicas.</span>
                 </footer>
             </div>
 
