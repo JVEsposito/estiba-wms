@@ -33,6 +33,9 @@ export type UserCapabilities = {
   puede_supervisar: boolean;
   puede_operar_productos: boolean;
   puede_operar_materiales: boolean;
+  puede_consultar_control_ambiental?: boolean;
+  puede_registrar_control_ambiental?: boolean;
+  puede_corregir_control_ambiental?: boolean;
   puede_consultar_cargas: boolean;
   puede_consultar_catalogo_cargas: boolean;
   puede_gestionar_cargas: boolean;
