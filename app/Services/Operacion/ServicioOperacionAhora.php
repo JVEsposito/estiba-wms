@@ -23,6 +23,7 @@ use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
@@ -252,7 +253,7 @@ class ServicioOperacionAhora
             ->where('temporada_id', $temporada->id)
             ->whereIn('estado', $estadosActivos)
             ->with([
-                'folios' => fn (Builder $consulta): Builder => $consulta
+                'folios' => fn (HasMany $consulta): HasMany => $consulta
                     ->whereNotIn('estado', [
                         EstadoFolioProcesoPrefrio::Retirado->value,
                         EstadoFolioProcesoPrefrio::Cancelado->value,
