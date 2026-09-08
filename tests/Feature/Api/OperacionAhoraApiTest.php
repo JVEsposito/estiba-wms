@@ -3,7 +3,10 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoFolioProcesoPrefrio;
+use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\EstadoTareaMovimiento;
+use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Enums\PrioridadOperacional;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
@@ -14,9 +17,13 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\PosicionTunelPrefrio;
+use App\Models\ProcesoPrefrio;
+use App\Models\ProcesoPrefrioFolio;
 use App\Models\RegistroControlAmbiental;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
+use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
@@ -52,6 +59,8 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.sincronizacion.ultima_operacion', null)
             ->assertJsonPath('data.actualizacion_sugerida_segundos', 30)
             ->assertJsonCount(0, 'data.camareros')
+            ->assertJsonPath('data.prefrio.resumen.tuneles_totales', 0)
+            ->assertJsonCount(0, 'data.prefrio.tuneles')
             ->assertJsonCount(0, 'data.camaras');
     }
 
@@ -238,6 +247,98 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.camareros.0.tarea_actual.destino.camara.codigo', 'CAM-DESTINO');
     }
 
+    public function test_consolida_estado_y_avance_temporal_de_prefrio(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-08 12:00:00 UTC'));
+        $temporada = $this->crearTemporada();
+        $consulta = User::factory()->create(['rol' => RolUsuario::Consulta]);
+        $tunelProceso = $this->crearTunelPrefrio($consulta, 'TUN-AHORA-01', 4);
+        $tunelVerificacion = $this->crearTunelPrefrio($consulta, 'TUN-AHORA-02', 2);
+        $this->crearTunelPrefrio($consulta, 'TUN-AHORA-03', 2);
+        $this->crearTunelPrefrio(
+            $consulta,
+            'TUN-AHORA-04',
+            2,
+            EstadoTecnicoTunelPrefrio::Mantenimiento,
+        );
+        $proceso = $this->crearProcesoPrefrio(
+            $temporada,
+            $consulta,
+            $tunelProceso,
+            'PF-AHORA-001',
+            EstadoProcesoPrefrio::EnProceso,
+            now()->subMinutes(540),
+        );
+        $posiciones = $tunelProceso->posiciones()->orderBy('numero')->get();
+        $this->cargarFolioPrefrio(
+            $temporada,
+            $consulta,
+            $proceso,
+            $posiciones[0],
+            'PAL-PF-AHORA-001',
+        );
+        $this->cargarFolioPrefrio(
+            $temporada,
+            $consulta,
+            $proceso,
+            $posiciones[1],
+            'SALDO-PF-AHORA-001',
+            TipoBulto::Saldo,
+        );
+        $this->cargarFolioPrefrio(
+            $temporada,
+            $consulta,
+            $proceso,
+            $posiciones[1],
+            'SALDO-PF-AHORA-002',
+            TipoBulto::Saldo,
+        );
+        $pendiente = $this->crearProcesoPrefrio(
+            $temporada,
+            $consulta,
+            $tunelVerificacion,
+            'PF-AHORA-002',
+            EstadoProcesoPrefrio::PendienteVerificacion,
+            now()->subMinutes(600),
+            now()->subMinutes(120),
+        );
+        $this->cargarFolioPrefrio(
+            $temporada,
+            $consulta,
+            $pendiente,
+            $tunelVerificacion->posiciones()->firstOrFail(),
+            'PAL-PF-AHORA-002',
+        );
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.prefrio.resumen.tuneles_totales', 4)
+            ->assertJsonPath('data.prefrio.resumen.tuneles_operables', 3)
+            ->assertJsonPath('data.prefrio.resumen.tuneles_disponibles', 1)
+            ->assertJsonPath('data.prefrio.resumen.procesos_activos', 2)
+            ->assertJsonPath('data.prefrio.resumen.procesos_fuera_objetivo', 1)
+            ->assertJsonPath('data.prefrio.resumen.folios_en_tunel', 4)
+            ->assertJsonPath('data.prefrio.resumen.capacidad_operativa', 8)
+            ->assertJsonPath('data.prefrio.resumen.posiciones_ocupadas', 3)
+            ->assertJsonPath('data.prefrio.resumen.ocupacion_porcentaje', 37.5)
+            ->assertJsonPath('data.prefrio.tuneles.0.estado_operacional', 'en_proceso')
+            ->assertJsonPath('data.prefrio.tuneles.0.posiciones_ocupadas', 2)
+            ->assertJsonPath('data.prefrio.tuneles.0.posiciones_disponibles', 0)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.folios_cargados', 3)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.transcurridos_minutos', 540)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.avance_tiempo_objetivo_porcentaje', 100)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.objetivo_excedido', true)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.minutos_sobre_objetivo', 60)
+            ->assertJsonPath('data.prefrio.tuneles.1.estado_operacional', 'pendiente_verificacion')
+            ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.transcurridos_minutos', 480)
+            ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.objetivo_excedido', false)
+            ->assertJsonPath('data.prefrio.tuneles.2.estado_operacional', 'disponible')
+            ->assertJsonPath('data.prefrio.tuneles.2.posiciones_disponibles', 2)
+            ->assertJsonPath('data.prefrio.tuneles.3.estado_operacional', 'mantenimiento')
+            ->assertJsonPath('data.prefrio.tuneles.3.posiciones_disponibles', 0);
+    }
+
     private function crearCamara(string $codigo, string $nombre): Camara
     {
         $camara = Camara::create([
@@ -257,6 +358,84 @@ class OperacionAhoraApiTest extends TestCase
         ]);
 
         return $camara;
+    }
+
+    private function crearTunelPrefrio(
+        User $creador,
+        string $codigo,
+        int $capacidad,
+        EstadoTecnicoTunelPrefrio $estadoTecnico = EstadoTecnicoTunelPrefrio::Operativo,
+    ): TunelPrefrio {
+        $tunel = TunelPrefrio::create([
+            'codigo' => $codigo,
+            'nombre' => 'Túnel '.$codigo,
+            'capacidad_posiciones' => $capacidad,
+            'setpoint_habitual' => -1.5,
+            'estado_tecnico' => $estadoTecnico,
+            'creado_por_user_id' => $creador->id,
+        ]);
+
+        foreach (range(1, $capacidad) as $numero) {
+            PosicionTunelPrefrio::create([
+                'tunel_prefrio_id' => $tunel->id,
+                'numero' => $numero,
+                'etiqueta' => $codigo.'-P'.str_pad((string) $numero, 2, '0', STR_PAD_LEFT),
+                'activa' => true,
+            ]);
+        }
+
+        return $tunel;
+    }
+
+    private function crearProcesoPrefrio(
+        Temporada $temporada,
+        User $creador,
+        TunelPrefrio $tunel,
+        string $codigo,
+        EstadoProcesoPrefrio $estado,
+        CarbonInterface $iniciadoAt,
+        ?CarbonInterface $pendienteVerificacionAt = null,
+    ): ProcesoPrefrio {
+        return ProcesoPrefrio::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => $codigo,
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', $codigo),
+            'tunel_prefrio_id' => $tunel->id,
+            'estado' => $estado,
+            'setpoint' => -1.5,
+            'duracion_objetivo_minutos' => 480,
+            'formato_referencia' => 'Granel 5 kg',
+            'creado_por_user_id' => $creador->id,
+            'iniciado_por_user_id' => $creador->id,
+            'iniciado_at' => $iniciadoAt,
+            'pendiente_verificacion_at' => $pendienteVerificacionAt,
+        ]);
+    }
+
+    private function cargarFolioPrefrio(
+        Temporada $temporada,
+        User $usuario,
+        ProcesoPrefrio $proceso,
+        PosicionTunelPrefrio $posicion,
+        string $numeroFolio,
+        TipoBulto $tipoBulto = TipoBulto::Pallet,
+    ): void {
+        $folio = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => $numeroFolio,
+            'tipo_bulto' => $tipoBulto,
+            'fecha_ingreso' => now(),
+        ]);
+        ProcesoPrefrioFolio::create([
+            'proceso_prefrio_id' => $proceso->id,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $posicion->id,
+            'estado' => EstadoFolioProcesoPrefrio::EnProceso,
+            'temperatura_inicial' => 8,
+            'cargado_at' => $proceso->iniciado_at,
+            'cargado_por_user_id' => $usuario->id,
+        ]);
     }
 
     private function crearPlan(Temporada $temporada, User $creador, string $titulo): PlanOperacional
