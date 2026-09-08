@@ -32,7 +32,7 @@
                         <small id="operationTimezone">Hora operacional</small>
                         <small id="operationShift">Turno sin configurar</small>
                     </div>
-                    <div class="operation-now-command__state">
+                    <div class="operation-now-command__state" data-estiba-contrast="navy">
                         <span>ESTADO DE LOS DATOS</span>
                         <strong class="operation-now-live" id="operationLiveSignal" data-tone="neutral">
                             <i aria-hidden="true"></i><span id="operationLiveText">Sin consultar</span>
@@ -59,7 +59,7 @@
 
                 <div class="operation-now-dashboard" aria-busy="true" id="operationWorkspace">
                     <section class="operation-now-panel operation-now-panel--operators" aria-labelledby="operationOperatorsTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                                 <div><h2 id="operationOperatorsTitle">Camareros activos</h2><span>Ubicación y labor vigente</span></div>
@@ -70,7 +70,7 @@
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--cameras" aria-labelledby="operationCamerasTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l8-4 8 4v12M8 20v-6h8v6M9 9h.01M15 9h.01"/></svg>
                                 <div><h2 id="operationCamerasTitle">Cámaras</h2><span>Ocupación y estado ambiental</span></div>
@@ -87,7 +87,7 @@
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--precooling" aria-labelledby="operationPrecoolingTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.5 5.5L18 4l-1.5 5.5L22 8l-4.5 3.5L22 14l-5.5-1.5L18 18l-4.5-3.5L12 22l-1.5-7.5L6 18l1.5-5.5L2 14l4.5-2.5L2 8l5.5 1.5L6 4l4.5 3.5L12 2Z"/></svg>
                                 <div><h2 id="operationPrecoolingTitle">Prefrío</h2><span>Túneles y avance temporal</span></div>
@@ -98,7 +98,7 @@
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--incidents" aria-labelledby="operationIncidentsTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
                                 <div><h2 id="operationIncidentsTitle">Incidencias abiertas</h2><span>Condiciones que requieren atención</span></div>
@@ -115,7 +115,7 @@
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--facility" aria-labelledby="operationFacilityTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5"/></svg>
                                 <div><h2 id="operationFacilityTitle">Vista operacional de recintos</h2><span>Estado de cámaras y túneles; no es un plano físico</span></div>
@@ -125,7 +125,7 @@
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--alerts" id="operationAlertsPanel" data-tone="neutral" aria-labelledby="operationAlertsTitle">
-                        <header class="operation-now-panel__heading">
+                        <header class="operation-now-panel__heading" data-estiba-contrast="navy">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.7 2.6 17a2 2 0 0 0 1.73 3h15.34a2 2 0 0 0 1.73-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/></svg>
                                 <div><h2 id="operationAlertsTitle">Alertas operacionales</h2><span>Condiciones verificables que requieren atención</span></div>
@@ -136,7 +136,7 @@
                     </section>
 
                     <nav class="operation-now-shortcuts" aria-label="Accesos rápidos">
-                        <strong>ACCESOS RÁPIDOS</strong>
+                        <strong data-estiba-contrast="navy">ACCESOS RÁPIDOS</strong>
                         <a href="/oficina/frigorifico/camaras"><span>Cámaras</span><small>Ocupación y posiciones</small><b aria-hidden="true">→</b></a>
                         <a href="/oficina/prefrio"><span>Prefrío</span><small>Procesos y túneles</small><b aria-hidden="true">→</b></a>
                         <a href="/oficina/cargas"><span>Cargas</span><small>Despachos vigentes</small><b aria-hidden="true">→</b></a>
