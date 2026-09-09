@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#183442">
-        <meta name="color-scheme" content="light">
+        <meta name="color-scheme" content="light dark">
         <title>Estiba WMS · Discrepancias de maniobras</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))

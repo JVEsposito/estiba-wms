@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#102f43">
-        <meta name="color-scheme" content="light">
+        <meta name="color-scheme" content="light dark">
 
         <title>Estiba WMS · Cámaras</title>
 
@@ -90,7 +90,7 @@
                             <header class="camera-ops__camera-heading">
                                 <div>
                                     <p class="camera-ops__eyebrow">CÁMARA SELECCIONADA</p>
-                                    <h2><span id="cameraOpsCode">—</span> · <span id="cameraOpsName">—</span></h2>
+                                    <h2 id="cameraOpsName">—</h2>
                                     <p id="cameraOpsMeta">Sin información operacional.</p>
                                 </div>
                                 <div class="camera-ops__access" id="cameraOpsAccess" data-tone="neutral">Sin consultar</div>

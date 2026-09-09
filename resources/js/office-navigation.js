@@ -1,14 +1,56 @@
 import './office-material-inventory-actions.js';
 import { initializeOfficeShell, refreshOfficeShell } from './office-shell.js';
+import {
+    nextOfficeTheme,
+    normalizeOfficeTheme,
+    OFFICE_THEME_KEY,
+    OFFICE_THEMES,
+} from './shared/office-preferences.js';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
 const lastDomainKey = 'estiba_wms_last_domain';
-const officeTheme = 'light-professional';
 const moduleAliases = {
     'administracion.maestros-temporada': ['frigorifico.catalogos'],
 };
-document.documentElement.dataset.officeTheme = officeTheme;
+
+function storedOfficeTheme() {
+    try { return normalizeOfficeTheme(localStorage.getItem(OFFICE_THEME_KEY)); } catch { return normalizeOfficeTheme(null); }
+}
+
+let officeTheme = storedOfficeTheme();
+
+function refreshOfficeThemeControls() {
+    const dark = officeTheme === 'dark-industrial';
+    const action = dark ? 'Activar modo claro' : 'Activar modo oscuro';
+    document.querySelectorAll('[data-office-theme-toggle]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(dark));
+        button.setAttribute('aria-label', action);
+        button.title = action;
+        const label = button.querySelector('[data-office-theme-label]');
+        if (label) label.textContent = dark ? 'Modo claro' : 'Modo oscuro';
+    });
+}
+
+function applyOfficeTheme(theme, { persist = true } = {}) {
+    officeTheme = normalizeOfficeTheme(theme);
+    document.documentElement.dataset.officeTheme = officeTheme;
+    document.querySelector('meta[name="color-scheme"]')?.setAttribute(
+        'content',
+        officeTheme === 'dark-industrial' ? 'dark' : 'light',
+    );
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+        'content',
+        officeTheme === 'dark-industrial' ? '#0f1c24' : '#102f43',
+    );
+    if (persist) {
+        try { localStorage.setItem(OFFICE_THEME_KEY, officeTheme); } catch { /* Preferencia opcional. */ }
+    }
+    refreshOfficeThemeControls();
+    return officeTheme;
+}
+
+applyOfficeTheme(officeTheme, { persist: false });
 
 if (window.location.pathname.startsWith('/oficina/romana')) {
     import('./office-weighbridge-drawer.js').catch((error) => {
@@ -458,6 +500,10 @@ function initializeOfficeActionMenus() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeOfficeShell();
+    refreshOfficeThemeControls();
+    document.querySelectorAll('[data-office-theme-toggle]').forEach((button) => {
+        button.addEventListener('click', () => applyOfficeTheme(nextOfficeTheme(officeTheme)));
+    });
     refreshNavigation();
     observeApplication();
     initializeOfficePanelSwitchers();
@@ -469,14 +515,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-window.addEventListener('storage', () => {
+window.addEventListener('storage', (event) => {
+    if (event.key === OFFICE_THEME_KEY) applyOfficeTheme(event.newValue, { persist: false });
     refreshNavigation();
 });
 window.addEventListener('estiba:office-session', refreshNavigation);
 
 window.EstibaOfficeTheme = {
-    apply: () => officeTheme,
+    apply: (theme) => applyOfficeTheme(theme),
     current: () => officeTheme,
-    themes: [officeTheme],
+    themes: [...OFFICE_THEMES],
 };
 window.EstibaOfficeNavigation = { refresh: refreshNavigation };

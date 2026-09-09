@@ -89,7 +89,10 @@
     <a class="estiba-office-skip" href="#officeContent" data-office-skip>Saltar al contenido</a>
     <header class="estiba-office-header" data-office-shell-header data-active-domain="{{ $domain }}" data-active-office="{{ $office }}">
         <div class="estiba-office-brand">
-            <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true">Menú</button>
+            <button type="button" class="estiba-office-menu" data-office-menu aria-controls="officeSidebar" aria-expanded="true" aria-label="Ocultar menú lateral" title="Ocultar menú lateral">
+                <span class="estiba-office-menu-icon" aria-hidden="true"></span>
+                <span data-office-menu-label>Menú</span>
+            </button>
             <strong>ESTIBA</strong>
         </div>
         <div class="estiba-office-system">
@@ -106,8 +109,12 @@
             <x-estiba.icon name="refresh" />
         </button>
         <div class="estiba-office-identity">
+            <button type="button" class="estiba-office-theme-toggle" data-office-theme-toggle aria-pressed="false" aria-label="Activar modo oscuro" title="Activar modo oscuro">
+                <span class="estiba-office-theme-icon" aria-hidden="true"></span>
+                <span data-office-theme-label>Modo oscuro</span>
+            </button>
             <span class="estiba-office-avatar" id="officeInitials" aria-hidden="true">OF</span>
-            <span><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small><small data-office-readonly hidden>Solo consulta</small></span>
+            <span class="estiba-office-user"><strong id="officeUserName">Usuario</strong><small id="officeUserRole">Oficina</small><small data-office-readonly hidden>Solo consulta</small></span>
             <button id="officeLogoutButton" type="button">Cerrar sesión</button>
         </div>
     </header>
