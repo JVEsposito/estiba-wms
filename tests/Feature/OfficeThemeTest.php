@@ -26,8 +26,8 @@ class OfficeThemeTest extends TestCase
         $this->assertStringContainsString('OFFICE_THEME_KEY', $javascript);
         $this->assertStringContainsString('applyOfficeTheme', $javascript);
         $this->assertStringContainsString('nextOfficeTheme', $javascript);
-        $this->assertStringContainsString("localStorage.setItem(OFFICE_THEME_KEY, officeTheme)", $javascript);
-        $this->assertStringContainsString("themes: [...OFFICE_THEMES]", $javascript);
+        $this->assertStringContainsString('localStorage.setItem(OFFICE_THEME_KEY, officeTheme)', $javascript);
+        $this->assertStringContainsString('themes: [...OFFICE_THEMES]', $javascript);
         $this->assertStringNotContainsString('officeThemeSelector', $javascript);
     }
 
