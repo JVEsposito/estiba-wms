@@ -34,16 +34,19 @@ class CamarasOperacionalesOfficeTest extends TestCase
     public function test_cliente_operacional_usa_solo_contratos_de_consulta_existentes(): void
     {
         $script = file_get_contents(resource_path('js/office-cameras.js'));
+        $operations = file_get_contents(resource_path('js/shared/camera-operations.js'));
 
         $this->assertIsString($script);
+        $this->assertIsString($operations);
         $this->assertStringContainsString("api('/api/camaras')", $script);
         $this->assertStringContainsString('/api/camaras/${id}/plano', $script);
         $this->assertStringContainsString('/api/movimientos/recientes?camara_id=', $script);
         $this->assertStringContainsString('/api/control-ambiental/estado?camara_id=', $script);
         $this->assertStringContainsString('bandas_operacionales', $script);
         $this->assertStringContainsString('reserva_operacional', $script);
-        $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('beginOperationalCameraSnapshot(state, id)', $script);
+        $this->assertStringContainsString("return 'SIN REGISTRO';", $operations);
+        $this->assertStringContainsString("estado === 'activa'", $operations);
     }
 
     public function test_estilos_respetan_temas_y_contraste_en_superficies_navy(): void
