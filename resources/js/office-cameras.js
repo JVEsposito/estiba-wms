@@ -1,4 +1,11 @@
 import { cameraDisplayName } from './shared/camera-display';
+import {
+    beginOperationalCameraSnapshot,
+    formatOperationalTemperature,
+    operationalPositionDescription,
+    operationalPositionTone,
+    operationalTemperatureAverage,
+} from './shared/camera-operations';
 
 const byId = (id) => document.getElementById(id);
 
@@ -58,6 +65,39 @@ const elements = {
     nextDockCode: byId('nextDockCode'),
     cancelEditDock: byId('cancelEditDockButton'),
     saveDockText: byId('saveDockButtonText'),
+    cameraOpsStatus: byId('cameraOpsStatus'),
+    cameraOpsUpdatedAt: byId('cameraOpsUpdatedAt'),
+    cameraOpsRefresh: byId('cameraOpsRefresh'),
+    cameraOpsCount: byId('cameraOpsCount'),
+    operationalCameraList: byId('operationalCameraList'),
+    cameraOpsEmpty: byId('cameraOpsEmpty'),
+    cameraOpsEmptyTitle: byId('cameraOpsEmptyTitle'),
+    cameraOpsEmptyMessage: byId('cameraOpsEmptyMessage'),
+    cameraOpsWorkspace: byId('cameraOpsWorkspace'),
+    cameraOpsCode: byId('cameraOpsCode'),
+    cameraOpsName: byId('cameraOpsName'),
+    cameraOpsMeta: byId('cameraOpsMeta'),
+    cameraOpsAccess: byId('cameraOpsAccess'),
+    cameraOpsCapacity: byId('cameraOpsCapacity'),
+    cameraOpsOccupied: byId('cameraOpsOccupied'),
+    cameraOpsReserved: byId('cameraOpsReserved'),
+    cameraOpsAvailable: byId('cameraOpsAvailable'),
+    cameraOpsUnpositioned: byId('cameraOpsUnpositioned'),
+    cameraOpsOccupancy: byId('cameraOpsOccupancy'),
+    cameraOpsOccupancyBar: byId('cameraOpsOccupancyBar'),
+    cameraBandMapSummary: byId('cameraBandMapSummary'),
+    cameraBandMap: byId('cameraBandMap'),
+    cameraBandRows: byId('cameraBandRows'),
+    cameraBandDetail: byId('cameraBandDetail'),
+    cameraEnvironmentStatus: byId('cameraEnvironmentStatus'),
+    cameraTemperatureAverage: byId('cameraTemperatureAverage'),
+    cameraTemperatureStart: byId('cameraTemperatureStart'),
+    cameraTemperatureMiddle: byId('cameraTemperatureMiddle'),
+    cameraTemperatureEnd: byId('cameraTemperatureEnd'),
+    cameraEnvironmentEvidence: byId('cameraEnvironmentEvidence'),
+    cameraManeuverCount: byId('cameraManeuverCount'),
+    cameraManeuverList: byId('cameraManeuverList'),
+    cameraRecentList: byId('cameraRecentList'),
 };
 
 const keys = {
@@ -78,6 +118,13 @@ const state = {
     docks: [],
     dockMode: 'create',
     editingDock: null,
+    operationalCameras: [],
+    selectedOperationalCameraId: null,
+    selectedOperationalPlan: null,
+    selectedOperationalBand: null,
+    operationalEnvironment: null,
+    operationalMovements: [],
+    operationalRequestGeneration: 0,
 };
 
 class ApiError extends Error {
@@ -313,6 +360,340 @@ function renderPreview() {
     }).join('');
 }
 
+function isOperationalCameraMode() {
+    return elements.app.dataset.cameraMode === 'operacion';
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('es-CL').format(Number(value || 0));
+}
+
+function formatPercent(value) {
+    return `${Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 1 })} %`;
+}
+
+function formatDateTime(value) {
+    if (!value) return 'Sin fecha informada';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Fecha no disponible';
+    return new Intl.DateTimeFormat('es-CL', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    }).format(date);
+}
+
+function operationalTone(percentage) {
+    if (Number(percentage) >= 95) return 'critical';
+    if (Number(percentage) >= 80) return 'warning';
+    return 'success';
+}
+
+function bandTone(band) {
+    if (band?.modo !== 'operativa' || band?.estado === 'bloqueada') return 'critical';
+    if (!band?.acepta_nuevos_ingresos || Number(band?.capacidad?.porcentaje || 0) >= 80) return 'warning';
+    return 'success';
+}
+
+function cameraAccess(camera) {
+    const session = camera?.acceso?.sesion;
+    if (!camera?.acceso?.bloqueada) return { tone: 'success', text: 'Disponible para operación' };
+    if (session?.es_propia) return { tone: 'warning', text: 'Sesión propia en edición' };
+    return {
+        tone: 'warning',
+        text: `En uso por ${session?.usuario?.nombre || 'otro usuario'}`,
+    };
+}
+
+function allowedUses(band) {
+    const uses = Array.isArray(band?.usos_permitidos) ? band.usos_permitidos : [];
+    return uses.length ? uses.map(statusText).join(', ') : 'Sin restricción informada';
+}
+
+function affinityText(band) {
+    const affinity = band?.afinidad;
+    if (!affinity?.activa) return 'Sin afinidad activa';
+    const values = [affinity.cliente, affinity.marca, affinity.formato].filter(Boolean);
+    if (values.length) return values.join(' · ');
+    if (affinity.perfiles_diferentes) return `${affinity.perfiles_diferentes} perfiles distintos`;
+    return 'Afinidad activa';
+}
+
+function renderOperationalCameraList() {
+    elements.cameraOpsCount.textContent = formatNumber(state.operationalCameras.length);
+    if (!state.operationalCameras.length) {
+        elements.operationalCameraList.innerHTML = '<div class="camera-ops-empty"><strong>Sin cámaras PT visibles</strong><span>No hay cámaras de producto terminado disponibles para este perfil.</span></div>';
+        return;
+    }
+
+    elements.operationalCameraList.innerHTML = state.operationalCameras.map((camera) => {
+        const occupied = Number(camera.ocupacion?.ocupadas || 0);
+        const total = Number(camera.ocupacion?.total || 0);
+        const percentage = Number(camera.ocupacion?.porcentaje || 0);
+        const access = cameraAccess(camera);
+        const selected = camera.id === state.selectedOperationalCameraId;
+        return `
+            <button class="camera-ops__camera${selected ? ' is-selected' : ''}" data-operational-camera="${escapeHtml(camera.id)}" type="button" aria-pressed="${selected}">
+                <span class="camera-ops__camera-line"><strong>${escapeHtml(camera.codigo)}</strong><i class="camera-ops__signal" data-tone="${operationalTone(percentage)}">${escapeHtml(formatPercent(percentage))}</i></span>
+                <span class="camera-ops__camera-name">${escapeHtml(cameraDisplayName(camera))}</span>
+                <span class="camera-ops__camera-capacity">${formatNumber(occupied)} ocupadas · ${formatNumber(total)} efectivas</span>
+                <span class="camera-ops__meter" data-tone="${operationalTone(percentage)}"><b style="width:${Math.min(100, percentage)}%"></b></span>
+                <span class="camera-ops__camera-access camera-ops__signal" data-tone="${access.tone}">${escapeHtml(access.text)}</span>
+            </button>
+        `;
+    }).join('');
+}
+
+function renderOperationalSummary(plan) {
+    const bands = Array.isArray(plan?.bandas_operacionales) ? plan.bandas_operacionales : [];
+    const totals = bands.reduce((result, band) => ({
+        capacity: result.capacity + Number(band.capacidad?.efectiva || 0),
+        occupied: result.occupied + Number(band.capacidad?.ocupadas || 0),
+        reserved: result.reserved + Number(band.capacidad?.reservadas || 0),
+        available: result.available + Number(band.capacidad?.disponibles || 0),
+    }), { capacity: 0, occupied: 0, reserved: 0, available: 0 });
+    const committed = totals.occupied + totals.reserved;
+    const percentage = totals.capacity > 0 ? (committed / totals.capacity) * 100 : 0;
+
+    elements.cameraOpsCapacity.textContent = formatNumber(totals.capacity);
+    elements.cameraOpsOccupied.textContent = formatNumber(totals.occupied);
+    elements.cameraOpsReserved.textContent = formatNumber(totals.reserved);
+    elements.cameraOpsAvailable.textContent = formatNumber(totals.available);
+    elements.cameraOpsUnpositioned.textContent = formatNumber(plan?.folios_sin_posicion?.length || 0);
+    elements.cameraOpsOccupancy.textContent = formatPercent(percentage);
+    elements.cameraOpsOccupancyBar.style.width = `${Math.min(100, percentage)}%`;
+    elements.cameraOpsOccupancyBar.dataset.tone = operationalTone(percentage);
+}
+
+function renderOperationalEnvironment(environment) {
+    const unavailable = environment?.unavailable === true;
+    const item = environment?.camaras?.find((entry) => entry.camara?.id === state.selectedOperationalCameraId);
+    const record = item?.ultimo_registro;
+    const temperatures = record?.temperaturas;
+    const average = operationalTemperatureAverage(temperatures);
+    const stateText = unavailable
+        ? 'Sin permiso de consulta'
+        : item?.estado === 'vigente'
+            ? 'Vigente'
+            : item?.estado === 'vencido'
+                ? 'Control vencido'
+                : 'Pendiente';
+    const tone = item?.estado === 'vigente' ? 'success' : unavailable ? 'neutral' : 'warning';
+
+    elements.cameraEnvironmentStatus.textContent = stateText;
+    elements.cameraEnvironmentStatus.dataset.tone = tone;
+    elements.cameraTemperatureStart.textContent = formatOperationalTemperature(temperatures?.inicio_c);
+    elements.cameraTemperatureMiddle.textContent = formatOperationalTemperature(temperatures?.medio_c);
+    elements.cameraTemperatureEnd.textContent = formatOperationalTemperature(temperatures?.fondo_c);
+    elements.cameraTemperatureAverage.textContent = formatOperationalTemperature(average);
+    elements.cameraEnvironmentEvidence.textContent = unavailable
+        ? 'El perfil actual no puede consultar el control ambiental.'
+        : record
+            ? `Capturado ${formatDateTime(record.capturado_at)} · vigente hasta ${formatDateTime(record.vigente_hasta)}${record.registrado_por?.nombre ? ` · ${record.registrado_por.nombre}` : ''}`
+            : 'No existe una lectura disponible para esta cámara.';
+}
+
+function bandPositions(plan, number) {
+    return (plan?.posiciones || [])
+        .filter((position) => Number(position.banda) === Number(number))
+        .sort((left, right) => Number(right.posicion) - Number(left.posicion) || Number(left.nivel) - Number(right.nivel));
+}
+
+function renderOperationalBandDetail(band) {
+    if (!band) {
+        elements.cameraBandDetail.innerHTML = '<div class="camera-ops-empty">Selecciona una banda del plano o de la tabla.</div>';
+        return;
+    }
+    const capacity = band.capacidad || {};
+    const tone = bandTone(band);
+    elements.cameraBandDetail.innerHTML = `
+        <div class="camera-ops__band-detail-heading">
+            <div><span>BANDA SELECCIONADA</span><strong>B${String(band.numero).padStart(2, '0')}</strong></div>
+            <span class="camera-ops__signal" data-tone="${tone}">${escapeHtml(statusText(band.estado))}</span>
+        </div>
+        <dl class="camera-ops__band-facts">
+            <div><dt>Capacidad</dt><dd>${formatNumber(capacity.ocupadas)} ocupadas + ${formatNumber(capacity.reservadas)} reservadas / ${formatNumber(capacity.efectiva)} efectivas</dd></div>
+            <div><dt>Disponible</dt><dd>${formatNumber(capacity.disponibles)} posiciones · ${escapeHtml(formatPercent(capacity.porcentaje))} comprometido</dd></div>
+            <div><dt>Usos</dt><dd>${escapeHtml(allowedUses(band))}</dd></div>
+            <div><dt>Afinidad</dt><dd>${escapeHtml(affinityText(band))}</dd></div>
+            <div><dt>Ingresos</dt><dd>${band.acepta_nuevos_ingresos ? 'Acepta nuevos ingresos' : 'No acepta nuevos ingresos'}</dd></div>
+        </dl>
+        ${band.motivo_estado ? `<p class="camera-ops__band-reason">${escapeHtml(band.motivo_estado)}</p>` : ''}
+    `;
+}
+
+function renderOperationalBands(plan) {
+    const bands = [...(plan?.bandas_operacionales || [])].sort((left, right) => Number(left.numero) - Number(right.numero));
+    elements.cameraBandMapSummary.textContent = `${formatNumber(bands.length)} bandas · ${formatNumber(plan?.posiciones?.length || 0)} posiciones`;
+    if (!bands.length) {
+        elements.cameraBandMap.innerHTML = '<div class="camera-ops-empty">Esta cámara no tiene bandas operacionales informadas.</div>';
+        elements.cameraBandRows.innerHTML = '<tr><td colspan="5">Sin bandas operacionales.</td></tr>';
+        renderOperationalBandDetail(null);
+        return;
+    }
+
+    if (!bands.some((band) => Number(band.numero) === Number(state.selectedOperationalBand))) {
+        state.selectedOperationalBand = Number(bands[0].numero);
+    }
+
+    elements.cameraBandMap.innerHTML = `
+        <div class="camera-ops__orientation"><strong>↑ FONDO</strong><span>Posiciones físicas informadas por el WMS</span></div>
+        <div class="camera-ops__bands">${bands.map((band) => {
+            const capacity = band.capacidad || {};
+            const positions = bandPositions(plan, band.numero);
+            const selected = Number(band.numero) === Number(state.selectedOperationalBand);
+            return `
+                <button class="camera-ops__band${selected ? ' is-selected' : ''}" data-operational-band="${Number(band.numero)}" type="button" aria-pressed="${selected}">
+                    <span class="camera-ops__band-heading"><strong>B${String(band.numero).padStart(2, '0')}</strong><i class="camera-ops__signal" data-tone="${bandTone(band)}">${escapeHtml(statusText(band.estado))}</i></span>
+                    <span class="camera-ops__band-capacity">${formatNumber(capacity.ocupadas)} ocupadas · ${formatNumber(capacity.reservadas)} reservadas · ${formatNumber(capacity.disponibles)} libres</span>
+                    <span class="camera-ops__positions">${positions.length ? positions.map((position) => `
+                        <span class="camera-ops__position" data-tone="${operationalPositionTone(position)}" title="${escapeHtml(position.etiqueta || '')}">
+                            <span>${escapeHtml(position.etiqueta || `Posición ${position.posicion} · Nivel ${position.nivel}`)}</span>
+                            <strong>${escapeHtml(operationalPositionDescription(position))}</strong>
+                        </span>
+                    `).join('') : '<span class="camera-ops-empty">Sin posiciones</span>'}</span>
+                    <span class="camera-ops__band-foot">${escapeHtml(affinityText(band))}</span>
+                </button>
+            `;
+        }).join('')}</div>
+        <div class="camera-ops__orientation camera-ops__orientation--entrance"><strong>↓ ENTRADA</strong><span>La vista representa estado, no coordenadas métricas.</span></div>
+    `;
+
+    elements.cameraBandRows.innerHTML = bands.map((band) => {
+        const capacity = band.capacidad || {};
+        const selected = Number(band.numero) === Number(state.selectedOperationalBand);
+        return `
+            <tr class="${selected ? 'is-selected' : ''}">
+                <td><button data-operational-band="${Number(band.numero)}" type="button">B${String(band.numero).padStart(2, '0')}</button></td>
+                <td><span class="camera-ops__signal" data-tone="${bandTone(band)}">${escapeHtml(statusText(band.estado))}</span><small>${escapeHtml(statusText(band.modo))}</small></td>
+                <td><strong>${formatNumber(Number(capacity.ocupadas || 0) + Number(capacity.reservadas || 0))} / ${formatNumber(capacity.efectiva)}</strong><small>${escapeHtml(formatPercent(capacity.porcentaje))} comprometido</small></td>
+                <td>${escapeHtml(allowedUses(band))}</td>
+                <td>${escapeHtml(affinityText(band))}</td>
+            </tr>
+        `;
+    }).join('');
+    renderOperationalBandDetail(bands.find((band) => Number(band.numero) === Number(state.selectedOperationalBand)));
+}
+
+function renderOperationalManeuvers(plan) {
+    const reservations = (plan?.posiciones || [])
+        .filter((position) => position.reserva_operacional)
+        .sort((left, right) => String(left.reserva_operacional.vence_at || '').localeCompare(String(right.reserva_operacional.vence_at || '')));
+    elements.cameraManeuverCount.textContent = formatNumber(reservations.length);
+    elements.cameraManeuverList.innerHTML = reservations.length ? reservations.map((position) => {
+        const reservation = position.reserva_operacional;
+        return `
+            <article class="camera-ops__event">
+                <i class="camera-ops__event-marker camera-ops__signal" data-tone="warning"></i>
+                <div><strong>${escapeHtml(position.etiqueta || `Banda ${position.banda}, posición ${position.posicion}`)}</strong><p>Tarea ${escapeHtml(reservation.tarea_movimiento_id || 'sin identificador')} · prioridad ${escapeHtml(statusText(reservation.prioridad || 'no informada'))}</p><small>${escapeHtml(reservation.responsable?.nombre || 'Sin responsable')} · vence ${escapeHtml(formatDateTime(reservation.vence_at))}</small></div>
+            </article>
+        `;
+    }).join('') : '<div class="camera-ops-empty"><strong>Sin maniobras activas</strong><span>No existen posiciones reservadas en esta cámara.</span></div>';
+}
+
+function movementRoute(movement) {
+    const origin = movement?.origen;
+    const destination = movement?.destino;
+    const end = (value) => value?.posicion?.etiqueta || value?.camara?.codigo || 'Exterior';
+    return `${end(origin)} → ${end(destination)}`;
+}
+
+function renderOperationalMovements(movements) {
+    elements.cameraRecentList.innerHTML = movements.length ? movements.map((movement) => `
+        <article class="camera-ops__event">
+            <i class="camera-ops__event-marker camera-ops__signal" data-tone="info"></i>
+            <div><strong>${escapeHtml(statusText(movement.tipo_movimiento))} · ${escapeHtml(movement.folio?.numero_folio || 'Folio no informado')}</strong><p>${escapeHtml(movementRoute(movement))}</p><small>${escapeHtml(movement.usuario?.nombre || 'Usuario no informado')} · ${escapeHtml(formatDateTime(movement.created_at))}</small></div>
+        </article>
+    `).join('') : '<div class="camera-ops-empty"><strong>Sin eventos recientes</strong><span>No hay movimientos registrados para esta cámara.</span></div>';
+}
+
+function showOperationalPlaceholder(title, message) {
+    elements.cameraOpsEmptyTitle.textContent = title;
+    elements.cameraOpsEmptyMessage.textContent = message;
+    elements.cameraOpsEmpty.classList.remove('is-hidden');
+    elements.cameraOpsWorkspace.classList.add('is-hidden');
+}
+
+function renderSelectedOperationalCamera() {
+    const plan = state.selectedOperationalPlan;
+    if (!plan) return;
+    const access = cameraAccess(plan);
+    elements.cameraOpsEmpty.classList.add('is-hidden');
+    elements.cameraOpsWorkspace.classList.remove('is-hidden');
+    elements.cameraOpsCode.textContent = plan.codigo;
+    elements.cameraOpsName.textContent = cameraDisplayName(plan);
+    elements.cameraOpsMeta.textContent = `${statusText(plan.tipo)} · ${statusText(plan.contenido)} · versión de plano ${plan.version_plano}`;
+    elements.cameraOpsAccess.textContent = access.text;
+    elements.cameraOpsAccess.dataset.tone = access.tone;
+    renderOperationalSummary(plan);
+    renderOperationalBands(plan);
+    renderOperationalManeuvers(plan);
+    renderOperationalMovements(state.operationalMovements);
+    renderOperationalEnvironment(state.operationalEnvironment);
+}
+
+async function loadOperationalCamera(id) {
+    const requestGeneration = ++state.operationalRequestGeneration;
+    beginOperationalCameraSnapshot(state, id);
+    renderOperationalCameraList();
+    showOperationalPlaceholder(
+        'Cargando cámara…',
+        'Consultando plano, reservas, control ambiental y movimientos recientes.',
+    );
+    elements.cameraOpsStatus.textContent = 'Consultando cámara…';
+    setBusy(true, 'Cargando operación de la cámara…');
+    try {
+        const [planResponse, movementsResponse, environmentResponse] = await Promise.all([
+            api(`/api/camaras/${id}/plano`),
+            api(`/api/movimientos/recientes?camara_id=${encodeURIComponent(id)}&limite=8`).catch((error) => {
+                if (error.status !== 403) throw error;
+                return { data: [] };
+            }),
+            api(`/api/control-ambiental/estado?camara_id=${encodeURIComponent(id)}`).catch((error) => {
+                if (error.status !== 403) throw error;
+                return { unavailable: true, camaras: [] };
+            }),
+        ]);
+        if (requestGeneration !== state.operationalRequestGeneration) return;
+        state.selectedOperationalPlan = planResponse.data;
+        state.operationalMovements = movementsResponse.data || [];
+        state.operationalEnvironment = environmentResponse;
+        renderSelectedOperationalCamera();
+        elements.cameraOpsStatus.textContent = 'Información vigente';
+        elements.cameraOpsUpdatedAt.textContent = `Última lectura: ${formatDateTime(new Date().toISOString())}`;
+    } catch (error) {
+        if (requestGeneration !== state.operationalRequestGeneration) return;
+        elements.cameraOpsStatus.textContent = 'No fue posible actualizar';
+        showOperationalPlaceholder(
+            'No fue posible cargar la cámara',
+            'La información anterior se descartó para evitar mostrar datos de otra cámara.',
+        );
+        toast(error.message, true);
+    } finally {
+        if (requestGeneration === state.operationalRequestGeneration) setBusy(false);
+    }
+}
+
+async function loadOperationalCameras() {
+    elements.cameraOpsStatus.textContent = 'Consultando cámaras…';
+    const response = await api('/api/camaras');
+    state.operationalCameras = (response.data || []).filter((camera) => camera.contenido === 'productos');
+    if (!state.operationalCameras.some((camera) => camera.id === state.selectedOperationalCameraId)) {
+        state.selectedOperationalCameraId = state.operationalCameras[0]?.id || null;
+        state.selectedOperationalBand = null;
+    }
+    renderOperationalCameraList();
+    if (state.selectedOperationalCameraId) {
+        await loadOperationalCamera(state.selectedOperationalCameraId);
+    } else {
+        showOperationalPlaceholder(
+            'Sin cámaras PT visibles',
+            'No hay cámaras de producto terminado disponibles para este perfil.',
+        );
+        elements.cameraOpsStatus.textContent = 'Sin cámaras PT visibles';
+        elements.cameraOpsUpdatedAt.textContent = 'Última lectura: —';
+    }
+}
+
 function renderCameras() {
     if (!state.cameras.length) {
         elements.cameraList.innerHTML = '<div class="empty-state">Aún no existen cámaras configuradas.</div>';
@@ -435,6 +816,11 @@ async function loadCameraForEdit(id) {
 }
 
 async function loadConfiguration() {
+    if (isOperationalCameraMode()) {
+        await loadOperationalCameras();
+        return;
+    }
+
     if (state.identity?.puede_configurar_camaras !== true) {
         const cameras = await api('/api/camaras');
         state.cameras = cameras.data;
@@ -719,6 +1105,36 @@ elements.deactivate.addEventListener('click', async () => {
     }
 });
 
+elements.cameraOpsRefresh?.addEventListener('click', async () => {
+    setBusy(true, 'Actualizando operación de cámaras…');
+    try {
+        await loadOperationalCameras();
+        toast('Operación de cámaras actualizada.');
+    } catch (error) {
+        elements.cameraOpsStatus.textContent = 'No fue posible actualizar';
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.operationalCameraList?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-operational-camera]');
+    if (!button || button.dataset.operationalCamera === state.selectedOperationalCameraId) return;
+    state.selectedOperationalBand = null;
+    void loadOperationalCamera(button.dataset.operationalCamera);
+});
+
+function selectOperationalBand(event) {
+    const button = event.target.closest('[data-operational-band]');
+    if (!button || !state.selectedOperationalPlan) return;
+    state.selectedOperationalBand = Number(button.dataset.operationalBand);
+    renderOperationalBands(state.selectedOperationalPlan);
+}
+
+elements.cameraBandMap?.addEventListener('click', selectOperationalBand);
+elements.cameraBandRows?.addEventListener('click', selectOperationalBand);
+
 elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando cámaras…');
     try {
@@ -820,7 +1236,9 @@ async function boot() {
     showApp();
     setBusy(
         true,
-        state.identity?.puede_configurar_camaras === true
+        isOperationalCameraMode()
+            ? 'Cargando operación de cámaras…'
+            : state.identity?.puede_configurar_camaras === true
             ? 'Cargando configuración…'
             : 'Cargando disponibilidad de cámaras…',
     );

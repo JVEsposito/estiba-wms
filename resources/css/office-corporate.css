@@ -1754,3 +1754,16 @@ body,
         min-height: 0;
     }
 }
+
+/*
+ * Contrato explícito para superficies corporativas navy. Mantiene texto
+ * legible aunque una regla tipográfica transversal se cargue después del
+ * componente que declara la superficie.
+ */
+[data-estiba-contrast="navy"] {
+    color: #ffffff !important;
+}
+
+[data-estiba-contrast="navy"] :is(h1, h2, h3, h4, p, small, strong, span, dt, dd, a, button) {
+    color: inherit !important;
+}

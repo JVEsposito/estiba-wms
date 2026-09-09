@@ -17,6 +17,7 @@ export default defineConfig({
                 'resources/js/office-domain-lobby.js',
                 'resources/css/office-demo.css',
                 'resources/js/office-demo.js',
+                'resources/css/office-cameras.css',
                 'resources/js/office-cameras.js',
                 'resources/css/office-discrepancies.css',
                 'resources/js/office-discrepancies.js',
