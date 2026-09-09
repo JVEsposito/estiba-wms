@@ -46,7 +46,7 @@ class CamarasOperacionalesOfficeTest extends TestCase
         $this->assertStringContainsString('reserva_operacional', $script);
         $this->assertStringContainsString('beginOperationalCameraSnapshot(state, id)', $script);
         $this->assertStringContainsString("return 'SIN REGISTRO';", $operations);
-        $this->assertStringContainsString("estado === 'activa'", $operations);
+        $this->assertStringContainsString("position?.estado !== 'activa'", $operations);
     }
 
     public function test_estilos_respetan_temas_y_contraste_en_superficies_navy(): void
