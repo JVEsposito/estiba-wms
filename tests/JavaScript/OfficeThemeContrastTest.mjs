@@ -44,5 +44,10 @@ test('los temas claro y oscuro mantienen contraste AA en contenido y selección'
         assert.ok(contrast(variables.muted, variables['corporate-card']) >= 4.5);
         assert.ok(contrast(variables['corporate-blue'], variables['surface-selected']) >= 4.5);
         assert.ok(contrast('#ffffff', variables['corporate-blue-dark']) >= 4.5);
+        assert.ok(contrast(variables['text-secondary'], variables['button-secondary']) >= 4.5);
+        assert.ok(contrast(variables['text-strong'], variables['surface-muted']) >= 4.5);
+        assert.ok(contrast(variables['text-subtle'], variables['kpi-surface']) >= 4.5);
+        assert.ok(contrast(variables['warning-text'], variables['warning-bg']) >= 4.5);
+        assert.ok(contrast(variables['success-text'], variables['surface-muted']) >= 4.5);
     });
 });

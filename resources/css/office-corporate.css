@@ -1547,7 +1547,8 @@ body,
     .discrepancies-panel__heading
 ) {
     min-height: 44px;
-    margin: -16px -16px 13px !important;
+    /* El relleno pertenece al panel: no asumir un inset común de 16px. */
+    margin: 0 !important;
     padding: 8px 12px !important;
     border-bottom: 1px solid #0d293b !important;
     background: #17394b !important;
@@ -2125,10 +2126,94 @@ dialog[class*="dialog"] {
 dialog[class*="dialog"] :is(h2, h3, h4, strong) { color: var(--text-strong) !important; }
 dialog[class*="dialog"] :is(p, small, label, legend, label > span) { color: var(--text-secondary) !important; }
 
-/* Paneles sin relleno: sus cabeceras comienzan en el borde, no fuera de él. */
-.office-app .prefrio-workspace :is(.tunnel-panel, .process-panel, .prefrio-detail-panel) > .prefrio-panel__heading,
-.office-app .weighbridge-workspace :is(.weighbridge-list-panel, .reception-detail, .container-weighing-panel) > .weighbridge-panel-heading {
-    margin: 0 !important;
+/* Cabeceras y filtros permanecen dentro del panel incluso al reducir el ancho. */
+.office-app :is(.raw-material-panel-heading, .process-panel__heading, .return-panel__heading, .admin-panel__heading, .discrepancies-panel__heading) {
+    flex-wrap: wrap;
+}
+
+.office-app :is(.raw-material-panel-heading, .process-panel__heading, .return-panel__heading, .admin-panel__heading, .discrepancies-panel__heading) > * {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.office-app .discrepancies-panel__heading {
+    margin-top: 16px !important;
+}
+
+/* La pantalla EUI debe consumir el tema de Oficina, no su paleta clara fija. */
+.office-app .discrepancies-shell {
+    color-scheme: inherit;
+    --eui-color-canvas: var(--corporate-canvas);
+    --eui-color-surface: var(--corporate-card);
+    --eui-color-border: var(--corporate-border);
+    --eui-color-input-border: var(--corporate-border);
+    --eui-color-text: var(--text);
+    --eui-color-muted: var(--text-subtle);
+    --eui-color-primary: var(--corporate-blue-dark);
+    --eui-color-primary-hover: var(--corporate-blue-dark);
+    --eui-color-focus: var(--corporate-blue);
+    --eui-color-disabled-surface: var(--surface-muted);
+    --eui-color-disabled-text: var(--text-subtle);
+    --eui-signal-warning-text: var(--warning-text);
+    --eui-signal-warning-surface: var(--warning-bg);
+    --eui-signal-warning-border: var(--warning-text);
+    --eui-signal-success-text: var(--success-text);
+    --eui-signal-success-surface: var(--success-bg);
+    --eui-signal-success-border: var(--success-text);
+}
+
+.office-app :is(.return-flow-nav a, .return-section-tabs button, .process-section-tabs button) {
+    border-color: var(--corporate-border);
+    background: var(--button-secondary);
+    color: var(--text-secondary);
+}
+
+.office-app :is(.return-flow-nav a, .return-section-tabs button, .process-section-tabs button, .raw-material-module-links > a).is-active {
+    border-color: var(--corporate-blue) !important;
+    background: var(--surface-selected) !important;
+    color: var(--corporate-blue) !important;
+}
+
+.office-app .raw-material-module-links > a.is-active :is(span, strong) {
+    color: var(--corporate-blue) !important;
+}
+
+.office-app :is(.return-kpis span, .return-kpis small, .origin-balance span, .return-empty) {
+    color: var(--text-subtle);
+}
+
+.office-app .origin-builder__heading {
+    flex-wrap: wrap;
+    background: var(--surface-muted);
+    color: var(--text-strong);
+}
+
+.office-app .origin-builder__heading small { color: var(--text-secondary); }
+.office-app .origin-balance small { color: var(--warning-text); }
+.office-app .origin-balance.is-balanced :is(strong, small) { color: var(--success-text); }
+
+.office-app .origin-builder__heading .origin-add {
+    flex: 1 1 420px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.office-app .origin-add select { min-width: 0; }
+
+.office-app .preview-band {
+    border-color: var(--corporate-border);
+    background: var(--surface-muted);
+}
+
+.office-app .preview-position.is-disabled {
+    border-color: var(--warning-text);
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    opacity: 1;
+}
+
+.office-app .preview-position.is-disabled :is(span, strong, small) {
+    color: var(--warning-text);
 }
 
 .office-app .prefrio-workspace .decision-panel > .prefrio-panel__heading {
