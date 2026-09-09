@@ -82,8 +82,8 @@
 
                     <section class="camera-ops__detail" id="cameraOpsDetail" aria-live="polite">
                         <div class="camera-ops-empty camera-ops-empty--page" id="cameraOpsEmpty">
-                            <strong>Selecciona una cámara</strong>
-                            <span>El plano, las bandas y los eventos se mostrarán aquí.</span>
+                            <strong id="cameraOpsEmptyTitle">Selecciona una cámara</strong>
+                            <span id="cameraOpsEmptyMessage">El plano, las bandas y los eventos se mostrarán aquí.</span>
                         </div>
 
                         <div class="camera-ops__workspace is-hidden" id="cameraOpsWorkspace">

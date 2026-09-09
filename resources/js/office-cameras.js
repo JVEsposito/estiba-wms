@@ -1,4 +1,11 @@
 import { cameraDisplayName } from './shared/camera-display';
+import {
+    beginOperationalCameraSnapshot,
+    formatOperationalTemperature,
+    operationalPositionDescription,
+    operationalPositionTone,
+    operationalTemperatureAverage,
+} from './shared/camera-operations';
 
 const byId = (id) => document.getElementById(id);
 
@@ -64,6 +71,8 @@ const elements = {
     cameraOpsCount: byId('cameraOpsCount'),
     operationalCameraList: byId('operationalCameraList'),
     cameraOpsEmpty: byId('cameraOpsEmpty'),
+    cameraOpsEmptyTitle: byId('cameraOpsEmptyTitle'),
+    cameraOpsEmptyMessage: byId('cameraOpsEmptyMessage'),
     cameraOpsWorkspace: byId('cameraOpsWorkspace'),
     cameraOpsCode: byId('cameraOpsCode'),
     cameraOpsName: byId('cameraOpsName'),
@@ -363,12 +372,6 @@ function formatPercent(value) {
     return `${Number(value || 0).toLocaleString('es-CL', { maximumFractionDigits: 1 })} %`;
 }
 
-function formatTemperature(value) {
-    return Number.isFinite(Number(value))
-        ? `${Number(value).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} °C`
-        : 'SIN REGISTRO';
-}
-
 function formatDateTime(value) {
     if (!value) return 'Sin fecha informada';
     const date = new Date(value);
@@ -389,26 +392,6 @@ function bandTone(band) {
     if (band?.modo !== 'operativa' || band?.estado === 'bloqueada') return 'critical';
     if (!band?.acepta_nuevos_ingresos || Number(band?.capacidad?.porcentaje || 0) >= 80) return 'warning';
     return 'success';
-}
-
-function positionTone(position) {
-    if (position?.estado !== 'operativa') return 'disabled';
-    if (position?.reservada) return 'reserved';
-    if (position?.ocupada) return 'occupied';
-    return 'available';
-}
-
-function positionDescription(position) {
-    const folios = Array.isArray(position?.folios) ? position.folios : [];
-    if (position?.reservada) {
-        return position.reserva_operacional?.responsable?.nombre
-            ? `Reserva · ${position.reserva_operacional.responsable.nombre}`
-            : 'Reserva operacional';
-    }
-    if (folios.length > 1) return `${folios.length} folios ubicados`;
-    if (folios[0]?.numero_folio) return `Folio ${folios[0].numero_folio}`;
-    if (position?.estado !== 'operativa') return statusText(position?.estado || 'fuera de servicio');
-    return 'Disponible';
 }
 
 function cameraAccess(camera) {
@@ -486,10 +469,7 @@ function renderOperationalEnvironment(environment) {
     const item = environment?.camaras?.find((entry) => entry.camara?.id === state.selectedOperationalCameraId);
     const record = item?.ultimo_registro;
     const temperatures = record?.temperaturas;
-    const values = [temperatures?.inicio_c, temperatures?.medio_c, temperatures?.fondo_c]
-        .map(Number)
-        .filter(Number.isFinite);
-    const average = values.length === 3 ? values.reduce((sum, value) => sum + value, 0) / 3 : null;
+    const average = operationalTemperatureAverage(temperatures);
     const stateText = unavailable
         ? 'Sin permiso de consulta'
         : item?.estado === 'vigente'
@@ -501,10 +481,10 @@ function renderOperationalEnvironment(environment) {
 
     elements.cameraEnvironmentStatus.textContent = stateText;
     elements.cameraEnvironmentStatus.dataset.tone = tone;
-    elements.cameraTemperatureStart.textContent = formatTemperature(temperatures?.inicio_c);
-    elements.cameraTemperatureMiddle.textContent = formatTemperature(temperatures?.medio_c);
-    elements.cameraTemperatureEnd.textContent = formatTemperature(temperatures?.fondo_c);
-    elements.cameraTemperatureAverage.textContent = formatTemperature(average);
+    elements.cameraTemperatureStart.textContent = formatOperationalTemperature(temperatures?.inicio_c);
+    elements.cameraTemperatureMiddle.textContent = formatOperationalTemperature(temperatures?.medio_c);
+    elements.cameraTemperatureEnd.textContent = formatOperationalTemperature(temperatures?.fondo_c);
+    elements.cameraTemperatureAverage.textContent = formatOperationalTemperature(average);
     elements.cameraEnvironmentEvidence.textContent = unavailable
         ? 'El perfil actual no puede consultar el control ambiental.'
         : record
@@ -566,9 +546,9 @@ function renderOperationalBands(plan) {
                     <span class="camera-ops__band-heading"><strong>B${String(band.numero).padStart(2, '0')}</strong><i class="camera-ops__signal" data-tone="${bandTone(band)}">${escapeHtml(statusText(band.estado))}</i></span>
                     <span class="camera-ops__band-capacity">${formatNumber(capacity.ocupadas)} ocupadas · ${formatNumber(capacity.reservadas)} reservadas · ${formatNumber(capacity.disponibles)} libres</span>
                     <span class="camera-ops__positions">${positions.length ? positions.map((position) => `
-                        <span class="camera-ops__position" data-tone="${positionTone(position)}" title="${escapeHtml(position.etiqueta || '')}">
+                        <span class="camera-ops__position" data-tone="${operationalPositionTone(position)}" title="${escapeHtml(position.etiqueta || '')}">
                             <span>${escapeHtml(position.etiqueta || `Posición ${position.posicion} · Nivel ${position.nivel}`)}</span>
-                            <strong>${escapeHtml(positionDescription(position))}</strong>
+                            <strong>${escapeHtml(operationalPositionDescription(position))}</strong>
                         </span>
                     `).join('') : '<span class="camera-ops-empty">Sin posiciones</span>'}</span>
                     <span class="camera-ops__band-foot">${escapeHtml(affinityText(band))}</span>
@@ -626,6 +606,13 @@ function renderOperationalMovements(movements) {
     `).join('') : '<div class="camera-ops-empty"><strong>Sin eventos recientes</strong><span>No hay movimientos registrados para esta cámara.</span></div>';
 }
 
+function showOperationalPlaceholder(title, message) {
+    elements.cameraOpsEmptyTitle.textContent = title;
+    elements.cameraOpsEmptyMessage.textContent = message;
+    elements.cameraOpsEmpty.classList.remove('is-hidden');
+    elements.cameraOpsWorkspace.classList.add('is-hidden');
+}
+
 function renderSelectedOperationalCamera() {
     const plan = state.selectedOperationalPlan;
     if (!plan) return;
@@ -646,8 +633,13 @@ function renderSelectedOperationalCamera() {
 
 async function loadOperationalCamera(id) {
     const requestGeneration = ++state.operationalRequestGeneration;
-    state.selectedOperationalCameraId = id;
+    beginOperationalCameraSnapshot(state, id);
     renderOperationalCameraList();
+    showOperationalPlaceholder(
+        'Cargando cámara…',
+        'Consultando plano, reservas, control ambiental y movimientos recientes.',
+    );
+    elements.cameraOpsStatus.textContent = 'Consultando cámara…';
     setBusy(true, 'Cargando operación de la cámara…');
     try {
         const [planResponse, movementsResponse, environmentResponse] = await Promise.all([
@@ -671,6 +663,10 @@ async function loadOperationalCamera(id) {
     } catch (error) {
         if (requestGeneration !== state.operationalRequestGeneration) return;
         elements.cameraOpsStatus.textContent = 'No fue posible actualizar';
+        showOperationalPlaceholder(
+            'No fue posible cargar la cámara',
+            'La información anterior se descartó para evitar mostrar datos de otra cámara.',
+        );
         toast(error.message, true);
     } finally {
         if (requestGeneration === state.operationalRequestGeneration) setBusy(false);
@@ -689,8 +685,10 @@ async function loadOperationalCameras() {
     if (state.selectedOperationalCameraId) {
         await loadOperationalCamera(state.selectedOperationalCameraId);
     } else {
-        elements.cameraOpsEmpty.classList.remove('is-hidden');
-        elements.cameraOpsWorkspace.classList.add('is-hidden');
+        showOperationalPlaceholder(
+            'Sin cámaras PT visibles',
+            'No hay cámaras de producto terminado disponibles para este perfil.',
+        );
         elements.cameraOpsStatus.textContent = 'Sin cámaras PT visibles';
         elements.cameraOpsUpdatedAt.textContent = 'Última lectura: —';
     }

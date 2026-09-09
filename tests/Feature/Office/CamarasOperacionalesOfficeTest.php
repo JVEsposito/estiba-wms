@@ -18,6 +18,8 @@ class CamarasOperacionalesOfficeTest extends TestCase
             ->assertSee('Eventos recientes')
             ->assertSee('id="operationalCameraList"', false)
             ->assertSee('id="cameraBandMap"', false)
+            ->assertSee('id="cameraOpsEmptyTitle"', false)
+            ->assertSee('id="cameraOpsEmptyMessage"', false)
             ->assertSee('data-camera-mode="operacion"', false)
             ->assertSee('data-estiba-contrast="navy"', false);
 
@@ -41,6 +43,7 @@ class CamarasOperacionalesOfficeTest extends TestCase
         $this->assertStringContainsString('bandas_operacionales', $script);
         $this->assertStringContainsString('reserva_operacional', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
+        $this->assertStringContainsString('beginOperationalCameraSnapshot(state, id)', $script);
     }
 
     public function test_estilos_respetan_temas_y_contraste_en_superficies_navy(): void
