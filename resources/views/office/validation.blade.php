@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
-        <meta name="color-scheme" content="dark">
+        <meta name="color-scheme" content="light dark">
         <title>Estiba WMS · Validación de pallets</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-validation.css', 'resources/js/office-validation.js'])

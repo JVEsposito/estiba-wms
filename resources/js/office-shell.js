@@ -1,4 +1,10 @@
 // Cabecera y menú compartidos; no intervienen en las operaciones de cada módulo.
+import {
+    isOfficeMenuCollapsed,
+    OFFICE_MENU_KEY,
+    officeMenuPreference,
+} from './shared/office-preferences.js';
+
 const tokenKey = 'estiba_wms_office_token';
 let contextToken = null;
 let controller = null;
@@ -92,27 +98,46 @@ export function initializeOfficeShell() {
     initialized = true;
     const header = root.querySelector('[data-office-shell-header]');
     const menu = field('menu');
+    const menuLabel = field('menu-label');
     const desktop = window.matchMedia('(min-width: 1200px)');
+    try {
+        root.toggleAttribute('data-menu-collapsed', isOfficeMenuCollapsed(localStorage.getItem(OFFICE_MENU_KEY)));
+    } catch {
+        root.removeAttribute('data-menu-collapsed');
+    }
     root.dataset.menuReady = '';
     function syncMenu() {
-        menu.setAttribute('aria-expanded', String(desktop.matches || root.hasAttribute('data-menu-open')));
+        const expanded = desktop.matches
+            ? !root.hasAttribute('data-menu-collapsed')
+            : root.hasAttribute('data-menu-open');
+        const action = expanded ? 'Ocultar menú lateral' : 'Mostrar menú lateral';
+        menu.setAttribute('aria-expanded', String(expanded));
+        menu.setAttribute('aria-label', action);
+        menu.title = action;
+        if (menuLabel) menuLabel.textContent = desktop.matches ? 'Menú' : (expanded ? 'Cerrar' : 'Menú');
     }
-    function closeMenu() {
+    function closeMobileMenu() {
         root.removeAttribute('data-menu-open');
         syncMenu();
     }
     menu.addEventListener('click', () => {
-        root.toggleAttribute('data-menu-open');
+        if (desktop.matches) {
+            const collapsed = !root.hasAttribute('data-menu-collapsed');
+            root.toggleAttribute('data-menu-collapsed', collapsed);
+            try { localStorage.setItem(OFFICE_MENU_KEY, officeMenuPreference(collapsed)); } catch { /* Preferencia opcional. */ }
+        } else {
+            root.toggleAttribute('data-menu-open');
+        }
         syncMenu();
     });
     root.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && !desktop.matches && root.hasAttribute('data-menu-open')) {
             event.preventDefault();
-            closeMenu();
+            closeMobileMenu();
             menu.focus();
         }
     });
-    desktop.addEventListener('change', closeMenu);
+    desktop.addEventListener('change', closeMobileMenu);
     syncMenu();
     const content = [...root.parentElement.children].find(element => element !== root && !['LINK', 'SCRIPT', 'STYLE'].includes(element.tagName));
     if (content) {
@@ -120,7 +145,7 @@ export function initializeOfficeShell() {
         const skip = field('skip');
         skip.href = `#${content.id}`;
         skip.addEventListener('click', () => {
-            closeMenu();
+            if (!desktop.matches) closeMobileMenu();
             if (!content.hasAttribute('tabindex')) content.setAttribute('tabindex', '-1');
             content.focus({ preventScroll: true });
         });

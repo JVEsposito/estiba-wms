@@ -74,7 +74,6 @@ const elements = {
     cameraOpsEmptyTitle: byId('cameraOpsEmptyTitle'),
     cameraOpsEmptyMessage: byId('cameraOpsEmptyMessage'),
     cameraOpsWorkspace: byId('cameraOpsWorkspace'),
-    cameraOpsCode: byId('cameraOpsCode'),
     cameraOpsName: byId('cameraOpsName'),
     cameraOpsMeta: byId('cameraOpsMeta'),
     cameraOpsAccess: byId('cameraOpsAccess'),
@@ -433,8 +432,7 @@ function renderOperationalCameraList() {
         const selected = camera.id === state.selectedOperationalCameraId;
         return `
             <button class="camera-ops__camera${selected ? ' is-selected' : ''}" data-operational-camera="${escapeHtml(camera.id)}" type="button" aria-pressed="${selected}">
-                <span class="camera-ops__camera-line"><strong>${escapeHtml(camera.codigo)}</strong><i class="camera-ops__signal" data-tone="${operationalTone(percentage)}">${escapeHtml(formatPercent(percentage))}</i></span>
-                <span class="camera-ops__camera-name">${escapeHtml(cameraDisplayName(camera))}</span>
+                <span class="camera-ops__camera-line"><strong>${escapeHtml(cameraDisplayName(camera))}</strong><i class="camera-ops__signal" data-tone="${operationalTone(percentage)}">${escapeHtml(formatPercent(percentage))}</i></span>
                 <span class="camera-ops__camera-capacity">${formatNumber(occupied)} ocupadas · ${formatNumber(total)} efectivas</span>
                 <span class="camera-ops__meter" data-tone="${operationalTone(percentage)}"><b style="width:${Math.min(100, percentage)}%"></b></span>
                 <span class="camera-ops__camera-access camera-ops__signal" data-tone="${access.tone}">${escapeHtml(access.text)}</span>
@@ -619,7 +617,6 @@ function renderSelectedOperationalCamera() {
     const access = cameraAccess(plan);
     elements.cameraOpsEmpty.classList.add('is-hidden');
     elements.cameraOpsWorkspace.classList.remove('is-hidden');
-    elements.cameraOpsCode.textContent = plan.codigo;
     elements.cameraOpsName.textContent = cameraDisplayName(plan);
     elements.cameraOpsMeta.textContent = `${statusText(plan.tipo)} · ${statusText(plan.contenido)} · versión de plano ${plan.version_plano}`;
     elements.cameraOpsAccess.textContent = access.text;

@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#102f43">
-        <meta name="color-scheme" content="light">
+        <meta name="color-scheme" content="light dark">
         <title>Estiba WMS · Prefrío</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-prefrio.css', 'resources/js/office-prefrio.js'])

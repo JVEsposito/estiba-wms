@@ -20,6 +20,7 @@ class CamarasOperacionalesOfficeTest extends TestCase
             ->assertSee('id="cameraBandMap"', false)
             ->assertSee('id="cameraOpsEmptyTitle"', false)
             ->assertSee('id="cameraOpsEmptyMessage"', false)
+            ->assertDontSee('id="cameraOpsCode"', false)
             ->assertSee('data-camera-mode="operacion"', false)
             ->assertSee('data-estiba-contrast="navy"', false);
 
@@ -45,6 +46,8 @@ class CamarasOperacionalesOfficeTest extends TestCase
         $this->assertStringContainsString('bandas_operacionales', $script);
         $this->assertStringContainsString('reserva_operacional', $script);
         $this->assertStringContainsString('beginOperationalCameraSnapshot(state, id)', $script);
+        $this->assertStringNotContainsString('elements.cameraOpsCode', $script);
+        $this->assertStringNotContainsString('${escapeHtml(camera.codigo)}</strong><i class="camera-ops__signal"', $script);
         $this->assertStringContainsString("return 'SIN REGISTRO';", $operations);
         $this->assertStringContainsString("position?.estado !== 'activa'", $operations);
     }

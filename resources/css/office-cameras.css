@@ -227,7 +227,7 @@
     gap: 8px;
 }
 
-.camera-ops__camera-line strong { color: var(--text-strong) !important; font: 800 .92rem/1.2 ui-monospace, Consolas, monospace; }
+.camera-ops__camera-line strong { color: var(--text-strong) !important; font-size: .92rem; font-weight: 800; line-height: 1.2; }
 .camera-ops__camera-line i { font-size: .72rem; font-style: normal; font-weight: 800; }
 .camera-ops__camera-name { color: var(--text-secondary); font-weight: 700; }
 .camera-ops__camera-capacity { color: var(--muted); font-size: .72rem; }
