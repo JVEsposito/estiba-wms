@@ -25,6 +25,7 @@ class ServicioGeneracionRecepcionRepaletizaje
 
     public function __construct(
         private readonly ServicioPlanesOperacionales $planes,
+        private readonly ServicioPrioridadBufferRepaletizaje $prioridadBuffer,
     ) {}
 
     public function generar(
@@ -54,7 +55,9 @@ class ServicioGeneracionRecepcionRepaletizaje
 
         $existente = $this->planExistente($repaletizaje->id);
         if ($existente) {
-            return $existente;
+            $this->prioridadBuffer->recalcular($existente->temporada_id);
+
+            return $existente->refresh();
         }
 
         $resultados = $repaletizaje->resultados
@@ -112,7 +115,7 @@ class ServicioGeneracionRecepcionRepaletizaje
             ->all();
 
         try {
-            return $this->planes->crear(
+            $plan = $this->planes->crear(
                 temporada: $temporada,
                 tipo: TipoPlanOperacional::RecepcionRepaletizaje,
                 titulo: sprintf('Retirar resultados de REPA · %s', $repaletizaje->codigo),
@@ -133,11 +136,17 @@ class ServicioGeneracionRecepcionRepaletizaje
                     'total_pallets_planificados' => count($tareas),
                 ],
             );
+            $this->prioridadBuffer->recalcular($temporada->id);
+
+            return $plan->refresh()->load('tareas');
         } catch (UniqueConstraintViolationException) {
-            return $this->planExistente($repaletizaje->id)
+            $plan = $this->planExistente($repaletizaje->id)
                 ?? throw new DomainException(
                     'No fue posible recuperar el objetivo REPA creado concurrentemente.',
                 );
+            $this->prioridadBuffer->recalcular($plan->temporada_id);
+
+            return $plan->refresh();
         }
     }
 

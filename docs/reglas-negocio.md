@@ -154,13 +154,14 @@ Estas reglas aplican a la base de datos, los servicios Laravel, la API, las ofic
 16. El estado `libre`, `parcial` o `completa` se deriva de capacidad efectiva y ocupación; `bloqueada` y `en_vaciado` responden a su modo explícito.
 17. Las bandas operacionales solo admiten los usos `transito_pt`, `inspeccion` y `retenidos` en esta etapa.
 18. Los saldos permanecen fuera del planificador de pallets completos; cada resultado pallet de un repaletizaje confirmado y con prefrío aprobado genera una recepción rolling idempotente.
-19. Configurar una banda exige administración, versión vigente y ausencia de una sesión de estiba abierta.
-20. Crear o ampliar una cámara PT sincroniza las bandas nuevas sin sobrescribir la configuración de las existentes.
-21. La afinidad de una banda se deriva de sus pallets completos actuales y no se configura manualmente.
-22. La jerarquía de afinidad es cliente, marca/etiqueta y formato/envase; una banda vacía no conserva afinidad histórica.
-23. Una recomendación de tránsito solo considera bandas operativas, con uso `transito_pt`, capacidad y posiciones físicamente viables.
-24. Una banda ocupada por saldos o materiales queda fuera de la recomendación para pallets completos.
-25. La recomendación es consultiva: no reserva una posición, no crea una tarea y no ejecuta movimientos.
+19. El buffer REPA admite un máximo práctico de diez pallets: desde ocho, sus retiros pendientes suben a prioridad alta; desde diez, a urgente. Iniciar el movimiento físico libera ese pallet del conteo.
+20. Configurar una banda exige administración, versión vigente y ausencia de una sesión de estiba abierta.
+21. Crear o ampliar una cámara PT sincroniza las bandas nuevas sin sobrescribir la configuración de las existentes.
+22. La afinidad de una banda se deriva de sus pallets completos actuales y no se configura manualmente.
+23. La jerarquía de afinidad es cliente, marca/etiqueta y formato/envase; una banda vacía no conserva afinidad histórica.
+24. Una recomendación de tránsito solo considera bandas operativas, con uso `transito_pt`, capacidad y posiciones físicamente viables.
+25. Una banda ocupada por saldos o materiales queda fuera de la recomendación para pallets completos.
+26. La recomendación es consultiva: no reserva una posición, no crea una tarea y no ejecuta movimientos.
 
 ## 10. Folios y ubicaciones
 
