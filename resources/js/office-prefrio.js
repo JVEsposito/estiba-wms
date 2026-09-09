@@ -4,6 +4,7 @@ const elements = {
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'), logout: byId('officeLogoutButton'),
     camerasNav: byId('officeCamerasNav'), loadsNav: byId('officeLoadsNav'), materialsNav: byId('officeMaterialsNav'), validationNav: byId('officeValidationNav'), accessesNav: byId('officeAccessesNav'), managementNav: byId('officeManagementNav'), romanaNav: byId('officeRomanaNav'),
     reload: byId('reloadPrefrioButton'), newTunnel: byId('newTunnelButton'), newProcess: byId('newProcessButton'),
+    viewStatus: byId('prefrioViewStatus'), updatedAt: byId('prefrioUpdatedAt'),
     activeTunnels: byId('activeTunnelCount'), running: byId('runningProcessCount'), pending: byId('pendingVerificationCount'), reprocess: byId('reprocessCount'), activeFolios: byId('activeFolioCount'),
     tunnelSummary: byId('tunnelSummary'), tunnelList: byId('tunnelList'), filters: byId('processFilters'), processBody: byId('processTableBody'),
     detail: byId('processDetail'), detailTitle: byId('processDetailTitle'), detailSubtitle: byId('processDetailSubtitle'), detailMetrics: byId('processDetailMetrics'),
@@ -93,7 +94,16 @@ async function loadProcesses() {
     renderProcesses(); renderMetrics();
 }
 async function loadSummary() { state.summary = await api('/api/prefrio/resumen'); renderMetrics(); }
-async function loadAll() { await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]); if (state.selectedProcess?.id) await selectProcess(state.selectedProcess.id, false); }
+function markViewUpdated() {
+    elements.viewStatus.textContent = 'Información vigente';
+    elements.updatedAt.textContent = `Última lectura: ${formatDate(new Date())}`;
+}
+async function loadAll() {
+    elements.viewStatus.textContent = 'Consultando operación…';
+    await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]);
+    if (state.selectedProcess?.id) await selectProcess(state.selectedProcess.id, false, false);
+    markViewUpdated();
+}
 
 function renderMetrics() {
     elements.activeTunnels.textContent = String(state.tunnels.filter((item) => item.estado_administrativo === 'activo' && item.estado_tecnico === 'operativo').length);
@@ -131,16 +141,29 @@ function renderProcesses() {
         const activeFolios = (item.folios || []).filter((folio) => !['retirado', 'cancelado'].includes(folio.estado));
         const occupiedPositions = new Set(activeFolios.map((folio) => folio.posicion?.id).filter(Boolean)).size;
         const finalText = item.estado === 'aprobado' ? 'Habilitado' : item.estado === 'requiere_reproceso' ? 'Retenido' : item.estado === 'cancelado' ? 'Cancelado' : 'Pendiente';
-        return `<tr data-process-id="${item.id}"><td><strong>${escapeHtml(item.codigo)}</strong><small>v${item.version} · ${escapeHtml(item.formato_referencia || 'Sin formato')}</small></td><td><strong>${escapeHtml(item.tunel?.codigo || '—')}</strong><small>${escapeHtml(item.tunel?.nombre || '')}</small></td><td><span class="status-pill status-pill--${escapeHtml(item.estado)}">${escapeHtml(statusText(item.estado))}</span></td><td><strong>${occupiedPositions}/${item.tunel?.capacidad_posiciones || '—'} posiciones</strong><small>${activeFolios.length} folios</small></td><td>${escapeHtml(formatDate(item.iniciado_at, 'No iniciado'))}</td><td><strong>${escapeHtml(finalText)}</strong><small>${escapeHtml(formatDate(item.finalizado_at, '—'))}</small></td></tr>`;
+        const selected = state.selectedProcess?.id === item.id;
+        return `<tr class="${selected ? 'is-selected' : ''}" data-process-id="${item.id}" tabindex="0" role="button" aria-label="Abrir ${escapeHtml(item.codigo)}" aria-current="${selected ? 'true' : 'false'}">
+            <td><strong>${escapeHtml(item.codigo)}</strong><small>v${item.version} · ${escapeHtml(item.formato_referencia || 'Sin formato')}</small></td>
+            <td><strong>${escapeHtml(item.tunel?.codigo || '—')}</strong><small>${escapeHtml(item.tunel?.nombre || '')}</small></td>
+            <td><span class="status-pill status-pill--${escapeHtml(item.estado)}">${escapeHtml(statusText(item.estado))}</span></td>
+            <td><strong>${occupiedPositions}/${item.tunel?.capacidad_posiciones || '—'} posiciones</strong><small>${activeFolios.length} folios</small></td>
+            <td>${escapeHtml(formatDate(item.iniciado_at, 'No iniciado'))}</td>
+            <td><strong>${escapeHtml(finalText)}</strong><small>${escapeHtml(formatDate(item.finalizado_at, '—'))}</small></td>
+        </tr>`;
     }).join('') || '<tr><td class="empty-prefrio" colspan="6">No existen procesos coincidentes.</td></tr>';
 }
 
-async function selectProcess(id, scroll = true) {
-    setBusy(true, 'Cargando proceso…');
+async function selectProcess(id, scroll = true, manageBusy = true) {
+    if (manageBusy) setBusy(true, 'Cargando proceso…');
     try {
-        const response = await api(`/api/prefrio/procesos/${id}`); state.selectedProcess = response.data; renderProcessDetail();
+        const response = await api(`/api/prefrio/procesos/${id}`); state.selectedProcess = response.data; renderProcesses(); renderProcessDetail();
         if (scroll) elements.detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+    } catch (error) {
+        toast(error.message, true);
+        if (!manageBusy) throw error;
+    } finally {
+        if (manageBusy) setBusy(false);
+    }
 }
 function renderProcessDetail() {
     const process = state.selectedProcess; if (!process) { elements.detail.classList.add('is-hidden'); return; }
@@ -337,6 +360,7 @@ async function saveCorrection() {
         renderProcessDetail();
         toast('Historial corregido. Se conservó la auditoría completa.');
         await Promise.all([loadProcesses(), loadTunnels(), loadSummary()]);
+        markViewUpdated();
     } catch (error) {
         elements.correctionError.textContent = error.message;
     } finally {
@@ -395,7 +419,7 @@ async function saveProcess() {
 async function approveProcess() {
     const process = state.selectedProcess; if (!process || !window.confirm(`¿Aprobar ${process.codigo} y habilitar sus folios para almacenamiento?`)) return;
     setBusy(true, 'Aprobando proceso…');
-    try { const response = await api(`/api/prefrio/procesos/${process.id}/aprobar`, { method: 'POST', body: JSON.stringify({ operacion_id: operationUuid(), version_conocida: process.version, resultados: decisionResults(), ocurrido_at: occurredAt(elements.decisionOccurredAt.value) }) }); state.selectedProcess = response.data; renderProcessDetail(); toast('Proceso aprobado y folios habilitados.'); await Promise.all([loadTunnels(), loadProcesses()]); }
+    try { const response = await api(`/api/prefrio/procesos/${process.id}/aprobar`, { method: 'POST', body: JSON.stringify({ operacion_id: operationUuid(), version_conocida: process.version, resultados: decisionResults(), ocurrido_at: occurredAt(elements.decisionOccurredAt.value) }) }); state.selectedProcess = response.data; renderProcessDetail(); toast('Proceso aprobado y folios habilitados.'); await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]); markViewUpdated(); }
     catch (error) { elements.decisionError.textContent = error.message; } finally { setBusy(false); }
 }
 async function submitReason() {
@@ -404,7 +428,7 @@ async function submitReason() {
     if (mode === 'reprocess') payload.resultados = decisionResults();
     const path = mode === 'reprocess' ? `/api/prefrio/procesos/${process.id}/reprocesar` : `/api/prefrio/procesos/${process.id}/cancelar`;
     setBusy(true, mode === 'reprocess' ? 'Registrando reproceso…' : 'Cancelando proceso…');
-    try { const response = await api(path, { method: 'POST', body: JSON.stringify(payload) }); elements.reasonDialog.close(); state.selectedProcess = response.data; renderProcessDetail(); toast(mode === 'reprocess' ? 'Proceso enviado a reproceso.' : 'Proceso cancelado.'); await Promise.all([loadTunnels(), loadProcesses()]); }
+    try { const response = await api(path, { method: 'POST', body: JSON.stringify(payload) }); elements.reasonDialog.close(); state.selectedProcess = response.data; renderProcessDetail(); toast(mode === 'reprocess' ? 'Proceso enviado a reproceso.' : 'Proceso cancelado.'); await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]); markViewUpdated(); }
     catch (error) { elements.reasonError.textContent = error.message; } finally { setBusy(false); }
 }
 
@@ -427,6 +451,7 @@ async function submitOperationalAction() {
         const response = await api(path, { method: 'POST', body: JSON.stringify(payload) });
         state.selectedProcess = response.data; renderProcessDetail(); toast('Acción registrada con su fecha y hora operacional.');
         await Promise.all([loadTunnels(), loadProcesses(), loadSummary()]);
+        markViewUpdated();
     } catch (error) { elements.operationalError.textContent = error.message; }
     finally { setBusy(false); }
 }
@@ -435,7 +460,7 @@ async function bootstrap() {
     if (!state.token || !state.identity) return;
     if (!showApp()) return;
     setBusy(true, 'Cargando Prefrío…');
-    try { await loadAll(); } catch (error) { toast(error.message, true); if (error.status === 403) clearSession(); } finally { setBusy(false); }
+    try { await loadAll(); } catch (error) { elements.viewStatus.textContent = 'No fue posible actualizar'; toast(error.message, true); if (error.status === 403) clearSession(); } finally { setBusy(false); }
 }
 
 elements.login.addEventListener('submit', async (event) => {
@@ -445,10 +470,17 @@ elements.login.addEventListener('submit', async (event) => {
     catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); }
 });
 elements.logout.addEventListener('click', async () => { try { await api('/api/acceso-oficina', { method: 'DELETE' }); } catch {} clearSession(); });
-elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando tablero…'); try { await loadAll(); toast('Prefrío actualizado.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
+elements.reload.addEventListener('click', async () => { setBusy(true, 'Actualizando tablero…'); try { await loadAll(); toast('Prefrío actualizado.'); } catch (error) { elements.viewStatus.textContent = 'No fue posible actualizar'; toast(error.message, true); } finally { setBusy(false); } });
 elements.filters.addEventListener('submit', async (event) => { event.preventDefault(); setBusy(true, 'Filtrando procesos…'); try { await loadProcesses(); } catch (error) { toast(error.message, true); } finally { setBusy(false); } });
 elements.tunnelList.addEventListener('click', (event) => { const edit = event.target.closest('[data-edit-tunnel]'); if (edit) { event.stopPropagation(); openTunnelDialog(state.tunnels.find((item) => item.id === edit.dataset.editTunnel)); return; } const card = event.target.closest('[data-tunnel-id]'); if (!card) return; state.selectedTunnelId = card.dataset.tunnelId; renderTunnels(); elements.filters.elements.tunel_prefrio_id.value = state.selectedTunnelId; elements.filters.requestSubmit(); });
 elements.processBody.addEventListener('click', (event) => { const row = event.target.closest('[data-process-id]'); if (row) selectProcess(row.dataset.processId); });
+elements.processBody.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const row = event.target.closest('[data-process-id]');
+    if (!row) return;
+    event.preventDefault();
+    selectProcess(row.dataset.processId);
+});
 elements.newTunnel.addEventListener('click', () => openTunnelDialog()); elements.newProcess.addEventListener('click', openProcessDialog);
 elements.tunnelForm.elements.capacidad_posiciones.addEventListener('input', renderTunnelPreview);
 elements.tunnelForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.tunnelDialog.close(); return; } if (!elements.tunnelForm.reportValidity()) return; saveTunnel(); });
@@ -457,7 +489,7 @@ elements.processForm.addEventListener('submit', (event) => { event.preventDefaul
 elements.refreshProcess.addEventListener('click', () => state.selectedProcess && selectProcess(state.selectedProcess.id, false));
 elements.correctProcess.addEventListener('click', openCorrectionDialog);
 elements.correctionForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.correctionDialog.close(); return; } if (!elements.correctionForm.reportValidity()) return; void saveCorrection(); });
-elements.closeDetail.addEventListener('click', () => { state.selectedProcess = null; elements.detail.classList.add('is-hidden'); });
+elements.closeDetail.addEventListener('click', () => { state.selectedProcess = null; elements.detail.classList.add('is-hidden'); renderProcesses(); });
 elements.approve.addEventListener('click', approveProcess); elements.reprocessButton.addEventListener('click', () => openReasonDialog('reprocess')); elements.cancelProcess.addEventListener('click', () => openReasonDialog('cancel'));
 elements.reasonForm.addEventListener('submit', (event) => { event.preventDefault(); if (event.submitter?.value === 'cancel') { elements.reasonDialog.close(); return; } if (!elements.reasonForm.reportValidity()) return; submitReason(); });
 elements.operationalAction.addEventListener('change', syncOperationalTemperature);

@@ -3,8 +3,8 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="theme-color" content="#07151e">
-        <meta name="color-scheme" content="dark">
+        <meta name="theme-color" content="#102f43">
+        <meta name="color-scheme" content="light">
         <title>Estiba WMS · Prefrío</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-prefrio.css', 'resources/js/office-prefrio.js'])
@@ -34,31 +34,36 @@
 
 
             <section class="prefrio-workspace">
-                <header class="prefrio-heading panel">
-                    <div><p class="eyebrow">CONTROL TÉRMICO</p><h1>Tablero de Prefrío</h1><p>La aprobación habilita almacenamiento; el folio solo queda disponible después de ser ubicado en cámara.</p></div>
+                <header class="prefrio-heading prefrio-command">
+                    <div class="prefrio-heading__title"><p class="eyebrow">FRIGORÍFICO · CONTROL TÉRMICO</p><h1>Tablero de Prefrío</h1><p>La aprobación habilita almacenamiento; el folio solo queda disponible después de ser ubicado en cámara.</p></div>
+                    <div class="prefrio-heading__status" aria-live="polite">
+                        <span>ESTADO DE LA VISTA</span>
+                        <strong id="prefrioViewStatus">Consultando operación…</strong>
+                        <small id="prefrioUpdatedAt">Última lectura: —</small>
+                    </div>
                     <div class="prefrio-heading__actions">
-                        <button class="secondary-button" id="newProcessButton" type="button">+ Nuevo proceso</button>
+                        <button class="primary-button" id="newProcessButton" type="button">+ Nuevo proceso</button>
                         <button class="secondary-button" id="newTunnelButton" type="button">+ Nuevo túnel</button>
                         <button class="secondary-button" id="reloadPrefrioButton" type="button">↻ Actualizar</button>
                     </div>
                 </header>
 
                 <div class="prefrio-metrics">
-                    <article><span>TÚNELES ACTIVOS</span><strong id="activeTunnelCount">0</strong></article>
-                    <article><span>EN PROCESO</span><strong id="runningProcessCount">0</strong></article>
-                    <article><span>PENDIENTES DE VERIFICACIÓN</span><strong id="pendingVerificationCount">0</strong></article>
-                    <article><span>REPROCESOS RECIENTES</span><strong id="reprocessCount">0</strong></article>
-                    <article><span>PALLETS EN CICLOS ACTIVOS</span><strong id="activeFolioCount">0</strong></article>
+                    <article data-tone="neutral"><span>TÚNELES ACTIVOS</span><strong id="activeTunnelCount">0</strong><small>Disponibles para operar</small></article>
+                    <article data-tone="info"><span>EN PROCESO</span><strong id="runningProcessCount">0</strong><small>Ciclos térmicos activos</small></article>
+                    <article data-tone="warning"><span>PENDIENTES DE VERIFICACIÓN</span><strong id="pendingVerificationCount">0</strong><small>Requieren decisión</small></article>
+                    <article data-tone="danger"><span>REPROCESOS RECIENTES</span><strong id="reprocessCount">0</strong><small>Folios retenidos</small></article>
+                    <article data-tone="primary"><span>PALLETS EN CICLOS ACTIVOS</span><strong id="activeFolioCount">0</strong><small>Custodia térmica vigente</small></article>
                 </div>
 
                 <div class="prefrio-grid">
                     <aside class="panel tunnel-panel">
-                        <div class="prefrio-panel__heading"><div><p class="eyebrow">INFRAESTRUCTURA</p><h2>Túneles</h2></div><span id="tunnelSummary">0 configurados</span></div>
+                        <div class="prefrio-panel__heading" data-estiba-contrast="navy"><div><p class="eyebrow">INFRAESTRUCTURA</p><h2>Túneles</h2></div><span id="tunnelSummary">0 configurados</span></div>
                         <div class="tunnel-list" id="tunnelList"></div>
                     </aside>
 
                     <section class="panel process-panel">
-                        <div class="prefrio-panel__heading process-heading">
+                        <div class="prefrio-panel__heading process-heading" data-estiba-contrast="navy">
                             <div><p class="eyebrow">OPERACIÓN</p><h2>Procesos</h2></div>
                             <form class="process-filters" id="processFilters">
                                 <select name="tunel_prefrio_id"><option value="">Todos los túneles</option></select>
@@ -67,30 +72,32 @@
                                 <button class="secondary-button" type="submit">Filtrar</button>
                             </form>
                         </div>
-                        <div class="process-table-scroll"><table class="process-table"><thead><tr><th>Proceso</th><th>Túnel</th><th>Estado</th><th>Folios</th><th>Inicio</th><th>Resultado</th></tr></thead><tbody id="processTableBody"></tbody></table></div>
+                        <div class="process-table-scroll"><table class="process-table"><caption class="office-visually-hidden">Procesos de Prefrío coincidentes con los filtros</caption><thead><tr><th scope="col">Proceso</th><th scope="col">Túnel</th><th scope="col">Estado</th><th scope="col">Folios</th><th scope="col">Inicio</th><th scope="col">Resultado</th></tr></thead><tbody id="processTableBody"></tbody></table></div>
                     </section>
                 </div>
 
-                <section class="panel process-detail is-hidden" id="processDetail">
+                <section class="process-detail is-hidden" id="processDetail">
                     <div class="process-detail__heading">
                         <div><p class="eyebrow">DETALLE DEL CICLO</p><h2 id="processDetailTitle">Proceso</h2><p id="processDetailSubtitle"></p></div>
                         <div class="process-detail__actions"><button class="secondary-button is-hidden" id="correctProcessButton" type="button">Corregir historial</button><button class="secondary-button" id="refreshProcessButton" type="button">↻ Actualizar</button><button class="secondary-button" id="closeProcessDetailButton" type="button">Cerrar</button></div>
                     </div>
                     <div class="process-detail__metrics" id="processDetailMetrics"></div>
                     <div class="process-detail__layout">
-                        <div>
-                            <div class="prefrio-panel__heading"><div><p class="eyebrow">DISTRIBUCIÓN</p><h3>Posiciones del túnel</h3></div></div>
-                            <div class="tunnel-direction"><strong>FONDO</strong><span>Dos lados por profundidad</span></div>
-                            <div class="tunnel-map" id="processTunnelMap"></div>
-                            <div class="tunnel-direction tunnel-direction--entrance"><span>Recorrido operacional</span><strong>ENTRADA</strong></div>
+                        <div class="prefrio-detail-panel">
+                            <div class="prefrio-panel__heading" data-estiba-contrast="navy"><div><p class="eyebrow">DISTRIBUCIÓN</p><h3>Posiciones del túnel</h3></div></div>
+                            <div class="prefrio-detail-panel__body">
+                                <div class="tunnel-direction"><strong>FONDO</strong><span>Dos lados por profundidad</span></div>
+                                <div class="tunnel-map" id="processTunnelMap"></div>
+                                <div class="tunnel-direction tunnel-direction--entrance"><span>Recorrido operacional</span><strong>ENTRADA</strong></div>
+                            </div>
                         </div>
-                        <div>
-                            <div class="prefrio-panel__heading"><div><p class="eyebrow">EVENTOS</p><h3>Línea de tiempo</h3></div></div>
+                        <div class="prefrio-detail-panel">
+                            <div class="prefrio-panel__heading" data-estiba-contrast="navy"><div><p class="eyebrow">EVENTOS</p><h3>Línea de tiempo</h3></div></div>
                             <div class="event-timeline" id="processTimeline"></div>
                         </div>
                     </div>
                     <section class="decision-panel is-hidden" id="operationalPanel">
-                        <div class="prefrio-panel__heading"><div><p class="eyebrow">OPERACIÓN MANUAL</p><h3>Registrar acción con fecha y hora real</h3></div><span>La hora indicada queda en la trazabilidad</span></div>
+                        <div class="prefrio-panel__heading" data-estiba-contrast="navy"><div><p class="eyebrow">OPERACIÓN MANUAL</p><h3>Registrar acción con fecha y hora real</h3></div><span>La hora indicada queda en la trazabilidad</span></div>
                         <form class="prefrio-form-grid" id="operationalActionForm">
                             <label><span>Acción *</span><select name="accion" id="operationalActionSelect" required></select></label>
                             <label><span>Fecha y hora de la acción *</span><input name="ocurrido_at" type="datetime-local" required></label>
@@ -101,7 +108,7 @@
                         </form>
                     </section>
                     <section class="decision-panel is-hidden" id="decisionPanel">
-                        <div class="prefrio-panel__heading"><div><p class="eyebrow">VERIFICACIÓN FINAL</p><h3>Resultado por folio</h3></div><span>Supervisor de frío o administrador</span></div>
+                        <div class="prefrio-panel__heading" data-estiba-contrast="navy"><div><p class="eyebrow">VERIFICACIÓN FINAL</p><h3>Resultado por folio</h3></div><span>Supervisor de frío o administrador</span></div>
                         <div class="decision-folios" id="decisionFolios"></div>
                         <label class="decision-time"><span>Fecha y hora de la decisión *</span><input id="decisionOccurredAt" type="datetime-local" required></label>
                         <div class="decision-actions">
