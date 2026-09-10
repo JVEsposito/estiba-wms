@@ -31,6 +31,17 @@ El nombre de planta es opcional: `ESTIBA_PLANTA_NOMBRE` en `.env`, leído median
 de las maquetas ni se deduce la planta del usuario. La temporada ausente se muestra
 como Sin temporada activa; una consulta fallida muestra Sin verificar.
 
+Para identificar una instalación, agregar o editar en su archivo `.env`:
+
+```dotenv
+ESTIBA_PLANTA_NOMBRE="Agro Rosario"
+```
+
+Ejecutar `php artisan config:clear` desde la carpeta del proyecto y actualizar el
+contexto con el botón del encabezado. Si la instalación utiliza configuración
+cacheada, regenerarla con `php artisan config:cache`. Es una etiqueta de esta
+instalación: no cambia clientes, temporadas ni conexiones a bases de datos.
+
 La hora corresponde a la consulta del contexto. No afirma que inventario, tareas
 o datos térmicos estén sincronizados. Las respuestas de una sesión anterior se
 descartan y las consultas tienen tiempo máximo de espera.
