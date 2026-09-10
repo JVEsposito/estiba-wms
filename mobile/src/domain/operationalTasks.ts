@@ -221,6 +221,16 @@ export function operationalTaskDestinationLabel(task: OperationalTask) {
   return operationalTaskPositionLabel(task.destino);
 }
 
+export function operationalTaskReason(task: OperationalTask) {
+  if (task.instruccion) return task.instruccion;
+  const candidates = ['motivo', 'razon', 'detalle', 'origen'];
+  for (const key of candidates) {
+    const value = task.contexto?.[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return task.plan.titulo;
+}
+
 export function positionScanMatches(task: OperationalTask, scannedValue: string) {
   const position = task.destino?.posicion;
   if (!position) return false;

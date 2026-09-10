@@ -26,7 +26,9 @@ import {
   operationalTaskDestinationLabel,
   operationalTaskLabel,
   operationalTaskPositionLabel,
+  operationalTaskReason,
 } from '../domain/operationalTasks';
+import { buildOperatorTaskHome, type OperatorQueueItem } from '../domain/operatorTaskQueue';
 import { calculateRollingFrontier } from '../domain/rollingPlanner';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { ApiError } from '../services/apiError';
@@ -38,6 +40,7 @@ import {
   OperatorRouteLine,
   OperatorStatusBadge,
 } from './operator/OperatorPrimitives';
+import { OperatorTaskHome } from './operator/OperatorTaskHome';
 import { operatorTheme as o } from '../theme/operatorTheme';
 
 type Props = {
@@ -92,6 +95,9 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   const hasPhysicalDestination = Boolean(
     activeTask?.destino?.posicion && activeTask?.reserva?.tipo_compromiso === 'fisica',
   );
+  const home = useMemo(() => buildOperatorTaskHome(mine, available), [available, mine]);
+  const homeView = tab === 'mias' ? 'mine' : 'available';
+  const homeQueue = homeView === 'mine' ? home.mine : home.available;
 
   useEffect(() => {
     void loadTasks();
@@ -208,6 +214,14 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       && (!task.destino?.posicion || task.reserva?.tipo_compromiso !== 'fisica')) {
       void calculateAndMaterializeFrontier(task);
     }
+  }
+
+  function openHomeTask(item: OperatorQueueItem) {
+    if (item.source === 'mine') {
+      beginTask(item.task);
+      return;
+    }
+    void takeTask(item.task);
   }
 
   async function renewActiveTask() {
@@ -700,16 +714,16 @@ export function OperationalTaskInbox({ api, auth }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      {activeTask ? <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>OPERACIÓN GUIADA · ROLLING HORIZON</Text>
-          <Text style={styles.title}>Bandeja de labores</Text>
-          <Text style={styles.subtitle}>{auth.usuario.nombre} · {auth.dispositivo.nombre}</Text>
+          <Text style={styles.eyebrow}>MANIOBRA SELECCIONADA</Text>
+          <Text style={styles.title}>Ejecución guiada</Text>
+          <Text style={styles.subtitle}>{activeTask.folio.numero_folio} · {auth.dispositivo.nombre}</Text>
         </View>
-        <Pressable disabled={busy} onPress={() => void loadTasks()} style={styles.refreshButton}>
-          <Text style={styles.refreshButtonText}>↻ Actualizar</Text>
+        <Pressable disabled={busy} onPress={() => setActiveTask(null)} style={styles.refreshButton}>
+          <Text style={styles.refreshButtonText}>← Volver a maniobras</Text>
         </Pressable>
-      </View>
+      </View> : null}
 
       {error ? (
         <Pressable onPress={() => setError('')} style={styles.errorBanner}>
@@ -724,7 +738,19 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         </Pressable>
       ) : null}
 
-      <View style={styles.tabs}>
+      {!activeTask ? (
+        <OperatorTaskHome
+          availableCount={available.length}
+          busy={busy}
+          mineCount={mine.length}
+          next={home.next}
+          onOpen={openHomeTask}
+          onRefresh={() => void loadTasks()}
+          onViewChange={(source) => setTab(source === 'mine' ? 'mias' : 'disponibles')}
+          queue={homeQueue}
+          view={homeView}
+        />
+      ) : <><View style={styles.tabs}>
         <Pressable onPress={() => setTab('mias')} style={[styles.tab, tab === 'mias' && styles.tabActive]}>
           <Text style={[styles.tabText, tab === 'mias' && styles.tabTextActive]}>Mis tareas · {mine.length}</Text>
         </Pressable>
@@ -782,7 +808,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
                 <OperatorRouteLine label="Folio" value={activeTask.folio.numero_folio} strong />
                 <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
                 <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
-                <OperatorRouteLine label="Motivo" value={taskReason(activeTask)} />
+                <OperatorRouteLine label="Motivo" value={operationalTaskReason(activeTask)} />
                 {activeTask.maniobra ? (
                   <OperatorRouteLine
                     label="Maniobra"
@@ -924,7 +950,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
             </View>
           )}
         </View>
-      </View>
+      </View></>}
 
       {busy ? (
         <View pointerEvents="none" style={styles.busyOverlay}>
@@ -972,7 +998,7 @@ function TaskCard({
       </View>
       <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(task.origen)} />
       <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(task)} strong />
-      <Text numberOfLines={2} style={styles.taskInstruction}>{taskReason(task)}</Text>
+      <Text numberOfLines={2} style={styles.taskInstruction}>{operationalTaskReason(task)}</Text>
       <View style={styles.taskFooter}>
         <Text style={styles.taskMeta}>Secuencia {task.secuencia}</Text>
         <View style={styles.taskActions}>
@@ -1060,16 +1086,6 @@ function candidateCameraIds(tasks: OperationalTask[], allProductCameraIds: strin
 
 function dedupeTasks(tasks: OperationalTask[]) {
   return [...new Map(tasks.map((task) => [task.id, task])).values()];
-}
-
-function taskReason(task: OperationalTask) {
-  if (task.instruccion) return task.instruccion;
-  const candidates = ['motivo', 'razon', 'detalle', 'origen'];
-  for (const key of candidates) {
-    const value = task.contexto?.[key];
-    if (typeof value === 'string' && value.trim()) return value;
-  }
-  return task.plan.titulo;
 }
 
 function warningResponse(reason: unknown): MovementWarning[] {
