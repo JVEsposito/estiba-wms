@@ -63,6 +63,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('validateSnapshot', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
+        $this->assertStringContainsString('catalog?.nombre || item.nombre', $script);
+        $this->assertStringContainsString('`${mapTypeLabel(item.tipo)} · ${code}`', $script);
         $this->assertStringContainsString("api('/api/administracion/operacion-ahora/plano'", $script);
         $this->assertStringContainsString('resizeElement', $script);
         $this->assertStringContainsString('buildOperationalAlerts', $script);
@@ -88,6 +90,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('grid-template-columns: repeat(12, minmax(0, 1fr))', $styles);
         $this->assertStringContainsString('max-height: 196px', $styles);
         $this->assertStringContainsString('repeating-linear-gradient', $styles);
+        $this->assertStringContainsString('color: #102d41 !important', $styles);
+        $this->assertStringContainsString('color: #395b6b !important', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
 

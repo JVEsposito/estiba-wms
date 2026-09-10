@@ -444,14 +444,15 @@ function mapTypeLabel(type) {
 
 function mapNodeMarkup(item, editable = false) {
     const catalog = item.tipo === 'zona' ? null : mapCatalogIndex().get(catalogKey(item.tipo, item.referencia_id));
-    const label = catalog?.codigo || item.nombre;
+    const code = catalog?.codigo || mapTypeLabel(item.tipo);
+    const name = catalog?.nombre || item.nombre;
     const detail = catalog?.detalle || (item.tipo === 'zona' ? humanize(item.categoria || 'otro') : 'Referencia no disponible');
     const tone = catalog?.tono || (item.tipo === 'zona' ? 'neutral' : 'warning');
     const selected = editable && state.mapSelectedId === item.id;
 
-    return `<article class="operation-map-node${selected ? ' is-selected' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-tone="${escapeHtml(tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(`${mapTypeLabel(item.tipo)} ${label}: ${detail}`)}">
-        <span class="operation-map-node__type">${escapeHtml(mapTypeLabel(item.tipo))}</span>
-        <strong>${escapeHtml(label)}</strong>
+    return `<article class="operation-map-node${selected ? ' is-selected' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-tone="${escapeHtml(tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(`${mapTypeLabel(item.tipo)} ${code}, ${name}: ${detail}`)}">
+        <span class="operation-map-node__type">${escapeHtml(item.tipo === 'zona' ? humanize(item.categoria || 'Área') : `${mapTypeLabel(item.tipo)} · ${code}`)}</span>
+        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
         <small>${escapeHtml(detail)}</small>
         ${editable ? '<button class="operation-map-node__resize" type="button" aria-label="Redimensionar"></button>' : ''}
     </article>`;
