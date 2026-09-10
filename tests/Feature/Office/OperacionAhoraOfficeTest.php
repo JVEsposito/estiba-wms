@@ -57,7 +57,7 @@ class OperacionAhoraOfficeTest extends TestCase
         $script = file_get_contents(resource_path('js/office-operation-now.js'));
 
         $this->assertIsString($script);
-        $this->assertStringContainsString("api('/api/operacion-ahora')", $script);
+        $this->assertStringContainsString("api('/api/operacion-ahora', { cache: 'no-store' })", $script);
         $this->assertStringContainsString('createOperationalPoller', $script);
         $this->assertStringContainsString('actualizacion_sugerida_segundos', $script);
         $this->assertStringContainsString('validateSnapshot', $script);
