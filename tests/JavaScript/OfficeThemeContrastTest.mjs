@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const css = readFileSync(new URL('../../resources/css/office-corporate.css', import.meta.url), 'utf8');
+const operationCss = readFileSync(new URL('../../resources/css/office-operation-now.css', import.meta.url), 'utf8');
 
 function luminance(hex) {
     const channels = [1, 3, 5]
@@ -50,4 +51,43 @@ test('los temas claro y oscuro mantienen contraste AA en contenido y selección'
         assert.ok(contrast(variables['warning-text'], variables['warning-bg']) >= 4.5);
         assert.ok(contrast(variables['success-text'], variables['surface-muted']) >= 4.5);
     });
+});
+
+test('Operación ahora mantiene contraste con filas alternas y superficies de cada estado', () => {
+    function colorProperty(selector, property, variables) {
+        const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const block = operationCss.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))?.[1];
+        assert.ok(block, `Regla ausente: ${selector}`);
+        const value = block.match(new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`))?.[1].trim();
+        assert.ok(value, `${selector}: ${property}`);
+        const variable = value.match(/^var\(--([\w-]+)\)$/)?.[1];
+        const color = variable ? variables[variable] : value;
+        assert.match(color, /^#[\da-f]{3}(?:[\da-f]{3})?$/i);
+        return color.length === 4 ? `#${[...color.slice(1)].map((c) => c + c).join('')}` : color;
+    }
+
+    for (const theme of ['light-professional', 'dark-industrial']) {
+        const variables = themeVariables(`:root[data-office-theme="${theme}"]`);
+        const scope = operationCss.match(/\.operation-now\s*\{([^}]+)\}/)[1];
+        for (const [, name, reference] of scope.matchAll(/--([\w-]+):\s*var\(--([\w-]+)\)/g)) {
+            variables[name] = variables[reference];
+        }
+        const surfaces = ['.operation-now', '.operation-now-syncbar', '.operation-now-syncbar__metrics div',
+            '.operation-now-tunnel', '.operation-now-tunnel:nth-child(even)',
+            '.operation-now-operator', '.operation-now-operator:nth-child(even)',
+            '.operation-now-alert-list', '.operation-now-alert:nth-child(even)', '.operation-now-facility',
+            ...['success', 'warning', 'critical', 'info'].map((tone) => `.operation-now-facility__cell[data-tone="${tone}"]`)];
+        for (const selector of surfaces) {
+            const background = colorProperty(selector, 'background', variables);
+            for (const text of ['text-strong', 'text-subtle']) {
+                assert.ok(contrast(variables[text], background) >= 4.5, `${theme}: ${text} sobre ${selector}`);
+            }
+        }
+        for (const tone of ['success', 'warning', 'critical', 'info']) {
+            const foreground = colorProperty(`.operation-now-signal[data-tone="${tone}"]`, 'color', variables);
+            for (const background of ['corporate-card', 'row-alt']) {
+                assert.ok(contrast(foreground, variables[background]) >= 4.5, `${theme}: señal ${tone} sobre ${background}`);
+            }
+        }
+    }
 });
