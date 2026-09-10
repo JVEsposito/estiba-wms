@@ -24,7 +24,8 @@ class ServicioReservaFifoMaterial
         float $cantidadRequerida,
         Closure $registrarReserva,
         ?array $categoriasOperacionales = null,
-    ): float {
+    ): float
+    {
         $pendiente = round($cantidadRequerida, 3);
         $ordenFifo = 1;
 

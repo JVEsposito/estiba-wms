@@ -34,7 +34,8 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
         float $cantidadRequerida,
         Closure $registrarReserva,
         ?array $categoriasOperacionales = null,
-    ): float {
+    ): float
+    {
         $pendiente = round($cantidadRequerida, 3);
         $ordenFifo = 1;
 
@@ -86,7 +87,8 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
     private function siguienteDisponibleBloqueado(
         string $itemMaterialId,
         ?array $categoriasOperacionales,
-    ): ?SaldoMaterialAlmacen {
+    ): ?SaldoMaterialAlmacen
+    {
         while (true) {
             $candidato = $this->consultaCandidatos(
                 $itemMaterialId,
@@ -190,7 +192,8 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
         SaldoMaterialAlmacen $saldo,
         FolioMaterial $folio,
         ?array $categoriasOperacionales,
-    ): bool {
+    ): bool
+    {
         $categorias = $this->normalizarCategorias($categoriasOperacionales);
 
         return $saldo->almacen?->codigo === AlmacenMaterial::CODIGO_BODEGA_CENTRAL
