@@ -8,6 +8,39 @@ export type ManeuverStepType =
   | 'retorno_banda'
   | 'entrega_anden';
 
+export type OperationalManeuverStep = {
+  id: string;
+  secuencia: number;
+  estado: OperationalTaskState;
+  tipo_movimiento: MovementType;
+  tipo_paso: ManeuverStepType | null;
+  folio: {
+    id: string;
+    numero_folio: string;
+  } | null;
+  origen: OperationalTaskEndpoint;
+  destino: OperationalTaskEndpoint;
+  destino_logico: {
+    tipo: 'anden';
+    id: string;
+    nombre: string;
+    carga_folio_id: string | null;
+    presencia_carga_anden_id: string | null;
+  } | null;
+  instruccion: string | null;
+};
+
+export type OperationalTemporaryCustody = {
+  id: string;
+  estado: 'activa';
+  folio: {
+    id: string;
+    numero_folio: string;
+  } | null;
+  origen: OperationalTaskEndpoint;
+  extraido_at: string | null;
+};
+
 export type OperationalTaskEndpoint = {
   camara: {
     id: string;
@@ -57,6 +90,8 @@ export type OperationalTask = {
     riesgo_operacional: number;
     version: number;
     custodia_temporal_activa: boolean;
+    pasos: OperationalManeuverStep[];
+    custodias_temporales: OperationalTemporaryCustody[];
   } | null;
   secuencia_maniobra: number | null;
   tipo_paso_maniobra: ManeuverStepType | null;

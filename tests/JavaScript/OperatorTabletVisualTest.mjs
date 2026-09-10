@@ -22,6 +22,14 @@ const inbox = await readFile(
     new URL('../../mobile/src/components/OperationalTaskInbox.tsx', import.meta.url),
     'utf8',
 );
+const home = await readFile(
+    new URL('../../mobile/src/components/operator/OperatorTaskHome.tsx', import.meta.url),
+    'utf8',
+);
+const execution = await readFile(
+    new URL('../../mobile/src/components/operator/OperatorTaskExecution.tsx', import.meta.url),
+    'utf8',
+);
 
 function luminance(hex) {
     const channels = hex.slice(1).match(/../g).map((channel) => parseInt(channel, 16) / 255);
@@ -67,16 +75,19 @@ test('la base visual expone cabecera, estados, rutas y folios reutilizables', ()
     assert.match(primitives, /export function OperatorEntityCode/);
     assert.match(primitives, /export function OperatorRouteLine/);
     assert.match(workspace, /<OperatorHeader/);
-    assert.match(inbox, /<OperatorPriorityBadge/);
-    assert.match(inbox, /<OperatorRouteLine/);
-    assert.match(inbox, /<OperatorEntityCode/);
+    assert.match(inbox, /<OperatorTaskHome/);
+    assert.match(inbox, /<OperatorTaskExecution/);
+    assert.match(home, /<OperatorPriorityBadge/);
+    assert.match(home, /<OperatorRouteLine/);
+    assert.match(execution, /<OperatorEntityCode/);
 });
 
 test('la bandeja responde a anchos compactos y mantiene controles táctiles', () => {
     assert.match(theme, /minimum: t\.density\.touch\.control/);
     assert.match(theme, /prominent: 64/);
-    assert.match(inbox, /width < o\.breakpoint\.compact/);
-    assert.match(inbox, /workspaceCompact/);
-    assert.match(inbox, /minHeight: o\.touch\.minimum/);
-    assert.doesNotMatch(inbox, /fontSize:\s*[0-9]\b/);
+    assert.match(home, /width < o\.breakpoint\.compact/);
+    assert.match(execution, /width < o\.breakpoint\.compact/);
+    assert.match(home, /minHeight: o\.touch\.minimum/);
+    assert.match(execution, /minHeight: o\.touch\.minimum/);
+    assert.doesNotMatch(home, /fontSize:\s*[0-9]\b/);
 });
