@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthSession } from '../domain/estiba';
 import { EstibaApi } from '../services/estibaApi';
 import { getEnvironmentalControlState } from '../services/environmentalControlApi';
-import { estibaTokens as t } from '../theme/estibaTokens';
+import { OperatorHeader } from '../components/operator/OperatorHeader';
+import { operatorTheme as o } from '../theme/operatorTheme';
 import { OperationalTaskInbox } from '../components/OperationalTaskInbox';
 import { EnvironmentalControlScreen } from './EnvironmentalControlScreen';
 import { OperationalScreen } from './OperationalScreen';
@@ -53,7 +54,14 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.switcher}>
+      <OperatorHeader
+        connected={api.mode === 'connected'}
+        deviceName={auth.dispositivo.nombre}
+        modeLabel={api.mode === 'connected' ? 'Modo conectado' : api.mode === 'demo' ? 'Modo demostración' : 'Sin configurar'}
+        role={auth.usuario.rol}
+        userName={auth.usuario.nombre}
+      />
+      <View style={styles.navigation}>
         <View style={styles.switcherCopy}>
           <Text style={styles.eyebrow}>FRIGORÍFICO · CAMARERO</Text>
           <Text style={styles.switcherTitle}>
@@ -125,14 +133,14 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: t.color.canvas },
-  switcher: {
-    minHeight: 72,
+  screen: { flex: 1, backgroundColor: o.color.canvas },
+  navigation: {
+    minHeight: 76,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#617885',
-    backgroundColor: t.color.navy,
+    borderBottomColor: o.color.border,
+    backgroundColor: o.color.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -140,40 +148,40 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   switcherCopy: { flexShrink: 1 },
-  eyebrow: { color: '#D0DEE6', fontSize: 12, fontWeight: '700', letterSpacing: 1.2 },
-  switcherTitle: { color: t.color.onNavy, fontSize: 18, fontWeight: '700', marginTop: 2 },
+  eyebrow: { color: o.color.muted, fontSize: o.type.caption, fontWeight: '800', letterSpacing: 1.2 },
+  switcherTitle: { color: o.color.text, fontSize: o.type.heading, fontWeight: '800', marginTop: 2 },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   button: {
-    minHeight: 56,
+    minHeight: o.touch.minimum,
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: t.radius.control,
+    borderRadius: o.radius.control,
     borderWidth: 1,
-    borderColor: '#9DB2BE',
-    backgroundColor: t.color.navy,
+    borderColor: o.color.borderStrong,
+    backgroundColor: o.color.surface,
   },
-  buttonActive: { borderColor: t.color.onNavy, backgroundColor: '#2B4A5A', borderLeftWidth: 4 },
-  buttonText: { color: '#D0DEE6', fontSize: 14, fontWeight: '600' },
-  buttonTextActive: { color: t.color.onNavy },
-  logout: { minHeight: 56, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: t.radius.control, borderWidth: 1, borderColor: '#D0DEE6' },
-  logoutText: { color: t.color.onNavy, fontSize: 14, fontWeight: '600' },
+  buttonActive: { borderColor: o.color.primary, backgroundColor: o.color.selected, borderLeftWidth: 4 },
+  buttonText: { color: o.color.muted, fontSize: o.type.small, fontWeight: '700' },
+  buttonTextActive: { color: o.color.primaryPressed },
+  logout: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical },
+  logoutText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '800' },
   environmentalPrompt: {
     minHeight: 56,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: t.signal.critical.border,
+    borderBottomColor: o.color.critical,
     borderLeftWidth: 6,
-    borderLeftColor: t.signal.critical.text,
-    backgroundColor: t.signal.critical.surface,
+    borderLeftColor: o.color.critical,
+    backgroundColor: o.color.criticalSurface,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
-  environmentalPromptTitle: { color: t.signal.critical.text, fontSize: 16, fontWeight: '700' },
-  environmentalPromptAction: { color: t.signal.critical.text, fontSize: 16, fontWeight: '700' },
+  environmentalPromptTitle: { color: o.color.critical, fontSize: o.type.body, fontWeight: '800' },
+  environmentalPromptAction: { color: o.color.critical, fontSize: o.type.body, fontWeight: '800' },
   content: { flex: 1, minHeight: 0 },
 });
