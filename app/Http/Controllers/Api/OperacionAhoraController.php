@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\Operacion\ServicioOperacionAhora;
 use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Gate;
 
 class OperacionAhoraController extends Controller
 {
@@ -14,7 +15,10 @@ class OperacionAhoraController extends Controller
         ServicioTemporadaActiva $temporadas,
     ): JsonResponse {
         return response()
-            ->json(['data' => $servicio->obtener($temporadas->obtener())])
+            ->json(['data' => $servicio->obtener(
+                $temporadas->obtener(),
+                Gate::allows('administrar-plano-planta'),
+            )])
             ->header('Cache-Control', 'no-store, private');
     }
 }

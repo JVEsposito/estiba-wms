@@ -373,6 +373,11 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeConsultarPanelGerencial($usuario),
         );
         Gate::define(
+            'administrar-plano-planta',
+            fn (User $usuario): bool => $usuario->activo
+                && $usuario->rol === RolUsuario::Administrador,
+        );
+        Gate::define(
             'consultar-romana',
             fn (User $usuario): bool => $alcance->puedeConsultarRomana($usuario),
         );

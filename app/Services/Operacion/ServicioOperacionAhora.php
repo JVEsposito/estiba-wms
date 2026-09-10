@@ -34,13 +34,18 @@ use Illuminate\Support\Collection;
 
 class ServicioOperacionAhora
 {
+    public function __construct(private readonly ServicioPlanoPlanta $planos) {}
+
     /**
      * @return array<string, mixed>
      */
-    public function obtener(Temporada $temporada): array
+    public function obtener(Temporada $temporada, bool $puedeEditarPlano = false): array
     {
         $ahora = CarbonImmutable::now();
         $horaOperacional = $ahora->setTimezone(config('app.operational_timezone'));
+
+        $camaras = $this->camaras($ahora);
+        $prefrio = $this->prefrio($temporada, $ahora);
 
         return [
             'generado_at' => $ahora->toAtomString(),
@@ -58,9 +63,14 @@ class ServicioOperacionAhora
             ],
             'sincronizacion' => $this->sincronizacion($ahora, $horaOperacional),
             'camareros' => $this->camareros($temporada),
-            'prefrio' => $this->prefrio($temporada, $ahora),
+            'prefrio' => $prefrio,
             'incidencias' => $this->incidencias($temporada, $ahora),
-            'camaras' => $this->camaras($ahora),
+            'camaras' => $camaras,
+            'planta' => $this->planos->obtener(
+                $camaras,
+                $prefrio['tuneles'],
+                $puedeEditarPlano,
+            ),
         ];
     }
 

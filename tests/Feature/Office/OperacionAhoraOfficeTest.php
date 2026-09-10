@@ -6,13 +6,17 @@ use Tests\TestCase;
 
 class OperacionAhoraOfficeTest extends TestCase
 {
-    public function test_publica_el_centro_de_control_operacional_sin_acciones_de_negocio(): void
+    public function test_publica_el_centro_de_control_con_editor_administrativo_del_plano(): void
     {
         $this->get('/oficina/operacion-ahora')
             ->assertOk()
             ->assertSee('Operación ahora')
             ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
             ->assertSee('Vista operacional de recintos')
+            ->assertSee('Editar plano')
+            ->assertSee('Plano físico y estado en vivo de la planta')
+            ->assertSee('operationMapDialog', false)
+            ->assertSee('operationEditorStage', false)
             ->assertSee('Camareros activos')
             ->assertSee('Prefrío')
             ->assertSee('Estado, progreso y producto')
@@ -32,7 +36,7 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('class="operation-now-syncbar__metrics"', false)
             ->assertSee('data-active-office="operacion-ahora"', false)
             ->assertDontSee('class="operation-now-metrics"', false)
-            ->assertDontSee('<form', false);
+            ->assertSee('id="operationMapZoneForm"', false);
     }
 
     public function test_navegacion_y_resumen_exponen_operacion_ahora_con_permiso_gerencial(): void
@@ -59,13 +63,15 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('validateSnapshot', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
+        $this->assertStringContainsString("api('/api/administracion/operacion-ahora/plano'", $script);
+        $this->assertStringContainsString('resizeElement', $script);
         $this->assertStringContainsString('buildOperationalAlerts', $script);
         $this->assertStringContainsString('proceso_activo', $script);
         $this->assertStringContainsString('process?.productos', $script);
         $this->assertStringContainsString('tunnelProgress', $script);
         $this->assertStringContainsString('pauseWhenHidden', file_get_contents(resource_path('js/shared/operational-poller.js')));
         $this->assertStringNotContainsString("method: 'POST'", $script);
-        $this->assertStringNotContainsString("method: 'PUT'", $script);
+        $this->assertStringContainsString("method: 'PUT'", $script);
     }
 
     public function test_conserva_densidad_operacional_y_respuesta_tactil_sin_decoracion_generica(): void
@@ -81,7 +87,7 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('operation-now-facility__grid', $styles);
         $this->assertStringContainsString('grid-template-columns: repeat(12, minmax(0, 1fr))', $styles);
         $this->assertStringContainsString('max-height: 196px', $styles);
-        $this->assertStringNotContainsString('linear-gradient', $styles);
+        $this->assertStringContainsString('repeating-linear-gradient', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
 
