@@ -50,6 +50,7 @@
 .discrepancy-card__audit p { margin: 0; }
 .discrepancy-card__audit small { color: var(--eui-color-muted); }
 .discrepancies-empty { text-align: center; }
+.discrepancies-empty .eui-empty__description { margin-inline: auto; }
 .discrepancies-pagination { justify-content: center; margin-top: 16px; }
 
 @media (max-width: 900px) {

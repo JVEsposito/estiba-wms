@@ -23,7 +23,7 @@ body {
 
 .raw-material-topbar { position: sticky; z-index: 20; top: 0; }
 .raw-material-topbar nav a { padding-inline: 11px; }
-.raw-material-workspace { min-width: 1120px; padding: 26px; }
+.raw-material-workspace { min-width: 0; padding: 26px; }
 .raw-material-heading,
 .raw-material-panel-heading,
 .raw-material-dialog__heading,
@@ -93,9 +93,9 @@ body {
 .raw-material-kpis strong { display: block; margin: 13px 0 5px; font-size: 2.25rem; line-height: 1; }
 .raw-material-kpis small { color: var(--muted); font-size: .68rem; }
 
-.raw-material-grid { display: grid; grid-template-columns: minmax(330px, .72fr) minmax(740px, 1.65fr); gap: 14px; align-items: start; }
+.raw-material-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.65fr); gap: 14px; align-items: start; }
 .raw-material-pending,
-.raw-material-lots { overflow: hidden; }
+.raw-material-lots { min-width: 0; overflow: hidden; }
 .raw-material-panel-heading { align-items: flex-end; min-height: 88px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
 .raw-material-panel-heading h2 { margin: 0; font-size: 1.25rem; }
 
@@ -173,12 +173,19 @@ body {
 .operation-fields .field { display: grid; gap: 7px; }
 
 @media (max-width: 1250px) {
-    .raw-material-grid { grid-template-columns: 340px minmax(720px, 1fr); }
+    .raw-material-grid { grid-template-columns: 1fr; }
     .raw-material-form-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 850px) {
-    .raw-material-workspace { min-width: 1050px; }
+    .raw-material-module-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .raw-material-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .raw-material-form-grid { grid-template-columns: repeat(2, 1fr); }
     .lot-source-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+    .raw-material-heading { align-items: stretch; flex-direction: column; }
+    .raw-material-module-links, .lot-filters { grid-template-columns: 1fr; }
+    .lot-filters { width: 100%; }
 }

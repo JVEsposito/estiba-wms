@@ -34,7 +34,7 @@ body {
     gap: 12px;
     margin-bottom: 15px;
 }
-.process-section-tabs { display: flex; gap: 8px; margin: 0 0 15px; }
+.process-section-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 15px; }
 .process-section-tabs button { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--deep); color: var(--muted); padding: 0 17px; font-weight: 900; }
 .process-section-tabs button.is-active { border-color: var(--process-green); background: rgba(98, 224, 173, .12); color: var(--process-green); }
 .process-kpis article {

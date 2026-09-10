@@ -3,6 +3,7 @@
 /* Shell corporativo compartido. Mantiene intactos los contratos de navegación y permisos. */
 .office-app:has(> [data-office-shell]) {
     --office-sidebar-width: 194px;
+    --office-brand-width: 194px;
     --office-header-height: 62px;
     padding-inline-start: var(--office-sidebar-width);
 }
@@ -23,7 +24,7 @@
 
 .estiba-office-header {
     display: grid;
-    grid-template-columns: var(--office-sidebar-width) minmax(190px, 245px) minmax(210px, 1fr) minmax(200px, 235px) auto;
+    grid-template-columns: var(--office-brand-width) minmax(190px, 245px) minmax(272px, 1fr) minmax(200px, 235px) auto;
     align-items: stretch;
     min-height: var(--office-header-height);
     background: #102f43;
@@ -333,18 +334,12 @@
 
 @media (min-width: 1200px) {
     .office-app:has(> .estiba-office-shell[data-menu-collapsed]) { --office-sidebar-width: 0px; }
-    .estiba-office-shell[data-menu-collapsed] .estiba-office-header {
-        grid-template-columns: 142px minmax(190px, 245px) minmax(210px, 1fr) minmax(200px, 235px) auto;
-    }
     .estiba-office-shell[data-menu-collapsed] .estiba-office-sidebar { display: none; }
 }
 
 @media (min-width: 1200px) and (max-width: 1399px) {
     .estiba-office-header {
-        grid-template-columns: var(--office-sidebar-width) minmax(175px, 210px) minmax(160px, 1fr) minmax(175px, 205px) auto;
-    }
-    .estiba-office-shell[data-menu-collapsed] .estiba-office-header {
-        grid-template-columns: 142px minmax(175px, 210px) minmax(160px, 1fr) minmax(175px, 205px) auto;
+        grid-template-columns: var(--office-brand-width) minmax(175px, 210px) minmax(242px, 1fr) minmax(175px, 205px) auto;
     }
     .estiba-office-context > span { min-width: 105px; padding-inline: 11px; }
     .estiba-office-user { display: none; }
