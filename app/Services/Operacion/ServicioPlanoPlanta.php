@@ -65,6 +65,7 @@ class ServicioPlanoPlanta
 
             if ($plano) {
                 $plano->update($atributos);
+
                 return $plano->refresh();
             }
 
@@ -110,10 +111,16 @@ class ServicioPlanoPlanta
         }
 
         foreach ($elementos as $indice => $elemento) {
+            $categoriaValida = in_array(
+                $elemento['categoria'] ?? 'otro',
+                ['packing', 'bodega', 'pasillo', 'patio', 'oficina', 'muelle', 'otro'],
+                true,
+            );
+
             if ($elemento['x'] + $elemento['ancho'] > 10000 || $elemento['y'] + $elemento['alto'] > 10000) {
                 $errores["elementos.$indice"][] = 'El elemento debe quedar completamente dentro de los límites del plano.';
             }
-            if ($elemento['tipo'] === 'zona' && ! in_array($elemento['categoria'] ?? 'otro', ['packing', 'bodega', 'pasillo', 'patio', 'oficina', 'muelle', 'otro'], true)) {
+            if ($elemento['tipo'] === 'zona' && $categoriaValida === false) {
                 $errores["elementos.$indice.categoria"][] = 'La categoría de la zona no es válida.';
             }
             if ($elemento['tipo'] === 'zona' && $elemento['referencia_id'] !== null) {
@@ -162,6 +169,7 @@ class ServicioPlanoPlanta
             ->get()
             ->map(function (Anden $anden): array {
                 $presencia = $anden->presenciaActiva;
+
                 return [
                     'tipo' => 'anden',
                     'id' => $anden->id,
