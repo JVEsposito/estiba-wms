@@ -4,6 +4,7 @@ import {
     autoLayout,
     availableCatalog,
     moveElement,
+    reconcilePlantSnapshot,
     resizeElement,
 } from '../../resources/js/shared/plant-layout.js';
 
@@ -47,4 +48,15 @@ test('el catálogo disponible excluye recintos ya dibujados', () => {
     const placed = [{ tipo: 'camara', referencia_id: 'c1' }];
 
     assert.deepEqual(availableCatalog(catalog, placed), [{ tipo: 'anden', id: 'a1' }]);
+});
+
+test('una lectura iniciada antes del guardado no reemplaza el plano confirmado', () => {
+    const current = { planta: { configurado: true, version: 2 }, generado_at: 'nuevo' };
+    const stale = { planta: { configurado: false, version: 0 }, generado_at: 'anterior' };
+
+    assert.deepEqual(reconcilePlantSnapshot(stale, current, 0, 1), {
+        ...stale,
+        planta: current.planta,
+    });
+    assert.equal(reconcilePlantSnapshot(stale, current, 1, 1), stale);
 });
