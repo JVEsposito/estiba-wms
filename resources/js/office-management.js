@@ -474,7 +474,7 @@ function renderLoads(loads) {
 
     elements.loadList.innerHTML = loads.detalle?.length
         ? loads.detalle.map((load) => `
-            <a class="management-operation-row" href="/oficina/cargas">
+            <a class="management-operation-row" href="/oficina/frigorifico/despacho/estatus">
                 <div>
                     <strong>${escapeHtml(load.codigo)}</strong>
                     <span>${escapeHtml(load.orden_embarque || 'Sin orden externa')} · ${escapeHtml(humanize(load.estado))}</span>

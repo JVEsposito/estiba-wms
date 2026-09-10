@@ -26,8 +26,9 @@
             ['key' => 'prefrio', 'module' => 'frigorifico.prefrio', 'label' => 'Prefrío', 'href' => '/oficina/prefrio', 'permissions' => ['puede_consultar_prefrio']],
             ['key' => 'camaras', 'module' => 'frigorifico.camaras', 'label' => 'Cámaras', 'href' => '/oficina/frigorifico/camaras', 'permissions' => ['ambito_camaras_productos']],
             ['key' => 'discrepancias', 'module' => 'frigorifico.camaras', 'label' => 'Discrepancias', 'href' => '/oficina/frigorifico/discrepancias', 'permissions' => ['puede_supervisar']],
-            ['key' => 'embarques', 'module' => 'frigorifico.cargas', 'label' => 'Calendario de embarques', 'href' => '/oficina/frigorifico/calendario-embarques', 'permissions' => ['puede_consultar_catalogo_cargas']],
-            ['key' => 'cargas', 'module' => 'frigorifico.cargas', 'label' => 'Cargas & Despachos', 'href' => '/oficina/cargas', 'permissions' => ['puede_consultar_cargas']],
+            ['key' => 'cargas', 'module' => 'frigorifico.cargas', 'section' => 'Despacho', 'label' => 'Cargas', 'href' => '/oficina/frigorifico/despacho/cargas', 'permissions' => ['puede_consultar_catalogo_cargas']],
+            ['key' => 'despacho-estatus', 'module' => 'frigorifico.cargas', 'section' => 'Despacho', 'label' => 'Estatus operativo', 'href' => '/oficina/frigorifico/despacho/estatus', 'permissions' => ['puede_consultar_cargas']],
+            ['key' => 'embarques', 'module' => 'frigorifico.cargas', 'section' => 'Despacho', 'label' => 'Calendario de embarques', 'href' => '/oficina/frigorifico/despacho/calendario', 'permissions' => ['puede_consultar_catalogo_cargas']],
             ['key' => 'existencias-pt', 'module' => 'frigorifico.cargas', 'label' => 'Existencias PT', 'href' => '/oficina/frigorifico/existencias', 'permissions' => ['puede_consultar_cargas']],
         ],
         'materiales' => [
@@ -145,9 +146,19 @@
         </nav>
         <nav class="estiba-office-offices" aria-label="Oficinas de {{ $activeDomain['label'] }}" @if ($office === 'operacion-ahora') hidden @endif>
             <p class="estiba-office-nav-label">{{ $activeDomain['label'] }}</p>
+            @php($currentSection = null)
             @foreach ($activeOffices as $definition)
                 @continue($definition['key'] === 'operacion-ahora')
-                <a class="{{ $office === $definition['key'] ? 'is-active' : '' }}"
+                @if (($definition['section'] ?? null) !== $currentSection)
+                    @php($currentSection = $definition['section'] ?? null)
+                    @if ($currentSection)
+                        <p class="estiba-office-subgroup">{{ $currentSection }}</p>
+                    @endif
+                @endif
+                <a @class([
+                        'is-active' => $office === $definition['key'],
+                        'is-subgroup-item' => isset($definition['section']),
+                    ])
                     data-office-key="{{ $definition['key'] }}"
                     data-office-domain="{{ $domain }}"
                     data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
@@ -167,7 +178,7 @@
         <a id="officeRomanaNav" href="/oficina/romana" tabindex="-1"></a>
         <a id="officeRawMaterialNav" href="/oficina/materia-prima" tabindex="-1"></a>
         <a id="officeCamerasNav" href="/oficina/frigorifico/camaras" tabindex="-1"></a>
-        <a id="officeLoadsNav" href="/oficina/cargas" tabindex="-1"></a>
+        <a id="officeLoadsNav" href="/oficina/frigorifico/despacho/cargas" tabindex="-1"></a>
         <a id="officeMaterialsNav" href="/oficina/materiales" tabindex="-1"></a>
         <a id="officePrefrioNav" href="/oficina/prefrio" tabindex="-1"></a>
         <a id="officeAccessesNav" href="/oficina/accesos" tabindex="-1"></a>

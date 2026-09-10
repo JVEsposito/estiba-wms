@@ -166,7 +166,7 @@
                         <strong>ACCESOS RÁPIDOS</strong>
                         <a href="/oficina/frigorifico/camaras"><span>Cámaras</span><small>Ocupación y posiciones</small><b aria-hidden="true">→</b></a>
                         <a href="/oficina/prefrio"><span>Prefrío</span><small>Procesos y túneles</small><b aria-hidden="true">→</b></a>
-                        <a href="/oficina/cargas"><span>Cargas</span><small>Despachos vigentes</small><b aria-hidden="true">→</b></a>
+                        <a href="/oficina/frigorifico/despacho/estatus"><span>Estatus de despacho</span><small>Cargas vigentes</small><b aria-hidden="true">→</b></a>
                         <a href="/oficina/frigorifico/discrepancias"><span>Incidencias</span><small>Supervisión operativa</small><b aria-hidden="true">→</b></a>
                     </nav>
                 </div>

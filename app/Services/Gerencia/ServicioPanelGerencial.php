@@ -929,7 +929,7 @@ class ServicioPanelGerencial
                 'titulo' => 'Folios con incidencia de despacho',
                 'detalle' => "{$cargas['folios_con_incidencia']} folio(s) frenan o condicionan cargas activas.",
                 'metrica' => $cargas['folios_con_incidencia'],
-                'href' => '/oficina/cargas',
+                'href' => '/oficina/frigorifico/despacho/estatus',
             ]);
         }
 

@@ -16,7 +16,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertSee('Fruta a Proceso')
             ->assertSee('Cuenta Envases')
             ->assertSee('Despacho Envases')
-            ->assertDontSee('Cargas &amp; Despachos', false);
+            ->assertDontSee('data-office-key="despacho-estatus"', false);
     }
 
     public function test_frigorifico_muestra_sus_oficinas_y_no_la_configuracion_administrativa(): void
@@ -27,7 +27,8 @@ class NavegacionOficinasPorDominioTest extends TestCase
             ->assertSee('Validación')
             ->assertDontSee('Catálogos PT')
             ->assertSee('Prefrío')
-            ->assertSee('Cargas &amp; Despachos', false)
+            ->assertSee('Estatus operativo')
+            ->assertSee('Calendario de embarques')
             ->assertSee('data-navigation-permissions="ambito_camaras_productos"', false)
             ->assertDontSee('Configuración de cámaras');
     }
@@ -85,7 +86,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
 
     public function test_cada_macromodulo_publica_sus_destinos_y_no_un_enlace_fijo_inaccesible(): void
     {
-        $this->get('/oficina/cargas')
+        $this->get('/oficina/frigorifico/despacho/cargas')
             ->assertOk()
             ->assertSee('data-navigation-targets=', false)
             ->assertSee('&quot;href&quot;:&quot;/oficina/romana&quot;', false)

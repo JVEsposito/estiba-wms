@@ -52,7 +52,7 @@ class OfficePanelSwitcherTest extends TestCase
     public function test_sequential_workflows_remain_visible_without_a_panel_switcher(): void
     {
         foreach ([
-            '/oficina/cargas',
+            '/oficina/frigorifico/despacho/cargas',
             '/oficina/romana',
             '/oficina/materiales/recepcion',
         ] as $route) {

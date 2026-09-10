@@ -24,7 +24,7 @@ class InterfazOficinaValidacionTest extends TestCase
             ->assertDontSee('importPreview', false)
             ->assertSee('data-active-domain="frigorifico"', false)
             ->assertSee('/oficina/frigorifico/camaras', false)
-            ->assertSee('/oficina/cargas', false)
+            ->assertSee('/oficina/frigorifico/despacho/cargas', false)
             ->assertSee('aria-live="assertive"', false);
     }
 

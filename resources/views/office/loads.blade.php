@@ -16,7 +16,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand loads-access-brand">
                 <div class="office-logo" aria-hidden="true">⇥</div>
-                <p class="eyebrow">ESTIBA WMS · DESPACHO</p>
+                <p class="eyebrow">ESTIBA WMS · DESPACHO · CARGAS</p>
                 <h1 id="officeAccessTitle">Prepara la carga antes de mover un solo pallet.</h1>
                 <p>Asigna folios, define prioridades y publica órdenes para que la operación trabaje con una referencia única y trazable.</p>
                 <div class="feature-row">

@@ -61,7 +61,7 @@ class CatalogoModulosAcceso
                     $this->modulo('frigorifico.inspeccion-sag', 'Inspección SAG', 'Muestreos, inspecciones, fumigaciones y cambios de mercado.'),
                     $this->modulo('frigorifico.prefrio', 'Prefrío', 'Túneles, procesos y verificaciones de prefrío.'),
                     $this->modulo('frigorifico.camaras', 'Cámaras PT', 'Plano, movimientos y sesiones de producto terminado.'),
-                    $this->modulo('frigorifico.cargas', 'Cargas y despachos', 'Órdenes, separación, andenes e incidencias.'),
+                    $this->modulo('frigorifico.cargas', 'Despacho', 'Cargas, estatus operativo y calendario de embarques.'),
                 ],
             ],
             [
