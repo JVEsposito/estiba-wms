@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
@@ -31,7 +32,13 @@ import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { ApiError } from '../services/apiError';
 import { EstibaApi } from '../services/estibaApi';
 import { OperationalTasksApi } from '../services/operationalTasksApi';
-import { colors } from '../theme/colors';
+import {
+  OperatorEntityCode,
+  OperatorPriorityBadge,
+  OperatorRouteLine,
+  OperatorStatusBadge,
+} from './operator/OperatorPrimitives';
+import { operatorTheme as o } from '../theme/operatorTheme';
 
 type Props = {
   api: EstibaApi;
@@ -54,6 +61,8 @@ type MovementWarning = {
 };
 
 export function OperationalTaskInbox({ api, auth }: Props) {
+  const { width } = useWindowDimensions();
+  const compact = width < o.breakpoint.compact;
   const taskApi = useMemo(
     () => api.mode === 'connected' && api.baseUrl ? new OperationalTasksApi(api.baseUrl) : null,
     [api.baseUrl, api.mode],
@@ -729,8 +738,11 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         </Pressable>
       </View>
 
-      <View style={styles.workspace}>
-        <ScrollView contentContainerStyle={styles.list} style={styles.listScroll}>
+      <View style={[styles.workspace, compact && styles.workspaceCompact]}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          style={[styles.listScroll, compact && styles.listScrollCompact]}
+        >
           {visibleTasks.length ? visibleTasks.map((task) => (
             <TaskCard
               active={activeTask?.id === task.id}
@@ -755,7 +767,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           )}
         </ScrollView>
 
-        <View style={styles.executionPanel}>
+        <View style={[styles.executionPanel, compact && styles.executionPanelCompact]}>
           {activeTask ? (
             <>
               <View style={styles.executionHeader}>
@@ -767,12 +779,12 @@ export function OperationalTaskInbox({ api, auth }: Props) {
               </View>
 
               <View style={styles.routeCard}>
-                <RouteLine label="Folio" value={activeTask.folio.numero_folio} strong />
-                <RouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
-                <RouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
-                <RouteLine label="Motivo" value={taskReason(activeTask)} />
+                <OperatorRouteLine label="Folio" value={activeTask.folio.numero_folio} strong />
+                <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
+                <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
+                <OperatorRouteLine label="Motivo" value={taskReason(activeTask)} />
                 {activeTask.maniobra ? (
-                  <RouteLine
+                  <OperatorRouteLine
                     label="Maniobra"
                     value={`Paso ${activeTask.secuencia_maniobra ?? activeTask.maniobra.secuencia_actual} de ${activeTask.maniobra.pasos_totales}`}
                     strong
@@ -916,7 +928,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
 
       {busy ? (
         <View pointerEvents="none" style={styles.busyOverlay}>
-          <ActivityIndicator color={colors.cyan} size="large" />
+          <ActivityIndicator color={o.color.primary} size="large" />
           <Text style={styles.busyText}>Sincronizando estado operacional…</Text>
         </View>
       ) : null}
@@ -949,12 +961,17 @@ function TaskCard({
     <View style={[styles.taskCard, active && styles.taskCardActive]}>
       <View style={styles.taskTopline}>
         <Text style={styles.taskType}>{operationalTaskLabel(task.plan.tipo)}</Text>
-        <PriorityBadge priority={task.prioridad} />
+        <OperatorPriorityBadge priority={task.prioridad} />
       </View>
-      <Text style={styles.taskFolio}>{task.folio.numero_folio}</Text>
-      <Text style={styles.taskCommitment}>{commitment}</Text>
-      <Text style={styles.taskRoute}>Origen · {operationalTaskPositionLabel(task.origen)}</Text>
-      <Text style={styles.taskRoute}>Destino · {operationalTaskDestinationLabel(task)}</Text>
+      <View style={styles.taskFolio}><OperatorEntityCode prominent value={task.folio.numero_folio} /></View>
+      <View style={styles.taskCommitment}>
+        <OperatorStatusBadge
+          label={commitment}
+          tone={task.estado === 'en_proceso' ? 'critical' : task.reserva?.tipo_compromiso === 'fisica' ? 'success' : task.reserva ? 'info' : 'neutral'}
+        />
+      </View>
+      <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(task.origen)} />
+      <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(task)} strong />
       <Text numberOfLines={2} style={styles.taskInstruction}>{taskReason(task)}</Text>
       <View style={styles.taskFooter}>
         <Text style={styles.taskMeta}>Secuencia {task.secuencia}</Text>
@@ -980,38 +997,17 @@ function TaskCard({
   );
 }
 
-function PriorityBadge({ priority }: { priority: OperationalTask['prioridad'] }) {
-  const label = priority === 'critica'
-    ? 'CRÍTICA'
-    : priority === 'urgente'
-      ? 'URGENTE'
-      : priority === 'alta'
-        ? 'ALTA'
-        : 'NORMAL';
-  const style = priority === 'critica' || priority === 'urgente'
-    ? styles.priorityCritical
-    : priority === 'alta'
-      ? styles.priorityHigh
-      : styles.priorityNormal;
-
-  return <Text style={[styles.priorityBadge, style]}>{label}</Text>;
-}
-
 function CommitmentBadge({ task, seconds }: { task: OperationalTask; seconds: number | null }) {
   if (task.estado === 'en_proceso') {
-    return <Text style={[styles.reservation, styles.reservationHard]}>EN MOVIMIENTO · DESTINO FIJO</Text>;
+    return <OperatorStatusBadge label="EN MOVIMIENTO · DESTINO FIJO" tone="critical" />;
   }
   const expired = seconds !== null && seconds <= 0;
   const warning = seconds !== null && seconds > 0 && seconds < 180;
   const prefix = task.reserva?.tipo_compromiso === 'fisica' ? 'FÍSICA' : 'CLAIM';
-  return (
-    <Text style={[
-      styles.reservation,
-      expired ? styles.reservationExpired : warning ? styles.reservationWarning : styles.reservationActive,
-    ]}>
-      {expired ? `${prefix} VENCIDO` : `${prefix} ${seconds === null ? 'ACTIVO' : formatDuration(seconds)}`}
-    </Text>
-  );
+  return <OperatorStatusBadge
+    label={expired ? `${prefix} VENCIDO` : `${prefix} ${seconds === null ? 'ACTIVO' : formatDuration(seconds)}`}
+    tone={expired ? 'critical' : warning ? 'warning' : 'success'}
+  />;
 }
 
 function Step({
@@ -1036,15 +1032,6 @@ function Step({
         <Text style={styles.stepTitle}>{title}</Text>
         {children}
       </View>
-    </View>
-  );
-}
-
-function RouteLine({ label, strong = false, value }: { label: string; strong?: boolean; value: string }) {
-  return (
-    <View style={styles.routeLine}>
-      <Text style={styles.routeLabel}>{label}</Text>
-      <Text numberOfLines={2} style={[styles.routeValue, strong && styles.routeValueStrong]}>{value}</Text>
     </View>
   );
 }
@@ -1104,88 +1091,77 @@ function messageFrom(reason: unknown) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, padding: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  screen: { flex: 1, backgroundColor: o.color.canvas, padding: o.space[4] },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: o.space[3], marginBottom: o.space[3] },
   headerCopy: { flexShrink: 1 },
-  eyebrow: { color: colors.cyan, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '900', marginTop: 3 },
-  subtitle: { color: colors.muted, fontSize: 10, marginTop: 3 },
-  refreshButton: { borderWidth: 1, borderColor: colors.cyanDark, borderRadius: 9, paddingHorizontal: 13, paddingVertical: 8 },
-  refreshButtonText: { color: colors.cyan, fontWeight: '900', fontSize: 10 },
-  errorBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, padding: 10, borderRadius: 9, borderWidth: 1, borderColor: colors.red, backgroundColor: colors.blocked, marginBottom: 8 },
-  errorText: { color: colors.text, flex: 1, fontSize: 10, fontWeight: '700' },
-  noticeBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, padding: 10, borderRadius: 9, borderWidth: 1, borderColor: colors.greenDark, backgroundColor: colors.panel, marginBottom: 8 },
-  noticeText: { color: colors.green, flex: 1, fontSize: 10, fontWeight: '700' },
-  bannerClose: { color: colors.muted, fontWeight: '900' },
-  tabs: { flexDirection: 'row', gap: 7, marginBottom: 9 },
-  tab: { paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 9, backgroundColor: colors.panel },
-  tabActive: { borderColor: colors.cyanDark, backgroundColor: colors.selected },
-  tabText: { color: colors.muted, fontSize: 10, fontWeight: '900' },
-  tabTextActive: { color: colors.cyan },
-  workspace: { flex: 1, minHeight: 0, flexDirection: 'row', gap: 10 },
+  eyebrow: { color: o.color.primaryPressed, fontSize: o.type.caption, fontWeight: '900', letterSpacing: 1.1 },
+  title: { color: o.color.text, fontSize: o.type.title, fontWeight: '900', marginTop: 3 },
+  subtitle: { color: o.color.muted, fontSize: o.type.small, marginTop: 3 },
+  refreshButton: { minHeight: o.touch.minimum, justifyContent: 'center', borderWidth: 1, borderColor: o.color.primary, borderRadius: o.radius.control, paddingHorizontal: o.space[4], paddingVertical: o.space[2], backgroundColor: o.color.surface },
+  refreshButtonText: { color: o.color.primaryPressed, fontWeight: '900', fontSize: o.type.small },
+  errorBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderLeftWidth: 5, borderColor: o.color.critical, backgroundColor: o.color.criticalSurface, marginBottom: o.space[2] },
+  errorText: { color: o.color.critical, flex: 1, fontSize: o.type.small, fontWeight: '800' },
+  noticeBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderLeftWidth: 5, borderColor: o.color.success, backgroundColor: o.color.successSurface, marginBottom: o.space[2] },
+  noticeText: { color: o.color.success, flex: 1, fontSize: o.type.small, fontWeight: '800' },
+  bannerClose: { color: o.color.muted, fontSize: 20, fontWeight: '900' },
+  tabs: { flexDirection: 'row', gap: o.space[2], marginBottom: o.space[3] },
+  tab: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderWidth: 1, borderColor: o.color.borderStrong, borderRadius: o.radius.control, backgroundColor: o.color.surface },
+  tabActive: { borderColor: o.color.primary, backgroundColor: o.color.selected, borderBottomWidth: 4 },
+  tabText: { color: o.color.muted, fontSize: o.type.small, fontWeight: '900' },
+  tabTextActive: { color: o.color.primaryPressed },
+  workspace: { flex: 1, minHeight: 0, flexDirection: 'row', gap: o.space[3] },
+  workspaceCompact: { flexDirection: 'column' },
   listScroll: { flex: 0.42 },
-  list: { gap: 8, paddingBottom: 20 },
-  taskCard: { padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.panel },
-  taskCardActive: { borderColor: colors.cyan, backgroundColor: colors.selected },
-  taskTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  taskType: { color: colors.text, fontSize: 11, fontWeight: '900', flex: 1 },
-  taskFolio: { color: colors.cyan, fontSize: 19, fontWeight: '900', marginTop: 7 },
-  taskCommitment: { color: colors.amber, fontSize: 8, fontWeight: '900', marginTop: 3, letterSpacing: 0.7 },
-  taskRoute: { color: colors.muted, fontSize: 9, marginTop: 4 },
-  taskInstruction: { color: colors.text, fontSize: 9, lineHeight: 14, marginTop: 7 },
-  taskFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 10 },
-  taskMeta: { color: colors.muted, fontSize: 8 },
-  taskActions: { flexDirection: 'row', gap: 6 },
-  executeButton: { paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.cyan },
-  executeButtonText: { color: colors.accentText, fontSize: 9, fontWeight: '900' },
-  releaseSmall: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.red },
-  releaseSmallText: { color: colors.red, fontSize: 9, fontWeight: '900' },
-  priorityBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, overflow: 'hidden', fontSize: 7, fontWeight: '900' },
-  priorityCritical: { color: colors.red, backgroundColor: colors.blocked },
-  priorityHigh: { color: colors.amber, backgroundColor: colors.amberDark },
-  priorityNormal: { color: colors.cyan, backgroundColor: colors.selected },
-  executionPanel: { flex: 0.58, minWidth: 0, padding: 13, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
-  executionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  listScrollCompact: { flex: 0, maxHeight: 300 },
+  list: { gap: o.space[2], paddingBottom: o.space[6] },
+  taskCard: { padding: o.space[4], borderWidth: 1, borderColor: o.color.border, borderRadius: o.radius.panel, backgroundColor: o.color.surface, shadowColor: o.color.shadow, shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  taskCardActive: { borderColor: o.color.primary, borderLeftWidth: 6, backgroundColor: o.color.selected },
+  taskTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: o.space[2] },
+  taskType: { color: o.color.text, fontSize: o.type.body, fontWeight: '900', flex: 1 },
+  taskFolio: { marginTop: o.space[3] },
+  taskCommitment: { alignSelf: 'flex-start', marginVertical: o.space[2] },
+  taskInstruction: { color: o.color.text, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[2] },
+  taskFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: o.space[2], marginTop: o.space[3] },
+  taskMeta: { color: o.color.muted, fontSize: o.type.caption },
+  taskActions: { flexDirection: 'row', gap: o.space[2], flexWrap: 'wrap', justifyContent: 'flex-end' },
+  executeButton: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, backgroundColor: o.color.primary },
+  executeButtonText: { color: o.color.onPrimary, fontSize: o.type.small, fontWeight: '900' },
+  releaseSmall: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[3], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.surface },
+  releaseSmallText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
+  executionPanel: { flex: 0.58, minWidth: 0, padding: o.space[4], borderRadius: o.radius.panel, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surface, shadowColor: o.color.shadow, shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  executionPanelCompact: { flex: 1 },
+  executionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: o.space[2] },
   executionTitleWrap: { flex: 1 },
-  executionTitle: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 3 },
-  reservation: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, overflow: 'hidden', fontSize: 8, fontWeight: '900' },
-  reservationActive: { color: colors.green, backgroundColor: colors.greenDark },
-  reservationWarning: { color: colors.amber, backgroundColor: colors.amberDark },
-  reservationExpired: { color: colors.red, backgroundColor: colors.blocked },
-  reservationHard: { color: colors.text, backgroundColor: colors.red },
-  routeCard: { marginTop: 10, padding: 10, borderRadius: 10, backgroundColor: colors.panel, gap: 5 },
-  routeLine: { flexDirection: 'row', gap: 9 },
-  routeLabel: { color: colors.muted, width: 54, fontSize: 9, fontWeight: '800' },
-  routeValue: { color: colors.text, flex: 1, fontSize: 9 },
-  routeValueStrong: { color: colors.cyan, fontWeight: '900' },
-  step: { flexDirection: 'row', gap: 10, marginTop: 10, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel },
+  executionTitle: { color: o.color.text, fontSize: o.type.heading, fontWeight: '900', marginTop: 3 },
+  routeCard: { marginTop: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surfaceMuted, gap: o.space[1] },
+  step: { flexDirection: 'row', gap: o.space[3], marginTop: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surfaceMuted },
   stepDisabled: { opacity: 0.45 },
-  stepNumber: { width: 25, height: 25, borderRadius: 13, borderWidth: 1, borderColor: colors.cyanDark, alignItems: 'center', justifyContent: 'center' },
-  stepNumberComplete: { backgroundColor: colors.greenDark, borderColor: colors.green },
-  stepNumberText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
-  stepNumberTextComplete: { color: colors.green },
-  stepBody: { flex: 1, gap: 7 },
-  stepTitle: { color: colors.text, fontSize: 11, fontWeight: '900' },
-  secondaryButton: { alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.cyanDark },
-  secondaryButtonText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
-  primaryButton: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.cyan, alignItems: 'center' },
-  primaryButtonText: { color: colors.accentText, fontSize: 9, fontWeight: '900' },
-  releaseButton: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.red },
-  releaseButtonText: { color: colors.red, fontSize: 9, fontWeight: '900' },
-  mismatchButton: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.red },
-  mismatchButtonText: { color: colors.text, fontSize: 9, fontWeight: '900' },
+  stepNumber: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: o.color.primary, alignItems: 'center', justifyContent: 'center', backgroundColor: o.color.surface },
+  stepNumberComplete: { backgroundColor: o.color.successSurface, borderColor: o.color.success },
+  stepNumberText: { color: o.color.primaryPressed, fontSize: o.type.small, fontWeight: '900' },
+  stepNumberTextComplete: { color: o.color.success },
+  stepBody: { flex: 1, gap: o.space[2] },
+  stepTitle: { color: o.color.text, fontSize: o.type.body, fontWeight: '900' },
+  secondaryButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.primary, backgroundColor: o.color.surface },
+  secondaryButtonText: { color: o.color.primaryPressed, fontSize: o.type.small, fontWeight: '900' },
+  primaryButton: { minHeight: o.touch.prominent, paddingHorizontal: o.space[4], paddingVertical: o.space[3], borderRadius: o.radius.control, backgroundColor: o.color.success, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { color: o.color.onPrimary, fontSize: o.type.body, fontWeight: '900' },
+  releaseButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[3], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.surface },
+  releaseButtonText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
+  mismatchButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.criticalSurface },
+  mismatchButtonText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
   buttonDisabled: { opacity: 0.4 },
-  destinationHint: { color: colors.muted, fontSize: 9, lineHeight: 14 },
-  pointOfNoReturnCopy: { color: colors.amber, fontSize: 9, lineHeight: 14 },
-  pendingFlow: { marginTop: 10, padding: 11, borderWidth: 1, borderColor: colors.amberDark, borderRadius: 10, backgroundColor: colors.panel },
-  pendingFlowTitle: { color: colors.amber, fontWeight: '900', fontSize: 10 },
-  pendingFlowCopy: { color: colors.muted, fontSize: 9, lineHeight: 14, marginTop: 5 },
-  executionEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  emptyList: { padding: 24, alignItems: 'center' },
-  emptyStandalone: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, backgroundColor: colors.background },
-  emptyIcon: { color: colors.cyan, fontSize: 30, fontWeight: '900' },
-  emptyTitle: { color: colors.text, fontSize: 14, fontWeight: '900', marginTop: 8, textAlign: 'center' },
-  emptyCopy: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 5, textAlign: 'center', maxWidth: 430 },
-  busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(8,12,16,0.74)', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  busyText: { color: colors.text, fontSize: 10, fontWeight: '900' },
+  destinationHint: { color: o.color.muted, fontSize: o.type.small, lineHeight: 20 },
+  pointOfNoReturnCopy: { color: o.color.warning, fontSize: o.type.small, lineHeight: 20, fontWeight: '700' },
+  pendingFlow: { marginTop: o.space[3], padding: o.space[3], borderWidth: 1, borderColor: o.color.warning, borderRadius: o.radius.control, backgroundColor: o.color.warningSurface },
+  pendingFlowTitle: { color: o.color.warning, fontWeight: '900', fontSize: o.type.small },
+  pendingFlowCopy: { color: o.color.text, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[1] },
+  executionEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: o.space[6] },
+  emptyList: { padding: o.space[6], alignItems: 'center' },
+  emptyStandalone: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: o.space[8], backgroundColor: o.color.canvas },
+  emptyIcon: { color: o.color.primary, fontSize: 34, fontWeight: '900' },
+  emptyTitle: { color: o.color.text, fontSize: o.type.body, fontWeight: '900', marginTop: o.space[2], textAlign: 'center' },
+  emptyCopy: { color: o.color.muted, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[1], textAlign: 'center', maxWidth: 520 },
+  busyOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(18,51,66,0.82)', alignItems: 'center', justifyContent: 'center', gap: o.space[3] },
+  busyText: { color: o.color.onNavy, fontSize: o.type.small, fontWeight: '900' },
 });
