@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoTareaMovimiento;
+use App\Models\TareaMovimiento;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,6 +40,49 @@ class TareaMovimientoResource extends JsonResource
                     'riesgo_operacional' => $maniobra->riesgo_operacional,
                     'version' => $maniobra->version,
                     'custodia_temporal_activa' => $this->custodiaTemporalActiva(),
+                    'pasos' => $maniobra->relationLoaded('pasos')
+                        ? $maniobra->pasos->map(fn (TareaMovimiento $paso): array => [
+                            'id' => $paso->id,
+                            'secuencia' => $paso->secuencia_maniobra,
+                            'estado' => $paso->estado->value,
+                            'tipo_movimiento' => $paso->tipo_movimiento->value,
+                            'tipo_paso' => $paso->tipo_paso_maniobra?->value,
+                            'folio' => $paso->relationLoaded('folio') && $paso->folio ? [
+                                'id' => $paso->folio->id,
+                                'numero_folio' => $paso->folio->numero_folio,
+                            ] : null,
+                            'origen' => $this->extremoDeTarea($paso, 'Origen'),
+                            'destino' => $this->extremoDeTarea($paso, 'Destino'),
+                            'destino_logico' => $this->destinoLogicoDeTarea($paso),
+                            'instruccion' => $paso->instruccion,
+                        ])->values()->all()
+                        : [],
+                    'custodias_temporales' => $maniobra->relationLoaded('custodiasTemporales')
+                        ? $maniobra->custodiasTemporales
+                            ->where('estado', EstadoCustodiaTemporal::Activa)
+                            ->map(fn ($custodia): array => [
+                                'id' => $custodia->id,
+                                'estado' => $custodia->estado->value,
+                                'folio' => $custodia->relationLoaded('folio') && $custodia->folio ? [
+                                    'id' => $custodia->folio->id,
+                                    'numero_folio' => $custodia->folio->numero_folio,
+                                ] : null,
+                                'origen' => [
+                                    'camara' => $custodia->relationLoaded('camaraOrigen') && $custodia->camaraOrigen ? [
+                                        'id' => $custodia->camaraOrigen->id,
+                                        'nombre' => $custodia->camaraOrigen->nombre,
+                                    ] : null,
+                                    'posicion' => $custodia->relationLoaded('posicionOrigen') && $custodia->posicionOrigen ? [
+                                        'id' => $custodia->posicionOrigen->id,
+                                        'etiqueta' => $custodia->posicionOrigen->etiqueta,
+                                        'banda' => $custodia->posicionOrigen->banda,
+                                        'posicion' => $custodia->posicionOrigen->posicion,
+                                        'nivel' => $custodia->posicionOrigen->nivel,
+                                    ] : null,
+                                ],
+                                'extraido_at' => $custodia->extraido_at?->toAtomString(),
+                            ])->values()->all()
+                        : [],
                 ] : null;
             }),
             'secuencia_maniobra' => $this->secuencia_maniobra,
@@ -113,8 +157,14 @@ class TareaMovimientoResource extends JsonResource
     /** @return array<string, mixed>|null */
     private function extremo(string $nombre): ?array
     {
-        $camara = $this->{"camara{$nombre}"};
-        $posicion = $this->{"posicion{$nombre}"};
+        return $this->extremoDeTarea($this->resource, $nombre);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function extremoDeTarea(TareaMovimiento $tarea, string $nombre): ?array
+    {
+        $camara = $tarea->{"camara{$nombre}"};
+        $posicion = $tarea->{"posicion{$nombre}"};
 
         if (! $camara) {
             return null;
@@ -138,7 +188,13 @@ class TareaMovimientoResource extends JsonResource
     /** @return array<string, mixed>|null */
     private function destinoLogico(): ?array
     {
-        $contexto = $this->contexto ?? [];
+        return $this->destinoLogicoDeTarea($this->resource);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function destinoLogicoDeTarea(TareaMovimiento $tarea): ?array
+    {
+        $contexto = $tarea->contexto ?? [];
         if (($contexto['tipo_decision'] ?? null) !== 'retiro_directo_anden'
             || empty($contexto['anden_id'])) {
             return null;

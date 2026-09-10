@@ -53,6 +53,16 @@ class CustodiaTemporalManiobra extends Model
         return $this->belongsTo(TareaMovimiento::class, 'tarea_resolucion_id');
     }
 
+    public function camaraOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Camara::class, 'camara_origen_id');
+    }
+
+    public function posicionOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Posicion::class, 'posicion_origen_id');
+    }
+
     protected function casts(): array
     {
         return [

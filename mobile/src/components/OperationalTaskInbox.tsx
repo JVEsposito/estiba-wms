@@ -1,14 +1,12 @@
 import * as Crypto from 'expo-crypto';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 
 import { OPERATIONAL_POLL_INTERVAL_MS } from '../config/polling';
@@ -26,7 +24,6 @@ import {
   operationalTaskDestinationLabel,
   operationalTaskLabel,
   operationalTaskPositionLabel,
-  operationalTaskReason,
 } from '../domain/operationalTasks';
 import { buildOperatorTaskHome, type OperatorQueueItem } from '../domain/operatorTaskQueue';
 import { calculateRollingFrontier } from '../domain/rollingPlanner';
@@ -34,12 +31,7 @@ import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { ApiError } from '../services/apiError';
 import { EstibaApi } from '../services/estibaApi';
 import { OperationalTasksApi } from '../services/operationalTasksApi';
-import {
-  OperatorEntityCode,
-  OperatorPriorityBadge,
-  OperatorRouteLine,
-  OperatorStatusBadge,
-} from './operator/OperatorPrimitives';
+import { OperatorTaskExecution } from './operator/OperatorTaskExecution';
 import { OperatorTaskHome } from './operator/OperatorTaskHome';
 import { operatorTheme as o } from '../theme/operatorTheme';
 
@@ -64,8 +56,6 @@ type MovementWarning = {
 };
 
 export function OperationalTaskInbox({ api, auth }: Props) {
-  const { width } = useWindowDimensions();
-  const compact = width < o.breakpoint.compact;
   const taskApi = useMemo(
     () => api.mode === 'connected' && api.baseUrl ? new OperationalTasksApi(api.baseUrl) : null,
     [api.baseUrl, api.mode],
@@ -540,19 +530,29 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     }
   }
 
-  function requestDiscrepancy() {
+  function requestDiscrepancy(kind: 'mismatch' | 'impossible') {
     if (!activeTask?.maniobra) {
-      setError('La gestión NO COINCIDE está disponible para maniobras físicas del planificador.');
+      setError('La gestión de incidencias está disponible para maniobras físicas del planificador.');
       return;
     }
+
+    const mismatch = kind === 'mismatch';
     Alert.alert(
-      'NO COINCIDE',
-      'Detendremos la maniobra sin cambiar pasos ya ejecutados. ¿Qué encontró físicamente?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Pallet distinto', onPress: () => void sendDiscrepancy('pallet_no_coincide') },
-        { text: 'Obstáculo / no movible', onPress: () => void sendDiscrepancy('obstaculo') },
-      ],
+      mismatch ? 'NO COINCIDE' : 'NO ES POSIBLE',
+      mismatch
+        ? 'Detendremos la maniobra sin cambiar pasos ya ejecutados. ¿Qué encontró físicamente?'
+        : 'Detendremos la maniobra en su estado físico actual. ¿Qué impide continuar?',
+      mismatch
+        ? [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Pallet distinto', onPress: () => void sendDiscrepancy('pallet_no_coincide') },
+            { text: 'Posición vacía', onPress: () => void sendDiscrepancy('posicion_vacia') },
+          ]
+        : [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Obstáculo', onPress: () => void sendDiscrepancy('obstaculo') },
+            { text: 'Pallet no movible', onPress: () => void sendDiscrepancy('pallet_no_movible') },
+          ],
     );
   }
 
@@ -710,21 +710,8 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     );
   }
 
-  const visibleTasks = tab === 'mias' ? mine : available;
-
   return (
     <View style={styles.screen}>
-      {activeTask ? <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>MANIOBRA SELECCIONADA</Text>
-          <Text style={styles.title}>Ejecución guiada</Text>
-          <Text style={styles.subtitle}>{activeTask.folio.numero_folio} · {auth.dispositivo.nombre}</Text>
-        </View>
-        <Pressable disabled={busy} onPress={() => setActiveTask(null)} style={styles.refreshButton}>
-          <Text style={styles.refreshButtonText}>← Volver a maniobras</Text>
-        </Pressable>
-      </View> : null}
-
       {error ? (
         <Pressable onPress={() => setError('')} style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
@@ -738,7 +725,26 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         </Pressable>
       ) : null}
 
-      {!activeTask ? (
+      {activeTask ? (
+        <OperatorTaskExecution
+          busy={busy}
+          deviceName={auth.dispositivo.nombre}
+          hasPhysicalDestination={hasPhysicalDestination}
+          leaseExpired={leaseExpired}
+          onBack={() => setActiveTask(null)}
+          onComplete={() => void completeTask()}
+          onCompleteDirect={() => void completeDirectWithdrawal()}
+          onCompleteTemporary={() => void completeTemporaryExtraction()}
+          onImpossible={() => requestDiscrepancy('impossible')}
+          onMismatch={() => requestDiscrepancy('mismatch')}
+          onRecalculate={() => void calculateAndMaterializeFrontier(activeTask)}
+          onRelease={() => requestRelease(activeTask)}
+          onStart={() => void startPhysicalTask()}
+          operatorName={auth.usuario.nombre}
+          secondsRemaining={secondsRemaining}
+          task={activeTask}
+        />
+      ) : (
         <OperatorTaskHome
           availableCount={available.length}
           busy={busy}
@@ -750,207 +756,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           queue={homeQueue}
           view={homeView}
         />
-      ) : <><View style={styles.tabs}>
-        <Pressable onPress={() => setTab('mias')} style={[styles.tab, tab === 'mias' && styles.tabActive]}>
-          <Text style={[styles.tabText, tab === 'mias' && styles.tabTextActive]}>Mis tareas · {mine.length}</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => setTab('disponibles')}
-          style={[styles.tab, tab === 'disponibles' && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, tab === 'disponibles' && styles.tabTextActive]}>
-            Disponibles · {available.length}
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={[styles.workspace, compact && styles.workspaceCompact]}>
-        <ScrollView
-          contentContainerStyle={styles.list}
-          style={[styles.listScroll, compact && styles.listScrollCompact]}
-        >
-          {visibleTasks.length ? visibleTasks.map((task) => (
-            <TaskCard
-              active={activeTask?.id === task.id}
-              key={task.id}
-              onExecute={tab === 'mias' ? () => beginTask(task) : undefined}
-              onRelease={tab === 'mias' && task.estado !== 'en_proceso' ? () => requestRelease(task) : undefined}
-              onTake={tab === 'disponibles' ? () => void takeTask(task) : undefined}
-              task={task}
-            />
-          )) : (
-            <View style={styles.emptyList}>
-              <Text style={styles.emptyIcon}>✓</Text>
-              <Text style={styles.emptyTitle}>
-                {tab === 'mias' ? 'No tienes tareas tomadas' : 'No hay labores pendientes disponibles'}
-              </Text>
-              <Text style={styles.emptyCopy}>
-                {tab === 'mias'
-                  ? 'Puedes tomar varias labores como cola; solo un pallet puede entrar físicamente en movimiento por tablet.'
-                  : 'La bandeja se actualizará automáticamente cuando exista nuevo trabajo.'}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={[styles.executionPanel, compact && styles.executionPanelCompact]}>
-          {activeTask ? (
-            <>
-              <View style={styles.executionHeader}>
-                <View style={styles.executionTitleWrap}>
-                  <Text style={styles.eyebrow}>{inPhysicalMovement ? 'PUNTO DE NO RETORNO' : 'TAREA TOMADA'}</Text>
-                  <Text style={styles.executionTitle}>{operationalTaskLabel(activeTask.plan.tipo)}</Text>
-                </View>
-                <CommitmentBadge task={activeTask} seconds={secondsRemaining} />
-              </View>
-
-              <View style={styles.routeCard}>
-                <OperatorRouteLine label="Folio" value={activeTask.folio.numero_folio} strong />
-                <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(activeTask.origen)} />
-                <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(activeTask)} strong />
-                <OperatorRouteLine label="Motivo" value={operationalTaskReason(activeTask)} />
-                {activeTask.maniobra ? (
-                  <OperatorRouteLine
-                    label="Maniobra"
-                    value={`Paso ${activeTask.secuencia_maniobra ?? activeTask.maniobra.secuencia_actual} de ${activeTask.maniobra.pasos_totales}`}
-                    strong
-                  />
-                ) : null}
-              </View>
-
-              {!inPhysicalMovement ? (
-                <Step number="1" title="Seguir el patrón mostrado" complete>
-                  <Text style={styles.destinationHint}>
-                    Retira exactamente {activeTask.folio.numero_folio} desde {operationalTaskPositionLabel(activeTask.origen)}.
-                    El WMS ya conoce el folio y la posición; no requiere escaneo mientras la realidad coincida.
-                  </Text>
-                </Step>
-              ) : null}
-
-              {!inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
-                <Step number="2" title="Confirmar destino calculado" complete={hasPhysicalDestination}>
-                  <Text style={styles.destinationHint}>
-                    {hasPhysicalDestination
-                      ? `Servidor reservó: ${operationalTaskPositionLabel(activeTask.destino)}`
-                      : 'La tablet está simulando el destino y el servidor reservará únicamente este paso próximo.'}
-                  </Text>
-                  {!hasPhysicalDestination ? (
-                    <Pressable
-                      disabled={busy || leaseExpired}
-                      onPress={() => void calculateAndMaterializeFrontier(activeTask)}
-                      style={[styles.secondaryButton, (busy || leaseExpired) && styles.buttonDisabled]}
-                    >
-                      <Text style={styles.secondaryButtonText}>Recalcular frontera</Text>
-                    </Pressable>
-                  ) : null}
-                </Step>
-              ) : null}
-
-              {!inPhysicalMovement ? (
-                <Step
-                  number={activeTask.tipo_movimiento === 'retiro' ? '2' : '3'}
-                  title="Retirar pallet"
-                  complete={false}
-                  disabled={activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination}
-                >
-                  <Text style={styles.pointOfNoReturnCopy}>
-                    Esta acción marca el pallet como físicamente en movimiento. Desde aquí el destino queda fijo.
-                  </Text>
-                  <Pressable
-                    disabled={(activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired}
-                    onPress={() => void startPhysicalTask()}
-                    style={[
-                      styles.primaryButton,
-                      ((activeTask.tipo_movimiento !== 'retiro' && !hasPhysicalDestination) || busy || leaseExpired) && styles.buttonDisabled,
-                    ]}
-                  >
-                    <Text style={styles.primaryButtonText}>RETIRAR PALLET · INICIAR MOVIMIENTO</Text>
-                  </Pressable>
-                  <Pressable disabled={busy} onPress={() => requestRelease(activeTask)} style={styles.releaseButton}>
-                    <Text style={styles.releaseButtonText}>Liberar antes de iniciar</Text>
-                  </Pressable>
-                  {activeTask.maniobra ? (
-                    <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
-                      <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
-                    </Pressable>
-                  ) : null}
-                </Step>
-              ) : null}
-
-              {inPhysicalMovement && activeTask.tipo_movimiento !== 'retiro' ? (
-                <Step number="4" title="Completar destino indicado" complete={false}>
-                  <Text style={styles.destinationHint}>
-                    Lleva {activeTask.folio.numero_folio} a {operationalTaskPositionLabel(activeTask.destino)}.
-                  </Text>
-                  <Pressable
-                    disabled={busy}
-                    onPress={() => void completeTask()}
-                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
-                  >
-                    <Text style={styles.primaryButtonText}>CONFIRMAR MOVIMIENTO</Text>
-                  </Pressable>
-                  {activeTask.maniobra ? (
-                    <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
-                      <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
-                    </Pressable>
-                  ) : null}
-                  <Text style={styles.pointOfNoReturnCopy}>
-                    Confirma solo cuando el pallet esté físicamente resuelto en el destino mostrado.
-                  </Text>
-                </Step>
-              ) : null}
-
-              {inPhysicalMovement
-                && activeTask.tipo_movimiento === 'retiro'
-                && activeTask.tipo_paso_maniobra === 'extraccion_temporal' ? (
-                <Step number="3" title="Confirmar extracción temporal" complete={false}>
-                  <Text style={styles.destinationHint}>
-                    Mantén {activeTask.folio.numero_folio} bajo control de esta maniobra. El WMS mostrará su retorno o destino definitivo antes de cerrar.
-                  </Text>
-                  <Pressable
-                    disabled={busy}
-                    onPress={() => void completeTemporaryExtraction()}
-                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
-                  >
-                    <Text style={styles.primaryButtonText}>CONFIRMAR PALLET RETIRADO</Text>
-                  </Pressable>
-                  <Pressable disabled={busy} onPress={requestDiscrepancy} style={styles.mismatchButton}>
-                    <Text style={styles.mismatchButtonText}>NO COINCIDE</Text>
-                  </Pressable>
-                </Step>
-              ) : null}
-
-              {inPhysicalMovement
-                && activeTask.tipo_movimiento === 'retiro'
-                && activeTask.tipo_paso_maniobra !== 'extraccion_temporal' ? (
-                <Step number="3" title="Confirmar entrega en andén" complete={false}>
-                  <Text style={styles.destinationHint}>
-                    Destino comprometido: {operationalTaskDestinationLabel(activeTask)}
-                  </Text>
-                  <Pressable
-                    disabled={busy}
-                    onPress={() => void completeDirectWithdrawal()}
-                    style={[styles.primaryButton, busy && styles.buttonDisabled]}
-                  >
-                    <Text style={styles.primaryButtonText}>CONFIRMAR ENTREGA EN ANDÉN</Text>
-                  </Pressable>
-                  <Text style={styles.pointOfNoReturnCopy}>
-                    Confirma solo cuando el pallet haya salido físicamente de su origen y esté en el andén indicado.
-                  </Text>
-                </Step>
-              ) : null}
-            </>
-          ) : (
-            <View style={styles.executionEmpty}>
-              <Text style={styles.emptyIcon}>⇢</Text>
-              <Text style={styles.emptyTitle}>Selecciona una tarea propia</Text>
-              <Text style={styles.emptyCopy}>
-                Tomar una tarea reclama el trabajo. La posición se reserva recién cuando la tablet propone una frontera todavía válida.
-              </Text>
-            </View>
-          )}
-        </View>
-      </View></>}
+      )}
 
       {busy ? (
         <View pointerEvents="none" style={styles.busyOverlay}>
@@ -958,106 +764,6 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           <Text style={styles.busyText}>Sincronizando estado operacional…</Text>
         </View>
       ) : null}
-    </View>
-  );
-}
-
-function TaskCard({
-  active,
-  onExecute,
-  onRelease,
-  onTake,
-  task,
-}: {
-  active: boolean;
-  onExecute?: () => void;
-  onRelease?: () => void;
-  onTake?: () => void;
-  task: OperationalTask;
-}) {
-  const commitment = task.estado === 'en_proceso'
-    ? 'EN MOVIMIENTO'
-    : task.reserva?.tipo_compromiso === 'fisica'
-      ? 'DESTINO RESERVADO'
-      : task.reserva
-        ? 'CLAIM'
-        : 'OFRECIDA';
-
-  return (
-    <View style={[styles.taskCard, active && styles.taskCardActive]}>
-      <View style={styles.taskTopline}>
-        <Text style={styles.taskType}>{operationalTaskLabel(task.plan.tipo)}</Text>
-        <OperatorPriorityBadge priority={task.prioridad} />
-      </View>
-      <View style={styles.taskFolio}><OperatorEntityCode prominent value={task.folio.numero_folio} /></View>
-      <View style={styles.taskCommitment}>
-        <OperatorStatusBadge
-          label={commitment}
-          tone={task.estado === 'en_proceso' ? 'critical' : task.reserva?.tipo_compromiso === 'fisica' ? 'success' : task.reserva ? 'info' : 'neutral'}
-        />
-      </View>
-      <OperatorRouteLine label="Origen" value={operationalTaskPositionLabel(task.origen)} />
-      <OperatorRouteLine label="Destino" value={operationalTaskDestinationLabel(task)} strong />
-      <Text numberOfLines={2} style={styles.taskInstruction}>{operationalTaskReason(task)}</Text>
-      <View style={styles.taskFooter}>
-        <Text style={styles.taskMeta}>Secuencia {task.secuencia}</Text>
-        <View style={styles.taskActions}>
-          {onRelease ? (
-            <Pressable onPress={onRelease} style={styles.releaseSmall}>
-              <Text style={styles.releaseSmallText}>Liberar</Text>
-            </Pressable>
-          ) : null}
-          {onExecute ? (
-            <Pressable onPress={onExecute} style={styles.executeButton}>
-              <Text style={styles.executeButtonText}>{task.estado === 'en_proceso' ? 'Continuar' : 'Abrir'}</Text>
-            </Pressable>
-          ) : null}
-          {onTake ? (
-            <Pressable onPress={onTake} style={styles.executeButton}>
-              <Text style={styles.executeButtonText}>Tomar tarea</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function CommitmentBadge({ task, seconds }: { task: OperationalTask; seconds: number | null }) {
-  if (task.estado === 'en_proceso') {
-    return <OperatorStatusBadge label="EN MOVIMIENTO · DESTINO FIJO" tone="critical" />;
-  }
-  const expired = seconds !== null && seconds <= 0;
-  const warning = seconds !== null && seconds > 0 && seconds < 180;
-  const prefix = task.reserva?.tipo_compromiso === 'fisica' ? 'FÍSICA' : 'CLAIM';
-  return <OperatorStatusBadge
-    label={expired ? `${prefix} VENCIDO` : `${prefix} ${seconds === null ? 'ACTIVO' : formatDuration(seconds)}`}
-    tone={expired ? 'critical' : warning ? 'warning' : 'success'}
-  />;
-}
-
-function Step({
-  children,
-  complete,
-  disabled = false,
-  number,
-  title,
-}: {
-  children: ReactNode;
-  complete: boolean;
-  disabled?: boolean;
-  number: string;
-  title: string;
-}) {
-  return (
-    <View style={[styles.step, disabled && styles.stepDisabled]}>
-      <View style={[styles.stepNumber, complete && styles.stepNumberComplete]}>
-        <Text style={[styles.stepNumberText, complete && styles.stepNumberTextComplete]}>{complete ? '✓' : number}</Text>
-      </View>
-      <View style={styles.stepBody}>
-        <Text style={styles.stepTitle}>{title}</Text>
-        {children}
-      </View>
     </View>
   );
 }
@@ -1107,73 +813,12 @@ function messageFrom(reason: unknown) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: o.color.canvas, padding: o.space[4] },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: o.space[3], marginBottom: o.space[3] },
-  headerCopy: { flexShrink: 1 },
-  eyebrow: { color: o.color.primaryPressed, fontSize: o.type.caption, fontWeight: '900', letterSpacing: 1.1 },
-  title: { color: o.color.text, fontSize: o.type.title, fontWeight: '900', marginTop: 3 },
-  subtitle: { color: o.color.muted, fontSize: o.type.small, marginTop: 3 },
-  refreshButton: { minHeight: o.touch.minimum, justifyContent: 'center', borderWidth: 1, borderColor: o.color.primary, borderRadius: o.radius.control, paddingHorizontal: o.space[4], paddingVertical: o.space[2], backgroundColor: o.color.surface },
-  refreshButtonText: { color: o.color.primaryPressed, fontWeight: '900', fontSize: o.type.small },
+  screen: { flex: 1, padding: o.space[4], backgroundColor: o.color.canvas },
   errorBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderLeftWidth: 5, borderColor: o.color.critical, backgroundColor: o.color.criticalSurface, marginBottom: o.space[2] },
   errorText: { color: o.color.critical, flex: 1, fontSize: o.type.small, fontWeight: '800' },
   noticeBanner: { flexDirection: 'row', justifyContent: 'space-between', gap: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderLeftWidth: 5, borderColor: o.color.success, backgroundColor: o.color.successSurface, marginBottom: o.space[2] },
   noticeText: { color: o.color.success, flex: 1, fontSize: o.type.small, fontWeight: '800' },
   bannerClose: { color: o.color.muted, fontSize: 20, fontWeight: '900' },
-  tabs: { flexDirection: 'row', gap: o.space[2], marginBottom: o.space[3] },
-  tab: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderWidth: 1, borderColor: o.color.borderStrong, borderRadius: o.radius.control, backgroundColor: o.color.surface },
-  tabActive: { borderColor: o.color.primary, backgroundColor: o.color.selected, borderBottomWidth: 4 },
-  tabText: { color: o.color.muted, fontSize: o.type.small, fontWeight: '900' },
-  tabTextActive: { color: o.color.primaryPressed },
-  workspace: { flex: 1, minHeight: 0, flexDirection: 'row', gap: o.space[3] },
-  workspaceCompact: { flexDirection: 'column' },
-  listScroll: { flex: 0.42 },
-  listScrollCompact: { flex: 0, maxHeight: 300 },
-  list: { gap: o.space[2], paddingBottom: o.space[6] },
-  taskCard: { padding: o.space[4], borderWidth: 1, borderColor: o.color.border, borderRadius: o.radius.panel, backgroundColor: o.color.surface, shadowColor: o.color.shadow, shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  taskCardActive: { borderColor: o.color.primary, borderLeftWidth: 6, backgroundColor: o.color.selected },
-  taskTopline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: o.space[2] },
-  taskType: { color: o.color.text, fontSize: o.type.body, fontWeight: '900', flex: 1 },
-  taskFolio: { marginTop: o.space[3] },
-  taskCommitment: { alignSelf: 'flex-start', marginVertical: o.space[2] },
-  taskInstruction: { color: o.color.text, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[2] },
-  taskFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: o.space[2], marginTop: o.space[3] },
-  taskMeta: { color: o.color.muted, fontSize: o.type.caption },
-  taskActions: { flexDirection: 'row', gap: o.space[2], flexWrap: 'wrap', justifyContent: 'flex-end' },
-  executeButton: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, backgroundColor: o.color.primary },
-  executeButtonText: { color: o.color.onPrimary, fontSize: o.type.small, fontWeight: '900' },
-  releaseSmall: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: o.space[3], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.surface },
-  releaseSmallText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
-  executionPanel: { flex: 0.58, minWidth: 0, padding: o.space[4], borderRadius: o.radius.panel, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surface, shadowColor: o.color.shadow, shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  executionPanelCompact: { flex: 1 },
-  executionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: o.space[2] },
-  executionTitleWrap: { flex: 1 },
-  executionTitle: { color: o.color.text, fontSize: o.type.heading, fontWeight: '900', marginTop: 3 },
-  routeCard: { marginTop: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surfaceMuted, gap: o.space[1] },
-  step: { flexDirection: 'row', gap: o.space[3], marginTop: o.space[3], padding: o.space[3], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.border, backgroundColor: o.color.surfaceMuted },
-  stepDisabled: { opacity: 0.45 },
-  stepNumber: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: o.color.primary, alignItems: 'center', justifyContent: 'center', backgroundColor: o.color.surface },
-  stepNumberComplete: { backgroundColor: o.color.successSurface, borderColor: o.color.success },
-  stepNumberText: { color: o.color.primaryPressed, fontSize: o.type.small, fontWeight: '900' },
-  stepNumberTextComplete: { color: o.color.success },
-  stepBody: { flex: 1, gap: o.space[2] },
-  stepTitle: { color: o.color.text, fontSize: o.type.body, fontWeight: '900' },
-  secondaryButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.primary, backgroundColor: o.color.surface },
-  secondaryButtonText: { color: o.color.primaryPressed, fontSize: o.type.small, fontWeight: '900' },
-  primaryButton: { minHeight: o.touch.prominent, paddingHorizontal: o.space[4], paddingVertical: o.space[3], borderRadius: o.radius.control, backgroundColor: o.color.success, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { color: o.color.onPrimary, fontSize: o.type.body, fontWeight: '900' },
-  releaseButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[3], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.surface },
-  releaseButtonText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
-  mismatchButton: { minHeight: o.touch.minimum, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: o.space[4], paddingVertical: o.space[2], borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical, backgroundColor: o.color.criticalSurface },
-  mismatchButtonText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '900' },
-  buttonDisabled: { opacity: 0.4 },
-  destinationHint: { color: o.color.muted, fontSize: o.type.small, lineHeight: 20 },
-  pointOfNoReturnCopy: { color: o.color.warning, fontSize: o.type.small, lineHeight: 20, fontWeight: '700' },
-  pendingFlow: { marginTop: o.space[3], padding: o.space[3], borderWidth: 1, borderColor: o.color.warning, borderRadius: o.radius.control, backgroundColor: o.color.warningSurface },
-  pendingFlowTitle: { color: o.color.warning, fontWeight: '900', fontSize: o.type.small },
-  pendingFlowCopy: { color: o.color.text, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[1] },
-  executionEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: o.space[6] },
-  emptyList: { padding: o.space[6], alignItems: 'center' },
   emptyStandalone: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: o.space[8], backgroundColor: o.color.canvas },
   emptyIcon: { color: o.color.primary, fontSize: 34, fontWeight: '900' },
   emptyTitle: { color: o.color.text, fontSize: o.type.body, fontWeight: '900', marginTop: o.space[2], textAlign: 'center' },
