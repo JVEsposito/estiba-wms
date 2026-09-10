@@ -679,9 +679,30 @@
 .operation-map-node[data-tone="critical"] { border-color: #b93745; background: #ffebee; }
 .operation-map-node[data-tone="info"] { border-color: #277ea5; background: #e7f4fa; }
 .operation-map-node.is-selected { z-index: 4; outline: 3px solid #f6c352; outline-offset: 2px; cursor: move; }
-.operation-map-node__type { color: #527080; font-size: clamp(.43rem, .7vw, .63rem); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.operation-map-node strong { max-width: 100%; overflow: hidden; font: 900 clamp(.55rem, 1vw, .9rem)/1.1 ui-monospace, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-.operation-map-node small { max-width: 100%; overflow: hidden; color: #486675; font-size: clamp(.45rem, .75vw, .68rem); text-overflow: ellipsis; white-space: nowrap; }
+.office-app .operation-map-node .operation-map-node__type {
+    color: #446675 !important;
+    font-size: clamp(.46rem, .72vw, .65rem);
+    font-weight: 900;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+.office-app .operation-map-node > strong {
+    max-width: 100%;
+    overflow: hidden;
+    color: #102d41 !important;
+    font: 900 clamp(.62rem, 1vw, .92rem)/1.15 "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.office-app .operation-map-node > small {
+    max-width: 100%;
+    overflow: hidden;
+    color: #395b6b !important;
+    font-size: clamp(.49rem, .77vw, .7rem);
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .operation-map-node__resize {
     position: absolute;
     right: 0;
