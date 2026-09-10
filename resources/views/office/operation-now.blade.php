@@ -130,10 +130,25 @@
                         <header class="operation-now-panel__heading">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5"/></svg>
-                                <div><h2 id="operationFacilityTitle">Vista operacional de recintos</h2><span>Estado de cámaras y túneles; no es un plano físico</span></div>
+                                <div><h2 id="operationFacilityTitle">Vista operacional de recintos</h2><span id="operationFacilitySubtitle">Plano físico y estado en vivo de la planta</span></div>
+                            </div>
+                            <div class="operation-now-panel__tools operation-now-map-tools">
+                                <span class="operation-now-map-status" id="operationFacilityStatus">Cargando plano…</span>
+                                <button class="operation-now-map-button" id="operationMapZoomOut" type="button" title="Alejar plano" aria-label="Alejar plano">−</button>
+                                <strong id="operationMapZoomLabel">100 %</strong>
+                                <button class="operation-now-map-button" id="operationMapZoomIn" type="button" title="Acercar plano" aria-label="Acercar plano">+</button>
+                                <button class="operation-now-map-action" id="operationMapExpand" type="button">Ampliar</button>
+                                <button class="operation-now-map-action operation-now-map-action--primary" id="operationMapEdit" type="button" hidden>Editar plano</button>
                             </div>
                         </header>
-                        <div class="operation-now-panel__body operation-now-facility" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
+                        <div class="operation-now-panel__body operation-now-facility">
+                            <div class="operation-now-map-viewport" id="operationFacilityViewport">
+                                <div class="operation-now-map-stage" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
+                            </div>
+                            <div class="operation-now-map-legend" aria-label="Leyenda del plano">
+                                <span data-type="camara">Cámara</span><span data-type="tunel">Túnel</span><span data-type="anden">Andén</span><span data-type="almacen">Bodega</span><span data-type="zona">Zona</span>
+                            </div>
+                        </div>
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--alerts" id="operationAlertsPanel" data-tone="neutral" aria-labelledby="operationAlertsTitle">
@@ -158,12 +173,48 @@
 
                 <footer class="operation-now-footer">
                     <span>Los avances de prefrío representan tiempo transcurrido, no progreso térmico.</span>
-                    <span>El esquema de recintos no representa coordenadas ni posiciones físicas.</span>
+                    <span>El plano operacional conserva su geometría y superpone el estado vivo de cada recinto.</span>
                 </footer>
             </div>
 
             <div class="operation-now-loading is-hidden" id="operationLoading" aria-hidden="true"><span aria-hidden="true"></span><strong id="operationLoadingText">Consultando la operación…</strong></div>
             <div class="toast-region" id="operationToasts" aria-live="polite"></div>
+
+            <dialog class="operation-map-dialog" id="operationMapDialog" aria-labelledby="operationMapDialogTitle">
+                <div class="operation-map-dialog__shell">
+                    <header class="operation-map-dialog__header">
+                        <div><p>PLANTA PRINCIPAL</p><h2 id="operationMapDialogTitle">Plano operacional</h2><span id="operationMapDialogHint">Vista ampliada de recintos y estados</span></div>
+                        <div class="operation-map-dialog__actions">
+                            <button class="operation-now-map-button" id="operationEditorZoomOut" type="button" aria-label="Alejar plano">−</button>
+                            <strong id="operationEditorZoomLabel">100 %</strong>
+                            <button class="operation-now-map-button" id="operationEditorZoomIn" type="button" aria-label="Acercar plano">+</button>
+                            <button class="operation-now-map-action" id="operationMapClose" type="button">Cerrar</button>
+                            <button class="operation-now-map-action operation-now-map-action--primary" id="operationMapSave" type="button" hidden>Guardar plano</button>
+                        </div>
+                    </header>
+                    <div class="operation-map-editor" id="operationMapEditor">
+                        <aside class="operation-map-catalog" id="operationMapCatalog" hidden>
+                            <div class="operation-map-catalog__heading"><strong>RECINTOS DISPONIBLES</strong><span>Selecciona para incorporar</span></div>
+                            <div class="operation-map-catalog__items" id="operationMapCatalogItems"></div>
+                            <form class="operation-map-zone-form" id="operationMapZoneForm">
+                                <strong>DIBUJAR ÁREA</strong>
+                                <label>Nombre<input id="operationMapZoneName" maxlength="100" placeholder="Ej. Patio de recepción" required></label>
+                                <label>Tipo<select id="operationMapZoneType"><option value="packing">Packing</option><option value="bodega">Bodega</option><option value="pasillo">Pasillo</option><option value="patio">Patio</option><option value="oficina">Oficina</option><option value="muelle">Muelle</option><option value="otro">Otro</option></select></label>
+                                <button type="submit">Agregar área</button>
+                            </form>
+                            <div class="operation-map-help"><strong>Cómo editar</strong><span>Arrastra para mover. Usa la esquina inferior para redimensionar. Selecciona un recinto para rotarlo o quitarlo.</span></div>
+                        </aside>
+                        <main class="operation-map-dialog__viewport" id="operationEditorViewport">
+                            <div class="operation-now-map-stage operation-now-map-stage--editor" id="operationEditorStage"></div>
+                        </main>
+                        <aside class="operation-map-inspector" id="operationMapInspector" hidden>
+                            <strong>ELEMENTO SELECCIONADO</strong>
+                            <span id="operationMapSelectionName">Ninguno</span>
+                            <div><button id="operationMapRotate" type="button">Rotar 90°</button><button id="operationMapRemove" type="button">Quitar</button></div>
+                        </aside>
+                    </div>
+                </div>
+            </dialog>
         </main>
     </body>
 </html>

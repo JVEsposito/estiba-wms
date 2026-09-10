@@ -1,5 +1,6 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
+import { autoLayout, availableCatalog, catalogKey, moveElement, resizeElement } from './shared/plant-layout';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
@@ -28,6 +29,20 @@ const elements = {
     tunnelList: byId('operationTunnelList'),
     incidentRows: byId('operationIncidentRows'),
     facilityMap: byId('operationFacilityMap'),
+    facilityStatus: byId('operationFacilityStatus'),
+    facilitySubtitle: byId('operationFacilitySubtitle'),
+    mapZoomLabel: byId('operationMapZoomLabel'),
+    mapEdit: byId('operationMapEdit'),
+    mapDialog: byId('operationMapDialog'),
+    mapDialogTitle: byId('operationMapDialogTitle'),
+    mapDialogHint: byId('operationMapDialogHint'),
+    mapSave: byId('operationMapSave'),
+    mapCatalog: byId('operationMapCatalog'),
+    mapCatalogItems: byId('operationMapCatalogItems'),
+    mapInspector: byId('operationMapInspector'),
+    mapSelectionName: byId('operationMapSelectionName'),
+    editorStage: byId('operationEditorStage'),
+    editorZoomLabel: byId('operationEditorZoomLabel'),
     alertsPanel: byId('operationAlertsPanel'),
     alertRows: byId('operationAlertRows'),
 };
@@ -40,6 +55,12 @@ const state = {
     poller: null,
     clockTimer: null,
     clockOffsetMs: 0,
+    mapZoom: 1,
+    editorZoom: 1,
+    mapEditing: false,
+    mapDraft: [],
+    mapSelectedId: null,
+    mapDrag: null,
 };
 
 class ApiError extends Error {
@@ -179,7 +200,10 @@ function validateSnapshot(data) {
         && data.prefrio?.resumen
         && Array.isArray(data.prefrio?.tuneles)
         && data.incidencias?.resumen
-        && Array.isArray(data.incidencias?.abiertas);
+        && Array.isArray(data.incidencias?.abiertas)
+        && data.planta
+        && Array.isArray(data.planta?.catalogo)
+        && Array.isArray(data.planta?.elementos);
 
     if (!valid) throw new ApiError('El servidor entregó una lectura operacional incompleta.');
     return data;
@@ -405,36 +429,62 @@ function renderOperators(operators = []) {
     }).join('');
 }
 
-function renderFacility(data) {
-    const cameras = data.camaras || [];
-    const tunnels = data.prefrio?.tuneles || [];
-    if (!cameras.length && !tunnels.length) {
-        elements.facilityMap.innerHTML = empty('Sin infraestructura disponible', 'No existen cámaras ni túneles activos para representar.');
+function currentMapElements(plant = state.snapshot?.planta) {
+    return plant?.configurado ? plant.elementos : autoLayout(plant?.catalogo || []);
+}
+
+function mapCatalogIndex() {
+    return new Map((state.snapshot?.planta?.catalogo || [])
+        .map((item) => [catalogKey(item.tipo, item.id), item]));
+}
+
+function mapTypeLabel(type) {
+    return { camara: 'Cámara', tunel: 'Túnel', anden: 'Andén', almacen: 'Bodega', zona: 'Área' }[type] || 'Recinto';
+}
+
+function mapNodeMarkup(item, editable = false) {
+    const catalog = item.tipo === 'zona' ? null : mapCatalogIndex().get(catalogKey(item.tipo, item.referencia_id));
+    const label = catalog?.codigo || item.nombre;
+    const detail = catalog?.detalle || (item.tipo === 'zona' ? humanize(item.categoria || 'otro') : 'Referencia no disponible');
+    const tone = catalog?.tono || (item.tipo === 'zona' ? 'neutral' : 'warning');
+    const selected = editable && state.mapSelectedId === item.id;
+
+    return `<article class="operation-map-node${selected ? ' is-selected' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-tone="${escapeHtml(tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(`${mapTypeLabel(item.tipo)} ${label}: ${detail}`)}">
+        <span class="operation-map-node__type">${escapeHtml(mapTypeLabel(item.tipo))}</span>
+        <strong>${escapeHtml(label)}</strong>
+        <small>${escapeHtml(detail)}</small>
+        ${editable ? '<button class="operation-map-node__resize" type="button" aria-label="Redimensionar"></button>' : ''}
+    </article>`;
+}
+
+function renderMapStage(target, items, editable = false) {
+    if (!items.length) {
+        target.innerHTML = empty('Plano sin recintos', editable ? 'Agrega recintos desde el catálogo o dibuja una nueva área.' : 'Administración aún no ha configurado la planta.');
         return;
     }
+    target.innerHTML = items.map((item) => mapNodeMarkup(item, editable)).join('');
+}
 
-    const cells = (items, kind) => items.map((item) => {
-        const isCamera = kind === 'camera';
-        const tone = isCamera ? toneForOccupancy(item.nivel_ocupacion) : toneForTunnel(item);
-        const detail = isCamera
-            ? percent(item.ocupacion_porcentaje)
-            : (item.proceso_activo ? `${number(item.posiciones_ocupadas)} / ${number(item.capacidad_posiciones)}` : humanize(item.estado_operacional));
+function setMapZoom(kind, value) {
+    const normalized = Math.max(.6, Math.min(1.8, Math.round(value * 10) / 10));
+    const stage = kind === 'editor' ? elements.editorStage : elements.facilityMap;
+    const label = kind === 'editor' ? elements.editorZoomLabel : elements.mapZoomLabel;
+    state[kind === 'editor' ? 'editorZoom' : 'mapZoom'] = normalized;
+    stage.style.width = `${normalized * 100}%`;
+    label.textContent = `${Math.round(normalized * 100)} %`;
+}
 
-        return `<div class="operation-now-facility__cell" data-tone="${tone}">
-            <strong>${escapeHtml(item.codigo)}</strong><small>${escapeHtml(detail)}</small>
-        </div>`;
-    }).join('');
-
-    const cameraGroups = [
-        ['CÁMARAS PT', cameras.filter((camera) => camera.contenido === 'productos')],
-        ['MATERIA PRIMA', cameras.filter((camera) => camera.contenido === 'materia_prima')],
-        ['MATERIALES', cameras.filter((camera) => camera.contenido === 'materiales')],
-    ].filter(([, items]) => items.length);
-
-    elements.facilityMap.innerHTML = `
-        ${cameraGroups.map(([label, items]) => `<div class="operation-now-facility__group"><strong>${label}</strong><div class="operation-now-facility__grid">${cells(items, 'camera')}</div></div>`).join('')}
-        ${tunnels.length ? `<div class="operation-now-facility__group"><strong>TÚNELES DE PREFRÍO</strong><div class="operation-now-facility__grid">${cells(tunnels, 'tunnel')}</div></div>` : ''}
-        <p class="operation-now-facility__note">Esquema de estado; no representa coordenadas ni posición física.</p>`;
+function renderFacility(data) {
+    const plant = data.planta;
+    const items = currentMapElements(plant);
+    renderMapStage(elements.facilityMap, items);
+    elements.facilityStatus.textContent = plant.configurado ? `Plano v${plant.version}` : 'Distribución automática';
+    elements.facilityStatus.dataset.tone = plant.configurado ? 'success' : 'warning';
+    elements.facilitySubtitle.textContent = plant.configurado
+        ? `${plant.nombre} · estados actualizados en vivo`
+        : 'Borrador automático: falta guardar la distribución física';
+    elements.mapEdit.hidden = !plant.puede_editar;
+    setMapZoom('map', state.mapZoom);
 }
 
 function renderAlerts(data) {
@@ -635,6 +685,179 @@ async function logout() {
     }
     clearSession();
 }
+
+function renderMapCatalog() {
+    const available = availableCatalog(state.snapshot?.planta?.catalogo || [], state.mapDraft);
+    elements.mapCatalogItems.innerHTML = available.length
+        ? available.map((item) => `<button type="button" data-map-add="${escapeHtml(catalogKey(item.tipo, item.id))}">
+            <span data-type="${escapeHtml(item.tipo)}">${escapeHtml(mapTypeLabel(item.tipo))}</span>
+            <strong>${escapeHtml(item.codigo)}</strong><small>${escapeHtml(item.nombre)}</small>
+        </button>`).join('')
+        : '<p>Todos los recintos existentes ya están incorporados.</p>';
+}
+
+function renderEditor() {
+    renderMapStage(elements.editorStage, state.mapDraft, state.mapEditing);
+    renderMapCatalog();
+    const selected = state.mapDraft.find((item) => item.id === state.mapSelectedId);
+    elements.mapInspector.hidden = !state.mapEditing || !selected;
+    elements.mapSelectionName.textContent = selected?.nombre || 'Ninguno';
+    setMapZoom('editor', state.editorZoom);
+}
+
+function openMapDialog(editing) {
+    const plant = state.snapshot?.planta;
+    if (!plant) return;
+    state.mapEditing = Boolean(editing && plant.puede_editar);
+    state.mapDraft = JSON.parse(JSON.stringify(currentMapElements(plant)));
+    state.mapSelectedId = null;
+    elements.mapDialogTitle.textContent = state.mapEditing ? 'Editar plano operacional' : plant.nombre;
+    elements.mapDialogHint.textContent = state.mapEditing
+        ? 'Mueve, redimensiona y organiza la representación real de la planta'
+        : 'Vista ampliada con estados operacionales en vivo';
+    elements.mapCatalog.hidden = !state.mapEditing;
+    elements.mapSave.hidden = !state.mapEditing;
+    elements.mapDialog.classList.toggle('is-editing', state.mapEditing);
+    renderEditor();
+    elements.mapDialog.showModal();
+}
+
+function addCatalogItem(key) {
+    const item = (state.snapshot?.planta?.catalogo || [])
+        .find((candidate) => catalogKey(candidate.tipo, candidate.id) === key);
+    if (!item) return;
+    const sequence = state.mapDraft.length;
+    const x = 400 + (sequence % 5) * 1800;
+    const y = 400 + (Math.floor(sequence / 5) % 5) * 1500;
+    state.mapDraft.push({
+        id: crypto.randomUUID(),
+        tipo: item.tipo,
+        referencia_id: item.id,
+        nombre: item.nombre || item.codigo,
+        categoria: null,
+        x,
+        y,
+        ancho: 1500,
+        alto: 1100,
+        rotacion: 0,
+    });
+    state.mapSelectedId = state.mapDraft.at(-1).id;
+    renderEditor();
+}
+
+function selectedMapElement() {
+    return state.mapDraft.find((item) => item.id === state.mapSelectedId);
+}
+
+async function saveMap() {
+    elements.mapSave.disabled = true;
+    elements.mapSave.textContent = 'Guardando…';
+    try {
+        const response = await api('/api/administracion/operacion-ahora/plano', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                version_esperada: state.snapshot.planta.version,
+                nombre: state.snapshot.planta.nombre || 'Planta principal',
+                elementos: state.mapDraft,
+            }),
+        });
+        state.snapshot.planta = {
+            ...state.snapshot.planta,
+            ...response.data,
+            configurado: true,
+        };
+        renderFacility(state.snapshot);
+        elements.mapDialog.close();
+        toast(`Plano guardado como versión ${response.data.version}.`);
+    } catch (error) {
+        toast(error.status === 409 ? `${error.message} Se conservaron tus cambios en pantalla.` : error.message, true);
+    } finally {
+        elements.mapSave.disabled = false;
+        elements.mapSave.textContent = 'Guardar plano';
+    }
+}
+
+function beginMapPointer(event) {
+    if (!state.mapEditing || event.button !== 0) return;
+    const node = event.target.closest('.operation-map-node');
+    if (!node) return;
+    const item = state.mapDraft.find((candidate) => candidate.id === node.dataset.id);
+    if (!item) return;
+    event.preventDefault();
+    state.mapSelectedId = item.id;
+    state.mapDrag = {
+        id: item.id,
+        mode: event.target.closest('.operation-map-node__resize') ? 'resize' : 'move',
+        startX: event.clientX,
+        startY: event.clientY,
+        initial: { ...item },
+    };
+    renderEditor();
+}
+
+function moveMapPointer(event) {
+    if (!state.mapDrag) return;
+    const rect = elements.editorStage.getBoundingClientRect();
+    const deltaX = (event.clientX - state.mapDrag.startX) / rect.width * 10_000;
+    const deltaY = (event.clientY - state.mapDrag.startY) / rect.height * 10_000;
+    const index = state.mapDraft.findIndex((item) => item.id === state.mapDrag.id);
+    if (index < 0) return;
+    state.mapDraft[index] = state.mapDrag.mode === 'resize'
+        ? resizeElement(state.mapDrag.initial, deltaX, deltaY)
+        : moveElement(state.mapDrag.initial, deltaX, deltaY);
+    renderEditor();
+}
+
+function endMapPointer() {
+    state.mapDrag = null;
+}
+
+byId('operationMapZoomOut').addEventListener('click', () => setMapZoom('map', state.mapZoom - .1));
+byId('operationMapZoomIn').addEventListener('click', () => setMapZoom('map', state.mapZoom + .1));
+byId('operationEditorZoomOut').addEventListener('click', () => setMapZoom('editor', state.editorZoom - .1));
+byId('operationEditorZoomIn').addEventListener('click', () => setMapZoom('editor', state.editorZoom + .1));
+byId('operationMapExpand').addEventListener('click', () => openMapDialog(false));
+elements.mapEdit.addEventListener('click', () => openMapDialog(true));
+byId('operationMapClose').addEventListener('click', () => elements.mapDialog.close());
+elements.mapSave.addEventListener('click', () => void saveMap());
+elements.mapCatalogItems.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-map-add]');
+    if (button) addCatalogItem(button.dataset.mapAdd);
+});
+byId('operationMapZoneForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = byId('operationMapZoneName').value.trim();
+    if (!name) return;
+    state.mapDraft.push({
+        id: crypto.randomUUID(), tipo: 'zona', referencia_id: null, nombre: name,
+        categoria: byId('operationMapZoneType').value, x: 500, y: 500,
+        ancho: 2200, alto: 1400, rotacion: 0,
+    });
+    state.mapSelectedId = state.mapDraft.at(-1).id;
+    event.target.reset();
+    renderEditor();
+});
+byId('operationMapRotate').addEventListener('click', () => {
+    const selected = selectedMapElement();
+    if (!selected) return;
+    const availableWidth = 10_000 - selected.x;
+    const availableHeight = 10_000 - selected.y;
+    [selected.ancho, selected.alto] = [Math.min(selected.alto, availableWidth), Math.min(selected.ancho, availableHeight)];
+    selected.rotacion = (selected.rotacion + 90) % 360;
+    renderEditor();
+});
+byId('operationMapRemove').addEventListener('click', () => {
+    state.mapDraft = state.mapDraft.filter((item) => item.id !== state.mapSelectedId);
+    state.mapSelectedId = null;
+    renderEditor();
+});
+elements.editorStage.addEventListener('pointerdown', beginMapPointer);
+window.addEventListener('pointermove', moveMapPointer);
+window.addEventListener('pointerup', endMapPointer);
+elements.mapDialog.addEventListener('click', (event) => {
+    if (event.target === elements.mapDialog) elements.mapDialog.close();
+});
 
 elements.refresh.addEventListener('click', async () => {
     const success = await load();

@@ -45,6 +45,7 @@ use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\PerfilAccesoController;
 use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
 use App\Http\Controllers\Api\PlanOperacionalController;
+use App\Http\Controllers\Api\PlanoPlantaController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
 use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
@@ -71,6 +72,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/operacion-ahora', OperacionAhoraController::class)
         ->middleware('can:consultar-panel-gerencial');
+    Route::put('/administracion/operacion-ahora/plano', [PlanoPlantaController::class, 'update'])
+        ->middleware('can:administrar-plano-planta');
     Route::get('/administracion/integridad-operacional', [IntegridadOperacionalController::class, 'index'])
         ->middleware('can:consultar-integridad-operacional');
     Route::post('/administracion/integridad-operacional/auditar', [IntegridadOperacionalController::class, 'auditar'])
