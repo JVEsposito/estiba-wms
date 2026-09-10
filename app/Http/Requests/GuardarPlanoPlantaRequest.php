@@ -12,7 +12,7 @@ class GuardarPlanoPlantaRequest extends FormRequest
         return [
             'version_esperada' => ['required', 'integer', 'min:0'],
             'nombre' => ['required', 'string', 'max:120'],
-            'elementos' => ['required', 'array', 'max:150'],
+            'elementos' => ['present', 'array', 'max:150'],
             'elementos.*.id' => ['required', 'uuid', 'distinct'],
             'elementos.*.tipo' => ['required', Rule::in(['camara', 'tunel', 'anden', 'almacen', 'zona'])],
             'elementos.*.referencia_id' => ['nullable', 'uuid'],
