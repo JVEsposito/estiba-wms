@@ -34,7 +34,7 @@ class ServicioReservaFifoMaterial
                 $categoriasOperacionales,
             );
 
-            if (! $folio) {
+            if (!$folio) {
                 break;
             }
 
