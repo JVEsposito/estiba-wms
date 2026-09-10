@@ -6,9 +6,11 @@ use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
+use App\Models\Embarque;
 use App\Models\EventoPrefrio;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
+use App\Models\InstructivoEmbarque;
 use App\Models\Movimiento;
 use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
@@ -89,6 +91,8 @@ final class InvalidarBandejasOperacionalesObserver
             Folio::class,
             Carga::class,
             CargaFolio::class,
+            Embarque::class,
+            InstructivoEmbarque::class,
             ReservaCargaFolio::class,
             IncidenciaCargaFolio::class,
             TareaCarga::class,

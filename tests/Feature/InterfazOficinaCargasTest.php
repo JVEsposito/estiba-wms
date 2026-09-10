@@ -8,7 +8,7 @@ class InterfazOficinaCargasTest extends TestCase
 {
     public function test_la_oficina_de_cargas_se_encuentra_disponible(): void
     {
-        $this->get('/oficina/cargas')
+        $this->get('/oficina/frigorifico/despacho/cargas')
             ->assertOk()
             ->assertSee('Órdenes de carga')
             ->assertSee('Ingresar a cargas')
@@ -41,9 +41,16 @@ class InterfazOficinaCargasTest extends TestCase
         $this->get('/oficina/frigorifico/camaras')
             ->assertOk()
             ->assertSee('data-active-domain="frigorifico"', false)
-            ->assertSee('/oficina/cargas', false)
+            ->assertSee('/oficina/frigorifico/despacho/cargas', false)
             ->assertDontSee('data-office-key="accesos"', false)
             ->assertSee('Consulta la disponibilidad')
             ->assertDontSee('Cargas · próximamente');
+    }
+
+    public function test_la_ruta_historica_de_cargas_conserva_compatibilidad(): void
+    {
+        $this->get('/oficina/cargas')
+            ->assertRedirect('/oficina/frigorifico/despacho/cargas')
+            ->assertStatus(301);
     }
 }

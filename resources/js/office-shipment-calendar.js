@@ -348,7 +348,7 @@ elements.grid.addEventListener('change', async (event) => {
     if (action === 'view') await openExisting(shipment.id);
     if (action === 'confirm') await openExisting(shipment.id, true);
     if (action === 'cancel') { await openExisting(shipment.id); elements.cancel.click(); }
-    if (action === 'load' && shipment.carga?.id) window.location.href = `/oficina/cargas?carga=${encodeURIComponent(shipment.carga.id)}`;
+    if (action === 'load' && shipment.carga?.id) window.location.href = `/oficina/frigorifico/despacho/cargas?carga=${encodeURIComponent(shipment.carga.id)}`;
 });
 
 elements.confirm.addEventListener('click', async () => {

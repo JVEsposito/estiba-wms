@@ -40,7 +40,9 @@ class InterfazLobbiesMacromodulosTest extends TestCase
             ->assertSee('href="/oficina/validacion"', false)
             ->assertSee('href="/oficina/prefrio"', false)
             ->assertSee('href="/oficina/frigorifico/camaras"', false)
-            ->assertSee('href="/oficina/cargas"', false);
+            ->assertSee('href="/oficina/frigorifico/despacho/cargas"', false)
+            ->assertSee('href="/oficina/frigorifico/despacho/estatus"', false)
+            ->assertSee('href="/oficina/frigorifico/despacho/calendario"', false);
 
         $this->get('/oficina/administracion')
             ->assertSee('href="/oficina/operacion-ahora"', false)

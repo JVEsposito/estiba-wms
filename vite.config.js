@@ -23,6 +23,8 @@ export default defineConfig({
                 'resources/js/office-discrepancies.js',
                 'resources/css/office-loads.css',
                 'resources/js/office-loads.js',
+                'resources/css/office-load-status.css',
+                'resources/js/office-load-status.js',
                 'resources/css/office-shipment-calendar.css',
                 'resources/js/office-shipment-calendar.js',
                 'resources/css/office-admin.css',

@@ -3,7 +3,9 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\RolUsuario;
+use App\Models\Carga;
 use App\Models\Cliente;
+use App\Models\Embarque;
 use App\Models\Pais;
 use App\Models\Puerto;
 use App\Models\Temporada;
@@ -133,6 +135,30 @@ class EmbarqueApiTest extends TestCase
             ->assertJsonPath('data.embarque.codigo', 'EGE0000001')
             ->assertJsonPath('data.embarque.numeros_externos.0', 'A')
             ->assertJsonPath('data.embarque.numeros_externos.1', 'B');
+
+        Carga::query()->findOrFail($confirmado->json('data.carga.id'))->update([
+            'estado' => 'pendiente',
+            'publicada_por_user_id' => $despachador->id,
+            'publicada_at' => now(),
+        ]);
+
+        $bandeja = $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/cargas/pendientes')
+            ->assertOk()
+            ->assertJsonPath('data.0.embarque.codigo', 'EGE0000001')
+            ->assertJsonPath('data.0.embarque.fecha_programada', '2026-08-14')
+            ->assertJsonPath('data.0.embarque.hora_programada', '18:00')
+            ->assertJsonPath('data.0.embarque.numeros_externos.0', 'A')
+            ->assertJsonPath('data.0.embarque.numeros_externos.1', 'B');
+
+        $etag = $bandeja->headers->get('ETag');
+        Embarque::query()->findOrFail($embarqueId)->update(['hora_programada' => '19:30:00']);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->withHeader('If-None-Match', $etag)
+            ->getJson('/api/cargas/pendientes')
+            ->assertOk()
+            ->assertJsonPath('data.0.embarque.hora_programada', '19:30');
     }
 
     public function test_paises_y_puertos_se_seleccionan_desde_catalogo_relacionado(): void

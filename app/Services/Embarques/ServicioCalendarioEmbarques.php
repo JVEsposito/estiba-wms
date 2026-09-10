@@ -237,7 +237,7 @@ class ServicioCalendarioEmbarques
                     EstadoCarga::Pendiente,
                 ], true) === false) {
                     throw new DomainException(
-                        'La orden CAR ya inició su operación y debe resolverse desde Cargas & Despachos.',
+                        'La orden CAR ya inició su operación y debe resolverse desde Cargas.',
                     );
                 }
 

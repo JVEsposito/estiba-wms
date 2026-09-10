@@ -216,7 +216,7 @@
                     <article class="management-panel">
                         <header>
                             <div><p class="eyebrow">DESPACHO DE PRODUCTO TERMINADO</p><h2>Cargas activas y avance operativo</h2></div>
-                            <a class="management-panel-link" href="/oficina/cargas">Gestionar cargas →</a>
+                            <a class="management-panel-link" href="/oficina/frigorifico/despacho/estatus">Ver estatus operativo →</a>
                         </header>
                         <div class="management-operational-metrics management-operational-metrics--eight">
                             <article><span>CARGAS ACTIVAS</span><strong id="activeLoadsMetric">0</strong><small>en circuito</small></article>

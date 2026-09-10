@@ -53,7 +53,7 @@ class OficinaPrefrioTest extends TestCase
     {
         foreach ([
             '/oficina/frigorifico/camaras',
-            '/oficina/cargas',
+            '/oficina/frigorifico/despacho/cargas',
             '/oficina/validacion',
         ] as $ruta) {
             $this->get($ruta)

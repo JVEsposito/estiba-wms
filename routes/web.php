@@ -25,8 +25,11 @@ Route::view('/oficina/administracion', 'office.domain-lobby', [
     'lobbyDomain' => 'administracion',
 ]);
 Route::view('/oficina/demo', 'office.demo');
-Route::view('/oficina/cargas', 'office.loads');
-Route::view('/oficina/frigorifico/calendario-embarques', 'office.shipment-calendar');
+Route::redirect('/oficina/cargas', '/oficina/frigorifico/despacho/cargas', 301);
+Route::redirect('/oficina/frigorifico/calendario-embarques', '/oficina/frigorifico/despacho/calendario', 301);
+Route::view('/oficina/frigorifico/despacho/cargas', 'office.loads');
+Route::view('/oficina/frigorifico/despacho/estatus', 'office.load-status');
+Route::view('/oficina/frigorifico/despacho/calendario', 'office.shipment-calendar');
 Route::view('/oficina/accesos', 'office.accesses');
 Route::view('/oficina/materiales', 'office.materials', [
     'navigationOffice' => 'resumen',

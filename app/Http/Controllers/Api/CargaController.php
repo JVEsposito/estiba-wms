@@ -490,6 +490,8 @@ class CargaController extends Controller
             'andenPrevisto:id,codigo,nombre',
             'presenciaAndenActiva.anden:id,codigo,nombre',
             'presenciaAndenActiva.ingresadaPor:id,name',
+            'embarque:id,carga_id,codigo,fecha_programada,hora_programada,modalidad,estado',
+            'embarque.instructivos:id,embarque_id,orden,numero_externo',
             'asignacionesActuales.anden:id,codigo,nombre',
             'asignacionesActuales.folio.ubicacionActual.posicion.camara:id,codigo,nombre',
         ];
