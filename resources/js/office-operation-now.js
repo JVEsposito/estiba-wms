@@ -1,6 +1,13 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
-import { autoLayout, availableCatalog, catalogKey, moveElement, resizeElement } from './shared/plant-layout';
+import {
+    autoLayout,
+    availableCatalog,
+    catalogKey,
+    moveElement,
+    reconcilePlantSnapshot,
+    resizeElement,
+} from './shared/plant-layout';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
@@ -61,6 +68,8 @@ const state = {
     mapDraft: [],
     mapSelectedId: null,
     mapDrag: null,
+    mapRevision: 0,
+    mapSaving: false,
 };
 
 class ApiError extends Error {
@@ -640,12 +649,14 @@ function showConnectionIssue(error) {
 
 async function load({ blocking = false, silent = false, propagate = false } = {}) {
     if (state.loading) return false;
+    const requestMapRevision = state.mapRevision;
     state.loading = true;
     setBusy(blocking, 'Consultando la operación…');
 
     try {
-        const payload = await api('/api/operacion-ahora');
-        render(validateSnapshot(payload.data));
+        const payload = await api('/api/operacion-ahora', { cache: 'no-store' });
+        const incoming = validateSnapshot(payload.data);
+        render(reconcilePlantSnapshot(incoming, state.snapshot, requestMapRevision, state.mapRevision));
         elements.connection.hidden = true;
         if (!silent) toast('Operación actualizada.');
         return true;
@@ -668,7 +679,7 @@ function startPolling() {
         () => load({ silent: true, propagate: true }),
         {
             intervalMs: seconds * 1000,
-            canRun: () => Boolean(state.token) && !state.loading,
+            canRun: () => Boolean(state.token) && !state.loading && !state.mapSaving,
             onError: (error) => showConnectionIssue(error),
         },
     );
@@ -751,6 +762,7 @@ function selectedMapElement() {
 }
 
 async function saveMap() {
+    state.mapSaving = true;
     elements.mapSave.disabled = true;
     elements.mapSave.textContent = 'Guardando…';
     try {
@@ -768,12 +780,14 @@ async function saveMap() {
             ...response.data,
             configurado: true,
         };
+        state.mapRevision += 1;
         renderFacility(state.snapshot);
         elements.mapDialog.close();
         toast(`Plano guardado como versión ${response.data.version}.`);
     } catch (error) {
         toast(error.status === 409 ? `${error.message} Se conservaron tus cambios en pantalla.` : error.message, true);
     } finally {
+        state.mapSaving = false;
         elements.mapSave.disabled = false;
         elements.mapSave.textContent = 'Guardar plano';
     }

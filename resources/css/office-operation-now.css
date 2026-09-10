@@ -656,6 +656,8 @@
     color: #17394b;
     text-align: center;
     user-select: none;
+    container-name: operation-map-node;
+    container-type: size;
 }
 
 .operation-map-node::before {
@@ -681,7 +683,7 @@
 .operation-map-node.is-selected { z-index: 4; outline: 3px solid #f6c352; outline-offset: 2px; cursor: move; }
 .office-app .operation-map-node .operation-map-node__type {
     color: #446675 !important;
-    font-size: clamp(.46rem, .72vw, .65rem);
+    font-size: clamp(.44rem, min(7cqw, 13cqh), .72rem);
     font-weight: 900;
     letter-spacing: .07em;
     text-transform: uppercase;
@@ -690,7 +692,7 @@
     max-width: 100%;
     overflow: hidden;
     color: #102d41 !important;
-    font: 900 clamp(.62rem, 1vw, .92rem)/1.15 "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+    font: 900 clamp(.54rem, min(10cqw, 21cqh), 1.18rem)/1.12 "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -698,10 +700,25 @@
     max-width: 100%;
     overflow: hidden;
     color: #395b6b !important;
-    font-size: clamp(.49rem, .77vw, .7rem);
+    font-size: clamp(.44rem, min(7cqw, 14cqh), .78rem);
     font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+@container operation-map-node (max-width: 5rem) {
+    .office-app .operation-map-node .operation-map-node__type,
+    .office-app .operation-map-node > small {
+        display: none;
+    }
+}
+@container operation-map-node (min-width: 14rem) and (min-height: 6rem) {
+    .office-app .operation-map-node > strong {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        text-overflow: clip;
+        white-space: normal;
+    }
 }
 .operation-map-node__resize {
     position: absolute;

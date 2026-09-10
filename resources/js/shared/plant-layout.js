@@ -61,3 +61,12 @@ export function availableCatalog(catalog = [], elements = []) {
         .map((element) => catalogKey(element.tipo, element.referencia_id)));
     return catalog.filter((item) => !placed.has(catalogKey(item.tipo, item.id)));
 }
+
+export function reconcilePlantSnapshot(incoming, current, requestRevision, currentRevision) {
+    if (requestRevision === currentRevision || !current?.planta) return incoming;
+
+    return {
+        ...incoming,
+        planta: current.planta,
+    };
+}

@@ -57,7 +57,7 @@ class OperacionAhoraOfficeTest extends TestCase
         $script = file_get_contents(resource_path('js/office-operation-now.js'));
 
         $this->assertIsString($script);
-        $this->assertStringContainsString("api('/api/operacion-ahora')", $script);
+        $this->assertStringContainsString("api('/api/operacion-ahora', { cache: 'no-store' })", $script);
         $this->assertStringContainsString('createOperationalPoller', $script);
         $this->assertStringContainsString('actualizacion_sugerida_segundos', $script);
         $this->assertStringContainsString('validateSnapshot', $script);
@@ -67,6 +67,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('`${mapTypeLabel(item.tipo)} · ${code}`', $script);
         $this->assertStringContainsString("api('/api/administracion/operacion-ahora/plano'", $script);
         $this->assertStringContainsString('resizeElement', $script);
+        $this->assertStringContainsString('reconcilePlantSnapshot', $script);
+        $this->assertStringContainsString("cache: 'no-store'", $script);
+        $this->assertStringContainsString('!state.mapSaving', $script);
         $this->assertStringContainsString('buildOperationalAlerts', $script);
         $this->assertStringContainsString('proceso_activo', $script);
         $this->assertStringContainsString('process?.productos', $script);
@@ -92,6 +95,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('repeating-linear-gradient', $styles);
         $this->assertStringContainsString('color: #102d41 !important', $styles);
         $this->assertStringContainsString('color: #395b6b !important', $styles);
+        $this->assertStringContainsString('container-type: size', $styles);
+        $this->assertStringContainsString('min(10cqw, 21cqh)', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
 
