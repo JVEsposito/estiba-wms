@@ -73,7 +73,7 @@ test('Operación ahora mantiene contraste con filas alternas y superficies de ca
             variables[name] = variables[reference];
         }
         const surfaces = ['.operation-now', '.operation-now-syncbar', '.operation-now-syncbar__metrics div',
-            '.operation-now-tunnel', '.operation-now-tunnel:nth-child(even)',
+            '.operation-now-panel', '.operation-now-table tbody tr:nth-child(even)',
             '.operation-now-operator', '.operation-now-operator:nth-child(even)',
             '.operation-now-alert-list', '.operation-now-alert:nth-child(even)', '.operation-now-facility',
             ...['success', 'warning', 'critical', 'info'].map((tone) => `.operation-now-facility__cell[data-tone="${tone}"]`)];

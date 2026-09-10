@@ -457,38 +457,83 @@ function renderAlerts(data) {
     </article>`).join('');
 }
 
-function tunnelProcess(tunnel) {
+function tunnelStateLabel(tunnel) {
+    return {
+        borrador: 'Borrador',
+        cargando: 'Cargando',
+        listo_para_iniciar: 'Listo',
+        en_proceso: 'En ciclo',
+        pendiente_verificacion: 'Verificación',
+        disponible: 'En espera',
+        mantenimiento: 'Mantención',
+        fuera_servicio: 'Fuera de servicio',
+        inactivo: 'Inactivo',
+    }[tunnel.estado_operacional] || humanize(tunnel.estado_operacional);
+}
+
+function tunnelStateTone(tunnel) {
+    if (!tunnel.operable || ['mantenimiento', 'fuera_servicio', 'inactivo'].includes(tunnel.estado_operacional)) return 'neutral';
+    if (tunnel.proceso_activo?.objetivo_excedido) return 'critical';
+    if (tunnel.estado_operacional === 'pendiente_verificacion') return 'warning';
+    if (tunnel.estado_operacional === 'en_proceso') return 'success';
+    if (tunnel.estado_operacional === 'disponible') return 'neutral';
+    return 'info';
+}
+
+function tunnelProgress(tunnel) {
     const process = tunnel.proceso_activo;
     if (!process) {
-        return `<div class="operation-now-tunnel__process">${signal(tunnel.operable ? 'Disponible para carga' : humanize(tunnel.estado_operacional), toneForTunnel(tunnel))}<small>Sin proceso activo</small></div>`;
+        return `<div class="operation-now-tunnel-progress">
+            <strong>0 %</strong>
+            <span class="operation-now-meter" data-tone="neutral" style="--operation-progress:0%"><i></i></span>
+            <small>Sin proceso activo</small>
+        </div>`;
     }
 
     const progress = process.avance_tiempo_objetivo_porcentaje;
-    return `<div class="operation-now-tunnel__process">
-        <strong>${escapeHtml(process.codigo)} · ${escapeHtml(humanize(process.estado))}</strong>
-        <small>${number(process.folios_cargados)} folios · ${process.setpoint_c === null ? 'sin setpoint' : escapeHtml(temperature(process.setpoint_c))}</small>
-        <span class="operation-now-meter" data-tone="${process.objetivo_excedido ? 'critical' : 'info'}" style="--operation-progress:${clampedPercent(progress)}%"><i></i></span>
-        <small>${escapeHtml(duration(process.transcurridos_minutos))} transcurridos · objetivo ${escapeHtml(duration(process.duracion_objetivo_minutos))}${process.objetivo_excedido ? ` · excedido ${escapeHtml(duration(process.minutos_sobre_objetivo))}` : ''}</small>
+    const hasProgress = progress !== null && progress !== undefined;
+    const tone = process.objetivo_excedido
+        ? 'critical'
+        : (tunnel.estado_operacional === 'pendiente_verificacion' ? 'warning' : 'success');
+    const detail = hasProgress
+        ? `${duration(process.transcurridos_minutos)} de ${duration(process.duracion_objetivo_minutos)}${process.objetivo_excedido ? ` · excedido ${duration(process.minutos_sobre_objetivo)}` : ''}`
+        : 'Sin inicio registrado';
+
+    return `<div class="operation-now-tunnel-progress">
+        <strong>${hasProgress ? escapeHtml(percent(progress)) : '0 %'}</strong>
+        <span class="operation-now-meter" data-tone="${tone}" style="--operation-progress:${clampedPercent(progress)}%"><i></i></span>
+        <small>${escapeHtml(detail)}</small>
     </div>`;
+}
+
+function tunnelProduct(process) {
+    const products = Array.isArray(process?.productos) ? process.productos : [];
+    if (!products.length) {
+        return '<span class="operation-now-no-product">—</span><span class="operation-now-subtext">Sin informar</span>';
+    }
+
+    const labels = products.map((product) => product.etiqueta).filter(Boolean);
+    const folios = products.reduce((total, product) => total + (Number(product.folios) || 0), 0);
+    const main = products.length === 1 ? labels[0] : `Mixto · ${number(products.length)} productos`;
+    const detail = products.length === 1
+        ? `${number(folios)} ${folios === 1 ? 'folio' : 'folios'}`
+        : labels.join(' · ');
+
+    return `<strong class="operation-now-product" title="${escapeHtml(labels.join(' · '))}">${escapeHtml(main)}</strong><span class="operation-now-subtext">${escapeHtml(detail)}</span>`;
 }
 
 function renderTunnels(tunnels = []) {
     if (!tunnels.length) {
-        elements.tunnelList.innerHTML = empty('Sin túneles configurados', 'No existe infraestructura de prefrío para mostrar.');
+        elements.tunnelList.innerHTML = `<tr><td colspan="4">${empty('Sin túneles configurados', 'No existe infraestructura de prefrío para mostrar.')}</td></tr>`;
         return;
     }
 
-    elements.tunnelList.innerHTML = tunnels.map((tunnel) => `<article class="operation-now-tunnel">
-        <div class="operation-now-tunnel__heading">
-            <div><h3>${escapeHtml(tunnel.codigo)}</h3><span class="operation-now-subtext">${escapeHtml(tunnel.nombre)}</span></div>
-            ${signal(humanize(tunnel.estado_operacional), toneForTunnel(tunnel))}
-        </div>
-        <div class="operation-now-tunnel__capacity">
-            <span><b>${number(tunnel.posiciones_ocupadas)} / ${number(tunnel.capacidad_posiciones)}</b> posiciones</span>
-            <span><b>${percent(tunnel.ocupacion_porcentaje)}</b> de uso</span>
-        </div>
-        ${tunnelProcess(tunnel)}
-    </article>`).join('');
+    elements.tunnelList.innerHTML = tunnels.map((tunnel) => `<tr>
+        <td><span class="operation-now-code">${escapeHtml(tunnel.codigo)}</span><span class="operation-now-subtext">${number(tunnel.posiciones_ocupadas)} de ${number(tunnel.capacidad_posiciones)} posiciones</span></td>
+        <td>${signal(tunnelStateLabel(tunnel), tunnelStateTone(tunnel))}</td>
+        <td>${tunnelProgress(tunnel)}</td>
+        <td>${tunnelProduct(tunnel.proceso_activo)}</td>
+    </tr>`).join('');
 }
 
 function incidentContext(incident) {

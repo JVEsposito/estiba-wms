@@ -15,6 +15,10 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('Vista operacional de recintos')
             ->assertSee('Camareros activos')
             ->assertSee('Prefrío')
+            ->assertSee('Estado, progreso y producto')
+            ->assertSee('<th scope="col">Estado</th>', false)
+            ->assertSee('<th scope="col">Progreso</th>', false)
+            ->assertSee('<th scope="col">Producto</th>', false)
             ->assertSee('Incidencias abiertas')
             ->assertSee('Alertas operacionales')
             ->assertSee('ACCESOS RÁPIDOS')
@@ -56,6 +60,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
         $this->assertStringContainsString('buildOperationalAlerts', $script);
+        $this->assertStringContainsString('proceso_activo', $script);
+        $this->assertStringContainsString('process?.productos', $script);
+        $this->assertStringContainsString('tunnelProgress', $script);
         $this->assertStringContainsString('pauseWhenHidden', file_get_contents(resource_path('js/shared/operational-poller.js')));
         $this->assertStringNotContainsString("method: 'POST'", $script);
         $this->assertStringNotContainsString("method: 'PUT'", $script);
