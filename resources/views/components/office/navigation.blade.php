@@ -155,7 +155,10 @@
                         <p class="estiba-office-subgroup">{{ $currentSection }}</p>
                     @endif
                 @endif
-                <a class="{{ $office === $definition['key'] ? 'is-active' : '' }} {{ isset($definition['section']) ? 'is-subgroup-item' : '' }}"
+                <a @class([
+                        'is-active' => $office === $definition['key'],
+                        'is-subgroup-item' => isset($definition['section']),
+                    ])
                     data-office-key="{{ $definition['key'] }}"
                     data-office-domain="{{ $domain }}"
                     data-navigation-permissions="{{ implode(',', $definition['permissions']) }}"
