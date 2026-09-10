@@ -2,6 +2,7 @@
 
 namespace App\Services\Materiales;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
@@ -32,12 +33,16 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
         string $itemMaterialId,
         float $cantidadRequerida,
         Closure $registrarReserva,
+        ?array $categoriasOperacionales = null,
     ): float {
         $pendiente = round($cantidadRequerida, 3);
         $ordenFifo = 1;
 
         while ($pendiente > 0.0001) {
-            $saldo = $this->siguienteDisponibleBloqueado($itemMaterialId);
+            $saldo = $this->siguienteDisponibleBloqueado(
+                $itemMaterialId,
+                $categoriasOperacionales,
+            );
 
             if (! $saldo) {
                 break;
@@ -80,9 +85,13 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
 
     private function siguienteDisponibleBloqueado(
         string $itemMaterialId,
+        ?array $categoriasOperacionales,
     ): ?SaldoMaterialAlmacen {
         while (true) {
-            $candidato = $this->consultaCandidatos($itemMaterialId)
+            $candidato = $this->consultaCandidatos(
+                $itemMaterialId,
+                $categoriasOperacionales,
+            )
                 ->first([
                     'saldos_materiales_almacenes.id',
                     'saldos_materiales_almacenes.folio_id',
@@ -100,7 +109,11 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 ->lockForUpdate()
                 ->find($candidato->id);
 
-            if (! $saldo || ! $this->continuaDisponible($saldo, $folio)) {
+            if (! $saldo || ! $this->continuaDisponible(
+                $saldo,
+                $folio,
+                $categoriasOperacionales,
+            )) {
                 continue;
             }
 
@@ -108,8 +121,16 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
         }
     }
 
-    private function consultaCandidatos(string $itemMaterialId): Builder
+    /**
+     * @param  array<int, CategoriaOperacionalMaterial|string>|null  $categoriasOperacionales
+     */
+    private function consultaCandidatos(
+        string $itemMaterialId,
+        ?array $categoriasOperacionales,
+    ): Builder
     {
+        $categorias = $this->normalizarCategorias($categoriasOperacionales);
+
         return SaldoMaterialAlmacen::query()
             ->join(
                 'destinos_materiales as am',
@@ -139,6 +160,8 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
             ->where('am.codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
             ->where('am.activo', true)
             ->where('fm.item_material_id', $itemMaterialId)
+            ->when($categorias !== [], fn (Builder $consulta) => $consulta
+                ->whereIn('fm.categoria_operacional', $categorias))
             ->whereColumn(
                 'saldos_materiales_almacenes.cantidad_actual',
                 '>',
@@ -166,15 +189,38 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
     private function continuaDisponible(
         SaldoMaterialAlmacen $saldo,
         FolioMaterial $folio,
+        ?array $categoriasOperacionales,
     ): bool {
+        $categorias = $this->normalizarCategorias($categoriasOperacionales);
+
         return $saldo->almacen?->codigo === AlmacenMaterial::CODIGO_BODEGA_CENTRAL
             && $saldo->almacen?->activo
             && $saldo->cantidadDisponible() > 0
             && $folio->motivo_bloqueo === null
             && $folio->folio?->activo
             && $folio->folio?->estado_operacional === EstadoOperacionalFolio::Disponible
+            && ($categorias === [] || in_array(
+                $folio->categoria_operacional?->value,
+                $categorias,
+                true,
+            ))
             && $saldo->camara?->contenido === ContenidoCamara::Materiales
             && $saldo->camara?->estado === EstadoCamara::Activa
             && (! $saldo->posicion || $saldo->posicion->estado === EstadoPosicion::Activa);
+    }
+
+    /**
+     * @param  array<int, CategoriaOperacionalMaterial|string>|null  $categoriasOperacionales
+     * @return array<int, string>
+     */
+    private function normalizarCategorias(?array $categoriasOperacionales): array
+    {
+        return collect($categoriasOperacionales)
+            ->map(fn (mixed $categoria): string => $categoria instanceof CategoriaOperacionalMaterial
+                ? $categoria->value
+                : trim((string) $categoria))
+            ->filter()
+            ->values()
+            ->all();
     }
 }

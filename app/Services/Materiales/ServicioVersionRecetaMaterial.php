@@ -53,6 +53,15 @@ class ServicioVersionRecetaMaterial
                 throw new DomainException('La receta debe tener exactamente un componente principal.');
             }
 
+            if (! in_array($receta->itemSalida->categoria_operacional, [
+                CategoriaOperacionalMaterial::MaterialMp,
+                CategoriaOperacionalMaterial::MaterialPt,
+            ], true)) {
+                throw new DomainException(
+                    'El producto de salida debe ser Material PT o un Material MP que conservará su código.',
+                );
+            }
+
             $versiones = VersionRecetaMaterial::query()
                 ->where('receta_material_id', $receta->id)
                 ->lockForUpdate()
@@ -80,6 +89,7 @@ class ServicioVersionRecetaMaterial
                 'activado_at' => $ahora,
             ]);
             $detallesSnapshot = [];
+            $salidaMpComoPrincipal = false;
 
             foreach ($componentes as $componente) {
                 $item = $this->validarItemEntrada(
@@ -87,6 +97,18 @@ class ServicioVersionRecetaMaterial
                     $cliente,
                     $temporada->id,
                 );
+
+                if ($item->id === $receta->itemSalida->id) {
+                    if ($receta->itemSalida->categoria_operacional !== CategoriaOperacionalMaterial::MaterialMp
+                        || ! (bool) $componente['es_componente_principal']) {
+                        throw new DomainException(
+                            'Un ítem solo puede conservar su código al pasar de Material MP a Material PT y debe ser el componente principal.',
+                        );
+                    }
+
+                    $salidaMpComoPrincipal = true;
+                }
+
                 $detalle = DetalleVersionRecetaMaterial::create([
                     'version_receta_material_id' => $version->id,
                     'item_entrada_id' => $item->id,
@@ -116,6 +138,13 @@ class ServicioVersionRecetaMaterial
                 ];
             }
 
+            if ($receta->itemSalida->categoria_operacional === CategoriaOperacionalMaterial::MaterialMp
+                && ! $salidaMpComoPrincipal) {
+                throw new DomainException(
+                    'Para transformar un Material MP con el mismo código, ese ítem debe mantenerse como componente principal.',
+                );
+            }
+
             $version->update(['snapshot' => [
                 'receta' => [
                     'id' => $receta->id,
@@ -133,6 +162,8 @@ class ServicioVersionRecetaMaterial
                     'cantidad_base' => $version->cantidad_base_salida,
                     'unidades_por_folio' => $version->unidades_por_folio_salida,
                     'unidad_medida' => $receta->itemSalida->unidad_medida,
+                    'categoria_operacional' => CategoriaOperacionalMaterial::MaterialPt->value,
+                    'categoria_item_origen' => $receta->itemSalida->categoria_operacional->value,
                 ],
                 'componentes' => $detallesSnapshot,
             ]]);

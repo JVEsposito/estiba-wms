@@ -147,7 +147,7 @@ function injectRecipePanel() {
             <div>
                 <p class="eyebrow">TRANSFORMACIÓN INTERNA</p>
                 <h2>Recetas de materiales</h2>
-                <p class="materials-help">Define qué insumos y materiales sin preparar se consumen para obtener un material preparado para línea.</p>
+                <p class="materials-help">Define qué insumos y materiales sin preparar se consumen para obtener un material preparado para línea, incluso conservando el mismo código.</p>
             </div>
             <div class="materials-panel__tools">
                 <span id="materialsRecipesSummary">0 recetas</span>
@@ -163,7 +163,7 @@ function injectRecipePanel() {
                 </div>
                 <div class="materials-form__grid">
                     <label><span>Cliente *</span><select name="cliente_id" required></select></label>
-                    <label><span>Producto de salida *</span><select name="item_salida_id" required></select></label>
+                    <label><span>Producto de salida *</span><select name="item_salida_id" required></select><small>Un Material MP puede elegirse como salida para transformarlo a PT conservando su código.</small></label>
                     <label class="materials-wide"><span>Nombre de receta *</span><input name="nombre" minlength="3" maxlength="180" placeholder="Caja 10 kg preparada para línea" required></label>
                     <label><span>Cantidad base de salida *</span><input name="cantidad_base_salida" type="number" min="0.001" step="0.001" value="1" required></label>
                     <label><span>Unidades por folio / pallet *</span><input name="unidades_por_folio_salida" type="number" min="0.001" step="0.001" value="1" required></label>
@@ -207,6 +207,9 @@ function injectRecipePanel() {
         if (recipeState.editingRecipeId) return;
         populateRecipeItems();
         resetRecipeComponents();
+    });
+    recipeElements.form.elements.item_salida_id.addEventListener('change', () => {
+        suggestSameItemTransformation();
     });
     recipeElements.addComponent.addEventListener('click', () => addRecipeComponent());
     recipeElements.components.addEventListener('click', (event) => {
@@ -258,17 +261,29 @@ function populateRecipeItems() {
     const globalClientId = recipeElements.form.elements.cliente_id.value;
     const items = recipeItemsForGlobalClient(globalClientId);
     const currentOutput = recipeElements.form.elements.item_salida_id.value;
-    const outputs = items.filter((item) => item.categoria_operacional === 'material_pt');
+    const outputs = items.filter((item) => ['material_mp', 'material_pt'].includes(item.categoria_operacional));
 
     recipeElements.form.elements.item_salida_id.innerHTML = outputs
-        .map((item) => `<option value="${recipeEscape(item.id)}">${recipeEscape(item.codigo)} · ${recipeEscape(item.nombre)} · ${recipeEscape(item.unidad_medida)}</option>`)
-        .join('') || '<option value="">El cliente no tiene ítems Material PT activos</option>';
+        .map((item) => `<option value="${recipeEscape(item.id)}">${recipeEscape(item.codigo)} · ${recipeEscape(item.nombre)} · ${item.categoria_operacional === 'material_mp' ? 'MP → PT mismo código' : 'Material PT'} · ${recipeEscape(item.unidad_medida)}</option>`)
+        .join('') || '<option value="">El cliente no tiene ítems Material MP o PT activos</option>';
     if (outputs.some((item) => item.id === currentOutput)) recipeElements.form.elements.item_salida_id.value = currentOutput;
 
     recipeElements.components.querySelectorAll('[name="item_entrada_id"]').forEach((select) => {
         const previous = select.value;
         select.innerHTML = recipeInputOptions(globalClientId, previous);
     });
+}
+
+function suggestSameItemTransformation() {
+    const outputId = recipeElements.form.elements.item_salida_id.value;
+    const output = recipeState.catalog.items.find((item) => item.id === outputId);
+    const rows = [...recipeElements.components.querySelectorAll('.materials-recipe-component')];
+    if (output?.categoria_operacional !== 'material_mp' || rows.length !== 1) return;
+
+    const input = rows[0].querySelector('[name="item_entrada_id"]');
+    const principal = rows[0].querySelector('[name="recipe_principal"]');
+    if ([...input.options].some((option) => option.value === output.id)) input.value = output.id;
+    principal.checked = true;
 }
 
 function recipeInputOptions(globalClientId, selected = '') {
@@ -319,6 +334,12 @@ function resetRecipeForm() {
 function latestRecipeVersion(recipe) {
     return [...(recipe?.versiones || [])]
         .sort((left, right) => Number(right.numero_version) - Number(left.numero_version))[0] || null;
+}
+
+function isSameItemTransformation(recipe, version) {
+    return recipe?.item_salida?.categoria_operacional === 'material_mp'
+        && (version?.componentes || []).some((component) => component.es_componente_principal
+            && component.item?.id === recipe.item_salida.id);
 }
 
 function openRecipeVersion(recipeId) {
@@ -437,7 +458,7 @@ function renderRecipes() {
                 <div class="materials-recipe-card__header">
                     <div>
                         <h3>${recipeEscape(recipe.nombre)}</h3>
-                        <small>${recipeEscape(recipe.temporada?.codigo)} · ${recipeEscape(recipe.cliente?.codigo)} · ${recipeEscape(recipe.cliente?.nombre)} → ${recipeEscape(recipe.item_salida?.codigo)} · ${recipeEscape(recipe.item_salida?.nombre)}</small>
+                        <small>${recipeEscape(recipe.temporada?.codigo)} · ${recipeEscape(recipe.cliente?.codigo)} · ${recipeEscape(recipe.cliente?.nombre)} → ${recipeEscape(recipe.item_salida?.codigo)} · ${recipeEscape(recipe.item_salida?.nombre)}${isSameItemTransformation(recipe, version) ? ' · MP → PT mismo código' : ''}</small>
                     </div>
                     ${canVersion ? `<button class="secondary-button" data-new-recipe-version="${recipeEscape(recipe.id)}" type="button">Nueva versión</button>` : ''}
                 </div>

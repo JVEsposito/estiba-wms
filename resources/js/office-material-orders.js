@@ -333,9 +333,10 @@ function selectedRecipeEntry() {
     return availableRecipeVersions().find((entry) => entry.version.id === versionId) || null;
 }
 
-function availableByItem(itemId) {
+function availableByItem(itemId, operationalCategory = null) {
     return Math.round(orderState.inventory
-        .filter((folio) => folio.item?.id === itemId)
+        .filter((folio) => folio.item?.id === itemId
+            && (!operationalCategory || folio.categoria_operacional === operationalCategory))
         .reduce((sum, folio) => sum + Number(folio.cantidad_disponible || 0), 0) * 1000) / 1000;
 }
 
@@ -360,6 +361,7 @@ function requirementsForRecipe(entry, plannedOutput) {
         nombre: component.item?.nombre,
         unidad_medida: component.unidad_medida,
         es_componente_principal: component.es_componente_principal,
+        categoria_operacional: component.item?.categoria_operacional,
         required: Math.round(
             (Number(component.cantidad_estandar || 0) * plannedOutput / baseOutput) * 1000,
         ) / 1000,
@@ -422,7 +424,10 @@ function renderOrderRequirements() {
             <strong class="materials-order-requirement__stock">${orderQuantity(plannedOutput)} ${orderEscape(entry.version.unidad_medida_salida)}</strong>
         </div>
         ${requirements.map((requirement) => {
-        const available = availableByItem(requirement.item_id);
+        const available = availableByItem(
+            requirement.item_id,
+            requirement.categoria_operacional,
+        );
         const shortage = Math.max(0, requirement.required - available);
         return `
                 <div class="materials-order-requirement${shortage > 0.0001 ? ' materials-order-requirement--short' : ''}">

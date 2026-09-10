@@ -37,6 +37,10 @@ class InterfazOrdenesTransformacionMaterialesTest extends TestCase
             'orderState.inventory = inventory.resumen_items || []',
             $script,
         );
+        $this->assertStringContainsString(
+            'folio.categoria_operacional === operationalCategory',
+            $script,
+        );
         $this->assertStringContainsString('/planificar', $script);
         $this->assertStringContainsString('/cancelar', $script);
         $this->assertStringContainsString(
