@@ -89,6 +89,7 @@ class ServicioPlanoPlanta
         foreach ($referencias as $tipo => $items) {
             if ($items->pluck('referencia_id')->contains(null)) {
                 $errores["elementos.$tipo"][] = 'Los recintos existentes requieren una referencia válida.';
+
                 continue;
             }
 
