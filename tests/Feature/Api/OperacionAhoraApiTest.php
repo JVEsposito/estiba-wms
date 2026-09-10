@@ -293,6 +293,9 @@ class OperacionAhoraApiTest extends TestCase
             $proceso,
             $posiciones[0],
             'PAL-PF-AHORA-001',
+            TipoBulto::Pallet,
+            'Pera',
+            'Packham',
         );
         $this->cargarFolioPrefrio(
             $temporada,
@@ -301,6 +304,8 @@ class OperacionAhoraApiTest extends TestCase
             $posiciones[1],
             'SALDO-PF-AHORA-001',
             TipoBulto::Saldo,
+            'Pera',
+            'Packham',
         );
         $this->cargarFolioPrefrio(
             $temporada,
@@ -309,6 +314,8 @@ class OperacionAhoraApiTest extends TestCase
             $posiciones[1],
             'SALDO-PF-AHORA-002',
             TipoBulto::Saldo,
+            'Pera',
+            'Packham',
         );
         $pendiente = $this->crearProcesoPrefrio(
             $temporada,
@@ -325,6 +332,9 @@ class OperacionAhoraApiTest extends TestCase
             $pendiente,
             $tunelVerificacion->posiciones()->firstOrFail(),
             'PAL-PF-AHORA-002',
+            TipoBulto::Pallet,
+            'Manzana',
+            'Gala',
         );
 
         $this->actingAs($consulta, 'sanctum')
@@ -343,11 +353,15 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.prefrio.tuneles.0.posiciones_ocupadas', 2)
             ->assertJsonPath('data.prefrio.tuneles.0.posiciones_disponibles', 0)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.folios_cargados', 3)
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.productos.0.etiqueta', 'Pera Packham')
+            ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.productos.0.folios', 3)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.transcurridos_minutos', 540)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.avance_tiempo_objetivo_porcentaje', 100)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.objetivo_excedido', true)
             ->assertJsonPath('data.prefrio.tuneles.0.proceso_activo.minutos_sobre_objetivo', 60)
             ->assertJsonPath('data.prefrio.tuneles.1.estado_operacional', 'pendiente_verificacion')
+            ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.productos.0.etiqueta', 'Manzana Gala')
+            ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.productos.0.folios', 1)
             ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.transcurridos_minutos', 480)
             ->assertJsonPath('data.prefrio.tuneles.1.proceso_activo.objetivo_excedido', false)
             ->assertJsonPath('data.prefrio.tuneles.2.estado_operacional', 'disponible')
@@ -635,12 +649,16 @@ class OperacionAhoraApiTest extends TestCase
         PosicionTunelPrefrio $posicion,
         string $numeroFolio,
         TipoBulto $tipoBulto = TipoBulto::Pallet,
+        ?string $especie = null,
+        ?string $variedad = null,
     ): void {
         $folio = Folio::create([
             'temporada_id' => $temporada->id,
             'numero_folio' => $numeroFolio,
             'tipo_bulto' => $tipoBulto,
             'fecha_ingreso' => now(),
+            'variedad' => $variedad,
+            'datos_externos' => $especie ? ['especie' => $especie] : null,
         ]);
         ProcesoPrefrioFolio::create([
             'proceso_prefrio_id' => $proceso->id,

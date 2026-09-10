@@ -454,7 +454,8 @@ class ServicioOperacionAhora
                     ->whereNotIn('estado', [
                         EstadoFolioProcesoPrefrio::Retirado->value,
                         EstadoFolioProcesoPrefrio::Cancelado->value,
-                    ]),
+                    ])
+                    ->with('folio:id,variedad,datos_externos'),
             ])
             ->latest('created_at')
             ->get()
@@ -570,6 +571,7 @@ class ServicioOperacionAhora
             'estado' => $proceso->estado->value,
             'setpoint_c' => $proceso->setpoint !== null ? (float) $proceso->setpoint : null,
             'formato_referencia' => $proceso->formato_referencia,
+            'productos' => $this->productosProcesoPrefrio($proceso),
             'folios_cargados' => $proceso->folios->count(),
             'posiciones_ocupadas' => $posicionesOcupadas,
             'iniciado_at' => $inicio?->toAtomString(),
@@ -587,6 +589,46 @@ class ServicioOperacionAhora
                 ? max(0, $transcurridos - $objetivo)
                 : null,
         ];
+    }
+
+    /**
+     * @return array<int, array{especie: ?string, variedad: ?string, etiqueta: string, folios: int}>
+     */
+    private function productosProcesoPrefrio(ProcesoPrefrio $proceso): array
+    {
+        return $proceso->folios
+            ->map(function ($asignacion): ?array {
+                $folio = $asignacion->folio;
+                if ($folio === null) {
+                    return null;
+                }
+
+                $datosExternos = is_array($folio->datos_externos)
+                    ? $folio->datos_externos
+                    : [];
+                $especie = trim((string) ($datosExternos['especie'] ?? '')) ?: null;
+                $variedad = trim((string) ($folio->variedad ?? '')) ?: null;
+                $etiqueta = collect([$especie, $variedad])->filter()->implode(' ');
+
+                return $etiqueta !== '' ? [
+                    'especie' => $especie,
+                    'variedad' => $variedad,
+                    'etiqueta' => $etiqueta,
+                ] : null;
+            })
+            ->filter()
+            ->groupBy(fn (array $producto): string => mb_strtolower($producto['etiqueta']))
+            ->map(function (Collection $productos): array {
+                $producto = $productos->first();
+
+                return [
+                    ...$producto,
+                    'folios' => $productos->count(),
+                ];
+            })
+            ->sortBy(fn (array $producto): string => mb_strtolower($producto['etiqueta']))
+            ->values()
+            ->all();
     }
 
     /**

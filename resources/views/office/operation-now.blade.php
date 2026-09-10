@@ -96,11 +96,17 @@
                         <header class="operation-now-panel__heading">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.5 5.5L18 4l-1.5 5.5L22 8l-4.5 3.5L22 14l-5.5-1.5L18 18l-4.5-3.5L12 22l-1.5-7.5L6 18l1.5-5.5L2 14l4.5-2.5L2 8l5.5 1.5L6 4l4.5 3.5L12 2Z"/></svg>
-                                <div><h2 id="operationPrecoolingTitle">Prefrío</h2><span>Túneles y avance temporal</span></div>
+                                <div><h2 id="operationPrecoolingTitle">Prefrío</h2><span>Estado, progreso y producto</span></div>
                             </div>
                             <div class="operation-now-panel__tools"><strong class="operation-now-panel__summary" id="precoolingPanelSummary">—</strong><a href="/oficina/prefrio">Ver detalle <span aria-hidden="true">→</span></a></div>
                         </header>
-                        <div class="operation-now-panel__body operation-now-tunnels" id="operationTunnelList"><div class="operation-now-empty">Consultando túneles…</div></div>
+                        <div class="operation-now-panel__body operation-now-table-scroll">
+                            <table class="operation-now-table operation-now-table--precooling">
+                                <caption class="office-visually-hidden">Estado, progreso temporal y producto de los túneles de Prefrío</caption>
+                                <thead><tr><th scope="col">Túnel</th><th scope="col">Estado</th><th scope="col">Progreso</th><th scope="col">Producto</th></tr></thead>
+                                <tbody id="operationTunnelList"><tr><td colspan="4"><div class="operation-now-empty">Consultando túneles…</div></td></tr></tbody>
+                            </table>
+                        </div>
                     </section>
 
                     <section class="operation-now-panel operation-now-panel--incidents" aria-labelledby="operationIncidentsTitle">
