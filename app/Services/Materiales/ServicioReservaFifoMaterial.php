@@ -2,6 +2,7 @@
 
 namespace App\Services\Materiales;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
@@ -22,12 +23,16 @@ class ServicioReservaFifoMaterial
         string $itemMaterialId,
         float $cantidadRequerida,
         Closure $registrarReserva,
+        ?array $categoriasOperacionales = null,
     ): float {
         $pendiente = round($cantidadRequerida, 3);
         $ordenFifo = 1;
 
         while ($pendiente > 0.0001) {
-            $folio = $this->siguienteDisponibleBloqueado($itemMaterialId);
+            $folio = $this->siguienteDisponibleBloqueado(
+                $itemMaterialId,
+                $categoriasOperacionales,
+            );
 
             if (! $folio) {
                 break;
@@ -53,12 +58,27 @@ class ServicioReservaFifoMaterial
         return max(0, $pendiente);
     }
 
-    private function siguienteDisponibleBloqueado(string $itemMaterialId): ?FolioMaterial
-    {
+    /**
+     * @param  array<int, CategoriaOperacionalMaterial|string>|null  $categoriasOperacionales
+     */
+    private function siguienteDisponibleBloqueado(
+        string $itemMaterialId,
+        ?array $categoriasOperacionales,
+    ): ?FolioMaterial {
+        $categorias = collect($categoriasOperacionales)
+            ->map(fn (mixed $categoria): string => $categoria instanceof CategoriaOperacionalMaterial
+                ? $categoria->value
+                : trim((string) $categoria))
+            ->filter()
+            ->values()
+            ->all();
+
         return FolioMaterial::query()
             ->join('folios', 'folios.id', '=', 'folios_materiales.folio_id')
             ->select('folios_materiales.*')
             ->where('folios_materiales.item_material_id', $itemMaterialId)
+            ->when($categorias !== [], fn ($consulta) => $consulta
+                ->whereIn('folios_materiales.categoria_operacional', $categorias))
             ->whereColumn(
                 'folios_materiales.cantidad_actual',
                 '>',

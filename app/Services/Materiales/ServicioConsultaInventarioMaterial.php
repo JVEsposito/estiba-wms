@@ -85,6 +85,7 @@ class ServicioConsultaInventarioMaterial
                 'tm.codigo as temporada_codigo',
                 'tm.nombre as temporada_nombre',
                 'tm.activa as temporada_activa',
+                'fm.categoria_operacional',
                 'fm.unidad_medida',
             ])
             ->selectRaw('COUNT(*) as folios')
@@ -104,10 +105,12 @@ class ServicioConsultaInventarioMaterial
                 'tm.codigo',
                 'tm.nombre',
                 'tm.activa',
+                'fm.categoria_operacional',
                 'fm.unidad_medida',
             ])
             ->orderBy('cm.codigo')
             ->orderBy('im.codigo')
+            ->orderBy('fm.categoria_operacional')
             ->get()
             ->map(fn (object $fila): array => [
                 'item' => [
@@ -116,6 +119,7 @@ class ServicioConsultaInventarioMaterial
                     'codigo' => $fila->item_codigo,
                     'nombre' => $fila->item_nombre,
                 ],
+                'categoria_operacional' => $fila->categoria_operacional,
                 'unidad_medida' => $fila->unidad_medida,
                 'folios' => (int) $fila->folios,
                 'cantidad_actual' => $this->cantidad($fila->cantidad_actual),
@@ -208,7 +212,7 @@ class ServicioConsultaInventarioMaterial
             'resumen' => [
                 'folios' => $clientes->sum('folios'),
                 'clientes' => $clientes->count(),
-                'items' => $items->count(),
+                'items' => $items->pluck('item.id')->unique()->count(),
             ],
             'resumen_clientes' => $clientes,
             'resumen_items' => $items,

@@ -61,7 +61,10 @@ class ServicioTransformacionMaterial
                 $datos['item_salida_id'],
                 $cliente,
                 $temporada->id,
-                [CategoriaOperacionalMaterial::MaterialPt],
+                [
+                    CategoriaOperacionalMaterial::MaterialMp,
+                    CategoriaOperacionalMaterial::MaterialPt,
+                ],
                 bloquear: true,
             );
             $componentes = collect($datos['componentes']);
@@ -92,6 +95,7 @@ class ServicioTransformacionMaterial
                 'activado_at' => now(),
             ]);
             $detallesSnapshot = [];
+            $salidaMpComoPrincipal = false;
 
             foreach ($componentes as $componente) {
                 $item = $this->validarItem(
@@ -106,7 +110,14 @@ class ServicioTransformacionMaterial
                 );
 
                 if ($item->id === $salida->id) {
-                    throw new DomainException('El ítem de salida no puede utilizarse como entrada de la misma receta.');
+                    if ($salida->categoria_operacional !== CategoriaOperacionalMaterial::MaterialMp
+                        || ! (bool) $componente['es_componente_principal']) {
+                        throw new DomainException(
+                            'Un ítem solo puede conservar su código al pasar de Material MP a Material PT y debe ser el componente principal.',
+                        );
+                    }
+
+                    $salidaMpComoPrincipal = true;
                 }
 
                 $detalle = DetalleVersionRecetaMaterial::create([
@@ -138,6 +149,13 @@ class ServicioTransformacionMaterial
                 ];
             }
 
+            if ($salida->categoria_operacional === CategoriaOperacionalMaterial::MaterialMp
+                && ! $salidaMpComoPrincipal) {
+                throw new DomainException(
+                    'Para transformar un Material MP con el mismo código, ese ítem debe ser la salida y el componente principal de la receta.',
+                );
+            }
+
             $version->update(['snapshot' => [
                 'receta' => [
                     'id' => $receta->id,
@@ -155,6 +173,8 @@ class ServicioTransformacionMaterial
                     'cantidad_base' => $version->cantidad_base_salida,
                     'unidades_por_folio' => $version->unidades_por_folio_salida,
                     'unidad_medida' => $salida->unidad_medida,
+                    'categoria_operacional' => CategoriaOperacionalMaterial::MaterialPt->value,
+                    'categoria_item_origen' => $salida->categoria_operacional->value,
                 ],
                 'componentes' => $detallesSnapshot,
             ]]);
@@ -327,6 +347,9 @@ class ServicioTransformacionMaterial
                             'orden_fifo' => $ordenFifo,
                         ]);
                     },
+                    isset($componente['categoria_operacional'])
+                        ? [(string) $componente['categoria_operacional']]
+                        : null,
                 );
 
                 if ($pendiente > 0.0001) {
@@ -737,6 +760,9 @@ class ServicioTransformacionMaterial
                 ->pluck('item_id')
                 ->filter()
                 ->map(fn ($id): string => (string) $id);
+            $componentesPorItem = $componentes->keyBy(
+                fn (array $componente): string => (string) ($componente['item_id'] ?? ''),
+            );
             $reservas = ReservaTransformacionMaterial::query()
                 ->where('orden_transformacion_material_id', $orden->id)
                 ->where('estado', EstadoReservaMaterial::Activa->value)
@@ -835,12 +861,25 @@ class ServicioTransformacionMaterial
                     ->lockForUpdate()
                     ->findOrFail($reserva->folio_id);
                 $folio = $folioMaterial->folio;
+                $categoriaEsperada = (string) data_get(
+                    $componentesPorItem->get((string) $reserva->item_material_id),
+                    'categoria_operacional',
+                    '',
+                );
 
                 if (! $folio->activo
                     || $folio->estado_operacional !== EstadoOperacionalFolio::Disponible
                     || $folioMaterial->motivo_bloqueo !== null) {
                     throw new DomainException(sprintf(
                         'El folio %s ya no está disponible para transformación.',
+                        $folio->numero_folio,
+                    ));
+                }
+
+                if ($categoriaEsperada !== ''
+                    && $folioMaterial->categoria_operacional?->value !== $categoriaEsperada) {
+                    throw new DomainException(sprintf(
+                        'El folio %s no conserva la condición MP o insumo exigida por la receta.',
                         $folio->numero_folio,
                     ));
                 }
@@ -960,7 +999,7 @@ class ServicioTransformacionMaterial
                 'folio_id' => $folioSalida->id,
                 'item_material_id' => $itemSalida->id,
                 'lote_transformacion_origen_id' => $lote->id,
-                'categoria_operacional' => $itemSalida->categoria_operacional,
+                'categoria_operacional' => CategoriaOperacionalMaterial::MaterialPt,
                 'cantidad_inicial' => $cantidadRealSalida,
                 'cantidad_actual' => $cantidadRealSalida,
                 'cantidad_reservada' => 0,
@@ -989,6 +1028,7 @@ class ServicioTransformacionMaterial
                 'motivo' => 'Salida producida por transformación de materiales.',
                 'metadatos' => [
                     'numero_lote' => $lote->numero_lote,
+                    'categoria_operacional' => CategoriaOperacionalMaterial::MaterialPt->value,
                     'estado_ubicacion' => 'pendiente_ubicacion',
                     'salida_teorica' => $salidaTeorica,
                     'merma_estandar' => $mermaEstandar,

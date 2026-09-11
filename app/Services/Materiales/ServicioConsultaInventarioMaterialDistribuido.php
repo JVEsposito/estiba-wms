@@ -93,7 +93,11 @@ class ServicioConsultaInventarioMaterialDistribuido extends ServicioConsultaInve
             ->get();
 
         $items = $saldos
-            ->groupBy(fn (SaldoMaterialAlmacen $saldo): string => $saldo->folioMaterial->item_material_id)
+            ->groupBy(fn (SaldoMaterialAlmacen $saldo): string => sprintf(
+                '%s:%s',
+                $saldo->folioMaterial->item_material_id,
+                $saldo->folioMaterial->categoria_operacional?->value ?? 'sin_categoria',
+            ))
             ->map(fn (Collection $grupo): array => $this->resumenItem($grupo))
             ->sortBy(fn (array $fila): string => sprintf(
                 '%s-%s',
@@ -156,7 +160,7 @@ class ServicioConsultaInventarioMaterialDistribuido extends ServicioConsultaInve
             'resumen' => [
                 'folios' => $saldos->pluck('folio_id')->unique()->count(),
                 'clientes' => $clientes->count(),
-                'items' => $items->count(),
+                'items' => $items->pluck('item.id')->unique()->count(),
             ],
             'resumen_clientes' => $clientes,
             'resumen_items' => $items,
@@ -191,6 +195,7 @@ class ServicioConsultaInventarioMaterialDistribuido extends ServicioConsultaInve
                 'codigo' => $item->codigo,
                 'nombre' => $item->nombre,
             ],
+            'categoria_operacional' => $primero->folioMaterial->categoria_operacional?->value,
             'unidad_medida' => $primero->folioMaterial->unidad_medida,
             'folios' => $grupo->pluck('folio_id')->unique()->count(),
             'cantidad_actual' => $this->cantidad($grupo->sum('cantidad_actual')),

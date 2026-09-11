@@ -34,6 +34,191 @@ class TransformacionMaterialApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_transforma_material_mp_a_pt_conservando_item_codigo_y_trazabilidad(): void
+    {
+        [, $tokenOficina, $cliente, $proveedor, $item, $auxiliar] =
+            $this->prepararCatalogo();
+        [, , $tokenTablet] = $this->crearOperador();
+        [$camara, $posicion] = $this->crearCamaraMateriales();
+        $recepcion = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente,
+                $proveedor,
+                $item,
+                $auxiliar,
+            ))
+            ->assertCreated()
+            ->json('data');
+        $confirmada = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/recepciones/{$recepcion['id']}/confirmar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->json('data');
+        $folioEntrada = $confirmada['detalles'][0]['bultos'][0]['folio'];
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $this->conToken($tokenTablet)
+            ->postJson('/api/movimientos/ubicar', $this->payloadUbicacion(
+                $folioEntrada['numero_folio'],
+                $posicion,
+                $sesion,
+                $item,
+                0,
+            ))
+            ->assertOk();
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $item->id,
+                'nombre' => 'Mismo código sin componente principal',
+                'cantidad_base_salida' => 80,
+                'componentes' => [[
+                    'item_entrada_id' => $auxiliar->id,
+                    'cantidad_estandar' => 1,
+                    'es_componente_principal' => true,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $receta = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/recetas', [
+                'cliente_id' => $cliente->id,
+                'item_salida_id' => $item->id,
+                'nombre' => 'Preparar conservando código',
+                'cantidad_base_salida' => 80,
+                'unidades_por_folio_salida' => 80,
+                'componentes' => [[
+                    'item_entrada_id' => $item->id,
+                    'cantidad_estandar' => 80,
+                    'es_componente_principal' => true,
+                    'factor_conversion' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.item_salida.id', $item->id)
+            ->assertJsonPath('data.item_salida.codigo', $item->codigo)
+            ->assertJsonPath('data.item_salida.categoria_operacional', 'material_mp')
+            ->assertJsonPath('data.versiones.0.componentes.0.item.id', $item->id)
+            ->json('data');
+        $receta = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/recetas/{$receta['id']}/versiones", [
+                'cantidad_base_salida' => 80,
+                'unidades_por_folio_salida' => 40,
+                'componentes' => [[
+                    'item_entrada_id' => $item->id,
+                    'cantidad_estandar' => 80,
+                    'es_componente_principal' => true,
+                    'factor_conversion' => 1,
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.versiones.0.numero_version', 2)
+            ->assertJsonPath('data.versiones.0.componentes.0.item.id', $item->id)
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/transformaciones/ordenes', [
+                'operacion_id' => (string) Str::uuid(),
+                'version_receta_material_id' => $receta['versiones'][0]['id'],
+                'cantidad_planificada_salida' => 40,
+                'fecha_operacional' => '2026-09-10',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.receta_snapshot.salida.item_id', $item->id)
+            ->assertJsonPath('data.receta_snapshot.salida.categoria_operacional', 'material_pt')
+            ->json('data');
+        $orden = $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/planificar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 1,
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.reservas')
+            ->assertJsonPath('data.reservas.0.item_material_id', $item->id)
+            ->assertJsonPath('data.reservas.0.cantidad', '40.000')
+            ->json('data');
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/iniciar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 2,
+            ])
+            ->assertOk()
+            ->json('data');
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/ordenes/{$orden['id']}/lotes", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 3,
+                'cantidad_planificada_salida' => 40,
+            ])
+            ->assertOk()
+            ->json('data');
+        $lote = $orden['lotes'][0];
+        $orden = $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/cerrar", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 4,
+                'cantidad_real_salida' => 40,
+                'consumos' => [[
+                    'folio_id' => $folioEntrada['id'],
+                    'cantidad' => 40,
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.lotes.0.salidas.0.item.id', $item->id)
+            ->assertJsonPath('data.lotes.0.salidas.0.item.codigo', $item->codigo)
+            ->json('data');
+        $folioSalidaId = $orden['lotes'][0]['salidas'][0]['folio_id'];
+
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioEntrada['id'],
+            'item_material_id' => $item->id,
+            'categoria_operacional' => 'material_mp',
+            'cantidad_actual' => 40,
+        ]);
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioSalidaId,
+            'item_material_id' => $item->id,
+            'categoria_operacional' => 'material_pt',
+            'cantidad_actual' => 40,
+        ]);
+        $this->conToken($tokenOficina)
+            ->getJson('/api/materiales/inventario?vista=resumen')
+            ->assertOk()
+            ->assertJsonFragment([
+                'categoria_operacional' => 'material_mp',
+                'cantidad_actual' => '40.000',
+            ])
+            ->assertJsonFragment([
+                'categoria_operacional' => 'material_pt',
+                'cantidad_actual' => '40.000',
+            ]);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/transformaciones/lotes/{$lote['id']}/revertir", [
+                'operacion_id' => (string) Str::uuid(),
+                'version_conocida' => 5,
+                'motivo' => 'Prueba de reversa del cambio de condición.',
+            ])
+            ->assertOk();
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioEntrada['id'],
+            'item_material_id' => $item->id,
+            'categoria_operacional' => 'material_mp',
+            'cantidad_actual' => 80,
+        ]);
+        $this->assertDatabaseHas('folios_materiales', [
+            'folio_id' => $folioSalidaId,
+            'item_material_id' => $item->id,
+            'categoria_operacional' => 'material_pt',
+            'cantidad_actual' => 0,
+        ]);
+    }
+
     public function test_crea_receta_planifica_fifo_y_cancela_liberando_reservas(): void
     {
         [$administrador, $tokenOficina, $cliente, $proveedor, $entradaPrincipal, $entradaAuxiliar, $salida] =
