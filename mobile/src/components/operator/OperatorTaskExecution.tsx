@@ -17,6 +17,7 @@ import {
 import { operatorTheme as o } from '../../theme/operatorTheme';
 import type { OperatorExceptionKind } from '../../domain/operatorManeuverException';
 import { OperatorExceptionReport } from './OperatorExceptionReport';
+import { OperatorPhysicalContextPanel } from './OperatorPhysicalContextPanel';
 import { OperatorEntityCode, OperatorPriorityBadge, OperatorStatusBadge } from './OperatorPrimitives';
 
 type Props = {
@@ -168,6 +169,8 @@ export function OperatorTaskExecution({
 
         <PhysicalPattern task={task} />
       </View>
+
+      <OperatorPhysicalContextPanel task={task} />
 
       {!moving && task.tipo_movimiento !== 'retiro' && !hasPhysicalDestination ? (
         <View style={styles.destinationWarning}>

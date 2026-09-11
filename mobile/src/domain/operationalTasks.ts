@@ -103,6 +103,11 @@ export type OperationalTask = {
     id: string;
     numero_folio: string;
     tipo_bulto: 'pallet';
+    variedad?: string | null;
+    calibre?: string | null;
+    marca?: string | null;
+    exportadora?: string | null;
+    fecha_ingreso?: string | null;
   };
   origen: OperationalTaskEndpoint;
   destino: OperationalTaskEndpoint;
