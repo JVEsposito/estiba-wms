@@ -13,7 +13,11 @@ const inbox = await readFile(
     'utf8',
 );
 
-const task = (id, estado = 'pendiente') => ({ id, estado });
+const task = (id, estado = 'pendiente', maniobraEstado = null) => ({
+    id,
+    estado,
+    maniobra: maniobraEstado ? { estado: maniobraEstado } : null,
+});
 
 test('prioriza una tarea propia físicamente iniciada', () => {
     const result = buildOperatorTaskHome(
@@ -24,6 +28,24 @@ test('prioriza una tarea propia físicamente iniciada', () => {
     assert.equal(result.next.task.id, 'en-movimiento');
     assert.equal(result.next.source, 'mine');
     assert.deepEqual(result.mine.map((item) => item.task.id), ['propia-primera']);
+});
+
+test('oculta maniobras pausadas por discrepancia hasta que supervisión las reanude', () => {
+    const result = buildOperatorTaskHome(
+        [
+            task('pausada-en-movimiento', 'en_proceso', 'pausada_discrepancia'),
+            task('siguiente-propia', 'asumida', 'en_ejecucion'),
+        ],
+        [
+            task('pausada-disponible', 'pendiente', 'pausada_discrepancia'),
+            task('disponible-real', 'pendiente', 'pendiente'),
+        ],
+    );
+
+    assert.equal(result.next.task.id, 'siguiente-propia');
+    assert.equal(result.next.source, 'mine');
+    assert.deepEqual(result.mine.map((item) => item.task.id), []);
+    assert.deepEqual(result.available.map((item) => item.task.id), ['disponible-real']);
 });
 
 test('usa el orden del servidor y ofrece trabajo cuando no hay tareas propias', () => {
