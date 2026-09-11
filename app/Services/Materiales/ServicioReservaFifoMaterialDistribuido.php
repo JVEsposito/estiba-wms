@@ -65,10 +65,11 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 fn () => $registrarReserva(
                     $folio,
                     $cantidad,
-                    $ordenFifo++,
+                    $ordenFifo,
                     $saldo,
                 ),
             );
+            $ordenFifo += 1;
             $versionResultante = (int) $saldo->version + 1;
             $saldo->update([
                 'cantidad_reservada' => round(
