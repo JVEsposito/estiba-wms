@@ -59,5 +59,6 @@ test('la PDA revisa, confirma y conserva una espera explícita para supervisión
     assert.match(inbox, /reportDiscrepancy\(auth\.token, activeTask\.id, type, detail\)/);
     assert.doesNotMatch(inbox, /Pallet distinto.*sendDiscrepancy/s);
     assert.match(api, /ReportedManeuverDiscrepancy/);
+    assert.match(api, /tasks\.filter\(\(task\) => task\.maniobra\?\.estado !== 'pausada_discrepancia'\)/);
     assert.match(api, /\)\)\.data;/);
 });
