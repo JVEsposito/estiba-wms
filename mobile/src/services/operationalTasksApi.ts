@@ -5,6 +5,7 @@ import {
   OperationalTask,
   OperationalTaskAssignment,
   ManeuverDiscrepancyType,
+  ReportedManeuverDiscrepancy,
   TemporaryExtractionPayload,
 } from '../domain/operationalTasks';
 import { ApiError } from './apiError';
@@ -95,14 +96,14 @@ export class OperationalTasksApi {
     type: ManeuverDiscrepancyType,
     detail?: string,
   ) {
-    await this.request(
+    return (await this.request<{ data: ReportedManeuverDiscrepancy }>(
       `/api/tareas-movimiento/${encodeURIComponent(taskId)}/no-coincide`,
       token,
       {
         method: 'POST',
         body: JSON.stringify({ tipo: type, detalle: detail }),
       },
-    );
+    )).data;
   }
 
   async renew(token: string, taskId: string) {
