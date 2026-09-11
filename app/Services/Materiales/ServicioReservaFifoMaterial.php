@@ -24,8 +24,7 @@ class ServicioReservaFifoMaterial
         float $cantidadRequerida,
         Closure $registrarReserva,
         ?array $categoriasOperacionales = null,
-    ): float
-    {
+    ): float {
         $pendiente = round($cantidadRequerida, 3);
         $ordenFifo = 1;
 
@@ -65,8 +64,7 @@ class ServicioReservaFifoMaterial
     private function siguienteDisponibleBloqueado(
         string $itemMaterialId,
         ?array $categoriasOperacionales,
-    ): ?FolioMaterial
-    {
+    ): ?FolioMaterial {
         $categorias = collect($categoriasOperacionales)
             ->map(fn (mixed $categoria): string => $categoria instanceof CategoriaOperacionalMaterial
                 ? $categoria->value
