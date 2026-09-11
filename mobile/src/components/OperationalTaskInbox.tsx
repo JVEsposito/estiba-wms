@@ -20,6 +20,7 @@ import {
 import {
   ManeuverDiscrepancyType,
   OperationalTask,
+  ReportedManeuverDiscrepancy,
   TemporaryExtractionPayload,
   operationalTaskDestinationLabel,
   operationalTaskLabel,
@@ -530,44 +531,24 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     }
   }
 
-  function requestDiscrepancy(kind: 'mismatch' | 'impossible') {
-    if (!activeTask?.maniobra) {
+  async function sendDiscrepancy(
+    type: ManeuverDiscrepancyType,
+    detail: string,
+  ): Promise<ReportedManeuverDiscrepancy | null> {
+    if (!taskApi || !activeTask?.maniobra) {
       setError('La gestión de incidencias está disponible para maniobras físicas del planificador.');
-      return;
+      return null;
     }
-
-    const mismatch = kind === 'mismatch';
-    Alert.alert(
-      mismatch ? 'NO COINCIDE' : 'NO ES POSIBLE',
-      mismatch
-        ? 'Detendremos la maniobra sin cambiar pasos ya ejecutados. ¿Qué encontró físicamente?'
-        : 'Detendremos la maniobra en su estado físico actual. ¿Qué impide continuar?',
-      mismatch
-        ? [
-            { text: 'Cancelar', style: 'cancel' },
-            { text: 'Pallet distinto', onPress: () => void sendDiscrepancy('pallet_no_coincide') },
-            { text: 'Posición vacía', onPress: () => void sendDiscrepancy('posicion_vacia') },
-          ]
-        : [
-            { text: 'Cancelar', style: 'cancel' },
-            { text: 'Obstáculo', onPress: () => void sendDiscrepancy('obstaculo') },
-            { text: 'Pallet no movible', onPress: () => void sendDiscrepancy('pallet_no_movible') },
-          ],
-    );
-  }
-
-  async function sendDiscrepancy(type: ManeuverDiscrepancyType) {
-    if (!taskApi || !activeTask) return;
     setBusy(true);
     setError('');
     try {
-      await taskApi.reportDiscrepancy(auth.token, activeTask.id, type);
-      setNotice('Maniobra pausada. Supervisión recibió la discrepancia y el WMS recalculará desde el estado físico confirmado.');
-      setActiveTask(null);
-      await loadTasks({ quiet: true });
+      const reported = await taskApi.reportDiscrepancy(auth.token, activeTask.id, type, detail);
+      setMine((current) => current.filter((task) => task.id !== activeTask.id));
+      setNotice('Maniobra pausada. Supervisión recibió la discrepancia con el estado físico confirmado.');
+      return reported;
     } catch (reason) {
       setError(messageFrom(reason));
-      await loadTasks({ quiet: true });
+      return null;
     } finally {
       setBusy(false);
     }
@@ -735,8 +716,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           onComplete={() => void completeTask()}
           onCompleteDirect={() => void completeDirectWithdrawal()}
           onCompleteTemporary={() => void completeTemporaryExtraction()}
-          onImpossible={() => requestDiscrepancy('impossible')}
-          onMismatch={() => requestDiscrepancy('mismatch')}
+          onReportException={sendDiscrepancy}
           onRecalculate={() => void calculateAndMaterializeFrontier(activeTask)}
           onRelease={() => requestRelease(activeTask)}
           onStart={() => void startPhysicalTask()}

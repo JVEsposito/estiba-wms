@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import {
   OperationalTask,
+  type ManeuverDiscrepancyType,
+  type ReportedManeuverDiscrepancy,
   operationalTaskLabel,
   operationalTaskPositionLabel,
   operationalTaskReason,
@@ -13,6 +15,8 @@ import {
   type OperatorManeuverSequenceItem,
 } from '../../domain/operatorManeuver';
 import { operatorTheme as o } from '../../theme/operatorTheme';
+import type { OperatorExceptionKind } from '../../domain/operatorManeuverException';
+import { OperatorExceptionReport } from './OperatorExceptionReport';
 import { OperatorEntityCode, OperatorPriorityBadge, OperatorStatusBadge } from './OperatorPrimitives';
 
 type Props = {
@@ -24,8 +28,10 @@ type Props = {
   onComplete: () => void;
   onCompleteDirect: () => void;
   onCompleteTemporary: () => void;
-  onImpossible: () => void;
-  onMismatch: () => void;
+  onReportException: (
+    type: ManeuverDiscrepancyType,
+    detail: string,
+  ) => Promise<ReportedManeuverDiscrepancy | null>;
   onRecalculate: () => void;
   onRelease: () => void;
   onStart: () => void;
@@ -43,8 +49,7 @@ export function OperatorTaskExecution({
   onComplete,
   onCompleteDirect,
   onCompleteTemporary,
-  onImpossible,
-  onMismatch,
+  onReportException,
   onRecalculate,
   onRelease,
   onStart,
@@ -53,6 +58,7 @@ export function OperatorTaskExecution({
   task,
 }: Props) {
   const { width } = useWindowDimensions();
+  const [exceptionKind, setExceptionKind] = useState<OperatorExceptionKind | null>(null);
   const compact = width < o.breakpoint.compact;
   const action = buildOperatorManeuverAction(task);
   const sequence = buildOperatorManeuverSequence(task);
@@ -63,12 +69,27 @@ export function OperatorTaskExecution({
     || leaseExpired
     || (!moving && task.tipo_movimiento !== 'retiro' && !hasPhysicalDestination);
 
+  useEffect(() => setExceptionKind(null), [task.id]);
+
   const runPrimary = () => {
     if (!moving) return onStart();
     if (task.tipo_movimiento !== 'retiro') return onComplete();
     if (task.tipo_paso_maniobra === 'extraccion_temporal') return onCompleteTemporary();
     return onCompleteDirect();
   };
+
+  if (exceptionKind) {
+    return (
+      <OperatorExceptionReport
+        busy={busy}
+        kind={exceptionKind}
+        onCancel={() => setExceptionKind(null)}
+        onClose={onBack}
+        onSubmit={onReportException}
+        task={task}
+      />
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
@@ -179,11 +200,11 @@ export function OperatorTaskExecution({
       <View style={styles.secondaryActions}>
         {task.maniobra ? (
           <>
-            <Pressable disabled={busy} onPress={onMismatch} style={styles.secondaryButton}>
+            <Pressable disabled={busy} onPress={() => setExceptionKind('mismatch')} style={styles.secondaryButton}>
               <Text style={styles.secondarySymbol}>×</Text>
               <Text style={styles.secondaryText}>NO COINCIDE</Text>
             </Pressable>
-            <Pressable disabled={busy} onPress={onImpossible} style={styles.secondaryButton}>
+            <Pressable disabled={busy} onPress={() => setExceptionKind('impossible')} style={styles.secondaryButton}>
               <Text style={styles.secondarySymbol}>!</Text>
               <Text style={styles.secondaryText}>NO ES POSIBLE</Text>
             </Pressable>

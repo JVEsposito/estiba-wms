@@ -193,6 +193,13 @@ export type ManeuverDiscrepancyType =
   | 'pallet_no_movible'
   | 'otra';
 
+export type ReportedManeuverDiscrepancy = {
+  id: string;
+  estado: 'abierta';
+  maniobra_id: string;
+  tarea_id: string;
+};
+
 export type OperationalFrontierProposal = {
   tarea_id: string;
   posicion_destino_id: string;
