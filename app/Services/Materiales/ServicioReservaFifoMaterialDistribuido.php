@@ -19,7 +19,8 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
     public function __construct(
         private readonly ServicioAlmacenMaterial $almacenes,
         private readonly ContextoSaldoReservaMaterial $contextoReserva,
-    ) {}
+    ) {
+    }
 
     /**
      * Reserva únicamente saldos pertenecientes a Bodega Central.
@@ -44,7 +45,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 $categoriasOperacionales,
             );
 
-            if (!$saldo) {
+            if (! $saldo) {
                 break;
             }
 
@@ -97,7 +98,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                     'saldos_materiales_almacenes.folio_id',
                 ]);
 
-            if (!$candidato) {
+            if (! $candidato) {
                 return null;
             }
 
@@ -109,7 +110,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 ->lockForUpdate()
                 ->find($candidato->id);
 
-            if (!$saldo || !$this->continuaDisponible(
+            if (! $saldo || ! $this->continuaDisponible(
                 $saldo,
                 $folio,
                 $categoriasOperacionales,
@@ -205,7 +206,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
             ))
             && $saldo->camara?->contenido === ContenidoCamara::Materiales
             && $saldo->camara?->estado === EstadoCamara::Activa
-            && (!$saldo->posicion || $saldo->posicion->estado === EstadoPosicion::Activa);
+            && (! $saldo->posicion || $saldo->posicion->estado === EstadoPosicion::Activa);
     }
 
     /**
