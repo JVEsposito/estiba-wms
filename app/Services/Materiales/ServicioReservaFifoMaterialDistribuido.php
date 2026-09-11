@@ -19,8 +19,7 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
     public function __construct(
         private readonly ServicioAlmacenMaterial $almacenes,
         private readonly ContextoSaldoReservaMaterial $contextoReserva,
-    ) {
-    }
+    ) {}
 
     /**
      * Reserva únicamente saldos pertenecientes a Bodega Central.
@@ -65,11 +64,10 @@ class ServicioReservaFifoMaterialDistribuido extends ServicioReservaFifoMaterial
                 fn () => $registrarReserva(
                     $folio,
                     $cantidad,
-                    $ordenFifo,
+                    $ordenFifo++,
                     $saldo,
                 ),
             );
-            $ordenFifo += 1;
             $versionResultante = (int) $saldo->version + 1;
             $saldo->update([
                 'cantidad_reservada' => round(
