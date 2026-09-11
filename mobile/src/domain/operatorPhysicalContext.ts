@@ -33,28 +33,26 @@ export type OperatorPhysicalContext = {
   returns: OperatorPhysicalItem[];
 };
 
-const PALLET_FACTS: Array<[string, string]> = [
-  ['cliente', 'Cliente'],
-  ['exportadora', 'Exportadora'],
-  ['producto', 'Producto'],
-  ['especie', 'Especie'],
-  ['variedad', 'Variedad'],
-  ['calibre', 'Calibre'],
-  ['marca', 'Marca'],
-  ['lote', 'Lote'],
-];
-
 export function buildOperatorPalletFacts(task: OperationalTask): OperatorPalletFact[] {
+  const candidates: OperatorPalletFact[] = [
+    fact('cliente', 'Cliente', contextText(task.contexto, 'cliente')),
+    fact('exportadora', 'Exportadora', cleanText(task.folio.exportadora) ?? contextText(task.contexto, 'exportadora')),
+    fact('producto', 'Producto', contextText(task.contexto, 'producto')),
+    fact('especie', 'Especie', contextText(task.contexto, 'especie')),
+    fact('variedad', 'Variedad', cleanText(task.folio.variedad) ?? contextText(task.contexto, 'variedad')),
+    fact('calibre', 'Calibre', cleanText(task.folio.calibre) ?? contextText(task.contexto, 'calibre')),
+    fact('marca', 'Marca', cleanText(task.folio.marca) ?? contextText(task.contexto, 'marca')),
+    fact('lote', 'Lote', contextText(task.contexto, 'lote')),
+    fact('fecha_ingreso', 'Ingreso', formatDate(task.folio.fecha_ingreso)),
+  ].filter((item): item is OperatorPalletFact => item !== null);
+
   const facts: OperatorPalletFact[] = [];
   const seenValues = new Set<string>();
-
-  for (const [key, label] of PALLET_FACTS) {
-    const value = contextText(task.contexto, key);
-    if (!value) continue;
-    if (key === 'exportadora' && seenValues.has(value.toLocaleLowerCase())) continue;
-
-    facts.push({ key, label, value });
-    seenValues.add(value.toLocaleLowerCase());
+  for (const candidate of candidates) {
+    const normalized = candidate.value.toLocaleLowerCase();
+    if (candidate.key === 'exportadora' && seenValues.has(normalized)) continue;
+    facts.push(candidate);
+    seenValues.add(normalized);
   }
 
   return facts;
@@ -133,12 +131,19 @@ function positionLabel(endpoint: OperationalTaskEndpoint): string | null {
   return `${endpoint.camara.nombre} · ${physical}`;
 }
 
+function fact(key: string, label: string, value: string | null): OperatorPalletFact | null {
+  return value ? { key, label, value } : null;
+}
+
+function cleanText(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized === '' ? null : normalized;
+}
+
 function contextText(context: Record<string, unknown>, key: string): string | null {
   const value = context[key];
-  if (typeof value === 'string') {
-    const normalized = value.trim();
-    return normalized === '' ? null : normalized;
-  }
+  if (typeof value === 'string') return cleanText(value);
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return null;
 }
@@ -151,4 +156,11 @@ function contextNumber(context: Record<string, unknown>, key: string): number | 
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function formatDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const [date] = value.split('T');
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : date;
 }
