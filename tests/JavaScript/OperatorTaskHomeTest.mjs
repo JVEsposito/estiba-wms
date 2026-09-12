@@ -30,7 +30,7 @@ test('prioriza una tarea propia físicamente iniciada', () => {
     assert.deepEqual(result.mine.map((item) => item.task.id), ['propia-primera']);
 });
 
-test('oculta maniobras pausadas por discrepancia hasta que supervisión las reanude', () => {
+test('mantiene una maniobra pausada bajo propiedad y en primer lugar', () => {
     const result = buildOperatorTaskHome(
         [
             task('pausada-en-movimiento', 'en_proceso', 'pausada_discrepancia'),
@@ -42,9 +42,9 @@ test('oculta maniobras pausadas por discrepancia hasta que supervisión las rean
         ],
     );
 
-    assert.equal(result.next.task.id, 'siguiente-propia');
+    assert.equal(result.next.task.id, 'pausada-en-movimiento');
     assert.equal(result.next.source, 'mine');
-    assert.deepEqual(result.mine.map((item) => item.task.id), []);
+    assert.deepEqual(result.mine.map((item) => item.task.id), ['siguiente-propia']);
     assert.deepEqual(result.available.map((item) => item.task.id), ['disponible-real']);
 });
 

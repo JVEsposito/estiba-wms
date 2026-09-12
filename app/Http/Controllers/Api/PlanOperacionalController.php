@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
@@ -118,6 +119,7 @@ class PlanOperacionalController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $asignacion = $filtros['asignacion'] ?? 'disponibles';
+        $usuarioId = $request->user()->id;
         $reservas->expirarVencidas();
 
         $tareas = TareaMovimiento::query()
@@ -130,11 +132,30 @@ class PlanOperacionalController extends Controller
             ->when(
                 $filtros['estado'] ?? null,
                 fn (Builder $consulta, string $estado): Builder => $consulta->where('estado', $estado),
-                fn (Builder $consulta): Builder => $consulta->whereIn('estado', [
-                    EstadoTareaMovimiento::Pendiente->value,
-                    EstadoTareaMovimiento::Asumida->value,
-                    EstadoTareaMovimiento::EnProceso->value,
-                ]),
+                fn (Builder $consulta): Builder => $consulta->where(
+                    function (Builder $estados) use ($asignacion, $usuarioId): void {
+                        $estados->whereIn('estado', [
+                            EstadoTareaMovimiento::Pendiente->value,
+                            EstadoTareaMovimiento::Asumida->value,
+                            EstadoTareaMovimiento::EnProceso->value,
+                        ]);
+
+                        if ($asignacion === 'mias') {
+                            $estados->orWhere(function (Builder $pausadas) use ($usuarioId): void {
+                                $pausadas
+                                    ->where('estado', EstadoTareaMovimiento::Bloqueada->value)
+                                    ->where('responsable_user_id', $usuarioId)
+                                    ->whereHas(
+                                        'maniobraOperacional',
+                                        fn (Builder $maniobra): Builder => $maniobra->where(
+                                            'estado',
+                                            EstadoManiobraOperacional::PausadaDiscrepancia->value,
+                                        ),
+                                    );
+                            });
+                        }
+                    },
+                ),
             )
             ->when(
                 $filtros['prioridad'] ?? null,
@@ -146,7 +167,7 @@ class PlanOperacionalController extends Controller
             )
             ->when(
                 $asignacion === 'mias',
-                fn (Builder $consulta): Builder => $consulta->where('responsable_user_id', $request->user()->id),
+                fn (Builder $consulta): Builder => $consulta->where('responsable_user_id', $usuarioId),
             )
             ->with($this->relacionesTarea())
             ->orderByRaw($this->ordenPrioridad())
