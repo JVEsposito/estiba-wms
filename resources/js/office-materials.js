@@ -38,6 +38,9 @@ const elements = {
     correctionDialog: byId('materialCorrectionDialog'), correctionForm: byId('materialCorrectionForm'),
     correctionContext: byId('materialCorrectionContext'), correctionError: byId('materialCorrectionError'),
     correctionClose: byId('closeMaterialCorrection'), correctionCancel: byId('cancelMaterialCorrection'),
+    regularizationDialog: byId('materialRegularizationDialog'), regularizationForm: byId('materialRegularizationForm'),
+    regularizationContext: byId('materialRegularizationContext'), regularizationError: byId('materialRegularizationError'),
+    regularizationClose: byId('closeMaterialRegularization'), regularizationCancel: byId('cancelMaterialRegularization'),
     loading: byId('officeLoading'), loadingText: byId('officeLoadingText'), toasts: byId('officeToasts'),
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
@@ -45,6 +48,7 @@ const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
     seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
+    regularizationItemId: null, regularizationOperationId: null,
     operationalPoller: null,
 };
 const operationalRefreshIntervalMs = 30000;
@@ -253,9 +257,20 @@ function renderProviders() {
 }
 function renderItems() {
     const canAdminister = state.identity?.puede_administrar_catalogos_materiales === true;
+    const canRegularize = canAdminister
+        && state.identity?.puede_administrar_recetas_materiales === true;
     const items = seasonItems();
     elements.itemsSummary.textContent = `${items.length} registrados`;
-    elements.itemList.innerHTML = items.map((item) => `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.cliente?.codigo || 'SIN CLIENTE')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(item.categoria || 'Sin categoría comercial')} · ${escapeHtml(itemTypeLabel(item.categoria_operacional))} · ${escapeHtml(item.unidad_medida)} · ${item.folios_activos} folios activos</small></div>${canAdminister ? `<button data-edit-item="${item.id}" type="button">Editar</button>` : ''}</article>`).join('') || '<p class="empty-state">No existen ítems en esta temporada.</p>';
+    elements.itemList.innerHTML = items.map((item) => {
+        const consolidated = item.regularizacion?.item_canonico;
+        const detail = consolidated
+            ? `Consolidado en ${consolidated.codigo} · ${consolidated.nombre}`
+            : `${item.categoria || 'Sin categoría comercial'} · ${itemTypeLabel(item.categoria_operacional)} · ${item.unidad_medida} · ${item.folios_activos} folios activos`;
+        const actions = canAdminister && !consolidated
+            ? `<div class="material-row__actions"><button data-edit-item="${item.id}" type="button">Editar</button>${canRegularize && item.activo && item.categoria_operacional === 'material_pt' ? `<button data-regularize-item="${item.id}" type="button">Consolidar con MP</button>` : ''}</div>`
+            : '';
+        return `<article class="material-row${item.activo ? '' : ' is-inactive'}"><div><strong>${escapeHtml(item.cliente?.codigo || 'SIN CLIENTE')} · ${escapeHtml(item.codigo)} · ${escapeHtml(item.nombre)}</strong><small>${escapeHtml(detail)}</small></div>${actions}</article>`;
+    }).join('') || '<p class="empty-state">No existen ítems en esta temporada.</p>';
     refreshDispatchLines();
 }
 function renderDestinations() {
@@ -534,6 +549,47 @@ elements.providerList.addEventListener('click', (event) => {
     elements.providerCancel.classList.remove('is-hidden');
 });
 elements.itemList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-item]'); if (!button) return; const item = state.items.find((candidate) => candidate.id === button.dataset.editItem); if (!item) return; for (const field of ['id', 'codigo', 'nombre', 'categoria', 'categoria_operacional', 'unidad_medida', 'codigo_externo']) elements.itemForm.elements[field].value = item[field] || ''; elements.itemForm.elements.cliente_material_id.value = item.cliente?.id || ''; elements.itemForm.elements.activo.checked = item.activo; elements.itemCancel.classList.remove('is-hidden'); });
+elements.itemList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-regularize-item]');
+    if (!button || !elements.regularizationDialog) return;
+    const item = state.items.find((candidate) => candidate.id === button.dataset.regularizeItem);
+    if (!item) return;
+    const candidates = state.items.filter((candidate) => candidate.activo
+        && candidate.categoria_operacional === 'material_mp'
+        && candidate.cliente?.id === item.cliente?.id
+        && candidate.unidad_medida === item.unidad_medida);
+    elements.regularizationForm.reset();
+    elements.regularizationError.textContent = candidates.length ? '' : 'No existe un Material MP activo del mismo cliente y unidad.';
+    elements.regularizationContext.textContent = `${item.cliente?.codigo || 'SIN CLIENTE'} · ${item.codigo} · ${item.nombre}`;
+    elements.regularizationForm.elements.item_canonico_id.innerHTML = '<option value="">Selecciona el MP canónico</option>'
+        + candidates.map((candidate) => `<option value="${candidate.id}">${escapeHtml(candidate.codigo)} · ${escapeHtml(candidate.nombre)} · ${escapeHtml(candidate.unidad_medida)}</option>`).join('');
+    elements.regularizationForm.querySelector('[type="submit"]').disabled = candidates.length === 0;
+    state.regularizationItemId = item.id;
+    state.regularizationOperationId = operationUuid();
+    elements.regularizationDialog.showModal();
+});
+elements.regularizationForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.regularizationError.textContent = '';
+    const data = Object.fromEntries(new FormData(elements.regularizationForm));
+    const submit = elements.regularizationForm.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+        const response = await api(`/api/administracion/materiales/items/${state.regularizationItemId}/regularizar`, {
+            method: 'POST',
+            body: JSON.stringify({ ...data, operacion_id: state.regularizationOperationId }),
+        });
+        elements.regularizationDialog.close();
+        await loadAll();
+        const count = response.data.recetas_versionadas?.length || 0;
+        toast(`Ítems consolidados correctamente${count ? `; ${count} receta(s) versionada(s)` : ''}.`);
+    } catch (error) {
+        elements.regularizationError.textContent = error.message;
+        submit.disabled = false;
+    }
+});
+[elements.regularizationClose, elements.regularizationCancel].filter(Boolean).forEach((button) =>
+    button.addEventListener('click', () => elements.regularizationDialog.close()));
 elements.destinationList.addEventListener('click', (event) => { const button = event.target.closest('[data-edit-destination]'); if (!button) return; const destination = state.destinations.find((candidate) => candidate.id === button.dataset.editDestination); if (!destination) return; for (const field of ['id', 'nombre', 'centro_costo', 'descripcion', 'codigo_externo']) elements.destinationForm.elements[field].value = destination[field] || ''; elements.destinationForm.elements.activo.checked = destination.activo; elements.destinationCancel.classList.remove('is-hidden'); });
 elements.providerClientOptions.addEventListener('change', () => renderProviderCategories());
 elements.providerCancel.addEventListener('click', resetProviderForm); elements.itemCancel.addEventListener('click', resetItemForm); elements.destinationCancel.addEventListener('click', resetDestinationForm);

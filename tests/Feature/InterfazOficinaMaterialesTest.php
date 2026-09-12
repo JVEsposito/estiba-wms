@@ -87,6 +87,29 @@ class InterfazOficinaMaterialesTest extends TestCase
         $this->assertStringContainsString('Registro de muestreo', $script);
         $this->assertStringContainsString('registro-muestreo/en-blanco', $script);
         $this->assertStringContainsString('/registro-muestreo', $script);
+        $this->assertStringContainsString('type="search"', $script);
+        $this->assertStringContainsString('Buscar por código, nombre, categoría o unidad', $script);
+        $this->assertStringContainsString('material-reception-item-filter', $script);
+        $this->assertStringContainsString('data-select-reception-item', $script);
+        $this->assertStringContainsString('receptionNormalizedSearch', $script);
+    }
+
+    public function test_catalogo_permite_regularizar_pt_duplicado_sin_reescribir_historia(): void
+    {
+        $this->get('/oficina/materiales/catalogos')
+            ->assertOk()
+            ->assertSee('materialRegularizationDialog', false)
+            ->assertSee('Consolidar Material PT duplicado')
+            ->assertSee('La historia no se reescribe')
+            ->assertSee('Consolidar ítems');
+
+        $script = file_get_contents(resource_path('js/office-materials.js'));
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('data-regularize-item', $script);
+        $this->assertStringContainsString('/regularizar', $script);
+        $this->assertStringContainsString('regularizationOperationId', $script);
+        $this->assertStringContainsString("candidate.categoria_operacional === 'material_mp'", $script);
     }
 
     public function test_inventario_cc_esta_integrado_a_materiales_con_tema_filtros_y_exportacion_propios(): void

@@ -81,6 +81,7 @@ class AccesoOficinaController extends Controller
                 'puede_cerrar_despacho_frigorifico' => $capacidades['puede_cerrar_despacho_frigorifico'],
                 'puede_gestionar_andenes' => $capacidades['puede_gestionar_andenes'],
                 'puede_administrar_catalogos_materiales' => $usuario->can('administrar-catalogos-materiales'),
+                'puede_administrar_recetas_materiales' => $usuario->can('administrar-recetas-materiales'),
                 'puede_gestionar_despachos_materiales' => $capacidades['puede_gestionar_despachos_materiales'],
                 'puede_retirar_materiales' => $capacidades['puede_retirar_materiales'],
                 'puede_consultar_despachos_materiales' => $capacidades['puede_consultar_despachos_materiales'],

@@ -260,12 +260,56 @@ function renderReceptionHeaderOptions() {
             `<option value="${provider.id}"${provider.id === providerId ? ' selected' : ''}>${receptionEscape(provider.codigo)} · ${receptionEscape(provider.nombre)}</option>`).join('');
 }
 
-function receptionItemOptions(selectedId = '') {
+function receptionNormalizedSearch(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
+}
+
+function receptionItemLabel(item) {
+    if (!item) return '';
+    return `${item.codigo} · ${item.nombre} · ${item.categoria_operacional_etiqueta || item.categoria_operacional || 'Sin tipo'} · ${item.unidad_medida}`;
+}
+
+function receptionMatchingItems(query, category = '') {
     const clientId = receptionClientId();
-    return '<option value="">Seleccionar ítem</option>' + receptionState.catalogs.items
-        .filter((item) => !clientId || item.cliente_id === clientId)
-        .map((item) => `<option value="${item.id}"${item.id === selectedId ? ' selected' : ''}>${receptionEscape(item.codigo)} · ${receptionEscape(item.nombre)} · ${receptionEscape(item.unidad_medida)}</option>`)
-        .join('');
+    const provider = receptionState.catalogs.providers.find((candidate) =>
+        candidate.id === receptionProviderId());
+    const providerCategories = new Set((provider?.categorias || [])
+        .filter((assignment) => !clientId || assignment.cliente_id === clientId)
+        .map((assignment) => receptionNormalizedSearch(assignment.categoria)));
+    const normalized = receptionNormalizedSearch(query);
+    return receptionState.catalogs.items
+        .filter((item) => (!clientId || item.cliente_id === clientId)
+            && (!provider || providerCategories.has(receptionNormalizedSearch(item.categoria)))
+            && (!category || item.categoria_operacional === category)
+            && (!normalized || receptionNormalizedSearch([
+                item.codigo,
+                item.nombre,
+                item.categoria,
+                item.categoria_operacional,
+                item.categoria_operacional_etiqueta,
+                item.unidad_medida,
+            ].join(' ')).includes(normalized)))
+        .sort((left, right) => receptionItemLabel(left).localeCompare(receptionItemLabel(right), 'es'))
+        .slice(0, 15);
+}
+
+function closeReceptionItemResults(except = null) {
+    receptionElements.lines.querySelectorAll('.material-item-results').forEach((results) => {
+        if (results === except) return;
+        results.classList.add('is-hidden');
+        results.closest('.material-item-picker')?.querySelector('.material-item-search')?.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function renderReceptionItemResults(article) {
+    const input = article.querySelector('.material-item-search');
+    const filter = article.querySelector('.material-reception-item-filter');
+    const results = article.querySelector('.material-item-results');
+    const matches = receptionMatchingItems(input.value, filter.value);
+    results.innerHTML = matches.map((item) => `<button class="material-item-option" data-select-reception-item="${item.id}" type="button" role="option"><span>${receptionEscape(item.codigo)} · ${receptionEscape(item.nombre)}</span><strong>${receptionEscape(item.categoria_operacional_etiqueta)} · ${receptionEscape(item.unidad_medida)}</strong></button>`).join('')
+        || '<p class="material-item-empty">No hay productos que coincidan con la búsqueda y el filtro.</p>';
+    results.classList.remove('is-hidden');
+    input.setAttribute('aria-expanded', 'true');
 }
 
 function packageSizeFromExisting(packages) {
@@ -279,6 +323,8 @@ function receptionLineState(detail = null) {
     return {
         key: receptionUuid(),
         itemId: detail?.item?.id || '',
+        itemSnapshot: detail?.item || null,
+        itemFilter: '',
         documentary: detail?.cantidad_documental ?? '',
         counted: detail?.cantidad_contada ?? '',
         accepted: detail?.cantidad_aceptada ?? detail?.cantidad_recibida ?? '',
@@ -316,11 +362,14 @@ function packageSummary(line) {
 
 function renderReceptionLines() {
     const readonly = receptionState.mode === 'view';
-    receptionElements.lines.innerHTML = receptionState.lines.map((line, index) => `
+    receptionElements.lines.innerHTML = receptionState.lines.map((line, index) => {
+        const selectedItem = receptionState.catalogs.items.find((item) => item.id === line.itemId)
+            || line.itemSnapshot;
+        return `
         <article class="material-reception-line${readonly ? ' material-reception-readonly' : ''}" data-line-key="${line.key}">
             <div class="material-reception-line__heading"><strong>Producto ${index + 1}</strong>${readonly ? '' : `<button data-remove-line="${line.key}" type="button">Quitar</button>`}</div>
             <div class="material-reception-line__grid">
-                <label class="wide"><span>Ítem *</span><select name="item_material_id" required>${receptionItemOptions(line.itemId)}</select></label>
+                <label class="wide"><span>Producto *</span><div class="material-item-picker material-reception-item-picker"><div class="material-reception-item-controls"><input class="material-item-search" type="search" value="${receptionEscape(receptionItemLabel(selectedItem))}" placeholder="Buscar por código, nombre, categoría o unidad" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"${readonly ? ' readonly' : ''}><select class="material-reception-item-filter" aria-label="Filtrar productos por tipo"${readonly ? ' disabled' : ''}><option value="">Todos los tipos</option><option value="insumo"${line.itemFilter === 'insumo' ? ' selected' : ''}>Insumos</option><option value="material_mp"${line.itemFilter === 'material_mp' ? ' selected' : ''}>Material MP</option><option value="material_pt"${line.itemFilter === 'material_pt' ? ' selected' : ''}>Material PT</option></select></div><input name="item_material_id" type="hidden" value="${receptionEscape(line.itemId)}"><div class="material-item-results is-hidden" role="listbox"></div><small class="material-reception-item-hint">Escribe para filtrar; Enter selecciona el primer resultado.</small></div></label>
                 <label><span>Cantidad documental *</span><input name="cantidad_documental" type="number" min="0.001" step="0.001" value="${receptionEscape(line.documentary)}" required></label>
                 <label><span>Cantidad contada *</span><input name="cantidad_contada" type="number" min="0.001" step="0.001" value="${receptionEscape(line.counted)}" required></label>
                 <label><span>Cantidad aceptada *</span><input name="cantidad_aceptada" type="number" min="0" step="0.001" value="${receptionEscape(line.accepted)}" required></label>
@@ -335,7 +384,8 @@ function renderReceptionLines() {
             </div>
             <p class="material-reception-package-summary">${line.originalPackages.length && !line.packagesDirty ? `${line.originalPackages.length} bultos existentes; se conservarán mientras no cambies su distribución.` : packageSummary(line)}</p>
         </article>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function populateReceptionForm(record = null) {
@@ -434,6 +484,9 @@ function generatedPackages(line) {
 }
 
 function receptionPayload() {
+    if (receptionState.lines.some((line) => !line.itemId)) {
+        throw new Error('Selecciona un producto válido en cada línea de la recepción.');
+    }
     receptionElements.lines.querySelectorAll('.material-reception-line')
         .forEach((article) => syncLineFromElement(article, false));
     const form = new FormData(receptionElements.form);
@@ -586,7 +639,17 @@ if (receptionElements.workspace) {
     });
     receptionElements.form.elements.cliente_id.addEventListener('change', () => {
         renderReceptionHeaderOptions();
-        receptionState.lines.forEach((line) => { line.itemId = ''; });
+        receptionState.lines.forEach((line) => {
+            line.itemId = '';
+            line.itemSnapshot = null;
+        });
+        renderReceptionLines();
+    });
+    receptionElements.form.elements.proveedor_material_id.addEventListener('change', () => {
+        receptionState.lines.forEach((line) => {
+            line.itemId = '';
+            line.itemSnapshot = null;
+        });
         renderReceptionLines();
     });
     receptionElements.addLine.addEventListener('click', () => {
@@ -595,10 +658,32 @@ if (receptionElements.workspace) {
     });
     receptionElements.lines.addEventListener('click', (event) => {
         const button = event.target.closest('[data-remove-line]');
-        if (!button) return;
-        receptionState.lines = receptionState.lines.filter((line) => line.key !== button.dataset.removeLine);
-        if (!receptionState.lines.length) receptionState.lines.push(receptionLineState());
-        renderReceptionLines();
+        if (button) {
+            receptionState.lines = receptionState.lines.filter((line) => line.key !== button.dataset.removeLine);
+            if (!receptionState.lines.length) receptionState.lines.push(receptionLineState());
+            renderReceptionLines();
+            return;
+        }
+        const option = event.target.closest('[data-select-reception-item]');
+        if (!option) return;
+        const article = option.closest('.material-reception-line');
+        const line = receptionState.lines.find((candidate) => candidate.key === article.dataset.lineKey);
+        const item = receptionState.catalogs.items.find((candidate) => candidate.id === option.dataset.selectReceptionItem);
+        if (!line || !item) return;
+        line.itemId = item.id;
+        line.itemSnapshot = item;
+        article.querySelector('[name="item_material_id"]').value = item.id;
+        article.querySelector('.material-item-search').value = receptionItemLabel(item);
+        closeReceptionItemResults();
+        article.querySelector('[name="cantidad_documental"]').focus();
+    });
+    receptionElements.lines.addEventListener('focusin', (event) => {
+        const input = event.target.closest('.material-item-search');
+        if (!input || receptionState.mode === 'view') return;
+        const article = input.closest('.material-reception-line');
+        const results = article.querySelector('.material-item-results');
+        closeReceptionItemResults(results);
+        renderReceptionItemResults(article);
     });
     receptionElements.lines.addEventListener('input', (event) => {
         const article = event.target.closest('.material-reception-line');
@@ -612,6 +697,13 @@ if (receptionElements.workspace) {
             'motivo_bloqueo',
         ]);
         if (article && receptionState.mode !== 'view') {
+            if (event.target.matches('.material-item-search')) {
+                const line = receptionState.lines.find((candidate) => candidate.key === article.dataset.lineKey);
+                line.itemId = '';
+                line.itemSnapshot = null;
+                article.querySelector('[name="item_material_id"]').value = '';
+                renderReceptionItemResults(article);
+            }
             syncLineFromElement(article, packageFields.has(event.target.name));
         }
     });
@@ -627,7 +719,26 @@ if (receptionElements.workspace) {
             'motivo_bloqueo',
         ]);
         if (article && receptionState.mode !== 'view') {
+            if (event.target.matches('.material-reception-item-filter')) {
+                const line = receptionState.lines.find((candidate) => candidate.key === article.dataset.lineKey);
+                line.itemFilter = event.target.value;
+                renderReceptionItemResults(article);
+            }
             syncLineFromElement(article, packageFields.has(event.target.name));
+        }
+    });
+    receptionElements.lines.addEventListener('keydown', (event) => {
+        if (!event.target.matches('.material-item-search')) return;
+        if (event.key === 'Escape') {
+            closeReceptionItemResults();
+            event.target.blur();
+        }
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const first = event.target.closest('.material-item-picker').querySelector('[data-select-reception-item]');
+            if (first) {
+                first.click();
+            }
         }
     });
     receptionElements.form.addEventListener('submit', async (event) => {
@@ -652,5 +763,8 @@ if (receptionElements.workspace) {
     [receptionElements.deleteClose, receptionElements.deleteCancel].forEach((button) =>
         button.addEventListener('click', () => receptionElements.deleteDialog.close()));
     window.addEventListener('estiba:office-session', () => loadReceptions(1));
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.material-reception-item-picker')) closeReceptionItemResults();
+    });
     loadReceptions(1);
 }

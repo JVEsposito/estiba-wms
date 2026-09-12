@@ -37,6 +37,19 @@ class ItemMaterialResource extends JsonResource
             'sincronizado_at' => $this->sincronizado_at?->toAtomString(),
             'activo' => $this->activo,
             'folios_activos' => (int) ($this->folios_activos_count ?? 0),
+            'regularizacion' => $this->whenLoaded(
+                'regularizacionComoDuplicado',
+                fn () => $this->regularizacionComoDuplicado ? [
+                    'id' => $this->regularizacionComoDuplicado->id,
+                    'item_canonico' => [
+                        'id' => $this->regularizacionComoDuplicado->itemCanonico->id,
+                        'codigo' => $this->regularizacionComoDuplicado->itemCanonico->codigo,
+                        'nombre' => $this->regularizacionComoDuplicado->itemCanonico->nombre,
+                    ],
+                    'motivo' => $this->regularizacionComoDuplicado->motivo,
+                    'ocurrido_at' => $this->regularizacionComoDuplicado->ocurrido_at?->toAtomString(),
+                ] : null,
+            ),
             'created_at' => $this->created_at?->toAtomString(),
             'updated_at' => $this->updated_at?->toAtomString(),
         ];
