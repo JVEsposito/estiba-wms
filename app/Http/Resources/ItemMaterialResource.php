@@ -37,8 +37,9 @@ class ItemMaterialResource extends JsonResource
             'sincronizado_at' => $this->sincronizado_at?->toAtomString(),
             'activo' => $this->activo,
             'folios_activos' => (int) ($this->folios_activos_count ?? 0),
-            'regularizacion' => $this->whenLoaded('regularizacionComoDuplicado', fn () =>
-                $this->regularizacionComoDuplicado ? [
+            'regularizacion' => $this->whenLoaded(
+                'regularizacionComoDuplicado',
+                fn () => $this->regularizacionComoDuplicado ? [
                     'id' => $this->regularizacionComoDuplicado->id,
                     'item_canonico' => [
                         'id' => $this->regularizacionComoDuplicado->itemCanonico->id,
@@ -47,7 +48,8 @@ class ItemMaterialResource extends JsonResource
                     ],
                     'motivo' => $this->regularizacionComoDuplicado->motivo,
                     'ocurrido_at' => $this->regularizacionComoDuplicado->ocurrido_at?->toAtomString(),
-                ] : null),
+                ] : null,
+            ),
             'created_at' => $this->created_at?->toAtomString(),
             'updated_at' => $this->updated_at?->toAtomString(),
         ];
