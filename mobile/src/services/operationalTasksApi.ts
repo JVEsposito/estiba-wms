@@ -21,12 +21,10 @@ export class OperationalTasksApi {
       asignacion: assignment,
       per_page: '50',
     });
-    const tasks = (await this.request<{ data: OperationalTask[] }>(
+    return (await this.request<{ data: OperationalTask[] }>(
       `/api/tareas-movimiento?${params.toString()}`,
       token,
     )).data;
-
-    return tasks.filter((task) => task.maniobra?.estado !== 'pausada_discrepancia');
   }
 
   async snapshot(token: string, planId: string) {

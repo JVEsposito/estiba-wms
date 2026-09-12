@@ -15,32 +15,28 @@ export type OperatorTaskHomeState = {
 
 /**
  * Construye la portada sin reordenar las prioridades entregadas por la API.
- * Una tarea físicamente iniciada siempre debe volver a ocupar el primer lugar,
- * salvo cuando su maniobra está pausada esperando resolución de supervisión.
+ * Una maniobra pausada conserva el primer lugar porque sigue bajo propiedad y,
+ * si ya hubo movimiento físico, también mantiene custodia operacional.
  */
 export function buildOperatorTaskHome(
   mine: OperationalTask[],
   available: OperationalTask[],
 ): OperatorTaskHomeState {
   const mineItems = dedupe(mine)
-    .filter(isActionableByOperator)
     .map((task) => ({ task, source: 'mine' as const }));
   const availableItems = dedupe(available)
-    .filter(isActionableByOperator)
+    .filter((task) => task.maniobra?.estado !== 'pausada_discrepancia')
     .filter((task) => !mineItems.some((item) => item.task.id === task.id))
     .map((task) => ({ task, source: 'available' as const }));
+  const paused = mineItems.find((item) => item.task.maniobra?.estado === 'pausada_discrepancia');
   const inMovement = mineItems.find((item) => item.task.estado === 'en_proceso');
-  const next = inMovement ?? mineItems[0] ?? availableItems[0] ?? null;
+  const next = paused ?? inMovement ?? mineItems[0] ?? availableItems[0] ?? null;
 
   return {
     next,
     mine: withoutCurrent(mineItems, next),
     available: withoutCurrent(availableItems, next),
   };
-}
-
-function isActionableByOperator(task: OperationalTask) {
-  return task.maniobra?.estado !== 'pausada_discrepancia';
 }
 
 function dedupe(tasks: OperationalTask[]) {

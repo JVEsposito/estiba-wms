@@ -535,6 +535,7 @@ class ServicioManiobrasOperacionales
 
             $maniobra->update([
                 'estado' => EstadoManiobraOperacional::EnEjecucion,
+                'pausada_at' => null,
                 'version' => $maniobra->version + 1,
             ]);
 
@@ -564,6 +565,7 @@ class ServicioManiobrasOperacionales
             $maniobra->update([
                 'estado' => EstadoManiobraOperacional::Completada,
                 'completada_at' => now(),
+                'pausada_at' => null,
                 'version' => $maniobra->version + 1,
             ]);
 
@@ -579,6 +581,20 @@ class ServicioManiobrasOperacionales
             );
         }
 
+        $usuario = User::query()
+            ->whereKey($maniobra->responsable_user_id)
+            ->where('activo', true)
+            ->first();
+        $dispositivo = Dispositivo::query()
+            ->whereKey($maniobra->dispositivo_id)
+            ->where('activo', true)
+            ->first();
+        if (! $usuario || ! $dispositivo) {
+            throw new ConflictoOperacion(
+                'La maniobra perdió su camarero o tablet activa y requiere reasignación supervisada.',
+            );
+        }
+
         $siguiente->update([
             'estado' => EstadoTareaMovimiento::Pendiente,
             'responsable_user_id' => null,
@@ -587,19 +603,20 @@ class ServicioManiobrasOperacionales
             'iniciada_at' => null,
             'version' => $siguiente->version + 1,
         ]);
-        $poseePrefijoFisico = $maniobra->pasos()
-            ->where('estado', EstadoTareaMovimiento::Completada->value)
-            ->lockForUpdate()
-            ->exists();
+        $maniobra->loadMissing('reservasBandas');
+        $this->bloquearBandas($maniobra);
         $maniobra->update([
-            'estado' => EstadoManiobraOperacional::Pendiente,
-            'responsable_user_id' => null,
-            'dispositivo_id' => null,
-            'asumida_at' => $poseePrefijoFisico ? $maniobra->asumida_at : null,
-            'iniciada_at' => $poseePrefijoFisico ? $maniobra->iniciada_at : null,
+            'estado' => EstadoManiobraOperacional::EnEjecucion,
+            'pausada_at' => null,
             'secuencia_actual' => $siguiente->secuencia_maniobra,
             'version' => $maniobra->version + 1,
         ]);
+        $this->reservas->asumir($siguiente->refresh(), $usuario, $dispositivo);
+        $this->materializarDestinoPrecalculado(
+            $siguiente->refresh(),
+            $usuario,
+            $dispositivo,
+        );
     }
 
     private function cancelarTrasDiscrepancia(

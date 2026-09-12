@@ -111,7 +111,10 @@ function NextTaskCard({ busy, compact, item, onOpen }: {
   onOpen: () => void;
 }) {
   const { task } = item;
-  const state = task.estado === 'en_proceso'
+  const paused = task.maniobra?.estado === 'pausada_discrepancia';
+  const state = paused
+    ? { label: 'EN ESPERA DE SUPERVISIÓN', tone: 'warning' as const }
+    : task.estado === 'en_proceso'
     ? { label: 'EN EJECUCIÓN', tone: 'critical' as const }
     : item.source === 'mine'
       ? { label: 'ASIGNADA', tone: 'success' as const }
@@ -121,8 +124,12 @@ function NextTaskCard({ busy, compact, item, onOpen }: {
     <View style={styles.hero}>
       <View style={[styles.heroHeader, compact && styles.heroHeaderCompact]}>
         <View style={styles.heroHeading}>
-          <Text style={styles.heroEyebrow}>SIGUIENTE MANIOBRA</Text>
-          <Text style={styles.heroHint}>{item.source === 'mine' ? 'Tu siguiente tarea en la cola' : 'Disponible para tomar'}</Text>
+          <Text style={styles.heroEyebrow}>{paused ? 'MANIOBRA BAJO CONTROL' : 'SIGUIENTE MANIOBRA'}</Text>
+          <Text style={styles.heroHint}>
+            {paused
+              ? 'No continúes movimientos hasta recibir la decisión supervisada'
+              : item.source === 'mine' ? 'Tu siguiente tarea en la cola' : 'Disponible para tomar'}
+          </Text>
         </View>
         <Pressable disabled={busy} onPress={onOpen} style={[styles.heroAction, compact && styles.heroActionCompact, busy && styles.disabled]}>
           <Text style={styles.heroActionText}>{primaryActionLabel(item)} →</Text>
@@ -172,12 +179,13 @@ function QueueRow({ busy, compact, index, item, onOpen }: {
   onOpen: () => void;
 }) {
   const task = item.task;
+  const paused = task.maniobra?.estado === 'pausada_discrepancia';
   return (
     <View style={[styles.queueRow, compact && styles.queueRowCompact]}>
       <Text style={styles.queueIndex}>{index}</Text>
       <View style={[styles.queuePriority, compact && styles.queuePriorityCompact]}><OperatorPriorityBadge priority={task.prioridad} /></View>
       <View style={[styles.queueIdentity, compact && styles.queueIdentityCompact]}>
-        <Text style={styles.queueMeta}>{item.source === 'mine' ? 'ASIGNADA' : 'DISPONIBLE'}</Text>
+        <Text style={styles.queueMeta}>{paused ? 'EN ESPERA' : item.source === 'mine' ? 'ASIGNADA' : 'DISPONIBLE'}</Text>
         <OperatorEntityCode value={task.folio.numero_folio} />
       </View>
       <View style={[styles.queueRoute, compact && styles.queueRouteCompact]}>
@@ -190,7 +198,7 @@ function QueueRow({ busy, compact, index, item, onOpen }: {
         <Text style={styles.queueStepsLabel}>mov.</Text>
       </View>
       <Pressable disabled={busy} onPress={onOpen} style={[styles.queueAction, busy && styles.disabled]}>
-        <Text style={styles.queueActionText}>{item.source === 'mine' ? 'Abrir' : 'Tomar'} →</Text>
+        <Text style={styles.queueActionText}>{paused ? 'Ver estado' : item.source === 'mine' ? 'Abrir' : 'Tomar'} →</Text>
       </Pressable>
     </View>
   );
@@ -206,6 +214,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function primaryActionLabel(item: OperatorQueueItem) {
+  if (item.task.maniobra?.estado === 'pausada_discrepancia') return 'VER ESTADO DE ESPERA';
   if (item.task.estado === 'en_proceso') return 'CONTINUAR MANIOBRA';
   return item.source === 'mine' ? 'INICIAR MANIOBRA' : 'TOMAR MANIOBRA';
 }
@@ -216,6 +225,7 @@ function maneuverStep(task: OperationalTask) {
 }
 
 function commitmentLabel(task: OperationalTask) {
+  if (task.maniobra?.estado === 'pausada_discrepancia') return 'Pausa supervisada';
   if (task.estado === 'en_proceso') return 'Destino fijo';
   if (task.reserva?.tipo_compromiso === 'fisica') return 'Posición reservada';
   if (task.reserva) return 'Tarea reclamada';
