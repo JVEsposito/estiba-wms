@@ -628,6 +628,12 @@ class ServicioPlanConcentracionCarga
                 ->values()
                 ->all()
             : [];
+        $cargasBeneficiadasIds = collect($pasos)
+            ->pluck('contexto.carga_beneficiada_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         return [
             'candidate_key' => $clave,
@@ -648,6 +654,8 @@ class ServicioPlanConcentracionCarga
                 'blockers_retorno' => count($temporales),
                 'movimientos_totales' => count($pasos),
                 'cerrable' => true,
+                'resolucion_cruzada_objetivos' => $cargasBeneficiadasIds !== [],
+                'cargas_beneficiadas_ids' => $cargasBeneficiadasIds,
             ],
             'bloqueos_banda' => $bloqueosBanda,
             'pasos' => $pasos,
@@ -724,6 +732,13 @@ class ServicioPlanConcentracionCarga
         string $geometriaHash,
     ): array {
         $origen = $bloqueador->posicion;
+        $asignacionBeneficiada = $bloqueador->folio->asignacionCargaActual;
+        $cargaBeneficiada = $asignacionBeneficiada
+            ? Carga::query()->find($asignacionBeneficiada->carga_id)
+            : null;
+        $instruccion = $cargaBeneficiada
+            ? "Mover {$bloqueador->folio->numero_folio} directamente al acopio de {$cargaBeneficiada->codigo}; no devolver a banda."
+            : "Mover {$bloqueador->folio->numero_folio} a un destino útil; no requiere retorno.";
 
         return [
             'folio_id' => $bloqueador->folio_id,
@@ -735,10 +750,13 @@ class ServicioPlanConcentracionCarga
             'posicion_origen_id' => $origen->id,
             'camara_destino_id' => $destino->camara_id,
             'posicion_destino_id' => $destino->id,
-            'instruccion' => "Mover {$bloqueador->folio->numero_folio} a un destino útil; no requiere retorno.",
+            'instruccion' => $instruccion,
             'contexto' => [
                 'tipo_decision' => 'blocker_destino_util',
-                'beneficio_secundario' => 'concentracion_otra_carga',
+                'beneficio_secundario' => 'acopio_carga_activa',
+                'resolucion_cruzada_objetivos' => $cargaBeneficiada !== null,
+                'carga_beneficiada_id' => $cargaBeneficiada?->id,
+                'carga_beneficiada_codigo' => $cargaBeneficiada?->codigo,
                 'destino_precalculado_inmutable' => true,
                 'carga_id' => $carga->id,
                 'habilita_folio_id' => $habilitada->folio_id,
@@ -840,7 +858,16 @@ class ServicioPlanConcentracionCarga
             }
 
             $folios = collect($candidato['pasos'])->pluck('folio_id')->unique();
-            $otraTarea = TareaMovimiento::query()
+            $foliosResolucionCruzada = collect($candidato['pasos'])
+                ->filter(fn (array $paso): bool => (bool) (
+                    $paso['contexto']['resolucion_cruzada_objetivos'] ?? false
+                ))
+                ->pluck('folio_id')
+                ->filter()
+                ->unique()
+                ->values();
+            $conflictos = TareaMovimiento::query()
+                ->with('maniobraOperacional')
                 ->whereIn('folio_id', $folios)
                 ->whereIn('estado', [
                     EstadoTareaMovimiento::Bloqueada->value,
@@ -849,16 +876,70 @@ class ServicioPlanConcentracionCarga
                     EstadoTareaMovimiento::EnProceso->value,
                 ])
                 ->lockForUpdate()
-                ->first();
-            if ($otraTarea) {
-                continue;
+                ->get();
+
+            if ($conflictos->isNotEmpty()) {
+                $conflictoDuro = $conflictos->first(
+                    fn (TareaMovimiento $tarea): bool => $tarea->estado === EstadoTareaMovimiento::EnProceso
+                        || ! $foliosResolucionCruzada->contains($tarea->folio_id)
+                        || $tarea->maniobra_operacional_id === null,
+                );
+                if ($conflictoDuro) {
+                    continue;
+                }
+
+                foreach ($conflictos
+                    ->pluck('maniobra_operacional_id')
+                    ->filter()
+                    ->unique() as $maniobraConflictoId) {
+                    $maniobraConflicto = $conflictos
+                        ->firstWhere('maniobra_operacional_id', $maniobraConflictoId)
+                        ?->maniobraOperacional;
+                    if (! $maniobraConflicto || ! $this->maniobras->cancelarReversible(
+                        $maniobraConflicto,
+                        $usuario,
+                        'El pallet será resuelto por otra maniobra que ya necesita desplazarlo.',
+                    )) {
+                        continue 2;
+                    }
+                }
+
+                $sigueConflicto = TareaMovimiento::query()
+                    ->whereIn('folio_id', $folios)
+                    ->whereIn('estado', [
+                        EstadoTareaMovimiento::Bloqueada->value,
+                        EstadoTareaMovimiento::Pendiente->value,
+                        EstadoTareaMovimiento::Asumida->value,
+                        EstadoTareaMovimiento::EnProceso->value,
+                    ])
+                    ->lockForUpdate()
+                    ->exists();
+                if ($sigueConflicto) {
+                    continue;
+                }
             }
 
-            $this->maniobras->crearCerrada(
+            $maniobraNueva = $this->maniobras->crearCerrada(
                 $plan,
                 $usuario,
                 $candidato,
             );
+
+            foreach ($conflictos as $tareaReemplazada) {
+                $reemplazo = $maniobraNueva->pasos()
+                    ->where('folio_id', $tareaReemplazada->folio_id)
+                    ->orderBy('secuencia_maniobra')
+                    ->first();
+                if (! $reemplazo) {
+                    continue;
+                }
+
+                $tareaReemplazada->refresh()->update([
+                    'reemplazada_por_tarea_id' => $reemplazo->id,
+                    'version' => $tareaReemplazada->version + 1,
+                ]);
+            }
+
             $clavesActivas->put($candidato['candidate_key'], true);
             $cupos--;
         }
