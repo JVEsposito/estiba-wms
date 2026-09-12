@@ -1055,7 +1055,7 @@ class ServicioDesocupacionProgramada
             'temporada:id,codigo,nombre,activa',
             'creadoPor:id,name',
             'iniciadoPor:id,name',
-            'tareas.folio:id,numero_folio,tipo_bulto',
+            'tareas.folio:id,numero_folio,tipo_bulto,variedad,calibre,marca,exportadora,fecha_ingreso',
             'tareas.camaraOrigen:id,nombre',
             'tareas.posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
             'tareas.camaraDestino:id,nombre',

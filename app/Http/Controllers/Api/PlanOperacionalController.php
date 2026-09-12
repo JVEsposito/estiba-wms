@@ -82,7 +82,7 @@ class PlanOperacionalController extends Controller
             'temporada:id,codigo,nombre',
             'creadoPor:id,name',
             'iniciadoPor:id,name',
-            'tareas.folio:id,numero_folio,tipo_bulto',
+            'tareas.folio:id,numero_folio,tipo_bulto,variedad,calibre,marca,exportadora,fecha_ingreso',
             'tareas.camaraOrigen:id,nombre',
             'tareas.posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
             'tareas.camaraDestino:id,nombre',
@@ -395,7 +395,7 @@ class PlanOperacionalController extends Controller
     {
         return [
             'planOperacional:id,temporada_id,tipo,estado,prioridad,titulo,version,contexto',
-            'folio:id,numero_folio,tipo_bulto',
+            'folio:id,numero_folio,tipo_bulto,variedad,calibre,marca,exportadora,fecha_ingreso',
             'camaraOrigen:id,nombre',
             'posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
             'camaraDestino:id,nombre',

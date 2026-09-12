@@ -177,6 +177,41 @@ class PlanesOperacionalesApiTest extends TestCase
         ]);
     }
 
+    public function test_bandeja_detalle_y_asignacion_exponen_los_atributos_reales_del_folio(): void
+    {
+        $contexto = $this->crearContexto();
+        $plan = $this->crearPlan($contexto);
+        $tarea = $plan->tareas->firstOrFail();
+        $fechaIngreso = $contexto['folios'][0]->fecha_ingreso->toAtomString();
+
+        $this->conToken($contexto['token'])
+            ->getJson('/api/tareas-movimiento')
+            ->assertOk()
+            ->assertJsonPath('data.0.folio.variedad', 'Santina')
+            ->assertJsonPath('data.0.folio.calibre', 'XL')
+            ->assertJsonPath('data.0.folio.marca', 'Estiba Premium')
+            ->assertJsonPath('data.0.folio.exportadora', 'Exportadora Norte')
+            ->assertJsonPath('data.0.folio.fecha_ingreso', $fechaIngreso);
+
+        $this->conToken($contexto['token'])
+            ->getJson("/api/planes-operacionales/{$plan->id}")
+            ->assertOk()
+            ->assertJsonPath('data.tareas.0.folio.variedad', 'Santina')
+            ->assertJsonPath('data.tareas.0.folio.calibre', 'XL')
+            ->assertJsonPath('data.tareas.0.folio.marca', 'Estiba Premium')
+            ->assertJsonPath('data.tareas.0.folio.exportadora', 'Exportadora Norte')
+            ->assertJsonPath('data.tareas.0.folio.fecha_ingreso', $fechaIngreso);
+
+        $this->conToken($contexto['token'])
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/asumir")
+            ->assertOk()
+            ->assertJsonPath('data.folio.variedad', 'Santina')
+            ->assertJsonPath('data.folio.calibre', 'XL')
+            ->assertJsonPath('data.folio.marca', 'Estiba Premium')
+            ->assertJsonPath('data.folio.exportadora', 'Exportadora Norte')
+            ->assertJsonPath('data.folio.fecha_ingreso', $fechaIngreso);
+    }
+
     public function test_dos_tareas_no_pueden_reservar_el_mismo_destino(): void
     {
         $contexto = $this->crearContexto();
@@ -480,7 +515,11 @@ class PlanesOperacionalesApiTest extends TestCase
             'temporada_id' => $temporada->id,
             'numero_folio' => sprintf('PALLET-%03d', $indice),
             'tipo_bulto' => TipoBulto::Pallet,
-            'fecha_ingreso' => now(),
+            'fecha_ingreso' => now()->subHours($indice),
+            'variedad' => $indice === 1 ? 'Santina' : null,
+            'calibre' => $indice === 1 ? 'XL' : null,
+            'marca' => $indice === 1 ? 'Estiba Premium' : null,
+            'exportadora' => $indice === 1 ? 'Exportadora Norte' : null,
         ]), $folios);
 
         return compact(

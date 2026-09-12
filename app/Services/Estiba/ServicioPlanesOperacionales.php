@@ -755,7 +755,7 @@ class ServicioPlanesOperacionales
     private function relacionesTarea(): array
     {
         return [
-            'folio:id,numero_folio,tipo_bulto',
+            'folio:id,numero_folio,tipo_bulto,variedad,calibre,marca,exportadora,fecha_ingreso',
             'camaraOrigen:id,nombre',
             'posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
             'camaraDestino:id,nombre',
