@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GuardarDestinoMaterialRequest;
 use App\Http\Requests\GuardarItemMaterialRequest;
+use App\Http\Requests\RegularizarItemMaterialRequest;
 use App\Http\Resources\ClienteMaterialResource;
 use App\Http\Resources\DestinoMaterialResource;
 use App\Http\Resources\ItemMaterialResource;
@@ -13,6 +14,8 @@ use App\Models\ClienteMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\ItemMaterial;
 use App\Models\TemporadaMaterial;
+use App\Services\Materiales\ServicioRegularizacionItemMaterial;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -71,7 +74,7 @@ class CatalogoMaterialController extends Controller
         Gate::authorize('administrar-catalogos-materiales');
 
         $items = ItemMaterial::query()
-            ->with('cliente.temporada')
+            ->with(['cliente.temporada', 'regularizacionComoDuplicado.itemCanonico'])
             ->withCount([
                 'foliosMateriales as folios_activos_count' => fn ($consulta) => $consulta
                     ->whereHas('folio', fn ($folios) => $folios->where('activo', true)),
@@ -147,6 +150,14 @@ class CatalogoMaterialController extends Controller
         $datos = $request->validated();
         $this->validarClienteActivo($datos['cliente_material_id']);
 
+        if ($itemMaterial->regularizacionComoDuplicado()->exists()) {
+            throw new DomainException('Un ítem ya consolidado conserva sus datos históricos y no puede editarse ni reactivarse.');
+        }
+        if (($datos['activo'] ?? true) === false
+            && $itemMaterial->regularizacionesComoCanonico()->exists()) {
+            throw new DomainException('El ítem es canónico para uno o más códigos consolidados y no puede desactivarse.');
+        }
+
         if ($itemMaterial->foliosMateriales()->exists()) {
             unset($datos['unidad_medida']);
             if ($itemMaterial->cliente_material_id !== $datos['cliente_material_id']
@@ -161,6 +172,41 @@ class CatalogoMaterialController extends Controller
         ]);
 
         return new ItemMaterialResource($itemMaterial->refresh()->load('cliente.temporada'));
+    }
+
+    public function regularizarItem(
+        RegularizarItemMaterialRequest $request,
+        ItemMaterial $itemMaterial,
+        ServicioRegularizacionItemMaterial $servicio,
+    ): JsonResponse {
+        $regularizacion = $servicio->regularizar(
+            $itemMaterial,
+            $request->validated('item_canonico_id'),
+            $request->validated('operacion_id'),
+            $request->validated('motivo'),
+            $request->user(),
+        );
+
+        return response()->json(['data' => [
+            'id' => $regularizacion->id,
+            'item_duplicado' => [
+                'id' => $regularizacion->itemDuplicado->id,
+                'codigo' => $regularizacion->itemDuplicado->codigo,
+                'nombre' => $regularizacion->itemDuplicado->nombre,
+            ],
+            'item_canonico' => [
+                'id' => $regularizacion->itemCanonico->id,
+                'codigo' => $regularizacion->itemCanonico->codigo,
+                'nombre' => $regularizacion->itemCanonico->nombre,
+            ],
+            'recetas_versionadas' => $regularizacion->snapshot['recetas_versionadas'] ?? [],
+            'motivo' => $regularizacion->motivo,
+            'usuario' => [
+                'id' => $regularizacion->usuario->id,
+                'nombre' => $regularizacion->usuario->name,
+            ],
+            'ocurrido_at' => $regularizacion->ocurrido_at?->toAtomString(),
+        ]]);
     }
 
     public function destinos(): JsonResponse

@@ -513,6 +513,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/materiales/items', [CatalogoMaterialController::class, 'items']);
         Route::post('/administracion/materiales/items', [CatalogoMaterialController::class, 'storeItem']);
         Route::put('/administracion/materiales/items/{itemMaterial}', [CatalogoMaterialController::class, 'updateItem']);
+        Route::post('/administracion/materiales/items/{itemMaterial}/regularizar', [CatalogoMaterialController::class, 'regularizarItem']);
         Route::get('/administracion/materiales/destinos', [CatalogoMaterialController::class, 'destinos']);
         Route::post('/administracion/materiales/destinos', [CatalogoMaterialController::class, 'storeDestino']);
         Route::put('/administracion/materiales/destinos/{destinoMaterial}', [CatalogoMaterialController::class, 'updateDestino']);

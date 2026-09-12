@@ -217,6 +217,26 @@
                         <div class="materials-list" id="itemsMaterialList"></div>
                     </section>
 
+                    <dialog class="materials-import material-regularization-dialog" id="materialRegularizationDialog">
+                        <form id="materialRegularizationForm" novalidate>
+                            <header class="materials-import__header">
+                                <div><p class="eyebrow">REGULARIZACIÓN TRAZABLE</p><h2>Consolidar Material PT duplicado</h2><p id="materialRegularizationContext"></p></div>
+                                <button id="closeMaterialRegularization" type="button" aria-label="Cerrar">×</button>
+                            </header>
+                            <div class="material-regularization-body">
+                                <aside class="material-reception-warning">El PT duplicado quedará inactivo. La historia no se reescribe y las recetas compatibles crearán una nueva versión MP → PT con el código canónico.</aside>
+                                <label><span>Material MP canónico *</span><select name="item_canonico_id" required></select></label>
+                                <label><span>Motivo de regularización *</span><textarea name="motivo" minlength="10" maxlength="1000" rows="3" placeholder="Ej.: ambos códigos representan físicamente el mismo material." required></textarea></label>
+                                <p class="materials-help">La consolidación se bloqueará si el PT aún tiene stock, reservas, recepciones en borrador, despachos u órdenes abiertas.</p>
+                                <p class="form-error" id="materialRegularizationError" role="alert"></p>
+                            </div>
+                            <footer class="material-reception-form__footer">
+                                <button class="secondary-button" id="cancelMaterialRegularization" type="button">Cancelar</button>
+                                <button class="primary-button" type="submit">Consolidar ítems</button>
+                            </footer>
+                        </form>
+                    </dialog>
+
                     <section class="panel materials-panel" id="materials-catalog-panel-destinations" data-office-panel-group="materials-catalog" data-office-panel-id="destinations" role="tabpanel" aria-labelledby="materials-catalog-tab-destinations">
                         <div class="materials-panel__heading"><div><p class="eyebrow">DESTINOS</p><h2>Centros de costo</h2></div><span id="destinationsSummary">0 registrados</span></div>
                         <form class="materials-form" id="destinationMaterialForm" novalidate>
