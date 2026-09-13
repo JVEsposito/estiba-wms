@@ -68,11 +68,17 @@ class RecepcionRepaletizajeRollingTest extends TestCase
         $this->assertSame('repaletizaje', $plan->contexto['origen_logico']);
         $this->assertTrue($plan->contexto['origen_repa_sin_blockers']);
         $this->assertSame(1, $plan->tareas()->count());
+        $this->assertSame(1, $plan->maniobras()->count());
         $this->assertSame(1, PlanOperacional::query()
             ->where('referencia_tipo', 'repaletizaje')
             ->where('referencia_id', $repa->id)
             ->count());
         $this->assertSame('traslado_entre_camaras', $tarea->tipo_movimiento->value);
+        $this->assertSame('movimiento_permanente', $tarea->tipo_paso_maniobra->value);
+        $this->assertSame(1, $tarea->secuencia_maniobra);
+        $this->assertTrue($tarea->contexto['maniobra_unitaria']);
+        $this->assertSame(1, $tarea->contexto['pasos_totales']);
+        $this->assertSame('pendiente', $tarea->maniobraOperacional()->firstOrFail()->estado->value);
         $this->assertSame($ubicacion?->camara_id, $tarea->camara_origen_id);
         $this->assertSame($ubicacion?->posicion_id, $tarea->posicion_origen_id);
         $this->assertNull($tarea->camara_destino_id);
@@ -108,6 +114,8 @@ class RecepcionRepaletizajeRollingTest extends TestCase
             ->firstOrFail();
 
         $this->assertSame('ubicacion_inicial', $tarea->tipo_movimiento->value);
+        $this->assertSame('movimiento_permanente', $tarea->tipo_paso_maniobra->value);
+        $this->assertSame(1, $tarea->secuencia_maniobra);
         $this->assertNull($tarea->camara_origen_id);
         $this->assertNull($tarea->posicion_origen_id);
         $this->assertNull($tarea->camara_destino_id);
@@ -153,6 +161,10 @@ class RecepcionRepaletizajeRollingTest extends TestCase
             8,
             $planesAltos->flatMap->tareas->where('prioridad.value', 'alta')->count(),
         );
+        $this->assertSame(
+            8,
+            $planesAltos->flatMap->maniobras->where('prioridad.value', 'alta')->count(),
+        );
 
         $this->registrar(
             $temporada,
@@ -177,6 +189,10 @@ class RecepcionRepaletizajeRollingTest extends TestCase
         $this->assertSame(
             10,
             $planesUrgentes->flatMap->tareas->where('prioridad.value', 'urgente')->count(),
+        );
+        $this->assertSame(
+            10,
+            $planesUrgentes->flatMap->maniobras->where('prioridad.value', 'urgente')->count(),
         );
     }
 

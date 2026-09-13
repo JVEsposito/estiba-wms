@@ -14,6 +14,7 @@ use App\Enums\PrioridadOperacional;
 use App\Enums\TipoBulto;
 use App\Enums\TipoEventoCarga;
 use App\Enums\TipoMovimiento;
+use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\CargaFolio;
@@ -28,6 +29,7 @@ use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
+use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Planificador\ServicioDesplieguePlanificador;
 use DomainException;
@@ -41,6 +43,7 @@ class ServicioPlanDespachoDirecto
     public function __construct(
         private readonly ServicioPlanesOperacionales $planes,
         private readonly ServicioDesplieguePlanificador $despliegue,
+        private readonly ServicioManiobrasOperacionales $maniobras,
     ) {}
 
     public function sincronizar(
@@ -326,11 +329,11 @@ class ServicioPlanDespachoDirecto
                 'completada_at' => $ahora,
                 'version' => $reserva->version + 1,
             ]);
-            $tarea->update([
-                'estado' => EstadoTareaMovimiento::Completada,
-                'completada_at' => $ahora,
-                'version' => $tarea->version + 1,
-            ]);
+            $tarea = $this->maniobras->completarPasoSinMovimiento(
+                $tarea,
+                $usuario,
+                $dispositivo,
+            );
 
             $this->sincronizar($presencia, $usuario);
 
@@ -704,7 +707,7 @@ class ServicioPlanDespachoDirecto
             ->lockForUpdate()
             ->max('secuencia')) + 1;
 
-        return TareaMovimiento::create([
+        $tarea = TareaMovimiento::create([
             'plan_operacional_id' => $plan->id,
             'secuencia' => $secuencia,
             'tipo_movimiento' => $candidato['tipo_movimiento'],
@@ -718,6 +721,14 @@ class ServicioPlanDespachoDirecto
             'instruccion' => $candidato['instruccion'] ?? null,
             'contexto' => $candidato['contexto'],
         ]);
+
+        return $this->maniobras->registrarUnitaria(
+            $tarea,
+            ($candidato['contexto']['tipo_decision'] ?? null) === 'retiro_directo_anden'
+                ? TipoPasoManiobra::EntregaAnden
+                : TipoPasoManiobra::MovimientoPermanente,
+            $candidato['candidate_key'] ?? null,
+        );
     }
 
     private function completarPlanSiCorresponde(PlanOperacional $plan, User $usuario): void

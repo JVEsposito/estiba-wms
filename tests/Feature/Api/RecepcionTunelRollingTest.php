@@ -77,13 +77,23 @@ class RecepcionTunelRollingTest extends TestCase
         $this->assertSame($contexto['proceso']->id, $primero->referencia_id);
         $this->assertSame('proceso_prefrio', $primero->referencia_tipo);
         $this->assertSame(2, $primero->tareas()->count());
+        $this->assertSame(2, $primero->maniobras()->count());
         $this->assertSame(1, PlanOperacional::query()
             ->where('referencia_tipo', 'proceso_prefrio')
             ->where('referencia_id', $contexto['proceso']->id)
             ->count());
 
         $primero->tareas()->get()->each(function ($tarea): void {
+            $maniobra = $tarea->maniobraOperacional()->firstOrFail();
+
             $this->assertSame('ubicacion_inicial', $tarea->tipo_movimiento->value);
+            $this->assertSame('movimiento_permanente', $tarea->tipo_paso_maniobra->value);
+            $this->assertSame(1, $tarea->secuencia_maniobra);
+            $this->assertTrue($tarea->contexto['maniobra_unitaria']);
+            $this->assertSame(1, $tarea->contexto['pasos_totales']);
+            $this->assertSame('pendiente', $maniobra->estado->value);
+            $this->assertSame(1, $maniobra->costo_movimientos);
+            $this->assertSame(1, $maniobra->objetivos()->count());
             $this->assertNull($tarea->camara_origen_id);
             $this->assertNull($tarea->posicion_origen_id);
             $this->assertNull($tarea->camara_destino_id);
