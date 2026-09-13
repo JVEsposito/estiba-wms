@@ -102,6 +102,17 @@ class ServicioArbitrajeManiobras
                     'Ya existen tres maniobras asumidas o seleccionadas; la cuarta debe permanecer como alternativa.',
                 );
             }
+            if ($decision?->decision === DecisionArbitrajeManiobra::ExcluidaConflicto
+                && collect($decision->conflictos)->contains(
+                    fn (array $conflicto): bool => str_starts_with(
+                        $conflicto['recurso'] ?? '',
+                        'banda:',
+                    ),
+                )) {
+                throw new ConflictoOperacion(
+                    'La banda requerida está comprometida por otra maniobra.',
+                );
+            }
 
             throw new ConflictoOperacion(
                 $decision?->motivo ?? 'La maniobra quedó fuera de la frontera operacional vigente.',
