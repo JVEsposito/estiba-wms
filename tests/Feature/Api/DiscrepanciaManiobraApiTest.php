@@ -333,7 +333,7 @@ class DiscrepanciaManiobraApiTest extends TestCase
         $plan = PlanOperacional::create([
             'temporada_id' => $temporada->id,
             'tipo' => 'reordenamiento_camara',
-            'estado' => $resuelta ? 'en_ejecucion' : 'pausado',
+            'estado' => 'en_ejecucion',
             'prioridad' => 'normal',
             'titulo' => "Plan discrepancia {$indice}",
             'referencia_tipo' => 'camara_reordenamiento',
