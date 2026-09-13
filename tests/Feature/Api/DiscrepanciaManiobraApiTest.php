@@ -282,7 +282,7 @@ class DiscrepanciaManiobraApiTest extends TestCase
             ->getJson('/api/tareas-movimiento?asignacion=mias')
             ->assertOk()
             ->assertJsonPath('data.0.id', $tareaRecuperacionId)
-            ->assertJsonPath('data.0.maniobra.contexto.tipo_recuperacion', 'retorno_seguro');
+            ->assertJsonPath('data.0.contexto.tipo_decision', 'retorno_seguro_supervisado');
     }
 
     private function crearDiscrepancia(
