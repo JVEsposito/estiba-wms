@@ -121,6 +121,9 @@ export function OperatorTaskExecution({
       <View style={[styles.summary, compact && styles.summaryCompact]}>
         <SummaryCell label="Folio / pallet"><OperatorEntityCode prominent value={task.folio.numero_folio} /></SummaryCell>
         <SummaryCell label="Labor" value={operationalTaskLabel(task.plan.tipo)} />
+        {maneuverObjectiveCount(task) > 1 ? (
+          <SummaryCell label="Objetivos" value={String(maneuverObjectiveCount(task))} />
+        ) : null}
         <SummaryCell label="Ubicación actual" value={operationalTaskPositionLabel(task.origen)} />
         <SummaryCell label="Operador" value={task.responsable?.nombre ?? operatorName} />
         <SummaryCell label="Dispositivo" value={task.dispositivo?.nombre ?? deviceName} />
@@ -238,6 +241,10 @@ export function OperatorTaskExecution({
       </View>
     </ScrollView>
   );
+}
+
+function maneuverObjectiveCount(task: OperationalTask) {
+  return Math.max(1, task.maniobra?.objetivos?.length ?? 0);
 }
 
 function PausedManeuver({ onBack, task }: { onBack: () => void; task: OperationalTask }) {

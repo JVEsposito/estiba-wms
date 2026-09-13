@@ -100,8 +100,10 @@ test('la nueva pantalla separa ejecución, excepciones y custodia visual', () =>
     assert.match(component, /NO ES POSIBLE/);
     assert.match(component, /EXTRAÍDO TEMPORALMENTE/);
     assert.match(component, /VOLVER A MANIOBRAS/);
+    assert.match(component, /Objetivos/);
     assert.match(inbox, /<OperatorTaskExecution/);
     assert.doesNotMatch(inbox, /function TaskCard/);
     assert.match(resource, /'pasos' =>/);
     assert.match(resource, /'custodias_temporales' =>/);
+    assert.match(resource, /'objetivos' =>/);
 });

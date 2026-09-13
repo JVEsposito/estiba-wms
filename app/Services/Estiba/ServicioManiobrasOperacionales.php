@@ -6,6 +6,7 @@ use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
+use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
@@ -56,6 +57,7 @@ class ServicioManiobrasOperacionales
      *   titulo:string,
      *   motivo?:string|null,
      *   beneficio_estimado?:int,
+     *   beneficio_principal_estimado?:int,
      *   riesgo_operacional?:int,
      *   contexto?:array<string,mixed>,
      *   bloqueos_banda?:array<int,array{camara_id:string,banda:int,nivel:int}>,
@@ -131,7 +133,11 @@ class ServicioManiobrasOperacionales
             ]);
             $maniobra->objetivos()->attach($plan->id, [
                 'es_principal' => true,
-                'beneficio_estimado' => (int) ($datos['beneficio_estimado'] ?? 0),
+                'beneficio_estimado' => (int) (
+                    $datos['beneficio_principal_estimado']
+                    ?? $datos['beneficio_estimado']
+                    ?? 0
+                ),
                 'contexto' => json_encode([
                     'candidate_key' => $clave,
                     'tipo_objetivo' => $plan->tipo->value,
@@ -318,6 +324,96 @@ class ServicioManiobrasOperacionales
         }, attempts: 3);
     }
 
+    /**
+     * Declara que una maniobra ya publicada resuelve además otro objetivo
+     * operacional. La maniobra conserva un único dueño físico, pero agrega
+     * el beneficio, la prioridad y la trazabilidad del plan secundario.
+     *
+     * @param  array<string, mixed>  $contexto
+     */
+    public function vincularObjetivo(
+        ManiobraOperacional $maniobra,
+        PlanOperacional $objetivo,
+        int $beneficioEstimado,
+        array $contexto = [],
+    ): ManiobraOperacional {
+        return DB::transaction(function () use (
+            $maniobra,
+            $objetivo,
+            $beneficioEstimado,
+            $contexto,
+        ): ManiobraOperacional {
+            $maniobra = ManiobraOperacional::query()
+                ->lockForUpdate()
+                ->findOrFail($maniobra->id);
+            $objetivo = PlanOperacional::query()
+                ->lockForUpdate()
+                ->findOrFail($objetivo->id);
+
+            if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
+                throw new DomainException(
+                    'Los objetivos de una maniobra solo pueden consolidarse antes de asumirla.',
+                );
+            }
+            $planPrincipal = PlanOperacional::query()->findOrFail(
+                $maniobra->plan_operacional_id,
+            );
+            if ($objetivo->temporada_id !== $planPrincipal->temporada_id) {
+                throw new DomainException(
+                    'Una maniobra no puede consolidar objetivos de temporadas distintas.',
+                );
+            }
+            if (! in_array($objetivo->estado, [
+                EstadoPlanOperacional::Programado,
+                EstadoPlanOperacional::EnEjecucion,
+            ], true)) {
+                throw new DomainException(
+                    'Una maniobra solo puede incorporar un objetivo operativo vigente.',
+                );
+            }
+            if ($maniobra->objetivos()->whereKey($objetivo->id)->exists()) {
+                return $this->cargar($maniobra);
+            }
+
+            $maniobra->objetivos()->attach($objetivo->id, [
+                'es_principal' => false,
+                'beneficio_estimado' => max(0, $beneficioEstimado),
+                'contexto' => $contexto !== []
+                    ? json_encode($contexto, JSON_THROW_ON_ERROR)
+                    : null,
+            ]);
+            $prioridad = $maniobra->objetivos()
+                ->get(['prioridad'])
+                ->map(fn (PlanOperacional $plan): PrioridadOperacional => $plan->prioridad)
+                ->sortByDesc(fn (PrioridadOperacional $valor): int => $valor->peso())
+                ->first()
+                ?? $maniobra->prioridad;
+            $beneficio = (int) $maniobra->objetivos()
+                ->sum('maniobra_objetivos.beneficio_estimado');
+
+            $maniobra->update([
+                'prioridad' => $prioridad,
+                'beneficio_estimado' => $beneficio,
+                'version' => $maniobra->version + 1,
+            ]);
+            $maniobra->pasos()
+                ->whereIn('estado', $this->estadosActivosTarea())
+                ->lockForUpdate()
+                ->get()
+                ->each(function (TareaMovimiento $paso) use ($prioridad): void {
+                    if ($paso->prioridad->peso() >= $prioridad->peso()) {
+                        return;
+                    }
+                    $paso->update([
+                        'prioridad' => $prioridad,
+                        'version' => $paso->version + 1,
+                    ]);
+                });
+
+            return $this->cargar($maniobra->refresh());
+        }, attempts: 3);
+    }
+
     public function asumirPaso(
         TareaMovimiento $tarea,
         User $usuario,
@@ -372,6 +468,19 @@ class ServicioManiobrasOperacionales
         ]);
         $this->reservas->asumir($tarea, $usuario, $dispositivo);
         $this->materializarDestinoPrecalculado($tarea->refresh(), $usuario, $dispositivo);
+        $maniobra->objetivos()
+            ->whereKeyNot($maniobra->plan_operacional_id)
+            ->where('estado', EstadoPlanOperacional::Programado->value)
+            ->lockForUpdate()
+            ->get()
+            ->each(function (PlanOperacional $objetivo) use ($usuario, $ahora): void {
+                $objetivo->update([
+                    'estado' => EstadoPlanOperacional::EnEjecucion,
+                    'iniciado_por_user_id' => $usuario->id,
+                    'iniciado_at' => $ahora,
+                    'version' => $objetivo->version + 1,
+                ]);
+            });
 
         return $tarea->refresh();
     }

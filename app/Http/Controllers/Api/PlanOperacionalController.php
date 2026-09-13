@@ -92,6 +92,7 @@ class PlanOperacionalController extends Controller
             'tareas.dispositivo:id,codigo,nombre',
             'tareas.reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
             'tareas.maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
+            'tareas.maniobraOperacional.objetivos:id,tipo,estado,prioridad,titulo',
             ...$this->relacionesDetalleManiobra('tareas.maniobraOperacional'),
         ]));
     }
@@ -425,6 +426,7 @@ class PlanOperacionalController extends Controller
             'dispositivo:id,codigo,nombre',
             'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
             'maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
+            'maniobraOperacional.objetivos:id,tipo,estado,prioridad,titulo',
             ...$this->relacionesDetalleManiobra('maniobraOperacional'),
         ];
     }

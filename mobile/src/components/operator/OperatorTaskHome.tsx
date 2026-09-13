@@ -141,6 +141,9 @@ function NextTaskCard({ busy, compact, item, onOpen }: {
           <View style={styles.heroBadges}>
             <OperatorStatusBadge label={state.label} tone={state.tone} />
             <OperatorPriorityBadge priority={task.prioridad} />
+            {maneuverObjectiveCount(task) > 1 ? (
+              <OperatorStatusBadge label={`${maneuverObjectiveCount(task)} OBJETIVOS`} tone="info" />
+            ) : null}
           </View>
           <Text style={styles.heroTitle}>{operationalTaskLabel(task.plan.tipo)}</Text>
           <Text style={styles.folioLabel}>Folio / pallet</Text>
@@ -222,6 +225,10 @@ function primaryActionLabel(item: OperatorQueueItem) {
 function maneuverStep(task: OperationalTask) {
   if (!task.maniobra) return '1 de 1';
   return `${task.secuencia_maniobra ?? task.maniobra.secuencia_actual} de ${task.maniobra.pasos_totales}`;
+}
+
+function maneuverObjectiveCount(task: OperationalTask) {
+  return Math.max(1, task.maniobra?.objetivos?.length ?? 0);
 }
 
 function commitmentLabel(task: OperationalTask) {
