@@ -71,6 +71,9 @@ export function OperatorTaskExecution({
     || (!moving && task.tipo_movimiento !== 'retiro' && !hasPhysicalDestination);
 
   useEffect(() => setExceptionKind(null), [task.id]);
+  useEffect(() => {
+    if (task.maniobra?.estado !== 'pausada_discrepancia') setExceptionKind(null);
+  }, [task.maniobra?.estado]);
 
   const runPrimary = () => {
     if (!moving) return onStart();
@@ -90,6 +93,10 @@ export function OperatorTaskExecution({
         task={task}
       />
     );
+  }
+
+  if (task.maniobra?.estado === 'pausada_discrepancia') {
+    return <PausedManeuver onBack={onBack} task={task} />;
   }
 
   return (
@@ -233,6 +240,49 @@ export function OperatorTaskExecution({
   );
 }
 
+function PausedManeuver({ onBack, task }: { onBack: () => void; task: OperationalTask }) {
+  const physicalState = task.estado === 'en_proceso'
+    ? 'Pallet en movimiento con destino fijo'
+    : task.maniobra?.custodia_temporal_activa
+      ? 'Existe custodia temporal activa'
+      : 'Movimiento todavía no iniciado';
+  const instruction = task.estado === 'en_proceso' || task.maniobra?.custodia_temporal_activa
+    ? 'Mantén el pallet bajo control de esta maniobra. No lo ubiques ni lo entregues fuera de la instrucción que enviará supervisión.'
+    : 'No retires el pallet. Conserva la posición actual hasta que supervisión confirme cómo continuar.';
+
+  return (
+    <ScrollView contentContainerStyle={styles.pausedContent} style={styles.screen}>
+      <View style={styles.pausedHeader}>
+        <OperatorStatusBadge label="EN ESPERA DE SUPERVISIÓN" tone="warning" />
+        <Text accessibilityRole="header" style={styles.pausedTitle}>MANIOBRA PAUSADA</Text>
+        <Text style={styles.pausedLead}>NO MUEVAS EL PALLET</Text>
+        <Text style={styles.pausedCopy}>{instruction}</Text>
+      </View>
+
+      <View style={styles.pausedSummary}>
+        <SummaryCell label="Folio / pallet"><OperatorEntityCode prominent value={task.folio.numero_folio} /></SummaryCell>
+        <SummaryCell label="Estado físico" value={physicalState} />
+        <SummaryCell label="Paso" value={`${task.secuencia_maniobra ?? task.maniobra?.secuencia_actual ?? 1} de ${task.maniobra?.pasos_totales ?? 1}`} />
+        <SummaryCell label="Ubicación informada" value={operationalTaskPositionLabel(task.origen)} />
+        <SummaryCell label="Destino protegido" value={buildOperatorManeuverAction(task).destination} />
+      </View>
+
+      <CustodyPanel task={task} />
+
+      <View style={styles.pausedSync}>
+        <Text style={styles.pausedSyncTitle}>Decisión supervisada pendiente</Text>
+        <Text style={styles.pausedSyncCopy}>
+          Esta pantalla se actualiza automáticamente. Si supervisión reanuda la maniobra, el mismo paso volverá listo a esta tablet.
+        </Text>
+      </View>
+
+      <Pressable onPress={onBack} style={styles.footerBack}>
+        <Text style={styles.footerBackText}>‹ VOLVER A MI JORNADA</Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
 function SummaryCell({ children, label, value }: { children?: ReactNode; label: string; value?: string }) {
   return (
     <View style={styles.summaryCell}>
@@ -368,6 +418,15 @@ function formatDuration(seconds: number) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: o.color.canvas },
   content: { gap: o.space[3], paddingBottom: o.space[8] },
+  pausedContent: { gap: o.space[3], paddingBottom: o.space[8] },
+  pausedHeader: { minHeight: 280, padding: o.space[6], alignItems: 'center', justifyContent: 'center', gap: o.space[3], borderWidth: 2, borderColor: o.color.warning, borderRadius: o.radius.panel, backgroundColor: o.color.warningSurface },
+  pausedTitle: { color: o.color.text, fontSize: 38, lineHeight: 44, fontWeight: '900', textAlign: 'center' },
+  pausedLead: { color: o.color.critical, fontSize: o.type.title, fontWeight: '900', textAlign: 'center' },
+  pausedCopy: { maxWidth: 720, color: o.color.text, fontSize: o.type.body, lineHeight: 24, fontWeight: '700', textAlign: 'center' },
+  pausedSummary: { flexDirection: 'row', flexWrap: 'wrap', borderWidth: 1, borderColor: o.color.border, borderRadius: o.radius.panel, backgroundColor: o.color.surface },
+  pausedSync: { padding: o.space[4], borderWidth: 1, borderColor: o.color.primary, borderRadius: o.radius.panel, backgroundColor: o.color.selected },
+  pausedSyncTitle: { color: o.color.primaryPressed, fontSize: o.type.body, fontWeight: '900' },
+  pausedSyncCopy: { color: o.color.text, fontSize: o.type.small, lineHeight: 20, marginTop: o.space[1] },
   header: { minHeight: 64, paddingHorizontal: o.space[3], flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: o.space[4], borderWidth: 1, borderColor: o.color.border, borderRadius: o.radius.panel, backgroundColor: o.color.surface },
   headerCompact: { alignItems: 'stretch', flexDirection: 'column', paddingVertical: o.space[3] },
   backButton: { minHeight: o.touch.minimum, flexDirection: 'row', alignItems: 'center', gap: o.space[3] },

@@ -41,11 +41,13 @@
 .discrepancy-card__grid small { display: block; color: var(--eui-color-muted); font-size: .75rem; }
 .discrepancy-card__grid strong { display: block; margin: 4px 0; overflow-wrap: anywhere; }
 .discrepancy-card__detail { border-top: 1px solid var(--eui-color-border); margin: 0; padding: 11px 14px; color: var(--eui-color-muted); }
-.discrepancy-resolution { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; align-items: end; gap: 10px; border-top: 1px solid var(--eui-color-border); padding: 13px 14px; }
+.discrepancy-resolution { display: grid; grid-template-columns: 1fr; gap: 10px; border-top: 1px solid var(--eui-color-border); padding: 13px 14px; }
 .discrepancy-resolution label { display: grid; gap: 6px; }
 .discrepancy-resolution label > span { color: var(--eui-color-muted); font-size: var(--eui-font-size-caption); font-weight: var(--eui-font-weight-strong); }
 .discrepancy-resolution textarea { min-height: 64px; resize: vertical; }
+.discrepancy-resolution__actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .discrepancy-restriction { grid-column: 1 / -1; margin: 0; color: var(--eui-signal-warning-text); font-size: var(--eui-font-size-small); }
+.discrepancy-restriction li + li { margin-top: 3px; }
 .discrepancy-card__audit { border-top: 1px solid var(--eui-color-border); padding: 12px 14px; }
 .discrepancy-card__audit p { margin: 0; }
 .discrepancy-card__audit small { color: var(--eui-color-muted); }
@@ -57,8 +59,7 @@
     .discrepancies-filters { grid-template-columns: 1fr 1fr; }
     .discrepancy-card__grid { grid-template-columns: 1fr 1fr; }
     .discrepancy-card__grid > div:nth-child(2) { border-right: 0; }
-    .discrepancy-resolution { grid-template-columns: 1fr 1fr; }
-    .discrepancy-resolution label { grid-column: 1 / -1; }
+    .discrepancy-resolution__actions .eui-button { flex: 1 1 220px; }
 }
 
 @media (max-width: 620px) {
@@ -69,7 +70,7 @@
     .discrepancy-card__audit { align-items: stretch; flex-direction: column; }
     .discrepancies-filters,
     .discrepancies-metrics,
-    .discrepancy-card__grid,
-    .discrepancy-resolution { grid-template-columns: 1fr; }
+    .discrepancy-card__grid { grid-template-columns: 1fr; }
+    .discrepancy-resolution__actions { display: grid; grid-template-columns: 1fr; }
     .discrepancy-card__grid > div { border-right: 0; border-bottom: 1px solid var(--eui-color-border); }
 }

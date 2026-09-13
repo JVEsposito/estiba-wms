@@ -483,13 +483,16 @@ class ConcentracionCargaRollingTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.estado', 'resuelta')
-            ->assertJsonPath('data.maniobra.estado', 'pendiente')
-            ->assertJsonPath('data.tarea.estado', 'pendiente');
+            ->assertJsonPath('data.maniobra.estado', 'en_ejecucion')
+            ->assertJsonPath('data.tarea.estado', 'asumida');
 
         $this->assertSame(EstadoCustodiaTemporal::Activa, $maniobra
             ->custodiasTemporales()
             ->sole()
             ->estado);
+        $this->assertSame($operador->id, $siguiente->refresh()->responsable_user_id);
+        $this->assertSame($dispositivo->id, $siguiente->dispositivo_id);
+        $this->assertNotNull($siguiente->reservaActiva()->first());
         $this->assertDatabaseHas('reservas_bandas_maniobra', [
             'maniobra_operacional_id' => $maniobra->id,
             'liberada_at' => null,
@@ -750,6 +753,12 @@ class ConcentracionCargaRollingTest extends TestCase
             $tarea->maniobraOperacional->refresh()->estado,
         );
         $this->assertNull($tarea->reservaActiva()->first());
+        $this->actingAs($operador, 'sanctum')
+            ->getJson('/api/tareas-movimiento?asignacion=mias')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $tarea->id)
+            ->assertJsonPath('data.0.estado', 'bloqueada')
+            ->assertJsonPath('data.0.maniobra.estado', 'pausada_discrepancia');
 
         $version = $tarea->maniobraOperacional->refresh()->version;
         $ruta = "/api/discrepancias-maniobra/{$discrepancia->id}/resolver";
@@ -770,12 +779,19 @@ class ConcentracionCargaRollingTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.estado', 'resuelta')
             ->assertJsonPath('data.accion_resolucion', 'reanudar_maniobra')
-            ->assertJsonPath('data.maniobra.estado', 'pendiente')
-            ->assertJsonPath('data.tarea.estado', 'pendiente');
+            ->assertJsonPath('data.maniobra.estado', 'en_ejecucion')
+            ->assertJsonPath('data.tarea.estado', 'asumida');
         $resueltaAt = $respuesta->json('data.resuelta_at');
 
-        $this->assertNull($tarea->refresh()->responsable_user_id);
-        $this->assertNull($tarea->dispositivo_id);
+        $this->assertSame($operador->id, $tarea->refresh()->responsable_user_id);
+        $this->assertSame($dispositivo->id, $tarea->dispositivo_id);
+        $this->assertNotNull($tarea->reservaActiva()->first());
+        $this->actingAs($operador, 'sanctum')
+            ->getJson('/api/tareas-movimiento?asignacion=mias')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $tarea->id)
+            ->assertJsonPath('data.0.estado', 'asumida')
+            ->assertJsonPath('data.0.maniobra.estado', 'en_ejecucion');
         $this->assertDatabaseHas('discrepancias_maniobra', [
             'id' => $discrepancia->id,
             'accion_resolucion' => 'reanudar_maniobra',
@@ -856,6 +872,20 @@ class ConcentracionCargaRollingTest extends TestCase
                 'accion' => 'cancelar_maniobra',
                 'version_maniobra' => $maniobra->version,
                 'resolucion' => 'No se debe poder cancelar este movimiento.',
+            ])
+            ->assertConflict();
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'replanificar_sufijo',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'No se debe poder recalcular con un pallet en movimiento.',
+            ])
+            ->assertConflict();
+        $this->actingAs($contexto['usuario'], 'sanctum')
+            ->postJson($ruta, [
+                'accion' => 'retorno_seguro',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'No se debe poder iniciar otra ruta con un pallet en movimiento.',
             ])
             ->assertConflict();
         $this->actingAs($contexto['usuario'], 'sanctum')

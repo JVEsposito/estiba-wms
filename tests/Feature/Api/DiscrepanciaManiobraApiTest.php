@@ -6,12 +6,14 @@ use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
+use App\Models\CustodiaTemporalManiobra;
 use App\Models\DiscrepanciaManiobra;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\ManiobraOperacional;
 use App\Models\PlanOperacional;
 use App\Models\Posicion;
+use App\Models\ReservaBandaManiobra;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
@@ -107,11 +109,188 @@ class DiscrepanciaManiobraApiTest extends TestCase
             ->assertJsonValidationErrors(['estado', 'por_pagina']);
     }
 
+    public function test_replanifica_solo_el_sufijo_reversible_y_deja_auditoria(): void
+    {
+        $supervisor = User::factory()->create([
+            'rol' => RolUsuario::SupervisorFrio,
+            'activo' => true,
+        ]);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $discrepancia = $this->crearDiscrepancia(
+            $temporada,
+            'PAL-DISC-REPLAN',
+            estadoTarea: 'bloqueada',
+        );
+        $maniobra = $discrepancia->maniobraOperacional;
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->getJson('/api/discrepancias-maniobra')
+            ->assertOk()
+            ->assertJsonPath('data.0.restricciones.replanificar', null)
+            ->assertJsonPath('data.0.restricciones.retorno_seguro', 'sin_custodia_temporal');
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/discrepancias-maniobra/{$discrepancia->id}/resolver", [
+                'accion' => 'replanificar_sufijo',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'La geometría verificada cambió; recalcular desde el estado confirmado.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.accion_resolucion', 'replanificar_sufijo')
+            ->assertJsonPath('data.maniobra.estado', 'cancelada')
+            ->assertJsonPath('data.tarea.estado', 'cancelada');
+
+        $this->assertSame('recalculada', $maniobra->planOperacional->refresh()
+            ->contexto['replanificacion_discrepancia']['estado']);
+        $this->assertSame(
+            $discrepancia->id,
+            $maniobra->planOperacional->contexto['replanificacion_discrepancia']['discrepancia_id'],
+        );
+    }
+
+    public function test_retorno_seguro_transfiere_custodia_y_vuelve_a_la_misma_tablet(): void
+    {
+        $supervisor = User::factory()->create([
+            'rol' => RolUsuario::SupervisorFrio,
+            'activo' => true,
+        ]);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $discrepancia = $this->crearDiscrepancia(
+            $temporada,
+            'PAL-DISC-OBJETIVO',
+            estadoTarea: 'bloqueada',
+        );
+        $maniobra = $discrepancia->maniobraOperacional;
+        $tareaObjetada = $discrepancia->tareaMovimiento;
+        $operador = $discrepancia->reportadaPor;
+        $dispositivo = $discrepancia->dispositivo;
+        $posicionRetorno = $tareaObjetada->posicionOrigen;
+
+        $maniobra->update([
+            'responsable_user_id' => $operador->id,
+            'dispositivo_id' => $dispositivo->id,
+            'secuencia_actual' => 2,
+        ]);
+        $tareaObjetada->update([
+            'secuencia' => 2,
+            'secuencia_maniobra' => 2,
+        ]);
+        $blocker = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-DISC-CUSTODIA',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+        $extraccion = TareaMovimiento::create([
+            'plan_operacional_id' => $maniobra->plan_operacional_id,
+            'maniobra_operacional_id' => $maniobra->id,
+            'secuencia' => 1,
+            'secuencia_maniobra' => 1,
+            'tipo_movimiento' => 'retiro',
+            'tipo_paso_maniobra' => 'extraccion_temporal',
+            'estado' => 'completada',
+            'prioridad' => 'normal',
+            'folio_id' => $blocker->id,
+            'camara_origen_id' => $posicionRetorno->camara_id,
+            'posicion_origen_id' => $posicionRetorno->id,
+            'responsable_user_id' => $operador->id,
+            'dispositivo_id' => $dispositivo->id,
+            'completada_at' => now()->subMinute(),
+        ]);
+        $retornoOriginal = TareaMovimiento::create([
+            'plan_operacional_id' => $maniobra->plan_operacional_id,
+            'maniobra_operacional_id' => $maniobra->id,
+            'secuencia' => 3,
+            'secuencia_maniobra' => 3,
+            'tipo_movimiento' => 'ubicacion_inicial',
+            'tipo_paso_maniobra' => 'retorno_banda',
+            'estado' => 'bloqueada',
+            'prioridad' => 'normal',
+            'folio_id' => $blocker->id,
+            'camara_destino_id' => $posicionRetorno->camara_id,
+            'contexto' => [
+                'camara_retorno_id' => $posicionRetorno->camara_id,
+                'banda_retorno' => $posicionRetorno->banda,
+                'nivel_retorno' => $posicionRetorno->nivel,
+                'profundidad_resultante' => $posicionRetorno->posicion,
+            ],
+        ]);
+        $custodia = CustodiaTemporalManiobra::create([
+            'maniobra_operacional_id' => $maniobra->id,
+            'folio_id' => $blocker->id,
+            'tarea_extraccion_id' => $extraccion->id,
+            'camara_origen_id' => $posicionRetorno->camara_id,
+            'posicion_origen_id' => $posicionRetorno->id,
+            'banda_origen' => $posicionRetorno->banda,
+            'posicion_origen' => $posicionRetorno->posicion,
+            'nivel_origen' => $posicionRetorno->nivel,
+            'estado' => 'activa',
+            'bloqueo_folio_id' => $blocker->id,
+            'user_id' => $operador->id,
+            'dispositivo_id' => $dispositivo->id,
+            'extraido_at' => now()->subMinute(),
+        ]);
+        $reservaBanda = ReservaBandaManiobra::create([
+            'maniobra_operacional_id' => $maniobra->id,
+            'camara_id' => $posicionRetorno->camara_id,
+            'banda' => $posicionRetorno->banda,
+            'nivel' => $posicionRetorno->nivel,
+            'clave_bloqueo' => implode(':', [
+                $posicionRetorno->camara_id,
+                $posicionRetorno->banda,
+                $posicionRetorno->nivel,
+            ]),
+            'reservada_at' => now(),
+        ]);
+
+        $this->actingAs($supervisor, 'sanctum')
+            ->getJson('/api/discrepancias-maniobra')
+            ->assertOk()
+            ->assertJsonPath('data.0.maniobra.custodias_activas', 1)
+            ->assertJsonPath('data.0.restricciones.replanificar', 'custodia_temporal_activa')
+            ->assertJsonPath('data.0.restricciones.retorno_seguro', null);
+
+        $respuesta = $this->actingAs($supervisor, 'sanctum')
+            ->postJson("/api/discrepancias-maniobra/{$discrepancia->id}/resolver", [
+                'accion' => 'retorno_seguro',
+                'version_maniobra' => $maniobra->version,
+                'resolucion' => 'La ruta útil cambió; devolver el pallet temporal antes de recalcular.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.accion_resolucion', 'retorno_seguro')
+            ->assertJsonPath('data.maniobra.estado', 'cancelada')
+            ->assertJsonPath('data.recuperacion.estado', 'en_ejecucion')
+            ->assertJsonPath('data.recuperacion.tarea_estado', 'asumida')
+            ->assertJsonPath('data.recuperacion.responsable_user_id', $operador->id)
+            ->assertJsonPath('data.recuperacion.dispositivo_id', $dispositivo->id);
+        $recuperacionId = $respuesta->json('data.recuperacion.maniobra_id');
+        $tareaRecuperacionId = $respuesta->json('data.recuperacion.tarea_id');
+
+        $this->assertSame($recuperacionId, $custodia->refresh()->maniobra_operacional_id);
+        $this->assertSame($recuperacionId, $reservaBanda->refresh()->maniobra_operacional_id);
+        $this->assertSame($tareaRecuperacionId, $retornoOriginal->refresh()->reemplazada_por_tarea_id);
+        $this->assertDatabaseHas('tareas_movimiento', [
+            'id' => $tareaRecuperacionId,
+            'maniobra_operacional_id' => $recuperacionId,
+            'folio_id' => $blocker->id,
+            'posicion_destino_id' => $posicionRetorno->id,
+            'tipo_paso_maniobra' => 'retorno_banda',
+            'estado' => 'asumida',
+        ]);
+        $this->actingAs($operador, 'sanctum')
+            ->getJson('/api/tareas-movimiento?asignacion=mias')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $tareaRecuperacionId)
+            ->assertJsonPath('data.0.contexto.tipo_decision', 'retorno_seguro_supervisado');
+    }
+
     private function crearDiscrepancia(
         Temporada $temporada,
         string $numeroFolio,
         bool $resuelta = false,
         ?User $supervisor = null,
+        string $estadoTarea = 'en_proceso',
     ): DiscrepanciaManiobra {
         $this->secuencia++;
         $indice = str_pad((string) $this->secuencia, 2, '0', STR_PAD_LEFT);
@@ -149,13 +328,17 @@ class DiscrepanciaManiobraApiTest extends TestCase
         $dispositivo = Dispositivo::create([
             'codigo' => "TAB-DISC-{$indice}",
             'nombre' => "Tablet discrepancia {$indice}",
+            'activo' => true,
         ]);
         $plan = PlanOperacional::create([
             'temporada_id' => $temporada->id,
             'tipo' => 'reordenamiento_camara',
-            'estado' => $resuelta ? 'en_ejecucion' : 'pausado',
+            'estado' => 'en_ejecucion',
             'prioridad' => 'normal',
             'titulo' => "Plan discrepancia {$indice}",
+            'referencia_tipo' => 'camara_reordenamiento',
+            'referencia_id' => $camara->id,
+            'contexto' => ['bandas_analizadas' => [1]],
             'creado_por_user_id' => $reportante->id,
             'programado_at' => now(),
         ]);
@@ -176,7 +359,7 @@ class DiscrepanciaManiobraApiTest extends TestCase
             'secuencia_maniobra' => 1,
             'tipo_movimiento' => 'reubicacion',
             'tipo_paso_maniobra' => 'movimiento_permanente',
-            'estado' => $resuelta ? 'pendiente' : 'en_proceso',
+            'estado' => $resuelta ? 'pendiente' : $estadoTarea,
             'prioridad' => 'normal',
             'folio_id' => $folio->id,
             'camara_origen_id' => $camara->id,
