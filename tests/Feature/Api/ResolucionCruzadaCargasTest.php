@@ -19,6 +19,7 @@ use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Posicion;
 use App\Models\ReservaCargaFolio;
+use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
