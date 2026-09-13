@@ -134,9 +134,10 @@ class FronteraFisicaGlobalApiTest extends TestCase
             ->assertJsonCount(1, 'data.rechazadas')
             ->assertJsonPath('data.recalcular', true);
 
-        $this->assertSame(1, $planes->cargar($primera->planOperacional)->tareas
-            ->whereNotNull('posicion_destino_id')
-            ->count());
+        $this->assertSame(
+            $contexto['posiciones'][0]->id,
+            $primera->refresh()->posicion_destino_id,
+        );
         $this->assertNull($segunda->refresh()->posicion_destino_id);
     }
 
