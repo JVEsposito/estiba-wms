@@ -123,7 +123,10 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   useOperationalPolling(
     () => loadTasks({ quiet: true }),
     {
-      enabled: Boolean(taskApi) && activeTask === null,
+      enabled: Boolean(taskApi) && (
+        activeTask === null
+        || activeTask.maniobra?.estado === 'pausada_discrepancia'
+      ),
       intervalMs: OPERATIONAL_POLL_INTERVAL_MS,
       onError: (reason) => setError(messageFrom(reason)),
       onResume: () => loadTasks({ quiet: true }),
@@ -543,8 +546,12 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setError('');
     try {
       const reported = await taskApi.reportDiscrepancy(auth.token, activeTask.id, type, detail);
-      setMine((current) => current.filter((task) => task.id !== activeTask.id));
-      setNotice('Maniobra pausada. Supervisión recibió la discrepancia con el estado físico confirmado.');
+      const refreshed = await loadTasks({ quiet: true });
+      const paused = refreshed?.mine.find((task) => task.id === activeTask.id) ?? null;
+      setActiveTask(paused);
+      setNotice(
+        'Maniobra pausada y visible en tu jornada. La misma tablet recibirá la decisión de supervisión.',
+      );
       return reported;
     } catch (reason) {
       setError(messageFrom(reason));

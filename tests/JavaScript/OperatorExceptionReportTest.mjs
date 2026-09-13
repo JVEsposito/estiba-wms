@@ -56,9 +56,12 @@ test('la PDA revisa, confirma y conserva una espera explícita para supervisión
     assert.match(component, /VOLVER A MI JORNADA/);
     assert.match(component, /maxLength=\{500\}/);
     assert.match(execution, /<OperatorExceptionReport/);
+    assert.match(execution, /NO MUEVAS EL PALLET/);
+    assert.match(execution, /Esta pantalla se actualiza automáticamente/);
     assert.match(inbox, /reportDiscrepancy\(auth\.token, activeTask\.id, type, detail\)/);
+    assert.match(inbox, /activeTask\.maniobra\?\.estado === 'pausada_discrepancia'/);
     assert.doesNotMatch(inbox, /Pallet distinto.*sendDiscrepancy/s);
     assert.match(api, /ReportedManeuverDiscrepancy/);
-    assert.match(api, /tasks\.filter\(\(task\) => task\.maniobra\?\.estado !== 'pausada_discrepancia'\)/);
+    assert.doesNotMatch(api, /maniobra\?\.estado !== 'pausada_discrepancia'/);
     assert.match(api, /\)\)\.data;/);
 });

@@ -6,6 +6,7 @@ use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
+use App\Enums\EstadoPosicion;
 use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\PrioridadOperacional;
@@ -25,6 +26,7 @@ use App\Models\Posicion;
 use App\Models\ReservaBandaManiobra;
 use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
+use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
 use App\Services\Cargas\ServicioPlanConcentracionCarga;
@@ -40,6 +42,7 @@ class ServicioManiobrasOperacionales
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
         private readonly InterbloqueoEvacuacionEmergencia $emergencias,
+        private readonly ServicioReplanificacionDiscrepancia $replanificador,
     ) {}
 
     /**
@@ -495,6 +498,14 @@ class ServicioManiobrasOperacionales
             match ($accion) {
                 AccionResolucionDiscrepancia::ReanudarManiobra => $this
                     ->reanudarTrasDiscrepancia($maniobra),
+                AccionResolucionDiscrepancia::ReplanificarSufijo => $this
+                    ->replanificarTrasDiscrepancia($maniobra, $supervisor, $discrepancia),
+                AccionResolucionDiscrepancia::RetornoSeguro => $this
+                    ->retornoSeguroTrasDiscrepancia(
+                        $maniobra,
+                        $supervisor,
+                        $discrepancia,
+                    ),
                 AccionResolucionDiscrepancia::CancelarManiobra => $this
                     ->cancelarTrasDiscrepancia($maniobra, $supervisor),
             };
@@ -535,6 +546,7 @@ class ServicioManiobrasOperacionales
 
             $maniobra->update([
                 'estado' => EstadoManiobraOperacional::EnEjecucion,
+                'pausada_at' => null,
                 'version' => $maniobra->version + 1,
             ]);
 
@@ -564,6 +576,7 @@ class ServicioManiobrasOperacionales
             $maniobra->update([
                 'estado' => EstadoManiobraOperacional::Completada,
                 'completada_at' => now(),
+                'pausada_at' => null,
                 'version' => $maniobra->version + 1,
             ]);
 
@@ -579,6 +592,20 @@ class ServicioManiobrasOperacionales
             );
         }
 
+        $usuario = User::query()
+            ->whereKey($maniobra->responsable_user_id)
+            ->where('activo', true)
+            ->first();
+        $dispositivo = Dispositivo::query()
+            ->whereKey($maniobra->dispositivo_id)
+            ->where('activo', true)
+            ->first();
+        if (! $usuario || ! $dispositivo) {
+            throw new ConflictoOperacion(
+                'La maniobra perdió su camarero o tablet activa y requiere reasignación supervisada.',
+            );
+        }
+
         $siguiente->update([
             'estado' => EstadoTareaMovimiento::Pendiente,
             'responsable_user_id' => null,
@@ -587,19 +614,322 @@ class ServicioManiobrasOperacionales
             'iniciada_at' => null,
             'version' => $siguiente->version + 1,
         ]);
-        $poseePrefijoFisico = $maniobra->pasos()
-            ->where('estado', EstadoTareaMovimiento::Completada->value)
-            ->lockForUpdate()
-            ->exists();
+        $maniobra->loadMissing('reservasBandas');
+        $this->bloquearBandas($maniobra);
         $maniobra->update([
-            'estado' => EstadoManiobraOperacional::Pendiente,
-            'responsable_user_id' => null,
-            'dispositivo_id' => null,
-            'asumida_at' => $poseePrefijoFisico ? $maniobra->asumida_at : null,
-            'iniciada_at' => $poseePrefijoFisico ? $maniobra->iniciada_at : null,
+            'estado' => EstadoManiobraOperacional::EnEjecucion,
+            'pausada_at' => null,
             'secuencia_actual' => $siguiente->secuencia_maniobra,
             'version' => $maniobra->version + 1,
         ]);
+        $this->reservas->asumir($siguiente->refresh(), $usuario, $dispositivo);
+        $this->materializarDestinoPrecalculado(
+            $siguiente->refresh(),
+            $usuario,
+            $dispositivo,
+        );
+    }
+
+    private function replanificarTrasDiscrepancia(
+        ManiobraOperacional $maniobra,
+        User $supervisor,
+        DiscrepanciaManiobra $discrepancia,
+    ): void {
+        if (! $this->cancelarReversible(
+            $maniobra,
+            $supervisor,
+            'Discrepancia verificada: se descarta y recalcula el sufijo reversible.',
+        )) {
+            throw new ConflictoOperacion(
+                'La maniobra ya modificó la realidad física; sólo puede continuar o ejecutar un retorno seguro.',
+            );
+        }
+
+        $plan = $maniobra->planOperacional()->firstOrFail();
+        $this->replanificador->replanificar($plan, $supervisor, $discrepancia);
+    }
+
+    /**
+     * Convierte las custodias activas en una maniobra crítica e independiente.
+     * El retorno conserva actor, tablet, orden y geometría ya calculada; no
+     * inventa destinos desde un estado físico que supervisión acaba de objetar.
+     */
+    private function retornoSeguroTrasDiscrepancia(
+        ManiobraOperacional $maniobra,
+        User $supervisor,
+        DiscrepanciaManiobra $discrepancia,
+    ): void {
+        if ($maniobra->pasos()
+            ->where('estado', EstadoTareaMovimiento::EnProceso->value)
+            ->lockForUpdate()
+            ->exists()) {
+            throw new ConflictoOperacion(
+                'Existe un pallet en movimiento; primero debe cerrarse o reanudarse ese paso físico.',
+            );
+        }
+
+        $custodias = $maniobra->custodiasTemporales()
+            ->where('estado', EstadoCustodiaTemporal::Activa->value)
+            ->orderBy('extraido_at')
+            ->lockForUpdate()
+            ->get();
+        if ($custodias->isEmpty()) {
+            throw new ConflictoOperacion(
+                'La maniobra no posee pallets bajo custodia que requieran retorno seguro.',
+            );
+        }
+
+        $usuario = $maniobra->responsable_user_id
+            ? User::query()
+                ->whereKey($maniobra->responsable_user_id)
+                ->where('activo', true)
+                ->first()
+            : null;
+        $dispositivo = $maniobra->dispositivo_id
+            ? Dispositivo::query()
+                ->whereKey($maniobra->dispositivo_id)
+                ->where('activo', true)
+                ->first()
+            : null;
+        if (! $usuario || ! $dispositivo) {
+            throw new ConflictoOperacion(
+                'El retorno seguro requiere conservar el camarero y la tablet responsables de la custodia.',
+            );
+        }
+        if ($custodias->contains(
+            fn (CustodiaTemporalManiobra $custodia): bool => $custodia->user_id !== $usuario->id
+                || $custodia->dispositivo_id !== $dispositivo->id,
+        )) {
+            throw new ConflictoOperacion(
+                'La custodia activa no coincide con el camarero o la tablet de la maniobra.',
+            );
+        }
+
+        $retornos = $custodias->map(function (CustodiaTemporalManiobra $custodia) use (
+            $maniobra,
+        ): array {
+            $tarea = $maniobra->pasos()
+                ->where('folio_id', $custodia->folio_id)
+                ->where('tipo_paso_maniobra', TipoPasoManiobra::RetornoBanda->value)
+                ->whereNotIn('estado', [
+                    EstadoTareaMovimiento::Completada->value,
+                    EstadoTareaMovimiento::Cancelada->value,
+                ])
+                ->orderBy('secuencia_maniobra')
+                ->lockForUpdate()
+                ->first();
+            if (! $tarea) {
+                throw new ConflictoOperacion(
+                    'Una custodia activa perdió su retorno calculado; no se generará un destino improvisado.',
+                );
+            }
+
+            $contexto = $tarea->contexto ?? [];
+            $destino = $tarea->posicion_destino_id
+                ? Posicion::query()->lockForUpdate()->find($tarea->posicion_destino_id)
+                : Posicion::query()
+                    ->where('camara_id', $contexto['camara_retorno_id'] ?? null)
+                    ->where('banda', (int) ($contexto['banda_retorno'] ?? 0))
+                    ->where('nivel', (int) ($contexto['nivel_retorno'] ?? 0))
+                    ->where('posicion', (int) ($contexto['profundidad_resultante'] ?? 0))
+                    ->lockForUpdate()
+                    ->first();
+            if (! $destino || $destino->estado !== EstadoPosicion::Activa) {
+                throw new ConflictoOperacion(
+                    'La posición calculada para devolver un pallet ya no está habilitada.',
+                );
+            }
+            if (UbicacionActual::query()
+                ->where('posicion_id', $destino->id)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new ConflictoOperacion(
+                    'Una posición de retorno se encuentra ocupada; supervisión debe corregir la geometría antes de mover.',
+                );
+            }
+
+            return [
+                'custodia' => $custodia,
+                'tarea_original' => $tarea,
+                'destino' => $destino,
+            ];
+        })->sortBy(fn (array $retorno): int => $retorno['tarea_original']->secuencia_maniobra)
+            ->values();
+        if ($retornos->pluck('destino.id')->unique()->count() !== $retornos->count()) {
+            throw new ConflictoOperacion(
+                'Dos pallets de la custodia apuntan a la misma posición de retorno.',
+            );
+        }
+
+        $plan = PlanOperacional::query()->lockForUpdate()->findOrFail(
+            $maniobra->plan_operacional_id,
+        );
+        $ahora = now();
+        $nueva = ManiobraOperacional::create([
+            'plan_operacional_id' => $plan->id,
+            'creado_por_user_id' => $supervisor->id,
+            'estado' => EstadoManiobraOperacional::EnEjecucion,
+            'prioridad' => PrioridadOperacional::Critica,
+            'candidate_key' => "retorno-seguro:{$maniobra->id}:{$discrepancia->id}",
+            'titulo' => Str::limit("Retorno seguro · {$maniobra->titulo}", 180, ''),
+            'motivo' => 'Recuperación supervisada de pallets bajo custodia temporal.',
+            'secuencia_actual' => 1,
+            'costo_movimientos' => $retornos->count(),
+            'beneficio_estimado' => 0,
+            'riesgo_operacional' => 0,
+            'contexto' => [
+                'tipo_recuperacion' => AccionResolucionDiscrepancia::RetornoSeguro->value,
+                'maniobra_origen_id' => $maniobra->id,
+                'discrepancia_id' => $discrepancia->id,
+                'supervisado_por_user_id' => $supervisor->id,
+                'custodias_ids' => $custodias->pluck('id')->all(),
+            ],
+            'responsable_user_id' => $usuario->id,
+            'dispositivo_id' => $dispositivo->id,
+            'asumida_at' => $ahora,
+            'iniciada_at' => $ahora,
+        ]);
+
+        $objetivos = $maniobra->objetivos()->get();
+        if ($objetivos->isEmpty()) {
+            $nueva->objetivos()->attach($plan->id, [
+                'es_principal' => true,
+                'beneficio_estimado' => 0,
+                'contexto' => json_encode([
+                    'tipo_objetivo' => $plan->tipo->value,
+                    'recuperacion' => true,
+                ], JSON_THROW_ON_ERROR),
+            ]);
+        } else {
+            foreach ($objetivos as $objetivo) {
+                $nueva->objetivos()->attach($objetivo->id, [
+                    'es_principal' => $objetivo->pivot->es_principal,
+                    'beneficio_estimado' => $objetivo->pivot->beneficio_estimado,
+                    'contexto' => $objetivo->pivot->contexto,
+                ]);
+            }
+        }
+
+        $secuenciaPlan = (int) TareaMovimiento::query()
+            ->where('plan_operacional_id', $plan->id)
+            ->lockForUpdate()
+            ->max('secuencia');
+        $tareasRecuperacion = collect();
+        foreach ($retornos as $indice => $retorno) {
+            /** @var CustodiaTemporalManiobra $custodia */
+            $custodia = $retorno['custodia'];
+            /** @var TareaMovimiento $original */
+            $original = $retorno['tarea_original'];
+            /** @var Posicion $destino */
+            $destino = $retorno['destino'];
+            $tareasRecuperacion->push(TareaMovimiento::create([
+                'plan_operacional_id' => $plan->id,
+                'maniobra_operacional_id' => $nueva->id,
+                'secuencia' => ++$secuenciaPlan,
+                'secuencia_maniobra' => $indice + 1,
+                'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
+                'tipo_paso_maniobra' => TipoPasoManiobra::RetornoBanda,
+                'estado' => $indice === 0
+                    ? EstadoTareaMovimiento::Pendiente
+                    : EstadoTareaMovimiento::Bloqueada,
+                'prioridad' => PrioridadOperacional::Critica,
+                'folio_id' => $custodia->folio_id,
+                'camara_origen_id' => null,
+                'posicion_origen_id' => null,
+                'camara_destino_id' => $destino->camara_id,
+                'posicion_destino_id' => $destino->id,
+                'instruccion' => 'Devuelve el pallet bajo custodia a la posición segura indicada; no cambies de tarea.',
+                'contexto' => [
+                    ...($original->contexto ?? []),
+                    'tipo_decision' => 'retorno_seguro_supervisado',
+                    'destino_precalculado_inmutable' => true,
+                    'maniobra_origen_id' => $maniobra->id,
+                    'tarea_reemplazada_id' => $original->id,
+                    'custodia_id' => $custodia->id,
+                ],
+            ]));
+        }
+
+        $pasosPendientes = $maniobra->pasos()
+            ->whereIn('estado', [
+                EstadoTareaMovimiento::Bloqueada->value,
+                EstadoTareaMovimiento::Pendiente->value,
+                EstadoTareaMovimiento::Asumida->value,
+            ])
+            ->lockForUpdate()
+            ->get();
+        foreach ($pasosPendientes as $paso) {
+            if (! $this->reservas->liberarParaReplanificacion(
+                $paso,
+                'Sufijo sustituido por retorno seguro supervisado.',
+            )) {
+                throw new ConflictoOperacion(
+                    'Un paso de la maniobra cruzó el punto de no retorno durante la recuperación.',
+                );
+            }
+            $reemplazo = $tareasRecuperacion->firstWhere('folio_id', $paso->folio_id)
+                ?? $tareasRecuperacion->first();
+            $paso->update([
+                'estado' => EstadoTareaMovimiento::Cancelada,
+                'cancelada_at' => $ahora,
+                'reemplazada_por_tarea_id' => $reemplazo?->id,
+                'cancelada_por_user_id' => $supervisor->id,
+                'motivo_cancelacion' => 'Sufijo sustituido por retorno seguro supervisado.',
+                'version' => $paso->version + 1,
+            ]);
+        }
+
+        $maniobra->reservasBandas()
+            ->whereNull('liberada_at')
+            ->update(['maniobra_operacional_id' => $nueva->id]);
+        foreach ($retornos as $retorno) {
+            /** @var Posicion $destino */
+            $destino = $retorno['destino'];
+            ReservaBandaManiobra::query()->firstOrCreate([
+                'maniobra_operacional_id' => $nueva->id,
+                'camara_id' => $destino->camara_id,
+                'banda' => $destino->banda,
+                'nivel' => $destino->nivel,
+            ], [
+                'reservada_at' => $ahora,
+            ]);
+        }
+        $this->bloquearBandas($nueva->load('reservasBandas'));
+
+        foreach ($custodias as $custodia) {
+            $custodia->update([
+                'maniobra_operacional_id' => $nueva->id,
+                'contexto' => [
+                    ...($custodia->contexto ?? []),
+                    'maniobra_origen_id' => $maniobra->id,
+                    'retorno_seguro_ordenado_at' => $ahora->toAtomString(),
+                    'retorno_seguro_supervisado_por_user_id' => $supervisor->id,
+                ],
+            ]);
+        }
+
+        $maniobra->update([
+            'estado' => EstadoManiobraOperacional::Cancelada,
+            'cancelada_at' => $ahora,
+            'pausada_at' => null,
+            'motivo_cancelacion' => 'Sufijo sustituido por retorno seguro supervisado.',
+            'contexto' => [
+                ...($maniobra->contexto ?? []),
+                'maniobra_recuperacion_id' => $nueva->id,
+                'accion_recuperacion' => AccionResolucionDiscrepancia::RetornoSeguro->value,
+            ],
+            'version' => $maniobra->version + 1,
+        ]);
+        $plan->update(['version' => $plan->version + 1]);
+
+        /** @var TareaMovimiento $primera */
+        $primera = $tareasRecuperacion->first();
+        $this->reservas->asumir($primera->refresh(), $usuario, $dispositivo);
+        $this->materializarDestinoPrecalculado(
+            $primera->refresh(),
+            $usuario,
+            $dispositivo,
+        );
     }
 
     private function cancelarTrasDiscrepancia(

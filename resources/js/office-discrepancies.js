@@ -91,19 +91,33 @@ function locationText(location) {
     if (!location) return 'Sin ubicación';
     return [location.camara, location.posicion].filter(Boolean).join(' · ');
 }
-function restrictionText(restriction) {
-    return {
-        tarea_en_proceso: 'No puede cancelarse: el camarero mantiene una tarea en proceso.',
-        custodia_temporal_activa: 'No puede cancelarse: existe un pallet bajo custodia temporal.',
-    }[restriction] || '';
+function restrictionText(action, restriction) {
+    const labels = {
+        tarea_en_proceso: 'Hay un pallet en movimiento: la única decisión segura es verificar y reanudar ese paso.',
+        custodia_temporal_activa: 'Hay pallets fuera de banda: utiliza Retorno seguro para cerrar su custodia.',
+        sin_custodia_temporal: 'No existen pallets extraídos que deban volver a banda.',
+        plan_no_replanificable: 'Este objetivo no posee un planificador rolling para reconstruir el trabajo pendiente.',
+    };
+    return labels[restriction] ? `${action}: ${labels[restriction]}` : '';
 }
 function renderOpenActions(item) {
-    const restriction = item.restricciones?.cancelar;
+    const cancelRestriction = item.restricciones?.cancelar;
+    const replanRestriction = item.restricciones?.replanificar;
+    const returnRestriction = item.restricciones?.retorno_seguro;
+    const restrictions = [
+        restrictionText('Recalcular', replanRestriction),
+        restrictionText('Retorno seguro', returnRestriction),
+        restrictionText('Cancelar', cancelRestriction),
+    ].filter(Boolean);
     return `<form class="discrepancy-resolution" data-resolution="${escapeHtml(item.id)}" data-version="${item.maniobra.version}">
         <label><span>Fundamento de la decisión *</span><textarea class="eui-input" name="resolucion" minlength="3" maxlength="500" required placeholder="Describe la verificación física realizada"></textarea></label>
-        <button class="eui-button eui-button--confirm" name="accion" value="reanudar_maniobra" type="submit">Reanudar maniobra</button>
-        <button class="eui-button eui-button--critical discrepancy-cancel" name="accion" value="cancelar_maniobra" type="submit"${restriction ? ' disabled' : ''}>Cancelar maniobra</button>
-        ${restriction ? `<p class="discrepancy-restriction">${escapeHtml(restrictionText(restriction))}</p>` : ''}
+        <div class="discrepancy-resolution__actions">
+            <button class="eui-button eui-button--confirm" name="accion" value="reanudar_maniobra" type="submit">Reanudar ruta verificada</button>
+            <button class="eui-button" name="accion" value="replanificar_sufijo" type="submit"${replanRestriction ? ' disabled' : ''}>Recalcular trabajo pendiente</button>
+            <button class="eui-button eui-button--critical" name="accion" value="retorno_seguro" type="submit"${returnRestriction ? ' disabled' : ''}>Ordenar retorno seguro</button>
+            <button class="eui-button discrepancy-cancel" name="accion" value="cancelar_maniobra" type="submit"${cancelRestriction ? ' disabled' : ''}>Cancelar sin reemplazo</button>
+        </div>
+        ${restrictions.length ? `<ul class="discrepancy-restriction">${restrictions.map((restriction) => `<li>${escapeHtml(restriction)}</li>`).join('')}</ul>` : ''}
     </form>`;
 }
 function renderResolution(item) {
@@ -163,13 +177,25 @@ async function resolve(form, action) {
         form.querySelector('textarea')?.focus();
         return;
     }
-    setBusy(true, action === 'reanudar_maniobra' ? 'Reanudando maniobra…' : 'Cancelando maniobra…');
+    const progress = {
+        reanudar_maniobra: 'Reanudando ruta verificada…',
+        replanificar_sufijo: 'Recalculando trabajo pendiente…',
+        retorno_seguro: 'Publicando retorno seguro…',
+        cancelar_maniobra: 'Cancelando maniobra…',
+    };
+    const success = {
+        reanudar_maniobra: 'Ruta verificada y reanudada.',
+        replanificar_sufijo: 'Sufijo descartado y recalculado.',
+        retorno_seguro: 'Retorno seguro enviado a la misma tablet.',
+        cancelar_maniobra: 'Maniobra cancelada sin reemplazo.',
+    };
+    setBusy(true, progress[action] || 'Aplicando decisión supervisada…');
     try {
         await api(`/api/discrepancias-maniobra/${form.dataset.resolution}/resolver`, {
             method: 'POST',
             body: JSON.stringify({ accion: action, version_maniobra: Number(form.dataset.version), resolucion: resolution }),
         });
-        toast(action === 'reanudar_maniobra' ? 'Maniobra reanudada.' : 'Maniobra cancelada.');
+        toast(success[action] || 'Decisión supervisada aplicada.');
         await load();
     } catch (error) {
         toast(error.message, true);

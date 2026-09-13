@@ -11,6 +11,7 @@ use App\Models\Camara;
 use App\Models\DiscrepanciaManiobra;
 use App\Models\Posicion;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
+use App\Services\Estiba\ServicioReplanificacionDiscrepancia;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,10 @@ use Illuminate\Validation\Rule;
 
 class DiscrepanciaManiobraController extends Controller
 {
+    public function __construct(
+        private readonly ServicioReplanificacionDiscrepancia $replanificador,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $datos = validator($request->query(), [
@@ -42,7 +47,7 @@ class DiscrepanciaManiobraController extends Controller
             'reportadaPor:id,name',
             'resueltaPor:id,name',
             'dispositivo:id,codigo,nombre',
-            'maniobraOperacional.planOperacional:id,tipo,titulo,temporada_id',
+            'maniobraOperacional.planOperacional:id,tipo,titulo,temporada_id,referencia_tipo,referencia_id',
             'maniobraOperacional.custodiasTemporales' => fn ($relacion) => $relacion
                 ->where('estado', EstadoCustodiaTemporal::Activa->value)
                 ->select(['id', 'maniobra_operacional_id']),
@@ -113,6 +118,10 @@ class DiscrepanciaManiobraController extends Controller
 
         $maniobra = $discrepancia->maniobraOperacional()->firstOrFail();
         $tarea = $discrepancia->tareaMovimiento()->firstOrFail();
+        $recuperacion = filled($maniobra->contexto['maniobra_recuperacion_id'] ?? null)
+            ? $maniobra->newQuery()->find($maniobra->contexto['maniobra_recuperacion_id'])
+            : null;
+        $tareaRecuperacion = $recuperacion?->pasos()->orderBy('secuencia_maniobra')->first();
 
         return response()->json(['data' => [
             'id' => $discrepancia->id,
@@ -130,6 +139,14 @@ class DiscrepanciaManiobraController extends Controller
                 'id' => $tarea->id,
                 'estado' => $tarea->estado->value,
             ],
+            'recuperacion' => $recuperacion ? [
+                'maniobra_id' => $recuperacion->id,
+                'estado' => $recuperacion->estado->value,
+                'tarea_id' => $tareaRecuperacion?->id,
+                'tarea_estado' => $tareaRecuperacion?->estado->value,
+                'responsable_user_id' => $recuperacion->responsable_user_id,
+                'dispositivo_id' => $recuperacion->dispositivo_id,
+            ] : null,
         ]]);
     }
 
@@ -141,6 +158,17 @@ class DiscrepanciaManiobraController extends Controller
         $bloqueoCancelacion = match (true) {
             $tarea->estado === EstadoTareaMovimiento::EnProceso => 'tarea_en_proceso',
             $maniobra->custodiasTemporales->isNotEmpty() => 'custodia_temporal_activa',
+            default => null,
+        };
+        $bloqueoReplanificacion = match (true) {
+            $tarea->estado === EstadoTareaMovimiento::EnProceso => 'tarea_en_proceso',
+            $maniobra->custodiasTemporales->isNotEmpty() => 'custodia_temporal_activa',
+            ! $this->replanificador->admite($maniobra->planOperacional) => 'plan_no_replanificable',
+            default => null,
+        };
+        $bloqueoRetorno = match (true) {
+            $tarea->estado === EstadoTareaMovimiento::EnProceso => 'tarea_en_proceso',
+            $maniobra->custodiasTemporales->isEmpty() => 'sin_custodia_temporal',
             default => null,
         };
 
@@ -169,6 +197,7 @@ class DiscrepanciaManiobraController extends Controller
                 'estado' => $maniobra->estado->value,
                 'prioridad' => $maniobra->prioridad->value,
                 'version' => $maniobra->version,
+                'custodias_activas' => $maniobra->custodiasTemporales->count(),
                 'plan' => [
                     'id' => $maniobra->planOperacional->id,
                     'titulo' => $maniobra->planOperacional->titulo,
@@ -185,6 +214,8 @@ class DiscrepanciaManiobraController extends Controller
             ],
             'restricciones' => [
                 'cancelar' => $bloqueoCancelacion,
+                'replanificar' => $bloqueoReplanificacion,
+                'retorno_seguro' => $bloqueoRetorno,
             ],
             'resolucion' => $discrepancia->resolucion,
             'accion_resolucion' => $discrepancia->accion_resolucion?->value,
