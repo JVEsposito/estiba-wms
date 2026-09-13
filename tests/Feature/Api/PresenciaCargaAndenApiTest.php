@@ -65,6 +65,10 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertSame('rolling', $plan->contexto['planner_horizon']);
         $this->assertSame('critica', $tarea->prioridad->value);
         $this->assertSame('retiro', $tarea->tipo_movimiento->value);
+        $this->assertSame('entrega_anden', $tarea->tipo_paso_maniobra->value);
+        $this->assertSame(1, $tarea->secuencia_maniobra);
+        $this->assertTrue($tarea->contexto['maniobra_unitaria']);
+        $this->assertSame(1, $plan->maniobras()->count());
         $this->assertSame($contexto['folios'][0]->id, $tarea->folio_id);
         $this->assertNull($tarea->posicion_destino_id);
         $this->assertSame('retiro_directo_anden', $tarea->contexto['tipo_decision']);
@@ -74,6 +78,9 @@ class PresenciaCargaAndenApiTest extends TestCase
             ->getJson('/api/tareas-movimiento?asignacion=disponibles')
             ->assertOk()
             ->assertJsonPath('data.0.id', $tarea->id)
+            ->assertJsonPath('data.0.maniobra.pasos_totales', 1)
+            ->assertJsonPath('data.0.secuencia_maniobra', 1)
+            ->assertJsonPath('data.0.tipo_paso_maniobra', 'entrega_anden')
             ->assertJsonPath('data.0.destino_logico.tipo', 'anden')
             ->assertJsonPath('data.0.destino_logico.nombre', 'Andén principal');
 
@@ -84,6 +91,7 @@ class PresenciaCargaAndenApiTest extends TestCase
 
         $this->assertSame(1, PresenciaCargaAnden::query()->count());
         $this->assertSame(1, TareaMovimiento::query()->count());
+        $this->assertSame(1, $plan->maniobras()->count());
     }
 
     public function test_publica_varios_retiros_independientes_para_camareros_disponibles(): void
@@ -110,6 +118,10 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertCount(2, $tareas);
         $this->assertTrue($tareas->every(
             fn (TareaMovimiento $tarea): bool => $tarea->tipo_movimiento->value === 'retiro',
+        ));
+        $this->assertTrue($tareas->every(
+            fn (TareaMovimiento $tarea): bool => $tarea->tipo_paso_maniobra->value === 'entrega_anden'
+                && $tarea->maniobra_operacional_id !== null,
         ));
 
         $segundoOperador = User::factory()->create([
@@ -235,6 +247,9 @@ class PresenciaCargaAndenApiTest extends TestCase
         $tarea = TareaMovimiento::query()->sole();
         $this->assertSame($contexto['folios'][1]->id, $tarea->folio_id);
         $this->assertSame('traslado_entre_camaras', $tarea->tipo_movimiento->value);
+        $this->assertSame('movimiento_permanente', $tarea->tipo_paso_maniobra->value);
+        $this->assertSame(1, $tarea->secuencia_maniobra);
+        $this->assertNotNull($tarea->maniobra_operacional_id);
         $this->assertSame('critica', $tarea->prioridad->value);
         $this->assertSame('despeje_salida_directa', $tarea->contexto['tipo_decision']);
         $this->assertSame($contexto['folios'][0]->id, $tarea->contexto['habilita_folio_id']);

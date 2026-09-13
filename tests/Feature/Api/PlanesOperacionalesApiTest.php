@@ -65,6 +65,12 @@ class PlanesOperacionalesApiTest extends TestCase
 
         $this->assertSame('programado', $plan->estado->value);
         $this->assertSame([1, 2], $plan->tareas->pluck('secuencia')->all());
+        $this->assertSame(2, $plan->maniobras()->count());
+        $this->assertTrue($plan->tareas->every(
+            fn ($tarea): bool => $tarea->maniobra_operacional_id !== null
+                && $tarea->secuencia_maniobra === 1
+                && $tarea->tipo_paso_maniobra->value === 'movimiento_permanente',
+        ));
         $this->assertSame('alta', $plan->tareas[0]->prioridad->value);
         $this->assertSame('urgente', $plan->tareas[1]->prioridad->value);
         $this->assertDatabaseHas('planes_operacionales', [

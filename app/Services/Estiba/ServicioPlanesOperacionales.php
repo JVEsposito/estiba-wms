@@ -42,6 +42,8 @@ class ServicioPlanesOperacionales
      * @param  array<int, array{
      *     folio_id: string,
      *     tipo_movimiento: TipoMovimiento,
+     *     tipo_paso_maniobra?: TipoPasoManiobra|string,
+     *     candidate_key?: string,
      *     prioridad?: PrioridadOperacional,
      *     camara_origen_id?: string|null,
      *     posicion_origen_id?: string|null,
@@ -553,7 +555,7 @@ class ServicioPlanesOperacionales
             throw new DomainException('El contexto de la tarea debe ser una estructura válida.');
         }
 
-        return TareaMovimiento::create([
+        $tarea = TareaMovimiento::create([
             'plan_operacional_id' => $plan->id,
             'secuencia' => $secuencia,
             'tipo_movimiento' => $tipo,
@@ -569,6 +571,21 @@ class ServicioPlanesOperacionales
                 : null,
             'contexto' => ($datos['contexto'] ?? []) !== [] ? $datos['contexto'] : null,
         ]);
+
+        $tipoPaso = $datos['tipo_paso_maniobra']
+            ?? TipoPasoManiobra::MovimientoPermanente;
+        if (is_string($tipoPaso)) {
+            $tipoPaso = TipoPasoManiobra::tryFrom($tipoPaso);
+        }
+        if (! $tipoPaso instanceof TipoPasoManiobra) {
+            throw new DomainException('La tarea requiere un tipo de paso de maniobra válido.');
+        }
+
+        return $this->maniobras->registrarUnitaria(
+            $tarea,
+            $tipoPaso,
+            $datos['candidate_key'] ?? data_get($datos, 'contexto.candidate_key'),
+        );
     }
 
     private function validarPlanAsignable(PlanOperacional $plan): void

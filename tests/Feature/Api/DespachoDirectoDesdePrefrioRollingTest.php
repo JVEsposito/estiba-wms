@@ -182,6 +182,9 @@ class DespachoDirectoDesdePrefrioRollingTest extends TestCase
         $this->assertSame('cancelada', $tareaRecepcion->refresh()->estado->value);
         $this->assertSame($tareaDirecta->id, $tareaRecepcion->reemplazada_por_tarea_id);
         $this->assertSame('retiro', $tareaDirecta->tipo_movimiento->value);
+        $this->assertSame('entrega_anden', $tareaDirecta->tipo_paso_maniobra->value);
+        $this->assertSame(1, $tareaDirecta->secuencia_maniobra);
+        $this->assertTrue($tareaDirecta->contexto['maniobra_unitaria']);
         $this->assertNull($tareaDirecta->camara_origen_id);
         $this->assertNull($tareaDirecta->posicion_origen_id);
         $this->assertSame('tunel_prefrio', $tareaDirecta->contexto['origen_logico']);
@@ -231,6 +234,10 @@ class DespachoDirectoDesdePrefrioRollingTest extends TestCase
             ->postJson("/api/tareas-movimiento/{$tareaDirecta->id}/completar-prefrio-directo")
             ->assertOk()
             ->assertJsonPath('data.estado', 'completada')
+            ->assertJsonPath('data.maniobra.estado', 'completada')
+            ->assertJsonPath('data.maniobra.pasos_totales', 1)
+            ->assertJsonPath('data.secuencia_maniobra', 1)
+            ->assertJsonPath('data.tipo_paso_maniobra', 'entrega_anden')
             ->assertJsonPath('data.destino_logico.tipo', 'anden')
             ->assertJsonPath('data.destino_logico.id', $anden->id);
 
@@ -242,6 +249,10 @@ class DespachoDirectoDesdePrefrioRollingTest extends TestCase
         $this->assertDatabaseMissing('ubicaciones_actuales', ['folio_id' => $folio->id]);
         $this->assertDatabaseMissing('movimientos', ['folio_id' => $folio->id]);
         $this->assertSame('completada', $tareaDirecta->refresh()->estado->value);
+        $this->assertSame(
+            'completada',
+            $tareaDirecta->maniobraOperacional()->firstOrFail()->estado->value,
+        );
         $this->assertSame('completado', $planRecepcion->refresh()->estado->value);
         $this->assertSame('completado', $tareaDirecta->planOperacional->refresh()->estado->value);
     }

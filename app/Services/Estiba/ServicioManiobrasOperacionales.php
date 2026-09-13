@@ -39,6 +39,8 @@ class ServicioManiobrasOperacionales
 {
     private const MAX_MANIOBRAS_SIMULTANEAS = 3;
 
+    private const CONTRATO_UNITARIO = 'maniobra_unitaria_v1';
+
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
         private readonly InterbloqueoEvacuacionEmergencia $emergencias,
@@ -205,6 +207,117 @@ class ServicioManiobrasOperacionales
         }, attempts: 3);
     }
 
+    /**
+     * Incorpora una tarea física simple al mismo contrato operacional de las
+     * maniobras cerradas. La fila de tarea se conserva para no alterar las
+     * rutas ni los consumidores históricos del planificador.
+     */
+    public function registrarUnitaria(
+        TareaMovimiento $tarea,
+        TipoPasoManiobra $tipoPaso = TipoPasoManiobra::MovimientoPermanente,
+        ?string $candidateKey = null,
+    ): TareaMovimiento {
+        if (! in_array($tipoPaso, [
+            TipoPasoManiobra::MovimientoPermanente,
+            TipoPasoManiobra::EntregaAnden,
+        ], true)) {
+            throw new DomainException(
+                'Una maniobra unitaria debe resolver un movimiento permanente o una entrega a andén.',
+            );
+        }
+
+        return DB::transaction(function () use ($tarea, $tipoPaso, $candidateKey): TareaMovimiento {
+            $tarea = TareaMovimiento::query()
+                ->with(['planOperacional', 'folio'])
+                ->lockForUpdate()
+                ->findOrFail($tarea->id);
+
+            if ($tarea->maniobra_operacional_id) {
+                if ($tarea->secuencia_maniobra !== 1
+                    || $tarea->tipo_paso_maniobra !== $tipoPaso) {
+                    throw new ConflictoOperacion(
+                        'La tarea ya pertenece a una maniobra con otro contrato físico.',
+                    );
+                }
+
+                return $tarea->refresh();
+            }
+            if ($tarea->estado !== EstadoTareaMovimiento::Pendiente) {
+                throw new ConflictoOperacion(
+                    'Solo una tarea pendiente puede incorporarse como maniobra unitaria.',
+                );
+            }
+            if ($tipoPaso === TipoPasoManiobra::EntregaAnden
+                && $tarea->tipo_movimiento !== TipoMovimiento::Retiro) {
+                throw new DomainException(
+                    'Una entrega a andén debe retirar el pallet desde su origen físico o lógico.',
+                );
+            }
+
+            $plan = $tarea->planOperacional;
+            $contextoTarea = $tarea->contexto ?? [];
+            $clave = trim((string) (
+                $candidateKey
+                ?? $contextoTarea['candidate_key']
+                ?? "unitaria:{$tarea->id}"
+            ));
+            if ($clave === '' || mb_strlen($clave) > 190) {
+                throw new DomainException('La maniobra unitaria requiere una clave candidata válida.');
+            }
+
+            $titulo = filled($tarea->instruccion)
+                ? trim((string) $tarea->instruccion)
+                : "{$plan->titulo} · {$tarea->folio->numero_folio}";
+            $maniobra = ManiobraOperacional::create([
+                'plan_operacional_id' => $plan->id,
+                'creado_por_user_id' => $plan->creado_por_user_id,
+                'estado' => EstadoManiobraOperacional::Pendiente,
+                'prioridad' => $tarea->prioridad,
+                'candidate_key' => $clave,
+                'titulo' => Str::limit($titulo, 180, ''),
+                'motivo' => $plan->motivo,
+                'secuencia_actual' => 1,
+                'costo_movimientos' => 1,
+                'beneficio_estimado' => (int) ($contextoTarea['beneficio_estimado'] ?? 0),
+                'riesgo_operacional' => max(
+                    0,
+                    (int) ($contextoTarea['riesgo_operacional'] ?? 0),
+                ),
+                'contexto' => [
+                    'contrato' => self::CONTRATO_UNITARIO,
+                    'tipo_objetivo' => $plan->tipo->value,
+                    'tarea_origen_id' => $tarea->id,
+                    'folio_id' => $tarea->folio_id,
+                ],
+            ]);
+            $maniobra->objetivos()->attach($plan->id, [
+                'es_principal' => true,
+                'beneficio_estimado' => (int) ($contextoTarea['beneficio_estimado'] ?? 0),
+                'contexto' => json_encode([
+                    'candidate_key' => $clave,
+                    'tipo_objetivo' => $plan->tipo->value,
+                    'contrato' => self::CONTRATO_UNITARIO,
+                ], JSON_THROW_ON_ERROR),
+            ]);
+
+            $tarea->update([
+                'maniobra_operacional_id' => $maniobra->id,
+                'secuencia_maniobra' => 1,
+                'tipo_paso_maniobra' => $tipoPaso,
+                'contexto' => [
+                    ...$contextoTarea,
+                    'candidate_key' => $clave,
+                    'maniobra_cerrada' => true,
+                    'maniobra_unitaria' => true,
+                    'paso' => 1,
+                    'pasos_totales' => 1,
+                ],
+            ]);
+
+            return $tarea->refresh();
+        }, attempts: 3);
+    }
+
     public function asumirPaso(
         TareaMovimiento $tarea,
         User $usuario,
@@ -228,11 +341,19 @@ class ServicioManiobrasOperacionales
                 || $maniobra->dispositivo_id !== $dispositivo->id)) {
             throw new ConflictoOperacion('La maniobra ya pertenece a otro camarero o tablet.');
         }
+        $esManiobraUnitaria = ($maniobra->contexto['contrato'] ?? null)
+            === self::CONTRATO_UNITARIO;
         if ($maniobra->estado !== EstadoManiobraOperacional::EnEjecucion
+            && ! $esManiobraUnitaria
             && ManiobraOperacional::query()
                 ->whereKeyNot($maniobra->id)
                 ->where('estado', EstadoManiobraOperacional::EnEjecucion->value)
                 ->lockForUpdate()
+                ->get(['id', 'contexto'])
+                ->reject(static function (ManiobraOperacional $enEjecucion): bool {
+                    return ($enEjecucion->contexto['contrato'] ?? null)
+                        === self::CONTRATO_UNITARIO;
+                })
                 ->count() >= self::MAX_MANIOBRAS_SIMULTANEAS) {
             throw new ConflictoOperacion(
                 'Ya existen tres maniobras asumidas; la cuarta debe permanecer como alternativa.',
@@ -253,6 +374,77 @@ class ServicioManiobrasOperacionales
         $this->materializarDestinoPrecalculado($tarea->refresh(), $usuario, $dispositivo);
 
         return $tarea->refresh();
+    }
+
+    /**
+     * Cierra una entrega física confirmada por un flujo que no genera un
+     * Movimiento de estiba, como Prefrío directo a andén.
+     */
+    public function completarPasoSinMovimiento(
+        TareaMovimiento $tarea,
+        User $usuario,
+        Dispositivo $dispositivo,
+    ): TareaMovimiento {
+        return DB::transaction(function () use ($tarea, $usuario, $dispositivo): TareaMovimiento {
+            $tarea = TareaMovimiento::query()->lockForUpdate()->findOrFail($tarea->id);
+
+            // Compatibilidad explícita con labores activas creadas antes de
+            // que las tareas simples adoptaran el contrato de maniobra.
+            if (! $tarea->maniobra_operacional_id) {
+                $tarea->update([
+                    'estado' => EstadoTareaMovimiento::Completada,
+                    'completada_at' => now(),
+                    'version' => $tarea->version + 1,
+                ]);
+
+                return $tarea->refresh();
+            }
+
+            $maniobra = ManiobraOperacional::query()
+                ->lockForUpdate()
+                ->findOrFail($tarea->maniobra_operacional_id);
+            $this->validarPasoActualInterno($maniobra, $tarea);
+            if ($maniobra->costo_movimientos !== 1
+                || $tarea->tipo_paso_maniobra !== TipoPasoManiobra::EntregaAnden) {
+                throw new DomainException(
+                    'Solo una entrega unitaria a andén puede cerrarse sin movimiento de cámara.',
+                );
+            }
+            if ($tarea->estado !== EstadoTareaMovimiento::EnProceso
+                || $tarea->responsable_user_id !== $usuario->id
+                || $tarea->dispositivo_id !== $dispositivo->id
+                || $maniobra->estado !== EstadoManiobraOperacional::EnEjecucion
+                || $maniobra->responsable_user_id !== $usuario->id
+                || $maniobra->dispositivo_id !== $dispositivo->id) {
+                throw new ConflictoOperacion(
+                    'La entrega debe estar en ejecución por el camarero y la tablet que asumieron la maniobra.',
+                );
+            }
+            if ($maniobra->custodiasTemporales()
+                ->where('estado', EstadoCustodiaTemporal::Activa->value)
+                ->lockForUpdate()
+                ->exists()) {
+                throw new DomainException(
+                    'La maniobra no puede cerrar con pallets en custodia temporal.',
+                );
+            }
+
+            $ahora = now();
+            $tarea->update([
+                'estado' => EstadoTareaMovimiento::Completada,
+                'completada_at' => $ahora,
+                'version' => $tarea->version + 1,
+            ]);
+            $this->liberarBandas($maniobra, 'Maniobra física completada sin movimiento de cámara.');
+            $maniobra->update([
+                'estado' => EstadoManiobraOperacional::Completada,
+                'completada_at' => $ahora,
+                'secuencia_actual' => 1,
+                'version' => $maniobra->version + 1,
+            ]);
+
+            return $tarea->refresh();
+        }, attempts: 3);
     }
 
     public function liberarAntesDeIniciar(
@@ -1179,6 +1371,14 @@ class ServicioManiobrasOperacionales
         Dispositivo $dispositivo,
     ): void {
         if (! $tarea->posicion_destino_id || $tarea->tipo_movimiento === TipoMovimiento::Retiro) {
+            return;
+        }
+        $reserva = ReservaTareaMovimiento::query()
+            ->where('bloqueo_tarea_id', $tarea->id)
+            ->where('estado', EstadoReservaTareaMovimiento::Activa->value)
+            ->lockForUpdate()
+            ->first();
+        if ($reserva?->bloqueo_posicion_id === $tarea->posicion_destino_id) {
             return;
         }
         $this->reservas->materializarDestino(

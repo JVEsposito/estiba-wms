@@ -85,6 +85,12 @@ class ServicioPrioridadBufferRepaletizaje
                             'prioridad' => $prioridad,
                             'version' => $tarea->version + 1,
                         ]);
+                        $tarea->maniobraOperacional()
+                            ->where('costo_movimientos', 1)
+                            ->update([
+                                'prioridad' => $prioridad,
+                                'version' => DB::raw('version + 1'),
+                            ]);
                     }
                 });
 
