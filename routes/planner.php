@@ -2,10 +2,19 @@
 
 use App\Http\Controllers\Api\DespachoDirectoPlanificadorController;
 use App\Http\Controllers\Api\DiscrepanciaManiobraController;
+use App\Http\Controllers\Api\FronteraFisicaController;
 use App\Http\Controllers\Api\PlanOperacionalController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'can:operar-camaras-productos'])->group(function () {
+    Route::get(
+        '/frontera-fisica/snapshot',
+        [FronteraFisicaController::class, 'snapshot'],
+    );
+    Route::post(
+        '/frontera-fisica/materializar',
+        [FronteraFisicaController::class, 'materializar'],
+    );
     Route::get(
         '/planes-operacionales/{planOperacional}/snapshot',
         [PlanOperacionalController::class, 'snapshot'],

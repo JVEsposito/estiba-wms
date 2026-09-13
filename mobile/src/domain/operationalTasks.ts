@@ -167,6 +167,30 @@ export type PlannerMode = 'off' | 'shadow' | 'guided';
 export type PlannerCompute = 'server' | 'tablet';
 export type PlannerHorizon = 'batch' | 'rolling';
 
+export type OperationalSnapshotTask = {
+  id: string;
+  version: number;
+  estado: OperationalTaskState;
+  tipo_movimiento?: MovementType;
+  folio_id: string;
+  camara_origen_id: string | null;
+  posicion_origen_id: string | null;
+  camara_destino_id: string | null;
+  posicion_destino_id: string | null;
+  destino_reservado?: boolean;
+  maniobra_id: string | null;
+  secuencia_maniobra: number | null;
+  tipo_paso_maniobra?: ManeuverStepType | null;
+  plan_id?: string;
+  plan_version?: number;
+  maniobra_version?: number | null;
+  secuencia_actual?: number | null;
+  punto_no_retorno?: boolean;
+  decision_arbitraje?: OperationalManeuverArbitration['decision'] | null;
+  orden_arbitraje?: number | null;
+  materializable?: boolean;
+};
+
 export type OperationalSnapshot = {
   snapshot_version: string;
   generado_at: string;
@@ -191,20 +215,41 @@ export type OperationalSnapshot = {
     version_plano: number;
     revision_reservas: number;
   }>;
-  tareas: Array<{
+  tareas: OperationalSnapshotTask[];
+};
+
+export type OperationalPhysicalFrontierSnapshot = {
+  snapshot_version: string;
+  generado_at: string;
+  planner: {
+    mode: PlannerMode;
+    compute: PlannerCompute;
+    horizon: PlannerHorizon;
+    frontier_max: number;
+    maniobras_simultaneas_max: number;
+  };
+  arbitraje: {
+    ciclo_id: string;
+    snapshot_version: string;
+    capacidad_ejecucion: number;
+    frontera_max: number;
+    en_ejecucion: number;
+    seleccionadas: number;
+    alternativas: number;
+  };
+  frontera: {
+    reservas_fisicas_activas: number;
+    tareas_materializables: number;
+    solo_paso_actual: boolean;
+  };
+  camaras: Array<{
     id: string;
-    version: number;
-    estado: OperationalTaskState;
-    folio_id: string;
-    camara_origen_id: string | null;
-    posicion_origen_id: string | null;
-    camara_destino_id: string | null;
-    posicion_destino_id: string | null;
-    destino_reservado: boolean;
-    maniobra_id: string | null;
-    secuencia_maniobra: number | null;
-    tipo_paso_maniobra: ManeuverStepType | null;
+    codigo: string;
+    nombre: string;
+    version_plano: number;
+    revision_reservas: number;
   }>;
+  tareas: OperationalSnapshotTask[];
 };
 
 export type TemporaryExtractionPayload = {
@@ -253,7 +298,7 @@ export type OperationalFrontierResult = {
     motivo: string;
   }>;
   recalcular: boolean;
-  snapshot: OperationalSnapshot;
+  snapshot: OperationalSnapshot | OperationalPhysicalFrontierSnapshot;
 };
 
 export type OperationalTaskAssignment = 'disponibles' | 'mias';

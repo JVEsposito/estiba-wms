@@ -1307,6 +1307,7 @@ class ServicioManiobrasOperacionales
         }
         $maniobra = ManiobraOperacional::query()->findOrFail($tarea->maniobra_operacional_id);
         $this->validarPasoActualInterno($maniobra, $tarea);
+        $this->arbitraje->validarMaterializable($maniobra);
     }
 
     /** @param array<int, array<string, mixed>> $pasos */

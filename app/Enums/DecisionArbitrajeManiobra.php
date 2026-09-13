@@ -20,4 +20,9 @@ enum DecisionArbitrajeManiobra: string
     {
         return $this === self::Seleccionada;
     }
+
+    public function materializable(): bool
+    {
+        return in_array($this, [self::EnEjecucion, self::Seleccionada], true);
+    }
 }

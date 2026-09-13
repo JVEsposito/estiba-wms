@@ -1,6 +1,7 @@
 import {
   OperationalFrontierProposal,
   OperationalFrontierResult,
+  OperationalPhysicalFrontierSnapshot,
   OperationalSnapshot,
   OperationalTask,
   OperationalTaskAssignment,
@@ -11,7 +12,7 @@ import {
 import { ApiError } from './apiError';
 import { fetchWithTimeout } from './httpClient';
 
-export const TABLET_PLANNER_VERSION = 'rolling-1';
+export const TABLET_PLANNER_VERSION = 'rolling-global-2';
 
 export class OperationalTasksApi {
   constructor(private readonly baseUrl: string) {}
@@ -34,6 +35,13 @@ export class OperationalTasksApi {
     )).data;
   }
 
+  async physicalFrontierSnapshot(token: string) {
+    return (await this.request<{ data: OperationalPhysicalFrontierSnapshot }>(
+      '/api/frontera-fisica/snapshot',
+      token,
+    )).data;
+  }
+
   async take(token: string, taskId: string) {
     return (await this.request<{ data: OperationalTask }>(
       `/api/tareas-movimiento/${encodeURIComponent(taskId)}/asumir`,
@@ -50,6 +58,25 @@ export class OperationalTasksApi {
   ) {
     return (await this.request<{ data: OperationalFrontierResult }>(
       `/api/planes-operacionales/${encodeURIComponent(planId)}/frontera`,
+      token,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          snapshot_version: snapshotVersion,
+          planner_version: TABLET_PLANNER_VERSION,
+          propuestas: proposals,
+        }),
+      },
+    )).data;
+  }
+
+  async materializePhysicalFrontier(
+    token: string,
+    snapshotVersion: string,
+    proposals: OperationalFrontierProposal[],
+  ) {
+    return (await this.request<{ data: OperationalFrontierResult }>(
+      '/api/frontera-fisica/materializar',
       token,
       {
         method: 'POST',
