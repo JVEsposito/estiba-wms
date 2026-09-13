@@ -39,6 +39,17 @@ class TareaMovimientoResource extends JsonResource
                     'beneficio_estimado' => $maniobra->beneficio_estimado,
                     'riesgo_operacional' => $maniobra->riesgo_operacional,
                     'version' => $maniobra->version,
+                    'objetivos' => $maniobra->relationLoaded('objetivos')
+                        ? $maniobra->objetivos->map(fn ($objetivo): array => [
+                            'id' => $objetivo->id,
+                            'tipo' => $objetivo->tipo->value,
+                            'estado' => $objetivo->estado->value,
+                            'prioridad' => $objetivo->prioridad->value,
+                            'titulo' => $objetivo->titulo,
+                            'es_principal' => (bool) $objetivo->pivot->es_principal,
+                            'beneficio_estimado' => (int) $objetivo->pivot->beneficio_estimado,
+                        ])->values()->all()
+                        : [],
                     'custodia_temporal_activa' => $this->custodiaTemporalActiva(),
                     'pasos' => $maniobra->relationLoaded('pasos')
                         ? $maniobra->pasos->map(fn (TareaMovimiento $paso): array => [

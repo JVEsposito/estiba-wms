@@ -36,6 +36,10 @@ class ServicioPlanConcentracionCarga
 {
     private const REFERENCIA = 'carga_concentracion';
 
+    private const BENEFICIO_OBJETIVO_PRINCIPAL = 1000;
+
+    private const BENEFICIO_BLOCKER_DESTINO_UTIL = 300;
+
     public function __construct(
         private readonly CalculadorConcentracionCarga $calculador,
         private readonly ServicioPlanesOperacionales $planes,
@@ -527,7 +531,7 @@ class ServicioPlanConcentracionCarga
             'candidate_key' => $paso['candidate_key'],
             'titulo' => "Concentrar {$carga->codigo}",
             'motivo' => 'Movimiento directo que amplía el grupo principal de la carga.',
-            'beneficio_estimado' => 1000,
+            'beneficio_estimado' => self::BENEFICIO_OBJETIVO_PRINCIPAL,
             'riesgo_operacional' => 0,
             'contexto' => [
                 'tipo_objetivo' => TipoPlanOperacional::ConcentracionCarga->value,
@@ -643,7 +647,9 @@ class ServicioPlanConcentracionCarga
                 $bloqueadores->count(),
                 $habilitada->folio->numero_folio,
             ),
-            'beneficio_estimado' => 1000 + (($bloqueadores->count() - count($temporales)) * 300),
+            'beneficio_estimado' => self::BENEFICIO_OBJETIVO_PRINCIPAL
+                + (($bloqueadores->count() - count($temporales))
+                    * self::BENEFICIO_BLOCKER_DESTINO_UTIL),
             'riesgo_operacional' => count($temporales) * 25,
             'contexto' => [
                 'tipo_objetivo' => TipoPlanOperacional::ConcentracionCarga->value,
@@ -858,16 +864,14 @@ class ServicioPlanConcentracionCarga
             }
 
             $folios = collect($candidato['pasos'])->pluck('folio_id')->unique();
-            $foliosResolucionCruzada = collect($candidato['pasos'])
+            $pasosResolucionCruzada = collect($candidato['pasos'])
                 ->filter(fn (array $paso): bool => (bool) (
                     $paso['contexto']['resolucion_cruzada_objetivos'] ?? false
                 ))
-                ->pluck('folio_id')
-                ->filter()
-                ->unique()
-                ->values();
+                ->keyBy('folio_id');
+            $foliosResolucionCruzada = $pasosResolucionCruzada->keys();
             $conflictos = TareaMovimiento::query()
-                ->with('maniobraOperacional')
+                ->with(['maniobraOperacional', 'planOperacional'])
                 ->whereIn('folio_id', $folios)
                 ->whereIn('estado', [
                     EstadoTareaMovimiento::Bloqueada->value,
@@ -879,11 +883,25 @@ class ServicioPlanConcentracionCarga
                 ->get();
 
             if ($conflictos->isNotEmpty()) {
-                $conflictoDuro = $conflictos->first(
-                    fn (TareaMovimiento $tarea): bool => $tarea->estado === EstadoTareaMovimiento::EnProceso
+                $conflictoDuro = $conflictos->first(function (TareaMovimiento $tarea) use (
+                    $foliosResolucionCruzada,
+                    $pasosResolucionCruzada,
+                ): bool {
+                    $cargaBeneficiadaId = $pasosResolucionCruzada
+                        ->get($tarea->folio_id)['contexto']['carga_beneficiada_id']
+                        ?? null;
+
+                    return $tarea->estado === EstadoTareaMovimiento::EnProceso
                         || ! $foliosResolucionCruzada->contains($tarea->folio_id)
-                        || $tarea->maniobra_operacional_id === null,
-                );
+                        || $tarea->maniobra_operacional_id === null
+                        || $tarea->planOperacional?->tipo !== TipoPlanOperacional::ConcentracionCarga
+                        || ! in_array($tarea->planOperacional->estado, [
+                            EstadoPlanOperacional::Programado,
+                            EstadoPlanOperacional::EnEjecucion,
+                        ], true)
+                        || $tarea->planOperacional->referencia_tipo !== self::REFERENCIA
+                        || $tarea->planOperacional->referencia_id !== $cargaBeneficiadaId;
+                });
                 if ($conflictoDuro) {
                     continue;
                 }
@@ -919,11 +937,40 @@ class ServicioPlanConcentracionCarga
                 }
             }
 
+            $beneficioObjetivosSecundarios = $conflictos
+                ->pluck('folio_id')
+                ->unique()
+                ->count() * self::BENEFICIO_BLOCKER_DESTINO_UTIL;
+            $candidato['beneficio_principal_estimado'] = max(
+                0,
+                $candidato['beneficio_estimado'] - $beneficioObjetivosSecundarios,
+            );
             $maniobraNueva = $this->maniobras->crearCerrada(
                 $plan,
                 $usuario,
                 $candidato,
             );
+
+            foreach ($conflictos->groupBy('plan_operacional_id') as $tareasObjetivo) {
+                $planObjetivo = $tareasObjetivo->first()?->planOperacional;
+                if (! $planObjetivo) {
+                    continue;
+                }
+                $foliosBeneficiados = $tareasObjetivo
+                    ->pluck('folio_id')
+                    ->unique()
+                    ->values();
+                $this->maniobras->vincularObjetivo(
+                    $maniobraNueva,
+                    $planObjetivo,
+                    $foliosBeneficiados->count() * self::BENEFICIO_BLOCKER_DESTINO_UTIL,
+                    [
+                        'tipo_beneficio' => 'acopio_carga_activa',
+                        'carga_id' => $planObjetivo->referencia_id,
+                        'folios_beneficiados_ids' => $foliosBeneficiados->all(),
+                    ],
+                );
+            }
 
             foreach ($conflictos as $tareaReemplazada) {
                 $reemplazo = $maniobraNueva->pasos()

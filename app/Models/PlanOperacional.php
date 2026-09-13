@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
@@ -54,6 +55,16 @@ class PlanOperacional extends Model
     public function maniobras(): HasMany
     {
         return $this->hasMany(ManiobraOperacional::class)->orderBy('created_at');
+    }
+
+    public function maniobrasResolutorias(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            ManiobraOperacional::class,
+            'maniobra_objetivos',
+            'plan_operacional_id',
+            'maniobra_operacional_id',
+        )->withPivot(['es_principal', 'beneficio_estimado', 'contexto'])->withTimestamps();
     }
 
     public function movimientos(): HasMany

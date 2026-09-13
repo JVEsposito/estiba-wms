@@ -41,6 +41,16 @@ export type OperationalTemporaryCustody = {
   extraido_at: string | null;
 };
 
+export type OperationalManeuverObjective = {
+  id: string;
+  tipo: string;
+  estado: string;
+  prioridad: OperationalTaskPriority;
+  titulo: string;
+  es_principal: boolean;
+  beneficio_estimado: number;
+};
+
 export type OperationalTaskEndpoint = {
   camara: {
     id: string;
@@ -89,6 +99,7 @@ export type OperationalTask = {
     beneficio_estimado: number;
     riesgo_operacional: number;
     version: number;
+    objetivos?: OperationalManeuverObjective[];
     custodia_temporal_activa: boolean;
     pasos: OperationalManeuverStep[];
     custodias_temporales: OperationalTemporaryCustody[];
