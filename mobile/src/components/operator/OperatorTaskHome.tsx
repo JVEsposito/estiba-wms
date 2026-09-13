@@ -112,13 +112,16 @@ function NextTaskCard({ busy, compact, item, onOpen }: {
 }) {
   const { task } = item;
   const paused = task.maniobra?.estado === 'pausada_discrepancia';
+  const alternative = isArbitrationAlternative(task);
   const state = paused
     ? { label: 'EN ESPERA DE SUPERVISIÓN', tone: 'warning' as const }
-    : task.estado === 'en_proceso'
-    ? { label: 'EN EJECUCIÓN', tone: 'critical' as const }
-    : item.source === 'mine'
-      ? { label: 'ASIGNADA', tone: 'success' as const }
-      : { label: 'DISPONIBLE', tone: 'info' as const };
+    : alternative
+      ? { label: 'ALTERNATIVA', tone: 'warning' as const }
+      : task.estado === 'en_proceso'
+        ? { label: 'EN EJECUCIÓN', tone: 'critical' as const }
+        : item.source === 'mine'
+          ? { label: 'ASIGNADA', tone: 'success' as const }
+          : { label: 'DISPONIBLE', tone: 'info' as const };
 
   return (
     <View style={styles.hero}>
@@ -128,10 +131,12 @@ function NextTaskCard({ busy, compact, item, onOpen }: {
           <Text style={styles.heroHint}>
             {paused
               ? 'No continúes movimientos hasta recibir la decisión supervisada'
-              : item.source === 'mine' ? 'Tu siguiente tarea en la cola' : 'Disponible para tomar'}
+              : alternative
+                ? 'Visible sin reservas; se habilitará cuando el servidor libere capacidad'
+                : item.source === 'mine' ? 'Tu siguiente tarea en la cola' : 'Disponible para tomar'}
           </Text>
         </View>
-        <Pressable disabled={busy} onPress={onOpen} style={[styles.heroAction, compact && styles.heroActionCompact, busy && styles.disabled]}>
+        <Pressable disabled={busy || alternative} onPress={onOpen} style={[styles.heroAction, compact && styles.heroActionCompact, (busy || alternative) && styles.disabled]}>
           <Text style={styles.heroActionText}>{primaryActionLabel(item)} →</Text>
         </Pressable>
       </View>
@@ -183,12 +188,13 @@ function QueueRow({ busy, compact, index, item, onOpen }: {
 }) {
   const task = item.task;
   const paused = task.maniobra?.estado === 'pausada_discrepancia';
+  const alternative = isArbitrationAlternative(task);
   return (
     <View style={[styles.queueRow, compact && styles.queueRowCompact]}>
       <Text style={styles.queueIndex}>{index}</Text>
       <View style={[styles.queuePriority, compact && styles.queuePriorityCompact]}><OperatorPriorityBadge priority={task.prioridad} /></View>
       <View style={[styles.queueIdentity, compact && styles.queueIdentityCompact]}>
-        <Text style={styles.queueMeta}>{paused ? 'EN ESPERA' : item.source === 'mine' ? 'ASIGNADA' : 'DISPONIBLE'}</Text>
+        <Text style={styles.queueMeta}>{paused ? 'EN ESPERA' : alternative ? 'ALTERNATIVA' : item.source === 'mine' ? 'ASIGNADA' : 'DISPONIBLE'}</Text>
         <OperatorEntityCode value={task.folio.numero_folio} />
       </View>
       <View style={[styles.queueRoute, compact && styles.queueRouteCompact]}>
@@ -200,8 +206,8 @@ function QueueRow({ busy, compact, index, item, onOpen }: {
         <Text style={styles.queueStepsValue}>{task.maniobra?.pasos_totales ?? 1}</Text>
         <Text style={styles.queueStepsLabel}>mov.</Text>
       </View>
-      <Pressable disabled={busy} onPress={onOpen} style={[styles.queueAction, busy && styles.disabled]}>
-        <Text style={styles.queueActionText}>{paused ? 'Ver estado' : item.source === 'mine' ? 'Abrir' : 'Tomar'} →</Text>
+      <Pressable disabled={busy || alternative} onPress={onOpen} style={[styles.queueAction, (busy || alternative) && styles.disabled]}>
+        <Text style={styles.queueActionText}>{paused ? 'Ver estado' : alternative ? 'En espera' : item.source === 'mine' ? 'Abrir' : 'Tomar'} →</Text>
       </Pressable>
     </View>
   );
@@ -218,6 +224,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function primaryActionLabel(item: OperatorQueueItem) {
   if (item.task.maniobra?.estado === 'pausada_discrepancia') return 'VER ESTADO DE ESPERA';
+  if (isArbitrationAlternative(item.task)) return 'ALTERNATIVA EN ESPERA';
   if (item.task.estado === 'en_proceso') return 'CONTINUAR MANIOBRA';
   return item.source === 'mine' ? 'INICIAR MANIOBRA' : 'TOMAR MANIOBRA';
 }
@@ -229,6 +236,10 @@ function maneuverStep(task: OperationalTask) {
 
 function maneuverObjectiveCount(task: OperationalTask) {
   return Math.max(1, task.maniobra?.objetivos?.length ?? 0);
+}
+
+function isArbitrationAlternative(task: OperationalTask) {
+  return task.maniobra?.arbitraje?.decision === 'alternativa';
 }
 
 function commitmentLabel(task: OperationalTask) {

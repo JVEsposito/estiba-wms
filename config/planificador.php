@@ -46,6 +46,10 @@ return [
     'compute' => $compute,
     'horizon' => $horizon,
     'frontier_max' => max(1, (int) env('WMS_PLANNER_FRONTIER_MAX', 4)),
+    'maniobras_simultaneas_max' => max(
+        1,
+        (int) env('WMS_PLANNER_MAX_ACTIVE_MANEUVERS', 3),
+    ),
 
     /*
     |--------------------------------------------------------------------------

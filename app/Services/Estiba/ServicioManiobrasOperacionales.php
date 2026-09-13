@@ -31,6 +31,7 @@ use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Camaras\InterbloqueoEvacuacionEmergencia;
 use App\Services\Cargas\ServicioPlanConcentracionCarga;
+use App\Services\Planificador\ServicioArbitrajeManiobras;
 use DomainException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -38,14 +39,13 @@ use Illuminate\Support\Str;
 
 class ServicioManiobrasOperacionales
 {
-    private const MAX_MANIOBRAS_SIMULTANEAS = 3;
-
     private const CONTRATO_UNITARIO = 'maniobra_unitaria_v1';
 
     public function __construct(
         private readonly ServicioReservasTareasMovimiento $reservas,
         private readonly InterbloqueoEvacuacionEmergencia $emergencias,
         private readonly ServicioReplanificacionDiscrepancia $replanificador,
+        private readonly ServicioArbitrajeManiobras $arbitraje,
     ) {}
 
     /**
@@ -437,6 +437,7 @@ class ServicioManiobrasOperacionales
                 || $maniobra->dispositivo_id !== $dispositivo->id)) {
             throw new ConflictoOperacion('La maniobra ya pertenece a otro camarero o tablet.');
         }
+        $this->arbitraje->validarAsumible($maniobra);
         $esManiobraUnitaria = ($maniobra->contexto['contrato'] ?? null)
             === self::CONTRATO_UNITARIO;
         if ($maniobra->estado !== EstadoManiobraOperacional::EnEjecucion
@@ -450,7 +451,7 @@ class ServicioManiobrasOperacionales
                     return ($enEjecucion->contexto['contrato'] ?? null)
                         === self::CONTRATO_UNITARIO;
                 })
-                ->count() >= self::MAX_MANIOBRAS_SIMULTANEAS) {
+                ->count() >= (int) config('planificador.maniobras_simultaneas_max', 3)) {
             throw new ConflictoOperacion(
                 'Ya existen tres maniobras asumidas; la cuarta debe permanecer como alternativa.',
             );

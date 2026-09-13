@@ -15,6 +15,7 @@ WMS_PLANNER_MODE=off
 WMS_PLANNER_COMPUTE=server
 WMS_PLANNER_HORIZON=batch
 WMS_PLANNER_FRONTIER_MAX=4
+WMS_PLANNER_MAX_ACTIVE_MANEUVERS=3
 ```
 
 Valores soportados:
@@ -74,6 +75,11 @@ operadores, la cuarta maniobra puede esperar sin una reserva física lejana.
 La API de frontera permite aceptación parcial. Si tres propuestas siguen siendo válidas y una quedó obsoleta, las tres válidas se reservan y la restante vuelve a cálculo.
 
 ## Snapshot y arbitraje
+
+La selección entre maniobras de objetivos distintos se resuelve primero mediante
+el [arbitraje global](ARBITRAJE_GLOBAL_MANIOBRAS.md). El servidor publica hasta
+tres maniobras compatibles y una cuarta alternativa sin reserva, dejando una
+decisión versionada y auditable antes de que la tablet calcule destinos próximos.
 
 `GET /api/planes-operacionales/{plan}/snapshot` expone:
 

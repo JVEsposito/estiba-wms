@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'plan_operacional_id',
@@ -79,6 +80,16 @@ class ManiobraOperacional extends Model
     public function discrepancias(): HasMany
     {
         return $this->hasMany(DiscrepanciaManiobra::class);
+    }
+
+    public function decisionesArbitraje(): HasMany
+    {
+        return $this->hasMany(DecisionArbitrajeManiobra::class);
+    }
+
+    public function ultimaDecisionArbitraje(): HasOne
+    {
+        return $this->hasOne(DecisionArbitrajeManiobra::class)->latestOfMany();
     }
 
     public function responsable(): BelongsTo

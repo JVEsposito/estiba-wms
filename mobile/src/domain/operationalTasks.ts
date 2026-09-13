@@ -51,6 +51,19 @@ export type OperationalManeuverObjective = {
   beneficio_estimado: number;
 };
 
+export type OperationalManeuverArbitration = {
+  decision: 'en_ejecucion' | 'seleccionada' | 'alternativa' | 'excluida_conflicto' | 'fuera_frontera' | 'fuera_planificador';
+  orden: number;
+  puntaje: number;
+  beneficio_neto: number;
+  motivo: string;
+  conflictos: Array<{
+    recurso: string;
+    maniobra_id: string;
+  }>;
+  snapshot_version: string | null;
+};
+
 export type OperationalTaskEndpoint = {
   camara: {
     id: string;
@@ -99,6 +112,7 @@ export type OperationalTask = {
     beneficio_estimado: number;
     riesgo_operacional: number;
     version: number;
+    arbitraje?: OperationalManeuverArbitration | null;
     objetivos?: OperationalManeuverObjective[];
     custodia_temporal_activa: boolean;
     pasos: OperationalManeuverStep[];

@@ -72,6 +72,9 @@ test('la portada usa acciones existentes y no inventa datos operacionales', () =
     assert.match(component, /INICIAR MANIOBRA/);
     assert.match(component, /Próximas maniobras en cola/);
     assert.match(component, /OBJETIVOS/);
+    assert.match(component, /ALTERNATIVA EN ESPERA/);
+    assert.match(component, /isArbitrationAlternative/);
+    assert.match(component, /disabled=\{busy \|\| alternative\}/);
     assert.match(component, /operationalTaskPositionLabel/);
     assert.match(component, /operationalTaskDestinationLabel/);
     assert.doesNotMatch(component, /Temperatura objetivo/);
