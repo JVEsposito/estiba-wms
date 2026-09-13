@@ -122,6 +122,39 @@ class ServicioArbitrajeManiobras
         return $decision;
     }
 
+    public function validarMaterializable(ManiobraOperacional $maniobra): ?DecisionPersistida
+    {
+        if (config('planificador.mode') !== 'guided') {
+            return null;
+        }
+
+        if ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia) {
+            throw new ConflictoOperacion(
+                'La maniobra está pausada por discrepancia y no admite cambios físicos.',
+            );
+        }
+
+        $maniobra->loadMissing('planOperacional.temporada');
+        if ($this->fueraPlanificador($maniobra)) {
+            return null;
+        }
+
+        $temporada = $maniobra->planOperacional?->temporada;
+        if (! $temporada?->activa) {
+            throw new ConflictoOperacion('La maniobra no pertenece a la temporada operacional activa.');
+        }
+
+        $decision = $this->arbitrar($temporada)->decisiones
+            ->firstWhere('maniobra_operacional_id', $maniobra->id);
+        if (! $decision || ! $decision->decision->materializable()) {
+            throw new ConflictoOperacion(
+                'La maniobra no pertenece a la frontera física autoritativa vigente.',
+            );
+        }
+
+        return $decision;
+    }
+
     /** @return Collection<int, string> */
     public function idsPublicables(CicloArbitrajeManiobras $ciclo): Collection
     {

@@ -32,8 +32,9 @@ Los valores por defecto conservan compatibilidad con la operación existente. La
 2. Tomar una maniobra disponible.
 3. El servidor crea un **claim exclusivo** de maniobra/tarea/folio, sin comprometer todavía una posición lejana.
 4. La tablet muestra el folio, origen y paso físico que el camarero debe ejecutar.
-5. Descargar snapshot versionado del plan.
-6. La tablet calcula una frontera corta de maniobras no conflictivas.
+5. Descargar el snapshot físico global de las maniobras tomadas por la tablet.
+6. La tablet calcula una frontera corta de maniobras no conflictivas, aunque
+   pertenezcan a planes u objetivos distintos.
 7. La tablet envía la propuesta del paso actual con versión de tarea, plan y cámara.
 8. El servidor acepta o rechaza la propuesta y materializa solamente el destino próximo todavía válido.
 9. El camarero pulsa **RETIRAR PALLET · INICIAR MOVIMIENTO**.
@@ -81,15 +82,16 @@ el [arbitraje global](ARBITRAJE_GLOBAL_MANIOBRAS.md). El servidor publica hasta
 tres maniobras compatibles y una cuarta alternativa sin reserva, dejando una
 decisión versionada y auditable antes de que la tablet calcule destinos próximos.
 
-`GET /api/planes-operacionales/{plan}/snapshot` expone:
+La bandeja vigente usa `GET /api/frontera-fisica/snapshot`, que expone:
 
 - `snapshot_version`;
-- versión y estado del plan;
-- versiones de tareas;
-- versiones de cámaras involucradas;
+- ciclo y decisiones del arbitraje global;
+- versiones de cada tarea, su propio plan, maniobra y reserva;
+- versiones de todas las cámaras activas de producto terminado;
 - configuración `mode / compute / horizon / frontier_max`.
 
-`POST /api/planes-operacionales/{plan}/frontera` recibe propuestas calculadas por la tablet. El servidor vuelve a comprobar:
+`POST /api/frontera-fisica/materializar` recibe propuestas de varios planes
+calculadas sobre esa misma fotografía. El servidor vuelve a comprobar:
 
 - snapshot;
 - versión de tarea;
@@ -101,6 +103,10 @@ decisión versionada y auditable antes de que la tablet calcule destinos próxim
 - compatibilidad del destino con el tipo de movimiento.
 
 La tablet nunca puede forzar una posición ocupada o ya reservada. El cálculo puede estar distribuido; la autoridad operacional no lo está.
+
+El contrato completo se encuentra en
+[Frontera física global](FRONTERA_FISICA_GLOBAL.md). Los endpoints anteriores
+por plan se conservan únicamente para compatibilidad con clientes previos.
 
 ## Punto de no retorno
 

@@ -282,30 +282,30 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     setError('');
 
     try {
-      const snapshot = await taskApi.snapshot(auth.token, anchorTask.plan.id);
+      const snapshot = await taskApi.physicalFrontierSnapshot(auth.token);
       if (snapshot.planner.horizon !== 'rolling' || snapshot.planner.compute !== 'tablet') {
         throw new Error(
           `El planificador está configurado como ${snapshot.planner.compute}/${snapshot.planner.horizon}; no corresponde cálculo rolling en tablet.`,
         );
       }
 
-      const tasksForPlan = dedupeTasks([
+      const tasksForFrontier = dedupeTasks([
         anchorTask,
-        ...mine.filter((task) => task.plan.id === anchorTask.plan.id),
-      ]).filter((task) => task.estado === 'asumida');
+        ...mine,
+      ]).filter((task) => task.estado === 'asumida'
+        && snapshot.tareas.some((item) => item.id === task.id && item.materializable));
       const cameras = (await api.listCameras(auth.token))
         .filter((camera) => camera.contenido === 'productos' && camera.estado === 'activa');
-      const requiredIds = candidateCameraIds(tasksForPlan, cameras.map((camera) => camera.id));
+      const requiredIds = candidateCameraIds(tasksForFrontier, cameras.map((camera) => camera.id));
       const plans = await Promise.all([...requiredIds].map((cameraId) => api.getPlan(auth.token, cameraId)));
-      const frontier = calculateRollingFrontier(tasksForPlan, snapshot, plans);
+      const frontier = calculateRollingFrontier(tasksForFrontier, snapshot, plans);
 
       if (!frontier.proposals.length) {
         throw new Error('El snapshot no contiene un destino libre y compatible para la frontera actual.');
       }
 
-      const result = await taskApi.materializeFrontier(
+      const result = await taskApi.materializePhysicalFrontier(
         auth.token,
-        anchorTask.plan.id,
         snapshot.snapshot_version,
         frontier.proposals,
       );

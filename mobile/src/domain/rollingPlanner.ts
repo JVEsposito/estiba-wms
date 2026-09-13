@@ -1,6 +1,7 @@
 import { CameraPlan, Position } from './estiba';
 import {
   OperationalFrontierProposal,
+  OperationalPhysicalFrontierSnapshot,
   OperationalSnapshot,
   OperationalTask,
   OperationalTaskPriority,
@@ -40,7 +41,7 @@ const PRIORITY_WEIGHT: Record<OperationalTaskPriority, number> = {
  */
 export function calculateRollingFrontier(
   tasks: OperationalTask[],
-  snapshot: OperationalSnapshot,
+  snapshot: OperationalSnapshot | OperationalPhysicalFrontierSnapshot,
   cameraPlans: CameraPlan[],
 ): RollingFrontier {
   const limit = Math.max(1, snapshot.planner.frontier_max);
@@ -48,6 +49,7 @@ export function calculateRollingFrontier(
     .filter((task) => task.estado === 'asumida' && !task.punto_no_retorno)
     .filter((task) => task.tipo_movimiento !== 'retiro')
     .filter((task) => task.reserva?.tipo_compromiso !== 'fisica')
+    .filter((task) => snapshot.tareas.find((item) => item.id === task.id)?.materializable !== false)
     .sort(compareTasks);
 
   const usedDestinations = new Set<string>();
@@ -79,7 +81,7 @@ export function calculateRollingFrontier(
       tarea_id: task.id,
       posicion_destino_id: candidate.position.id,
       tarea_version: taskSnapshot.version,
-      plan_version: snapshot.plan.version,
+      plan_version: taskSnapshot.plan_version ?? planVersion(snapshot),
       version_camara_conocida: candidatePlan.version_plano,
       score: candidate.score,
       motivo: candidate.reason,
@@ -87,6 +89,12 @@ export function calculateRollingFrontier(
   }
 
   return { proposals, candidates, unresolvedTaskIds };
+}
+
+function planVersion(
+  snapshot: OperationalSnapshot | OperationalPhysicalFrontierSnapshot,
+) {
+  return 'plan' in snapshot ? snapshot.plan.version : 0;
 }
 
 export function bestCandidate(
