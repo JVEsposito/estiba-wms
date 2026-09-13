@@ -33,3 +33,9 @@ test('cada propuesta conserva la versión de su propio plan', () => {
     assert.match(planner, /taskSnapshot\.plan_version \?\? planVersion\(snapshot\)/);
     assert.match(planner, /item\.id === task\.id\)\?\.materializable !== false/);
 });
+
+test('la tablet limita candidatos a las cámaras del snapshot autoritativo', () => {
+    assert.match(inbox, /new Set\(snapshot\.camaras\.map\(\(camera\) => camera\.id\)\)/);
+    assert.match(inbox, /directedCameraIds\.has\(camera\.id\)/);
+    assert.match(inbox, /No existen cámaras dirigidas disponibles en el rollout vigente/);
+});

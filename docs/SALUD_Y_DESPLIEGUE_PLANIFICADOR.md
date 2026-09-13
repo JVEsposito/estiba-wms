@@ -60,6 +60,23 @@ vencidos todavía activos o maniobras completadas con custodia temporal;
 `advertencia` identifica tareas estancadas, custodias activas o discrepancias
 abiertas.
 
+En `shadow` y `guided`, consultar salud evalúa el estado actual del árbitro sin
+asumir tareas, reservar posiciones ni materializar destinos. La sección
+`metricas.arbitraje` expone:
+
+- `ciclos_nuevos`, donde un ciclo significa un estado autoritativo diferente y
+  no una llamada o refresco;
+- decisiones totales, maniobras únicas y desglose `por_decision`, incluido
+  `fuera_rollout`;
+- maniobras excluidas por conflicto y recursos involucrados por tipo (`folio`,
+  `posicion`, `banda`, `otro`);
+- el último ciclo de la ventana con capacidad, frontera y decisiones.
+
+El filtro `camara_id` atribuye decisiones por pasos, reservas de banda o
+custodias temporales asociados a esa cámara. El ciclo persistido sigue siendo
+global y un estado idéntico se reutiliza, por lo que consultar repetidamente el
+endpoint no infla la métrica.
+
 Para ampliar el rollout, mida una o dos jornadas de la cámara piloto, conserve
 el snapshot de cada ventana y agregue el siguiente código solo cuando la salud
 permanezca estable y la desviación entre plan y ejecución sea aceptable.

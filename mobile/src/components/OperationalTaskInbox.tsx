@@ -294,8 +294,14 @@ export function OperationalTaskInbox({ api, auth }: Props) {
         ...mine,
       ]).filter((task) => task.estado === 'asumida'
         && snapshot.tareas.some((item) => item.id === task.id && item.materializable));
+      const directedCameraIds = new Set(snapshot.camaras.map((camera) => camera.id));
       const cameras = (await api.listCameras(auth.token))
-        .filter((camera) => camera.contenido === 'productos' && camera.estado === 'activa');
+        .filter((camera) => camera.contenido === 'productos'
+          && camera.estado === 'activa'
+          && directedCameraIds.has(camera.id));
+      if (!cameras.length) {
+        throw new Error('No existen cámaras dirigidas disponibles en el rollout vigente.');
+      }
       const requiredIds = candidateCameraIds(tasksForFrontier, cameras.map((camera) => camera.id));
       const plans = await Promise.all([...requiredIds].map((cameraId) => api.getPlan(auth.token, cameraId)));
       const frontier = calculateRollingFrontier(tasksForFrontier, snapshot, plans);

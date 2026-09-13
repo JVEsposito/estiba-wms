@@ -32,6 +32,7 @@ class HorizonteMovilApiTest extends TestCase
             'planificador.mode' => 'guided',
             'planificador.compute' => 'tablet',
             'planificador.horizon' => 'rolling',
+            'planificador.generacion_automatica' => true,
             'planificador.frontier_max' => 4,
             'planificador.reserva_tarea_minutos' => 10,
         ]);

@@ -17,6 +17,9 @@ tiene tomadas, aunque provengan de objetivos operacionales distintos.
   otra haya quedado obsoleta o compita por el mismo destino.
 - Después de `RETIRAR PALLET`, la tarea queda `en_proceso`; su destino no puede
   cambiar y su reserva no puede liberarse por vencimiento.
+- La lista de cámaras del rollout es una frontera física del servidor, no una
+  sugerencia de interfaz: se validan origen, destino conocido y destino
+  propuesto en cada materialización.
 
 ## Snapshot global
 
@@ -26,8 +29,8 @@ usuario y dispositivo autenticados. Incluye:
 - versión SHA-256 del estado físico;
 - ciclo y resumen del arbitraje global;
 - configuración efectiva del planificador;
-- versiones de plano y revisiones de reservas de todas las cámaras activas de
-  producto terminado;
+- versiones de plano y revisiones de reservas solamente de las cámaras activas
+  de producto terminado autorizadas por el rollout;
 - paso actual tomado de cada maniobra, con versiones de tarea, plan, maniobra y
   reserva;
 - decisión de arbitraje y bandera `materializable`.
@@ -46,8 +49,10 @@ propuestas. Cada propuesta identifica:
 - versión conocida del plano de la cámara;
 - versión del planificador, puntaje y motivo calculados por la tablet.
 
-El servidor vuelve a comprobar propiedad del claim, secuencia actual, arbitraje,
-rollout, versiones, compatibilidad física, ocupación y reservas. Las propuestas
+La tablet intersecta sus candidatos con `camaras` del snapshot. El servidor
+vuelve a comprobar propiedad del claim, secuencia actual, arbitraje, todas las
+cámaras del movimiento, generación automática, rollout, versiones,
+compatibilidad física, ocupación y reservas. Las propuestas
 se procesan en orden y devuelven `aceptadas`, `rechazadas`, `recalcular` y un
 nuevo snapshot global.
 
@@ -64,4 +69,5 @@ pallet retirado.
 Los endpoints por plan de `GET /api/planes-operacionales/{plan}/snapshot` y
 `POST /api/planes-operacionales/{plan}/frontera` permanecen disponibles para
 clientes anteriores. La bandeja actual usa la frontera física global. En modos
-`off`, `shadow`, `server` o `batch` no se habilita la materialización global.
+`off`, `shadow`, `server`, `batch` o con generación automática desactivada no se
+habilita la materialización global.

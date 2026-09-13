@@ -52,7 +52,7 @@ export type OperationalManeuverObjective = {
 };
 
 export type OperationalManeuverArbitration = {
-  decision: 'en_ejecucion' | 'seleccionada' | 'alternativa' | 'excluida_conflicto' | 'fuera_frontera' | 'fuera_planificador';
+  decision: 'en_ejecucion' | 'seleccionada' | 'alternativa' | 'excluida_conflicto' | 'fuera_frontera' | 'fuera_planificador' | 'fuera_rollout';
   orden: number;
   puntaje: number;
   beneficio_neto: number;
@@ -227,6 +227,8 @@ export type OperationalPhysicalFrontierSnapshot = {
     horizon: PlannerHorizon;
     frontier_max: number;
     maniobras_simultaneas_max: number;
+    rollout_limitado: boolean;
+    camaras_dirigidas: string[] | null;
   };
   arbitraje: {
     ciclo_id: string;
@@ -236,6 +238,7 @@ export type OperationalPhysicalFrontierSnapshot = {
     en_ejecucion: number;
     seleccionadas: number;
     alternativas: number;
+    fuera_rollout: number;
   };
   frontera: {
     reservas_fisicas_activas: number;

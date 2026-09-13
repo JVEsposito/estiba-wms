@@ -243,6 +243,9 @@ class PlanOperacionalController extends Controller
                     'alternativas' => $cicloArbitraje->decisiones
                         ->where('decision', DecisionArbitrajeManiobra::Alternativa)
                         ->count(),
+                    'fuera_rollout' => $cicloArbitraje->decisiones
+                        ->where('decision', DecisionArbitrajeManiobra::FueraRollout)
+                        ->count(),
                 ],
             ]);
         }
@@ -273,11 +276,12 @@ class PlanOperacionalController extends Controller
         abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
         $horizon = ($planOperacional->contexto ?? [])['planner_horizon']
             ?? config('planificador.horizon');
-        if (config('planificador.mode') !== 'guided'
+        if (! config('planificador.generacion_automatica')
+            || config('planificador.mode') !== 'guided'
             || config('planificador.compute') !== 'tablet'
             || $horizon !== 'rolling') {
             throw new DomainException(
-                'La frontera de tablet requiere un plan rolling con el planificador guided/tablet.',
+                'La frontera de tablet requiere generación automática y un plan rolling con el planificador guided/tablet.',
             );
         }
         $max = (int) config('planificador.frontier_max', 4);
@@ -325,9 +329,13 @@ class PlanOperacionalController extends Controller
 
             try {
                 $posicion = Posicion::query()->findOrFail($propuesta['posicion_destino_id']);
-                if ($despliegue->modoParaCamara($posicion->camara_id) !== 'guided') {
+                if (! $despliegue->dirige(array_filter([
+                    $tarea->camara_origen_id,
+                    $tarea->camara_destino_id,
+                    $posicion->camara_id,
+                ]))) {
                     throw new DomainException(
-                        'La cámara propuesta permanece en shadow y no admite trabajo dirigido.',
+                        'La propuesta involucra una cámara fuera del rollout dirigido o el planificador no está habilitado completamente.',
                     );
                 }
                 $materializada = $servicio->materializarDestino(

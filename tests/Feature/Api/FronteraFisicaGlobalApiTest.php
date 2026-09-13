@@ -30,6 +30,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             'planificador.mode' => 'guided',
             'planificador.compute' => 'tablet',
             'planificador.horizon' => 'rolling',
+            'planificador.generacion_automatica' => true,
             'planificador.frontier_max' => 4,
             'planificador.maniobras_simultaneas_max' => 3,
         ]);
@@ -176,6 +177,91 @@ class FronteraFisicaGlobalApiTest extends TestCase
             ->assertJsonCount(0, 'data.aceptadas');
 
         $this->assertNull($tarea->refresh()->posicion_destino_id);
+    }
+
+    public function test_rollout_restringe_snapshot_y_rechaza_un_destino_forjado_fuera_de_el(): void
+    {
+        $contexto = $this->crearContexto();
+        config(['planificador.rollout_camaras' => [$contexto['camara']->codigo]]);
+        $camaraFuera = Camara::create([
+            'codigo' => 'CAM-FUERA-ROLLOUT',
+            'nombre' => 'Cámara fuera de rollout',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $posicionFuera = Posicion::create([
+            'camara_id' => $camaraFuera->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'FUERA-B01-P01-N1',
+        ]);
+        $tarea = $this->crearPlan(
+            $contexto,
+            $contexto['folios'][0],
+            TipoPlanOperacional::AlmacenamientoPallet,
+        )->tareas()->sole();
+        app(ServicioPlanesOperacionales::class)->asumir(
+            $tarea,
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+
+        $snapshot = $this->conToken($contexto['token'])
+            ->getJson('/api/frontera-fisica/snapshot')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.camaras')
+            ->assertJsonPath('data.camaras.0.id', $contexto['camara']->id)
+            ->assertJsonPath('data.planner.rollout_limitado', true)
+            ->assertJsonPath('data.planner.camaras_dirigidas.0', $contexto['camara']->id)
+            ->assertJsonPath('data.tareas.0.materializable', true)
+            ->json('data');
+
+        $this->conToken($contexto['token'])
+            ->postJson('/api/frontera-fisica/materializar', [
+                'snapshot_version' => $snapshot['snapshot_version'],
+                'planner_version' => 'frontera-global-test',
+                'propuestas' => [$this->propuesta(
+                    $snapshot['tareas'][0],
+                    $posicionFuera,
+                    $camaraFuera,
+                )],
+            ])
+            ->assertOk()
+            ->assertJsonCount(0, 'data.aceptadas')
+            ->assertJsonCount(1, 'data.rechazadas')
+            ->assertJsonPath(
+                'data.rechazadas.0.motivo',
+                'La propuesta involucra una cámara fuera del rollout dirigido o el planificador no está habilitado completamente.',
+            );
+
+        $this->assertNull($tarea->refresh()->posicion_destino_id);
+    }
+
+    public function test_generacion_desactivada_cierra_completamente_la_frontera_fisica(): void
+    {
+        $contexto = $this->crearContexto();
+        $tarea = $this->crearPlan(
+            $contexto,
+            $contexto['folios'][0],
+            TipoPlanOperacional::AlmacenamientoPallet,
+        )->tareas()->sole();
+        app(ServicioPlanesOperacionales::class)->asumir(
+            $tarea,
+            $contexto['camarero'],
+            $contexto['dispositivo'],
+        );
+        config(['planificador.generacion_automatica' => false]);
+
+        $this->conToken($contexto['token'])
+            ->getJson('/api/frontera-fisica/snapshot')
+            ->assertOk()
+            ->assertJsonCount(0, 'data.camaras')
+            ->assertJsonPath('data.planner.camaras_dirigidas', [])
+            ->assertJsonPath('data.arbitraje.fuera_rollout', 1)
+            ->assertJsonPath('data.frontera.tareas_materializables', 0)
+            ->assertJsonPath('data.tareas.0.materializable', false);
     }
 
     public function test_punto_de_no_retorno_no_admite_otro_destino(): void

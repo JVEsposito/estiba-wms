@@ -25,6 +25,7 @@ class ServicioFronteraFisica
 
     public function __construct(
         private readonly ServicioArbitrajeManiobras $arbitraje,
+        private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
     /** @return array<string, mixed> */
@@ -38,10 +39,14 @@ class ServicioFronteraFisica
                 throw new DomainException('No existe una temporada operacional activa.');
             }
 
+            $camarasDirigidas = $this->despliegue->idsCamarasDirigidas();
             $ciclo = $this->arbitraje->arbitrar($temporada);
             $decisiones = $ciclo->decisiones->keyBy('maniobra_operacional_id');
             $tareas = $this->tareasActuales($temporada, $usuario, $dispositivo)
-                ->map(function (TareaMovimiento $tarea) use ($decisiones): array {
+                ->map(function (TareaMovimiento $tarea) use (
+                    $camarasDirigidas,
+                    $decisiones,
+                ): array {
                     $maniobra = $tarea->maniobraOperacional;
                     $reserva = $tarea->reservaActiva;
                     $decision = $maniobra
@@ -55,6 +60,7 @@ class ServicioFronteraFisica
                         && $maniobra !== null
                         && $maniobra->estado === EstadoManiobraOperacional::EnEjecucion
                         && $horizon === 'rolling'
+                        && $this->tareaEnRollout($tarea, $camarasDirigidas)
                         && ($decision?->decision->materializable()
                             || $decision?->decision === DecisionArbitrajeManiobra::FueraPlanificador);
 
@@ -98,6 +104,10 @@ class ServicioFronteraFisica
             $camaras = Camara::query()
                 ->where('contenido', ContenidoCamara::Productos->value)
                 ->where('estado', EstadoCamara::Activa->value)
+                ->when(
+                    $camarasDirigidas !== null,
+                    fn ($consulta) => $consulta->whereIn('id', $camarasDirigidas),
+                )
                 ->orderBy('codigo')
                 ->get(['id', 'codigo', 'nombre', 'version_plano', 'revision_reservas'])
                 ->map(fn (Camara $camara): array => [
@@ -127,6 +137,7 @@ class ServicioFronteraFisica
                     config('planificador.frontier_max'),
                     config('planificador.maniobras_simultaneas_max'),
                     config('planificador.rollout_camaras', []),
+                    $camarasDirigidas,
                 ],
                 'camaras' => $camaras->all(),
                 'tareas' => $tareas->all(),
@@ -146,6 +157,8 @@ class ServicioFronteraFisica
                     'maniobras_simultaneas_max' => config(
                         'planificador.maniobras_simultaneas_max',
                     ),
+                    'rollout_limitado' => config('planificador.rollout_camaras', []) !== [],
+                    'camaras_dirigidas' => $camarasDirigidas,
                 ],
                 'arbitraje' => $this->resumenArbitraje($ciclo),
                 'frontera' => [
@@ -169,6 +182,43 @@ class ServicioFronteraFisica
             ->pluck('id')
             ->filter(fn (mixed $id): bool => is_string($id))
             ->values();
+    }
+
+    public function validarPropuestaDirigida(
+        TareaMovimiento $tarea,
+        string $camaraDestinoId,
+    ): void {
+        $camaras = array_values(array_filter([
+            $tarea->camara_origen_id,
+            $tarea->camara_destino_id,
+            $camaraDestinoId,
+        ]));
+
+        if (! $this->despliegue->dirige($camaras)) {
+            throw new DomainException(
+                'La propuesta involucra una cámara fuera del rollout dirigido o el planificador no está habilitado completamente.',
+            );
+        }
+    }
+
+    /** @param  array<int, string>|null  $camarasDirigidas */
+    private function tareaEnRollout(
+        TareaMovimiento $tarea,
+        ?array $camarasDirigidas,
+    ): bool {
+        if ($camarasDirigidas === null) {
+            return true;
+        }
+        if ($camarasDirigidas === []) {
+            return false;
+        }
+
+        return collect([
+            $tarea->camara_origen_id,
+            $tarea->camara_destino_id,
+        ])->filter()->every(
+            fn (string $id): bool => in_array($id, $camarasDirigidas, true),
+        );
     }
 
     /** @return Collection<int, TareaMovimiento> */
@@ -216,6 +266,9 @@ class ServicioFronteraFisica
                 ->count(),
             'alternativas' => $ciclo->decisiones
                 ->where('decision', DecisionArbitrajeManiobra::Alternativa)
+                ->count(),
+            'fuera_rollout' => $ciclo->decisiones
+                ->where('decision', DecisionArbitrajeManiobra::FueraRollout)
                 ->count(),
         ];
     }

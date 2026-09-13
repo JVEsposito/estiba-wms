@@ -2,6 +2,7 @@
 
 namespace App\Services\Planificador;
 
+use App\Enums\DecisionArbitrajeManiobra;
 use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoManiobraOperacional;
@@ -9,6 +10,8 @@ use App\Enums\EstadoReservaTareaMovimiento;
 use App\Enums\EstadoTareaMovimiento;
 use App\Enums\TipoPasoManiobra;
 use App\Models\CustodiaTemporalManiobra;
+use App\Models\CicloArbitrajeManiobras;
+use App\Models\DecisionArbitrajeManiobra as DecisionPersistida;
 use App\Models\DiscrepanciaManiobra;
 use App\Models\ManiobraOperacional;
 use App\Models\Movimiento;
@@ -23,6 +26,7 @@ final class ServicioSaludPlanificador
 {
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
+        private readonly ServicioArbitrajeManiobras $arbitraje,
     ) {}
 
     /** @return array<string, mixed> */
@@ -31,7 +35,13 @@ final class ServicioSaludPlanificador
         CarbonImmutable $hasta,
         ?string $camaraId = null,
     ): array {
-        $temporadaId = Temporada::query()->where('activa', true)->value('id');
+        $temporada = Temporada::query()->where('activa', true)->first();
+        $temporadaId = $temporada?->id;
+        if ($temporada && in_array(config('planificador.mode'), ['shadow', 'guided'], true)) {
+            // La lectura administrativa observa el mismo árbitro sin reservar ni
+            // materializar destinos. Un snapshot idéntico reutiliza el ciclo.
+            $this->arbitraje->arbitrar($temporada);
+        }
         $operacion = $this->metricasOperacion($temporadaId, $desde, $hasta, $camaraId);
         $riesgos = $this->riesgosActuales($temporadaId, $camaraId);
         $despliegue = $this->despliegue->resumen();
@@ -195,6 +205,93 @@ final class ServicioSaludPlanificador
                 'total' => (clone $discrepancias)->count(),
                 'por_estado' => $this->conteos($discrepancias, 'estado'),
             ],
+            'arbitraje' => $this->metricasArbitraje(
+                $temporadaId,
+                $desde,
+                $hasta,
+                $camaraId,
+            ),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function metricasArbitraje(
+        string $temporadaId,
+        CarbonImmutable $desde,
+        CarbonImmutable $hasta,
+        ?string $camaraId,
+    ): array {
+        $ciclos = CicloArbitrajeManiobras::query()
+            ->where('temporada_id', $temporadaId)
+            ->whereBetween('created_at', [$desde, $hasta]);
+        if ($camaraId !== null) {
+            $ciclos->whereHas('decisiones', fn (Builder $consulta) => $this
+                ->filtrarDecisionesPorCamara($consulta, $camaraId));
+        }
+
+        $decisiones = DecisionPersistida::query()
+            ->whereHas('ciclo', fn (Builder $consulta) => $consulta
+                ->where('temporada_id', $temporadaId)
+                ->whereBetween('created_at', [$desde, $hasta]));
+        $this->filtrarDecisionesPorCamara($decisiones, $camaraId);
+
+        $conflictos = (clone $decisiones)
+            ->where('decision', DecisionArbitrajeManiobra::ExcluidaConflicto->value)
+            ->get(['maniobra_operacional_id', 'conflictos']);
+        $porRecurso = [
+            'folio' => 0,
+            'posicion' => 0,
+            'banda' => 0,
+            'otro' => 0,
+        ];
+        foreach ($conflictos as $decision) {
+            foreach ($decision->conflictos ?? [] as $conflicto) {
+                $recurso = (string) ($conflicto['recurso'] ?? '');
+                $tipo = str_contains($recurso, ':')
+                    ? explode(':', $recurso, 2)[0]
+                    : 'otro';
+                $porRecurso[array_key_exists($tipo, $porRecurso) ? $tipo : 'otro']++;
+            }
+        }
+
+        $ultimoCiclo = CicloArbitrajeManiobras::query()
+            ->where('temporada_id', $temporadaId)
+            ->whereBetween('created_at', [$desde, $hasta])
+            ->latest('created_at')
+            ->latest('id')
+            ->first();
+        $ultimo = null;
+        if ($ultimoCiclo) {
+            $decisionesUltimo = DecisionPersistida::query()
+                ->where('ciclo_arbitraje_id', $ultimoCiclo->id);
+            $this->filtrarDecisionesPorCamara($decisionesUltimo, $camaraId);
+            $ultimo = [
+                'id' => $ultimoCiclo->id,
+                'snapshot_version' => $ultimoCiclo->snapshot_version,
+                'generado_at' => $ultimoCiclo->created_at?->toIso8601String(),
+                'capacidad_ejecucion' => $ultimoCiclo->capacidad_ejecucion,
+                'frontera_max' => $ultimoCiclo->frontera_max,
+                'por_decision' => $this->conteos($decisionesUltimo, 'decision'),
+            ];
+        }
+
+        return [
+            'unidad_ciclo' => 'estado_nuevo',
+            'ciclos_nuevos' => (clone $ciclos)->count(),
+            'decisiones_total' => (clone $decisiones)->count(),
+            'maniobras_unicas' => (clone $decisiones)
+                ->distinct()
+                ->count('maniobra_operacional_id'),
+            'por_decision' => $this->conteos($decisiones, 'decision'),
+            'conflictos' => [
+                'maniobras_excluidas' => $conflictos
+                    ->pluck('maniobra_operacional_id')
+                    ->unique()
+                    ->count(),
+                'recursos_involucrados' => array_sum($porRecurso),
+                'por_recurso' => $porRecurso,
+            ],
+            'ultimo_ciclo' => $ultimo,
         ];
     }
 
@@ -306,6 +403,24 @@ final class ServicioSaludPlanificador
             ],
             'reservas' => ['total' => 0, 'por_estado' => []],
             'discrepancias' => ['total' => 0, 'por_estado' => []],
+            'arbitraje' => [
+                'unidad_ciclo' => 'estado_nuevo',
+                'ciclos_nuevos' => 0,
+                'decisiones_total' => 0,
+                'maniobras_unicas' => 0,
+                'por_decision' => [],
+                'conflictos' => [
+                    'maniobras_excluidas' => 0,
+                    'recursos_involucrados' => 0,
+                    'por_recurso' => [
+                        'folio' => 0,
+                        'posicion' => 0,
+                        'banda' => 0,
+                        'otro' => 0,
+                    ],
+                ],
+                'ultimo_ciclo' => null,
+            ],
         ];
     }
 
@@ -390,8 +505,29 @@ final class ServicioSaludPlanificador
     private function filtrarManiobrasPorCamara(Builder $consulta, ?string $camaraId): void
     {
         if ($camaraId !== null) {
-            $consulta->whereHas('pasos', fn (Builder $pasos) => $this
-                ->filtrarTareasPorCamara($pasos, $camaraId));
+            $consulta->where(function (Builder $filtro) use ($camaraId): void {
+                $filtro->whereHas('pasos', fn (Builder $pasos) => $this
+                    ->filtrarTareasPorCamara($pasos, $camaraId))
+                    ->orWhereHas(
+                        'reservasBandas',
+                        fn (Builder $reservas) => $reservas->where('camara_id', $camaraId),
+                    )
+                    ->orWhereHas(
+                        'custodiasTemporales',
+                        fn (Builder $custodias) => $custodias->where(
+                            'camara_origen_id',
+                            $camaraId,
+                        ),
+                    );
+            });
+        }
+    }
+
+    private function filtrarDecisionesPorCamara(Builder $consulta, ?string $camaraId): void
+    {
+        if ($camaraId !== null) {
+            $consulta->whereHas('maniobraOperacional', fn (Builder $maniobras) => $this
+                ->filtrarManiobrasPorCamara($maniobras, $camaraId));
         }
     }
 

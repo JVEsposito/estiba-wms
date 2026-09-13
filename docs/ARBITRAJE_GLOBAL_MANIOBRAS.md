@@ -41,6 +41,13 @@ Las maniobras en ejecución consumen capacidad y prevalecen sobre toda simulaci�
 
 Los retiros desde REPA quedan `fuera_planificador`: siguen disponibles por la regla propia del buffer y no consumen los tres cupos del planificador global. Sus recursos sí se respetan cuando la maniobra ya comenzó.
 
+Cuando `WMS_PLANNER_ROLLOUT_CAMERAS` limita el despliegue, una maniobra pendiente
+que involucra cualquier cámara no dirigida queda `fuera_rollout`: no se publica,
+no puede asumirse y no consume capacidad ni alternativa. Un claim que todavía no
+cruzó `RETIRAR PALLET` tampoco obliga al árbitro a conservar el cupo. En cambio,
+un paso `en_proceso`, una custodia temporal activa o una discrepancia pausada
+constituyen realidad física y conservan sus recursos aunque cambie el rollout.
+
 ## Auditoría e idempotencia
 
 Cada estado relevante produce un `snapshot_version` SHA-256 y un ciclo persistido en:
@@ -48,7 +55,10 @@ Cada estado relevante produce un `snapshot_version` SHA-256 y un ciclo persistid
 - `ciclos_arbitraje_maniobras`;
 - `decisiones_arbitraje_maniobras`.
 
-El ciclo registra orden, decisión, puntaje, beneficio neto, motivo y conflictos. Refrescar la bandeja sin cambios reutiliza el mismo ciclo; un cambio de versión, estado, prioridad, objetivo o recurso genera uno nuevo.
+El ciclo registra orden, decisión, puntaje, beneficio neto, motivo, conflictos y
+alcance resuelto del rollout. Refrescar la bandeja sin cambios reutiliza el mismo
+ciclo; un cambio de versión, estado de paso, prioridad, objetivo, custodia,
+recurso o cámaras dirigidas genera uno nuevo.
 
 ## Contrato con tablet
 
