@@ -88,7 +88,7 @@ class ResolucionCruzadaCargasTest extends TestCase
         );
         $objetivos = $maniobra->objetivos()->get();
         $this->assertCount(2, $objetivos);
-        $this->assertSameCanonicalizing(
+        $this->assertEqualsCanonicalizing(
             [$planPrincipal->id, $planSecundario->id],
             $objetivos->pluck('id')->all(),
         );
