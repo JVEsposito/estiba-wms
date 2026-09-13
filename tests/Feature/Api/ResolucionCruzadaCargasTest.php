@@ -152,7 +152,7 @@ class ResolucionCruzadaCargasTest extends TestCase
         );
         $recurso = (new TareaMovimientoResource($asumida))->resolve(request());
         $this->assertCount(2, $recurso['maniobra']['objetivos']);
-        $this->assertSameCanonicalizing(
+        $this->assertEqualsCanonicalizing(
             [$planPrincipal->id, $planSecundario->id],
             collect($recurso['maniobra']['objetivos'])->pluck('id')->all(),
         );
