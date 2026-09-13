@@ -39,6 +39,19 @@ class TareaMovimientoResource extends JsonResource
                     'beneficio_estimado' => $maniobra->beneficio_estimado,
                     'riesgo_operacional' => $maniobra->riesgo_operacional,
                     'version' => $maniobra->version,
+                    'arbitraje' => $maniobra->relationLoaded('ultimaDecisionArbitraje')
+                        && $maniobra->ultimaDecisionArbitraje ? [
+                            'decision' => $maniobra->ultimaDecisionArbitraje->decision->value,
+                            'orden' => $maniobra->ultimaDecisionArbitraje->orden,
+                            'puntaje' => $maniobra->ultimaDecisionArbitraje->puntaje,
+                            'beneficio_neto' => $maniobra->ultimaDecisionArbitraje->beneficio_neto,
+                            'motivo' => $maniobra->ultimaDecisionArbitraje->motivo,
+                            'conflictos' => $maniobra->ultimaDecisionArbitraje->conflictos ?? [],
+                            'snapshot_version' => $maniobra->ultimaDecisionArbitraje
+                                ->relationLoaded('ciclo')
+                                ? $maniobra->ultimaDecisionArbitraje->ciclo?->snapshot_version
+                                : null,
+                        ] : null,
                     'objetivos' => $maniobra->relationLoaded('objetivos')
                         ? $maniobra->objetivos->map(fn ($objetivo): array => [
                             'id' => $objetivo->id,

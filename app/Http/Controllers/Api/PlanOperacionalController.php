@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\DecisionArbitrajeManiobra;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
@@ -18,11 +19,13 @@ use App\Models\PlanOperacional;
 use App\Models\Posicion;
 use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
+use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
+use App\Services\Planificador\ServicioArbitrajeManiobras;
 use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -93,6 +96,8 @@ class PlanOperacionalController extends Controller
             'tareas.reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
             'tareas.maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
             'tareas.maniobraOperacional.objetivos:id,tipo,estado,prioridad,titulo',
+            'tareas.maniobraOperacional.ultimaDecisionArbitraje:id,ciclo_arbitraje_id,maniobra_operacional_id,orden,decision,puntaje,beneficio_neto,motivo,conflictos,created_at',
+            'tareas.maniobraOperacional.ultimaDecisionArbitraje.ciclo:id,snapshot_version,created_at',
             ...$this->relacionesDetalleManiobra('tareas.maniobraOperacional'),
         ]));
     }
@@ -111,6 +116,7 @@ class PlanOperacionalController extends Controller
     public function tareas(
         Request $request,
         ServicioReservasTareasMovimiento $reservas,
+        ServicioArbitrajeManiobras $arbitraje,
     ): AnonymousResourceCollection {
         $filtros = $request->validate([
             'estado' => ['nullable', Rule::enum(EstadoTareaMovimiento::class)],
@@ -122,8 +128,25 @@ class PlanOperacionalController extends Controller
         $asignacion = $filtros['asignacion'] ?? 'disponibles';
         $usuarioId = $request->user()->id;
         $reservas->expirarVencidas();
+        $cicloArbitraje = null;
+        $maniobrasPublicables = null;
+        $ordenArbitraje = [];
 
-        $tareas = TareaMovimiento::query()
+        if ($asignacion === 'disponibles' && config('planificador.mode') === 'guided') {
+            $temporada = Temporada::query()->where('activa', true)->first();
+            if ($temporada) {
+                $cicloArbitraje = $arbitraje->arbitrar($temporada);
+                $maniobrasPublicables = $arbitraje->idsPublicables($cicloArbitraje)->all();
+                $ordenArbitraje = $cicloArbitraje->decisiones
+                    ->whereIn('maniobra_operacional_id', $maniobrasPublicables)
+                    ->sortBy('orden')
+                    ->pluck('maniobra_operacional_id')
+                    ->values()
+                    ->all();
+            }
+        }
+
+        $consultaTareas = TareaMovimiento::query()
             ->whereHas('planOperacional.temporada', fn (Builder $consulta): Builder => $consulta->where('activa', true))
             ->whereHas('planOperacional', fn (Builder $consulta): Builder => $consulta->whereNotIn('estado', [
                 EstadoPlanOperacional::Pausado->value,
@@ -170,14 +193,61 @@ class PlanOperacionalController extends Controller
                 $asignacion === 'mias',
                 fn (Builder $consulta): Builder => $consulta->where('responsable_user_id', $usuarioId),
             )
-            ->with($this->relacionesTarea())
-            ->orderByRaw($this->ordenPrioridad())
+            ->when(
+                $maniobrasPublicables !== null,
+                fn (Builder $consulta): Builder => $consulta->where(function (Builder $publicables) use (
+                    $maniobrasPublicables,
+                ): void {
+                    $publicables
+                        ->whereIn('maniobra_operacional_id', $maniobrasPublicables)
+                        ->orWhereNull('maniobra_operacional_id')
+                        ->orWhereHas(
+                            'planOperacional',
+                            fn (Builder $plan): Builder => $plan->where(
+                                'tipo',
+                                TipoPlanOperacional::RecepcionRepaletizaje->value,
+                            ),
+                        );
+                }),
+            )
+            ->with($this->relacionesTarea());
+
+        $consultaTareas->orderByRaw($this->ordenPrioridad());
+        if ($ordenArbitraje !== []) {
+            $casos = collect($ordenArbitraje)
+                ->map(fn (string $id, int $indice): string => "WHEN ? THEN {$indice}")
+                ->implode(' ');
+            $consultaTareas->orderByRaw(
+                "CASE maniobra_operacional_id {$casos} ELSE 999999 END",
+                $ordenArbitraje,
+            );
+        }
+
+        $tareas = $consultaTareas
             ->orderBy('created_at')
             ->orderBy('secuencia')
             ->paginate((int) ($filtros['per_page'] ?? 25))
             ->withQueryString();
 
-        return TareaMovimientoResource::collection($tareas);
+        $respuesta = TareaMovimientoResource::collection($tareas);
+        if ($cicloArbitraje) {
+            $respuesta->additional([
+                'arbitraje' => [
+                    'ciclo_id' => $cicloArbitraje->id,
+                    'snapshot_version' => $cicloArbitraje->snapshot_version,
+                    'capacidad_ejecucion' => $cicloArbitraje->capacidad_ejecucion,
+                    'frontera_max' => $cicloArbitraje->frontera_max,
+                    'seleccionadas' => $cicloArbitraje->decisiones
+                        ->where('decision', DecisionArbitrajeManiobra::Seleccionada)
+                        ->count(),
+                    'alternativas' => $cicloArbitraje->decisiones
+                        ->where('decision', DecisionArbitrajeManiobra::Alternativa)
+                        ->count(),
+                ],
+            ]);
+        }
+
+        return $respuesta;
     }
 
     public function asumir(
@@ -427,6 +497,8 @@ class PlanOperacionalController extends Controller
             'reservaActiva:id,tarea_movimiento_id,bloqueo_tarea_id,bloqueo_posicion_id,estado,reservada_at,renovada_at,vence_at,version',
             'maniobraOperacional:id,plan_operacional_id,estado,prioridad,candidate_key,titulo,secuencia_actual,costo_movimientos,beneficio_estimado,riesgo_operacional,responsable_user_id,dispositivo_id,version,contexto',
             'maniobraOperacional.objetivos:id,tipo,estado,prioridad,titulo',
+            'maniobraOperacional.ultimaDecisionArbitraje:id,ciclo_arbitraje_id,maniobra_operacional_id,orden,decision,puntaje,beneficio_neto,motivo,conflictos,created_at',
+            'maniobraOperacional.ultimaDecisionArbitraje.ciclo:id,snapshot_version,created_at',
             ...$this->relacionesDetalleManiobra('maniobraOperacional'),
         ];
     }
