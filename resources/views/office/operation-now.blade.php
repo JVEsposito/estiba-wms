@@ -218,6 +218,18 @@
             <div class="operation-now-loading is-hidden" id="operationLoading" aria-hidden="true"><span aria-hidden="true"></span><strong id="operationLoadingText">Consultando la operación…</strong></div>
             <div class="toast-region" id="operationToasts" aria-live="polite"></div>
 
+            <dialog class="operation-supervision" id="operationSupervisionDialog" aria-labelledby="operationSupervisionTitle">
+                <article class="operation-supervision__surface">
+                    <header class="operation-supervision__header">
+                        <div><p>SUPERVISIÓN OPERACIONAL</p><h2 id="operationSupervisionTitle">Detalle de maniobra</h2><span>Decisión, realidad física y secuencia vigente</span></div>
+                        <button type="button" id="operationSupervisionClose" aria-label="Cerrar detalle de maniobra">Cerrar</button>
+                    </header>
+                    <div class="operation-supervision__content" id="operationSupervisionContent">
+                        <div class="operation-now-empty">Selecciona una maniobra para revisar su detalle.</div>
+                    </div>
+                </article>
+            </dialog>
+
             <dialog class="operation-map-dialog" id="operationMapDialog" aria-labelledby="operationMapDialogTitle">
                 <div class="operation-map-dialog__shell">
                     <header class="operation-map-dialog__header">

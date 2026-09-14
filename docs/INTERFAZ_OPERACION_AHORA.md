@@ -93,3 +93,17 @@ enlaces llevan a las oficinas existentes que poseen sus propios permisos.
 
 El puesto de mando usa el mismo permiso de solo lectura de `Operación ahora` y
 no amplía el acceso al endpoint administrativo de salud.
+
+
+## Detalle de supervisión de maniobras
+
+Cada decisión del ciclo vigente permite abrir un drawer lateral de solo lectura. La vista resume:
+
+- decisión y motivo operacional;
+- objetivo, prioridad, puntaje, beneficio neto, costo y riesgo;
+- paso actual y progreso de la maniobra;
+- camarero y tablet asignados;
+- secuencia física completa;
+- conflictos expresados mediante conceptos operacionales, sin mostrar UUID.
+
+El drawer consume el mismo snapshot de `GET /api/operacion-ahora`; abrirlo no ejecuta arbitraje, no renueva reservas y no modifica maniobras. Durante el polling conserva la maniobra seleccionada y actualiza su información si continúa en el ciclo vigente.
