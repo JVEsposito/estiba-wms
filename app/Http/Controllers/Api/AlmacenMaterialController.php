@@ -157,6 +157,7 @@ class AlmacenMaterialController extends Controller
             'folio_id' => ['required', 'uuid', 'exists:folios_materiales,folio_id'],
             'almacen_origen_id' => ['nullable', 'uuid', 'exists:destinos_materiales,id'],
             'almacen_destino_id' => ['nullable', 'uuid', 'exists:destinos_materiales,id'],
+            'centro_costo_id' => ['nullable', 'uuid', 'exists:destinos_materiales,id'],
             'cantidad' => ['required', 'numeric', 'between:-99999999999.999,99999999999.999', 'not_in:0'],
             'motivo' => [
                 Rule::requiredIf(fn (): bool => in_array(
@@ -220,7 +221,9 @@ class AlmacenMaterialController extends Controller
             'cantidad' => $movimiento->cantidad,
             'saldo_origen_resultante' => $movimiento->saldo_origen_resultante,
             'saldo_destino_resultante' => $movimiento->saldo_destino_resultante,
+            'centro_costo' => $movimiento->centro_costo,
             'motivo' => $movimiento->motivo,
+            'metadatos' => $movimiento->metadatos,
             'ocurrido_at' => $movimiento->ocurrido_at?->toAtomString(),
         ];
     }
