@@ -14,4 +14,5 @@ enum DominioTransicionOperacional: string
     case Administracion = 'administracion';
     case Materiales = 'materiales';
     case Romana = 'romana';
+    case Planificador = 'planificador';
 }

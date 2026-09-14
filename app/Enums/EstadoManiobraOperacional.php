@@ -7,6 +7,7 @@ enum EstadoManiobraOperacional: string
     case Pendiente = 'pendiente';
     case EnEjecucion = 'en_ejecucion';
     case PausadaDiscrepancia = 'pausada_discrepancia';
+    case PausadaSupervision = 'pausada_supervision';
     case Completada = 'completada';
     case Cancelada = 'cancelada';
 

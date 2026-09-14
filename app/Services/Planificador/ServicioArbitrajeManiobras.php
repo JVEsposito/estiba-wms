@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioArbitrajeManiobras
 {
-    private const VERSION_REGLAS = 'arbitraje_global_v2_rollout';
+    private const VERSION_REGLAS = 'arbitraje_global_v3_supervision';
 
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
@@ -140,9 +140,12 @@ class ServicioArbitrajeManiobras
             return null;
         }
 
-        if ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia) {
+        if (in_array($maniobra->estado, [
+            EstadoManiobraOperacional::PausadaDiscrepancia,
+            EstadoManiobraOperacional::PausadaSupervision,
+        ], true)) {
             throw new ConflictoOperacion(
-                'La maniobra está pausada por discrepancia y no admite cambios físicos.',
+                'La maniobra está pausada y no admite cambios físicos.',
             );
         }
 
@@ -198,6 +201,7 @@ class ServicioArbitrajeManiobras
                 EstadoManiobraOperacional::Pendiente->value,
                 EstadoManiobraOperacional::EnEjecucion->value,
                 EstadoManiobraOperacional::PausadaDiscrepancia->value,
+                EstadoManiobraOperacional::PausadaSupervision->value,
             ])
             ->with([
                 'planOperacional.temporada',
@@ -280,6 +284,9 @@ class ServicioArbitrajeManiobras
                 if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
                     $this->ocuparRecursos($maniobra, $recursosTomados);
                 }
+            } elseif ($maniobra->estado === EstadoManiobraOperacional::PausadaSupervision) {
+                $decision = DecisionArbitrajeManiobra::FueraFrontera;
+                $motivo = 'La maniobra permanece pausada por supervisión antes de iniciar.';
             } elseif ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
                 || $this->realidadFisicaIniciada($maniobra)
                 || ($maniobra->estado === EstadoManiobraOperacional::EnEjecucion
