@@ -35,7 +35,7 @@ class ServicioFronteraFisica
             $temporada = Temporada::query()
                 ->where('activa', true)
                 ->first();
-            if (! $temporada) {
+            if (!$temporada) {
                 throw new DomainException('No existe una temporada operacional activa.');
             }
 
@@ -205,7 +205,7 @@ class ServicioFronteraFisica
             $camaraDestinoId,
         ]));
 
-        if (! $this->despliegue->dirige($camaras)) {
+        if (!$this->despliegue->dirige($camaras)) {
             throw new DomainException(
                 'La propuesta involucra una cámara fuera del rollout dirigido o el planificador no está habilitado completamente.',
             );
