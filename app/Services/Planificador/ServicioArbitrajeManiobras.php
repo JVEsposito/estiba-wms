@@ -227,8 +227,7 @@ class ServicioArbitrajeManiobras
         int $capacidad,
         int $fronteraMax,
         ?array $camarasRollout,
-    ): array
-    {
+    ): array {
         $ordenadas = $maniobras
             ->sort(function (ManiobraOperacional $izquierda, ManiobraOperacional $derecha): int {
                 $vectorIzquierda = $this->vectorOrden($izquierda);
@@ -474,8 +473,7 @@ class ServicioArbitrajeManiobras
         Temporada $temporada,
         Collection $maniobras,
         ?array $camarasRollout,
-    ): string
-    {
+    ): string {
         $estado = $maniobras
             ->sortBy('id')
             ->map(fn (ManiobraOperacional $maniobra): array => [
