@@ -73,6 +73,7 @@
                             <div class="operation-now-panel__tools operation-now-planner__signals">
                                 <strong class="operation-now-planner__cycle" id="plannerCycleMeta">Consultando ciclo…</strong>
                                 <span class="operation-now-planner__badge" id="plannerModeSignal" data-tone="neutral">Modo —</span>
+                                <span class="operation-now-planner__badge" id="plannerFreshnessSignal" data-tone="neutral">Vigencia —</span>
                                 <span class="operation-now-planner__badge" id="plannerHealthSignal" data-tone="neutral">Salud —</span>
                             </div>
                         </header>

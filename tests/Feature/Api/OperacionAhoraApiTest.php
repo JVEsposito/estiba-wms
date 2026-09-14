@@ -20,11 +20,15 @@ use App\Enums\TipoIncidenciaCarga;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
+use App\Jobs\RecalcularArbitrajePlanificador;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
+use App\Models\CicloArbitrajeManiobras;
+use App\Models\DecisionArbitrajeManiobra;
 use App\Models\DiscrepanciaManiobra;
 use App\Models\Dispositivo;
+use App\Models\EstadoArbitrajePlanificador;
 use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\ManiobraOperacional;
@@ -41,6 +45,7 @@ use App\Models\TunelPrefrio;
 use App\Models\User;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioSesionEstiba;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,6 +55,32 @@ use Tests\TestCase;
 class OperacionAhoraApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_lectura_guided_no_calcula_ni_persiste_arbitraje(): void
+    {
+        config([
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'rolling',
+        ]);
+        $this->crearTemporada();
+        $consulta = User::factory()->create(['rol' => RolUsuario::Consulta]);
+        $estadosAntes = EstadoArbitrajePlanificador::query()->count();
+        $ciclosAntes = CicloArbitrajeManiobras::query()->count();
+        $decisionesAntes = DecisionArbitrajeManiobra::query()->count();
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.planificador.arbitraje.activo', true)
+            ->assertJsonPath('data.planificador.arbitraje.vigencia.estado', 'pendiente')
+            ->assertJsonPath('data.planificador.arbitraje.vigencia.vigente', false)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo', null);
+
+        $this->assertSame($estadosAntes, EstadoArbitrajePlanificador::query()->count());
+        $this->assertSame($ciclosAntes, CicloArbitrajeManiobras::query()->count());
+        $this->assertSame($decisionesAntes, DecisionArbitrajeManiobra::query()->count());
+    }
 
     public function test_requiere_un_perfil_gerencial_y_expone_solo_la_temporada_activa(): void
     {
@@ -536,6 +567,9 @@ class OperacionAhoraApiTest extends TestCase
             'posicion_destino_id' => $camara->posiciones()->sole()->id,
             'instruccion' => 'Ubicar el pallet en cámara de despacho',
         ]);
+        app(ServicioEstadoArbitrajePlanificador::class)
+            ->solicitar($temporada, 'prueba_puesto_mando');
+        RecalcularArbitrajePlanificador::dispatchSync($temporada->id);
 
         $this->actingAs($consulta, 'sanctum')
             ->getJson('/api/operacion-ahora')
@@ -544,6 +578,8 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.planificador.despliegue.rollout_limitado', true)
             ->assertJsonPath('data.planificador.salud.estado', 'saludable')
             ->assertJsonPath('data.planificador.arbitraje.activo', true)
+            ->assertJsonPath('data.planificador.arbitraje.vigencia.estado', 'actual')
+            ->assertJsonPath('data.planificador.arbitraje.vigencia.vigente', true)
             ->assertJsonPath('data.planificador.arbitraje.ciclo.capacidad_ejecucion', 3)
             ->assertJsonPath('data.planificador.arbitraje.ciclo.frontera_max', 4)
             ->assertJsonPath('data.planificador.arbitraje.ciclo.resumen.seleccionada', 1)
@@ -556,6 +592,11 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.destino.codigo', 'CAM-MANDO-01')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.responsable.nombre', 'Supervisión puesto de mando')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.dispositivo.codigo', 'TAB-MANDO-01');
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.planificador.arbitraje.vigencia.estado', 'actual');
 
         $this->assertDatabaseCount('ciclos_arbitraje_maniobras', 1);
         $this->assertDatabaseCount('decisiones_arbitraje_maniobras', 1);

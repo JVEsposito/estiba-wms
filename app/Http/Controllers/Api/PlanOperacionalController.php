@@ -26,6 +26,7 @@ use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use App\Services\Planificador\ServicioArbitrajeManiobras;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use App\Services\Planificador\ServicioDesplieguePlanificador;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -117,6 +118,7 @@ class PlanOperacionalController extends Controller
         Request $request,
         ServicioReservasTareasMovimiento $reservas,
         ServicioArbitrajeManiobras $arbitraje,
+        ServicioEstadoArbitrajePlanificador $estadoArbitraje,
     ): AnonymousResourceCollection {
         $filtros = $request->validate([
             'estado' => ['nullable', Rule::enum(EstadoTareaMovimiento::class)],
@@ -129,20 +131,28 @@ class PlanOperacionalController extends Controller
         $usuarioId = $request->user()->id;
         $reservas->expirarVencidas();
         $cicloArbitraje = null;
+        $proyeccionArbitraje = null;
         $maniobrasPublicables = null;
         $ordenArbitraje = [];
 
         if ($asignacion === 'disponibles' && config('planificador.mode') === 'guided') {
             $temporada = Temporada::query()->where('activa', true)->first();
             if ($temporada) {
-                $cicloArbitraje = $arbitraje->arbitrar($temporada);
-                $maniobrasPublicables = $arbitraje->idsPublicables($cicloArbitraje)->all();
-                $ordenArbitraje = $cicloArbitraje->decisiones
-                    ->whereIn('maniobra_operacional_id', $maniobrasPublicables)
-                    ->sortBy('orden')
-                    ->pluck('maniobra_operacional_id')
-                    ->values()
-                    ->all();
+                $proyeccionArbitraje = $estadoArbitraje->consultar($temporada);
+                $cicloArbitraje = $proyeccionArbitraje['vigente']
+                    ? $proyeccionArbitraje['ciclo']
+                    : null;
+                $maniobrasPublicables = $cicloArbitraje
+                    ? $arbitraje->idsPublicables($cicloArbitraje)->all()
+                    : [];
+                $ordenArbitraje = $cicloArbitraje
+                    ? $cicloArbitraje->decisiones
+                        ->whereIn('maniobra_operacional_id', $maniobrasPublicables)
+                        ->sortBy('orden')
+                        ->pluck('maniobra_operacional_id')
+                        ->values()
+                        ->all()
+                    : [];
             }
         }
 
@@ -230,22 +240,27 @@ class PlanOperacionalController extends Controller
             ->withQueryString();
 
         $respuesta = TareaMovimientoResource::collection($tareas);
-        if ($cicloArbitraje) {
+        if ($proyeccionArbitraje) {
+            unset($proyeccionArbitraje['ciclo']);
             $respuesta->additional([
                 'arbitraje' => [
-                    'ciclo_id' => $cicloArbitraje->id,
-                    'snapshot_version' => $cicloArbitraje->snapshot_version,
-                    'capacidad_ejecucion' => $cicloArbitraje->capacidad_ejecucion,
-                    'frontera_max' => $cicloArbitraje->frontera_max,
-                    'seleccionadas' => $cicloArbitraje->decisiones
-                        ->where('decision', DecisionArbitrajeManiobra::Seleccionada)
-                        ->count(),
-                    'alternativas' => $cicloArbitraje->decisiones
-                        ->where('decision', DecisionArbitrajeManiobra::Alternativa)
-                        ->count(),
-                    'fuera_rollout' => $cicloArbitraje->decisiones
-                        ->where('decision', DecisionArbitrajeManiobra::FueraRollout)
-                        ->count(),
+                    'ciclo_id' => $cicloArbitraje?->id,
+                    'snapshot_version' => $cicloArbitraje?->snapshot_version,
+                    'capacidad_ejecucion' => $cicloArbitraje?->capacidad_ejecucion,
+                    'frontera_max' => $cicloArbitraje?->frontera_max,
+                    'vigencia' => $proyeccionArbitraje,
+                    'seleccionadas' => $cicloArbitraje?->decisiones?->where(
+                        'decision',
+                        DecisionArbitrajeManiobra::Seleccionada,
+                    )?->count() ?? 0,
+                    'alternativas' => $cicloArbitraje?->decisiones?->where(
+                        'decision',
+                        DecisionArbitrajeManiobra::Alternativa,
+                    )?->count() ?? 0,
+                    'fuera_rollout' => $cicloArbitraje?->decisiones?->where(
+                        'decision',
+                        DecisionArbitrajeManiobra::FueraRollout,
+                    )?->count() ?? 0,
                 ],
             ]);
         }

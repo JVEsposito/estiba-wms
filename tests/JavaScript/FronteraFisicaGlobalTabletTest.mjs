@@ -27,6 +27,8 @@ test('la tablet materializa contra el snapshot físico global', () => {
     assert.match(api, /'\/api\/frontera-fisica\/snapshot'/);
     assert.match(api, /'\/api\/frontera-fisica\/materializar'/);
     assert.match(inbox, /materializePhysicalFrontier\(/);
+    assert.match(inbox, /snapshot\.arbitraje\.vigencia\.vigente/);
+    assert.match(inbox, /Espera la próxima actualización antes de mover el pallet/);
 });
 
 test('cada propuesta conserva la versión de su propio plan', () => {

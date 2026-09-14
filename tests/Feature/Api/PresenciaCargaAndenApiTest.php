@@ -7,6 +7,7 @@ use App\Enums\EstadoTareaMovimiento;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Exceptions\ConflictoOperacion;
+use App\Jobs\RecalcularArbitrajePlanificador;
 use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\Carga;
@@ -25,6 +26,7 @@ use App\Services\Cargas\ServicioPlanDespachoDirecto;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioSesionEstiba;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -73,6 +75,9 @@ class PresenciaCargaAndenApiTest extends TestCase
         $this->assertNull($tarea->posicion_destino_id);
         $this->assertSame('retiro_directo_anden', $tarea->contexto['tipo_decision']);
         $this->assertSame($contexto['anden']->id, $tarea->contexto['anden_id']);
+        app(ServicioEstadoArbitrajePlanificador::class)
+            ->solicitar($plan->temporada_id, 'prueba_despacho_directo');
+        RecalcularArbitrajePlanificador::dispatchSync($plan->temporada_id);
 
         $this->conToken($contexto['token'])
             ->getJson('/api/tareas-movimiento?asignacion=disponibles')

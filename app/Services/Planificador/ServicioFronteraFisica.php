@@ -24,7 +24,7 @@ class ServicioFronteraFisica
     private const VERSION_SNAPSHOT = 'frontera_fisica_global_v1';
 
     public function __construct(
-        private readonly ServicioArbitrajeManiobras $arbitraje,
+        private readonly ServicioEstadoArbitrajePlanificador $estadoArbitraje,
         private readonly ServicioDesplieguePlanificador $despliegue,
     ) {}
 
@@ -40,8 +40,11 @@ class ServicioFronteraFisica
             }
 
             $camarasDirigidas = $this->despliegue->idsCamarasDirigidas();
-            $ciclo = $this->arbitraje->arbitrar($temporada);
-            $decisiones = $ciclo->decisiones->keyBy('maniobra_operacional_id');
+            $proyeccionArbitraje = $this->estadoArbitraje->consultar($temporada);
+            $ultimoCiclo = $proyeccionArbitraje['ciclo'];
+            $ciclo = $proyeccionArbitraje['vigente'] ? $ultimoCiclo : null;
+            unset($proyeccionArbitraje['ciclo']);
+            $decisiones = $ciclo?->decisiones?->keyBy('maniobra_operacional_id') ?? collect();
             $tareas = $this->tareasActuales($temporada, $usuario, $dispositivo)
                 ->map(function (TareaMovimiento $tarea) use (
                     $camarasDirigidas,
@@ -129,7 +132,12 @@ class ServicioFronteraFisica
                 'version_reglas' => self::VERSION_SNAPSHOT,
                 'temporada' => [$temporada->id, $temporada->updated_at?->getTimestamp()],
                 'actor' => [$usuario->id, $dispositivo->id],
-                'arbitraje' => [$ciclo->id, $ciclo->snapshot_version],
+                'arbitraje' => [
+                    $ciclo?->id,
+                    $ciclo?->snapshot_version,
+                    $proyeccionArbitraje['version_solicitada'],
+                    $proyeccionArbitraje['version_calculada'],
+                ],
                 'planner' => [
                     config('planificador.mode'),
                     config('planificador.compute'),
@@ -160,7 +168,10 @@ class ServicioFronteraFisica
                     'rollout_limitado' => config('planificador.rollout_camaras', []) !== [],
                     'camaras_dirigidas' => $camarasDirigidas,
                 ],
-                'arbitraje' => $this->resumenArbitraje($ciclo),
+                'arbitraje' => $this->resumenArbitraje(
+                    $ultimoCiclo,
+                    $proyeccionArbitraje,
+                ),
                 'frontera' => [
                     'reservas_fisicas_activas' => $reservasFisicas,
                     'tareas_materializables' => $tareas
@@ -251,25 +262,33 @@ class ServicioFronteraFisica
     }
 
     /** @return array<string, mixed> */
-    private function resumenArbitraje(CicloArbitrajeManiobras $ciclo): array
+    private function resumenArbitraje(
+        ?CicloArbitrajeManiobras $ciclo,
+        array $vigencia,
+    ): array
     {
         return [
-            'ciclo_id' => $ciclo->id,
-            'snapshot_version' => $ciclo->snapshot_version,
-            'capacidad_ejecucion' => $ciclo->capacidad_ejecucion,
-            'frontera_max' => $ciclo->frontera_max,
-            'en_ejecucion' => $ciclo->decisiones
-                ->where('decision', DecisionArbitrajeManiobra::EnEjecucion)
-                ->count(),
-            'seleccionadas' => $ciclo->decisiones
-                ->where('decision', DecisionArbitrajeManiobra::Seleccionada)
-                ->count(),
-            'alternativas' => $ciclo->decisiones
-                ->where('decision', DecisionArbitrajeManiobra::Alternativa)
-                ->count(),
-            'fuera_rollout' => $ciclo->decisiones
-                ->where('decision', DecisionArbitrajeManiobra::FueraRollout)
-                ->count(),
+            'ciclo_id' => $ciclo?->id,
+            'snapshot_version' => $ciclo?->snapshot_version,
+            'capacidad_ejecucion' => $ciclo?->capacidad_ejecucion,
+            'frontera_max' => $ciclo?->frontera_max,
+            'vigencia' => $vigencia,
+            'en_ejecucion' => $ciclo?->decisiones?->where(
+                'decision',
+                DecisionArbitrajeManiobra::EnEjecucion,
+            )?->count() ?? 0,
+            'seleccionadas' => $ciclo?->decisiones?->where(
+                'decision',
+                DecisionArbitrajeManiobra::Seleccionada,
+            )?->count() ?? 0,
+            'alternativas' => $ciclo?->decisiones?->where(
+                'decision',
+                DecisionArbitrajeManiobra::Alternativa,
+            )?->count() ?? 0,
+            'fuera_rollout' => $ciclo?->decisiones?->where(
+                'decision',
+                DecisionArbitrajeManiobra::FueraRollout,
+            )?->count() ?? 0,
         ];
     }
 }

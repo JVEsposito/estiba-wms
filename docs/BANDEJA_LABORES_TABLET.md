@@ -77,6 +77,12 @@ La API de frontera permite aceptación parcial. Si tres propuestas siguen siendo
 
 ## Snapshot y arbitraje
 
+Las consultas de bandeja y frontera física no ejecutan el árbitro. Consumen el
+último ciclo persistido y su contrato de vigencia. Cuando la proyección está
+pendiente, recalculándose, atrasada o en error, la tablet conserva las labores
+propias visibles pero no materializa un nuevo destino. La pantalla explica que
+debe esperar la próxima actualización antes de mover el pallet.
+
 La selección entre maniobras de objetivos distintos se resuelve primero mediante
 el [arbitraje global](ARBITRAJE_GLOBAL_MANIOBRAS.md). El servidor publica hasta
 tres maniobras compatibles y una cuarta alternativa sin reserva, dejando una

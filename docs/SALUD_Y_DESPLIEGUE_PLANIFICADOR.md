@@ -60,8 +60,9 @@ vencidos todavía activos o maniobras completadas con custodia temporal;
 `advertencia` identifica tareas estancadas, custodias activas o discrepancias
 abiertas.
 
-En `shadow` y `guided`, consultar salud evalúa el estado actual del árbitro sin
-asumir tareas, reservar posiciones ni materializar destinos. La sección
+En `shadow` y `guided`, consultar salud lee el último resultado persistido sin
+ejecutar el árbitro. `vigencia_arbitraje` informa si el resultado está actual,
+pendiente, recalculándose, atrasado o en error. La sección
 `metricas.arbitraje` expone:
 
 - `ciclos_nuevos`, donde un ciclo significa un estado autoritativo diferente y
@@ -74,8 +75,18 @@ asumir tareas, reservar posiciones ni materializar destinos. La sección
 
 El filtro `camara_id` atribuye decisiones por pasos, reservas de banda o
 custodias temporales asociados a esa cámara. El ciclo persistido sigue siendo
-global y un estado idéntico se reutiliza, por lo que consultar repetidamente el
-endpoint no infla la métrica.
+global y un estado idéntico se reutiliza. Consultar repetidamente Salud u
+Operación ahora no crea ciclos, no infla métricas y no bloquea maniobras.
+
+Los cambios en planes, maniobras, pasos, reservas de banda, custodias, cámaras o
+temporadas solicitan `RecalcularArbitrajePlanificador` después del commit. La
+cola deduplica por temporada. El scheduler ejecuta cada minuto el watchdog
+`planificador:recalcular-arbitraje`; este recupera solicitudes pendientes y
+refresca una proyección que exceda `WMS_PLANNER_ARBITRATION_REFRESH_SECONDS`.
+El panel considera atrasada una evaluación al superar
+`WMS_PLANNER_ARBITRATION_STALE_SECONDS`. El contrato expone versiones solicitada
+y calculada, espera, duración del último cálculo y contadores de ejecuciones
+exitosas o fallidas sin publicar el detalle interno de la excepción.
 
 Las mismas señales actuales de salud se reutilizan en el puesto de mando de
 `Operación ahora`, sin ejecutar allí las métricas históricas de planes,

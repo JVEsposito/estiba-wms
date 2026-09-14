@@ -15,6 +15,7 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('Puesto de mando del planificador')
             ->assertSee('Arbitraje, rollout y realidad física vigente')
             ->assertSee('id="operationPlannerPanel"', false)
+            ->assertSee('id="plannerFreshnessSignal"', false)
             ->assertSee('id="plannerDecisionRows"', false)
             ->assertSee('id="plannerRiskRows"', false)
             ->assertSee('<th scope="col">Razón operacional</th>', false)
@@ -69,6 +70,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('validateSnapshot', $script);
         $this->assertStringContainsString('renderPlanner', $script);
         $this->assertStringContainsString('data.planificador?.salud?.riesgos', $script);
+        $this->assertStringContainsString('data.planificador?.arbitraje?.vigencia', $script);
+        $this->assertStringContainsString('Vigencia ${plannerFreshnessLabel', $script);
         $this->assertStringContainsString('Planificador detenido por configuración', $script);
         $this->assertStringContainsString('plannerConflictDetail', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);

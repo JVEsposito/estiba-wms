@@ -21,3 +21,7 @@ Schedule::command('folios:auditar-integridad --origen=programada')
 Schedule::command('tareas:expirar-reservas --limite=250')
     ->everyMinute()
     ->withoutOverlapping(2);
+
+Schedule::command('planificador:recalcular-arbitraje')
+    ->everyMinute()
+    ->withoutOverlapping(2);

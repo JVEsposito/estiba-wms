@@ -7,6 +7,7 @@ use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPlanOperacional;
+use App\Jobs\RecalcularArbitrajePlanificador;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -15,6 +16,7 @@ use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -52,6 +54,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
         $planes = app(ServicioPlanesOperacionales::class);
         $planes->asumir($primera, $contexto['camarero'], $contexto['dispositivo']);
         $planes->asumir($segunda, $contexto['camarero'], $contexto['dispositivo']);
+        $this->actualizarArbitraje($contexto['temporada']);
 
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
@@ -107,6 +110,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
         $planes = app(ServicioPlanesOperacionales::class);
         $planes->asumir($primera, $contexto['camarero'], $contexto['dispositivo']);
         $planes->asumir($segunda, $contexto['camarero'], $contexto['dispositivo']);
+        $this->actualizarArbitraje($contexto['temporada']);
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
             ->assertOk()
@@ -155,6 +159,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             $contexto['camarero'],
             $contexto['dispositivo'],
         );
+        $this->actualizarArbitraje($contexto['temporada']);
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
             ->assertOk()
@@ -207,6 +212,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             $contexto['camarero'],
             $contexto['dispositivo'],
         );
+        $this->actualizarArbitraje($contexto['temporada']);
 
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
@@ -253,6 +259,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             $contexto['dispositivo'],
         );
         config(['planificador.generacion_automatica' => false]);
+        $this->actualizarArbitraje($contexto['temporada']);
 
         $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
@@ -285,6 +292,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             $contexto['camarero'],
             $contexto['dispositivo'],
         );
+        $this->actualizarArbitraje($contexto['temporada']);
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
             ->assertOk()
@@ -332,6 +340,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             'estado' => EstadoManiobraOperacional::PausadaDiscrepancia,
             'version' => $maniobra->version + 1,
         ]);
+        $this->actualizarArbitraje($contexto['temporada']);
 
         $snapshot = $this->conToken($contexto['token'])
             ->getJson('/api/frontera-fisica/snapshot')
@@ -355,6 +364,13 @@ class FronteraFisicaGlobalApiTest extends TestCase
             ->assertJsonCount(1, 'data.rechazadas');
 
         $this->assertNull($tarea->refresh()->posicion_destino_id);
+    }
+
+    private function actualizarArbitraje(Temporada $temporada): void
+    {
+        app(ServicioEstadoArbitrajePlanificador::class)
+            ->solicitar($temporada, 'prueba_frontera_fisica');
+        RecalcularArbitrajePlanificador::dispatchSync($temporada->id);
     }
 
     /** @return array<string, mixed> */

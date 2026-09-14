@@ -7,6 +7,7 @@ use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
 use App\Enums\TipoPlanOperacional;
+use App\Jobs\RecalcularArbitrajePlanificador;
 use App\Models\Camara;
 use App\Models\CustodiaTemporalManiobra;
 use App\Models\DiscrepanciaManiobra;
@@ -19,6 +20,7 @@ use App\Models\ReservaTareaMovimiento;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -290,6 +292,9 @@ class SaludPlanificadorApiTest extends TestCase
         $crearManiobra('principal', $folioCompartido, $camaraDirigida, 300);
         $crearManiobra('conflicto', $folioCompartido, $camaraDirigida, 200);
         $crearManiobra('fuera', $folioFuera, $camaraFuera, 10_000);
+        app(ServicioEstadoArbitrajePlanificador::class)
+            ->solicitar($temporada, 'prueba_salud_shadow');
+        RecalcularArbitrajePlanificador::dispatchSync($temporada->id);
         $consulta = http_build_query([
             'desde' => now()->subHour()->toIso8601String(),
             'hasta' => now()->addMinute()->toIso8601String(),
@@ -299,6 +304,7 @@ class SaludPlanificadorApiTest extends TestCase
             ->getJson("/api/administracion/planificador/salud?{$consulta}")
             ->assertOk()
             ->assertJsonPath('data.despliegue.mode_global', 'shadow')
+            ->assertJsonPath('data.vigencia_arbitraje.estado', 'actual')
             ->assertJsonPath('data.metricas.arbitraje.unidad_ciclo', 'estado_nuevo')
             ->assertJsonPath('data.metricas.arbitraje.ciclos_nuevos', 1)
             ->assertJsonPath('data.metricas.arbitraje.decisiones_total', 3)
