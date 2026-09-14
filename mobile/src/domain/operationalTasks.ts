@@ -231,10 +231,27 @@ export type OperationalPhysicalFrontierSnapshot = {
     camaras_dirigidas: string[] | null;
   };
   arbitraje: {
-    ciclo_id: string;
-    snapshot_version: string;
-    capacidad_ejecucion: number;
-    frontera_max: number;
+    ciclo_id: string | null;
+    snapshot_version: string | null;
+    capacidad_ejecucion: number | null;
+    frontera_max: number | null;
+    vigencia: {
+      estado: 'detenido' | 'pendiente' | 'recalculando' | 'actual' | 'atrasado' | 'error';
+      vigente: boolean;
+      detalle: string;
+      solicitado_at: string | null;
+      iniciado_at: string | null;
+      evaluado_at: string | null;
+      edad_segundos: number | null;
+      umbral_atraso_segundos: number;
+      version_solicitada: number;
+      version_calculada: number;
+      calculos_exitosos: number;
+      calculos_fallidos: number;
+      espera_ultimo_calculo_ms: number | null;
+      duracion_ultimo_calculo_ms: number | null;
+      ultimo_error_at: string | null;
+    };
     en_ejecucion: number;
     seleccionadas: number;
     alternativas: number;

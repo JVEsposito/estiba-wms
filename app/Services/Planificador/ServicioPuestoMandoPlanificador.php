@@ -16,7 +16,7 @@ final class ServicioPuestoMandoPlanificador
 {
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
-        private readonly ServicioArbitrajeManiobras $arbitraje,
+        private readonly ServicioEstadoArbitrajePlanificador $estadoArbitraje,
         private readonly ServicioSaludPlanificador $salud,
     ) {}
 
@@ -24,9 +24,9 @@ final class ServicioPuestoMandoPlanificador
     public function obtener(Temporada $temporada): array
     {
         $modo = $this->despliegue->modoGlobal();
-        $ciclo = in_array($modo, ['shadow', 'guided'], true)
-            ? $this->arbitraje->arbitrar($temporada)
-            : null;
+        $proyeccion = $this->estadoArbitraje->consultar($temporada);
+        $ciclo = $proyeccion['ciclo'];
+        unset($proyeccion['ciclo']);
 
         if ($ciclo) {
             $this->cargarDecisiones($ciclo);
@@ -37,7 +37,8 @@ final class ServicioPuestoMandoPlanificador
             'despliegue' => $this->despliegue->configuracion(),
             'salud' => $this->salud->saludActual($temporada->id),
             'arbitraje' => [
-                'activo' => $ciclo !== null,
+                'activo' => in_array($modo, ['shadow', 'guided'], true),
+                'vigencia' => $proyeccion,
                 'ciclo' => $ciclo ? $this->serializarCiclo($ciclo) : null,
             ],
         ];

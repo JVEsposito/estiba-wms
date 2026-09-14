@@ -11,6 +11,7 @@ use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPlanOperacional;
+use App\Jobs\RecalcularArbitrajePlanificador;
 use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
@@ -21,6 +22,7 @@ use App\Models\User;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Planificador\ServicioArbitrajeManiobras;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -176,6 +178,9 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
             100,
             3,
         );
+        app(ServicioEstadoArbitrajePlanificador::class)
+            ->solicitar($contexto['temporada'], 'prueba_bandeja_arbitraje');
+        RecalcularArbitrajePlanificador::dispatchSync($contexto['temporada']->id);
 
         $respuesta = $this->conToken($contexto['token'])
             ->getJson('/api/tareas-movimiento?asignacion=disponibles')
@@ -183,6 +188,7 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
             ->assertJsonPath('meta.total', 4)
             ->assertJsonPath('arbitraje.capacidad_ejecucion', 3)
             ->assertJsonPath('arbitraje.frontera_max', 4)
+            ->assertJsonPath('arbitraje.vigencia.estado', 'actual')
             ->assertJsonPath('arbitraje.seleccionadas', 3)
             ->assertJsonPath('arbitraje.alternativas', 1)
             ->assertJsonPath('data.0.maniobra.id', $principal->id)

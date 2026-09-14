@@ -56,14 +56,19 @@ pantallas angostas vuelven a una sola columna y recuperan su altura natural.
 
 El puesto de mando forma parte del mismo `GET /api/operacion-ahora`; no realiza
 una segunda consulta ni reutiliza el agregado histórico del endpoint
-administrativo. En cada refresco comparte únicamente las señales actuales de
-salud y, cuando `WMS_PLANNER_MODE` está en `shadow` o `guided`, observa el ciclo
-idempotente del árbitro. Esta lectura no asume labores, no reserva recursos y no
-materializa destinos.
+administrativo. El `GET` consulta exclusivamente el último ciclo persistido y
+su estado de vigencia: nunca ejecuta el árbitro, crea ciclos ni adquiere bloqueos
+sobre maniobras. Las mutaciones operacionales solicitan el recálculo después del
+commit y un job deduplicado por temporada publica la nueva proyección.
+
+La interfaz distingue `Actual`, `Pendiente`, `Recalculando`, `Atrasado`, `Error`
+y `Detenido`. Mientras llega un ciclo nuevo conserva el último confirmado, pero
+lo declara no vigente y la frontera física no lo materializa. Si todavía no
+existe un ciclo, los conteos muestran raya en lugar de inventar ceros.
 
 Cada fila identifica orden y decisión, maniobra y objetivo, estado y progreso,
 folio y ruta del paso actual, responsable, dispositivo, motivo y cantidad de
-conflictos. El resumen conserva conteos estables incluso cuando valen cero. En
+conflictos. El resumen conserva conteos estables cuando existe un ciclo. En
 modo `off` la interfaz declara que el planificador está detenido y no presenta
 un ciclo antiguo como si continuara vigente.
 

@@ -40,6 +40,7 @@ use App\Observers\InvalidarPanelGerencialObserver;
 use App\Observers\ReplanificarDesocupacionMovimientoObserver;
 use App\Observers\ReplanificarOportunidadReordenamientoObserver;
 use App\Observers\ReplanificarSegregacionMovimientoObserver;
+use App\Observers\SolicitarArbitrajePlanificadorObserver;
 use App\Observers\UbicacionActualObserver;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Transiciones\ContextoEjecucionTransicionOperacional;
@@ -128,6 +129,9 @@ class AppServiceProvider extends ServiceProvider
         }
         foreach (InvalidarBandejasOperacionalesObserver::modelosObservados() as $modelo) {
             $modelo::observe(InvalidarBandejasOperacionalesObserver::class);
+        }
+        foreach (SolicitarArbitrajePlanificadorObserver::modelosObservados() as $modelo) {
+            $modelo::observe(SolicitarArbitrajePlanificadorObserver::class);
         }
         Event::listen(EventoCargaRegistrado::class, CrearNotificacionesOperacionales::class);
 

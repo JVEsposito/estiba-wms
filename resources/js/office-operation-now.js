@@ -37,6 +37,7 @@ const elements = {
     incidentRows: byId('operationIncidentRows'),
     plannerPanel: byId('operationPlannerPanel'),
     plannerMode: byId('plannerModeSignal'),
+    plannerFreshness: byId('plannerFreshnessSignal'),
     plannerHealth: byId('plannerHealthSignal'),
     plannerCycleMeta: byId('plannerCycleMeta'),
     plannerRiskRows: byId('plannerRiskRows'),
@@ -230,7 +231,7 @@ function validateSnapshot(data) {
         && Array.isArray(data.incidencias?.abiertas)
         && data.planificador?.despliegue
         && data.planificador?.salud?.riesgos
-        && data.planificador?.arbitraje
+        && data.planificador?.arbitraje?.vigencia
         && data.planta
         && Array.isArray(data.planta?.catalogo)
         && Array.isArray(data.planta?.elementos);
@@ -397,6 +398,17 @@ function plannerDecisionLabel(decision) {
     }[decision] || humanize(decision);
 }
 
+function plannerFreshnessLabel(status) {
+    return {
+        detenido: 'Detenido',
+        pendiente: 'Pendiente',
+        recalculando: 'Recalculando',
+        actual: 'Actual',
+        atrasado: 'Atrasado',
+        error: 'Error',
+    }[status] || humanize(status || 'sin lectura');
+}
+
 function plannerRoute(step) {
     if (!step) return 'Sin paso activo';
     const origin = step.origen?.codigo || 'Inicio';
@@ -417,20 +429,36 @@ function renderPlanner(planner = {}) {
     const health = planner.salud || {};
     const risks = health.riesgos || {};
     const cycle = planner.arbitraje?.ciclo;
+    const freshness = planner.arbitraje?.vigencia || {};
     const summary = cycle?.resumen || {};
     const decisions = Array.isArray(cycle?.decisiones) ? cycle.decisiones : [];
     const mode = deployment.mode_global || 'off';
     const healthTone = { saludable: 'success', advertencia: 'warning', critico: 'critical' }[health.estado] || 'neutral';
     const modeTone = { guided: 'success', shadow: 'info', off: 'neutral' }[mode] || 'neutral';
+    const freshnessTone = {
+        actual: 'success',
+        recalculando: 'info',
+        pendiente: 'warning',
+        atrasado: 'warning',
+        error: 'critical',
+        detenido: 'neutral',
+    }[freshness.estado] || 'neutral';
+    const panelTone = freshnessTone === 'critical' || healthTone === 'critical'
+        ? 'critical'
+        : (freshnessTone === 'warning' || healthTone === 'warning' ? 'warning' : healthTone);
 
-    elements.plannerPanel.dataset.tone = healthTone;
+    elements.plannerPanel.dataset.tone = panelTone;
     elements.plannerMode.dataset.tone = modeTone;
     elements.plannerMode.textContent = `Modo ${plannerModeLabel(mode)}`;
+    elements.plannerFreshness.dataset.tone = freshnessTone;
+    elements.plannerFreshness.textContent = `Vigencia ${plannerFreshnessLabel(freshness.estado)}`;
+    elements.plannerFreshness.title = freshness.detalle || 'Sin detalle de vigencia';
     elements.plannerHealth.dataset.tone = healthTone;
     elements.plannerHealth.textContent = `Salud ${humanize(health.estado || 'sin lectura')}`;
     elements.plannerCycleMeta.textContent = cycle
-        ? `Ciclo ${dateTime(cycle.generado_at, { timeOnly: true })} · ${number(decisions.length)} decisiones`
-        : 'Sin ciclo activo';
+        ? `Evaluado ${dateTime(freshness.evaluado_at, { timeOnly: true })} · ${number(decisions.length)} decisiones`
+        : plannerFreshnessLabel(freshness.estado);
+    elements.plannerCycleMeta.title = freshness.detalle || '';
 
     setText('plannerCompute', deployment.compute === 'tablet' ? 'Tablet' : humanize(deployment.compute));
     setText('plannerHorizon', deployment.horizon === 'rolling' ? 'Continuo' : humanize(deployment.horizon));
@@ -440,11 +468,11 @@ function renderPlanner(planner = {}) {
     setText('plannerCapacity', cycle
         ? `${number(cycle.capacidad_ejecucion)} / ${number(cycle.frontera_max)}`
         : 'Sin arbitraje');
-    setText('plannerRunningCount', number(summary.en_ejecucion || 0));
-    setText('plannerSelectedCount', number(summary.seleccionada || 0));
-    setText('plannerAlternativeCount', number(summary.alternativa || 0));
-    setText('plannerConflictCount', number(summary.excluida_conflicto || 0));
-    setText('plannerRolloutCount', number(summary.fuera_rollout || 0));
+    setText('plannerRunningCount', cycle ? number(summary.en_ejecucion || 0) : '—');
+    setText('plannerSelectedCount', cycle ? number(summary.seleccionada || 0) : '—');
+    setText('plannerAlternativeCount', cycle ? number(summary.alternativa || 0) : '—');
+    setText('plannerConflictCount', cycle ? number(summary.excluida_conflicto || 0) : '—');
+    setText('plannerRolloutCount', cycle ? number(summary.fuera_rollout || 0) : '—');
 
     const riskDefinitions = [
         ['leases_vencidos_activos', 'Leases vencidos', 'critical'],
@@ -462,7 +490,7 @@ function renderPlanner(planner = {}) {
         const stopped = mode === 'off';
         elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty(
             stopped ? 'Planificador detenido por configuración' : 'Sin ciclo de arbitraje vigente',
-            stopped ? 'WMS_PLANNER_MODE=off: la operación continúa sin decisiones automatizadas.' : 'No existen maniobras elegibles para construir la frontera actual.',
+            stopped ? 'WMS_PLANNER_MODE=off: la operación continúa sin decisiones automatizadas.' : (freshness.detalle || 'El recálculo desacoplado todavía no confirma una frontera.'),
         )}</td></tr>`;
         return;
     }

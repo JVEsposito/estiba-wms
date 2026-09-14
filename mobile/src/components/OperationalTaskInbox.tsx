@@ -288,6 +288,12 @@ export function OperationalTaskInbox({ api, auth }: Props) {
           `El planificador está configurado como ${snapshot.planner.compute}/${snapshot.planner.horizon}; no corresponde cálculo rolling en tablet.`,
         );
       }
+      if (!snapshot.arbitraje.vigencia.vigente) {
+        throw new Error(
+          `El arbitraje está ${snapshot.arbitraje.vigencia.estado}. `
+          + `${snapshot.arbitraje.vigencia.detalle} Espera la próxima actualización antes de mover el pallet.`,
+        );
+      }
 
       const tasksForFrontier = dedupeTasks([
         anchorTask,

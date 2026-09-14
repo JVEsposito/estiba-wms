@@ -50,6 +50,14 @@ return [
         1,
         (int) env('WMS_PLANNER_MAX_ACTIVE_MANEUVERS', 3),
     ),
+    'arbitraje_refresco_segundos' => max(
+        60,
+        (int) env('WMS_PLANNER_ARBITRATION_REFRESH_SECONDS', 240),
+    ),
+    'arbitraje_atrasado_segundos' => max(
+        30,
+        (int) env('WMS_PLANNER_ARBITRATION_STALE_SECONDS', 300),
+    ),
 
     /*
     |--------------------------------------------------------------------------

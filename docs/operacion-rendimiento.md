@@ -30,7 +30,12 @@ Este perfil reduce escrituras y lecturas auxiliares en MySQL:
 - Telescope no registra cada petición, consulta, modelo y excepción.
 - Caché y sesiones no compiten con las transacciones operacionales en la base de datos.
 - Sanctum no actualiza `personal_access_tokens.last_used_at` en cada petición autenticada. La autenticación, expiración y validación de usuario y dispositivo permanecen activas.
-- La cola continúa en MySQL mientras exista un solo servidor. Si la carga crece o se agregan servidores, Redis es el siguiente paso recomendado.
+- La cola continúa en MySQL mientras exista un solo servidor. Además de las
+  auditorías manuales, procesa el arbitraje desacoplado del planificador; por eso
+  el worker es obligatorio en `shadow` y `guided`. Si la carga crece o se agregan
+  servidores, Redis es el siguiente paso recomendado. La conexión `sync` no
+  ejecuta el árbitro dentro de una mutación: deja la proyección pendiente para
+  impedir que una mala configuración vuelva a acoplar el cálculo a la solicitud.
 
 ## Cola de trabajo
 
@@ -46,7 +51,10 @@ Después de cada despliegue se debe reiniciar el worker para que cargue el códi
 php artisan queue:restart
 ```
 
-El scheduler conserva la auditoría automática cada 15 minutos; el bloqueo compartido evita que una ejecución manual y una programada escriban resultados al mismo tiempo.
+El scheduler conserva la auditoría automática cada 15 minutos y, cada minuto,
+verifica que la proyección de arbitraje tenga un job vigente. El bloqueo
+compartido evita que una ejecución manual y una programada de integridad
+escriban resultados al mismo tiempo.
 
 ## Telescope
 

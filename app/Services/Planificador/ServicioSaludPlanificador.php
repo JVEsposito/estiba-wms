@@ -26,7 +26,7 @@ final class ServicioSaludPlanificador
 {
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
-        private readonly ServicioArbitrajeManiobras $arbitraje,
+        private readonly ServicioEstadoArbitrajePlanificador $estadoArbitraje,
     ) {}
 
     /** @return array<string, mixed> */
@@ -37,10 +37,11 @@ final class ServicioSaludPlanificador
     ): array {
         $temporada = Temporada::query()->where('activa', true)->first();
         $temporadaId = $temporada?->id;
-        if ($temporada && in_array(config('planificador.mode'), ['shadow', 'guided'], true)) {
-            // La lectura administrativa observa el mismo árbitro sin reservar ni
-            // materializar destinos. Un snapshot idéntico reutiliza el ciclo.
-            $this->arbitraje->arbitrar($temporada);
+        $vigenciaArbitraje = $temporada
+            ? $this->estadoArbitraje->consultar($temporada)
+            : null;
+        if ($vigenciaArbitraje !== null) {
+            unset($vigenciaArbitraje['ciclo']);
         }
         $operacion = $this->metricasOperacion($temporadaId, $desde, $hasta, $camaraId);
         $salud = $this->saludActual($temporadaId, $camaraId);
@@ -53,6 +54,7 @@ final class ServicioSaludPlanificador
                 'temporada_id' => $temporadaId,
             ],
             'despliegue' => $despliegue,
+            'vigencia_arbitraje' => $vigenciaArbitraje,
             'salud' => $salud,
             'metricas' => $operacion,
         ];
