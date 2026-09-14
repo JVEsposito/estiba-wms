@@ -25,6 +25,7 @@ use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\TunelPrefrio;
+use App\Services\Planificador\ServicioPuestoMandoPlanificador;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,7 +35,10 @@ use Illuminate\Support\Collection;
 
 class ServicioOperacionAhora
 {
-    public function __construct(private readonly ServicioPlanoPlanta $planos) {}
+    public function __construct(
+        private readonly ServicioPlanoPlanta $planos,
+        private readonly ServicioPuestoMandoPlanificador $puestoMando,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -65,6 +69,7 @@ class ServicioOperacionAhora
             'camareros' => $this->camareros($temporada),
             'prefrio' => $prefrio,
             'incidencias' => $this->incidencias($temporada, $ahora),
+            'planificador' => $this->puestoMando->obtener($temporada),
             'camaras' => $camaras,
             'planta' => $this->planos->obtener(
                 $camaras,

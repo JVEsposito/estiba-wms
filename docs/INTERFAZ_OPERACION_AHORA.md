@@ -8,6 +8,8 @@ histórico.
 ## Contenido visible
 
 - jornada, temporada, hora del servidor y evidencia de la última actualización;
+- puesto de mando del planificador con modo, rollout, salud física, capacidad de
+  frontera y decisiones del ciclo vigente;
 - resumen de cámaras activas, ocupación PT y controles ambientales requeridos;
 - camareros con sesión abierta, dispositivo, cámara actual y tarea vigente;
 - túneles de prefrío, capacidad física, proceso activo y avance temporal;
@@ -16,8 +18,8 @@ histórico.
   procesos de prefrío fuera de objetivo y conflictos de sincronización;
 - conteos diarios de sincronizaciones aceptadas, pendientes, en proceso,
   rechazadas y con conflicto;
-- vista esquemática construida únicamente con cámaras y túneles entregados por
-  el contrato, sin afirmar que representa coordenadas físicas;
+- plano editable de la planta con cámaras, túneles, andenes, bodegas y zonas,
+  enriquecido con el estado operacional vigente;
 - accesos directos a cámaras, prefrío, cargas e incidencias existentes.
 
 El avance de prefrío se identifica explícitamente como tiempo transcurrido. La
@@ -40,14 +42,30 @@ La sincronización y sus cinco estados diarios se concentran en una franja
 operacional compacta bajo el título, separada de la fecha, el turno y la acción
 de actualización.
 
-Los paneles corresponden a consultas concretas: dónde están los camareros, qué
-cámaras requieren atención, qué túneles están activos, qué dispositivos están
-sincronizando y qué excepciones siguen abiertas. No se usan gradientes,
+Los paneles corresponden a consultas concretas: qué decidió el árbitro, dónde
+están los camareros, qué cámaras requieren atención, qué túneles están activos,
+qué dispositivos están sincronizando y qué excepciones siguen abiertas. No se usan gradientes,
 sombras pesadas, radios grandes ni datos de muestra. Si no existe control
 ambiental, la columna de temperatura declara `SIN REGISTRO`. En escritorio los
-seis bloques de información se distribuyen en una grilla compacta de tres filas,
+los bloques de información se distribuyen en una grilla compacta, encabezada por
+el puesto de mando a ancho completo,
 con altura acotada y desplazamiento interno cuando existen más registros. En
 pantallas angostas vuelven a una sola columna y recuperan su altura natural.
+
+## Puesto de mando del planificador
+
+El puesto de mando forma parte del mismo `GET /api/operacion-ahora`; no realiza
+una segunda consulta ni reutiliza el agregado histórico del endpoint
+administrativo. En cada refresco comparte únicamente las señales actuales de
+salud y, cuando `WMS_PLANNER_MODE` está en `shadow` o `guided`, observa el ciclo
+idempotente del árbitro. Esta lectura no asume labores, no reserva recursos y no
+materializa destinos.
+
+Cada fila identifica orden y decisión, maniobra y objetivo, estado y progreso,
+folio y ruta del paso actual, responsable, dispositivo, motivo y cantidad de
+conflictos. El resumen conserva conteos estables incluso cuando valen cero. En
+modo `off` la interfaz declara que el planificador está detenido y no presenta
+un ciclo antiguo como si continuara vigente.
 
 `Operación ahora` se expone como acceso principal del shell, por encima de los
 módulos administrativos. La oficina usa una sola apariencia operacional ESTIBA;
@@ -68,5 +86,5 @@ La navegación y el cliente exigen `puede_consultar_panel_gerencial` y el módul
 `gerencia.panel`. La pantalla no expone formularios ni acciones operativas. Los
 enlaces llevan a las oficinas existentes que poseen sus propios permisos.
 
-Este entregable no modifica el endpoint, reglas de negocio, permisos, modelos,
-migraciones ni aplicación móvil.
+El puesto de mando usa el mismo permiso de solo lectura de `Operación ahora` y
+no amplía el acceso al endpoint administrativo de salud.
