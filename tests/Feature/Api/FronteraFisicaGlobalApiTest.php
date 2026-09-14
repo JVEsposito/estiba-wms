@@ -365,7 +365,7 @@ class FronteraFisicaGlobalApiTest extends TestCase
             'posicion_destino_id' => $posicion->id,
             'tarea_version' => $tarea['version'],
             'plan_version' => $tarea['plan_version'],
-            'version_camara_conocida' => $camara->version_plano,
+            'version_camara_conocida' => $camara->refresh()->version_plano,
             'score' => 100,
             'motivo' => 'Destino próximo calculado por la tablet.',
         ];

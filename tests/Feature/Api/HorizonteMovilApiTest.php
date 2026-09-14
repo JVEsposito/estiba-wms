@@ -198,6 +198,13 @@ class HorizonteMovilApiTest extends TestCase
     {
         $contexto = $this->crearContexto();
         config(['planificador.rollout_camaras' => ['CAM-OTRA']]);
+        Camara::create([
+            'codigo' => 'CAM-OTRA',
+            'nombre' => 'Cámara habilitada en rollout',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
         $plan = $this->crearPlanRolling($contexto, [$contexto['folios'][0]]);
         $tarea = $plan->tareas->firstOrFail();
         $this->conToken($contexto['token'])
@@ -227,7 +234,7 @@ class HorizonteMovilApiTest extends TestCase
             ->assertJsonPath('data.recalcular', true)
             ->assertJsonPath(
                 'data.rechazadas.0.motivo',
-                'La cámara propuesta permanece en shadow y no admite trabajo dirigido.',
+                'La propuesta involucra una cámara fuera del rollout dirigido o el planificador no está habilitado completamente.',
             );
 
         $this->assertDatabaseMissing('reservas_tareas_movimiento', [
