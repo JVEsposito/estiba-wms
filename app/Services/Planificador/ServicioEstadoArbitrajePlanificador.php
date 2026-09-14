@@ -15,8 +15,8 @@ final class ServicioEstadoArbitrajePlanificador
     public function solicitar(Temporada|string $temporada, string $motivo): void
     {
         $temporadaId = $temporada instanceof Temporada ? $temporada->id : $temporada;
-        if (!$this->modoActivo()
-            && !EstadoArbitrajePlanificador::query()->whereKey($temporadaId)->exists()) {
+        if (! $this->modoActivo()
+            && ! EstadoArbitrajePlanificador::query()->whereKey($temporadaId)->exists()) {
             return;
         }
 
@@ -34,12 +34,12 @@ final class ServicioEstadoArbitrajePlanificador
 
     public function asegurarProgramado(Temporada $temporada, bool $forzar = false): bool
     {
-        if (!$this->modoActivo()) {
+        if (! $this->modoActivo()) {
             return false;
         }
 
         $estado = EstadoArbitrajePlanificador::query()->find($temporada->id);
-        if (!$estado || $forzar) {
+        if (! $estado || $forzar) {
             $this->solicitar($temporada, $forzar ? 'recalculo_manual' : 'inicio_planificador');
 
             return true;
@@ -52,7 +52,7 @@ final class ServicioEstadoArbitrajePlanificador
         }
 
         $refresco = max(60, (int) config('planificador.arbitraje_refresco_segundos', 240));
-        if (!$estado->calculado_at || $estado->calculado_at->lte(now()->subSeconds($refresco))) {
+        if (! $estado->calculado_at || $estado->calculado_at->lte(now()->subSeconds($refresco))) {
             $this->solicitar($temporada, 'watchdog_vigencia');
 
             return true;
@@ -109,8 +109,7 @@ final class ServicioEstadoArbitrajePlanificador
         string $temporadaId,
         Throwable $error,
         int $duracionMs,
-    ): void
-    {
+    ): void {
         DB::transaction(function () use ($temporadaId, $error, $duracionMs): void {
             $estado = $this->obtenerOCrear($temporadaId, bloquear: true);
             $estado->update([
@@ -140,7 +139,7 @@ final class ServicioEstadoArbitrajePlanificador
     public function consultar(Temporada $temporada): array
     {
         $umbral = max(30, (int) config('planificador.arbitraje_atrasado_segundos', 300));
-        if (!$this->modoActivo()) {
+        if (! $this->modoActivo()) {
             return $this->respuesta(
                 estado: 'detenido',
                 vigente: false,
@@ -159,7 +158,7 @@ final class ServicioEstadoArbitrajePlanificador
                 ->latest('id')
                 ->first();
 
-        if (!$estado) {
+        if (! $estado) {
             return $this->respuesta(
                 estado: $ciclo ? 'atrasado' : 'pendiente',
                 vigente: false,
@@ -195,7 +194,7 @@ final class ServicioEstadoArbitrajePlanificador
             [$codigo, $detalle] = $espera > $umbral
                 ? ['atrasado', 'Los cambios operacionales aún no han sido evaluados.']
                 : ['pendiente', 'Hay cambios operacionales esperando recálculo.'];
-        } elseif (!$ciclo) {
+        } elseif (! $ciclo) {
             [$codigo, $detalle] = ['pendiente', 'No existe todavía un ciclo de arbitraje confirmado.'];
         } elseif ($edad !== null && $edad > $umbral) {
             [$codigo, $detalle] = ['atrasado', 'La última evaluación superó el umbral de vigencia.'];
@@ -221,7 +220,7 @@ final class ServicioEstadoArbitrajePlanificador
 
     private function despachar(string $temporadaId): void
     {
-        if (!$this->modoActivo() || config('queue.default') === 'sync') {
+        if (! $this->modoActivo() || config('queue.default') === 'sync') {
             return;
         }
 
