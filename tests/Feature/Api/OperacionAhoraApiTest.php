@@ -590,6 +590,10 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.progreso.pasos_total', 1)
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.folio.numero_folio', 'PAL-MANDO-001')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.destino.codigo', 'CAM-MANDO-01')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.destino.nombre', 'Cámara puesto de mando')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.destino.posicion.etiqueta', 'CAM-MANDO-01-B01-P01-N1')
+            ->assertJsonCount(1, 'data.planificador.arbitraje.ciclo.decisiones.0.pasos')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.pasos.0.destino.nombre', 'Cámara puesto de mando')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.responsable.nombre', 'Supervisión puesto de mando')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.dispositivo.codigo', 'TAB-MANDO-01');
 

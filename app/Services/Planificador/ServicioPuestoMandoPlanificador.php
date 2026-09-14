@@ -8,6 +8,7 @@ use App\Models\Camara;
 use App\Models\CicloArbitrajeManiobras;
 use App\Models\DecisionArbitrajeManiobra as DecisionPersistida;
 use App\Models\ManiobraOperacional;
+use App\Models\Posicion;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use Illuminate\Support\Collection;
@@ -53,7 +54,9 @@ final class ServicioPuestoMandoPlanificador
                 'dispositivo:id,codigo,nombre',
                 'pasos.folio:id,numero_folio',
                 'pasos.camaraOrigen:id,codigo,nombre',
+                'pasos.posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
                 'pasos.camaraDestino:id,codigo,nombre',
+                'pasos.posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
             ]),
         ]);
     }
@@ -120,6 +123,10 @@ final class ServicioPuestoMandoPlanificador
                     : (int) round(($completados / $pasos->count()) * 100),
             ],
             'paso_actual' => $actual ? $this->serializarPaso($actual) : null,
+            'pasos' => $pasos
+                ->map(fn (TareaMovimiento $paso): array => $this->serializarPaso($paso))
+                ->values()
+                ->all(),
             'responsable' => $maniobra->responsable ? [
                 'id' => $maniobra->responsable->id,
                 'nombre' => $maniobra->responsable->name,
@@ -155,18 +162,35 @@ final class ServicioPuestoMandoPlanificador
                 'id' => $paso->folio->id,
                 'numero_folio' => $paso->folio->numero_folio,
             ] : null,
-            'origen' => $this->serializarCamara($paso->camaraOrigen),
-            'destino' => $this->serializarCamara($paso->camaraDestino),
+            'origen' => $this->serializarUbicacion($paso->camaraOrigen, $paso->posicionOrigen),
+            'destino' => $this->serializarUbicacion($paso->camaraDestino, $paso->posicionDestino),
         ];
     }
 
-    /** @return array<string, string>|null */
-    private function serializarCamara(?Camara $camara): ?array
+    /** @return array<string, mixed>|null */
+    private function serializarUbicacion(?Camara $camara, ?Posicion $posicion): ?array
     {
-        return $camara ? [
-            'id' => $camara->id,
-            'codigo' => $camara->codigo,
-            'nombre' => $camara->nombre,
-        ] : null;
+        if (! $camara && ! $posicion) {
+            return null;
+        }
+
+        return [
+            // Se conservan estas claves para los consumidores actuales del puesto de mando.
+            'id' => $camara?->id,
+            'codigo' => $camara?->codigo,
+            'nombre' => $camara?->nombre,
+            'camara' => $camara ? [
+                'id' => $camara->id,
+                'codigo' => $camara->codigo,
+                'nombre' => $camara->nombre,
+            ] : null,
+            'posicion' => $posicion ? [
+                'id' => $posicion->id,
+                'etiqueta' => $posicion->etiqueta,
+                'banda' => $posicion->banda,
+                'posicion' => $posicion->posicion,
+                'nivel' => $posicion->nivel,
+            ] : null,
+        ];
     }
 }

@@ -18,6 +18,9 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="plannerFreshnessSignal"', false)
             ->assertSee('id="plannerDecisionRows"', false)
             ->assertSee('id="plannerRiskRows"', false)
+            ->assertSee('id="operationSupervisionDialog"', false)
+            ->assertSee('id="operationSupervisionContent"', false)
+            ->assertSee('id="operationSupervisionClose"', false)
             ->assertSee('<th scope="col">Razón operacional</th>', false)
             ->assertSee('Vista operacional de recintos')
             ->assertSee('Editar plano')
@@ -74,6 +77,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('Vigencia ${plannerFreshnessLabel', $script);
         $this->assertStringContainsString('Planificador detenido por configuración', $script);
         $this->assertStringContainsString('plannerConflictDetail', $script);
+        $this->assertStringContainsString('createManeuverSupervisionDrawer', $script);
+        $this->assertStringContainsString('data-maneuver-detail', $script);
+        $this->assertStringContainsString('operationLocationLabel', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
         $this->assertStringContainsString('catalog?.nombre || item.nombre', $script);
@@ -112,6 +118,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('min(10cqw, 21cqh)', $styles);
         $this->assertStringContainsString('operation-now-panel--planner', $styles);
         $this->assertStringContainsString('operation-now-table--planner', $styles);
+        $this->assertStringContainsString('operation-supervision__surface', $styles);
+        $this->assertStringContainsString('operation-supervision__steps', $styles);
         $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(98px, 1fr))', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }

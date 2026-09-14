@@ -1,6 +1,10 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
 import {
+    createManeuverSupervisionDrawer,
+    operationLocationLabel,
+} from './shared/operation-supervision-drawer';
+import {
     autoLayout,
     availableCatalog,
     catalogKey,
@@ -42,6 +46,9 @@ const elements = {
     plannerCycleMeta: byId('plannerCycleMeta'),
     plannerRiskRows: byId('plannerRiskRows'),
     plannerDecisionRows: byId('plannerDecisionRows'),
+    supervisionDialog: byId('operationSupervisionDialog'),
+    supervisionContent: byId('operationSupervisionContent'),
+    supervisionClose: byId('operationSupervisionClose'),
     facilityMap: byId('operationFacilityMap'),
     facilityStatus: byId('operationFacilityStatus'),
     facilitySubtitle: byId('operationFacilitySubtitle'),
@@ -77,7 +84,17 @@ const state = {
     mapDrag: null,
     mapRevision: 0,
     mapSaving: false,
+    selectedManeuverId: null,
 };
+
+const supervisionDrawer = createManeuverSupervisionDrawer({
+    dialog: elements.supervisionDialog,
+    content: elements.supervisionContent,
+    closeButton: elements.supervisionClose,
+    onClosed: () => {
+        state.selectedManeuverId = null;
+    },
+});
 
 class ApiError extends Error {
     constructor(message, status = 0) {
@@ -411,8 +428,8 @@ function plannerFreshnessLabel(status) {
 
 function plannerRoute(step) {
     if (!step) return 'Sin paso activo';
-    const origin = step.origen?.codigo || 'Inicio';
-    const destination = step.destino?.codigo || 'Sin destino';
+    const origin = operationLocationLabel(step.origen, 'Inicio');
+    const destination = operationLocationLabel(step.destino, 'Sin destino');
     return `${origin} → ${destination}`;
 }
 
@@ -513,9 +530,15 @@ function renderPlanner(planner = {}) {
             <td>${signal(humanize(decision.estado), toneForPriority(decision.prioridad))}<div class="operation-now-planner__progress"><span class="operation-now-meter" data-tone="${toneForPlannerDecision(decision.decision)}" style="--operation-progress:${clampedPercent(progress.porcentaje)}%"><i></i></span><small>${escapeHtml(number(progress.pasos_completados))}/${escapeHtml(number(progress.pasos_total))}</small></div></td>
             <td><span class="operation-now-code">${escapeHtml(step?.folio?.numero_folio || 'Sin folio')}</span><span class="operation-now-subtext">${escapeHtml(plannerRoute(step))} · ${escapeHtml(stepTitle)}</span></td>
             <td><strong>${escapeHtml(responsible)}</strong><span class="operation-now-subtext">${escapeHtml(device)}</span></td>
-            <td><span class="operation-now-planner__reason">${escapeHtml(plannerConflictDetail(decision))}</span></td>
+            <td><span class="operation-now-planner__reason">${escapeHtml(plannerConflictDetail(decision))}</span><button type="button" class="operation-now-planner__detail" data-maneuver-detail="${escapeHtml(decision.maniobra_id)}">Ver detalle</button></td>
         </tr>`;
     }).join('');
+
+    if (state.selectedManeuverId) {
+        const selected = decisions.find((decision) => decision.maniobra_id === state.selectedManeuverId);
+        if (selected) supervisionDrawer.update(selected);
+        else supervisionDrawer.close();
+    }
 }
 
 function renderCameras(cameras = []) {
@@ -1031,6 +1054,20 @@ window.addEventListener('pointermove', moveMapPointer);
 window.addEventListener('pointerup', endMapPointer);
 elements.mapDialog.addEventListener('click', (event) => {
     if (event.target === elements.mapDialog) elements.mapDialog.close();
+});
+
+elements.plannerDecisionRows.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-maneuver-detail]');
+    if (!button) return;
+    const decisions = state.snapshot?.planificador?.arbitraje?.ciclo?.decisiones || [];
+    const selected = decisions.find((decision) => decision.maniobra_id === button.dataset.maneuverDetail);
+    if (!selected) {
+        toast('La maniobra ya no pertenece al ciclo vigente.', true);
+        return;
+    }
+
+    state.selectedManeuverId = selected.maniobra_id;
+    supervisionDrawer.open(selected);
 });
 
 elements.refresh.addEventListener('click', async () => {
