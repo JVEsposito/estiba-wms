@@ -452,6 +452,32 @@
                 </div>
             </form>
         </dialog>
+        <dialog class="materials-import" id="materialDirectConsumptionDialog">
+            <div class="materials-import__header">
+                <div>
+                    <p class="eyebrow">CONSUMO DIRECTO · BODEGA CENTRAL</p>
+                    <h2>Consumir insumo</h2>
+                    <p id="materialDirectConsumptionContext">Selecciona un insumo disponible.</p>
+                </div>
+                <button id="closeMaterialDirectConsumption" type="button" aria-label="Cerrar">×</button>
+            </div>
+            <form class="materials-import__form" id="materialDirectConsumptionForm">
+                <input name="tipo" type="hidden" value="consumo">
+                <input name="folio_id" type="hidden">
+                <input name="almacen_origen_id" type="hidden">
+                <label><span>Centro de costo que consume *</span><select name="centro_costo_id" required></select></label>
+                <label><span>Cantidad a consumir *</span><input name="cantidad" type="number" min="0.001" step="0.001" required></label>
+                <label><span>Documento o referencia</span><input name="documento_relacionado" maxlength="150" placeholder="Orden, turno o vale de consumo"></label>
+                <label><span>Motivo *</span><textarea name="motivo" minlength="3" maxlength="1000" rows="2" placeholder="Consumo turno día, mantención preventiva…" required></textarea></label>
+                <label><span>Justificación de excepción FIFO</span><textarea name="motivo_excepcion_fifo" minlength="5" maxlength="1000" rows="2" placeholder="Completar solo si no se consume el lote más antiguo"></textarea></label>
+                <p class="materials-import__help">Este movimiento descuenta la existencia de Bodega Central e imputa el consumo al centro de costo. No crea existencia temporal en el centro de costo y no puede deshacerse editando el Kardex.</p>
+                <p class="form-error" id="materialDirectConsumptionError" role="alert"></p>
+                <div class="materials-import__actions">
+                    <button class="secondary-button" id="cancelMaterialDirectConsumption" type="button">Cancelar</button>
+                    <button class="primary-button" type="submit">Confirmar consumo</button>
+                </div>
+            </form>
+        </dialog>
         <dialog class="materials-import" id="materialCorrectionDialog">
             <div class="materials-import__header">
                 <div><p class="eyebrow">CORRECCIÓN SUPERVISADA</p><h2>Corregir código del ítem</h2><p id="materialCorrectionContext"></p></div>
