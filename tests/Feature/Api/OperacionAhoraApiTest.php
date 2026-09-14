@@ -78,6 +78,10 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.incidencias.resumen.total_abiertas', 0)
             ->assertJsonPath('data.incidencias.resumen.mas_antigua_at', null)
             ->assertJsonCount(0, 'data.incidencias.abiertas')
+            ->assertJsonPath('data.planificador.despliegue.mode_global', 'off')
+            ->assertJsonPath('data.planificador.salud.estado', 'saludable')
+            ->assertJsonPath('data.planificador.arbitraje.activo', false)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo', null)
             ->assertJsonCount(0, 'data.camaras');
     }
 
@@ -463,6 +467,98 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonPath('data.incidencias.abiertas.1.reportado_por.nombre', 'Camarero que reporta')
             ->assertJsonPath('data.incidencias.abiertas.1.dispositivo.codigo', 'TAB-INC-01')
             ->assertJsonPath('data.incidencias.abiertas.1.antiguedad_minutos', 30);
+    }
+
+    public function test_expone_el_puesto_de_mando_con_el_ciclo_y_movimiento_vigentes(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-14 12:00:00 UTC'));
+        config([
+            'planificador.mode' => 'guided',
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'rolling',
+            'planificador.generacion_automatica' => true,
+            'planificador.rollout_camaras' => ['CAM-MANDO-01'],
+            'planificador.frontier_max' => 4,
+            'planificador.maniobras_simultaneas_max' => 3,
+        ]);
+        $temporada = $this->crearTemporada();
+        $consulta = User::factory()->create([
+            'name' => 'Supervisión puesto de mando',
+            'rol' => RolUsuario::Consulta,
+        ]);
+        $dispositivo = Dispositivo::create([
+            'codigo' => 'TAB-MANDO-01',
+            'nombre' => 'Tablet puesto de mando',
+        ]);
+        $camara = $this->crearCamara('CAM-MANDO-01', 'Cámara puesto de mando');
+        $folio = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-MANDO-001',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+        ]);
+        $plan = PlanOperacional::create([
+            'temporada_id' => $temporada->id,
+            'tipo' => TipoPlanOperacional::ConcentracionCarga,
+            'estado' => 'en_ejecucion',
+            'prioridad' => PrioridadOperacional::Alta,
+            'titulo' => 'Concentrar carga de exportación',
+            'contexto' => ['planner_horizon' => 'rolling'],
+            'creado_por_user_id' => $consulta->id,
+            'programado_at' => now(),
+            'iniciado_at' => now(),
+        ]);
+        $maniobra = ManiobraOperacional::create([
+            'plan_operacional_id' => $plan->id,
+            'creado_por_user_id' => $consulta->id,
+            'estado' => EstadoManiobraOperacional::Pendiente,
+            'prioridad' => PrioridadOperacional::Alta,
+            'candidate_key' => 'puesto-mando-001',
+            'titulo' => 'Llevar pallet a cámara de despacho',
+            'secuencia_actual' => 1,
+            'costo_movimientos' => 1,
+            'beneficio_estimado' => 500,
+            'riesgo_operacional' => 20,
+            'responsable_user_id' => $consulta->id,
+            'dispositivo_id' => $dispositivo->id,
+        ]);
+        TareaMovimiento::create([
+            'plan_operacional_id' => $plan->id,
+            'maniobra_operacional_id' => $maniobra->id,
+            'secuencia' => 1,
+            'secuencia_maniobra' => 1,
+            'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
+            'tipo_paso_maniobra' => TipoPasoManiobra::MovimientoPermanente,
+            'estado' => EstadoTareaMovimiento::Pendiente,
+            'prioridad' => PrioridadOperacional::Alta,
+            'folio_id' => $folio->id,
+            'camara_destino_id' => $camara->id,
+            'posicion_destino_id' => $camara->posiciones()->sole()->id,
+            'instruccion' => 'Ubicar el pallet en cámara de despacho',
+        ]);
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.planificador.despliegue.mode_global', 'guided')
+            ->assertJsonPath('data.planificador.despliegue.rollout_limitado', true)
+            ->assertJsonPath('data.planificador.salud.estado', 'saludable')
+            ->assertJsonPath('data.planificador.arbitraje.activo', true)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.capacidad_ejecucion', 3)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.frontera_max', 4)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.resumen.seleccionada', 1)
+            ->assertJsonCount(1, 'data.planificador.arbitraje.ciclo.decisiones')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.maniobra_id', $maniobra->id)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.decision', 'seleccionada')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.beneficio_neto', 479)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.progreso.pasos_total', 1)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.folio.numero_folio', 'PAL-MANDO-001')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.paso_actual.destino.codigo', 'CAM-MANDO-01')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.responsable.nombre', 'Supervisión puesto de mando')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.dispositivo.codigo', 'TAB-MANDO-01');
+
+        $this->assertDatabaseCount('ciclos_arbitraje_maniobras', 1);
+        $this->assertDatabaseCount('decisiones_arbitraje_maniobras', 1);
     }
 
     private function crearCamara(string $codigo, string $nombre): Camara

@@ -77,6 +77,11 @@ custodias temporales asociados a esa cámara. El ciclo persistido sigue siendo
 global y un estado idéntico se reutiliza, por lo que consultar repetidamente el
 endpoint no infla la métrica.
 
+Las mismas señales actuales de salud se reutilizan en el puesto de mando de
+`Operación ahora`, sin ejecutar allí las métricas históricas de planes,
+movimientos y arbitraje. Así el refresco operacional conserva un costo acotado y
+el endpoint administrativo mantiene su permiso más restrictivo.
+
 Para ampliar el rollout, mida una o dos jornadas de la cámara piloto, conserve
 el snapshot de cada ventana y agregue el siguiente código solo cuando la salud
 permanezca estable y la desviación entre plan y ejecución sea aceptable.

@@ -12,6 +12,12 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertOk()
             ->assertSee('Operación ahora')
             ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
+            ->assertSee('Puesto de mando del planificador')
+            ->assertSee('Arbitraje, rollout y realidad física vigente')
+            ->assertSee('id="operationPlannerPanel"', false)
+            ->assertSee('id="plannerDecisionRows"', false)
+            ->assertSee('id="plannerRiskRows"', false)
+            ->assertSee('<th scope="col">Razón operacional</th>', false)
             ->assertSee('Vista operacional de recintos')
             ->assertSee('Editar plano')
             ->assertSee('Plano físico y estado en vivo de la planta')
@@ -61,6 +67,10 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('createOperationalPoller', $script);
         $this->assertStringContainsString('actualizacion_sugerida_segundos', $script);
         $this->assertStringContainsString('validateSnapshot', $script);
+        $this->assertStringContainsString('renderPlanner', $script);
+        $this->assertStringContainsString('data.planificador?.salud?.riesgos', $script);
+        $this->assertStringContainsString('Planificador detenido por configuración', $script);
+        $this->assertStringContainsString('plannerConflictDetail', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
         $this->assertStringContainsString('catalog?.nombre || item.nombre', $script);
@@ -97,6 +107,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('color: #395b6b !important', $styles);
         $this->assertStringContainsString('container-type: size', $styles);
         $this->assertStringContainsString('min(10cqw, 21cqh)', $styles);
+        $this->assertStringContainsString('operation-now-panel--planner', $styles);
+        $this->assertStringContainsString('operation-now-table--planner', $styles);
+        $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(98px, 1fr))', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
 

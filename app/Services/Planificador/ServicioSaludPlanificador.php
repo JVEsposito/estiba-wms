@@ -43,7 +43,7 @@ final class ServicioSaludPlanificador
             $this->arbitraje->arbitrar($temporada);
         }
         $operacion = $this->metricasOperacion($temporadaId, $desde, $hasta, $camaraId);
-        $riesgos = $this->riesgosActuales($temporadaId, $camaraId);
+        $salud = $this->saludActual($temporadaId, $camaraId);
         $despliegue = $this->despliegue->resumen();
         $contenido = [
             'ventana' => [
@@ -53,10 +53,7 @@ final class ServicioSaludPlanificador
                 'temporada_id' => $temporadaId,
             ],
             'despliegue' => $despliegue,
-            'salud' => [
-                'estado' => $this->estadoSalud($riesgos),
-                'riesgos' => $riesgos,
-            ],
+            'salud' => $salud,
             'metricas' => $operacion,
         ];
 
@@ -292,6 +289,17 @@ final class ServicioSaludPlanificador
                 'por_recurso' => $porRecurso,
             ],
             'ultimo_ciclo' => $ultimo,
+        ];
+    }
+
+    /** @return array{estado: string, riesgos: array<string, int>} */
+    public function saludActual(?string $temporadaId, ?string $camaraId = null): array
+    {
+        $riesgos = $this->riesgosActuales($temporadaId, $camaraId);
+
+        return [
+            'estado' => $this->estadoSalud($riesgos),
+            'riesgos' => $riesgos,
         ];
     }
 

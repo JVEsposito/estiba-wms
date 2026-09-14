@@ -35,6 +35,12 @@ const elements = {
     operatorList: byId('operationOperatorList'),
     tunnelList: byId('operationTunnelList'),
     incidentRows: byId('operationIncidentRows'),
+    plannerPanel: byId('operationPlannerPanel'),
+    plannerMode: byId('plannerModeSignal'),
+    plannerHealth: byId('plannerHealthSignal'),
+    plannerCycleMeta: byId('plannerCycleMeta'),
+    plannerRiskRows: byId('plannerRiskRows'),
+    plannerDecisionRows: byId('plannerDecisionRows'),
     facilityMap: byId('operationFacilityMap'),
     facilityStatus: byId('operationFacilityStatus'),
     facilitySubtitle: byId('operationFacilitySubtitle'),
@@ -174,6 +180,18 @@ function toneForPriority(priority) {
     return { critica: 'critical', urgente: 'critical', alta: 'warning', normal: 'info' }[priority] || 'neutral';
 }
 
+function toneForPlannerDecision(decision) {
+    return {
+        en_ejecucion: 'success',
+        seleccionada: 'info',
+        alternativa: 'neutral',
+        excluida_conflicto: 'critical',
+        fuera_frontera: 'warning',
+        fuera_rollout: 'warning',
+        fuera_planificador: 'neutral',
+    }[decision] || 'neutral';
+}
+
 function toneForTunnel(tunnel) {
     if (!tunnel.operable || ['mantenimiento', 'fuera_servicio', 'inactivo'].includes(tunnel.estado_operacional)) return 'neutral';
     if (tunnel.proceso_activo?.objetivo_excedido) return 'critical';
@@ -210,6 +228,9 @@ function validateSnapshot(data) {
         && Array.isArray(data.prefrio?.tuneles)
         && data.incidencias?.resumen
         && Array.isArray(data.incidencias?.abiertas)
+        && data.planificador?.despliegue
+        && data.planificador?.salud?.riesgos
+        && data.planificador?.arbitraje
         && data.planta
         && Array.isArray(data.planta?.catalogo)
         && Array.isArray(data.planta?.elementos);
@@ -358,6 +379,115 @@ function renderSync(sync = {}) {
     setText('syncProcessing', number(counts.procesando));
     setText('syncRejected', number(counts.rechazada));
     setText('syncConflict', number(counts.conflicto));
+}
+
+function plannerModeLabel(mode) {
+    return { off: 'Detenido', shadow: 'Observando', guided: 'Guiado' }[mode] || humanize(mode || 'sin modo');
+}
+
+function plannerDecisionLabel(decision) {
+    return {
+        en_ejecucion: 'En ejecución',
+        seleccionada: 'Seleccionada',
+        alternativa: 'Alternativa',
+        excluida_conflicto: 'Conflicto',
+        fuera_frontera: 'Fuera de frontera',
+        fuera_rollout: 'Fuera de rollout',
+        fuera_planificador: 'Fuera del planificador',
+    }[decision] || humanize(decision);
+}
+
+function plannerRoute(step) {
+    if (!step) return 'Sin paso activo';
+    const origin = step.origen?.codigo || 'Inicio';
+    const destination = step.destino?.codigo || 'Sin destino';
+    return `${origin} → ${destination}`;
+}
+
+function plannerConflictDetail(decision) {
+    const conflicts = Array.isArray(decision.conflictos) ? decision.conflictos : [];
+    if (!conflicts.length) return decision.motivo || 'Sin observaciones adicionales';
+    const resources = [...new Set(conflicts.map((conflict) => String(conflict.recurso || '').split(':')[0]).filter(Boolean))];
+    const resourceLabel = resources.length ? ` · ${resources.map(humanize).join(', ')}` : '';
+    return `${decision.motivo || 'Recursos incompatibles'} · ${number(conflicts.length)} ${conflicts.length === 1 ? 'conflicto' : 'conflictos'}${resourceLabel}`;
+}
+
+function renderPlanner(planner = {}) {
+    const deployment = planner.despliegue || {};
+    const health = planner.salud || {};
+    const risks = health.riesgos || {};
+    const cycle = planner.arbitraje?.ciclo;
+    const summary = cycle?.resumen || {};
+    const decisions = Array.isArray(cycle?.decisiones) ? cycle.decisiones : [];
+    const mode = deployment.mode_global || 'off';
+    const healthTone = { saludable: 'success', advertencia: 'warning', critico: 'critical' }[health.estado] || 'neutral';
+    const modeTone = { guided: 'success', shadow: 'info', off: 'neutral' }[mode] || 'neutral';
+
+    elements.plannerPanel.dataset.tone = healthTone;
+    elements.plannerMode.dataset.tone = modeTone;
+    elements.plannerMode.textContent = `Modo ${plannerModeLabel(mode)}`;
+    elements.plannerHealth.dataset.tone = healthTone;
+    elements.plannerHealth.textContent = `Salud ${humanize(health.estado || 'sin lectura')}`;
+    elements.plannerCycleMeta.textContent = cycle
+        ? `Ciclo ${dateTime(cycle.generado_at, { timeOnly: true })} · ${number(decisions.length)} decisiones`
+        : 'Sin ciclo activo';
+
+    setText('plannerCompute', deployment.compute === 'tablet' ? 'Tablet' : humanize(deployment.compute));
+    setText('plannerHorizon', deployment.horizon === 'rolling' ? 'Continuo' : humanize(deployment.horizon));
+    setText('plannerRollout', deployment.rollout_limitado
+        ? `${number(deployment.camaras_configuradas?.length || 0)} cámaras`
+        : 'Toda la planta');
+    setText('plannerCapacity', cycle
+        ? `${number(cycle.capacidad_ejecucion)} / ${number(cycle.frontera_max)}`
+        : 'Sin arbitraje');
+    setText('plannerRunningCount', number(summary.en_ejecucion || 0));
+    setText('plannerSelectedCount', number(summary.seleccionada || 0));
+    setText('plannerAlternativeCount', number(summary.alternativa || 0));
+    setText('plannerConflictCount', number(summary.excluida_conflicto || 0));
+    setText('plannerRolloutCount', number(summary.fuera_rollout || 0));
+
+    const riskDefinitions = [
+        ['leases_vencidos_activos', 'Leases vencidos', 'critical'],
+        ['tareas_estancadas', 'Tareas estancadas', 'warning'],
+        ['custodias_temporales_activas', 'Custodias activas', 'warning'],
+        ['maniobras_completadas_con_custodia', 'Custodias sin retorno', 'critical'],
+        ['discrepancias_abiertas', 'Discrepancias', 'warning'],
+    ];
+    elements.plannerRiskRows.innerHTML = riskDefinitions.map(([key, label, warningTone]) => {
+        const value = Number(risks[key] || 0);
+        return `<span data-tone="${value ? warningTone : 'success'}"><strong>${escapeHtml(number(value))}</strong>${escapeHtml(label)}</span>`;
+    }).join('');
+
+    if (!cycle) {
+        const stopped = mode === 'off';
+        elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty(
+            stopped ? 'Planificador detenido por configuración' : 'Sin ciclo de arbitraje vigente',
+            stopped ? 'WMS_PLANNER_MODE=off: la operación continúa sin decisiones automatizadas.' : 'No existen maniobras elegibles para construir la frontera actual.',
+        )}</td></tr>`;
+        return;
+    }
+
+    if (!decisions.length) {
+        elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty('Frontera sin maniobras', 'El ciclo está vigente, pero no encontró trabajo operacional elegible.')}</td></tr>`;
+        return;
+    }
+
+    elements.plannerDecisionRows.innerHTML = decisions.map((decision) => {
+        const progress = decision.progreso || {};
+        const step = decision.paso_actual;
+        const responsible = decision.responsable?.nombre || 'Sin asignar';
+        const device = decision.dispositivo?.codigo || 'Sin dispositivo';
+        const stepTitle = step?.instruccion || humanize(step?.tipo_movimiento || 'sin instrucción');
+
+        return `<tr data-decision="${escapeHtml(decision.decision)}">
+            <td><span class="operation-now-code">#${escapeHtml(number(decision.orden))}</span>${signal(plannerDecisionLabel(decision.decision), toneForPlannerDecision(decision.decision))}</td>
+            <td><strong>${escapeHtml(decision.titulo || 'Maniobra sin título')}</strong><span class="operation-now-subtext">Prioridad ${escapeHtml(humanize(decision.prioridad))} · ${escapeHtml(humanize(decision.objetivo?.tipo || 'sin objetivo'))} · neto ${escapeHtml(number(decision.beneficio_neto))}</span></td>
+            <td>${signal(humanize(decision.estado), toneForPriority(decision.prioridad))}<div class="operation-now-planner__progress"><span class="operation-now-meter" data-tone="${toneForPlannerDecision(decision.decision)}" style="--operation-progress:${clampedPercent(progress.porcentaje)}%"><i></i></span><small>${escapeHtml(number(progress.pasos_completados))}/${escapeHtml(number(progress.pasos_total))}</small></div></td>
+            <td><span class="operation-now-code">${escapeHtml(step?.folio?.numero_folio || 'Sin folio')}</span><span class="operation-now-subtext">${escapeHtml(plannerRoute(step))} · ${escapeHtml(stepTitle)}</span></td>
+            <td><strong>${escapeHtml(responsible)}</strong><span class="operation-now-subtext">${escapeHtml(device)}</span></td>
+            <td><span class="operation-now-planner__reason">${escapeHtml(plannerConflictDetail(decision))}</span></td>
+        </tr>`;
+    }).join('');
 }
 
 function renderCameras(cameras = []) {
@@ -627,6 +757,7 @@ function render(data) {
     renderHeader(data);
     renderMetrics(data);
     renderSync(data.sincronizacion);
+    renderPlanner(data.planificador);
     renderCameras(data.camaras);
     renderOperators(data.camareros);
     renderTunnels(data.prefrio?.tuneles);

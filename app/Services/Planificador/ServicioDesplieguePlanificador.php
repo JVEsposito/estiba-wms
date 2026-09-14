@@ -88,9 +88,25 @@ final class ServicioDesplieguePlanificador
     }
 
     /** @return array<string, mixed> */
-    public function resumen(): array
+    public function configuracion(): array
     {
         $limitado = $this->rolloutLimitado();
+
+        return [
+            'mode_global' => $this->modoGlobal(),
+            'compute' => config('planificador.compute'),
+            'horizon' => config('planificador.horizon'),
+            'generacion_automatica' => (bool) config('planificador.generacion_automatica'),
+            'rollout_limitado' => $limitado,
+            'camaras_configuradas' => array_values(config('planificador.rollout_camaras', [])),
+            'fuera_de_rollout' => $limitado && $this->modoGlobal() === 'guided' ? 'shadow' : null,
+            'rollback' => 'WMS_PLANNER_MODE=off',
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function resumen(): array
+    {
         $camaras = Camara::query()
             ->orderBy('codigo')
             ->get(['id', 'codigo', 'nombre'])
@@ -103,14 +119,7 @@ final class ServicioDesplieguePlanificador
             ->values();
 
         return [
-            'mode_global' => $this->modoGlobal(),
-            'compute' => config('planificador.compute'),
-            'horizon' => config('planificador.horizon'),
-            'generacion_automatica' => (bool) config('planificador.generacion_automatica'),
-            'rollout_limitado' => $limitado,
-            'camaras_configuradas' => array_values(config('planificador.rollout_camaras', [])),
-            'fuera_de_rollout' => $limitado && $this->modoGlobal() === 'guided' ? 'shadow' : null,
-            'rollback' => 'WMS_PLANNER_MODE=off',
+            ...$this->configuracion(),
             'camaras' => $camaras,
         ];
     }
