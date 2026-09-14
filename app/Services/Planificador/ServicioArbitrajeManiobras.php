@@ -3,6 +3,7 @@
 namespace App\Services\Planificador;
 
 use App\Enums\DecisionArbitrajeManiobra;
+use App\Enums\EstadoCustodiaTemporal;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\EstadoPlanOperacional;
 use App\Enums\EstadoTareaMovimiento;
@@ -18,7 +19,11 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioArbitrajeManiobras
 {
-    private const VERSION_REGLAS = 'arbitraje_global_v1';
+    private const VERSION_REGLAS = 'arbitraje_global_v2_rollout';
+
+    public function __construct(
+        private readonly ServicioDesplieguePlanificador $despliegue,
+    ) {}
 
     /**
      * Calcula y conserva la frontera global vigente. Un mismo estado físico y
@@ -31,7 +36,8 @@ class ServicioArbitrajeManiobras
         try {
             return DB::transaction(function () use ($temporada, &$snapshot): CicloArbitrajeManiobras {
                 $maniobras = $this->maniobrasVigentes($temporada);
-                $snapshot = $this->snapshot($temporada, $maniobras);
+                $camarasRollout = $this->camarasRolloutArbitraje();
+                $snapshot = $this->snapshot($temporada, $maniobras, $camarasRollout);
                 $existente = CicloArbitrajeManiobras::query()
                     ->where('snapshot_version', $snapshot)
                     ->first();
@@ -41,7 +47,12 @@ class ServicioArbitrajeManiobras
 
                 $capacidad = max(1, (int) config('planificador.maniobras_simultaneas_max', 3));
                 $fronteraMax = max(1, (int) config('planificador.frontier_max', 4));
-                $decisiones = $this->resolver($maniobras, $capacidad, $fronteraMax);
+                $decisiones = $this->resolver(
+                    $maniobras,
+                    $capacidad,
+                    $fronteraMax,
+                    $camarasRollout,
+                );
                 $ciclo = CicloArbitrajeManiobras::create([
                     'temporada_id' => $temporada->id,
                     'snapshot_version' => $snapshot,
@@ -51,6 +62,7 @@ class ServicioArbitrajeManiobras
                         'version_reglas' => self::VERSION_REGLAS,
                         'criterio' => 'prioridad_tipo_beneficio_neto_antiguedad',
                         'formula_beneficio_neto' => 'beneficio_estimado-costo_movimientos-riesgo_operacional',
+                        'camaras_rollout' => $camarasRollout,
                         'tipos_fuera_planificador' => [
                             TipoPlanOperacional::RecepcionRepaletizaje->value,
                         ],
@@ -197,6 +209,10 @@ class ServicioArbitrajeManiobras
                     EstadoTareaMovimiento::EnProceso->value,
                 ]),
                 'reservasBandas' => fn ($consulta) => $consulta->whereNull('liberada_at'),
+                'custodiasTemporales' => fn ($consulta) => $consulta->where(
+                    'estado',
+                    EstadoCustodiaTemporal::Activa->value,
+                ),
             ])
             ->lockForUpdate()
             ->get();
@@ -206,8 +222,12 @@ class ServicioArbitrajeManiobras
      * @param  Collection<int, ManiobraOperacional>  $maniobras
      * @return array<int, array<string, mixed>>
      */
-    private function resolver(Collection $maniobras, int $capacidad, int $fronteraMax): array
-    {
+    private function resolver(
+        Collection $maniobras,
+        int $capacidad,
+        int $fronteraMax,
+        ?array $camarasRollout,
+    ): array {
         $ordenadas = $maniobras
             ->sort(function (ManiobraOperacional $izquierda, ManiobraOperacional $derecha): int {
                 $vectorIzquierda = $this->vectorOrden($izquierda);
@@ -227,12 +247,18 @@ class ServicioArbitrajeManiobras
                     : strcmp($izquierda->id, $derecha->id);
             })
             ->values();
-        $ocupantes = $ordenadas->filter(
-            fn (ManiobraOperacional $maniobra): bool => in_array($maniobra->estado, [
-                EstadoManiobraOperacional::EnEjecucion,
-                EstadoManiobraOperacional::PausadaDiscrepancia,
-            ], true) && ! $this->fueraPlanificador($maniobra),
-        );
+        $ocupantes = $ordenadas->filter(function (ManiobraOperacional $maniobra) use (
+            $camarasRollout,
+        ): bool {
+            if ($this->fueraPlanificador($maniobra)) {
+                return false;
+            }
+
+            return $maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
+                || $this->realidadFisicaIniciada($maniobra)
+                || ($maniobra->estado === EstadoManiobraOperacional::EnEjecucion
+                    && ! $this->fueraRollout($maniobra, $camarasRollout));
+        });
         $cupos = max(0, $capacidad - $ocupantes->count());
         $seleccionadas = 0;
         $publicadas = 0;
@@ -246,6 +272,7 @@ class ServicioArbitrajeManiobras
             $beneficioNeto = $this->beneficioNeto($maniobra);
             $puntaje = $this->puntaje($maniobra, $beneficioNeto);
             $conflictos = $this->conflictos($maniobra, $recursosTomados);
+            $fueraRollout = $this->fueraRollout($maniobra, $camarasRollout);
 
             if ($this->fueraPlanificador($maniobra)) {
                 $decision = DecisionArbitrajeManiobra::FueraPlanificador;
@@ -253,13 +280,19 @@ class ServicioArbitrajeManiobras
                 if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
                     $this->ocuparRecursos($maniobra, $recursosTomados);
                 }
-            } elseif (in_array($maniobra->estado, [
-                EstadoManiobraOperacional::EnEjecucion,
-                EstadoManiobraOperacional::PausadaDiscrepancia,
-            ], true)) {
+            } elseif ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
+                || $this->realidadFisicaIniciada($maniobra)
+                || ($maniobra->estado === EstadoManiobraOperacional::EnEjecucion
+                    && ! $fueraRollout)) {
                 $decision = DecisionArbitrajeManiobra::EnEjecucion;
                 $motivo = 'La realidad física iniciada prevalece y conserva sus recursos.';
                 $this->ocuparRecursos($maniobra, $recursosTomados);
+            } elseif ($fueraRollout) {
+                $decision = DecisionArbitrajeManiobra::FueraRollout;
+                $motivo = 'La maniobra permanece en shadow porque involucra una cámara fuera del rollout dirigido.';
+                if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
+                    $this->ocuparRecursos($maniobra, $recursosTomados);
+                }
             } elseif ($maniobra->planOperacional?->estado === EstadoPlanOperacional::Pausado) {
                 $decision = DecisionArbitrajeManiobra::FueraFrontera;
                 $motivo = 'El objetivo permanece pausado por supervisión.';
@@ -383,9 +416,64 @@ class ServicioArbitrajeManiobras
         return $maniobra->planOperacional?->tipo === TipoPlanOperacional::RecepcionRepaletizaje;
     }
 
-    /** @param  Collection<int, ManiobraOperacional>  $maniobras */
-    private function snapshot(Temporada $temporada, Collection $maniobras): string
+    /** @return array<int, string>|null */
+    private function camarasRolloutArbitraje(): ?array
     {
+        return match (config('planificador.mode')) {
+            'guided' => $this->despliegue->idsCamarasDirigidas(),
+            'shadow' => $this->despliegue->idsCamarasRollout(),
+            default => [],
+        };
+    }
+
+    /** @param  array<int, string>|null  $camarasRollout */
+    private function fueraRollout(
+        ManiobraOperacional $maniobra,
+        ?array $camarasRollout,
+    ): bool {
+        if ($camarasRollout === null) {
+            return false;
+        }
+
+        $camaras = $this->camarasInvolucradas($maniobra);
+
+        return $camarasRollout === []
+            || $camaras->contains(fn (string $id): bool => ! in_array($id, $camarasRollout, true));
+    }
+
+    /** @return Collection<int, string> */
+    private function camarasInvolucradas(ManiobraOperacional $maniobra): Collection
+    {
+        return $maniobra->pasos
+            ->flatMap(fn ($paso): array => array_values(array_filter([
+                $paso->camara_origen_id,
+                $paso->camara_destino_id,
+            ])))
+            ->merge($maniobra->reservasBandas->pluck('camara_id'))
+            ->merge($maniobra->custodiasTemporales->pluck('camara_origen_id'))
+            ->filter(fn (mixed $id): bool => is_string($id))
+            ->unique()
+            ->values();
+    }
+
+    private function realidadFisicaIniciada(ManiobraOperacional $maniobra): bool
+    {
+        return $maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
+            || $maniobra->pasos->contains(
+                fn ($paso): bool => $paso->estado === EstadoTareaMovimiento::EnProceso,
+            )
+            || $maniobra->custodiasTemporales->isNotEmpty();
+    }
+
+    /**
+     * @param  Collection<int, ManiobraOperacional>  $maniobras
+     * @param  array<int, string>|null  $camarasRollout
+     */
+    private function snapshot(
+        Temporada $temporada,
+        Collection $maniobras,
+        ?array $camarasRollout,
+    ): string {
         $estado = $maniobras
             ->sortBy('id')
             ->map(fn (ManiobraOperacional $maniobra): array => [
@@ -411,6 +499,22 @@ class ServicioArbitrajeManiobras
                         $objetivo->prioridad->value,
                         (int) $objetivo->pivot->beneficio_estimado,
                     ])->values()->all(),
+                'pasos' => $maniobra->pasos
+                    ->sortBy('id')
+                    ->map(fn ($paso): array => [
+                        $paso->id,
+                        $paso->estado->value,
+                        $paso->version,
+                        $paso->camara_origen_id,
+                        $paso->camara_destino_id,
+                    ])->values()->all(),
+                'custodias_activas' => $maniobra->custodiasTemporales
+                    ->sortBy('id')
+                    ->map(fn ($custodia): array => [
+                        $custodia->id,
+                        $custodia->folio_id,
+                        $custodia->camara_origen_id,
+                    ])->values()->all(),
                 'recursos' => $this->recursos($maniobra),
             ])->values()->all();
 
@@ -419,6 +523,7 @@ class ServicioArbitrajeManiobras
             'temporada' => $temporada->id,
             'capacidad' => config('planificador.maniobras_simultaneas_max', 3),
             'frontera' => config('planificador.frontier_max', 4),
+            'camaras_rollout' => $camarasRollout,
             'maniobras' => $estado,
         ], JSON_THROW_ON_ERROR));
     }

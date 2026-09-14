@@ -34,8 +34,9 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
 
         config([
             'planificador.mode' => 'guided',
-            'planificador.compute' => 'server',
+            'planificador.compute' => 'tablet',
             'planificador.horizon' => 'rolling',
+            'planificador.generacion_automatica' => true,
             'planificador.frontier_max' => 4,
             'planificador.maniobras_simultaneas_max' => 3,
         ]);
@@ -259,6 +260,127 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
         );
     }
 
+    public function test_rollout_excluye_maniobras_fuera_de_camara_sin_consumir_la_frontera(): void
+    {
+        $contexto = $this->crearContexto();
+        config(['planificador.rollout_camaras' => [$contexto['camara']->codigo]]);
+        $camaraFuera = Camara::create([
+            'codigo' => 'CAM-ARB-FUERA',
+            'nombre' => 'Cámara arbitraje fuera',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 2,
+            'cantidad_niveles' => 1,
+        ]);
+        $posicionFuera = Posicion::create([
+            'camara_id' => $camaraFuera->id,
+            'banda' => 1,
+            'posicion' => 1,
+            'nivel' => 1,
+            'etiqueta' => 'ARB-FUERA-01',
+        ]);
+        $dirigida = $this->crearManiobra(
+            $contexto,
+            0,
+            TipoPlanOperacional::ConcentracionCarga,
+            PrioridadOperacional::Alta,
+            100,
+        );
+        $fuera = $this->crearManiobra(
+            $contexto,
+            1,
+            TipoPlanOperacional::EvacuacionEmergencia,
+            PrioridadOperacional::Critica,
+            10_000,
+            null,
+            $camaraFuera,
+            $posicionFuera,
+        );
+
+        $servicio = app(ServicioArbitrajeManiobras::class);
+        $ciclo = $servicio->arbitrar($contexto['temporada']);
+        $decisiones = $ciclo->decisiones->keyBy('maniobra_operacional_id');
+
+        $this->assertSame(
+            DecisionArbitrajeManiobra::Seleccionada,
+            $decisiones[$dirigida->id]->decision,
+        );
+        $this->assertSame(
+            DecisionArbitrajeManiobra::FueraRollout,
+            $decisiones[$fuera->id]->decision,
+        );
+        $this->assertSame([$dirigida->id], $servicio->idsPublicables($ciclo)->all());
+    }
+
+    public function test_cambio_de_rollout_preserva_solo_la_realidad_fisica_ya_iniciada(): void
+    {
+        $contexto = $this->crearContexto();
+        $camaraFuera = Camara::create([
+            'codigo' => 'CAM-ARB-FISICA',
+            'nombre' => 'Cámara realidad física',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 2,
+            'cantidad_niveles' => 1,
+        ]);
+        $posicionesFuera = collect([1, 2])->map(fn (int $posicion) => Posicion::create([
+            'camara_id' => $camaraFuera->id,
+            'banda' => 1,
+            'posicion' => $posicion,
+            'nivel' => 1,
+            'etiqueta' => "ARB-FISICA-{$posicion}",
+        ]));
+        $soloAsumida = $this->crearManiobra(
+            $contexto,
+            0,
+            TipoPlanOperacional::ConcentracionCarga,
+            PrioridadOperacional::Alta,
+            100,
+            null,
+            $camaraFuera,
+            $posicionesFuera[0],
+        );
+        $fisica = $this->crearManiobra(
+            $contexto,
+            1,
+            TipoPlanOperacional::ConcentracionCarga,
+            PrioridadOperacional::Normal,
+            50,
+            null,
+            $camaraFuera,
+            $posicionesFuera[1],
+        );
+        foreach ([$soloAsumida, $fisica] as $maniobra) {
+            $maniobra->update([
+                'estado' => EstadoManiobraOperacional::EnEjecucion,
+                'version' => $maniobra->version + 1,
+            ]);
+        }
+        $pasoAsumido = $soloAsumida->pasos()->sole();
+        $pasoAsumido->update([
+            'estado' => EstadoTareaMovimiento::Asumida,
+            'version' => $pasoAsumido->version + 1,
+        ]);
+        $pasoFisico = $fisica->pasos()->sole();
+        $pasoFisico->update([
+            'estado' => EstadoTareaMovimiento::EnProceso,
+            'version' => $pasoFisico->version + 1,
+        ]);
+        config(['planificador.rollout_camaras' => [$contexto['camara']->codigo]]);
+
+        $decisiones = app(ServicioArbitrajeManiobras::class)
+            ->arbitrar($contexto['temporada'])
+            ->decisiones
+            ->keyBy('maniobra_operacional_id');
+
+        $this->assertSame(
+            DecisionArbitrajeManiobra::FueraRollout,
+            $decisiones[$soloAsumida->id]->decision,
+        );
+        $this->assertSame(
+            DecisionArbitrajeManiobra::EnEjecucion,
+            $decisiones[$fisica->id]->decision,
+        );
+    }
+
     /**
      * @param  array<string, mixed>  $contexto
      */
@@ -269,8 +391,12 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
         PrioridadOperacional $prioridad,
         int $beneficio,
         ?int $indicePosicion = null,
+        ?Camara $camaraDestino = null,
+        ?Posicion $posicionDestino = null,
     ): ManiobraOperacional {
         $indicePosicion ??= $indiceFolio;
+        $camaraDestino ??= $contexto['camara'];
+        $posicionDestino ??= $contexto['posiciones'][$indicePosicion];
         $plan = app(ServicioPlanesOperacionales::class)->crear(
             temporada: $contexto['temporada'],
             tipo: $tipo,
@@ -279,8 +405,8 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
             tareas: [[
                 'folio_id' => $contexto['folios'][$indiceFolio]->id,
                 'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
-                'camara_destino_id' => $contexto['camara']->id,
-                'posicion_destino_id' => $contexto['posiciones'][$indicePosicion]->id,
+                'camara_destino_id' => $camaraDestino->id,
+                'posicion_destino_id' => $posicionDestino->id,
                 'contexto' => [
                     'beneficio_estimado' => $beneficio,
                     'riesgo_operacional' => 0,

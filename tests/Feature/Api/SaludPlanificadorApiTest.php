@@ -48,7 +48,9 @@ class SaludPlanificadorApiTest extends TestCase
             ->assertJsonPath('data.despliegue.mode_global', 'off')
             ->assertJsonPath('data.salud.estado', 'saludable')
             ->assertJsonPath('data.metricas.planes.total', 0)
-            ->assertJsonPath('data.metricas.ejecucion.movimientos_por_pallet', 0);
+            ->assertJsonPath('data.metricas.ejecucion.movimientos_por_pallet', 0)
+            ->assertJsonPath('data.metricas.arbitraje.ciclos_nuevos', 0)
+            ->assertJsonPath('data.metricas.arbitraje.ultimo_ciclo', null);
 
         $this->assertSame(64, strlen((string) $respuesta->json('data.snapshot_version')));
     }
@@ -201,5 +203,117 @@ class SaludPlanificadorApiTest extends TestCase
             ->getJson('/api/administracion/planificador/salud?desde=2026-01-01&hasta=2026-01-09')
             ->assertUnprocessable()
             ->assertJsonValidationErrors('desde');
+    }
+
+    public function test_observa_arbitraje_shadow_conflictos_y_rollout_sin_materializar(): void
+    {
+        config([
+            'planificador.mode' => 'shadow',
+            'planificador.compute' => 'tablet',
+            'planificador.horizon' => 'rolling',
+            'planificador.generacion_automatica' => false,
+            'planificador.rollout_camaras' => ['CAM-SHADOW-DIRIGIDA'],
+            'planificador.frontier_max' => 4,
+            'planificador.maniobras_simultaneas_max' => 3,
+        ]);
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $camaraDirigida = Camara::create([
+            'codigo' => 'CAM-SHADOW-DIRIGIDA',
+            'nombre' => 'Cámara shadow dirigida',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 2,
+            'cantidad_niveles' => 1,
+        ]);
+        $camaraFuera = Camara::create([
+            'codigo' => 'CAM-SHADOW-FUERA',
+            'nombre' => 'Cámara shadow fuera',
+            'cantidad_bandas' => 1,
+            'posiciones_por_banda' => 1,
+            'cantidad_niveles' => 1,
+        ]);
+        $folioCompartido = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-SHADOW-COMPARTIDO',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+        ]);
+        $folioFuera = Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-SHADOW-FUERA',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'fecha_ingreso' => now(),
+        ]);
+        $crearManiobra = function (
+            string $sufijo,
+            Folio $folio,
+            Camara $camara,
+            int $beneficio,
+        ) use ($administrador, $temporada): void {
+            $plan = PlanOperacional::create([
+                'temporada_id' => $temporada->id,
+                'tipo' => TipoPlanOperacional::ConcentracionCarga,
+                'estado' => 'en_ejecucion',
+                'prioridad' => 'normal',
+                'titulo' => "Plan shadow {$sufijo}",
+                'creado_por_user_id' => $administrador->id,
+                'programado_at' => now(),
+                'iniciado_at' => now(),
+                'contexto' => ['planner_horizon' => 'rolling'],
+            ]);
+            $maniobra = ManiobraOperacional::create([
+                'plan_operacional_id' => $plan->id,
+                'creado_por_user_id' => $administrador->id,
+                'estado' => 'pendiente',
+                'prioridad' => 'normal',
+                'candidate_key' => "shadow-{$sufijo}",
+                'titulo' => "Maniobra shadow {$sufijo}",
+                'costo_movimientos' => 1,
+                'beneficio_estimado' => $beneficio,
+                'riesgo_operacional' => 0,
+            ]);
+            TareaMovimiento::create([
+                'plan_operacional_id' => $plan->id,
+                'maniobra_operacional_id' => $maniobra->id,
+                'secuencia' => 1,
+                'secuencia_maniobra' => 1,
+                'tipo_movimiento' => TipoMovimiento::UbicacionInicial,
+                'estado' => 'pendiente',
+                'prioridad' => 'normal',
+                'folio_id' => $folio->id,
+                'camara_destino_id' => $camara->id,
+            ]);
+        };
+        $crearManiobra('principal', $folioCompartido, $camaraDirigida, 300);
+        $crearManiobra('conflicto', $folioCompartido, $camaraDirigida, 200);
+        $crearManiobra('fuera', $folioFuera, $camaraFuera, 10_000);
+        $consulta = http_build_query([
+            'desde' => now()->subHour()->toIso8601String(),
+            'hasta' => now()->addMinute()->toIso8601String(),
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson("/api/administracion/planificador/salud?{$consulta}")
+            ->assertOk()
+            ->assertJsonPath('data.despliegue.mode_global', 'shadow')
+            ->assertJsonPath('data.metricas.arbitraje.unidad_ciclo', 'estado_nuevo')
+            ->assertJsonPath('data.metricas.arbitraje.ciclos_nuevos', 1)
+            ->assertJsonPath('data.metricas.arbitraje.decisiones_total', 3)
+            ->assertJsonPath('data.metricas.arbitraje.maniobras_unicas', 3)
+            ->assertJsonPath('data.metricas.arbitraje.por_decision.seleccionada', 1)
+            ->assertJsonPath('data.metricas.arbitraje.por_decision.excluida_conflicto', 1)
+            ->assertJsonPath('data.metricas.arbitraje.por_decision.fuera_rollout', 1)
+            ->assertJsonPath('data.metricas.arbitraje.conflictos.maniobras_excluidas', 1)
+            ->assertJsonPath('data.metricas.arbitraje.conflictos.por_recurso.folio', 1)
+            ->assertJsonPath('data.metricas.arbitraje.ultimo_ciclo.por_decision.fuera_rollout', 1);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->getJson("/api/administracion/planificador/salud?{$consulta}")
+            ->assertOk()
+            ->assertJsonPath('data.metricas.arbitraje.ciclos_nuevos', 1);
+        $this->assertDatabaseCount('ciclos_arbitraje_maniobras', 1);
     }
 }

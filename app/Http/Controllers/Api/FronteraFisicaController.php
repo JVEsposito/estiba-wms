@@ -9,7 +9,6 @@ use App\Models\Posicion;
 use App\Models\TareaMovimiento;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Estiba\ServicioPlanesOperacionales;
-use App\Services\Planificador\ServicioDesplieguePlanificador;
 use App\Services\Planificador\ServicioFronteraFisica;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -34,13 +33,13 @@ class FronteraFisicaController extends Controller
         ContextoOperacional $contexto,
         ServicioFronteraFisica $frontera,
         ServicioPlanesOperacionales $planes,
-        ServicioDesplieguePlanificador $despliegue,
     ): JsonResponse {
-        if (config('planificador.mode') !== 'guided'
+        if (! config('planificador.generacion_automatica')
+            || config('planificador.mode') !== 'guided'
             || config('planificador.compute') !== 'tablet'
             || config('planificador.horizon') !== 'rolling') {
             throw new DomainException(
-                'La frontera física global requiere el planificador guided/tablet/rolling.',
+                'La frontera física global requiere generación automática y el planificador guided/tablet/rolling.',
             );
         }
 
@@ -89,11 +88,7 @@ class FronteraFisicaController extends Controller
             try {
                 $tarea = TareaMovimiento::query()->findOrFail($propuesta['tarea_id']);
                 $posicion = Posicion::query()->findOrFail($propuesta['posicion_destino_id']);
-                if ($despliegue->modoParaCamara($posicion->camara_id) !== 'guided') {
-                    throw new DomainException(
-                        'La cámara propuesta permanece en shadow y no admite trabajo dirigido.',
-                    );
-                }
+                $frontera->validarPropuestaDirigida($tarea, $posicion->camara_id);
                 $materializada = $planes->materializarDestino(
                     tarea: $tarea,
                     posicion: $posicion,

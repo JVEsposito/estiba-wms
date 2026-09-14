@@ -9,6 +9,7 @@ enum DecisionArbitrajeManiobra: string
     case Alternativa = 'alternativa';
     case ExcluidaConflicto = 'excluida_conflicto';
     case FueraFrontera = 'fuera_frontera';
+    case FueraRollout = 'fuera_rollout';
     case FueraPlanificador = 'fuera_planificador';
 
     public function publicable(): bool

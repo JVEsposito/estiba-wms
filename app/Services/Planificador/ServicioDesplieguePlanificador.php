@@ -60,6 +60,19 @@ final class ServicioDesplieguePlanificador
         if (! $this->dirigidoGlobalActivo()) {
             return [];
         }
+
+        return $this->idsCamarasRollout();
+    }
+
+    /**
+     * null representa un rollout sin límite de cámaras. A diferencia de
+     * idsCamarasDirigidas(), esta vista permite simular el alcance configurado
+     * en shadow sin habilitar ejecución física.
+     *
+     * @return array<int, string>|null
+     */
+    public function idsCamarasRollout(): ?array
+    {
         if (! $this->rolloutLimitado()) {
             return null;
         }
