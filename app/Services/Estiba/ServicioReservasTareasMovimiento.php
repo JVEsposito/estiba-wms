@@ -586,9 +586,16 @@ class ServicioReservasTareasMovimiento
         }
     }
 
-    public function expirarVencidas(int $limite = 100): int
+    public function expirarVencidas(int $limite = 100, ?string $temporadaId = null): int
     {
         $ids = ReservaTareaMovimiento::query()
+            ->when(
+                $temporadaId,
+                fn ($consulta) => $consulta->whereHas(
+                    'tareaMovimiento.planOperacional',
+                    fn ($planes) => $planes->where('temporada_id', $temporadaId),
+                ),
+            )
             ->where('estado', EstadoReservaTareaMovimiento::Activa->value)
             ->whereNotNull('bloqueo_tarea_id')
             ->where('vence_at', '<=', now())

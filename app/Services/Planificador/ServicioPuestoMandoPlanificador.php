@@ -3,6 +3,8 @@
 namespace App\Services\Planificador;
 
 use App\Enums\DecisionArbitrajeManiobra;
+use App\Enums\EstadoCustodiaTemporal;
+use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Enums\EstadoTareaMovimiento;
 use App\Models\Camara;
 use App\Models\CicloArbitrajeManiobras;
@@ -19,6 +21,7 @@ final class ServicioPuestoMandoPlanificador
         private readonly ServicioDesplieguePlanificador $despliegue,
         private readonly ServicioEstadoArbitrajePlanificador $estadoArbitraje,
         private readonly ServicioSaludPlanificador $salud,
+        private readonly ServicioIntervencionesPlanificador $intervenciones,
     ) {}
 
     /** @return array<string, mixed> */
@@ -57,6 +60,15 @@ final class ServicioPuestoMandoPlanificador
                 'pasos.posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
                 'pasos.camaraDestino:id,codigo,nombre',
                 'pasos.posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
+                'pasos.reservaActiva:id,bloqueo_tarea_id,estado,vence_at',
+                'custodiasTemporales' => fn ($consulta) => $consulta->where(
+                    'estado',
+                    EstadoCustodiaTemporal::Activa->value,
+                ),
+                'discrepancias' => fn ($consulta) => $consulta->where(
+                    'estado',
+                    EstadoDiscrepanciaManiobra::Abierta->value,
+                ),
             ]),
         ]);
     }
@@ -104,6 +116,8 @@ final class ServicioPuestoMandoPlanificador
             'decision' => $decision->decision->value,
             'estado' => $maniobra->estado->value,
             'prioridad' => $maniobra->prioridad->value,
+            'version' => $maniobra->version,
+            'acciones_autorizadas' => $this->intervenciones->accionesAutorizadas($maniobra),
             'titulo' => $maniobra->titulo,
             'motivo' => $decision->motivo,
             'puntaje' => $decision->puntaje,

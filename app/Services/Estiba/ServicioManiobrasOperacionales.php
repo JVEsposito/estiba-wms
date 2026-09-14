@@ -88,6 +88,7 @@ class ServicioManiobrasOperacionales
                     EstadoManiobraOperacional::Pendiente->value,
                     EstadoManiobraOperacional::EnEjecucion->value,
                     EstadoManiobraOperacional::PausadaDiscrepancia->value,
+                    EstadoManiobraOperacional::PausadaSupervision->value,
                 ])
                 ->exists()) {
                 throw new ConflictoOperacion('La maniobra candidata ya fue publicada.');
@@ -429,8 +430,11 @@ class ServicioManiobrasOperacionales
             ->findOrFail($tarea->id);
 
         $this->validarPasoActualInterno($maniobra, $tarea);
-        if ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia) {
-            throw new ConflictoOperacion('La maniobra está pausada por una discrepancia física.');
+        if (in_array($maniobra->estado, [
+            EstadoManiobraOperacional::PausadaDiscrepancia,
+            EstadoManiobraOperacional::PausadaSupervision,
+        ], true)) {
+            throw new ConflictoOperacion('La maniobra está pausada y no puede ser asumida.');
         }
         if ($maniobra->responsable_user_id !== null
             && ($maniobra->responsable_user_id !== $usuario->id

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\DespachoDirectoPlanificadorController;
 use App\Http\Controllers\Api\DiscrepanciaManiobraController;
 use App\Http\Controllers\Api\FronteraFisicaController;
+use App\Http\Controllers\Api\IntervencionPlanificadorController;
 use App\Http\Controllers\Api\PlanOperacionalController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,5 +49,26 @@ Route::middleware(['auth:sanctum', 'can:supervisar-camaras-productos'])
         Route::post(
             '/{discrepanciaManiobra}/resolver',
             [DiscrepanciaManiobraController::class, 'resolver'],
+        );
+    });
+
+Route::middleware(['auth:sanctum', 'can:supervisar-camaras-productos'])
+    ->prefix('intervenciones-planificador')
+    ->group(function () {
+        Route::post(
+            '/maniobras/{maniobraOperacional}/pausar',
+            [IntervencionPlanificadorController::class, 'pausar'],
+        );
+        Route::post(
+            '/maniobras/{maniobraOperacional}/reanudar',
+            [IntervencionPlanificadorController::class, 'reanudar'],
+        );
+        Route::patch(
+            '/maniobras/{maniobraOperacional}/prioridad',
+            [IntervencionPlanificadorController::class, 'repriorizar'],
+        );
+        Route::post(
+            '/reservas/expirar-vencidas',
+            [IntervencionPlanificadorController::class, 'expirarReservas'],
         );
     });

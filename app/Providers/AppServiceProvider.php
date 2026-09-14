@@ -18,6 +18,7 @@ use App\Models\Folio;
 use App\Models\IncidenciaCargaFolio;
 use App\Models\LoteInspeccionSag;
 use App\Models\LoteInspeccionSagFolio;
+use App\Models\ManiobraOperacional;
 use App\Models\Movimiento;
 use App\Models\PersonalAccessToken;
 use App\Models\PresenciaCargaAnden;
@@ -29,7 +30,9 @@ use App\Models\RepaletizajeDetalle;
 use App\Models\RepaletizajeResultado;
 use App\Models\ReservaCargaFolio;
 use App\Models\ReservaPosicionInspeccionSag;
+use App\Models\ReservaTareaMovimiento;
 use App\Models\ResultadoDestinoInspeccionSag;
+use App\Models\TareaMovimiento;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Models\ValidacionPallet;
@@ -121,6 +124,9 @@ class AppServiceProvider extends ServiceProvider
             ResultadoDestinoInspeccionSag::class,
             AutorizacionSagFolio::class,
             ReservaPosicionInspeccionSag::class,
+            ManiobraOperacional::class,
+            TareaMovimiento::class,
+            ReservaTareaMovimiento::class,
         ] as $modeloAuditable) {
             $modeloAuditable::observe(AuditarCambioTransicionOperacionalObserver::class);
         }
