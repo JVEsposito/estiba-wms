@@ -1457,6 +1457,157 @@
     font-size: .74rem;
 }
 
+.operation-supervision__actions {
+    display: grid;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid var(--corporate-border-strong);
+    border-left: 5px solid var(--corporate-blue);
+    background: var(--corporate-card);
+}
+
+.operation-supervision__actions[data-empty="true"] {
+    border-left-color: var(--text-subtle);
+}
+
+.operation-supervision__actions h4,
+.operation-supervision__actions p {
+    margin: 0;
+}
+
+.operation-supervision__actions h4 {
+    color: var(--text-strong);
+    font-size: .78rem;
+    font-weight: 900;
+    letter-spacing: .055em;
+    text-transform: uppercase;
+}
+
+.operation-supervision__actions p {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: .76rem;
+    line-height: 1.4;
+}
+
+.operation-supervision__action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.operation-supervision__action-buttons button,
+.operation-supervision__action-buttons a,
+.operation-supervision__confirm button {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 13px;
+    border: 1px solid var(--corporate-border-strong);
+    border-radius: 3px;
+    background: var(--surface-muted);
+    color: var(--text-strong);
+    cursor: pointer;
+    font: inherit;
+    font-size: .76rem;
+    font-weight: 900;
+    text-decoration: none;
+}
+
+.operation-supervision__action-buttons button:hover,
+.operation-supervision__action-buttons button:focus-visible,
+.operation-supervision__action-buttons a:hover,
+.operation-supervision__action-buttons a:focus-visible {
+    border-color: var(--corporate-blue);
+    background: var(--info-bg);
+    color: var(--corporate-blue);
+    outline: 2px solid transparent;
+}
+
+.operation-supervision__confirm {
+    display: grid;
+    gap: 10px;
+    padding: 13px;
+    border: 1px solid var(--warning-text);
+    background: var(--warning-bg);
+}
+
+.operation-supervision__confirm[hidden] {
+    display: none;
+}
+
+.operation-supervision__confirm > strong {
+    color: var(--text-strong);
+    font-size: .86rem;
+}
+
+.operation-supervision__confirm label {
+    display: grid;
+    gap: 5px;
+    color: var(--text-strong);
+    font-size: .72rem;
+    font-weight: 900;
+}
+
+.operation-supervision__confirm textarea,
+.operation-supervision__confirm select {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--corporate-border-strong);
+    border-radius: 2px;
+    background: var(--corporate-card);
+    color: var(--text-strong);
+    font: inherit;
+    font-size: .82rem;
+}
+
+.operation-supervision__confirm textarea {
+    min-height: 76px;
+    resize: vertical;
+}
+
+.operation-supervision__confirm textarea:focus,
+.operation-supervision__confirm select:focus {
+    border-color: var(--corporate-blue);
+    outline: 2px solid color-mix(in srgb, var(--corporate-blue) 25%, transparent);
+}
+
+.operation-supervision__confirm > div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.operation-supervision__confirm button[type="submit"] {
+    border-color: #0b6f55;
+    background: #0b6f55;
+    color: #fff;
+}
+
+.operation-supervision__confirm button[type="submit"]:hover,
+.operation-supervision__confirm button[type="submit"]:focus-visible {
+    background: #085942;
+    outline: 2px solid transparent;
+}
+
+.operation-supervision__confirm button:disabled,
+.operation-supervision__action-buttons button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.operation-supervision__restrictions {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-secondary);
+    font-size: .74rem;
+}
+
 @media (max-width: 1199px) {
     .operation-now-loading { left: 0; }
     .operation-now-command { grid-template-columns: minmax(250px, 1fr) auto; }

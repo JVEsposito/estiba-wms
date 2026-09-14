@@ -1,6 +1,7 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
 import {
+    buildManeuverInterventionRequest,
     createManeuverSupervisionDrawer,
     operationLocationLabel,
 } from './shared/operation-supervision-drawer';
@@ -85,6 +86,7 @@ const state = {
     mapRevision: 0,
     mapSaving: false,
     selectedManeuverId: null,
+    interventionSaving: false,
 };
 
 const supervisionDrawer = createManeuverSupervisionDrawer({
@@ -94,6 +96,8 @@ const supervisionDrawer = createManeuverSupervisionDrawer({
     onClosed: () => {
         state.selectedManeuverId = null;
     },
+    canIntervene: () => can('puede_supervisar'),
+    onAction: executeManeuverIntervention,
 });
 
 class ApiError extends Error {
@@ -307,6 +311,49 @@ function toast(message, error = false) {
     node.textContent = message;
     elements.toasts.append(node);
     window.setTimeout(() => node.remove(), 5000);
+}
+
+async function executeManeuverIntervention({
+    action,
+    reason,
+    priority,
+    decision,
+}) {
+    if (state.interventionSaving) return false;
+    state.interventionSaving = true;
+
+    try {
+        const operationId = window.crypto.randomUUID();
+        const request = buildManeuverInterventionRequest(
+            decision,
+            action,
+            { reason, priority },
+            operationId,
+        );
+        await api(request.path, {
+            method: request.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(request.body),
+        });
+        const labels = {
+            pausar: 'Maniobra pausada y auditada.',
+            reanudar: 'Maniobra reanudada y enviada a recálculo.',
+            repriorizar: 'Prioridad actualizada y enviada a recálculo.',
+        };
+        toast(labels[action] || 'Intervención registrada.');
+        await load({ silent: true, propagate: true });
+
+        return true;
+    } catch (error) {
+        toast(error.message || 'No fue posible intervenir la maniobra.', true);
+        if (error.status === 409) {
+            await load({ silent: true }).catch(() => false);
+        }
+
+        return false;
+    } finally {
+        state.interventionSaving = false;
+    }
 }
 
 function renderClock() {
@@ -861,7 +908,7 @@ function startPolling() {
         () => load({ silent: true, propagate: true }),
         {
             intervalMs: seconds * 1000,
-            canRun: () => Boolean(state.token) && !state.loading && !state.mapSaving,
+            canRun: () => Boolean(state.token) && !state.loading && !state.mapSaving && !state.interventionSaving,
             onError: (error) => showConnectionIssue(error),
         },
     );

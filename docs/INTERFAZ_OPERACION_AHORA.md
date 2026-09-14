@@ -88,8 +88,10 @@ muestra su hora en vez de reemplazarla por ceros.
 ## Acceso y alcance
 
 La navegación y el cliente exigen `puede_consultar_panel_gerencial` y el módulo
-`gerencia.panel`. La pantalla no expone formularios ni acciones operativas. Los
-enlaces llevan a las oficinas existentes que poseen sus propios permisos.
+`gerencia.panel`. La consulta continúa disponible para perfiles gerenciales. Las intervenciones del
+drawer solo aparecen cuando la identidad posee `puede_supervisar`; el backend
+vuelve a verificar `supervisar-camaras-productos` en cada comando. Los enlaces
+llevan a las oficinas existentes que poseen sus propios permisos.
 
 El puesto de mando usa el mismo permiso de solo lectura de `Operación ahora` y
 no amplía el acceso al endpoint administrativo de salud.
@@ -97,7 +99,7 @@ no amplía el acceso al endpoint administrativo de salud.
 
 ## Detalle de supervisión de maniobras
 
-Cada decisión del ciclo vigente permite abrir un drawer lateral de solo lectura. La vista resume:
+Cada decisión del ciclo vigente permite abrir un drawer lateral. La vista resume:
 
 - decisión y motivo operacional;
 - objetivo, prioridad, puntaje, beneficio neto, costo y riesgo;
@@ -107,3 +109,14 @@ Cada decisión del ciclo vigente permite abrir un drawer lateral de solo lectura
 - conflictos expresados mediante conceptos operacionales, sin mostrar UUID.
 
 El drawer consume el mismo snapshot de `GET /api/operacion-ahora`; abrirlo no ejecuta arbitraje, no renueva reservas y no modifica maniobras. Durante el polling conserva la maniobra seleccionada y actualiza su información si continúa en el ciclo vigente.
+
+Para usuarios con permiso de supervisión, el contrato `acciones_autorizadas`
+habilita únicamente `pausar`, `reanudar`, `repriorizar` o el acceso a la
+resolución de discrepancias según el estado real. Pausar y repriorizar quedan
+bloqueados si hay una tarea asumida, reserva activa, custodia temporal o prefijo
+físico iniciado. Antes de ejecutar, el drawer exige un motivo y presenta una
+confirmación explícita. Cada comando envía UUID de operación y versión de
+maniobra; un conflicto `409` conserva la seguridad, actualiza el snapshot y
+obliga a revisar nuevamente. Tras una intervención correcta se mantiene el
+drawer abierto con el estado actualizado mientras el arbitraje se recalcula
+después del commit.
