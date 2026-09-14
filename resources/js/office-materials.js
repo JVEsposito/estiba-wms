@@ -35,6 +35,9 @@ const elements = {
     directDispatchDialog: byId('materialDirectDispatchDialog'), directDispatchForm: byId('materialDirectDispatchForm'),
     directDispatchContext: byId('materialDirectDispatchContext'), directDispatchError: byId('materialDirectDispatchError'),
     directDispatchClose: byId('closeMaterialDirectDispatch'), directDispatchCancel: byId('cancelMaterialDirectDispatch'),
+    directConsumptionDialog: byId('materialDirectConsumptionDialog'), directConsumptionForm: byId('materialDirectConsumptionForm'),
+    directConsumptionContext: byId('materialDirectConsumptionContext'), directConsumptionError: byId('materialDirectConsumptionError'),
+    directConsumptionClose: byId('closeMaterialDirectConsumption'), directConsumptionCancel: byId('cancelMaterialDirectConsumption'),
     correctionDialog: byId('materialCorrectionDialog'), correctionForm: byId('materialCorrectionForm'),
     correctionContext: byId('materialCorrectionContext'), correctionError: byId('materialCorrectionError'),
     correctionClose: byId('closeMaterialCorrection'), correctionCancel: byId('cancelMaterialCorrection'),
@@ -46,7 +49,7 @@ const elements = {
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
     token: localStorage.getItem(keys.token), identity: readJson(keys.identity),
-    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, correctionOperationId: null,
+    seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, directConsumptionOperationId: null, directConsumptionFolioId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
     regularizationItemId: null, regularizationOperationId: null,
     operationalPoller: null,
@@ -128,6 +131,7 @@ function seasonItems() { return state.items.filter((item) => item.cliente?.tempo
 function activeItems() { return state.items.filter((item) => item.activo && item.cliente?.activo !== false && item.cliente?.temporada?.activa !== false); }
 function activeDestinations() { return state.destinations.filter((destination) => destination.activo); }
 function directDispatchDestinations() { return activeDestinations().filter((destination) => destination.tipo !== 'fisica'); }
+function directConsumptionCenters() { return activeDestinations().filter((destination) => destination.tipo === 'virtual' && destination.centro_costo); }
 function normalizedSearch(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
 function itemLabel(item) { return `${item.cliente?.temporada?.codigo || ''} · ${item.cliente?.codigo || ''} · ${item.codigo} · ${item.nombre}`; }
 function itemSearchText(item) { return normalizedSearch(`${itemLabel(item)} ${item.cliente?.nombre || ''} ${item.categoria || ''}`); }
@@ -315,12 +319,18 @@ function renderInventory() {
                 : folio.reservable
                     ? '<strong>Disponible</strong>'
                     : '<strong>No disponible</strong>';
-        const canDirect = canDispatchDirect
+    const canDirect = canDispatchDirect
             && !blocked
             && Boolean(folio.camara)
             && folio.estado_ubicacion !== 'pendiente_ubicacion'
             && Number(folio.cantidad_disponible || 0) > 0;
+        const canConsumeDirect = state.identity?.puede_gestionar_despachos_materiales === true
+            && folio.categoria_operacional === 'insumo'
+            && folio.almacen?.codigo === 'BOD-CENTRAL'
+            && folio.reservable === true
+            && Number(folio.cantidad_disponible || 0) > 0;
         const actions = [
+            canConsumeDirect ? `<button data-direct-consumption="${folio.folio_id}" type="button">Consumir insumo</button>` : '',
             canDirect ? `<button data-direct-dispatch="${folio.folio_id}" type="button">Despachar directo</button>` : '',
             canCorrect ? `<button data-correct-material="${folio.folio_id}" type="button">Corregir código</button>` : '',
             canManageBlock && blocked
@@ -760,7 +770,79 @@ elements.directDispatchForm.addEventListener('submit', async (event) => {
         setBusy(false);
     }
 });
+function closeDirectConsumptionDialog() {
+    state.directConsumptionOperationId = null;
+    state.directConsumptionFolioId = null;
+    elements.directConsumptionDialog.close();
+}
+elements.directConsumptionClose.addEventListener('click', closeDirectConsumptionDialog);
+elements.directConsumptionCancel.addEventListener('click', closeDirectConsumptionDialog);
+elements.directConsumptionForm.addEventListener('input', () => {
+    state.directConsumptionOperationId = null;
+});
+elements.directConsumptionForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.directConsumptionError.textContent = '';
+    const payload = Object.fromEntries(new FormData(elements.directConsumptionForm));
+    const folio = state.inventory.find((candidate) => candidate.folio_id === payload.folio_id);
+    const center = directConsumptionCenters().find(
+        (candidate) => candidate.id === payload.centro_costo_id,
+    );
+    if (!folio || !center) return;
+    const confirmed = window.confirm(
+        `¿Confirmas consumir ${quantity(payload.cantidad)} ${folio.unidad_medida} de ${folio.numero_folio} e imputarlo a ${center.nombre}?`,
+    );
+    if (!confirmed) return;
+    payload.operacion_id = state.directConsumptionOperationId ||= operationUuid();
+    for (const key of ['documento_relacionado', 'motivo_excepcion_fifo']) {
+        if (!payload[key]) delete payload[key];
+    }
+    setBusy(true, 'Registrando consumo directo…');
+    try {
+        await api('/api/materiales/almacenes/movimientos', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        closeDirectConsumptionDialog();
+        await loadAll();
+        toast(`Consumo registrado para ${center.nombre}; Bodega Central fue descontada.`);
+    } catch (error) {
+        elements.directConsumptionError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
 elements.inventoryBody.addEventListener('click', async (event) => {
+    const consumptionButton = event.target.closest('[data-direct-consumption]');
+    if (consumptionButton) {
+        const folio = state.inventory.find(
+            (candidate) => candidate.folio_id === consumptionButton.dataset.directConsumption,
+        );
+        if (!folio
+            || folio.categoria_operacional !== 'insumo'
+            || folio.almacen?.codigo !== 'BOD-CENTRAL'
+            || folio.reservable !== true
+            || Number(folio.cantidad_disponible || 0) <= 0) return;
+        const centers = directConsumptionCenters();
+        if (!centers.length) {
+            toast('No existen centros de costo virtuales activos para imputar el consumo.', true);
+            return;
+        }
+        state.directConsumptionFolioId = folio.folio_id;
+        state.directConsumptionOperationId = operationUuid();
+        elements.directConsumptionForm.reset();
+        elements.directConsumptionForm.elements.folio_id.value = folio.folio_id;
+        elements.directConsumptionForm.elements.almacen_origen_id.value = folio.almacen.id;
+        elements.directConsumptionForm.elements.centro_costo_id.innerHTML = '<option value="">Selecciona un centro de costo</option>'
+            + centers.map((center) => `<option value="${center.id}">${escapeHtml(center.nombre)} · ${escapeHtml(center.centro_costo)}</option>`).join('');
+        elements.directConsumptionForm.elements.cantidad.max = String(folio.cantidad_disponible);
+        elements.directConsumptionForm.elements.cantidad.value = String(folio.cantidad_disponible);
+        elements.directConsumptionContext.textContent = `${folio.numero_folio} · ${folio.item.codigo} · ${folio.item.nombre} · ${folio.camara?.codigo || 'Bodega Central'} / ${folio.posicion?.etiqueta || 'Sin posición'} · máximo ${quantity(folio.cantidad_disponible)} ${folio.unidad_medida}`;
+        elements.directConsumptionError.textContent = '';
+        elements.directConsumptionDialog.showModal();
+        return;
+    }
+
     const directButton = event.target.closest('[data-direct-dispatch]');
     if (directButton) {
         const folio = state.inventory.find(
