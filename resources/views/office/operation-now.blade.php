@@ -221,7 +221,7 @@
             <dialog class="operation-supervision" id="operationSupervisionDialog" aria-labelledby="operationSupervisionTitle">
                 <article class="operation-supervision__surface">
                     <header class="operation-supervision__header">
-                        <div><p>SUPERVISIÓN OPERACIONAL</p><h2 id="operationSupervisionTitle">Detalle de maniobra</h2><span>Decisión, realidad física y secuencia vigente</span></div>
+                        <div><p>SUPERVISIÓN OPERACIONAL</p><h2 id="operationSupervisionTitle">Detalle de maniobra</h2><span>Decisión, realidad física e intervenciones autorizadas</span></div>
                         <button type="button" id="operationSupervisionClose" aria-label="Cerrar detalle de maniobra">Cerrar</button>
                     </header>
                     <div class="operation-supervision__content" id="operationSupervisionContent">

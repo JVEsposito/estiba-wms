@@ -78,6 +78,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('Planificador detenido por configuración', $script);
         $this->assertStringContainsString('plannerConflictDetail', $script);
         $this->assertStringContainsString('createManeuverSupervisionDrawer', $script);
+        $this->assertStringContainsString('buildManeuverInterventionRequest', $script);
+        $this->assertStringContainsString('executeManeuverIntervention', $script);
+        $this->assertStringContainsString("can('puede_supervisar')", $script);
         $this->assertStringContainsString('data-maneuver-detail', $script);
         $this->assertStringContainsString('operationLocationLabel', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
@@ -94,7 +97,11 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('process?.productos', $script);
         $this->assertStringContainsString('tunnelProgress', $script);
         $this->assertStringContainsString('pauseWhenHidden', file_get_contents(resource_path('js/shared/operational-poller.js')));
-        $this->assertStringNotContainsString("method: 'POST'", $script);
+        $drawer = file_get_contents(resource_path('js/shared/operation-supervision-drawer.js'));
+        $this->assertIsString($drawer);
+        $this->assertStringContainsString('/api/intervenciones-planificador/maniobras/', $drawer);
+        $this->assertStringContainsString("method: 'POST'", $drawer);
+        $this->assertStringContainsString("method: 'PATCH'", $drawer);
         $this->assertStringContainsString("method: 'PUT'", $script);
     }
 
@@ -120,6 +127,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('operation-now-table--planner', $styles);
         $this->assertStringContainsString('operation-supervision__surface', $styles);
         $this->assertStringContainsString('operation-supervision__steps', $styles);
+        $this->assertStringContainsString('operation-supervision__actions', $styles);
+        $this->assertStringContainsString('operation-supervision__confirm', $styles);
         $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(98px, 1fr))', $styles);
         $this->assertStringNotContainsString('radial-gradient', $styles);
     }
