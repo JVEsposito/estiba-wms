@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\RolUsuario;
@@ -240,6 +241,217 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             'estado_operacional' => EstadoOperacionalFolio::Agotado->value,
             'activo' => false,
         ]);
+    }
+
+    public function test_consumo_directo_desde_bodega_imputa_insumo_sin_crear_saldo_virtual(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearCamarero();
+        $cliente = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail();
+        $item = $this->crearItem($administrador, $cliente);
+        $centroCosto = $this->crearDestino($administrador, 'Mantención', 'MANT-01');
+        [$camara, $posicion] = $this->crearCamara();
+        $folio = $this->crearFolio($item, 10);
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $this->ubicar($tokenTablet, $folio, $camara, $posicion, $sesion);
+        $bodega = AlmacenMaterial::query()
+            ->where('codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
+            ->firstOrFail();
+        $operacionId = (string) Str::uuid();
+        $payload = [
+            'operacion_id' => $operacionId,
+            'tipo' => 'consumo',
+            'folio_id' => $folio->id,
+            'almacen_origen_id' => $bodega->id,
+            'centro_costo_id' => $centroCosto->id,
+            'cantidad' => 4,
+            'motivo' => 'Mantención preventiva del turno',
+            'documento_relacionado' => 'VALE-001',
+        ];
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.tipo', 'consumo')
+            ->assertJsonPath('data.centro_costo', 'MANT-01')
+            ->assertJsonPath('data.metadatos.modalidad_consumo', 'directo_bodega')
+            ->assertJsonPath('data.metadatos.centro_costo_id', $centroCosto->id)
+            ->assertJsonPath('data.saldo_origen_resultante', '6.000');
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.saldo_origen_resultante', '6.000');
+
+        $movimiento = MovimientoAlmacenMaterial::query()
+            ->where('operacion_id', $operacionId)
+            ->firstOrFail();
+        $this->assertSame($bodega->id, $movimiento->almacen_origen_id);
+        $this->assertNull($movimiento->almacen_destino_id);
+        $this->assertSame('MANT-01', $movimiento->centro_costo);
+        $this->assertSame($administrador->id, $movimiento->user_id);
+        $this->assertSame('VALE-001', $movimiento->documento_relacionado);
+        $this->assertSame('Mantención', $movimiento->metadatos['centro_costo_nombre']);
+        $this->assertSame(1, MovimientoAlmacenMaterial::query()
+            ->where('operacion_id', $operacionId)
+            ->count());
+        $this->assertDatabaseHas('saldos_materiales_almacenes', [
+            'folio_id' => $folio->id,
+            'almacen_material_id' => $bodega->id,
+            'cantidad_actual' => 6,
+        ]);
+        $this->assertDatabaseMissing('saldos_materiales_almacenes', [
+            'folio_id' => $folio->id,
+            'almacen_material_id' => $centroCosto->id,
+        ]);
+        $this->assertProyeccion($folio->id, 6, 6);
+    }
+
+    public function test_consumo_directo_rechaza_salida_sin_imputacion_o_de_categoria_invalida(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearCamarero();
+        $cliente = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail();
+        $item = $this->crearItem($administrador, $cliente);
+        $centroCosto = $this->crearDestino($administrador, 'Packing', 'PACK-01');
+        [$camara, $posicion] = $this->crearCamara();
+        $folio = $this->crearFolio($item, 10);
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $this->ubicar($tokenTablet, $folio, $camara, $posicion, $sesion);
+        $bodega = AlmacenMaterial::query()
+            ->where('codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
+            ->firstOrFail();
+        $payload = [
+            'tipo' => 'consumo',
+            'folio_id' => $folio->id,
+            'almacen_origen_id' => $bodega->id,
+            'cantidad' => 2,
+            'motivo' => 'Consumo de prueba controlado',
+        ];
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+            ])
+            ->assertUnprocessable();
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+                'centro_costo_id' => $bodega->id,
+            ])
+            ->assertUnprocessable();
+
+        $item->update(['categoria_operacional' => CategoriaOperacionalMaterial::MaterialMp]);
+        FolioMaterial::query()->findOrFail($folio->id)->update([
+            'categoria_operacional' => CategoriaOperacionalMaterial::MaterialMp,
+        ]);
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+                'centro_costo_id' => $centroCosto->id,
+            ])
+            ->assertUnprocessable();
+
+        $item->update(['categoria_operacional' => CategoriaOperacionalMaterial::Insumo]);
+        FolioMaterial::query()->findOrFail($folio->id)->update([
+            'categoria_operacional' => CategoriaOperacionalMaterial::Insumo,
+        ]);
+        $centroCosto->update(['activo' => false]);
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+                'centro_costo_id' => $centroCosto->id,
+            ])
+            ->assertUnprocessable();
+
+        $centroCosto->update(['activo' => true]);
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+                'centro_costo_id' => $centroCosto->id,
+                'cantidad' => 11,
+            ])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseCount('movimientos_almacenes_materiales', 0);
+        $this->assertProyeccion($folio->id, 10, 10);
+    }
+
+    public function test_consumo_directo_respeta_fifo_de_bodega_y_audita_la_excepcion(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearCamarero();
+        $cliente = ClienteMaterial::query()->where('codigo', 'GENERAL')->firstOrFail();
+        $item = $this->crearItem($administrador, $cliente);
+        $centroCosto = $this->crearDestino($administrador, 'Packing', 'PACK-01');
+        [$camara, $primeraPosicion] = $this->crearCamara();
+        $segundaPosicion = Posicion::create([
+            'camara_id' => $camara->id,
+            'banda' => 1,
+            'posicion' => 2,
+            'nivel' => 1,
+            'etiqueta' => 'B01-P02-N1',
+        ]);
+        $folioAntiguo = $this->crearFolio($item, 10);
+        $folioNuevo = $this->crearFolio($item, 10, 'FCU0000002');
+        $sesion = $this->conToken($tokenTablet)
+            ->postJson("/api/camaras/{$camara->id}/sesiones")
+            ->assertCreated()
+            ->json('data.id');
+        $this->ubicar(
+            $tokenTablet,
+            $folioAntiguo,
+            $camara,
+            $primeraPosicion,
+            $sesion,
+        );
+        $this->ubicar($tokenTablet, $folioNuevo, $camara, $segundaPosicion, $sesion);
+        $bodega = AlmacenMaterial::query()
+            ->where('codigo', AlmacenMaterial::CODIGO_BODEGA_CENTRAL)
+            ->firstOrFail();
+        $payload = [
+            'tipo' => 'consumo',
+            'folio_id' => $folioNuevo->id,
+            'almacen_origen_id' => $bodega->id,
+            'centro_costo_id' => $centroCosto->id,
+            'cantidad' => 2,
+            'motivo' => 'Consumo con control FIFO',
+        ];
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => (string) Str::uuid(),
+            ])
+            ->assertUnprocessable();
+        $operacionId = (string) Str::uuid();
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/almacenes/movimientos', [
+                ...$payload,
+                'operacion_id' => $operacionId,
+                'motivo_excepcion_fifo' => 'Lote solicitado expresamente por Packing',
+            ])
+            ->assertCreated();
+
+        $movimiento = MovimientoAlmacenMaterial::query()
+            ->where('operacion_id', $operacionId)
+            ->firstOrFail();
+        $this->assertSame(
+            'Lote solicitado expresamente por Packing',
+            $movimiento->metadatos['motivo_excepcion_fifo'],
+        );
+        $this->assertProyeccion($folioAntiguo->id, 10, 10);
+        $this->assertProyeccion($folioNuevo->id, 8, 8);
     }
 
     public function test_almacen_virtual_rechaza_ubicacion_y_movimientos_son_inmutables(): void
@@ -516,12 +728,16 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         return [$camara, $posicion];
     }
 
-    private function crearFolio(ItemMaterial $item, float $cantidad): Folio
+    private function crearFolio(
+        ItemMaterial $item,
+        float $cantidad,
+        string $numeroFolio = 'FCU0000001',
+    ): Folio
     {
         $item->loadMissing('cliente.temporada');
         $folio = Folio::create([
             'temporada_id' => $item->cliente->temporada->temporada_id,
-            'numero_folio' => 'FCU0000001',
+            'numero_folio' => $numeroFolio,
             'tipo_bulto' => 'material',
             'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
             'fecha_ingreso' => now()->subDay(),
