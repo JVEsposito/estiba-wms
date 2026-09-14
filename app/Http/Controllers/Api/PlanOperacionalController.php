@@ -26,8 +26,8 @@ use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use App\Services\Planificador\ServicioArbitrajeManiobras;
-use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use App\Services\Planificador\ServicioDesplieguePlanificador;
+use App\Services\Planificador\ServicioEstadoArbitrajePlanificador;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
@@ -291,7 +291,7 @@ class PlanOperacionalController extends Controller
         abort_unless($planOperacional->temporada()->where('activa', true)->exists(), 404);
         $horizon = ($planOperacional->contexto ?? [])['planner_horizon']
             ?? config('planificador.horizon');
-        if (!config('planificador.generacion_automatica')
+        if (! config('planificador.generacion_automatica')
             || config('planificador.mode') !== 'guided'
             || config('planificador.compute') !== 'tablet'
             || $horizon !== 'rolling') {
@@ -313,7 +313,7 @@ class PlanOperacionalController extends Controller
             'propuestas.*.motivo' => ['nullable', 'string', 'max:240'],
         ]);
         $snapshot = $servicio->snapshot($planOperacional);
-        if (!hash_equals($snapshot['snapshot_version'], $datos['snapshot_version'])) {
+        if (! hash_equals($snapshot['snapshot_version'], $datos['snapshot_version'])) {
             return response()->json([
                 'message' => 'El snapshot cambió antes de materializar la frontera.',
                 'codigo' => 'snapshot_obsoleto',
@@ -333,7 +333,7 @@ class PlanOperacionalController extends Controller
             $tarea = TareaMovimiento::query()
                 ->where('plan_operacional_id', $planOperacional->id)
                 ->find($propuesta['tarea_id']);
-            if (!$tarea) {
+            if (! $tarea) {
                 $rechazadas[] = [
                     'tarea_id' => $propuesta['tarea_id'],
                     'motivo' => 'La tarea no pertenece al plan solicitado.',
@@ -344,7 +344,7 @@ class PlanOperacionalController extends Controller
 
             try {
                 $posicion = Posicion::query()->findOrFail($propuesta['posicion_destino_id']);
-                if (!$despliegue->dirige(array_filter([
+                if (! $despliegue->dirige(array_filter([
                     $tarea->camara_origen_id,
                     $tarea->camara_destino_id,
                     $posicion->camara_id,
