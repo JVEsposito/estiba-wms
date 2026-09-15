@@ -214,8 +214,8 @@ final class ServicioComparacionCiclosArbitraje
     }
 
     /**
-     * @param array<string, mixed> $anterior
-     * @param array<string, mixed> $actual
+     * @param  array<string, mixed>  $anterior
+     * @param  array<string, mixed>  $actual
      * @return array<int, array{campo:string,anterior:int|string,actual:int|string}>
      */
     private function diferencias(array $anterior, array $actual): array
@@ -272,9 +272,9 @@ final class ServicioComparacionCiclosArbitraje
     }
 
     /**
-     * @param array<string, mixed> $anterior
-     * @param array<string, mixed> $actual
-     * @param array<int, array<string, int|string>> $diferencias
+     * @param  array<string, mixed>  $anterior
+     * @param  array<string, mixed>  $actual
+     * @param  array<int, array<string, int|string>>  $diferencias
      */
     private function cambioModificado(array $anterior, array $actual, array $diferencias): array
     {
