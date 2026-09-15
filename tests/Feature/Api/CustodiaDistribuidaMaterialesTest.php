@@ -732,8 +732,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
         ItemMaterial $item,
         float $cantidad,
         string $numeroFolio = 'FCU0000001',
-    ): Folio
-    {
+    ): Folio {
         $item->loadMissing('cliente.temporada');
         $folio = Folio::create([
             'temporada_id' => $item->cliente->temporada->temporada_id,
