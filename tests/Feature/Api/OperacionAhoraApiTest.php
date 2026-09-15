@@ -571,7 +571,7 @@ class OperacionAhoraApiTest extends TestCase
             ->solicitar($temporada, 'prueba_puesto_mando');
         RecalcularArbitrajePlanificador::dispatchSync($temporada->id);
 
-        $this->actingAs($consulta, 'sanctum')
+        $respuestaPuestoMando = $this->actingAs($consulta, 'sanctum')
             ->getJson('/api/operacion-ahora')
             ->assertOk()
             ->assertJsonPath('data.planificador.despliegue.mode_global', 'guided')
