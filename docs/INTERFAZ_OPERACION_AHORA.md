@@ -127,3 +127,20 @@ maniobra; un conflicto `409` conserva la seguridad, actualiza el snapshot y
 obliga a revisar nuevamente. Tras una intervención correcta se mantiene el
 drawer abierto con el estado actualizado mientras el arbitraje se recalcula
 después del commit.
+
+## Comparación de ciclos
+
+La acción **Comparar ciclo** abre un diálogo histórico separado del detalle de
+maniobra. El cliente solicita la comparación bajo demanda para evitar duplicar el
+peso del snapshot que se consulta cada treinta segundos. La vista presenta:
+
+- fecha, capacidad y frontera de ambos ciclos;
+- conteos de maniobras que entraron, salieron, cambiaron o permanecieron iguales;
+- estado anterior y actual de cada maniobra afectada;
+- diferencias verificadas y la razón operacional persistida;
+- nombres de maniobra, objetivo, folio y ruta física, sin UUID visibles.
+
+Si solo existe un ciclo, la interfaz lo declara como primer ciclo confirmado. Si
+no hay cambios, muestra una confirmación explícita en lugar de una bandeja vacía.
+La comparación respeta los temas claro y oscuro, el diseño táctil y el escape de
+todo texto recibido desde el servidor.

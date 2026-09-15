@@ -73,6 +73,32 @@ bandeja sin cambios reutiliza el mismo ciclo y la misma explicación; un cambio 
 versión, estado de paso, prioridad, objetivo, custodia, recurso o cámaras dirigidas
 genera uno nuevo.
 
+## Comparación histórica inmediata
+
+`GET /api/operacion-ahora/planificador/comparacion` contrasta el ciclo confirmado
+vigente con su antecedente inmediato dentro de la misma temporada. La consulta es
+de solo lectura, no ejecuta el árbitro y no forma parte del polling periódico del
+puesto de mando: se solicita únicamente cuando un usuario abre la comparación.
+
+El servicio empareja internamente las decisiones por maniobra, pero su contrato
+público no entrega UUID. Para cada diferencia publica nombres operacionales,
+objetivo, folio y ruta física, junto con los estados anterior y actual. Distingue:
+
+- maniobras incorporadas al ciclo;
+- maniobras retiradas del ciclo;
+- maniobras con cambios de decisión, orden, prioridad, puntaje, beneficio neto,
+  factor decisivo, objetivo, folio o ruta;
+- maniobras que permanecieron sin cambios, solo como conteo agregado.
+
+La identidad histórica se obtiene primero de la explicación persistida, de modo
+que una edición posterior de la maniobra no reescribe visualmente lo que observó
+el árbitro. Los ciclos anteriores al contrato de explicabilidad mantienen un
+fallback compatible con el nombre actual de la maniobra. La respuesta limita el
+detalle a cien cambios, informa si fue truncada y conserva el resumen completo.
+
+Este contrato no reproduce decisiones ni materializa tareas. El replay
+determinista permanece reservado para el siguiente incremento.
+
 ## Contrato con tablet
 
 La bandeja `GET /api/tareas-movimiento?asignacion=disponibles`:
