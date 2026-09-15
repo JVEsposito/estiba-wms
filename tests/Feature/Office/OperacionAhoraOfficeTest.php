@@ -18,6 +18,10 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="plannerFreshnessSignal"', false)
             ->assertSee('id="plannerDecisionRows"', false)
             ->assertSee('id="plannerRiskRows"', false)
+            ->assertSee('id="plannerComparisonOpen"', false)
+            ->assertSee('id="operationCycleComparisonDialog"', false)
+            ->assertSee('id="operationCycleComparisonContent"', false)
+            ->assertSee('Qué cambió y por qué respecto de la evaluación anterior')
             ->assertSee('id="operationSupervisionDialog"', false)
             ->assertSee('id="operationSupervisionContent"', false)
             ->assertSee('id="operationSupervisionClose"', false)
@@ -80,6 +84,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('plannerConflictDetail', $script);
         $this->assertStringContainsString('createManeuverSupervisionDrawer', $script);
         $this->assertStringContainsString('buildManeuverInterventionRequest', $script);
+        $this->assertStringContainsString('buildCycleComparison', $script);
+        $this->assertStringContainsString('renderCycleComparison', $script);
+        $this->assertStringContainsString("api('/api/operacion-ahora/planificador/comparacion'", $script);
         $this->assertStringContainsString('executeManeuverIntervention', $script);
         $this->assertStringContainsString("can('puede_supervisar')", $script);
         $this->assertStringContainsString('data-maneuver-detail', $script);
@@ -106,6 +113,10 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('Por qué se tomó esta decisión', $drawer);
         $this->assertStringContainsString('factor_decisivo', $drawer);
         $this->assertStringContainsString('Evidencia conservada del ciclo', $drawer);
+        $comparison = file_get_contents(resource_path('js/shared/operation-cycle-comparison.js'));
+        $this->assertIsString($comparison);
+        $this->assertStringContainsString('Diferencias verificadas', $comparison);
+        $this->assertStringContainsString('Sin cambios operacionales', $comparison);
         $this->assertStringContainsString("method: 'PUT'", $script);
     }
 

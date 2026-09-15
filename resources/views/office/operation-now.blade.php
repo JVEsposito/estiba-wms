@@ -72,6 +72,7 @@
                             </div>
                             <div class="operation-now-panel__tools operation-now-planner__signals">
                                 <strong class="operation-now-planner__cycle" id="plannerCycleMeta">Consultando ciclo…</strong>
+                                <button class="operation-now-planner__compare" id="plannerComparisonOpen" type="button" disabled>Comparar ciclo</button>
                                 <span class="operation-now-planner__badge" id="plannerModeSignal" data-tone="neutral">Modo —</span>
                                 <span class="operation-now-planner__badge" id="plannerFreshnessSignal" data-tone="neutral">Vigencia —</span>
                                 <span class="operation-now-planner__badge" id="plannerHealthSignal" data-tone="neutral">Salud —</span>
@@ -226,6 +227,18 @@
                     </header>
                     <div class="operation-supervision__content" id="operationSupervisionContent">
                         <div class="operation-now-empty">Selecciona una maniobra para revisar su detalle.</div>
+                    </div>
+                </article>
+            </dialog>
+
+            <dialog class="operation-cycle-comparison" id="operationCycleComparisonDialog" aria-labelledby="operationCycleComparisonTitle">
+                <article class="operation-cycle-comparison__surface">
+                    <header class="operation-cycle-comparison__header">
+                        <div><p>HISTORIAL DEL PLANIFICADOR</p><h2 id="operationCycleComparisonTitle">Comparar ciclos</h2><span>Qué cambió y por qué respecto de la evaluación anterior</span></div>
+                        <button type="button" id="operationCycleComparisonClose" aria-label="Cerrar comparación de ciclos">Cerrar</button>
+                    </header>
+                    <div class="operation-cycle-comparison__content" id="operationCycleComparisonContent">
+                        <div class="operation-now-empty">Selecciona comparar para revisar el historial inmediato.</div>
                     </div>
                 </article>
             </dialog>

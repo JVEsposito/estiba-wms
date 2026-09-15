@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
 use App\Http\Controllers\Api\ClienteGlobalController;
+use App\Http\Controllers\Api\ComparacionCiclosPlanificadorController;
 use App\Http\Controllers\Api\CondicionSagController;
 use App\Http\Controllers\Api\ConfiguracionCamaraController;
 use App\Http\Controllers\Api\ConsultaOficinaController;
@@ -71,6 +72,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/gerencia/resumen', PanelGerencialController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/operacion-ahora', OperacionAhoraController::class)
+        ->middleware('can:consultar-panel-gerencial');
+    Route::get('/operacion-ahora/planificador/comparacion', ComparacionCiclosPlanificadorController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::put('/administracion/operacion-ahora/plano', [PlanoPlantaController::class, 'update'])
         ->middleware('can:administrar-plano-planta');

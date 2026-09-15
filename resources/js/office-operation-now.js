@@ -1,5 +1,6 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
+import { buildCycleComparison, renderCycleComparison } from './shared/operation-cycle-comparison';
 import {
     buildManeuverInterventionRequest,
     createManeuverSupervisionDrawer,
@@ -45,11 +46,15 @@ const elements = {
     plannerFreshness: byId('plannerFreshnessSignal'),
     plannerHealth: byId('plannerHealthSignal'),
     plannerCycleMeta: byId('plannerCycleMeta'),
+    plannerComparisonOpen: byId('plannerComparisonOpen'),
     plannerRiskRows: byId('plannerRiskRows'),
     plannerDecisionRows: byId('plannerDecisionRows'),
     supervisionDialog: byId('operationSupervisionDialog'),
     supervisionContent: byId('operationSupervisionContent'),
     supervisionClose: byId('operationSupervisionClose'),
+    comparisonDialog: byId('operationCycleComparisonDialog'),
+    comparisonContent: byId('operationCycleComparisonContent'),
+    comparisonClose: byId('operationCycleComparisonClose'),
     facilityMap: byId('operationFacilityMap'),
     facilityStatus: byId('operationFacilityStatus'),
     facilitySubtitle: byId('operationFacilitySubtitle'),
@@ -87,6 +92,7 @@ const state = {
     mapSaving: false,
     selectedManeuverId: null,
     interventionSaving: false,
+    comparisonLoading: false,
 };
 
 const supervisionDrawer = createManeuverSupervisionDrawer({
@@ -523,6 +529,10 @@ function renderPlanner(planner = {}) {
         ? `Evaluado ${dateTime(freshness.evaluado_at, { timeOnly: true })} · ${number(decisions.length)} decisiones`
         : plannerFreshnessLabel(freshness.estado);
     elements.plannerCycleMeta.title = freshness.detalle || '';
+    elements.plannerComparisonOpen.disabled = !cycle || state.comparisonLoading;
+    elements.plannerComparisonOpen.title = cycle
+        ? 'Comparar el ciclo vigente con su antecedente confirmado'
+        : 'Todavía no existe un ciclo para comparar';
 
     setText('plannerCompute', deployment.compute === 'tablet' ? 'Tablet' : humanize(deployment.compute));
     setText('plannerHorizon', deployment.horizon === 'rolling' ? 'Continuo' : humanize(deployment.horizon));
@@ -1115,6 +1125,30 @@ elements.plannerDecisionRows.addEventListener('click', (event) => {
 
     state.selectedManeuverId = selected.maniobra_id;
     supervisionDrawer.open(selected);
+});
+
+async function openCycleComparison() {
+    if (state.comparisonLoading || !state.snapshot?.planificador?.arbitraje?.ciclo) return;
+    state.comparisonLoading = true;
+    elements.plannerComparisonOpen.disabled = true;
+    elements.comparisonContent.innerHTML = '<div class="operation-now-empty">Comparando ciclos confirmados…</div>';
+    elements.comparisonDialog.showModal();
+
+    try {
+        const payload = await api('/api/operacion-ahora/planificador/comparacion', { cache: 'no-store' });
+        elements.comparisonContent.innerHTML = renderCycleComparison(buildCycleComparison(payload.data));
+    } catch (error) {
+        elements.comparisonContent.innerHTML = `<div class="operation-now-empty"><strong>No fue posible comparar los ciclos</strong><span>${escapeHtml(error.message)}</span></div>`;
+    } finally {
+        state.comparisonLoading = false;
+        elements.plannerComparisonOpen.disabled = !state.snapshot?.planificador?.arbitraje?.ciclo;
+    }
+}
+
+elements.plannerComparisonOpen.addEventListener('click', () => void openCycleComparison());
+elements.comparisonClose.addEventListener('click', () => elements.comparisonDialog.close());
+elements.comparisonDialog.addEventListener('click', (event) => {
+    if (event.target === elements.comparisonDialog) elements.comparisonDialog.close();
 });
 
 elements.refresh.addEventListener('click', async () => {
