@@ -19,10 +19,11 @@ use Illuminate\Support\Facades\DB;
 
 class ServicioArbitrajeManiobras
 {
-    private const VERSION_REGLAS = 'arbitraje_global_v3_supervision';
+    private const VERSION_REGLAS = 'arbitraje_global_v4_explicabilidad';
 
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
+        private readonly ServicioExplicabilidadArbitraje $explicabilidad,
     ) {}
 
     /**
@@ -206,13 +207,23 @@ class ServicioArbitrajeManiobras
             ->with([
                 'planOperacional.temporada',
                 'objetivos:id,tipo,estado,prioridad,titulo',
-                'pasos' => fn ($consulta) => $consulta->whereIn('estado', [
-                    EstadoTareaMovimiento::Bloqueada->value,
-                    EstadoTareaMovimiento::Pendiente->value,
-                    EstadoTareaMovimiento::Asumida->value,
-                    EstadoTareaMovimiento::EnProceso->value,
-                ]),
-                'reservasBandas' => fn ($consulta) => $consulta->whereNull('liberada_at'),
+                'pasos' => fn ($consulta) => $consulta
+                    ->whereIn('estado', [
+                        EstadoTareaMovimiento::Bloqueada->value,
+                        EstadoTareaMovimiento::Pendiente->value,
+                        EstadoTareaMovimiento::Asumida->value,
+                        EstadoTareaMovimiento::EnProceso->value,
+                    ])
+                    ->with([
+                        'folio:id,numero_folio',
+                        'camaraOrigen:id,codigo,nombre',
+                        'posicionOrigen:id,camara_id,etiqueta,banda,posicion,nivel',
+                        'camaraDestino:id,codigo,nombre',
+                        'posicionDestino:id,camara_id,etiqueta,banda,posicion,nivel',
+                    ]),
+                'reservasBandas' => fn ($consulta) => $consulta
+                    ->whereNull('liberada_at')
+                    ->with('camara:id,codigo,nombre'),
                 'custodiasTemporales' => fn ($consulta) => $consulta->where(
                     'estado',
                     EstadoCustodiaTemporal::Activa->value,
@@ -273,54 +284,76 @@ class ServicioArbitrajeManiobras
 
         foreach ($ordenadas as $maniobra) {
             $orden++;
-            $beneficioNeto = $this->beneficioNeto($maniobra);
-            $puntaje = $this->puntaje($maniobra, $beneficioNeto);
+            $componentes = $this->componentesPuntaje($maniobra);
+            $beneficioNeto = $componentes['beneficio']['neto'];
+            $puntaje = $componentes['puntaje'];
             $conflictos = $this->conflictos($maniobra, $recursosTomados);
             $fueraRollout = $this->fueraRollout($maniobra, $camarasRollout);
+            $realidadFisicaIniciada = $this->realidadFisicaIniciada($maniobra);
+            $capacidadDecision = [
+                'capacidad_ejecucion' => $capacidad,
+                'frontera_max' => $fronteraMax,
+                'ocupantes_fisicos' => $ocupantes->count(),
+                'cupos_disponibles' => $cupos,
+                'seleccionadas_antes' => $seleccionadas,
+                'publicadas_antes' => $publicadas,
+            ];
 
             if ($this->fueraPlanificador($maniobra)) {
                 $decision = DecisionArbitrajeManiobra::FueraPlanificador;
+                $factorDecisivo = 'fuera_planificador';
                 $motivo = 'La recepción desde REPA conserva su retiro independiente del planificador global.';
                 if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
                     $this->ocuparRecursos($maniobra, $recursosTomados);
                 }
             } elseif ($maniobra->estado === EstadoManiobraOperacional::PausadaSupervision) {
                 $decision = DecisionArbitrajeManiobra::FueraFrontera;
+                $factorDecisivo = 'pausa_supervision';
                 $motivo = 'La maniobra permanece pausada por supervisión antes de iniciar.';
             } elseif ($maniobra->estado === EstadoManiobraOperacional::PausadaDiscrepancia
-                || $this->realidadFisicaIniciada($maniobra)
+                || $realidadFisicaIniciada
                 || ($maniobra->estado === EstadoManiobraOperacional::EnEjecucion
                     && ! $fueraRollout)) {
                 $decision = DecisionArbitrajeManiobra::EnEjecucion;
+                $factorDecisivo = 'realidad_fisica_iniciada';
                 $motivo = 'La realidad física iniciada prevalece y conserva sus recursos.';
                 $this->ocuparRecursos($maniobra, $recursosTomados);
             } elseif ($fueraRollout) {
                 $decision = DecisionArbitrajeManiobra::FueraRollout;
+                $factorDecisivo = 'fuera_rollout';
                 $motivo = 'La maniobra permanece en shadow porque involucra una cámara fuera del rollout dirigido.';
                 if ($maniobra->estado !== EstadoManiobraOperacional::Pendiente) {
                     $this->ocuparRecursos($maniobra, $recursosTomados);
                 }
             } elseif ($maniobra->planOperacional?->estado === EstadoPlanOperacional::Pausado) {
                 $decision = DecisionArbitrajeManiobra::FueraFrontera;
+                $factorDecisivo = 'objetivo_pausado';
                 $motivo = 'El objetivo permanece pausado por supervisión.';
             } elseif ($conflictos !== []) {
                 $decision = DecisionArbitrajeManiobra::ExcluidaConflicto;
+                $factorDecisivo = 'conflicto_recursos';
                 $motivo = 'La maniobra comparte recursos con otra labor de mayor precedencia.';
             } elseif ($seleccionadas < min($cupos, $fronteraMax)) {
                 $decision = DecisionArbitrajeManiobra::Seleccionada;
+                $factorDecisivo = 'cupo_disponible';
                 $motivo = 'Seleccionada por prioridad, objetivo dominante y beneficio neto.';
                 $seleccionadas++;
                 $publicadas++;
                 $this->ocuparRecursos($maniobra, $recursosTomados);
             } elseif (! $alternativaAsignada && $publicadas < $fronteraMax) {
                 $decision = DecisionArbitrajeManiobra::Alternativa;
+                $factorDecisivo = 'alternativa_sin_reserva';
                 $motivo = 'Alternativa visible sin reservas físicas hasta liberar capacidad.';
                 $alternativaAsignada = true;
                 $publicadas++;
             } else {
                 $decision = DecisionArbitrajeManiobra::FueraFrontera;
+                $factorDecisivo = 'frontera_completa';
                 $motivo = 'La maniobra permanece pendiente fuera de la frontera corta vigente.';
             }
+
+            $capacidadDecision['seleccionadas_despues'] = $seleccionadas;
+            $capacidadDecision['publicadas_despues'] = $publicadas;
 
             $decisiones[] = [
                 'maniobra_operacional_id' => $maniobra->id,
@@ -330,6 +363,18 @@ class ServicioArbitrajeManiobras
                 'beneficio_neto' => $beneficioNeto,
                 'motivo' => $motivo,
                 'conflictos' => $conflictos !== [] ? $conflictos : null,
+                'explicacion' => $this->explicabilidad->construir(
+                    reglas: self::VERSION_REGLAS,
+                    maniobra: $maniobra,
+                    decision: $decision,
+                    factorDecisivo: $factorDecisivo,
+                    motivo: $motivo,
+                    componentes: $componentes,
+                    capacidad: $capacidadDecision,
+                    recursos: $this->recursos($maniobra),
+                    conflictos: $conflictos,
+                    maniobras: $ordenadas,
+                ),
             ];
         }
 
@@ -353,12 +398,7 @@ class ServicioArbitrajeManiobras
     private function pesoObjetivo(ManiobraOperacional $maniobra): int
     {
         return $maniobra->objetivos
-            ->map(fn ($objetivo): int => match ($objetivo->tipo) {
-                TipoPlanOperacional::EvacuacionEmergencia => 40,
-                TipoPlanOperacional::DespachoDirecto => 30,
-                TipoPlanOperacional::SegregacionRetenido => 20,
-                default => 10,
-            })
+            ->map(fn ($objetivo): int => $this->pesoTipoObjetivo($objetivo->tipo))
             ->max() ?? 10;
     }
 
@@ -374,6 +414,50 @@ class ServicioArbitrajeManiobras
         return ($maniobra->prioridad->peso() * 1_000_000_000)
             + ($this->pesoObjetivo($maniobra) * 10_000_000)
             + $beneficioNeto;
+    }
+
+    /** @return array<string, mixed> */
+    private function componentesPuntaje(ManiobraOperacional $maniobra): array
+    {
+        $beneficioNeto = $this->beneficioNeto($maniobra);
+        $pesoPrioridad = $maniobra->prioridad->peso();
+        $pesoObjetivo = $this->pesoObjetivo($maniobra);
+        $objetivoDominante = $maniobra->objetivos
+            ->sortByDesc(fn ($objetivo): int => $this->pesoTipoObjetivo($objetivo->tipo))
+            ->first() ?? $maniobra->planOperacional;
+
+        return [
+            'realidad_fisica' => $this->realidadFisicaIniciada($maniobra),
+            'prioridad' => [
+                'valor' => $maniobra->prioridad->value,
+                'peso' => $pesoPrioridad,
+                'aporte' => $pesoPrioridad * 1_000_000_000,
+            ],
+            'objetivo' => [
+                'tipo' => $objetivoDominante?->tipo?->value,
+                'titulo' => $objetivoDominante?->titulo,
+                'peso' => $pesoObjetivo,
+                'aporte' => $pesoObjetivo * 10_000_000,
+            ],
+            'beneficio' => [
+                'estimado' => $maniobra->beneficio_estimado,
+                'costo_movimientos' => $maniobra->costo_movimientos,
+                'riesgo_operacional' => $maniobra->riesgo_operacional,
+                'neto' => $beneficioNeto,
+                'aporte' => $beneficioNeto,
+            ],
+            'puntaje' => $this->puntaje($maniobra, $beneficioNeto),
+        ];
+    }
+
+    private function pesoTipoObjetivo(TipoPlanOperacional $tipo): int
+    {
+        return match ($tipo) {
+            TipoPlanOperacional::EvacuacionEmergencia => 40,
+            TipoPlanOperacional::DespachoDirecto => 30,
+            TipoPlanOperacional::SegregacionRetenido => 20,
+            default => 10,
+        };
     }
 
     /** @param  array<string, string>  $recursosTomados */

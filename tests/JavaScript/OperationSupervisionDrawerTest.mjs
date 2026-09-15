@@ -33,6 +33,78 @@ test('normaliza el detalle completo de supervisión sin publicar UUID de conflic
         beneficio_neto: 450,
         costo_movimientos: 2,
         riesgo_operacional: 30,
+        explicacion: {
+            version: 1,
+            reglas: 'arbitraje_global_v4_explicabilidad',
+            resumen: 'Comparte una posición con otra labor prioritaria.',
+            factor_decisivo: {
+                codigo: 'conflicto_recursos',
+                etiqueta: 'Conflicto de recursos',
+            },
+            formula: 'prioridad + objetivo + beneficio neto',
+            componentes: {
+                realidad_fisica: false,
+                prioridad: { valor: 'alta', peso: 20, aporte: 20000000000 },
+                objetivo: {
+                    tipo: 'concentracion_carga',
+                    titulo: 'Concentrar carga CAR-900',
+                    peso: 10,
+                    aporte: 100000000,
+                },
+                beneficio: {
+                    estimado: 482,
+                    costo_movimientos: 2,
+                    riesgo_operacional: 30,
+                    neto: 450,
+                    aporte: 450,
+                },
+                puntaje: 20100000450,
+            },
+            capacidad: {
+                capacidad_ejecucion: 3,
+                ocupantes_fisicos: 1,
+                cupos_disponibles: 2,
+                frontera_max: 4,
+            },
+            restricciones: [{
+                codigo: 'conflicto_recursos',
+                etiqueta: 'Conflicto de recursos',
+                resultado: 'determinante',
+                detalle: 'La posición ya está comprometida.',
+            }],
+            recursos: {
+                requeridos: [{ tipo: 'posicion', nombre: 'Cámara de tránsito 07 · B02-P04-N1' }],
+                conflictos: [{
+                    tipo: 'posicion',
+                    nombre: 'Cámara de tránsito 07 · B02-P04-N1',
+                    maniobra_titulo: 'Retiro urgente de despacho',
+                }],
+            },
+            snapshot: {
+                maniobra: {
+                    version: 3,
+                    titulo: 'Mover pallet a despacho',
+                    estado: 'pendiente',
+                    prioridad: 'alta',
+                },
+                objetivo: {
+                    version: 2,
+                    tipo: 'concentracion_carga',
+                    estado: 'en_ejecucion',
+                    titulo: 'Concentrar carga CAR-900',
+                },
+                pasos: [{
+                    version: 1,
+                    secuencia: 1,
+                    estado: 'pendiente',
+                    tipo_movimiento: 'reubicacion',
+                    instruccion: 'Retirar pallet',
+                    folio: 'PAL-058321',
+                    origen: 'Cámara de tránsito 07 · B02-P04-N1',
+                    destino: 'Andén de despacho 2',
+                }],
+            },
+        },
         objetivo: { tipo: 'concentracion_carga', titulo: 'Concentrar carga CAR-900' },
         progreso: { pasos_completados: 0, pasos_total: 2, porcentaje: 0 },
         responsable: { id: 'uuid-usuario', nombre: 'María Supervisora' },
@@ -76,6 +148,19 @@ test('normaliza el detalle completo de supervisión sin publicar UUID de conflic
     assert.equal(model.currentStep.route, 'Cámara de tránsito 07 · B02-P04-N1 → Andén de despacho 2');
     assert.equal(model.assignment.device, 'Tablet cámara norte');
     assert.deepEqual(model.conflicts, ['Posición física compartida con otra maniobra']);
+    assert.equal(model.explanation.available, true);
+    assert.equal(model.explanation.factor, 'Conflicto de recursos');
+    assert.equal(model.explanation.components[0].value, 'Alta');
+    assert.equal(model.explanation.capacity.cupos_disponibles, 2);
+    assert.deepEqual(
+        model.explanation.requiredResources,
+        ['Cámara de tránsito 07 · B02-P04-N1'],
+    );
+    assert.equal(
+        model.explanation.conflictResources[0].blockingManeuver,
+        'Retiro urgente de despacho',
+    );
+    assert.equal(model.explanation.snapshot.steps[0].folio, 'PAL-058321');
     assert.equal(model.steps.length, 2);
     assert.equal(model.steps[0].current, true);
     assert.equal(model.steps[1].status, 'Bloqueada');
@@ -98,6 +183,8 @@ test('conserva el paso actual como secuencia mínima para ciclos antiguos', () =
     assert.equal(model.steps.length, 1);
     assert.equal(model.currentStep.status, 'En proceso');
     assert.equal(model.currentStep.route, 'CAM-01 → Andén principal');
+    assert.equal(model.explanation.available, false);
+    assert.equal(model.explanation.factor, 'Ciclo anterior sin explicación persistida');
 });
 
 test('construye comandos versionados solo para acciones autorizadas', () => {

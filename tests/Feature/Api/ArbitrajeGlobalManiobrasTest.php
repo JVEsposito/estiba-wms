@@ -111,9 +111,45 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
             [$emergencia->id, $despacho->id, $retenido->id, $urgente->id],
             $servicio->idsPublicables($ciclo)->all(),
         );
+        $explicacionEmergencia = $decisiones[$emergencia->id]->explicacion;
+        $this->assertSame(1, $explicacionEmergencia['version']);
+        $this->assertSame(
+            'arbitraje_global_v4_explicabilidad',
+            $explicacionEmergencia['reglas'],
+        );
+        $this->assertSame(
+            'cupo_disponible',
+            $explicacionEmergencia['factor_decisivo']['codigo'],
+        );
+        $this->assertSame(
+            PrioridadOperacional::Critica->peso() * 1_000_000_000,
+            $explicacionEmergencia['componentes']['prioridad']['aporte'],
+        );
+        $this->assertSame(
+            TipoPlanOperacional::EvacuacionEmergencia->value,
+            $explicacionEmergencia['componentes']['objetivo']['tipo'],
+        );
+        $this->assertSame(
+            $decisiones[$emergencia->id]->puntaje,
+            $explicacionEmergencia['componentes']['puntaje'],
+        );
+        $this->assertSame(
+            $emergencia->titulo,
+            $explicacionEmergencia['snapshot']['maniobra']['titulo'],
+        );
+        $this->assertSame(
+            $contexto['folios'][4]->numero_folio,
+            $explicacionEmergencia['snapshot']['pasos'][0]['folio']['numero_folio'],
+        );
 
         $repetido = $servicio->arbitrar($contexto['temporada']);
         $this->assertSame($ciclo->id, $repetido->id);
+        $this->assertSame(
+            $explicacionEmergencia,
+            $repetido->decisiones
+                ->firstWhere('maniobra_operacional_id', $emergencia->id)
+                ?->explicacion,
+        );
         $this->assertDatabaseCount('ciclos_arbitraje_maniobras', 1);
         $this->assertDatabaseCount('decisiones_arbitraje_maniobras', 5);
 
@@ -210,6 +246,18 @@ class ArbitrajeGlobalManiobrasTest extends TestCase
         $this->assertSame(
             $principal->id,
             $decisionConflictiva->conflictos[0]['maniobra_id'],
+        );
+        $this->assertSame(
+            'conflicto_recursos',
+            $decisionConflictiva->explicacion['factor_decisivo']['codigo'],
+        );
+        $this->assertSame(
+            $principal->titulo,
+            $decisionConflictiva->explicacion['recursos']['conflictos'][0]['maniobra_titulo'],
+        );
+        $this->assertStringContainsString(
+            'B01-P01-N1',
+            $decisionConflictiva->explicacion['recursos']['conflictos'][0]['nombre'],
         );
 
         $tareaAlternativa = $alternativa->pasos()->sole();
