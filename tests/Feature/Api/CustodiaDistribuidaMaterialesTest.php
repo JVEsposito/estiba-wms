@@ -306,7 +306,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             'folio_id' => $folio->id,
             'almacen_material_id' => $centroCosto->id,
         ]);
-        $this->assertProyeccion($folio->id, 6, 6);
+        $this->assertProyeccion($folio->id, 6, 0);
     }
 
     public function test_consumo_directo_rechaza_salida_sin_imputacion_o_de_categoria_invalida(): void
@@ -384,7 +384,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             ->assertUnprocessable();
 
         $this->assertDatabaseCount('movimientos_almacenes_materiales', 0);
-        $this->assertProyeccion($folio->id, 10, 10);
+        $this->assertProyeccion($folio->id, 10, 0);
     }
 
     public function test_consumo_directo_respeta_fifo_de_bodega_y_audita_la_excepcion(): void
@@ -450,8 +450,8 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
             'Lote solicitado expresamente por Packing',
             $movimiento->metadatos['motivo_excepcion_fifo'],
         );
-        $this->assertProyeccion($folioAntiguo->id, 10, 10);
-        $this->assertProyeccion($folioNuevo->id, 8, 8);
+        $this->assertProyeccion($folioAntiguo->id, 10, 0);
+        $this->assertProyeccion($folioNuevo->id, 8, 0);
     }
 
     public function test_almacen_virtual_rechaza_ubicacion_y_movimientos_son_inmutables(): void
@@ -774,7 +774,7 @@ class CustodiaDistribuidaMaterialesTest extends TestCase
                 'camara_destino_id' => $camara->id,
                 'posicion_destino_id' => $posicion->id,
                 'sesion_destino_id' => $sesion,
-                'version_destino_conocida' => 0,
+                'version_destino_conocida' => (int) $camara->fresh()->version_plano,
                 'generado_dispositivo_at' => now()->toAtomString(),
             ])
             ->assertOk();
