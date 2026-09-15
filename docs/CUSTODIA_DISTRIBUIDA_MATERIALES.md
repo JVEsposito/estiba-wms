@@ -4,6 +4,8 @@
 
 La entrega desde Bodega hacia Packing, Frigorífico, Mantención, Calidad u otro centro de costo es una **transferencia interna de custodia**. No reduce la existencia total de la empresa.
 
+Cuando un `insumo` sale de Bodega Central y se utiliza en el mismo acto, se registra un **consumo directo imputado**. No existe transferencia ni saldo temporal en el centro de costo porque la custodia física nunca cambió antes del consumo.
+
 Solo estas operaciones cambian el total vigente:
 
 - consumo;
@@ -97,6 +99,8 @@ FIFO se aplica dentro del custodio:
 
 Las solicitudes existentes reservan exclusivamente Bodega Central. El consumo consulta únicamente el almacén indicado. Una excepción FIFO requiere motivo explícito.
 
+Para el consumo directo de insumos, FIFO se evalúa en Bodega Central, que es el origen físico real.
+
 ## Movimientos
 
 `movimientos_almacenes_materiales` registra un documento único con doble efecto:
@@ -109,6 +113,8 @@ Total empresa: sin cambios
 ```
 
 Conserva saldos anteriores y resultantes, almacenes, centro de costo, usuario, dispositivo y documento relacionado.
+
+El consumo directo conserva además en `metadatos` el identificador, código y nombre del centro de costo, junto con `modalidad_consumo=directo_bodega`. El campo `centro_costo` del movimiento actúa como snapshot histórico.
 
 Tipos disponibles:
 
@@ -150,5 +156,12 @@ La oficina `/oficina/materiales/almacenes` separa:
 1. existencia en Bodega;
 2. existencia en centros de costo;
 3. existencia total empresa.
+
+En `/oficina/materiales/inventario`, la acción **Consumir insumo** está disponible únicamente para saldos operacionales de categoría `insumo` ubicados en la Bodega Central canónica. El centro de costo es obligatorio. La operación:
+
+1. disminuye el saldo de Bodega Central;
+2. disminuye el total empresa;
+3. no crea ni modifica saldo en el almacén virtual del centro de costo;
+4. conserva UUID, usuario, motivo, documento y excepción FIFO para auditoría.
 
 Inicialmente los consumos son registrados por los perfiles autorizados del módulo Materiales, en representación del centro de costo. La delegación futura a responsables de cada centro requerirá permisos y perfiles separados.

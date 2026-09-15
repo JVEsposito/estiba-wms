@@ -220,6 +220,29 @@ class InterfazOficinaMaterialesTest extends TestCase
         );
     }
 
+    public function test_consumo_directo_de_insumos_se_opera_desde_inventario_bc(): void
+    {
+        $this->get('/oficina/materiales/inventario')
+            ->assertOk()
+            ->assertSee('id="materialDirectConsumptionDialog"', false)
+            ->assertSee('CONSUMO DIRECTO · BODEGA CENTRAL')
+            ->assertSee('Centro de costo que consume')
+            ->assertSee('No crea existencia temporal');
+
+        $office = file_get_contents(resource_path('js/office-materials.js'));
+
+        $this->assertIsString($office);
+        $this->assertStringContainsString('data-direct-consumption', $office);
+        $this->assertStringContainsString("folio.categoria_operacional === 'insumo'", $office);
+        $this->assertStringContainsString("folio.almacen?.codigo === 'BOD-CENTRAL'", $office);
+        $this->assertStringContainsString('centro_costo_id', $office);
+        $this->assertStringContainsString(
+            '/api/materiales/almacenes/movimientos',
+            $office,
+        );
+        $this->assertStringContainsString('window.confirm(', $office);
+    }
+
     public function test_ordenes_expone_cancelacion_segura_durante_la_transformacion(): void
     {
         $this->get('/oficina/materiales/ordenes')

@@ -499,8 +499,12 @@ function warehouseLabel(warehouse) {
 
 function renderSelectors() {
     const form = $('custodyMovementForm');
+    const type = form.elements.tipo.value;
+    const eligibleRows = movementRows().filter((row) => (
+        type !== 'consumo' || row.almacen?.tipo === 'virtual'
+    ));
     const availableWarehouseIds = new Set(
-        movementRows().map((row) => row.almacen.id),
+        eligibleRows.map((row) => row.almacen.id),
     );
     const originWarehouses = (state.data.almacenes || [])
         .filter((warehouse) => availableWarehouseIds.has(warehouse.id));
@@ -524,6 +528,8 @@ function renderFoliosForOrigin() {
     const originId = form.elements.almacen_origen_id.value;
     const previousFolio = form.elements.folio_id.value;
     const rows = movementRows()
+        .filter((row) => form.elements.tipo.value !== 'consumo'
+            || row.almacen?.tipo === 'virtual')
         .filter((row) => row.almacen.id === originId)
         .sort((left, right) => String(left.numero_folio).localeCompare(
             String(right.numero_folio),
@@ -625,7 +631,7 @@ $('custodyReload').addEventListener('click', () => {
         $('custodyFilterError').textContent = error.message;
     });
 });
-$('custodyMovementForm').elements.tipo.addEventListener('change', renderDestinationWarehouses);
+$('custodyMovementForm').elements.tipo.addEventListener('change', renderSelectors);
 $('custodyMovementForm').elements.almacen_origen_id.addEventListener('change', () => {
     renderFoliosForOrigin();
     renderDestinationWarehouses();
@@ -677,4 +683,3 @@ async function boot() {
 }
 
 void boot();
-

@@ -2,6 +2,7 @@
 
 namespace App\Services\Materiales;
 
+use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoOperacionalFolio;
@@ -126,7 +127,22 @@ class ServicioMovimientoAlmacenMaterial
         string $hash,
     ): MovimientoAlmacenMaterial {
         $cantidad = $this->cantidadPositiva($datos['cantidad']);
-        $almacen = $this->almacenBloqueado($datos['almacen_origen_id'] ?? null);
+        $almacenes = $this->almacenesBloqueados([
+            $datos['almacen_origen_id'] ?? null,
+            $datos['centro_costo_id'] ?? null,
+        ]);
+        $almacen = $almacenes->firstWhere('id', $datos['almacen_origen_id'] ?? null);
+
+        if (! $almacen) {
+            throw new DomainException('El almacén no existe o está inactivo.');
+        }
+
+        $centroCosto = $this->centroCostoConsumo(
+            $folio,
+            $almacen,
+            $almacenes->firstWhere('id', $datos['centro_costo_id'] ?? null),
+            $datos,
+        );
         $excepcionFifo = trim((string) ($datos['motivo_excepcion_fifo'] ?? ''));
         $this->validarFifo($folio, $almacen, $excepcionFifo);
         $saldo = $this->saldoBloqueado($folio, $almacen);
@@ -160,7 +176,7 @@ class ServicioMovimientoAlmacenMaterial
             'cantidad' => $cantidad,
             'saldo_origen_anterior' => $anterior,
             'saldo_origen_resultante' => $resultante,
-            'centro_costo' => $almacen->centro_costo,
+            'centro_costo' => $centroCosto?->centro_costo ?? $almacen->centro_costo,
             'motivo' => trim((string) $datos['motivo']),
             'documento_relacionado' => $this->texto($datos['documento_relacionado'] ?? null),
             'user_id' => $usuario->id,
@@ -170,8 +186,56 @@ class ServicioMovimientoAlmacenMaterial
                 'total_empresa_resultante' => (float) $proyeccion->cantidad_actual,
                 'motivo_excepcion_fifo' => $this->texto($excepcionFifo),
                 'saldo_version_resultante' => $version,
+                ...($centroCosto ? [
+                    'centro_costo_id' => $centroCosto->id,
+                    'centro_costo_codigo' => $centroCosto->centro_costo,
+                    'centro_costo_nombre' => $centroCosto->nombre,
+                    'modalidad_consumo' => 'directo_bodega',
+                ] : []),
             ],
         ]);
+    }
+
+    /** @param array<string, mixed> $datos */
+    private function centroCostoConsumo(
+        FolioMaterial $folio,
+        AlmacenMaterial $almacen,
+        ?AlmacenMaterial $centroCosto,
+        array $datos,
+    ): ?AlmacenMaterial {
+        $centroCostoId = $datos['centro_costo_id'] ?? null;
+
+        if ($almacen->codigo !== AlmacenMaterial::CODIGO_BODEGA_CENTRAL) {
+            if ($centroCostoId) {
+                throw new DomainException(
+                    'La imputación directa a centro de costo solo aplica desde Bodega Central.',
+                );
+            }
+
+            return null;
+        }
+
+        if ($folio->categoria_operacional !== CategoriaOperacionalMaterial::Insumo) {
+            throw new DomainException(
+                'El consumo directo desde Bodega Central solo está disponible para insumos.',
+            );
+        }
+
+        if (! $centroCostoId) {
+            throw new DomainException(
+                'Debe indicar el centro de costo que consumió el insumo.',
+            );
+        }
+
+        if (! $centroCosto
+            || $centroCosto->tipo !== TipoAlmacenMaterial::Virtual
+            || ! $this->texto($centroCosto->centro_costo)) {
+            throw new DomainException(
+                'El centro de costo debe corresponder a un almacén virtual activo.',
+            );
+        }
+
+        return $centroCosto;
     }
 
     /** @param array<string, mixed> $datos */
