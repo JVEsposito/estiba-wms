@@ -124,6 +124,7 @@ final class ServicioPuestoMandoPlanificador
             'beneficio_neto' => $decision->beneficio_neto,
             'costo_movimientos' => $maniobra->costo_movimientos,
             'riesgo_operacional' => $maniobra->riesgo_operacional,
+            'explicacion' => $this->serializarExplicacion($decision),
             'objetivo' => [
                 'tipo' => $maniobra->planOperacional?->tipo?->value,
                 'titulo' => $maniobra->planOperacional?->titulo,
@@ -151,6 +152,138 @@ final class ServicioPuestoMandoPlanificador
                 'nombre' => $maniobra->dispositivo->nombre,
             ] : null,
             'conflictos' => array_values($decision->conflictos ?? []),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function serializarExplicacion(DecisionPersistida $decision): ?array
+    {
+        $explicacion = $decision->explicacion;
+        if (! is_array($explicacion)) {
+            return null;
+        }
+
+        $componentes = $explicacion['componentes'] ?? [];
+        $recursos = $explicacion['recursos'] ?? [];
+
+        return [
+            'version' => (int) ($explicacion['version'] ?? 1),
+            'reglas' => (string) ($explicacion['reglas'] ?? ''),
+            'resumen' => (string) ($explicacion['resumen'] ?? $decision->motivo),
+            'factor_decisivo' => [
+                'codigo' => (string) ($explicacion['factor_decisivo']['codigo'] ?? ''),
+                'etiqueta' => (string) ($explicacion['factor_decisivo']['etiqueta'] ?? ''),
+            ],
+            'formula' => (string) ($explicacion['formula'] ?? ''),
+            'componentes' => [
+                'realidad_fisica' => (bool) ($componentes['realidad_fisica'] ?? false),
+                'prioridad' => [
+                    'valor' => (string) ($componentes['prioridad']['valor'] ?? ''),
+                    'peso' => (int) ($componentes['prioridad']['peso'] ?? 0),
+                    'aporte' => (int) ($componentes['prioridad']['aporte'] ?? 0),
+                ],
+                'objetivo' => [
+                    'tipo' => (string) ($componentes['objetivo']['tipo'] ?? ''),
+                    'titulo' => (string) ($componentes['objetivo']['titulo'] ?? ''),
+                    'peso' => (int) ($componentes['objetivo']['peso'] ?? 0),
+                    'aporte' => (int) ($componentes['objetivo']['aporte'] ?? 0),
+                ],
+                'beneficio' => [
+                    'estimado' => (int) ($componentes['beneficio']['estimado'] ?? 0),
+                    'costo_movimientos' => (int) ($componentes['beneficio']['costo_movimientos'] ?? 0),
+                    'riesgo_operacional' => (int) ($componentes['beneficio']['riesgo_operacional'] ?? 0),
+                    'neto' => (int) ($componentes['beneficio']['neto'] ?? 0),
+                    'aporte' => (int) ($componentes['beneficio']['aporte'] ?? 0),
+                ],
+                'puntaje' => (int) ($componentes['puntaje'] ?? $decision->puntaje),
+            ],
+            'capacidad' => collect($explicacion['capacidad'] ?? [])
+                ->map(fn ($valor): int => (int) $valor)
+                ->all(),
+            'restricciones' => collect($explicacion['restricciones'] ?? [])
+                ->filter(fn ($restriccion): bool => is_array($restriccion))
+                ->map(fn (array $restriccion): array => [
+                    'codigo' => (string) ($restriccion['codigo'] ?? ''),
+                    'etiqueta' => (string) ($restriccion['etiqueta'] ?? ''),
+                    'resultado' => (string) ($restriccion['resultado'] ?? ''),
+                    'detalle' => (string) ($restriccion['detalle'] ?? ''),
+                ])
+                ->values()
+                ->all(),
+            'recursos' => [
+                'requeridos' => $this->serializarRecursosExplicacion(
+                    $recursos['requeridos'] ?? [],
+                ),
+                'conflictos' => collect($recursos['conflictos'] ?? [])
+                    ->filter(fn ($conflicto): bool => is_array($conflicto))
+                    ->map(fn (array $conflicto): array => [
+                        'tipo' => (string) ($conflicto['tipo'] ?? ''),
+                        'nombre' => (string) ($conflicto['nombre'] ?? ''),
+                        'maniobra_titulo' => (string) ($conflicto['maniobra_titulo'] ?? ''),
+                    ])
+                    ->values()
+                    ->all(),
+            ],
+            'snapshot' => $this->serializarSnapshotExplicacion(
+                $explicacion['snapshot'] ?? [],
+            ),
+        ];
+    }
+
+    /**
+     * @param  mixed  $recursos
+     * @return array<int, array<string, string>>
+     */
+    private function serializarRecursosExplicacion($recursos): array
+    {
+        return collect(is_array($recursos) ? $recursos : [])
+            ->filter(fn ($recurso): bool => is_array($recurso))
+            ->map(fn (array $recurso): array => [
+                'tipo' => (string) ($recurso['tipo'] ?? ''),
+                'nombre' => (string) ($recurso['nombre'] ?? ''),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  mixed  $snapshot
+     * @return array<string, mixed>
+     */
+    private function serializarSnapshotExplicacion($snapshot): array
+    {
+        $snapshot = is_array($snapshot) ? $snapshot : [];
+        $maniobra = is_array($snapshot['maniobra'] ?? null) ? $snapshot['maniobra'] : [];
+        $objetivo = is_array($snapshot['objetivo'] ?? null) ? $snapshot['objetivo'] : [];
+
+        return [
+            'maniobra' => [
+                'version' => (int) ($maniobra['version'] ?? 0),
+                'titulo' => (string) ($maniobra['titulo'] ?? ''),
+                'estado' => (string) ($maniobra['estado'] ?? ''),
+                'prioridad' => (string) ($maniobra['prioridad'] ?? ''),
+                'creada_at' => $maniobra['creada_at'] ?? null,
+            ],
+            'objetivo' => $objetivo !== [] ? [
+                'version' => (int) ($objetivo['version'] ?? 0),
+                'tipo' => (string) ($objetivo['tipo'] ?? ''),
+                'estado' => (string) ($objetivo['estado'] ?? ''),
+                'titulo' => (string) ($objetivo['titulo'] ?? ''),
+            ] : null,
+            'pasos' => collect($snapshot['pasos'] ?? [])
+                ->filter(fn ($paso): bool => is_array($paso))
+                ->map(fn (array $paso): array => [
+                    'version' => (int) ($paso['version'] ?? 0),
+                    'secuencia' => (int) ($paso['secuencia'] ?? 0),
+                    'estado' => (string) ($paso['estado'] ?? ''),
+                    'tipo_movimiento' => (string) ($paso['tipo_movimiento'] ?? ''),
+                    'instruccion' => $paso['instruccion'] ?? null,
+                    'folio' => $paso['folio']['numero_folio'] ?? null,
+                    'origen' => $paso['origen']['etiqueta'] ?? null,
+                    'destino' => $paso['destino']['etiqueta'] ?? null,
+                ])
+                ->values()
+                ->all(),
         ];
     }
 

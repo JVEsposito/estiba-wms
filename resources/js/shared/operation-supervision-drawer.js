@@ -75,6 +75,105 @@ function conflictLabel(conflict) {
     return CONFLICT_LABELS[type] || 'Recurso operacional compartido con otra maniobra';
 }
 
+function buildExplanation(explanation, fallbackReason) {
+    if (!explanation || typeof explanation !== 'object') {
+        return {
+            available: false,
+            summary: fallbackReason,
+            factor: 'Ciclo anterior sin explicación persistida',
+            rules: '',
+            formula: '',
+            components: [],
+            capacity: {},
+            restrictions: [],
+            requiredResources: [],
+            conflictResources: [],
+            snapshot: { maneuver: null, objective: null, steps: [] },
+        };
+    }
+
+    const components = explanation.componentes || {};
+    const priority = components.prioridad || {};
+    const objective = components.objetivo || {};
+    const benefit = components.beneficio || {};
+    const resources = explanation.recursos || {};
+    const snapshot = explanation.snapshot || {};
+
+    return {
+        available: true,
+        summary: text(explanation.resumen, fallbackReason),
+        factor: text(explanation.factor_decisivo?.etiqueta, 'Criterio operacional'),
+        rules: text(explanation.reglas, ''),
+        formula: text(explanation.formula, ''),
+        physicalReality: Boolean(components.realidad_fisica),
+        components: [
+            {
+                key: 'prioridad',
+                label: 'Prioridad',
+                value: humanize(priority.valor),
+                weight: number(priority.peso),
+                contribution: number(priority.aporte),
+            },
+            {
+                key: 'objetivo',
+                label: 'Objetivo dominante',
+                value: text(objective.titulo || humanize(objective.tipo, ''), 'Sin objetivo'),
+                weight: number(objective.peso),
+                contribution: number(objective.aporte),
+            },
+            {
+                key: 'beneficio',
+                label: 'Beneficio neto',
+                value: number(benefit.neto),
+                weight: 'Directo',
+                contribution: number(benefit.aporte),
+            },
+        ],
+        benefit: {
+            estimated: number(benefit.estimado),
+            movementCost: number(benefit.costo_movimientos),
+            risk: number(benefit.riesgo_operacional),
+            net: number(benefit.neto),
+            score: number(components.puntaje),
+        },
+        capacity: explanation.capacidad || {},
+        restrictions: (Array.isArray(explanation.restricciones) ? explanation.restricciones : [])
+            .map((restriction) => text(restriction?.detalle, ''))
+            .filter(Boolean),
+        requiredResources: [...new Set(
+            (Array.isArray(resources.requeridos) ? resources.requeridos : [])
+                .map((resource) => text(resource?.nombre, ''))
+                .filter(Boolean),
+        )],
+        conflictResources: (Array.isArray(resources.conflictos) ? resources.conflictos : [])
+            .map((conflict) => ({
+                name: text(conflict?.nombre, 'Recurso operacional'),
+                blockingManeuver: text(conflict?.maniobra_titulo, 'Otra maniobra prioritaria'),
+            })),
+        snapshot: {
+            maneuver: snapshot.maniobra ? {
+                title: text(snapshot.maniobra.titulo, 'Maniobra sin título'),
+                status: STATUS_LABELS[snapshot.maniobra.estado] || humanize(snapshot.maniobra.estado),
+                priority: humanize(snapshot.maniobra.prioridad),
+                version: number(snapshot.maniobra.version),
+            } : null,
+            objective: snapshot.objetivo ? {
+                title: text(snapshot.objetivo.titulo, 'Objetivo sin título'),
+                type: humanize(snapshot.objetivo.tipo),
+                status: humanize(snapshot.objetivo.estado),
+                version: number(snapshot.objetivo.version),
+            } : null,
+            steps: (Array.isArray(snapshot.pasos) ? snapshot.pasos : []).map((step) => ({
+                sequence: number(step.secuencia),
+                status: STATUS_LABELS[step.estado] || humanize(step.estado),
+                instruction: text(step.instruccion || humanize(step.tipo_movimiento, ''), 'Sin instrucción'),
+                folio: text(step.folio, 'Sin folio'),
+                route: `${text(step.origen, 'Inicio')} → ${text(step.destino, 'Sin destino')}`,
+            })),
+        },
+    };
+}
+
 export function operationLocationLabel(location, fallback = 'Sin ubicación') {
     const camera = location?.camara || location;
     const cameraName = text(camera?.nombre || camera?.codigo, '');
@@ -127,6 +226,10 @@ export function buildManeuverSupervisionModel(decision = {}) {
             route: `${operationLocationLabel(current.origen, 'Inicio')} → ${operationLocationLabel(current.destino, 'Sin destino')}`,
         } : null,
         conflicts,
+        explanation: buildExplanation(
+            decision.explicacion,
+            text(decision.motivo, 'El ciclo no informó una razón adicional.'),
+        ),
         actions: {
             allowed: Array.isArray(decision.acciones_autorizadas?.permitidas)
                 ? decision.acciones_autorizadas.permitidas
@@ -142,6 +245,54 @@ export function buildManeuverSupervisionModel(decision = {}) {
             current: Boolean(current && step.id === current.id),
         })),
     };
+}
+
+function renderExplanation(model) {
+    const explanation = model.explanation;
+    if (!explanation.available) {
+        return `<section class="operation-supervision__explanation" data-empty="true">
+            <header><div><h4>Por qué se tomó esta decisión</h4><p>${escapeHtml(explanation.summary)}</p></div><strong>${escapeHtml(explanation.factor)}</strong></header>
+        </section>`;
+    }
+
+    const components = explanation.components.map((component) => `<article data-component="${escapeHtml(component.key)}">
+        <span>${escapeHtml(component.label)}</span><strong>${escapeHtml(component.value)}</strong>
+        <small>Peso ${escapeHtml(component.weight)} · aporte ${escapeHtml(component.contribution)}</small>
+    </article>`).join('');
+    const capacity = explanation.capacity;
+    const restrictions = explanation.restrictions.length
+        ? `<ul>${explanation.restrictions.map((restriction) => `<li>${escapeHtml(restriction)}</li>`).join('')}</ul>`
+        : '<p>No se registraron restricciones determinantes.</p>';
+    const resources = explanation.requiredResources.length
+        ? explanation.requiredResources.map((resource) => `<li>${escapeHtml(resource)}</li>`).join('')
+        : '<li>No se registraron recursos físicos.</li>';
+    const conflicts = explanation.conflictResources.length
+        ? `<ul>${explanation.conflictResources.map((conflict) => `<li><strong>${escapeHtml(conflict.name)}</strong><span>Comprometido por ${escapeHtml(conflict.blockingManeuver)}</span></li>`).join('')}</ul>`
+        : '<p>No existen recursos en conflicto.</p>';
+    const snapshotSteps = explanation.snapshot.steps.length
+        ? `<ol>${explanation.snapshot.steps.map((step) => `<li><span>${escapeHtml(step.sequence)}</span><div><strong>${escapeHtml(step.instruction)}</strong><small>${escapeHtml(step.folio)} · ${escapeHtml(step.route)} · ${escapeHtml(step.status)}</small></div></li>`).join('')}</ol>`
+        : '<p>Sin pasos en el snapshot de la decisión.</p>';
+
+    return `<section class="operation-supervision__explanation">
+        <header><div><h4>Por qué se tomó esta decisión</h4><p>${escapeHtml(explanation.summary)}</p></div><span>Factor decisivo</span><strong>${escapeHtml(explanation.factor)}</strong></header>
+        <div class="operation-supervision__calculation">${components}</div>
+        <dl class="operation-supervision__capacity">
+            ${renderMetric('Capacidad', number(capacity.capacidad_ejecucion))}
+            ${renderMetric('Ocupantes físicos', number(capacity.ocupantes_fisicos))}
+            ${renderMetric('Cupos disponibles', number(capacity.cupos_disponibles))}
+            ${renderMetric('Frontera máxima', number(capacity.frontera_max))}
+        </dl>
+        <details><summary>Restricciones y recursos evaluados</summary><div class="operation-supervision__evidence">
+            <section><h5>Condición determinante</h5>${restrictions}</section>
+            <section><h5>Recursos requeridos</h5><ul>${resources}</ul></section>
+            <section><h5>Conflictos específicos</h5>${conflicts}</section>
+        </div></details>
+        <details><summary>Evidencia conservada del ciclo</summary><div class="operation-supervision__snapshot">
+            <p><strong>${escapeHtml(explanation.snapshot.maneuver?.title || model.title)}</strong> · ${escapeHtml(explanation.snapshot.objective?.title || model.objective)}</p>
+            ${snapshotSteps}
+        </div></details>
+        <footer><span>Criterio ${escapeHtml(explanation.rules)}</span><small>${escapeHtml(explanation.formula)}</small></footer>
+    </section>`;
 }
 
 export function buildManeuverInterventionRequest(
@@ -280,10 +431,11 @@ function renderDrawer(model, canIntervene = false) {
         ${renderMetric('Beneficio neto', model.netBenefit)}
     </dl>
     ${current}
+    ${renderExplanation(model)}
     <div class="operation-supervision__grid">
         <section><h4>Razón operacional</h4><p>${escapeHtml(model.reason)}</p></section>
         <section><h4>Asignación vigente</h4><p><strong>${escapeHtml(model.assignment.responsible)}</strong><br>${escapeHtml(model.assignment.device)}</p></section>
-        <section><h4>Componentes del cálculo</h4><dl>
+        <section><h4>Resumen numérico</h4><dl>
             ${renderMetric('Puntaje', model.score)}
             ${renderMetric('Movimientos', model.movementCost)}
             ${renderMetric('Riesgo', model.operationalRisk)}

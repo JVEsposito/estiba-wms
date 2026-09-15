@@ -108,6 +108,13 @@ Cada decisión del ciclo vigente permite abrir un drawer lateral. La vista resum
 - secuencia física completa;
 - conflictos expresados mediante conceptos operacionales, sin mostrar UUID.
 
+La sección **Por qué se tomó esta decisión** usa la explicación persistida por el
+árbitro, no vuelve a inferirla desde el navegador. Presenta el factor decisivo, el
+aporte de prioridad, objetivo y beneficio neto, la capacidad disponible, las
+restricciones y los recursos evaluados. La evidencia desplegable conserva los
+nombres y rutas observados en el ciclo. Los ciclos creados antes de este contrato
+mantienen un resumen compatible e indican que no poseen explicación persistida.
+
 El drawer consume el mismo snapshot de `GET /api/operacion-ahora`; abrirlo no ejecuta arbitraje, no renueva reservas y no modifica maniobras. Durante el polling conserva la maniobra seleccionada y actualiza su información si continúa en el ciclo vigente.
 
 Para usuarios con permiso de supervisión, el contrato `acciones_autorizadas`

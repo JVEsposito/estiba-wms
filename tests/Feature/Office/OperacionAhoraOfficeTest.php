@@ -21,6 +21,7 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="operationSupervisionDialog"', false)
             ->assertSee('id="operationSupervisionContent"', false)
             ->assertSee('id="operationSupervisionClose"', false)
+            ->assertSee('Explicación, evidencia física e intervenciones autorizadas')
             ->assertSee('<th scope="col">Razón operacional</th>', false)
             ->assertSee('Vista operacional de recintos')
             ->assertSee('Editar plano')
@@ -102,6 +103,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('/api/intervenciones-planificador/maniobras/', $drawer);
         $this->assertStringContainsString("method: 'POST'", $drawer);
         $this->assertStringContainsString("method: 'PATCH'", $drawer);
+        $this->assertStringContainsString('Por qué se tomó esta decisión', $drawer);
+        $this->assertStringContainsString('factor_decisivo', $drawer);
+        $this->assertStringContainsString('Evidencia conservada del ciclo', $drawer);
         $this->assertStringContainsString("method: 'PUT'", $script);
     }
 
@@ -127,6 +131,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('operation-now-table--planner', $styles);
         $this->assertStringContainsString('operation-supervision__surface', $styles);
         $this->assertStringContainsString('operation-supervision__steps', $styles);
+        $this->assertStringContainsString('operation-supervision__explanation', $styles);
+        $this->assertStringContainsString('operation-supervision__calculation', $styles);
+        $this->assertStringContainsString('operation-supervision__evidence', $styles);
         $this->assertStringContainsString('operation-supervision__actions', $styles);
         $this->assertStringContainsString('operation-supervision__confirm', $styles);
         $this->assertStringContainsString('grid-template-columns: repeat(5, minmax(98px, 1fr))', $styles);

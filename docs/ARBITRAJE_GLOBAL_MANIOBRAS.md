@@ -56,9 +56,22 @@ Cada estado relevante produce un `snapshot_version` SHA-256 y un ciclo persistid
 - `decisiones_arbitraje_maniobras`.
 
 El ciclo registra orden, decisión, puntaje, beneficio neto, motivo, conflictos y
-alcance resuelto del rollout. Refrescar la bandeja sin cambios reutiliza el mismo
-ciclo; un cambio de versión, estado de paso, prioridad, objetivo, custodia,
-recurso o cámaras dirigidas genera uno nuevo.
+alcance resuelto del rollout. Cada decisión conserva además una explicación JSON
+versionada con:
+
+- factor decisivo;
+- aporte exacto de prioridad, objetivo dominante y beneficio neto;
+- capacidad, ocupantes físicos y cupos disponibles al evaluar;
+- restricciones y recursos requeridos;
+- nombres operacionales de los recursos en conflicto y de la maniobra que los ocupa;
+- snapshot de maniobra, objetivo y pasos utilizado por ese ciclo.
+
+Los identificadores internos permanecen en el documento persistido para permitir
+una futura reproducción determinista. El contrato público del puesto de mando los
+filtra y entrega solamente nombres, folios y etiquetas operacionales. Refrescar la
+bandeja sin cambios reutiliza el mismo ciclo y la misma explicación; un cambio de
+versión, estado de paso, prioridad, objetivo, custodia, recurso o cámaras dirigidas
+genera uno nuevo.
 
 ## Contrato con tablet
 

@@ -69,7 +69,7 @@ class OperacionAhoraApiTest extends TestCase
         $ciclosAntes = CicloArbitrajeManiobras::query()->count();
         $decisionesAntes = DecisionArbitrajeManiobra::query()->count();
 
-        $this->actingAs($consulta, 'sanctum')
+        $respuestaPuestoMando = $this->actingAs($consulta, 'sanctum')
             ->getJson('/api/operacion-ahora')
             ->assertOk()
             ->assertJsonPath('data.planificador.arbitraje.activo', true)
@@ -571,7 +571,7 @@ class OperacionAhoraApiTest extends TestCase
             ->solicitar($temporada, 'prueba_puesto_mando');
         RecalcularArbitrajePlanificador::dispatchSync($temporada->id);
 
-        $this->actingAs($consulta, 'sanctum')
+        $respuestaPuestoMando = $this->actingAs($consulta, 'sanctum')
             ->getJson('/api/operacion-ahora')
             ->assertOk()
             ->assertJsonPath('data.planificador.despliegue.mode_global', 'guided')
@@ -595,7 +595,30 @@ class OperacionAhoraApiTest extends TestCase
             ->assertJsonCount(1, 'data.planificador.arbitraje.ciclo.decisiones.0.pasos')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.pasos.0.destino.nombre', 'Cámara puesto de mando')
             ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.responsable.nombre', 'Supervisión puesto de mando')
-            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.dispositivo.codigo', 'TAB-MANDO-01');
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.dispositivo.codigo', 'TAB-MANDO-01')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.version', 1)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.factor_decisivo.codigo', 'cupo_disponible')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.factor_decisivo.etiqueta', 'Cupo de ejecución disponible')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.componentes.prioridad.valor', 'alta')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.componentes.prioridad.peso', 20)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.componentes.objetivo.titulo', 'Concentrar carga de exportación')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.componentes.beneficio.neto', 479)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.capacidad.capacidad_ejecucion', 3)
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.snapshot.maniobra.titulo', 'Llevar pallet a cámara de despacho')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.snapshot.pasos.0.folio', 'PAL-MANDO-001')
+            ->assertJsonPath('data.planificador.arbitraje.ciclo.decisiones.0.explicacion.snapshot.pasos.0.destino', 'Cámara puesto de mando · CAM-MANDO-01-B01-P01-N1');
+
+        $explicacionPublica = $respuestaPuestoMando->json(
+            'data.planificador.arbitraje.ciclo.decisiones.0.explicacion',
+        );
+        $this->assertStringNotContainsString(
+            $maniobra->id,
+            json_encode($explicacionPublica, JSON_THROW_ON_ERROR),
+        );
+        $this->assertStringNotContainsString(
+            $camara->id,
+            json_encode($explicacionPublica, JSON_THROW_ON_ERROR),
+        );
 
         $this->actingAs($consulta, 'sanctum')
             ->getJson('/api/operacion-ahora')

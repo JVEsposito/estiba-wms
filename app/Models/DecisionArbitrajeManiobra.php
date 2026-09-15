@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'beneficio_neto',
     'motivo',
     'conflictos',
+    'explicacion',
 ])]
 class DecisionArbitrajeManiobra extends Model
 {
@@ -42,6 +43,7 @@ class DecisionArbitrajeManiobra extends Model
             'puntaje' => 'integer',
             'beneficio_neto' => 'integer',
             'conflictos' => 'array',
+            'explicacion' => 'array',
         ];
     }
 }
