@@ -5,7 +5,6 @@ namespace App\Services\Planificador;
 use App\Models\CicloArbitrajeManiobras;
 use App\Models\DecisionArbitrajeManiobra;
 use App\Models\Temporada;
-use Illuminate\Support\Collection;
 
 final class ServicioReplayCiclosArbitraje
 {
