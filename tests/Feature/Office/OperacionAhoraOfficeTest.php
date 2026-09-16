@@ -87,6 +87,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('buildCycleComparison', $script);
         $this->assertStringContainsString('renderCycleComparison', $script);
         $this->assertStringContainsString("api('/api/operacion-ahora/planificador/comparacion'", $script);
+        $this->assertStringContainsString('buildCycleReplay', $script);
+        $this->assertStringContainsString('renderCycleReplay', $script);
+        $this->assertStringContainsString('/api/operacion-ahora/planificador/replay?ciclo=', $script);
         $this->assertStringContainsString('executeManeuverIntervention', $script);
         $this->assertStringContainsString("can('puede_supervisar')", $script);
         $this->assertStringContainsString('data-maneuver-detail', $script);
@@ -117,6 +120,10 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertIsString($comparison);
         $this->assertStringContainsString('Diferencias verificadas', $comparison);
         $this->assertStringContainsString('Sin cambios operacionales', $comparison);
+        $replay = file_get_contents(resource_path('js/shared/operation-cycle-replay.js'));
+        $this->assertIsString($replay);
+        $this->assertStringContainsString('Replay aislado', $replay);
+        $this->assertStringContainsString('Verificación determinista', $replay);
         $this->assertStringContainsString("method: 'PUT'", $script);
     }
 

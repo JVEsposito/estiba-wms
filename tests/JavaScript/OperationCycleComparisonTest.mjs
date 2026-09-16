@@ -88,13 +88,17 @@ test('explica cuando todavía no existe un ciclo anterior', () => {
         disponible: false,
         motivo: 'sin_ciclo_anterior',
         detalle: 'Este es el primer ciclo confirmado de la temporada.',
+        actual: { generado_at: '2026-09-15T12:05:00Z' },
         resumen: {},
         cambios: [],
     });
 
     assert.equal(model.available, false);
     assert.equal(model.reason, 'sin_ciclo_anterior');
-    assert.match(renderCycleComparison(model), /primer ciclo confirmado/);
+    const html = renderCycleComparison(model);
+    assert.match(html, /primer ciclo confirmado/);
+    assert.match(html, /data-cycle-replay="actual"/);
+    assert.doesNotMatch(html, /data-cycle-replay="anterior"/);
 });
 
 test('escapa títulos y razones antes de construir el detalle visual', () => {

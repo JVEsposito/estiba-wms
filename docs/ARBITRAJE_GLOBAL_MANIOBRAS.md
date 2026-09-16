@@ -67,7 +67,7 @@ versionada con:
 - snapshot de maniobra, objetivo y pasos utilizado por ese ciclo.
 
 Los identificadores internos permanecen en el documento persistido para permitir
-una futura reproducción determinista. El contrato público del puesto de mando los
+la reproducción determinista. El contrato público del puesto de mando los
 filtra y entrega solamente nombres, folios y etiquetas operacionales. Refrescar la
 bandeja sin cambios reutiliza el mismo ciclo y la misma explicación; un cambio de
 versión, estado de paso, prioridad, objetivo, custodia, recurso o cámaras dirigidas
@@ -96,8 +96,26 @@ el árbitro. Los ciclos anteriores al contrato de explicabilidad mantienen un
 fallback compatible con el nombre actual de la maniobra. La respuesta limita el
 detalle a cien cambios, informa si fue truncada y conserva el resumen completo.
 
-Este contrato no reproduce decisiones ni materializa tareas. El replay
-determinista permanece reservado para el siguiente incremento.
+## Replay determinista
+
+`GET /api/operacion-ahora/planificador/replay?ciclo=actual|anterior` vuelve a
+ejecutar en memoria las reglas exactas de la versión histórica y contrasta el
+resultado con la decisión persistida. El usuario inicia esta verificación desde
+la comparación de ciclos; no forma parte del polling periódico.
+
+El replay es una consulta pura: no ejecuta el árbitro vigente, no crea ciclos,
+no reserva recursos, no materializa tareas y no altera maniobras. Para cada
+maniobra verifica orden, decisión, pesos de prioridad y objetivo, beneficio neto,
+puntaje y factor decisivo. El contrato público informa nombres operacionales,
+folio y ruta, pero nunca publica UUID.
+
+Solo se reproduce una versión para la que exista un motor histórico compatible y
+un snapshot completo. En este incremento se admite
+`arbitraje_global_v4_explicabilidad` con explicación versión 1. Los ciclos
+anteriores se muestran como `informacion_insuficiente`; el sistema no inventa
+datos faltantes ni aplica retrospectivamente las reglas actuales. La respuesta
+limita el detalle a cien verificaciones, conserva el resumen completo y prioriza
+las diferencias para facilitar la auditoría.
 
 ## Contrato con tablet
 

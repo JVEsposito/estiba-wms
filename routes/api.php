@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\ProveedorMaterialController;
 use App\Http\Controllers\Api\RecepcionMaterialController;
 use App\Http\Controllers\Api\RecepcionRomanaController;
 use App\Http\Controllers\Api\ReinicioOperacionalController;
+use App\Http\Controllers\Api\ReplayCicloPlanificadorController;
 use App\Http\Controllers\Api\RetornoPackingController;
 use App\Http\Controllers\Api\SaludPlanificadorController;
 use App\Http\Controllers\Api\SesionEstibaController;
@@ -74,6 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/operacion-ahora', OperacionAhoraController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/operacion-ahora/planificador/comparacion', ComparacionCiclosPlanificadorController::class)
+        ->middleware('can:consultar-panel-gerencial');
+    Route::get('/operacion-ahora/planificador/replay', ReplayCicloPlanificadorController::class)
         ->middleware('can:consultar-panel-gerencial');
     Route::put('/administracion/operacion-ahora/plano', [PlanoPlantaController::class, 'update'])
         ->middleware('can:administrar-plano-planta');
