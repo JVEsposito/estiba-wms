@@ -164,16 +164,27 @@ function renderChange(change) {
     </article>`;
 }
 
+function renderReplayActions(model) {
+    if (!model.current && !model.previous) return '';
+
+    return `<div class="operation-cycle-comparison__actions" aria-label="Reproducción histórica">
+        ${model.previous ? '<button type="button" data-cycle-replay="anterior">Verificar ciclo anterior</button>' : ''}
+        ${model.current ? '<button type="button" data-cycle-replay="actual">Verificar ciclo vigente</button>' : ''}
+        <span>El replay usa exclusivamente la evidencia conservada y no modifica la operación.</span>
+    </div>`;
+}
+
 export function renderCycleComparison(model) {
     if (!model.available) {
-        return `<section class="operation-cycle-comparison__empty" data-reason="${escapeHtml(model.reason)}"><strong>Comparación todavía no disponible</strong><p>${escapeHtml(model.detail)}</p></section>`;
+        return `${renderReplayActions(model)}<section class="operation-cycle-comparison__empty" data-reason="${escapeHtml(model.reason)}"><strong>Comparación todavía no disponible</strong><p>${escapeHtml(model.detail)}</p></section>`;
     }
 
     const changes = model.changes.length
         ? model.changes.map(renderChange).join('')
         : '<section class="operation-cycle-comparison__empty"><strong>Sin cambios operacionales</strong><p>Las decisiones, el orden y los factores se conservaron respecto del ciclo anterior.</p></section>';
 
-    return `<div class="operation-cycle-comparison__overview">
+    return `${renderReplayActions(model)}
+    <div class="operation-cycle-comparison__overview">
         <section><span>Ciclo anterior</span><strong>${escapeHtml(model.previous?.generatedAt || 'Sin fecha')}</strong><small>Capacidad ${escapeHtml(model.previous?.capacity || '0')} · frontera ${escapeHtml(model.previous?.frontier || '0')}</small></section>
         <b aria-hidden="true">→</b>
         <section><span>Ciclo vigente</span><strong>${escapeHtml(model.current?.generatedAt || 'Sin fecha')}</strong><small>Capacidad ${escapeHtml(model.current?.capacity || '0')} · frontera ${escapeHtml(model.current?.frontier || '0')}</small></section>

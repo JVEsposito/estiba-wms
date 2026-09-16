@@ -1,6 +1,7 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { buildOperationalAlerts } from './shared/operation-now-alerts';
 import { buildCycleComparison, renderCycleComparison } from './shared/operation-cycle-comparison';
+import { buildCycleReplay, renderCycleReplay } from './shared/operation-cycle-replay';
 import {
     buildManeuverInterventionRequest,
     createManeuverSupervisionDrawer,
@@ -93,6 +94,8 @@ const state = {
     selectedManeuverId: null,
     interventionSaving: false,
     comparisonLoading: false,
+    comparisonModel: null,
+    replayLoading: false,
 };
 
 const supervisionDrawer = createManeuverSupervisionDrawer({
@@ -1130,13 +1133,15 @@ elements.plannerDecisionRows.addEventListener('click', (event) => {
 async function openCycleComparison() {
     if (state.comparisonLoading || !state.snapshot?.planificador?.arbitraje?.ciclo) return;
     state.comparisonLoading = true;
+    state.comparisonModel = null;
     elements.plannerComparisonOpen.disabled = true;
     elements.comparisonContent.innerHTML = '<div class="operation-now-empty">Comparando ciclos confirmados…</div>';
     elements.comparisonDialog.showModal();
 
     try {
         const payload = await api('/api/operacion-ahora/planificador/comparacion', { cache: 'no-store' });
-        elements.comparisonContent.innerHTML = renderCycleComparison(buildCycleComparison(payload.data));
+        state.comparisonModel = buildCycleComparison(payload.data);
+        elements.comparisonContent.innerHTML = renderCycleComparison(state.comparisonModel);
     } catch (error) {
         elements.comparisonContent.innerHTML = `<div class="operation-now-empty"><strong>No fue posible comparar los ciclos</strong><span>${escapeHtml(error.message)}</span></div>`;
     } finally {
@@ -1145,7 +1150,35 @@ async function openCycleComparison() {
     }
 }
 
+async function openCycleReplay(reference) {
+    if (state.replayLoading || !['actual', 'anterior'].includes(reference)) return;
+    state.replayLoading = true;
+    elements.comparisonContent.innerHTML = '<div class="operation-now-empty">Reproduciendo el ciclo desde su evidencia histórica…</div>';
+
+    try {
+        const payload = await api(`/api/operacion-ahora/planificador/replay?ciclo=${reference}`, { cache: 'no-store' });
+        elements.comparisonContent.innerHTML = renderCycleReplay(buildCycleReplay(payload.data));
+    } catch (error) {
+        elements.comparisonContent.innerHTML = `<div class="operation-now-empty"><strong>No fue posible reproducir el ciclo</strong><span>${escapeHtml(error.message)}</span><button type="button" data-cycle-comparison-return>Volver a la comparación</button></div>`;
+    } finally {
+        state.replayLoading = false;
+    }
+}
+
 elements.plannerComparisonOpen.addEventListener('click', () => void openCycleComparison());
+elements.comparisonContent.addEventListener('click', (event) => {
+    const replay = event.target.closest('[data-cycle-replay]');
+    if (replay) {
+        void openCycleReplay(replay.dataset.cycleReplay);
+        return;
+    }
+
+    if (event.target.closest('[data-cycle-comparison-return]')) {
+        elements.comparisonContent.innerHTML = state.comparisonModel
+            ? renderCycleComparison(state.comparisonModel)
+            : '<div class="operation-now-empty">La comparación ya no está disponible.</div>';
+    }
+});
 elements.comparisonClose.addEventListener('click', () => elements.comparisonDialog.close());
 elements.comparisonDialog.addEventListener('click', (event) => {
     if (event.target === elements.comparisonDialog) elements.comparisonDialog.close();
