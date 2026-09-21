@@ -9,6 +9,15 @@
 }
 
 .estiba-office-shell {
+    /* Acento de identidad del chrome — fijo, NO el --eui-color-frost temático de
+       estiba-tokens.css. El chrome (header + sidebar) es azul marino de marca constante
+       en ambos temas (igual que la pantalla real, donde ya aparece oscuro en "modo
+       claro"), así que su acento tampoco debe seguir el tema: usar --eui-color-frost aquí
+       haría que en modo oscuro el resaltado del ítem activo tomara el frost claro de
+       contenido (#5fd3e6, pensado para texto sobre fondo oscuro) como fondo, dejando el
+       texto blanco encima en ~1.8:1 de contraste. --eui-shell-frost evita ese cruce por
+       construcción — ver design/estiba.tokens.json § color.frost (mismo valor light). */
+    --eui-shell-frost: #0f5c6e;
     position: sticky;
     top: 0;
     z-index: 40;
@@ -28,7 +37,7 @@
     align-items: stretch;
     min-height: var(--office-header-height);
     background: #102f43;
-    border-bottom: 1px solid #49677a;
+    border-bottom: 3px solid var(--eui-shell-frost);
     box-shadow: 0 1px 3px rgba(3, 18, 28, .3);
 }
 
@@ -131,7 +140,7 @@
 .estiba-office-status > span { min-width: 0; }
 .estiba-office-status strong { display: block; overflow: hidden; color: #fff; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .estiba-office-status small { overflow: hidden; color: #b8c9d3; text-overflow: ellipsis; white-space: nowrap; }
-.estiba-office-status > .eui-icon { width: 17px; height: 17px; color: #b8c9d3; fill: none; stroke: currentColor; }
+.estiba-office-status > .eui-icon { width: 17px; height: 17px; color: #b8c9d3; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; }
 
 .estiba-office-identity {
     justify-content: flex-end;
@@ -273,7 +282,7 @@
 }
 
 .estiba-office-sidebar a:hover { background: #1c4358; color: #fff; }
-.estiba-office-sidebar a.is-active { border-left-color: #61b6ea; background: #106fc0; color: #fff; }
+.estiba-office-sidebar a.is-active { border-left-color: #fff; background: var(--eui-shell-frost); color: #fff; }
 .estiba-office-sidebar a.is-active::after { color: #fff; }
 .estiba-office-sidebar a strong { padding-right: 15px; font-size: 13px; font-weight: 700; }
 
@@ -289,9 +298,9 @@
     flex: 0 0 25px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
 }
 
 .estiba-office-domain > span {
@@ -308,9 +317,9 @@
     height: 23px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
 }
 
 .estiba-office-domain.is-active > span { color: #fff; }
@@ -323,6 +332,9 @@
 
 .estiba-office-offices a { min-height: 38px; padding-left: 24px; color: #c7d6de; font-size: 13px; }
 .estiba-office-offices a::before { width: 5px; height: 5px; flex: 0 0 5px; border: 1px solid #7893a3; content: ""; }
+/* Blanco, no --eui-shell-frost: .estiba-office-sidebar a.is-active (arriba) ya pone
+   fondo frost en esta misma fila (el selector matchea cualquier <a> del sidebar, incluidos
+   los de .estiba-office-offices) — un marcador frost sobre fondo frost es invisible. */
 .estiba-office-offices a.is-active::before { border-color: #fff; background: #fff; }
 
 .estiba-office-signature {

@@ -44,3 +44,34 @@ test('el tamaño táctil y la escala de lectura no se reducen al compactar ofici
     assert.ok(tokens.fontSize.body >= 16);
     assert.ok(tokens.fontSize.small >= 14);
 });
+
+test('modo oscuro: los textos de estado son legibles en su superficie y en filas oscuras', () => {
+    for (const [name, signal] of Object.entries(tokens.signalDark)) {
+        for (const surface of [signal.surface, tokens.colorDark.surface, tokens.colorDark.canvas]) {
+            assert.ok(contrast(signal.text, surface) >= 4.5, `Contraste insuficiente (dark): ${name} / ${surface}`);
+        }
+    }
+});
+
+test('modo oscuro: texto general, acciones y foco conservan contraste suficiente', () => {
+    for (const foreground of [tokens.colorDark.text, tokens.colorDark.muted]) {
+        for (const background of [tokens.colorDark.surface, tokens.colorDark.canvas]) {
+            assert.ok(contrast(foreground, background) >= 4.5, `Contraste insuficiente (dark): ${foreground} / ${background}`);
+        }
+    }
+    for (const background of [tokens.colorDark.primary, tokens.colorDark.primaryHover, tokens.signalDark.success.text]) {
+        assert.ok(contrast(tokens.colorDark.onPrimary, background) >= 4.5, `on-primary (dark) sobre ${background}`);
+    }
+    assert.ok(contrast(tokens.colorDark.inputBorder, tokens.colorDark.surface) >= 3);
+    assert.ok(contrast(tokens.colorDark.focus, tokens.colorDark.canvas) >= 3);
+});
+
+test('frost (identidad) pasa contraste de texto en ambos temas, sobre canvas y superficie', () => {
+    assert.ok(contrast(tokens.color.frost, tokens.color.canvas) >= 4.5, 'frost claro / canvas claro');
+    assert.ok(contrast(tokens.color.frost, tokens.color.surface) >= 4.5, 'frost claro / surface claro');
+    assert.ok(contrast(tokens.colorDark.frost, tokens.colorDark.canvas) >= 4.5, 'frost oscuro / canvas oscuro');
+    assert.ok(contrast(tokens.colorDark.frost, tokens.colorDark.surface) >= 4.5, 'frost oscuro / surface oscuro');
+    // frost es identidad, no acción: no puede repetir el valor de primary en ningún tema.
+    assert.notEqual(tokens.color.frost, tokens.color.primary);
+    assert.notEqual(tokens.colorDark.frost, tokens.colorDark.primary);
+});
