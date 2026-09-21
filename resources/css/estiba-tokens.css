@@ -17,6 +17,8 @@
     --eui-color-focus: #145DA0;
     --eui-color-disabled-surface: #E8EDF1;
     --eui-color-disabled-text: #536777;
+    --eui-color-frost: #0F5C6E;
+    --eui-color-frost-strong: #0D4A57;
     --eui-signal-neutral-text: #536777;
     --eui-signal-neutral-surface: #F1F4F6;
     --eui-signal-neutral-border: #A4B2BD;
@@ -48,8 +50,11 @@
     --eui-space-6: 24px;
     --eui-space-8: 32px;
     --eui-space-12: 48px;
-    --eui-radius-control: 4px;
-    --eui-radius-panel: 6px;
+    --eui-radius-control: 2px;
+    --eui-radius-panel: 0px;
+    --eui-rule-hairline: 1px;
+    --eui-rule-strong: 2px;
+    --eui-rule-heavy: 3px;
     --eui-font-size-caption: 0.75rem;
     --eui-font-size-small: 0.875rem;
     --eui-font-size-body: 1rem;
@@ -62,6 +67,20 @@
     --eui-font-weight-bold: 700;
     --eui-line-height-body: 1.5;
     --eui-line-height-heading: 1.2;
+    --eui-font-family-sans: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --eui-font-family-condensed: "Roboto Condensed", "Arial Narrow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --eui-manifest-eyebrow-font-size: 11px;
+    --eui-manifest-eyebrow-letter-spacing: 0.08em;
+    --eui-manifest-eyebrow-line-height: 1.4;
+    --eui-manifest-eyebrow-font-weight: 700;
+    --eui-manifest-panel-title-font-size: 15px;
+    --eui-manifest-panel-title-letter-spacing: 0.02em;
+    --eui-manifest-panel-title-line-height: 1.2;
+    --eui-manifest-panel-title-font-weight: 700;
+    --eui-manifest-masthead-font-size: 28px;
+    --eui-manifest-masthead-letter-spacing: 0.01em;
+    --eui-manifest-masthead-line-height: 1.1;
+    --eui-manifest-masthead-font-weight: 700;
     --eui-density-comfortable-control: 44px;
     --eui-density-comfortable-row: 44px;
     --eui-density-comfortable-cell-padding: 12px;
@@ -71,4 +90,57 @@
     --eui-density-touch-control: 56px;
     --eui-density-touch-row: 56px;
     --eui-density-touch-cell-padding: 16px;
+}
+
+/* Modo oscuro: sobreescrituras aplicadas dentro del shell de Oficina real cuando */
+/* office-preferences.js fija data-office-theme="dark-industrial" en <html>. El   */
+/* selector de atributo va en :where() a propósito: sin eso, esta regla (0,3,0)   */
+/* le gana en especificidad a los puentes .operation-now/.discrepancies-shell     */
+/* (0,1,0 y 0,2,0) que remapean --eui-color-* a los tokens de Oficina, y en modo   */
+/* oscuro pisaría esos puentes sin importar el orden de carga. :where() deja la    */
+/* especificidad efectiva en la de .estiba-ui sola (0,1,0), empatada con esos      */
+/* puentes, y el desempate por orden de aparición sí favorece al puente porque     */
+/* office-operation-now.css/office-corporate.css se cargan después.               */
+:where(:root[data-office-theme="dark-industrial"]) .estiba-ui {
+    --eui-color-canvas: #0B161D;
+    --eui-color-surface: #101F28;
+    --eui-color-subtle: #16262F;
+    --eui-color-border: #2A3F49;
+    --eui-color-input-border: #5C7E8C;
+    --eui-color-text: #EEF3F5;
+    --eui-color-muted: #9BB0BB;
+    --eui-color-primary: #3F8FD1;
+    --eui-color-primary-hover: #5AA3DD;
+    --eui-color-confirm-hover: #2F8A5C;
+    --eui-color-on-primary: #06141C;
+    --eui-color-selected: #16303F;
+    --eui-color-focus: #3F8FD1;
+    --eui-color-disabled-surface: #182931;
+    --eui-color-disabled-text: #6C8089;
+    --eui-color-frost: #5FD3E6;
+    --eui-color-frost-strong: #8DE3F0;
+    --eui-signal-neutral-text: #9BB0BB;
+    --eui-signal-neutral-surface: #182931;
+    --eui-signal-neutral-border: #3C5560;
+    --eui-signal-info-text: #6FB6EA;
+    --eui-signal-info-surface: #132738;
+    --eui-signal-info-border: #3F6B8C;
+    --eui-signal-success-text: #6BCF9A;
+    --eui-signal-success-surface: #0F2A1E;
+    --eui-signal-success-border: #3A7358;
+    --eui-signal-warning-text: #F0C05A;
+    --eui-signal-warning-surface: #2C2308;
+    --eui-signal-warning-border: #8A6C22;
+    --eui-signal-critical-text: #F0919B;
+    --eui-signal-critical-surface: #301419;
+    --eui-signal-critical-border: #8A4650;
+    --eui-signal-reserved-text: #F0C05A;
+    --eui-signal-reserved-surface: #2C2308;
+    --eui-signal-reserved-border: #8A6C22;
+    --eui-signal-temporary-text: #F0A874;
+    --eui-signal-temporary-surface: #2E1D0F;
+    --eui-signal-temporary-border: #8A5C34;
+    --eui-signal-blocked-text: #F0919B;
+    --eui-signal-blocked-surface: #301419;
+    --eui-signal-blocked-border: #8A4650;
 }

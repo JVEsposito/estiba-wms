@@ -1,5 +1,13 @@
 @import './estiba-tokens.css';
 
+/* Identidad "Manifiesto" (2026-09-21): color de identidad (frost) separado del color de
+   acción (primary); tipografía condensada en mayúsculas para eyebrow/título de panel y
+   tabla/masthead; esquinas a escuadra (ver radius en estiba-tokens.css); reglas más
+   pesadas en los cambios de registro vía --eui-rule-*; iconos de trazo cuadrado. Modo
+   oscuro: valores propios por token bajo :root[data-office-theme="dark-industrial"], no
+   una inversión — ver design/estiba.tokens.json (colorDark/signalDark) y
+   scripts/build-design-tokens.mjs. */
+
 /* Adopción explícita por pantalla. No modifica :root, body ni componentes legacy. */
 .estiba-ui {
     --eui-control-height: var(--eui-density-comfortable-control);
@@ -10,6 +18,7 @@
     color: var(--eui-color-text);
     font: var(--eui-font-weight-regular) var(--eui-font-size-body) / var(--eui-line-height-body) "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
+:root[data-office-theme="dark-industrial"] .estiba-ui { color-scheme: dark; }
 .estiba-ui[data-density="compact"] {
     --eui-control-height: var(--eui-density-compact-control);
     --eui-row-height: var(--eui-density-compact-row);
@@ -27,14 +36,28 @@
     outline-offset: 3px;
 }
 .estiba-ui :where(a) { color: var(--eui-color-primary); text-underline-offset: 3px; }
-.estiba-ui .eui-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--eui-space-4); }
+.estiba-ui .eui-heading {
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--eui-space-4);
+    padding-bottom: var(--eui-space-3); border-bottom: var(--eui-rule-heavy) solid var(--eui-color-frost);
+}
 .estiba-ui .eui-heading__copy { min-width: 0; }
-.estiba-ui .eui-heading__eyebrow { margin: 0 0 var(--eui-space-2); color: var(--eui-color-muted); font-size: var(--eui-font-size-caption); font-weight: var(--eui-font-weight-bold); letter-spacing: .08em; text-transform: uppercase; }
-.estiba-ui .eui-heading__title { margin: 0; font-size: var(--eui-font-size-title); line-height: var(--eui-line-height-heading); font-weight: var(--eui-font-weight-bold); overflow-wrap: anywhere; }
-.estiba-ui .eui-heading__description { margin: var(--eui-space-2) 0 0; color: var(--eui-color-muted); max-width: 70ch; }
-.estiba-ui .eui-panel { min-width: 0; border: 1px solid var(--eui-color-border); border-radius: var(--eui-radius-panel); background: var(--eui-color-surface); }
-.estiba-ui .eui-panel__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--eui-space-3); padding: var(--eui-space-3) var(--eui-space-4); border-bottom: 1px solid var(--eui-color-border); }
-.estiba-ui .eui-panel__title { margin: 0; font-size: var(--eui-font-size-body); font-weight: var(--eui-font-weight-strong); }
+.estiba-ui .eui-heading__eyebrow {
+    margin: 0 0 var(--eui-space-2); color: var(--eui-color-frost);
+    font-family: var(--eui-font-family-condensed); font-size: var(--eui-manifest-eyebrow-font-size);
+    font-weight: var(--eui-manifest-eyebrow-font-weight); letter-spacing: var(--eui-manifest-eyebrow-letter-spacing); text-transform: uppercase;
+}
+.estiba-ui .eui-heading__title {
+    margin: 0; font-family: var(--eui-font-family-condensed); font-size: var(--eui-manifest-masthead-font-size);
+    line-height: var(--eui-manifest-masthead-line-height); font-weight: var(--eui-manifest-masthead-font-weight);
+    letter-spacing: var(--eui-manifest-masthead-letter-spacing); text-transform: uppercase; overflow-wrap: anywhere;
+}
+.estiba-ui .eui-heading__description { margin: var(--eui-space-2) 0 0; color: var(--eui-color-muted); max-width: 70ch; text-transform: none; letter-spacing: normal; font-family: inherit; }
+.estiba-ui .eui-panel { min-width: 0; border: var(--eui-rule-hairline) solid var(--eui-color-border); border-radius: var(--eui-radius-panel); background: var(--eui-color-surface); }
+.estiba-ui .eui-panel__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--eui-space-3); padding: var(--eui-space-3) var(--eui-space-4); border-bottom: var(--eui-rule-strong) solid var(--eui-color-border); }
+.estiba-ui .eui-panel__title {
+    margin: 0; font-family: var(--eui-font-family-condensed); font-size: var(--eui-manifest-panel-title-font-size);
+    font-weight: var(--eui-manifest-panel-title-font-weight); letter-spacing: var(--eui-manifest-panel-title-letter-spacing); text-transform: uppercase;
+}
 .estiba-ui .eui-panel__body { padding: var(--eui-space-4); }
 .estiba-ui .eui-panel__body > :first-child { margin-top: 0; }
 .estiba-ui .eui-panel__body > :last-child { margin-bottom: 0; }
@@ -55,7 +78,7 @@
 .estiba-ui .eui-button--confirm { color: var(--eui-color-on-primary); background: var(--eui-signal-success-text); border-color: var(--eui-signal-success-text); }
 .estiba-ui .eui-button--confirm:hover:enabled { background: var(--eui-color-confirm-hover); border-color: var(--eui-color-confirm-hover); }
 .estiba-ui .eui-button:disabled { color: var(--eui-color-disabled-text); background: var(--eui-color-disabled-surface); border-color: var(--eui-color-border); cursor: not-allowed; }
-.estiba-ui .eui-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.estiba-ui .eui-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; }
 .estiba-ui .eui-tone-neutral { --eui-signal-text: var(--eui-signal-neutral-text); --eui-signal-surface: var(--eui-signal-neutral-surface); --eui-signal-border: var(--eui-signal-neutral-border); }
 .estiba-ui .eui-tone-info { --eui-signal-text: var(--eui-signal-info-text); --eui-signal-surface: var(--eui-signal-info-surface); --eui-signal-border: var(--eui-signal-info-border); }
 .estiba-ui .eui-tone-success { --eui-signal-text: var(--eui-signal-success-text); --eui-signal-surface: var(--eui-signal-success-surface); --eui-signal-border: var(--eui-signal-success-border); }
@@ -69,13 +92,34 @@
 .estiba-ui .eui-tone-neutral .eui-signal__marker { background: transparent; }
 .estiba-ui :is(.eui-tone-blocked, .eui-tone-critical) .eui-signal__marker { border-radius: 0; }
 .estiba-ui :is(.eui-tone-warning, .eui-tone-reserved, .eui-tone-temporary) .eui-signal__marker { border-radius: 0; transform: rotate(45deg); }
-.estiba-ui .eui-code { font-family: ui-monospace, Consolas, monospace; font-size: 1em; font-weight: var(--eui-font-weight-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.estiba-ui .eui-code--large { font-size: var(--eui-font-size-title); line-height: var(--eui-line-height-heading); }
+.estiba-ui .eui-code {
+    /* Sin subrayado en el tamaño de línea: un borde inferior ahí se lee como enlace
+       (mismo affordance que :where(a) más abajo), sea cual sea el color. El monoespaciado
+       ya diferencia un código de texto corrido sin ese riesgo. El subrayado frost queda
+       solo en --large, donde el tamaño de título ya lo aleja de una lectura como enlace
+       y funciona como acento de "unidad de verdad del sistema" bajo el masthead. */
+    font-family: ui-monospace, Consolas, monospace; font-size: 1em; font-weight: var(--eui-font-weight-strong);
+    font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.estiba-ui .eui-code--large {
+    font-size: var(--eui-font-size-title); line-height: var(--eui-line-height-heading);
+    border-bottom: var(--eui-rule-strong) solid var(--eui-color-frost); padding-bottom: 1px;
+}
 .estiba-ui .eui-table-scroll { max-width: 100%; overflow-x: auto; }
 .estiba-ui .eui-table { width: 100%; border-collapse: collapse; text-align: left; font-size: var(--eui-font-size-small); }
 .estiba-ui .eui-table caption { padding: var(--eui-space-3) var(--eui-space-4); color: var(--eui-color-muted); text-align: left; }
-.estiba-ui .eui-table :where(th, td) { height: var(--eui-row-height); padding: var(--eui-cell-padding) var(--eui-space-4); border-bottom: 1px solid var(--eui-color-border); vertical-align: middle; }
-.estiba-ui .eui-table th { color: var(--eui-color-muted); background: var(--eui-color-subtle); font-weight: var(--eui-font-weight-strong); white-space: nowrap; }
+.estiba-ui .eui-table :where(th, td) {
+    height: var(--eui-row-height); padding: var(--eui-cell-padding) var(--eui-space-4);
+    border-bottom: var(--eui-rule-hairline) solid var(--eui-color-border);
+    border-right: var(--eui-rule-hairline) solid var(--eui-color-border);
+    vertical-align: middle;
+}
+.estiba-ui .eui-table :where(th, td):last-child { border-right: 0; }
+.estiba-ui .eui-table th {
+    color: var(--eui-color-muted); background: var(--eui-color-subtle); font-weight: var(--eui-font-weight-bold);
+    font-family: var(--eui-font-family-condensed); letter-spacing: var(--eui-manifest-panel-title-letter-spacing); text-transform: uppercase;
+    white-space: nowrap; border-bottom: var(--eui-rule-strong) solid var(--eui-color-border);
+}
 .estiba-ui .eui-table tbody tr:last-child td { border-bottom: 0; }
 .estiba-ui .eui-table .eui-code { white-space: nowrap; }
 .estiba-ui .eui-table .eui-numeric { text-align: right; font-variant-numeric: tabular-nums; }

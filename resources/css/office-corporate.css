@@ -1840,6 +1840,14 @@ body,
     --hydro-ice: #0d5688;
     --hydro-green: #1f7246;
     --hydro-gold: #825200;
+    /* Identidad "Manifiesto" (2026-09-21) — color de identidad separado del color de
+       acción (--corporate-blue/--accent no cambian), ver nota al final del archivo. */
+    --frost: #0f5c6e;
+    --frost-strong: #0d4a57;
+    --font-condensed: "Roboto Condensed", "Arial Narrow", "Segoe UI", Arial, sans-serif;
+    --rule-hairline: 1px;
+    --rule-strong: 2px;
+    --rule-heavy: 3px;
 }
 
 :root[data-office-theme="dark-industrial"] {
@@ -1905,6 +1913,15 @@ body,
     --hydro-ice: #83c8ef;
     --hydro-green: #78d6a2;
     --hydro-gold: #f1c66d;
+    /* Mismo criterio que --eui-color-frost en design/estiba.tokens.json: se reformula
+       (no se invierte) para seguir pasando >=4.5:1 sobre los fondos oscuros de este
+       tema (verificado: 10.2:1 sobre --bg, 8.9:1 sobre --panel de dark-industrial). */
+    --frost: #5fd3e6;
+    --frost-strong: #8de3f0;
+    --font-condensed: "Roboto Condensed", "Arial Narrow", "Segoe UI", Arial, sans-serif;
+    --rule-hairline: 1px;
+    --rule-strong: 2px;
+    --rule-heavy: 3px;
 }
 
 body,
@@ -2240,4 +2257,155 @@ dialog[class*="dialog"] :is(p, small, label, legend, label > span) { color: var(
 [data-estiba-contrast="navy"],
 [data-estiba-contrast="navy"] :is(h1, h2, h3, h4, p, small, strong, span, dt, dd, a, button, label, legend) {
     color: #ffffff !important;
+}
+
+/*
+ * Identidad "Manifiesto" — encabezados estructurales (eyebrow, masthead, título de
+ * panel, th de tabla) y esquinas a escuadra para el resto de Oficina. Se agrega al final
+ * porque este archivo ya reescribe sus propios selectores más arriba por orden de
+ * aparición (bloques "Lenguaje operacional"/"Temas operacionales"); editar en línea ahí
+ * arriesgaba esa cascada. --frost/--font-condensed/--rule-* viven DENTRO de los bloques
+ * :root[data-office-theme] vigentes (no acá): OfficeThemeContrastTest.mjs ubica el bloque
+ * de cada tema por su última aparición en el archivo, y un bloque nuevo con el mismo
+ * selector se lo habría robado sin tener el resto de las variables.
+ */
+
+.eyebrow {
+    color: var(--frost) !important;
+    font-family: var(--font-condensed) !important;
+    text-transform: uppercase;
+}
+
+.office-app h1:not([data-office-shell] *) {
+    padding-bottom: 10px;
+    border-bottom: var(--rule-heavy) solid var(--frost);
+    font-family: var(--font-condensed);
+    text-transform: uppercase;
+    letter-spacing: .01em;
+}
+
+.office-app :is(
+    .panel > .panel-heading,
+    .management-panel > header,
+    .inventory-connections-panel > header,
+    .demo-card > header,
+    .validation-panel__heading,
+    .materials-panel__heading,
+    .prefrio-panel__heading,
+    .process-panel__heading,
+    .sag-panel-heading,
+    .list-heading,
+    .return-panel__heading,
+    .repa-panel-heading,
+    .admin-panel__heading,
+    .weighbridge-panel-heading,
+    .raw-material-panel-heading,
+    .annulment-panel-heading,
+    .integrity-panel__heading,
+    .discrepancies-panel__heading
+) {
+    /* El fondo navy de estos encabezados se mantiene fijo en ambos temas (igual que el
+       chrome de x-estiba.shell) — solo se agrega el acento de identidad en el borde. */
+    border-bottom: var(--rule-strong) solid var(--frost) !important;
+}
+
+.office-app :is(
+    .panel > .panel-heading,
+    .management-panel > header,
+    .inventory-connections-panel > header,
+    .demo-card > header,
+    .validation-panel__heading,
+    .materials-panel__heading,
+    .prefrio-panel__heading,
+    .process-panel__heading,
+    .sag-panel-heading,
+    .list-heading,
+    .return-panel__heading,
+    .repa-panel-heading,
+    .admin-panel__heading,
+    .weighbridge-panel-heading,
+    .raw-material-panel-heading,
+    .annulment-panel-heading,
+    .integrity-panel__heading,
+    .discrepancies-panel__heading
+) :is(h2, h3, strong) {
+    font-family: var(--font-condensed) !important;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+}
+
+.office-app table th {
+    /* Restituye el uppercase que "Lenguaje operacional ESTIBA" había apagado (línea
+       ~1665: text-transform: none !important) y suma la familia condensada. */
+    font-family: var(--font-condensed) !important;
+    text-transform: uppercase !important;
+    letter-spacing: .06em !important;
+    border-bottom: var(--rule-strong) solid var(--corporate-border) !important;
+}
+
+.office-app :is(
+    [class$="-metrics"]:not(.weighbridge-kpis),
+    [class*="-metrics "]:not(.weighbridge-kpis),
+    [class$="-kpis"]:not(.weighbridge-kpis),
+    [class*="-kpis "]:not(.weighbridge-kpis)
+) > article,
+.office-app .management-kpi {
+    /* El color de identidad reemplaza al color de acción en el acento estructural.
+       :not(.weighbridge-kpis) excluye Romana a propósito: sus 4 KPIs tienen su propia
+       nota, hasta el final de este archivo, sobre tono semántico vs. identidad. */
+    border-top-color: var(--frost) !important;
+}
+
+.office-brand-mark svg {
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    stroke-width: 2;
+}
+
+/* Esquinas a escuadra también en los contenedores que todavía usaban un radio propio en
+   vez de var(--radius) (paneles, botones e inputs ya escuadran desde la capa "Lenguaje
+   operacional ESTIBA" — ver nota arriba). */
+.office-app dialog,
+.office-app [role="dialog"],
+.office-app [class*="modal-card"],
+.office-app [class*="dialog-card"],
+.weighbridge-dialog,
+dialog[class*="dialog"],
+.toast,
+.office-app [class*="table-scroll"],
+.office-app .table-scroll,
+.office-subnavigation__links,
+.office-panel-switcher,
+.office-panel-tab,
+.office-action-select {
+    border-radius: var(--radius) !important;
+}
+
+/* Hallazgo al verificar la identidad de Romana (no introducido en este cambio: ya
+   pasaba en main sin ninguno de estos parches, confirmado con Playwright): la regla
+   genérica de KPIs de "Temas operacionales ESTIBA" (línea ~1990, misma especificidad
+   (0,2,1) y más abajo en el archivo que los .weighbridge-kpis article:nth-child(2/3/4)
+   de más arriba) siempre les ganaba la cascada, mostrando los 4 KPIs de Romana en un
+   solo color de acción en vez de sus tonos warning/naranja/success. Reafirmar los
+   cuatro aquí, al final del archivo, les devuelve la autoridad por orden de aparición
+   — el mismo mecanismo que ya usa este archivo consigo mismo en sus tres generaciones
+   de :root[data-office-theme]. El primero (neutro) pasa a frost; 2/3/4 no cambian. */
+.weighbridge-kpis article:nth-child(1)::before,
+.weighbridge-kpis article:nth-child(1) {
+    border-top-color: var(--frost) !important;
+}
+
+.weighbridge-kpis article:nth-child(2)::before,
+.weighbridge-kpis article:nth-child(2) {
+    border-top-color: var(--warning-text) !important;
+}
+
+.weighbridge-kpis article:nth-child(3)::before,
+.weighbridge-kpis article:nth-child(3) {
+    border-top-color: #d27d49 !important;
+}
+
+.weighbridge-kpis article:nth-child(4)::before,
+.weighbridge-kpis article:nth-child(4) {
+    border-top-color: var(--success-text) !important;
 }

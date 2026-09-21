@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="color-scheme" content="light">
+    <meta name="color-scheme" content="light dark">
     <title>Estiba · Catálogo visual</title>
     <style>{!! $styles !!}</style>
 </head>
@@ -13,6 +13,7 @@
     <header class="catalog-bar">
         <a href="#contenido" class="catalog-brand" aria-label="Estiba, inicio del catálogo">ESTIBA</a>
         <span class="catalog-bar__context">SISTEMA VISUAL<br><strong>Operación · Oficina · Tablet</strong></span>
+        <button type="button" class="catalog-theme-toggle" id="catalogThemeToggle" aria-pressed="false">Modo oscuro</button>
         <span class="catalog-bar__version">Catálogo de componentes <strong>01</strong></span>
     </header>
     <div class="catalog-layout">
@@ -24,6 +25,7 @@
                 <a href="#acciones"><span>03</span> Acciones y entradas</a>
                 <a href="#excepciones"><span>04</span> Estados y mensajes</a>
                 <a href="#tactil"><span>05</span> Uso en tablet</a>
+                <a href="#iconografia"><span>06</span> Iconografía</a>
             </nav>
             <p class="catalog-sidebar__note">Cada panel debe ayudar a consultar, decidir o actuar.</p>
         </aside>
@@ -151,6 +153,23 @@
                         <p class="catalog-note">Controles táctiles de 56 px como mínimo, tipografía de lectura de 16 px y códigos completos. Los contenidos se reorganizan al reducir el ancho.</p>
                         <p class="catalog-note">Esta muestra compone las piezas visuales. El orden y la disponibilidad de acciones los determina el servicio operacional al integrar cada pantalla.</p>
                     </div>
+                </div>
+            </section>
+            <section id="iconografia" class="catalog-section" aria-labelledby="iconsTitle">
+                <div class="catalog-section-heading"><span>06</span><h2 id="iconsTitle">Iconografía</h2></div>
+                <p class="catalog-note">Trazo cuadrado (sin puntas ni uniones redondeadas), 20 símbolos con el mismo peso de línea. Los 12 originales se redibujaron; 8 son nuevos para Oficina y Romana.</p>
+                <div class="catalog-icons">
+                    @foreach([
+                        'arrow-right' => 'Continuar', 'check' => 'Confirmado', 'warning' => 'Alerta',
+                        'warehouse' => 'Almacén', 'pallet' => 'Pallet', 'snowflake' => 'Cadena de frío',
+                        'boxes' => 'Inventario', 'settings' => 'Configuración', 'search' => 'Buscar',
+                        'refresh' => 'Actualizar', 'clock' => 'Tiempo', 'lock' => 'Bloqueado',
+                        'thermometer' => 'Temperatura', 'scale' => 'Romana', 'truck' => 'Camión',
+                        'dock' => 'Andén', 'forklift' => 'Montacargas', 'ticket' => 'Folio',
+                        'print' => 'Imprimir', 'filter' => 'Filtrar',
+                    ] as $iconName => $label)
+                        <div class="catalog-icon"><x-estiba.icon :name="$iconName" /><strong>{{ $label }}</strong><code>{{ $iconName }}</code></div>
+                    @endforeach
                 </div>
             </section>
             <footer class="catalog-footer">ESTIBA · Fundaciones visuales <span>Datos ficticios · Sin operaciones productivas</span></footer>

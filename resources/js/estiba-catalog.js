@@ -4,6 +4,27 @@
     const feedback = document.getElementById('catalogFeedback');
     const densities = ['comfortable', 'compact', 'touch'];
 
+    // Mismo mecanismo que resources/js/office-navigation.js (atributo data-office-theme en
+    // <html>, que resources/css/estiba-tokens.css lee para el shell real): sin localStorage,
+    // porque este archivo se embebe tal cual en el HTML exportado y no persiste nada.
+    const themeToggle = document.getElementById('catalogThemeToggle');
+    const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    let officeTheme = 'light-professional';
+
+    function applyCatalogTheme(theme) {
+        officeTheme = theme;
+        const dark = theme === 'dark-industrial';
+        document.documentElement.dataset.officeTheme = theme;
+        colorSchemeMeta?.setAttribute('content', dark ? 'dark' : 'light');
+        themeToggle.setAttribute('aria-pressed', String(dark));
+        themeToggle.textContent = dark ? 'Modo claro' : 'Modo oscuro';
+    }
+
+    themeToggle?.addEventListener('click', () => {
+        applyCatalogTheme(officeTheme === 'dark-industrial' ? 'light-professional' : 'dark-industrial');
+        feedback.textContent = `Vista previa en modo ${officeTheme === 'dark-industrial' ? 'oscuro' : 'claro'}. No se guarda ninguna preferencia.`;
+    });
+
     catalog.querySelectorAll('[data-density-choice]').forEach((button) => {
         button.addEventListener('click', () => {
             const density = button.dataset.densityChoice;

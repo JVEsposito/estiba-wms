@@ -38,17 +38,21 @@
     height: 22px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 2;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
 }
 
 .operation-now-eyebrow {
+    /* Identidad "Manifiesto" (2026-09-21): color de identidad (frost) separado del color
+       de acción (--corporate-blue), igual que .eyebrow en office-corporate.css. */
     margin: 0 0 3px;
-    color: var(--corporate-blue);
+    color: var(--eui-color-frost);
+    font-family: var(--eui-font-family-condensed);
     font-size: .7rem;
     font-weight: 800;
     letter-spacing: .1em;
+    text-transform: uppercase;
 }
 
 .operation-now-command {
@@ -63,11 +67,15 @@
 
 .operation-now-command__title h1 {
     margin: 0;
+    padding-bottom: 8px;
+    border-bottom: var(--eui-rule-heavy) solid var(--eui-color-frost);
     color: var(--text-strong);
+    font-family: var(--eui-font-family-condensed);
     font-size: clamp(2rem, 2.5vw, 2.7rem);
     font-weight: 800;
-    letter-spacing: -.025em;
+    letter-spacing: -.005em;
     line-height: 1;
+    text-transform: uppercase;
 }
 
 .operation-now-command__title > p:last-child {
@@ -229,9 +237,11 @@
 .operation-now-operator__label,
 .operation-now-tunnel__label {
     color: var(--text-subtle);
+    font-family: var(--eui-font-family-condensed);
     font-size: .74rem;
     font-weight: 800;
     letter-spacing: .045em;
+    text-transform: uppercase;
 }
 
 .operation-now-dashboard {
@@ -251,13 +261,16 @@
 }
 
 .operation-now-panel__heading {
+    /* El fondo navy se mantiene fijo en ambos temas (igual que x-estiba.shell y los
+       encabezados de panel de office-corporate.css) — el acento de identidad va en el
+       borde inferior. */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
     min-height: 46px;
     padding: 7px 12px;
-    border-bottom: 1px solid #0d293b;
+    border-bottom: var(--eui-rule-strong) solid var(--eui-color-frost);
     background: #17394b;
     color: #fff;
 }
@@ -274,9 +287,12 @@
 .operation-now-panel__heading h2 {
     margin: 0;
     color: #fff !important;
+    font-family: var(--eui-font-family-condensed);
     font-size: 1rem;
     font-weight: 800;
+    letter-spacing: .02em;
     line-height: 1.08;
+    text-transform: uppercase;
 }
 
 .operation-now-panel__heading span {
