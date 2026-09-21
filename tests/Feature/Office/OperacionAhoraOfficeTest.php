@@ -172,7 +172,8 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('data-office-context-status', $view);
         $this->assertStringContainsString('data-office-context-refresh', $view);
         $this->assertStringContainsString('FRÍO QUE', $view);
-        $this->assertStringContainsString('background: #106fc0', $styles);
+        $this->assertStringContainsString('--eui-shell-frost: #0f5c6e', $styles);
+                $this->assertStringContainsString('background: var(--eui-shell-frost)', $styles);
         $this->assertStringNotContainsString('officeThemeSelector', $view);
     }
 }
