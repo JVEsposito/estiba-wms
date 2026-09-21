@@ -10,6 +10,7 @@ use App\Models\Folio;
 use App\Models\PersonalAccessToken;
 use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
+use App\Models\Temporada;
 use App\Services\Validacion\ServicioRepaletizaje;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,13 @@ class RepaletizajeController extends Controller
     {
         $porPagina = min(100, max(10, $request->integer('per_page', 25)));
         $folio = trim($request->string('folio')->value());
+        $temporadaActivaId = Temporada::query()
+            ->where('activa', true)
+            ->value('id');
+
         $paginacion = Repaletizaje::query()
+            ->whereHas('folioResultante', fn ($folios) => $folios
+                ->where('temporada_id', $temporadaActivaId))
             ->with($this->relaciones())
             ->when($folio !== '', function ($consulta) use ($folio): void {
                 $consulta->where(function ($subconsulta) use ($folio): void {
