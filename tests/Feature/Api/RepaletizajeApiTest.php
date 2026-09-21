@@ -12,6 +12,7 @@ use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Posicion;
+use App\Models\Repaletizaje;
 use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -598,6 +599,84 @@ class RepaletizajeApiTest extends TestCase
             'saldo',
             Folio::query()->findOrFail($primero->id)->tipo_bulto->value,
         );
+    }
+
+    public function test_historial_y_busqueda_de_repaletizajes_solo_exponen_la_temporada_activa(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $temporadaAnterior = Temporada::create([
+            'codigo' => '2025-2026-HIST-REPA',
+            'nombre' => 'Temporada histórica repaletizaje',
+            'activa' => false,
+            'version_catalogo' => 1,
+        ]);
+        $usuario = User::factory()->create(['rol' => RolUsuario::Validador]);
+        $vigente = $this->folio(
+            $temporada,
+            'PAL-REPA-VIGENTE',
+            120,
+            tipo: TipoBulto::Pallet,
+        );
+        $historico = $this->folio(
+            $temporadaAnterior,
+            'PAL-REPA-HISTORICO',
+            120,
+            tipo: TipoBulto::Pallet,
+        );
+
+        Repaletizaje::create([
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', 'repa-vigente'),
+            'codigo' => 'REPA-2026-900001',
+            'modalidad' => 'consolidacion',
+            'tipo_resultado' => 'pallet',
+            'estrategia_folio' => 'nuevo',
+            'folio_resultante_id' => $vigente->id,
+            'folio_conservado_id' => null,
+            'cantidad_objetivo' => 120,
+            'cantidad_resultante' => 120,
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio->value,
+            'campos_mix' => [],
+            'snapshot' => [],
+            'estado' => 'confirmado',
+            'observacion' => null,
+            'user_id' => $usuario->id,
+            'dispositivo_id' => null,
+            'confirmado_at' => now(),
+        ]);
+        Repaletizaje::create([
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => hash('sha256', 'repa-historico'),
+            'codigo' => 'REPA-2025-900001',
+            'modalidad' => 'consolidacion',
+            'tipo_resultado' => 'pallet',
+            'estrategia_folio' => 'nuevo',
+            'folio_resultante_id' => $historico->id,
+            'folio_conservado_id' => null,
+            'cantidad_objetivo' => 120,
+            'cantidad_resultante' => 120,
+            'condicion_termica' => CondicionTermicaFolio::PendientePrefrio->value,
+            'campos_mix' => [],
+            'snapshot' => [],
+            'estado' => 'confirmado',
+            'observacion' => null,
+            'user_id' => $usuario->id,
+            'dispositivo_id' => null,
+            'confirmado_at' => now()->subDay(),
+        ]);
+
+        $this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'REPA-2026-900001')
+            ->assertJsonPath('meta.total', 1);
+
+        $this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes?folio=PAL-REPA-HISTORICO')
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0);
     }
 
     public function test_rechaza_folios_que_no_pertenecen_a_la_temporada_activa(): void
