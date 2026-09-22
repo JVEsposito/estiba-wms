@@ -425,6 +425,52 @@
     font-size: .62rem;
 }
 
+.admin-sessions-panel {
+    margin-top: 16px;
+}
+
+.admin-sessions-scroll {
+    max-height: 500px;
+}
+
+.admin-session-disconnect,
+.admin-sessions-pagination button {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--deep);
+    color: var(--text);
+    padding: 6px 12px;
+    font-size: .68rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.admin-session-disconnect {
+    border-color: rgba(255, 100, 110, .5);
+    color: #ffb3ba;
+}
+
+.admin-session-disconnect:hover,
+.admin-sessions-pagination button:hover:not(:disabled) {
+    border-color: var(--corporate-blue);
+}
+
+.admin-sessions-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 14px 16px;
+    color: var(--muted);
+    font-size: .7rem;
+}
+
+.admin-sessions-pagination button:disabled {
+    cursor: default;
+    opacity: .45;
+}
+
 .access-status,
 .role-badge {
     display: inline-flex;

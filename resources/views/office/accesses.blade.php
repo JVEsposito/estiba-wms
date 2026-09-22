@@ -65,6 +65,7 @@
                 <div class="admin-metrics">
                     <article><span>USUARIOS ACTIVOS</span><strong id="activeUsersCount">0</strong></article>
                     <article><span>TABLETS ACTIVAS</span><strong id="activeDevicesCount">0</strong></article>
+                    <article><span>ACCESOS VIGENTES</span><strong id="activeAccessSessionsCount">—</strong></article>
                     <article><span>CLIENTES ACTIVOS</span><strong id="activeClientsCount">0</strong></article>
                     <article><span>TEMPORADA ACTIVA</span><strong id="activeSeasonCode">—</strong></article>
                     <article><span>ÚLTIMO ACCESO TABLET</span><strong id="lastDeviceAccess">Sin accesos</strong></article>
@@ -80,6 +81,7 @@
                         'labels' => ['label' => 'Etiquetas', 'icon' => '▤'],
                         'profiles' => ['label' => 'Perfiles', 'icon' => '⚙'],
                         'users' => ['label' => 'Usuarios', 'icon' => '●'],
+                        'sessions' => ['label' => 'Sesiones', 'icon' => '◉'],
                         'devices' => ['label' => 'Tablets', 'icon' => '▣'],
                     ]"
                 />
@@ -298,6 +300,25 @@
                         </div>
                     </section>
                 </div>
+
+                <section class="admin-panel admin-sessions-panel panel" id="administration-panel-sessions" data-office-panel-group="administration" data-office-panel-id="sessions" role="tabpanel" aria-labelledby="administration-tab-sessions">
+                    <div class="admin-panel__heading">
+                        <div><p class="eyebrow">CONTROL DE ACCESOS</p><h2>Sesiones con acceso vigente</h2></div>
+                        <span id="accessSessionsSummary">0 sesiones</span>
+                    </div>
+                    <p class="admin-form__hint">Se muestran accesos autorizados en Oficina y tablet, aunque el equipo no esté conectado en este momento. La última actividad solo aparece si está habilitado su registro.</p>
+                    <div class="admin-table-scroll admin-sessions-scroll">
+                        <table class="admin-table">
+                            <thead><tr><th>Usuario</th><th>Acceso</th><th>Inicio</th><th>Última actividad</th><th>Acción</th></tr></thead>
+                            <tbody id="accessSessionsTableBody"><tr class="admin-empty"><td colspan="5">Cargando accesos…</td></tr></tbody>
+                        </table>
+                    </div>
+                    <div class="admin-sessions-pagination">
+                        <button id="accessSessionsPrevious" type="button">← Anterior</button>
+                        <span id="accessSessionsPage">Página 1 de 1</span>
+                        <button id="accessSessionsNext" type="button">Siguiente →</button>
+                    </div>
+                </section>
             </section>
         </main>
 
