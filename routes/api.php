@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\ReinicioOperacionalController;
 use App\Http\Controllers\Api\ReplayCicloPlanificadorController;
 use App\Http\Controllers\Api\RetornoPackingController;
 use App\Http\Controllers\Api\SaludPlanificadorController;
+use App\Http\Controllers\Api\SesionesAccesoAdministracionController;
 use App\Http\Controllers\Api\SesionEstibaController;
 use App\Http\Controllers\Api\TransformacionMaterialController;
 use App\Http\Controllers\Api\TunelPrefrioController;
@@ -489,6 +490,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
     });
     Route::middleware('can:administrar-accesos')->group(function () {
+        Route::get('/administracion/sesiones-acceso', [SesionesAccesoAdministracionController::class, 'index']);
+        Route::delete('/administracion/sesiones-acceso/{sesionAcceso}', [SesionesAccesoAdministracionController::class, 'destroy']);
         Route::post('/administracion/perfiles-acceso', [PerfilAccesoController::class, 'store']);
         Route::put('/administracion/perfiles-acceso/{perfilAcceso}', [PerfilAccesoController::class, 'update']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);

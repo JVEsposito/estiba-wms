@@ -12,6 +12,12 @@ const elements = {
     reload: byId('reloadAccessesButton'),
     activeUsers: byId('activeUsersCount'),
     activeDevices: byId('activeDevicesCount'),
+    activeAccessSessions: byId('activeAccessSessionsCount'),
+    accessSessionsSummary: byId('accessSessionsSummary'),
+    accessSessionsTableBody: byId('accessSessionsTableBody'),
+    accessSessionsPrevious: byId('accessSessionsPrevious'),
+    accessSessionsNext: byId('accessSessionsNext'),
+    accessSessionsPage: byId('accessSessionsPage'),
     activeClients: byId('activeClientsCount'),
     activeSeason: byId('activeSeasonCode'),
     lastDeviceAccess: byId('lastDeviceAccess'),
@@ -60,6 +66,10 @@ const state = {
     identity: readJson(keys.identity),
     users: [],
     devices: [],
+    accessSessions: [],
+    accessSessionsPage: 1,
+    accessSessionsLastPage: 1,
+    accessSessionsTotal: 0,
     seasons: [],
     clients: [],
     resetPreview: null,
@@ -170,6 +180,7 @@ function clearSession() {
     state.identity = null;
     state.users = [];
     state.devices = [];
+    state.accessSessions = [];
     state.seasons = [];
     state.clients = [];
     localStorage.removeItem(keys.token);
@@ -185,6 +196,12 @@ function showApp() {
     elements.access.classList.add('is-hidden');
     elements.app.classList.remove('is-hidden');
     elements.app.classList.toggle('is-read-only', state.identity?.solo_consulta === true);
+    const sessionsTab = byId('administration-tab-sessions');
+    const canManageSessions = state.identity?.puede_administrar_accesos === true;
+    sessionsTab.classList.toggle('is-hidden', !canManageSessions);
+    if (!canManageSessions && sessionsTab.getAttribute('aria-selected') === 'true') {
+        byId('administration-tab-users').click();
+    }
     const name = state.identity?.nombre || 'Usuario';
     elements.userName.textContent = name;
     elements.userRole.textContent = statusText(state.identity?.rol || 'administrador');
@@ -259,6 +276,44 @@ function renderDevices() {
             <td>${statusBadge(device.activo)}</td>
         </tr>
     `).join('');
+}
+
+function renderAccessSessions() {
+    elements.activeAccessSessions.textContent = state.identity?.puede_administrar_accesos
+        ? String(state.accessSessionsTotal) : '—';
+    elements.accessSessionsSummary.textContent = `${state.accessSessionsTotal} ${state.accessSessionsTotal === 1 ? 'sesión' : 'sesiones'}`;
+    elements.accessSessionsPage.textContent = `Página ${state.accessSessionsPage} de ${state.accessSessionsLastPage}`;
+    elements.accessSessionsPrevious.disabled = state.accessSessionsPage <= 1;
+    elements.accessSessionsNext.disabled = state.accessSessionsPage >= state.accessSessionsLastPage;
+
+    if (!state.accessSessions.length) {
+        elements.accessSessionsTableBody.innerHTML = '<tr class="admin-empty"><td colspan="5">No hay sesiones con acceso vigente.</td></tr>';
+        return;
+    }
+
+    elements.accessSessionsTableBody.innerHTML = state.accessSessions.map((session) => {
+        const user = session.usuario;
+        const device = session.dispositivo;
+        const access = session.tipo === 'tablet'
+            ? `${escapeHtml(device?.nombre || 'Tablet')} · ${escapeHtml(device?.codigo || '')}`
+            : 'Oficina PC';
+        return `<tr>
+            <td><strong>${escapeHtml(user.nombre)}</strong><small>${escapeHtml(user.email)}</small></td>
+            <td><strong>${access}</strong>${session.es_actual ? '<small>Tu sesión actual</small>' : ''}</td>
+            <td>${escapeHtml(formatDate(session.creada_at, '—'))}</td>
+            <td>${escapeHtml(formatDate(session.ultima_actividad_at, 'Sin seguimiento'))}</td>
+            <td><button class="admin-session-disconnect" data-disconnect-session="${Number(session.id)}" type="button">Desconectar</button></td>
+        </tr>`;
+    }).join('');
+}
+
+async function loadAccessSessions(page = state.accessSessionsPage) {
+    const response = await api(`/api/administracion/sesiones-acceso?page=${page}`);
+    state.accessSessions = response.data || [];
+    state.accessSessionsPage = response.pagina || 1;
+    state.accessSessionsLastPage = response.ultima_pagina || 1;
+    state.accessSessionsTotal = response.total || 0;
+    renderAccessSessions();
 }
 
 function dateOnly(value, fallback = 'Sin fecha') {
@@ -406,6 +461,7 @@ async function loadAccesses() {
         api('/api/administracion/accesos'),
         api('/api/administracion/temporadas'),
         api('/api/administracion/clientes'),
+        ...(state.identity?.puede_administrar_accesos ? [loadAccessSessions()] : []),
     ]);
     state.users = response.usuarios;
     state.devices = response.dispositivos;
@@ -416,6 +472,48 @@ async function loadAccesses() {
     renderSeasons();
     renderClients();
 }
+
+elements.accessSessionsTableBody.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-disconnect-session]');
+    if (!button || !elements.accessSessionsTableBody.contains(button)) return;
+    const session = state.accessSessions.find((candidate) => candidate.id === Number(button.dataset.disconnectSession));
+    if (!session) return;
+    const label = session.tipo === 'tablet' ? session.dispositivo?.nombre || 'tablet' : 'Oficina PC';
+    const message = `¿Desconectar el acceso de ${session.usuario.nombre} en ${label}?${session.tipo === 'tablet' ? ' Si tiene una cámara abierta, también se cerrará y liberará.' : ''}`;
+    if (!window.confirm(message)) return;
+
+    setBusy(true, 'Desconectando sesión…');
+    try {
+        const result = await api(`/api/administracion/sesiones-acceso/${session.id}`, { method: 'DELETE' });
+        if (result.sesion_actual_cerrada) {
+            clearSession();
+            elements.loginError.textContent = 'Cerraste tu propia sesión. Vuelve a iniciar sesión para continuar.';
+            return;
+        }
+        const page = state.accessSessions.length === 1 && state.accessSessionsPage > 1
+            ? state.accessSessionsPage - 1 : state.accessSessionsPage;
+        await loadAccessSessions(page);
+        toast(`Acceso de ${session.usuario.nombre} desconectado.${result.sesiones_camara_cerradas ? ` ${result.sesiones_camara_cerradas} sesión(es) de cámara cerradas.` : ''}`);
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+});
+
+elements.accessSessionsPrevious.addEventListener('click', async () => {
+    try { await loadAccessSessions(state.accessSessionsPage - 1); } catch (error) { toast(error.message, true); }
+});
+elements.accessSessionsNext.addEventListener('click', async () => {
+    try { await loadAccessSessions(state.accessSessionsPage + 1); } catch (error) { toast(error.message, true); }
+});
+
+document.addEventListener('estiba:office-panel-change', (event) => {
+    if (event.detail?.group === 'administration' && event.detail?.panel === 'sessions'
+        && state.token && state.identity?.puede_administrar_accesos === true) {
+        void loadAccessSessions().catch((error) => toast(error.message, true));
+    }
+});
 
 elements.loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();

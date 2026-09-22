@@ -126,6 +126,7 @@ class ServicioSesionEstiba
         SesionEstiba $sesion,
         User $usuario,
         string $motivo,
+        bool $desdeAdministracion = false,
     ): SesionEstiba {
         $motivo = trim($motivo);
 
@@ -133,7 +134,7 @@ class ServicioSesionEstiba
             throw new DomainException('El cierre forzoso requiere un motivo válido.');
         }
 
-        return DB::transaction(function () use ($sesion, $usuario, $motivo): SesionEstiba {
+        return DB::transaction(function () use ($sesion, $usuario, $motivo, $desdeAdministracion): SesionEstiba {
             $sesionBloqueada = SesionEstiba::query()->lockForUpdate()->findOrFail($sesion->id);
             $camara = Camara::query()->lockForUpdate()->findOrFail($sesionBloqueada->camara_id);
             $usuarioBloqueado = User::query()->lockForUpdate()->findOrFail($usuario->id);
@@ -142,7 +143,11 @@ class ServicioSesionEstiba
                 throw new DomainException('La sesión de estiba ya se encuentra cerrada.');
             }
 
-            if (! $this->alcance->puedeCerrarSesionForzosamente($usuarioBloqueado, $camara)) {
+            $autorizado = $desdeAdministracion
+                ? $this->alcance->puedeAdministrarAccesos($usuarioBloqueado)
+                : $this->alcance->puedeCerrarSesionForzosamente($usuarioBloqueado, $camara);
+
+            if (! $autorizado) {
                 throw new OperacionNoAutorizada(
                     'El usuario no puede cerrar forzosamente sesiones de esta área.',
                 );
