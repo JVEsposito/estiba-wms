@@ -50,6 +50,7 @@ class AdministracionAccesoController extends Controller
             'name' => $datos['nombre'],
             'email' => $datos['email'],
             'password' => $datos['password'],
+            'debe_cambiar_password' => true,
             'rol' => $rol,
             'perfil_acceso_id' => $perfil?->id,
             'activo' => (bool) ($datos['activo'] ?? true),
@@ -113,6 +114,7 @@ class AdministracionAccesoController extends Controller
             ]);
             if ($cambiaPassword) {
                 $usuario->password = $datos['password'];
+                $usuario->debe_cambiar_password = true;
             }
             $usuario->save();
 
@@ -168,6 +170,7 @@ class AdministracionAccesoController extends Controller
                 'nombre' => $usuario->perfilAcceso->nombre,
             ] : null,
             'activo' => $usuario->activo,
+            'debe_cambiar_password' => $usuario->debe_cambiar_password,
             'permisos' => $this->alcance->capacidadesApi($usuario),
             'creado_at' => $usuario->created_at?->toAtomString(),
             'actualizado_at' => $usuario->updated_at?->toAtomString(),

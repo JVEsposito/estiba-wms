@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Sanctum\NewAccessToken;
 
-#[Fillable(['name', 'email', 'password', 'rol', 'perfil_acceso_id', 'activo'])]
+#[Fillable(['name', 'email', 'password', 'rol', 'perfil_acceso_id', 'activo', 'debe_cambiar_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -110,6 +110,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'rol' => RolUsuario::class,
             'activo' => 'boolean',
+            'debe_cambiar_password' => 'boolean',
         ];
     }
 }

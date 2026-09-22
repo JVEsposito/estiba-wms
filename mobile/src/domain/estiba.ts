@@ -22,6 +22,7 @@ export type UserIdentity = {
   nombre: string;
   email: string;
   rol: string;
+  debe_cambiar_password?: boolean;
   ambito_camaras: 'productos' | 'materiales' | 'materia_prima' | 'ambos' | 'ninguno';
   modulos_tablet?: TabletModule[];
   capacidades: UserCapabilities;

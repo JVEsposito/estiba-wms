@@ -52,6 +52,7 @@ export interface EstibaApi {
   readonly baseUrl: string | null;
   readonly configurationError: string | null;
   login(payload: LoginPayload): Promise<AuthSession>;
+  changePassword(token: string, currentPassword: string, newPassword: string): Promise<void>;
   logout(token: string): Promise<void>;
   listCameras(token: string): Promise<CameraSummary[]>;
   refreshCameras(token: string): Promise<CameraSummary[] | null>;
@@ -160,6 +161,17 @@ class HttpEstibaApi implements EstibaApi {
     return this.request<AuthSession>('/api/acceso-tablet', undefined, {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  }
+
+  async changePassword(token: string, currentPassword: string, newPassword: string) {
+    await this.request('/api/usuario/password', token, {
+      method: 'PUT',
+      body: JSON.stringify({
+        password_actual: currentPassword,
+        password_nueva: newPassword,
+        password_nueva_confirmation: newPassword,
+      }),
     });
   }
 

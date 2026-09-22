@@ -85,6 +85,7 @@ class AccesoTabletController extends Controller
                 'id' => $usuario->id,
                 'nombre' => $usuario->name,
                 'email' => $usuario->email,
+                'debe_cambiar_password' => $usuario->debe_cambiar_password,
                 'rol' => $usuario->rol->value,
                 'perfil_acceso' => $capacidades['perfil_acceso'],
                 'modulos_acceso' => $capacidades['modulos_acceso'],

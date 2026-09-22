@@ -9,6 +9,7 @@ import { isDemoRuntime } from './src/config/appVariant';
 import { initializeDemoDatabase } from './src/demo/demoDatabase';
 import { DemoDataScreen } from './src/screens/DemoDataScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { FirstPasswordChangeScreen } from './src/screens/FirstPasswordChangeScreen';
 import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
 import { OperationalWorkspaceScreen } from './src/screens/OperationalWorkspaceScreen';
@@ -62,7 +63,14 @@ export default function App() {
   async function login(payload: LoginPayload) {
     const session = await api.login(payload);
     setAuth(session);
-    setActiveModule(defaultModule(session));
+    setActiveModule(session.usuario.debe_cambiar_password ? null : defaultModule(session));
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    if (!auth) return;
+    await api.changePassword(auth.token, currentPassword, newPassword);
+    setAuth({ ...auth, usuario: { ...auth.usuario, debe_cambiar_password: false } });
+    setActiveModule(defaultModule(auth));
   }
 
   async function configureServer(value: string) {
@@ -99,6 +107,12 @@ export default function App() {
             <ActivityIndicator color={colors.cyan} size="large" />
             <Text style={styles.bootText}>Preparando Estiba WMS…</Text>
           </View>
+        ) : auth?.usuario.debe_cambiar_password ? (
+          <FirstPasswordChangeScreen
+            userName={auth.usuario.nombre}
+            onChangePassword={changePassword}
+            onLogout={() => void logoutPersistentModule()}
+          />
         ) : auth ? (
           <View style={styles.workspace}>
             {modules.length > 1 && activeModule ? (

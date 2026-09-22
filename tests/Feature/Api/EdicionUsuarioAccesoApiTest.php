@@ -46,6 +46,7 @@ class EdicionUsuarioAccesoApiTest extends TestCase
 
         $usuario->refresh();
         $this->assertTrue(Hash::check('NuevaClave2026', $usuario->password));
+        $this->assertTrue($usuario->debe_cambiar_password);
         $this->assertSame(0, $usuario->tokens()->count());
 
         $this->putJson("/api/administracion/usuarios/{$usuario->id}", [
