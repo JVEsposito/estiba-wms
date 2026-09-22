@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Enums\RolUsuario;
 use App\Models\Camara;
 use App\Models\Dispositivo;
-use App\Models\SesionEstiba;
 use App\Models\User;
 use App\Services\Estiba\ServicioSesionEstiba;
 use Illuminate\Foundation\Testing\RefreshDatabase;
