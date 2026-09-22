@@ -52,15 +52,48 @@ class AutorizacionPerfilAccesoTest extends TestCase
         $this->assertFalse($alcance->puedeOperarPrefrio($usuario));
     }
 
-    public function test_perfil_predeterminado_conserva_la_matriz_legacy_del_rol(): void
+    public function test_perfil_predeterminado_tambien_manda_sobre_restricciones_legacy_del_rol_base(): void
     {
         $perfil = PerfilAcceso::query()
             ->where('rol_base', RolUsuario::DigitadorMateriaPrima->value)
             ->where('predeterminado', true)
             ->firstOrFail();
+        $perfil->update([
+            'modulos' => [
+                'materia-prima.romana',
+                'materia-prima.digitacion',
+                'materia-prima.hidrocooler',
+                'materia-prima.fruta-proceso',
+                'materia-prima.validacion-mp',
+                'materia-prima.despacho-envases',
+            ],
+            'modulos_tablet' => [
+                'validacion_mp',
+                'fruta_proceso',
+            ],
+        ]);
         $usuario = User::factory()->create([
             'rol' => RolUsuario::DigitadorMateriaPrima,
             'perfil_acceso_id' => $perfil->id,
+            'activo' => true,
+        ]);
+
+        $alcance = app(AlcanceOperacionalUsuario::class);
+
+        $this->assertTrue($alcance->puedeOperarRomana($usuario));
+        $this->assertTrue($alcance->puedeGestionarLotesMateriaPrima($usuario));
+        $this->assertTrue($alcance->puedeOperarHidrocoolerMateriaPrima($usuario));
+        $this->assertTrue($alcance->puedeEntregarFrutaProceso($usuario));
+        $this->assertTrue($alcance->puedeValidarMp($usuario));
+        $this->assertTrue($alcance->puedeGestionarDespachoEnvases($usuario));
+        $this->assertFalse($alcance->puedeOperarPrefrio($usuario));
+    }
+
+    public function test_usuario_sin_perfil_conserva_la_matriz_legacy_del_rol(): void
+    {
+        $usuario = User::factory()->create([
+            'rol' => RolUsuario::DigitadorMateriaPrima,
+            'perfil_acceso_id' => null,
             'activo' => true,
         ]);
 
