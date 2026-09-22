@@ -47,7 +47,7 @@ export function FirstPasswordChangeScreen({ userName, onChangePassword, onLogout
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <View style={styles.panel}>
-        <Text style={styles.eyebrow}>ESTIBA WMS · PRIMER ACCESO</Text>
+        <Text style={styles.eyebrow}>FoliOS · PRIMER ACCESO</Text>
         <Text style={styles.title}>Crea tu contraseña</Text>
         <Text style={styles.description}>
           {userName}, tu contraseña actual es temporal. Cámbiala para comenzar a trabajar en la tablet.

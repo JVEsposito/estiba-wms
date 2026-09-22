@@ -2,7 +2,8 @@
 body { margin: 0; }
 .catalog-ui { min-height: 100vh; }
 .catalog-ui .catalog-bar { display: flex; align-items: center; gap: 24px; min-height: 72px; padding: 12px 28px; background: var(--eui-color-navy); color: var(--eui-color-on-navy); }
-.catalog-ui .catalog-brand { color: inherit; font-size: 30px; line-height: 1; letter-spacing: .03em; font-weight: 700; text-decoration: none; }
+.catalog-ui .catalog-brand { color: inherit; line-height: 1; text-decoration: none; }
+.catalog-ui .catalog-brand .folios-logo { width: 132px; }
 .catalog-ui .catalog-bar__context { border-left: 1px solid #617885; padding-left: 24px; font-size: 11px; line-height: 1.6; letter-spacing: .04em; }
 .catalog-ui .catalog-bar__context strong { font-size: 12px; font-weight: 400; letter-spacing: 0; }
 .catalog-ui .catalog-theme-toggle { margin-left: auto; height: 36px; padding: 0 14px; border: 1px solid #617885; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
@@ -46,7 +47,7 @@ body { margin: 0; }
 .catalog-ui .catalog-touch-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 24px; }
 .catalog-ui .catalog-touch { min-width: 0; border: 1px solid var(--eui-color-input-border); border-radius: 6px; }
 .catalog-ui .catalog-touch__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; background: var(--eui-color-navy); color: var(--eui-color-on-navy); }
-.catalog-ui .catalog-touch__bar strong { letter-spacing: .03em; font-size: 22px; }
+.catalog-ui .catalog-touch__bar .folios-logo { width: 128px; }
 .catalog-ui .catalog-touch__bar span { font-size: 11px; }
 .catalog-ui .catalog-touch__body { display: grid; gap: 16px; padding: 24px; }
 .catalog-ui .catalog-instruction { display: grid; gap: 12px; padding: 20px 0; border-top: 1px solid var(--eui-color-border); border-bottom: 1px solid var(--eui-color-border); }

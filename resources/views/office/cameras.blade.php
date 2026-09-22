@@ -6,7 +6,7 @@
         <meta name="theme-color" content="#102f43">
         <meta name="color-scheme" content="light dark">
 
-        <title>Estiba WMS · Cámaras</title>
+        <title>FoliOS · Cámaras</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-cameras.css', 'resources/js/office-cameras.js'])
@@ -16,7 +16,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand">
                 <div class="office-logo" aria-hidden="true">❄</div>
-                <p class="eyebrow">ESTIBA WMS · OFICINA</p>
+                <p class="eyebrow">FoliOS · OFICINA</p>
                 <h1 id="officeAccessTitle">Consulta la disponibilidad antes de preparar una carga.</h1>
                 <p>Las áreas consultan ocupación y disponibilidad. La creación, estructura y desactivación de cámaras pertenecen exclusivamente a Administración.</p>
                 <div class="feature-row">

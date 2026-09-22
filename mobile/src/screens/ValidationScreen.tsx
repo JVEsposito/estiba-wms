@@ -662,7 +662,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.page, compact && styles.pageCompact]} keyboardShouldPersistTaps="handled">
         <View style={[styles.topbar, compact && styles.topbarCompact]}>
-          <View><Text style={styles.eyebrow}>ESTIBA WMS · TERRENO</Text><Text style={[styles.title, compact && styles.titleCompact]}>Validación de pallets</Text></View>
+          <View><Text style={styles.eyebrow}>FoliOS · TERRENO</Text><Text style={[styles.title, compact && styles.titleCompact]}>Validación de pallets</Text></View>
           <View style={[styles.topbarRight, compact && styles.topbarRightCompact]}>
             <View style={[styles.connection, online ? styles.connectionOnline : styles.connectionOffline]}><Text style={styles.connectionText}>{online ? 'API conectada' : 'Modo desconectado'}</Text></View>
             <Pressable onPress={logout} style={styles.logout}><Text style={styles.logoutText}>Salir</Text></Pressable>

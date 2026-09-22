@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Estiba WMS administra operaciones de recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho mediante una base central auditada, oficinas web y una aplicación Android para tablets y PDA.
+FoliOS administra operaciones de recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho mediante una base central auditada, oficinas web y una aplicación Android para tablets y PDA.
 
 El sistema debe ser simple para el operador, estricto con la integridad del inventario y capaz de conservar operaciones críticas ante conectividad intermitente en los módulos que cuentan con bandeja offline.
 

@@ -1,4 +1,4 @@
-# Política de datos de Estiba WMS Demo
+# Política de datos de FoliOS Demo
 
 ## Objetivo
 

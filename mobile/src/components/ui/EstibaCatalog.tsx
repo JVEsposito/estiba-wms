@@ -15,7 +15,7 @@ export function EstibaCatalog() {
 
   return <ScrollView style={s.screen} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
     <EstibaSurface style={s.content}>
-      <EstibaHeading title="Fundaciones visuales" eyebrow="ESTIBA · CATÁLOGO TÁCTIL" description="Ejemplos ficticios. Sin conexión a datos de planta." />
+      <EstibaHeading title="Fundaciones visuales" eyebrow="FoliOS · CATÁLOGO TÁCTIL" description="Ejemplos ficticios. Sin conexión a datos de planta." />
       <EstibaPanel title="Lectura del paso actual">
         <EstibaSignal label="En ejecución" tone="info" />
         <EntityCode value="FOL-EJ-001" large />

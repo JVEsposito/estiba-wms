@@ -15,7 +15,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · {{ $inventoryTitle }}</title>
+        <title>FoliOS · {{ $inventoryTitle }}</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-inventory-exports.css', 'resources/js/office-inventory-exports.js'])
         @endif
@@ -24,7 +24,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand inventory-access-brand">
                 <div class="office-logo" aria-hidden="true">{{ $inventoryIcon }}</div>
-                <p class="eyebrow">ESTIBA WMS · {{ strtoupper($inventoryArea) }}</p>
+                <p class="eyebrow">FoliOS · {{ strtoupper($inventoryArea) }}</p>
                 <h1 id="officeAccessTitle">{{ $inventoryTitle }}, dentro de su área responsable.</h1>
                 <p>{{ $inventoryDescription }}</p>
                 <div class="feature-row">

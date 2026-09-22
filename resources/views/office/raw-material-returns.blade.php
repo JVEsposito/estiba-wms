@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Retornos de Packing</title>
+        <title>FoliOS · Retornos de Packing</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite([
                 'resources/css/office.css',
@@ -18,7 +18,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand return-access-brand">
                 <div class="office-logo" aria-hidden="true">↩</div>
-                <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
+                <p class="eyebrow">FoliOS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Registra lo que realmente vuelve desde Packing.</h1>
                 <p>Cada bin nace con un folio provisional y kilos verdes. Cuadraturas confirma después su peso definitivo por proceso.</p>
                 <div class="feature-row"><span>Bin individual</span><span>Multiorigen real</span><span>Cuadratura definitiva</span></div>

@@ -1,6 +1,6 @@
-# Estiba WMS
+# FoliOS
 
-Estiba WMS es una plataforma operacional para recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho en una planta agroindustrial. Combina oficinas web para administración y supervisión con una aplicación Android orientada a tablets y PDA.
+FoliOS es una plataforma operacional para recepción, validación, tratamiento térmico, almacenamiento, inventario y despacho en una planta agroindustrial. Combina oficinas web para administración y supervisión con una aplicación Android orientada a tablets y PDA.
 
 La base MySQL es la autoridad del estado confirmado. Las reglas de negocio viven en Laravel y las interfaces web y móvil consumen la misma API autenticada mediante Sanctum.
 
@@ -253,7 +253,7 @@ TELESCOPE_ENABLED=false
 
 ## Validación automática
 
-Las [fundaciones visuales Estiba](docs/FUNDACIONES_VISUALES_ESTIBA.md) incluyen
+Las [fundaciones visuales FoliOS](docs/FUNDACIONES_VISUALES_FOLIOS.md) incluyen
 tokens compartidos, componentes para Oficina/tablet y un catálogo sin datos reales.
 `npm run design:check` verifica la sincronía de los tokens y `php artisan ui:catalogo`
 exporta la muestra a `storage/app/ui/catalogo.html` para revisarla en el navegador.

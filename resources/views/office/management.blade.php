@@ -6,7 +6,7 @@
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
 
-        <title>Estiba WMS · Panel gerencial</title>
+        <title>FoliOS · Panel gerencial</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-management.css', 'resources/js/office-management.js'])
@@ -16,7 +16,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand management-access-brand">
                 <div class="office-logo" aria-hidden="true">◆</div>
-                <p class="eyebrow">ESTIBA WMS · VISIÓN EJECUTIVA</p>
+                <p class="eyebrow">FoliOS · VISIÓN EJECUTIVA</p>
                 <h1 id="officeAccessTitle">La operación completa, en una sola mirada.</h1>
                 <p>Información actual de inventario, ocupación y capacidad para apoyar decisiones de gerencia sin modificar la operación.</p>
                 <div class="feature-row">

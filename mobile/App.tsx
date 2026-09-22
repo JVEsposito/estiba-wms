@@ -105,7 +105,7 @@ export default function App() {
         {!configurationLoaded ? (
           <View style={styles.boot}>
             <ActivityIndicator color={colors.cyan} size="large" />
-            <Text style={styles.bootText}>Preparando Estiba WMS…</Text>
+            <Text style={styles.bootText}>Preparando FoliOS…</Text>
           </View>
         ) : auth?.usuario.debe_cambiar_password ? (
           <FirstPasswordChangeScreen
@@ -212,7 +212,7 @@ function moduleLabel(module: MobileModule) {
 function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModule[]; onSelect: (module: MobileModule) => void; userName: string }) {
   return (
     <View style={styles.selector}>
-      <Text style={styles.selectorEyebrow}>ESTIBA WMS · TURNO</Text>
+      <Text style={styles.selectorEyebrow}>FoliOS · TURNO</Text>
       <Text style={styles.selectorTitle}>Selecciona el área de trabajo</Text>
       <Text style={styles.selectorCopy}>{userName}, tu perfil posee acceso a más de un módulo.</Text>
       <View style={styles.selectorCards}>

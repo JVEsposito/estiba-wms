@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Inspección SAG</title>
+        <title>FoliOS · Inspección SAG</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-sag-inspections.css', 'resources/js/office-sag-inspections.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand sag-access-brand">
                 <div class="office-logo" aria-hidden="true">SAG</div>
-                <p class="eyebrow">ESTIBA WMS · FRIGORÍFICO</p>
+                <p class="eyebrow">FoliOS · FRIGORÍFICO</p>
                 <h1 id="officeAccessTitle">Inspecciones y mercados con trazabilidad por pallet.</h1>
                 <p>Prepara muestreos USDA, inspecciones de origen o en línea, fumigaciones y cambios de mercado sin perder las autorizaciones anteriores.</p>
                 <div class="feature-row"><span>AO · AU · AF</span><span>País o bloque UE</span><span>Historial acumulativo</span></div>

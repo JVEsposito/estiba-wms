@@ -5,14 +5,14 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Cuenta corriente de envases</title>
+        <title>FoliOS · Cuenta corriente de envases</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-container-accounts.css', 'resources/js/office-container-accounts.js'])
         @endif
     </head>
     <body>
         <section class="office-access" id="officeAccess">
-            <div class="office-access__brand"><div class="office-logo">⇄</div><p class="eyebrow">ESTIBA WMS · ENVASES</p><h1>Consulta la cuenta corriente con trazabilidad a guía, cliente y hora.</h1><p>Lo declarado queda pendiente hasta Validación MP; lo validado confirma el movimiento y nunca reemplaza la evidencia de Romana.</p></div>
+            <div class="office-access__brand"><div class="office-logo">⇄</div><p class="eyebrow">FoliOS · ENVASES</p><h1>Consulta la cuenta corriente con trazabilidad a guía, cliente y hora.</h1><p>Lo declarado queda pendiente hasta Validación MP; lo validado confirma el movimiento y nunca reemplaza la evidencia de Romana.</p></div>
             <form class="office-access__form" id="officeLoginForm"><div><p class="eyebrow">ACCESO DE OFICINA</p><h2>Ingresar a cuenta corriente</h2></div><label><span>Correo electrónico</span><input name="email" type="email" required></label><label><span>Contraseña</span><input name="password" type="password" required></label><p class="form-error" id="officeLoginError"></p><button class="primary-button" type="submit">Ingresar <span>→</span></button></form>
         </section>
         <main class="office-app is-hidden" id="officeApp">

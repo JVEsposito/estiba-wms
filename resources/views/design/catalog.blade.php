@@ -4,14 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <title>Estiba · Catálogo visual</title>
+    <title>FoliOS · Catálogo visual</title>
     <style>{!! $styles !!}</style>
 </head>
 <body>
 <div class="estiba-ui catalog-ui" id="catalog" data-density="comfortable">
     <a href="#contenido" class="catalog-skip">Saltar al contenido</a>
     <header class="catalog-bar">
-        <a href="#contenido" class="catalog-brand" aria-label="Estiba, inicio del catálogo">ESTIBA</a>
+        <a href="#contenido" class="catalog-brand" aria-label="FoliOS, inicio del catálogo">
+            <x-folios-logo surface="dark" alt="FoliOS" :inline="true" />
+        </a>
         <span class="catalog-bar__context">SISTEMA VISUAL<br><strong>Operación · Oficina · Tablet</strong></span>
         <button type="button" class="catalog-theme-toggle" id="catalogThemeToggle" aria-pressed="false">Modo oscuro</button>
         <span class="catalog-bar__version">Catálogo de componentes <strong>01</strong></span>
@@ -30,7 +32,7 @@
             <p class="catalog-sidebar__note">Cada panel debe ayudar a consultar, decidir o actuar.</p>
         </aside>
         <main id="contenido" class="catalog-main" tabindex="-1">
-            <x-estiba.heading title="Fundaciones visuales" eyebrow="ESTIBA OPERACIONAL" description="Una misma lectura para Oficina, tablet y PDA." />
+            <x-estiba.heading title="Fundaciones visuales" eyebrow="FoliOS OPERACIONAL" description="Una misma lectura para Oficina, tablet y PDA." />
             <p class="catalog-disclosure">Ejemplos ficticios · Este catálogo no consulta ni modifica datos de planta.</p>
 
             <section id="identidad" class="catalog-section" aria-labelledby="identityTitle">
@@ -132,7 +134,7 @@
                 <div class="catalog-section-heading"><span>05</span><h2 id="touchTitle">La misma identidad en tablet</h2></div>
                 <div class="catalog-touch-layout">
                     <div class="estiba-ui catalog-touch" data-density="touch">
-                        <div class="catalog-touch__bar"><strong>ESTIBA</strong><span>REFERENCIA TÁCTIL</span></div>
+                        <div class="catalog-touch__bar"><x-folios-logo surface="dark" alt="FoliOS" :inline="true" /><span>REFERENCIA TÁCTIL</span></div>
                         <div class="catalog-touch__body">
                             <x-estiba.heading title="Mi maniobra" level="h2" eyebrow="PASO 2 DE 3 · EJEMPLO" />
                             <x-estiba.signal tone="info">En ejecución</x-estiba.signal>
@@ -172,7 +174,7 @@
                     @endforeach
                 </div>
             </section>
-            <footer class="catalog-footer">ESTIBA · Fundaciones visuales <span>Datos ficticios · Sin operaciones productivas</span></footer>
+            <footer class="catalog-footer">FoliOS · Fundaciones visuales <span>Datos ficticios · Sin operaciones productivas</span></footer>
         </main>
     </div>
 </div>

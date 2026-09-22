@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Estiba WMS debe mantener integridad transaccional en MySQL, ofrecer interfaces simples para operación y supervisión, y tolerar conectividad intermitente sin permitir que una interfaz sobrescriba silenciosamente el estado confirmado.
+FoliOS debe mantener integridad transaccional en MySQL, ofrecer interfaces simples para operación y supervisión, y tolerar conectividad intermitente sin permitir que una interfaz sobrescriba silenciosamente el estado confirmado.
 
 Las reglas de negocio pertenecen al backend. Las oficinas web y la aplicación móvil son clientes de la misma API y no sustituyen las autorizaciones ni las validaciones de Laravel.
 

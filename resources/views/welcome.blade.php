@@ -3,10 +3,10 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <meta name="theme-color" content="#090d11">
+        <meta name="theme-color" content="#183442">
         <meta name="color-scheme" content="dark">
 
-        <title>Estiba WMS · Operación de cámaras</title>
+        <title>FoliOS · Operación de cámaras</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -15,11 +15,9 @@
     <body>
         <section class="access-screen" id="accessScreen" aria-labelledby="accessTitle">
             <div class="access-brand">
-                <div class="brand-mark brand-mark--large" aria-hidden="true">
-                    <svg viewBox="0 0 32 32"><path d="M5 9.5 16 4l11 5.5v13L16 28 5 22.5z"/><path d="m5 9.5 11 5.7 11-5.7M16 15.2V28"/></svg>
-                </div>
+                <x-folios-logo surface="dark" alt="" aria-hidden="true" class="folios-logo--access" />
                 <p class="eyebrow">OPERACIÓN DE CÁMARAS</p>
-                <h1 id="accessTitle">Estiba WMS</h1>
+                <h1 class="visually-hidden" id="accessTitle">FoliOS</h1>
                 <p>Ubica y mueve folios con trazabilidad completa desde tu tablet.</p>
                 <div class="access-features" aria-label="Características operacionales">
                     <span><i class="status-dot status-dot--green"></i> Bloqueo seguro por cámara</span>
@@ -61,13 +59,7 @@
         <main class="app-shell is-hidden" id="appShell">
             <header class="topbar">
                 <div class="brand-lockup">
-                    <div class="brand-mark" aria-hidden="true">
-                        <svg viewBox="0 0 32 32"><path d="M5 9.5 16 4l11 5.5v13L16 28 5 22.5z"/><path d="m5 9.5 11 5.7 11-5.7M16 15.2V28"/></svg>
-                    </div>
-                    <div>
-                        <strong>ESTIBA</strong>
-                        <span>WMS</span>
-                    </div>
+                    <x-folios-logo surface="dark" class="folios-logo--topbar" />
                 </div>
 
                 <nav class="module-nav" aria-label="Módulos">

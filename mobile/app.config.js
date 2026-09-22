@@ -24,8 +24,8 @@ module.exports = () => {
 
   return {
     ...baseConfig,
-    name: 'Estiba WMS Demo',
-    version: '1.0.0',
+    name: 'FoliOS Demo',
+    version: '1.1.0',
     updates: {
       enabled: false,
       checkAutomatically: 'NEVER',
@@ -34,10 +34,10 @@ module.exports = () => {
     android: {
       ...baseConfig.android,
       package: 'cl.estiba.wms.demo',
-      versionCode: 1,
+      versionCode: 2,
       adaptiveIcon: {
         ...baseConfig.android.adaptiveIcon,
-        backgroundColor: '#6B5835',
+        backgroundColor: '#183442',
       },
     },
     plugins: demoPlugins(),

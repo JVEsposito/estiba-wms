@@ -51,7 +51,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Materiales</title>
+        <title>FoliOS · Materiales</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-materials.css', 'resources/js/office-materials.js', 'resources/js/office-material-recipes.js', 'resources/js/office-material-orders.js', 'resources/js/office-material-labels.js', 'resources/js/office-material-receptions.js'])
         @endif
@@ -60,7 +60,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand materials-access-brand">
                 <div class="office-logo" aria-hidden="true">▦</div>
-                <p class="eyebrow">ESTIBA WMS · MATERIALES</p>
+                <p class="eyebrow">FoliOS · MATERIALES</p>
                 <h1 id="officeAccessTitle">Inventario por folio, cantidades y centro de costo.</h1>
                 <p>Administra ítems y destinos, prepara solicitudes y consulta el saldo físico disponible en las cámaras de materiales.</p>
                 <div class="feature-row"><span>Catálogo controlado</span><span>Reserva FIFO</span><span>Kardex trazable</span></div>

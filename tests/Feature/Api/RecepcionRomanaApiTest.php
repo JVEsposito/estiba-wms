@@ -138,7 +138,7 @@ class RecepcionRomanaApiTest extends TestCase
         $this->assertStringContainsString('(Tara cam', $contenidoPdf);
         $this->assertStringContainsString('(PESO NETO)', $contenidoPdf);
         $this->assertStringContainsString(
-            '(Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditor',
+            '(Formulario en blanco generado por FoliOS para contingencia, trazabilidad y auditor',
             $contenidoPdf,
         );
         $this->assertStringNotContainsString('(REC-', $contenidoPdf);

@@ -1,6 +1,6 @@
 # Glosario operacional
 
-Este documento define los términos utilizados por Estiba WMS. Las reglas, contratos API y pantallas deben respetar estas definiciones.
+Este documento define los términos utilizados por FoliOS. Las reglas, contratos API y pantallas deben respetar estas definiciones.
 
 ## Conceptos transversales
 

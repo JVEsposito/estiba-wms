@@ -16,7 +16,7 @@ class ExampleTest extends TestCase
 
         $response
             ->assertStatus(200)
-            ->assertSee('Estiba WMS')
+            ->assertSee('FoliOS')
             ->assertSee('Iniciar turno')
             ->assertSee('Acciones rápidas');
     }

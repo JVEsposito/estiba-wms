@@ -288,7 +288,7 @@ export function DemoDataScreen({ onLogout }: DemoDataScreenProps) {
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>ESTIBA WMS DEMO · ADMINISTRACIÓN LOCAL</Text>
+            <Text style={styles.eyebrow}>FoliOS DEMO · ADMINISTRACIÓN LOCAL</Text>
             <Text style={styles.title}>Datos para tu presentación</Text>
             <Text style={styles.intro}>
               Crea clientes, folios y cargas propias. Todo queda únicamente en la memoria interna de esta tablet.

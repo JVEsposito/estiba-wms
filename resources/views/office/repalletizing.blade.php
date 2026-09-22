@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Repaletizajes</title>
+        <title>FoliOS · Repaletizajes</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-repalletizing.css', 'resources/js/office-repalletizing.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand repa-access-brand">
                 <div class="office-logo" aria-hidden="true">⇄</div>
-                <p class="eyebrow">ESTIBA WMS · REPALETIZAJES</p>
+                <p class="eyebrow">FoliOS · REPALETIZAJES</p>
                 <h1 id="officeAccessTitle">Consolida saldos sin perder su composición.</h1>
                 <p>El resultado puede ser pallet o saldo, conservar un folio o recibir otro número escrito o escaneado.</p>
                 <div class="feature-row"><span>Genealogía</span><span>MIX visible</span><span>Estado térmico protegido</span></div>

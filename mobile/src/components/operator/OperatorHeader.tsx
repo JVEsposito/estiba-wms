@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { operatorTheme as o } from '../../theme/operatorTheme';
 
@@ -17,7 +17,13 @@ export function OperatorHeader({ connected, deviceName, modeLabel, role, userNam
   return (
     <View style={[styles.header, compact && styles.headerCompact]}>
       <View style={styles.brandBlock}>
-        <Text accessibilityRole="header" style={styles.brand}>ESTIBA</Text>
+        <Image
+          accessibilityLabel="FoliOS"
+          accessible
+          resizeMode="contain"
+          source={require('../../../assets/folios-lockup-horizontal-on-dark.png')}
+          style={styles.brandLogo}
+        />
         <View style={styles.divider} />
         <View style={styles.productCopy}>
           <Text style={styles.product}>OPERACIÓN FRIGORÍFICO</Text>
@@ -68,12 +74,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: o.space[3],
   },
-  brand: {
-    color: o.color.onNavy,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
+  brandLogo: { width: 128, height: 31 },
   divider: {
     width: 1,
     alignSelf: 'stretch',

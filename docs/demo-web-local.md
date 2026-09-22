@@ -2,7 +2,7 @@
 
 ## Propósito
 
-La oficina `/oficina/demo` permite presentar Estiba WMS a gerencia, compradores e
+La oficina `/oficina/demo` permite presentar FoliOS a gerencia, compradores e
 inversionistas sin exponer información de planta ni modificar la temporada productiva.
 El escenario contiene datos ficticios de Romana, Materia Prima, Hidrocooler, Frigorífico,
 Materiales y Trazabilidad.

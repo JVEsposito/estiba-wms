@@ -6,7 +6,7 @@
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
 
-        <title>Estiba WMS · Administración de accesos</title>
+        <title>FoliOS · Administración de accesos</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-admin.css', 'resources/js/office-admin.js', 'resources/js/office-access-profiles.js', 'resources/js/office-user-management.js', 'resources/js/office-label-profiles.js'])
@@ -16,7 +16,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand admin-access-brand">
                 <div class="office-logo" aria-hidden="true">⚿</div>
-                <p class="eyebrow">ESTIBA WMS · ADMINISTRACIÓN</p>
+                <p class="eyebrow">FoliOS · ADMINISTRACIÓN</p>
                 <h1 id="officeAccessTitle">Administra los accesos y la configuración transversal de la operación.</h1>
                 <p>Los accesos, la temporada y los clientes se administran una sola vez y se aplican transversalmente a todas las oficinas.</p>
                 <div class="feature-row">

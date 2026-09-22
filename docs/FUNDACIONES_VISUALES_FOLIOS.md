@@ -1,4 +1,4 @@
-# Fundaciones visuales Estiba
+# Fundaciones visuales FoliOS
 
 La dirección visual acordada es una interfaz corporativa de operación: estructura
 azul marino, superficies claras, códigos completos y señales que ayudan a decidir.
@@ -42,7 +42,7 @@ el despliegue no depende de ejecutar un generador en el dispositivo.
 | Radios | Base 4/6; paneles operacionales de Oficina 2. Sin esquinas exageradas. |
 | Profundidad | Bordes y superficies. Sin gradientes decorativos ni sombras de panel. |
 
-La marca del producto es ESTIBA. Empresa y planta son contexto configurable. La
+La marca del producto es FoliOS. Empresa y planta son contexto configurable. La
 firma “Frío que mantiene valor” forma parte del shell visual de referencia; no se
 usa para inferir una empresa, planta ni estado operacional.
 

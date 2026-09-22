@@ -344,7 +344,7 @@ export function PrefrioWorkspaceScreen({ auth, baseUrl, onLogout }: PrefrioWorks
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>ESTIBA WMS · PRE-FRÍO</Text>
+            <Text style={styles.eyebrow}>FoliOS · PRE-FRÍO</Text>
             <Text style={styles.title}>Folios pendientes de ingreso</Text>
             <Text style={styles.subtitle}>Pallets y saldos aprobados en Validación que todavía no pertenecen a un proceso activo.</Text>
           </View>

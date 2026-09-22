@@ -117,7 +117,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · {{ $lobby['label'] }}</title>
+        <title>FoliOS · {{ $lobby['label'] }}</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-domain-lobby.css', 'resources/js/office-domain-lobby.js'])
         @endif
@@ -126,7 +126,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand domain-lobby-access-brand">
                 <div class="office-logo" aria-hidden="true">{{ $lobby['icon'] }}</div>
-                <p class="eyebrow">ESTIBA WMS · {{ $lobby['context'] }}</p>
+                <p class="eyebrow">FoliOS · {{ $lobby['context'] }}</p>
                 <h1 id="officeAccessTitle">{{ $lobby['login_title'] }}</h1>
                 <p>{{ $lobby['login_description'] }}</p>
                 <div class="feature-row"><span>Accesos por perfil</span><span>Resumen vigente</span><span>Navegación directa</span></div>

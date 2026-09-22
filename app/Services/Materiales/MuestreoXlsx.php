@@ -392,7 +392,7 @@ XML;
         return <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-    <Application>Estiba WMS</Application>
+    <Application>FoliOS</Application>
     <DocSecurity>0</DocSecurity>
     <ScaleCrop>false</ScaleCrop>
     <HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Hojas de cálculo</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>
@@ -409,8 +409,8 @@ XML;
             .'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
             .'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
             .'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            .'<dc:title>'.$this->xml($titulo).'</dc:title><dc:creator>Estiba WMS</dc:creator>'
-            .'<cp:lastModifiedBy>Estiba WMS</cp:lastModifiedBy>'
+            .'<dc:title>'.$this->xml($titulo).'</dc:title><dc:creator>FoliOS</dc:creator>'
+            .'<cp:lastModifiedBy>FoliOS</cp:lastModifiedBy>'
             .'<dcterms:created xsi:type="dcterms:W3CDTF">'.$ahora.'</dcterms:created>'
             .'<dcterms:modified xsi:type="dcterms:W3CDTF">'.$ahora.'</dcterms:modified>'
             .'</cp:coreProperties>';

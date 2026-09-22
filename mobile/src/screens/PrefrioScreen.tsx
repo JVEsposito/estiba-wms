@@ -972,7 +972,7 @@ export function PrefrioScreen({ auth, baseUrl, onLogout }: PrefrioScreenProps) {
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.topbar}>
           <View>
-            <Text style={styles.eyebrow}>ESTIBA WMS · PRE-FRÍO</Text>
+            <Text style={styles.eyebrow}>FoliOS · PRE-FRÍO</Text>
             <Text style={styles.title}>Operación de túneles</Text>
             <Text style={styles.muted}>{auth.usuario.nombre} · {auth.dispositivo.codigo}</Text>
           </View>

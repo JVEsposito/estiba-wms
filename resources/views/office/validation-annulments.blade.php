@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Anulaciones de pallets</title>
+        <title>FoliOS · Anulaciones de pallets</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-validation-annulments.css', 'resources/js/office-validation-annulments.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand annulment-access-brand">
                 <div class="office-logo" aria-hidden="true">⊘</div>
-                <p class="eyebrow">ESTIBA WMS · AUDITORÍA</p>
+                <p class="eyebrow">FoliOS · AUDITORÍA</p>
                 <h1 id="officeAccessTitle">Corrige o anula sin borrar la historia.</h1>
                 <p>La corrección actualiza los datos con auditoría. La anulación invalida el intento, conserva su historia y libera el número para ingresarlo nuevamente.</p>
                 <div class="feature-row"><span>Sin eliminación</span><span>Folio reutilizable</span><span>Error medible</span></div>

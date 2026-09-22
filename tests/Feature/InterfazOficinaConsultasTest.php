@@ -18,7 +18,7 @@ class InterfazOficinaConsultasTest extends TestCase
         $this->get('/oficina/consultas/busqueda')
             ->assertOk()
             ->assertSee('data-queries-section="busqueda"', false)
-            ->assertSee('Buscar en Estiba WMS');
+            ->assertSee('Buscar en FoliOS');
 
         $this->get('/oficina/consultas/sag')
             ->assertOk()

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#102f43">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Prefrío</title>
+        <title>FoliOS · Prefrío</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-prefrio.css', 'resources/js/office-prefrio.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand prefrio-access-brand">
                 <div class="office-logo" aria-hidden="true">❄</div>
-                <p class="eyebrow">ESTIBA WMS · PREFRÍO</p>
+                <p class="eyebrow">FoliOS · PREFRÍO</p>
                 <h1 id="officeAccessTitle">Controla cada ciclo térmico sin perder el historial del pallet.</h1>
                 <p>Supervisa túneles, procesos activos, verificaciones y reprocesos desde una vista operacional única.</p>
                 <div class="feature-row"><span>Túneles configurables</span><span>Procesos históricos</span><span>Decisiones auditadas</span></div>

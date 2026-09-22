@@ -36,7 +36,7 @@ class GeneradorGuiaDespachoEnvasesPdf
         );
 
         $contenido = "0.08 0.16 0.20 rg 0 770 595 72 re f\n";
-        $contenido .= $this->texto(38, 810, 20, 'ESTIBA WMS', true, '1 1 1');
+        $contenido .= $this->texto(38, 810, 20, 'FoliOS', true, '1 1 1');
         $contenido .= $this->texto(38, 785, 11, 'GUÍA DE DESPACHO INTERNA DE ENVASES', false, '0.75 0.92 0.94');
         $contenido .= $this->texto(414, 807, 12, (string) $snapshot['numero'], true, '1 1 1');
         $contenido .= $this->texto(414, 786, 8, 'DOCUMENTO NO TRIBUTARIO', false, '0.75 0.92 0.94');
@@ -130,7 +130,7 @@ class GeneradorGuiaDespachoEnvasesPdf
                     ? 'DOCUMENTO CANCELADO: la reserva fue liberada sin afectar existencia ni cuenta corriente.'
                     : ($esHistoricoReconstruido
                         ? 'RESPALDO HISTÓRICO: salida confirmada antes del versionado documental; datos reconstruidos desde el registro conservado.'
-                        : 'Documento operacional interno generado desde un registro confirmado e inmutable de Estiba WMS.')),
+                        : 'Documento operacional interno generado desde un registro confirmado e inmutable de FoliOS.')),
         );
 
         return $this->documento($contenido);
@@ -144,7 +144,7 @@ class GeneradorGuiaDespachoEnvasesPdf
         $guia->loadMissing(['cliente', 'anuladoPor']);
 
         $contenido = "0.30 0.08 0.10 rg 0 770 595 72 re f\n";
-        $contenido .= $this->texto(38, 810, 20, 'ESTIBA WMS', true, '1 1 1');
+        $contenido .= $this->texto(38, 810, 20, 'FoliOS', true, '1 1 1');
         $contenido .= $this->texto(38, 785, 11, 'COMPROBANTE DE ANULACIÓN Y REVERSA', false, '1 0.82 0.82');
         $contenido .= $this->texto(414, 807, 12, $guia->numero, true, '1 1 1');
         $contenido .= $this->texto(42, 716, 24, 'GUÍA ANULADA', true, '0.72 0.10 0.14');

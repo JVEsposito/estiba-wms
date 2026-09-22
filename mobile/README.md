@@ -1,4 +1,4 @@
-# Estiba WMS móvil
+# FoliOS móvil
 
 Cliente nativo para tablets Android, construido con Expo, React Native y TypeScript. Reúne la operación física de cámaras, cargas, recepción de materiales e impresión de etiquetas desde terreno.
 
@@ -89,7 +89,7 @@ Los clientes y folios creados en el modo demo quedan almacenados en SQLite dentr
 
 ## APK autónoma para demostraciones
 
-La variante **Estiba WMS Demo** utiliza el paquete Android `cl.estiba.wms.demo`, por lo que puede instalarse junto a la APK productiva. No permite configurar una URL de Laravel, deshabilita EAS Update y guarda sus datos exclusivamente en `estiba-wms-demo.db` dentro de la memoria privada de la tablet.
+La variante **FoliOS Demo** utiliza el paquete Android `cl.estiba.wms.demo`, por lo que puede instalarse junto a la APK productiva. No permite configurar una URL de Laravel, deshabilita EAS Update y guarda sus datos exclusivamente en `estiba-wms-demo.db` dentro de la memoria privada de la tablet.
 
 Incluye un escenario ficticio inicial y una administración local desde la que se pueden:
 
@@ -148,7 +148,7 @@ cargas, notificaciones y auditoría local, pero conserva clientes y maestros. El
 Credenciales sugeridas —el modo local sólo exige que los tres campos estén completos—:
 
 ```text
-Correo: administrador@estiba.demo
+Correo: administrador@folios.demo
 Contraseña: password
 Tablet: DEMO-01
 ```
@@ -168,7 +168,7 @@ npm run export:demo
 npm run build:apk:demo
 ```
 
-`expo-sqlite` es una dependencia nativa. La primera instalación de esta variante requiere generar una APK nueva; no puede agregarse a una APK anterior por OTA. Al desinstalar **Estiba WMS Demo**, Android también elimina su base local.
+`expo-sqlite` es una dependencia nativa. La primera instalación de esta variante requiere generar una APK nueva; no puede agregarse a una APK anterior por OTA. Al desinstalar **FoliOS Demo**, Android también elimina su base local.
 
 Prueba manual mínima de persistencia comercial y del motor local:
 
