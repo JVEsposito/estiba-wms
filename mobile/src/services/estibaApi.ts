@@ -694,6 +694,7 @@ function createUnavailableApi(message: string): EstibaApi {
     baseUrl: null,
     configurationError: message,
     login: unavailable,
+    changePassword: unavailable,
     logout: unavailable,
     listCameras: unavailable,
     refreshCameras: unavailable,
