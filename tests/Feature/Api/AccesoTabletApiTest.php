@@ -65,6 +65,60 @@ class AccesoTabletApiTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_clave_temporal_bloquea_operacion_hasta_cambiarla_y_revoca_otras_sesiones(): void
+    {
+        [$usuario, $dispositivo] = $this->crearIdentidad();
+        $usuario->update(['debe_cambiar_password' => true]);
+        $otroToken = $usuario->createToken('otra-tablet')->accessToken;
+
+        $token = $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])->assertOk()->assertJsonPath('usuario.debe_cambiar_password', true)->json('token');
+
+        $this->withToken($token)->getJson('/api/camaras')
+            ->assertForbidden()->assertJsonPath('codigo', 'cambio_password_requerido');
+
+        $this->withToken($token)->putJson('/api/usuario/password', [
+            'password_actual' => 'incorrecta',
+            'password_nueva' => 'NuevaClave2026',
+            'password_nueva_confirmation' => 'NuevaClave2026',
+        ])->assertUnprocessable()->assertJsonValidationErrors('password_actual');
+
+        $this->withToken($token)->putJson('/api/usuario/password', [
+            'password_actual' => 'clave-segura',
+            'password_nueva' => 'clave-segura',
+            'password_nueva_confirmation' => 'clave-segura',
+        ])->assertUnprocessable()->assertJsonValidationErrors('password_nueva');
+
+        $this->withToken($token)->putJson('/api/usuario/password', [
+            'password_actual' => 'clave-segura',
+            'password_nueva' => 'NuevaClave2026',
+            'password_nueva_confirmation' => 'NuevaClave2026',
+        ])->assertOk()->assertJsonPath('debe_cambiar_password', false);
+
+        $this->assertFalse($usuario->refresh()->debe_cambiar_password);
+        $this->assertTrue(Hash::check('NuevaClave2026', $usuario->password));
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $otroToken->id]);
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+
+        auth()->forgetGuards();
+        $this->withToken($token)->getJson('/api/camaras')->assertOk();
+
+        $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'clave-segura',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/acceso-tablet', [
+            'email' => $usuario->email,
+            'password' => 'NuevaClave2026',
+            'codigo_dispositivo' => $dispositivo->codigo,
+        ])->assertOk()->assertJsonPath('usuario.debe_cambiar_password', false);
+    }
+
     public function test_una_tablet_inactiva_no_puede_iniciar_turno(): void
     {
         [$usuario, $dispositivo] = $this->crearIdentidad();

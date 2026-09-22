@@ -233,7 +233,8 @@ class AdministracionAccesoApiTest extends TestCase
             ->assertJsonPath('usuario.nombre', 'Camila Operadora')
             ->assertJsonPath('usuario.email', 'camila@empresa.cl')
             ->assertJsonPath('usuario.rol', RolUsuario::CamareroFrio->value)
-            ->assertJsonPath('usuario.activo', true);
+            ->assertJsonPath('usuario.activo', true)
+            ->assertJsonPath('usuario.debe_cambiar_password', true);
 
         $usuario = User::query()->where('email', 'camila@empresa.cl')->firstOrFail();
         $this->assertTrue(Hash::check('Temporal2026', $usuario->password));

@@ -110,6 +110,8 @@ export class DemoEstibaApi implements EstibaApi {
 
   async logout() {}
 
+  async changePassword() {}
+
   async listCameras() {
     return listDemoCameras();
   }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\AndenController;
 use App\Http\Controllers\Api\BandaOperacionalController;
 use App\Http\Controllers\Api\BloqueoMaterialController;
 use App\Http\Controllers\Api\CamaraController;
+use App\Http\Controllers\Api\CambioPasswordUsuarioController;
 use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
@@ -67,6 +68,7 @@ Route::post('/acceso-tablet', [AccesoTabletController::class, 'store'])->middlew
 Route::post('/acceso-oficina', [AccesoOficinaController::class, 'store'])->middleware('throttle:6,1');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::put('/usuario/password', CambioPasswordUsuarioController::class)->middleware('throttle:6,1');
     Route::get('/oficina/contexto', ContextoOficinaController::class);
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/demo/autorizar', [AccesoOficinaController::class, 'autorizarDemo']);
