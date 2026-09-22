@@ -95,6 +95,9 @@ function createPlan(
     contenido: 'productos',
     estado: 'activa',
     version_plano: 3,
+    sentido_numeracion_bandas: code === 'CAM-02'
+      ? 'derecha_a_izquierda'
+      : 'izquierda_a_derecha',
     ocupacion: { ocupadas: 0, sin_posicion: 0, total: 0, porcentaje: 0 },
     acceso: locked
       ? { modo: 'solo_lectura', bloqueada: true, sesion: externalSession(id, now) }

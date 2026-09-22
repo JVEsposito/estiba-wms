@@ -24,6 +24,7 @@ class CamaraResumenResource extends JsonResource
             'contenido' => $this->contenido->value,
             'estado' => $this->estado->value,
             'version_plano' => $this->version_plano,
+            'sentido_numeracion_bandas' => $this->sentido_numeracion_bandas->value,
             'ocupacion' => [
                 'ocupadas' => $ocupadas,
                 'sin_posicion' => (int) ($this->ubicaciones_sin_posicion_count ?? 0),

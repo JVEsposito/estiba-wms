@@ -209,6 +209,7 @@
                             <label class="field"><span>Bandas *</span><input name="bandas" type="number" min="1" max="40" value="3" required></label>
                             <label class="field"><span>Posiciones por banda *</span><input name="posiciones_por_banda" type="number" min="1" max="40" value="4" required></label>
                             <label class="field"><span>Niveles *</span><input name="niveles" type="number" min="1" max="10" value="2" required></label>
+                            <label class="field"><span>Numeración de bandas *</span><select name="sentido_numeracion_bandas" required><option value="izquierda_a_derecha">Izquierda → derecha (B01 a la izquierda)</option><option value="derecha_a_izquierda">Derecha → izquierda (B01 a la derecha)</option></select></label>
                         </div>
 
                         <div class="capacity-summary">
@@ -221,7 +222,7 @@
                             <div><p class="eyebrow">VISTA PREVIA</p><h2>Bandas verticales</h2></div>
                             <div class="level-tabs" id="previewLevelTabs"></div>
                         </div>
-                        <div class="orientation"><strong>↑ FONDO</strong><span>Haz clic sobre una posición para marcarla fuera de servicio.</span></div>
+                        <div class="orientation"><strong>↑ FONDO</strong><span><b id="previewBandDirection">B01 a la izquierda.</b> Haz clic sobre una posición para marcarla fuera de servicio.</span></div>
                         <div class="camera-preview" id="cameraPreview"></div>
                         <div class="orientation orientation--entrance"><strong>↓ ENTRADA</strong><span>La posición P01 se ocupa primero.</span></div>
 

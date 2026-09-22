@@ -14,6 +14,8 @@ class InterfazOficinaCamarasTest extends TestCase
             ->assertSee('Configuración de infraestructura')
             ->assertSee('Andenes creados')
             ->assertSee('Crear andén')
+            ->assertSee('Numeración de bandas')
+            ->assertSee('derecha_a_izquierda', false)
             ->assertSee('Código externo')
             ->assertSee('configurationModuleTabs', false)
             ->assertSee('dockWorkspace', false)

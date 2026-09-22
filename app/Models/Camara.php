@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
+use App\Enums\SentidoNumeracionBandas;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -22,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'cantidad_bandas',
     'posiciones_por_banda',
     'cantidad_niveles',
+    'sentido_numeracion_bandas',
     'creado_por_user_id',
     'actualizado_por_user_id',
 ])]
@@ -114,6 +116,7 @@ class Camara extends Model
             'cantidad_bandas' => 'integer',
             'posiciones_por_banda' => 'integer',
             'cantidad_niveles' => 'integer',
+            'sentido_numeracion_bandas' => SentidoNumeracionBandas::class,
         ];
     }
 }

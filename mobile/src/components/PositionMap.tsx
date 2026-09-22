@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { cameraDisplayName } from '../domain/cameras';
+import { bandNumberingLabel, cameraDisplayName, orderBandsForCamera } from '../domain/cameras';
 import { CameraPlan, OperationalBand, Position } from '../domain/estiba';
 import { colors } from '../theme/colors';
 
@@ -21,7 +21,10 @@ export function PositionMap({
   suggestedFolioId = null,
 }: PositionMapProps) {
   const levels = [...new Set(plan.posiciones.map((position) => position.nivel))].sort((a, b) => a - b);
-  const bands = [...new Set(plan.posiciones.map((position) => position.banda))].sort((a, b) => a - b);
+  const bands = orderBandsForCamera(
+    plan,
+    [...new Set(plan.posiciones.map((position) => position.banda))],
+  );
   const maxPosition = Math.max(1, ...plan.posiciones.map((position) => position.posicion));
   const [selectedLevel, setSelectedLevel] = useState(levels[0] ?? 1);
 
@@ -102,7 +105,9 @@ export function PositionMap({
 
       <View style={styles.orientationRow}>
         <Text style={styles.orientation}>↑ FONDO</Text>
-        <Text style={styles.orientationHint}>Bandas verticales · P01 se ocupa primero</Text>
+        <Text style={styles.orientationHint}>
+          Bandas verticales · {bandNumberingLabel(plan)} · P01 se ocupa primero
+        </Text>
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>

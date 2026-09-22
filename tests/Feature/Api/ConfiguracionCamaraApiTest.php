@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Enums\EstadoPosicion;
 use App\Enums\RolUsuario;
+use App\Enums\SentidoNumeracionBandas;
 use App\Models\Camara;
 use App\Models\Posicion;
 use App\Models\User;
@@ -104,6 +105,7 @@ class ConfiguracionCamaraApiTest extends TestCase
                 'bandas' => 2,
                 'posiciones_por_banda' => 3,
                 'niveles' => 2,
+                'sentido_numeracion_bandas' => 'derecha_a_izquierda',
                 'posiciones_fuera_servicio' => [
                     ['banda' => 2, 'posicion' => 3, 'nivel' => 2],
                 ],
@@ -120,12 +122,17 @@ class ConfiguracionCamaraApiTest extends TestCase
             ->assertJsonPath('data.dimensiones.bandas', 2)
             ->assertJsonPath('data.dimensiones.posiciones_por_banda', 3)
             ->assertJsonPath('data.dimensiones.niveles', 2)
+            ->assertJsonPath('data.sentido_numeracion_bandas', 'derecha_a_izquierda')
             ->assertJsonPath('data.capacidad.total', 12)
             ->assertJsonPath('data.capacidad.activas', 11)
             ->assertJsonPath('data.capacidad.fuera_servicio', 1);
 
         $camara = Camara::query()->where('codigo', 'CAM-02')->firstOrFail();
         $this->assertSame($administrador->id, $camara->creado_por_user_id);
+        $this->assertSame(
+            SentidoNumeracionBandas::DerechaAIzquierda,
+            $camara->sentido_numeracion_bandas,
+        );
         $this->assertSame(12, $camara->posiciones()->count());
         $this->assertDatabaseHas('posiciones', [
             'camara_id' => $camara->id,
@@ -195,5 +202,25 @@ class ConfiguracionCamaraApiTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('bandas');
+    }
+
+    public function test_rechaza_un_sentido_de_numeracion_de_bandas_desconocido(): void
+    {
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'activo' => true,
+        ]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson('/api/configuracion/camaras', [
+                'nombre' => 'Cámara con orientación inválida',
+                'tipo' => 'almacenaje',
+                'bandas' => 2,
+                'posiciones_por_banda' => 2,
+                'niveles' => 1,
+                'sentido_numeracion_bandas' => 'desde_el_centro',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('sentido_numeracion_bandas');
     }
 }

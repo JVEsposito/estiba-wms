@@ -132,6 +132,7 @@ export type CameraSummary = {
   contenido: 'productos' | 'materiales' | 'materia_prima';
   estado: string;
   version_plano: number;
+  sentido_numeracion_bandas: 'izquierda_a_derecha' | 'derecha_a_izquierda';
   ocupacion: Occupancy;
   acceso: CameraAccess;
 };

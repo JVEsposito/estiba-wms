@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { cameraDisplayName } from '../domain/cameras';
+import { bandNumberingLabel, cameraDisplayName, orderBandsForCamera } from '../domain/cameras';
 import {
   CameraPlan,
   CameraSummary,
@@ -736,7 +736,10 @@ function DestinationPlanMap({
   selectedPositionId: string | null;
 }) {
   const levels = [...new Set(plan.posiciones.map((position) => position.nivel))].sort((a, b) => a - b);
-  const bands = [...new Set(plan.posiciones.map((position) => position.banda))].sort((a, b) => a - b);
+  const bands = orderBandsForCamera(
+    plan,
+    [...new Set(plan.posiciones.map((position) => position.banda))],
+  );
   const maxPosition = Math.max(1, ...plan.posiciones.map((position) => position.posicion));
   const [selectedLevel, setSelectedLevel] = useState(levels[0] ?? 1);
 
@@ -770,7 +773,9 @@ function DestinationPlanMap({
 
       <View style={styles.destinationOrientationRow}>
         <Text style={styles.destinationOrientation}>↑ FONDO</Text>
-        <Text style={styles.destinationOrientationHint}>Bandas verticales · P01 se ocupa primero</Text>
+        <Text style={styles.destinationOrientationHint}>
+          Bandas verticales · {bandNumberingLabel(plan)} · P01 se ocupa primero
+        </Text>
       </View>
 
       <ScrollView
