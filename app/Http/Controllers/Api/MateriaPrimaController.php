@@ -41,7 +41,8 @@ class MateriaPrimaController extends Controller
         $temporada = Temporada::query()->where('activa', true)->first();
         $base = LoteMateriaPrima::query()
             ->when($temporada, fn (Builder $consulta) => $consulta
-                ->where('temporada_id', $temporada->id));
+                ->where('temporada_id', $temporada->id))
+            ->when(! $temporada, fn (Builder $consulta) => $consulta->whereRaw('1 = 0'));
 
         return response()->json([
             'temporada' => $temporada ? [
@@ -247,6 +248,7 @@ class MateriaPrimaController extends Controller
         $lotes = LoteMateriaPrima::query()
             ->when($temporada, fn (Builder $consulta) => $consulta
                 ->where('temporada_id', $temporada->id))
+            ->when(! $temporada, fn (Builder $consulta) => $consulta->whereRaw('1 = 0'))
             ->when($request->filled('estado'), fn (Builder $consulta) => $consulta
                 ->where('estado', $request->string('estado')->toString()))
             ->when($request->filled('buscar'), function (Builder $consulta) use ($request): void {

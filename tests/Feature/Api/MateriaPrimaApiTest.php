@@ -25,6 +25,38 @@ class MateriaPrimaApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_lotes_y_resumen_no_muestran_temporadas_anteriores_ni_operacion_sin_temporada_activa(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto))
+            ->assertCreated()
+            ->json('data');
+
+        $this->getJson('/api/materia-prima/resumen')
+            ->assertOk()->assertJsonPath('lotes.borradores', 1);
+        $this->getJson('/api/materia-prima/lotes')
+            ->assertOk()->assertJsonPath('data.0.id', $lote['id']);
+
+        $contexto['temporada']->update(['activa' => false]);
+        $otraTemporada = Temporada::create([
+            'codigo' => 'TEMP-TRAZA-MP',
+            'nombre' => 'Temporada siguiente',
+            'activa' => true,
+        ]);
+        $this->getJson('/api/materia-prima/resumen')
+            ->assertOk()->assertJsonPath('temporada.id', $otraTemporada->id)
+            ->assertJsonPath('lotes.borradores', 0);
+        $this->getJson('/api/materia-prima/lotes')->assertOk()->assertJsonCount(0, 'data');
+
+        $otraTemporada->update(['activa' => false]);
+        $this->getJson('/api/materia-prima/resumen')
+            ->assertOk()->assertJsonPath('temporada', null)
+            ->assertJsonPath('lotes.borradores', 0);
+        $this->getJson('/api/materia-prima/lotes')->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_descarga_registro_hidrocooler_en_blanco_sin_ciclos(): void
     {
         $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);

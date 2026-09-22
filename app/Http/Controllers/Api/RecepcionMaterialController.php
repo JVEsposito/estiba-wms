@@ -17,6 +17,7 @@ use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
 use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
+use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Services\Materiales\MuestreoXlsx;
 use App\Services\Materiales\ServicioRecepcionMaterial;
@@ -149,8 +150,16 @@ class RecepcionMaterialController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('consultar-recepciones-materiales');
+        $filtros = $request->validate([
+            'temporada_id' => ['nullable', 'uuid', 'exists:temporadas,id'],
+        ]);
+        $temporadaId = $filtros['temporada_id'] ?? Temporada::query()
+            ->where('activa', true)
+            ->value('id');
         $usuario = $request->user();
         $consulta = RecepcionMaterial::query()
+            ->when($temporadaId, fn ($query) => $query->where('temporada_id', $temporadaId))
+            ->when(! $temporadaId, fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['temporada', 'cliente', 'proveedor', 'creadoPor', 'confirmadoPor', 'anuladoPor'])
             ->withCount('detalles')
             ->when($request->query('estado'), fn ($query, $estado) => $query->where('estado', $estado))
