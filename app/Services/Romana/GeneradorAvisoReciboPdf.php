@@ -108,7 +108,7 @@ class GeneradorAvisoReciboPdf
         $contenido .= "0.65 0.70 0.72 RG 42 122 m 240 122 l S 355 122 m 553 122 l S\n";
         $contenido .= $this->texto(78, 105, 8, 'Operador de romana');
         $contenido .= $this->texto(403, 105, 8, 'Transportista');
-        $contenido .= $this->texto(42, 52, 7, 'Documento generado por Estiba WMS. Los pesos corresponden a los registros cerrados de la romana.');
+        $contenido .= $this->texto(42, 52, 7, 'Documento generado por FoliOS. Los pesos corresponden a los registros cerrados de la romana.');
 
         return $this->documento($contenido);
     }
@@ -161,7 +161,7 @@ class GeneradorAvisoReciboPdf
         $contenido .= "0.65 0.70 0.72 RG 42 122 m 240 122 l S 355 122 m 553 122 l S\n";
         $contenido .= $this->texto(78, 105, 8, 'Operador de romana');
         $contenido .= $this->texto(403, 105, 8, 'Transportista');
-        $contenido .= $this->texto(42, 52, 7, 'Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditoría.');
+        $contenido .= $this->texto(42, 52, 7, 'Formulario en blanco generado por FoliOS para contingencia, trazabilidad y auditoría.');
 
         return $this->documento($contenido);
     }

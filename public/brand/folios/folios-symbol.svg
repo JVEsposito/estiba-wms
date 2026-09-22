@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Símbolo FoliOS">
+  <title>FoliOS</title>
+  <path d="M16,16 L16.00,2.00 L26.97,7.30 Z" fill="#0f5c6e"/>
+  <path d="M16,16 L28.12,9.00 L29.02,21.15 Z" fill="#183442"/>
+  <path d="M16,16 L28.12,23.00 L18.05,29.85 Z" fill="#0f5c6e"/>
+  <path d="M16,16 L16.00,30.00 L5.03,24.70 Z" fill="#183442"/>
+  <path d="M16,16 L3.88,23.00 L2.98,10.85 Z" fill="#0f5c6e"/>
+  <path d="M16,16 L3.88,9.00 L13.95,2.15 Z" fill="#183442"/>
+  <circle cx="16" cy="16" r="2.6" fill="#f3f5f7"/>
+</svg>

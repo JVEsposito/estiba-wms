@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Estatus operativo de despacho</title>
+        <title>FoliOS · Estatus operativo de despacho</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-load-status.css', 'resources/js/office-load-status.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand">
                 <div class="office-logo" aria-hidden="true">⇥</div>
-                <p class="eyebrow">ESTIBA WMS · DESPACHO · ESTATUS OPERATIVO</p>
+                <p class="eyebrow">FoliOS · DESPACHO · ESTATUS OPERATIVO</p>
                 <h1 id="officeAccessTitle">Observa cada carga publicada desde la cámara hasta el camión.</h1>
                 <p>Concentración, separación, andenes e incidencias actualizados desde la operación real.</p>
                 <div class="feature-row"><span>Cargas activas</span><span>Actualización automática</span><span>Solo datos reales</span></div>

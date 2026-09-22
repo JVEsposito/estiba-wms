@@ -23,7 +23,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Oficina de consultas</title>
+        <title>FoliOS · Oficina de consultas</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-queries.css', 'resources/js/office-queries.js'])
         @endif
@@ -32,7 +32,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand queries-access-brand">
                 <div class="office-logo" aria-hidden="true">⌕</div>
-                <p class="eyebrow">ESTIBA WMS · TRAZABILIDAD</p>
+                <p class="eyebrow">FoliOS · TRAZABILIDAD</p>
                 <h1 id="officeAccessTitle">Encuentra el origen y el estado de cada movimiento.</h1>
                 <p>Consulta folios, lotes, recepciones y productores CSG desde un solo lugar.</p>
                 <div class="feature-row"><span>Búsqueda transversal</span><span>Consulta SAG</span><span>Historial por productor</span></div>
@@ -63,7 +63,7 @@
 
             <section class="queries-grid">
                 <article class="query-panel query-panel--search" data-queries-view="busqueda">
-                    <header><p class="eyebrow">BASE OPERACIONAL</p><h2>Buscar en Estiba WMS</h2><p>Folios, lotes, productores y recepciones de todas las temporadas.</p></header>
+                    <header><p class="eyebrow">BASE OPERACIONAL</p><h2>Buscar en FoliOS</h2><p>Folios, lotes, productores y recepciones de todas las temporadas.</p></header>
                     <form class="query-search-form" id="globalSearchForm">
                         <input name="q" minlength="2" maxlength="100" placeholder="Folio, lote, CSG, GGN, guía, patente, RUT…" required>
                         <select name="tipo" aria-label="Tipo de registro">

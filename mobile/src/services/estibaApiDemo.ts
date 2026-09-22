@@ -61,7 +61,7 @@ const demoIdentity: AuthSession = {
   usuario: {
     id: 'user-demo',
     nombre: 'Administrador Demo',
-    email: 'administrador@estiba.demo',
+    email: 'administrador@folios.demo',
     rol: 'administrador',
     ambito_camaras: 'ambos',
     modulos_tablet: ['demo_administracion', 'operacion'],

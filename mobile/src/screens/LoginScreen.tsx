@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,7 +32,7 @@ export function LoginScreen({
   onSaveBaseUrl,
 }: LoginScreenProps) {
   const unconfigured = mode === 'unconfigured';
-  const [email, setEmail] = useState(mode === 'demo' ? 'administrador@estiba.demo' : '');
+  const [email, setEmail] = useState(mode === 'demo' ? 'administrador@folios.demo' : '');
   const [password, setPassword] = useState(mode === 'demo' ? 'password' : '');
   const [deviceCode, setDeviceCode] = useState(mode === 'demo' ? 'DEMO-01' : '');
   const [busy, setBusy] = useState(false);
@@ -80,9 +81,14 @@ export function LoginScreen({
     >
       <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
         <View style={styles.brandPanel}>
-          <View style={styles.brandMark}><Text style={styles.brandIcon}>❄</Text></View>
+          <Image
+            accessibilityLabel="FoliOS"
+            accessible
+            resizeMode="contain"
+            source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
+            style={styles.brandLogo}
+          />
           <Text style={styles.eyebrow}>OPERACIÓN EN FRÍO</Text>
-          <Text style={styles.brandTitle}>Estiba WMS</Text>
           <Text style={styles.brandCopy}>
             Ubicación, movimiento y trazabilidad de folios desde una interfaz diseñada para tablets.
           </Text>
@@ -297,20 +303,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.panel,
   },
-  brandMark: {
-    width: 58,
-    height: 58,
-    marginBottom: 24,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cyanDark,
-    backgroundColor: colors.selected,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandIcon: { color: colors.cyan, fontSize: 34 },
+  brandLogo: { width: 300, height: 72, marginBottom: 24 },
   eyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.8 },
-  brandTitle: { marginTop: 10, color: colors.text, fontSize: 58, fontWeight: '900', lineHeight: 62 },
   brandCopy: { maxWidth: 430, marginTop: 22, color: colors.muted, fontSize: 15, lineHeight: 23 },
   features: { marginTop: 32, flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
   feature: { flexDirection: 'row', alignItems: 'center', gap: 7 },

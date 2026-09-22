@@ -58,12 +58,9 @@
     border-right: 1px solid #49677a;
 }
 
-.estiba-office-brand > strong {
+.estiba-office-brand .folios-logo--office {
     flex: 0 0 auto;
-    color: #fff;
-    font-size: 27px;
-    font-weight: 800;
-    letter-spacing: .035em;
+    width: 104px;
 }
 
 .estiba-office-system {
@@ -405,7 +402,7 @@
 @media (max-width: 599px) {
     .estiba-office-header { grid-template-columns: 1fr; }
     .estiba-office-brand { width: 100%; }
-    .estiba-office-brand > strong { font-size: 23px; }
+    .estiba-office-brand .folios-logo--office { width: 116px; }
     .estiba-office-identity { justify-content: flex-start; border-top: 1px solid #49677a; border-left: 0; }
     .estiba-office-user { flex: 1; }
     .estiba-office-theme-toggle { margin-left: auto; }

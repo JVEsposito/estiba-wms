@@ -94,7 +94,7 @@
                 <span class="estiba-office-menu-icon" aria-hidden="true"></span>
                 <span data-office-menu-label>Menú</span>
             </button>
-            <strong>ESTIBA</strong>
+            <x-folios-logo surface="dark" class="folios-logo--office" />
         </div>
         <div class="estiba-office-system">
             <span>SISTEMA DE GESTIÓN</span>

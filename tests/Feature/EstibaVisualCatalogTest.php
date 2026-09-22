@@ -24,6 +24,7 @@ class EstibaVisualCatalogTest extends TestCase
             $dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
             $xpath = new DOMXPath($dom);
             $this->assertSame(0, $xpath->query('//script[@src] | //link[@href] | //iframe')->length);
+            $this->assertSame(0, $xpath->query('//img[not(starts-with(@src, "data:image/svg+xml;base64,"))]')->length);
             $this->assertSame(1, $xpath->query('//h1')->length);
             $this->assertSame(1, $xpath->query('//li[@aria-current="step"]')->length);
             $this->assertSame(0, $xpath->query('//button[not(@type)]')->length);

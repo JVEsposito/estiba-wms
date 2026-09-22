@@ -144,8 +144,8 @@ class RegistroHidrocoolerPdf
         }
 
         $pie = $enBlanco
-            ? 'Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditoria.'
-            : 'Registro generado por Estiba WMS desde ciclos trazables de Hidrocooler.';
+            ? 'Formulario en blanco generado por FoliOS para contingencia, trazabilidad y auditoria.'
+            : 'Registro generado por FoliOS desde ciclos trazables de Hidrocooler.';
         $contenido .= $this->texto(30, 16, 5, $pie, false, '0.35 0.40 0.42');
         $contenido .= $this->texto(758, 16, 5, "Pagina {$pagina} de {$totalPaginas}", false, '0.35 0.40 0.42');
 

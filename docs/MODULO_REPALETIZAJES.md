@@ -9,7 +9,7 @@ Un repaletizaje consolida cajas de dos o más folios tipo `saldo` en un único f
 El operador elige una de dos estrategias:
 
 - **Conservar folio:** uno de los saldos participantes conserva su número y debe aportar todas sus cajas al resultado.
-- **Otro folio:** el operador escanea o escribe un número que todavía no exista en Estiba WMS.
+- **Otro folio:** el operador escanea o escribe un número que todavía no exista en FoliOS.
 
 El número solo identifica el resultado. Cliente, especie, marca, condición térmica y demás especificaciones se derivan de los folios que aportaron cajas.
 

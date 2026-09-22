@@ -1,13 +1,13 @@
 # Estructura corporativa de Oficina
 
-Esta entrega adopta la identidad ESTIBA en la cabecera, la navegación y las
+Esta entrega adopta la identidad FoliOS en la cabecera, la navegación y las
 superficies compartidas de Oficina. Conserva los contratos funcionales de cada
 módulo, pero unifica paneles, tablas, indicadores, formularios y estados para que
 la experiencia no cambie de lenguaje visual al navegar entre áreas.
 
 ## Qué cambia
 
-- Cabecera azul marino con ESTIBA, área y oficina actual, usuario y cierre de sesión.
+- Cabecera azul marino con FoliOS, área y oficina actual, usuario y cierre de sesión.
 - Menú lateral con los cinco dominios y las oficinas del dominio seleccionado.
   El enlace activo tiene texto, borde y `aria-current`; no depende solo del color.
 - A partir de 1200 px el menú permanece visible y tiene desplazamiento propio.

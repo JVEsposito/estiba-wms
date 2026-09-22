@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Fruta a proceso</title>
+        <title>FoliOS · Fruta a proceso</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-raw-material-process.css', 'resources/js/office-raw-material-process.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand process-access-brand">
                 <div class="office-logo" aria-hidden="true">→</div>
-                <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
+                <p class="eyebrow">FoliOS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Controla la entrega y el retorno de fruta desde Packing.</h1>
                 <p>Cada viaje conserva su origen y cada resultado genera un sublote interno pendiente de ubicación.</p>
                 <div class="feature-row"><span>Viajes parciales</span><span>Retornos clasificados</span><span>Trazabilidad completa</span></div>

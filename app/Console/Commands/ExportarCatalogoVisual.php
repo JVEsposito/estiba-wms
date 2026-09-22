@@ -9,7 +9,7 @@ class ExportarCatalogoVisual extends Command
 {
     protected $signature = 'ui:catalogo {--output= : Ruta de salida del HTML}';
 
-    protected $description = 'Exporta el catálogo visual Estiba con ejemplos ficticios y sin consultar datos operacionales';
+    protected $description = 'Exporta el catálogo visual FoliOS con ejemplos ficticios y sin consultar datos operacionales';
 
     public function handle(): int
     {

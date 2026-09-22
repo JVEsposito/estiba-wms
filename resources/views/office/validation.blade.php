@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Validación de pallets</title>
+        <title>FoliOS · Validación de pallets</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-validation.css', 'resources/js/office-validation.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand validation-access-brand">
                 <div class="office-logo" aria-hidden="true">✓</div>
-                <p class="eyebrow">ESTIBA WMS · VALIDACIÓN</p>
+                <p class="eyebrow">FoliOS · VALIDACIÓN</p>
                 <h1 id="officeAccessTitle">El punto de nacimiento trazable de cada pallet.</h1>
                 <p>Consulta el maestro de temporada y revisa aprobaciones, observaciones y conflictos enviados desde terreno.</p>
                 <div class="feature-row"><span>Maestro de temporada</span><span>Trazabilidad operacional</span><span>Intentos inmutables</span></div>

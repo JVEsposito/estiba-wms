@@ -160,8 +160,8 @@ class RegistroHidrocoolerXlsx
             $this->inlineCell(
                 'A'.$ultimaFila,
                 $enBlanco
-                    ? 'Formulario en blanco generado por Estiba WMS para contingencia, trazabilidad y auditoría.'
-                    : 'Registro generado por Estiba WMS desde ciclos trazables de Hidrocooler.',
+                    ? 'Formulario en blanco generado por FoliOS para contingencia, trazabilidad y auditoría.'
+                    : 'Registro generado por FoliOS desde ciclos trazables de Hidrocooler.',
                 11,
             ),
         ], 20);
@@ -193,7 +193,7 @@ class RegistroHidrocoolerXlsx
             .'<printOptions horizontalCentered="1"/>'
             .'<pageMargins left="0.2" right="0.2" top="0.35" bottom="0.35" header="0.15" footer="0.15"/>'
             .'<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>'
-            .'<headerFooter><oddFooter>&amp;LEstiba WMS · Registro Hidrocooler&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter>'
+            .'<headerFooter><oddFooter>&amp;LFoliOS · Registro Hidrocooler&amp;RPágina &amp;P de &amp;N</oddFooter></headerFooter>'
             .'</worksheet>';
     }
 
@@ -381,7 +381,7 @@ XML;
         return <<<'XML'
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-    <Application>Estiba WMS</Application>
+    <Application>FoliOS</Application>
     <DocSecurity>0</DocSecurity>
     <HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Hojas de cálculo</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>
     <TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Registro Hidrocooler</vt:lpstr></vt:vector></TitlesOfParts>
@@ -397,8 +397,8 @@ XML;
             .'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
             .'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
             .'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            .'<dc:title>'.$this->xml($titulo).'</dc:title><dc:creator>Estiba WMS</dc:creator>'
-            .'<cp:lastModifiedBy>Estiba WMS</cp:lastModifiedBy>'
+            .'<dc:title>'.$this->xml($titulo).'</dc:title><dc:creator>FoliOS</dc:creator>'
+            .'<cp:lastModifiedBy>FoliOS</cp:lastModifiedBy>'
             .'<dcterms:created xsi:type="dcterms:W3CDTF">'.$ahora.'</dcterms:created>'
             .'<dcterms:modified xsi:type="dcterms:W3CDTF">'.$ahora.'</dcterms:modified>'
             .'</cp:coreProperties>';

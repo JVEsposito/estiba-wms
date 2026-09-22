@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Demo comercial</title>
+        <title>FoliOS · Demo comercial</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-corporate.css', 'resources/css/office-demo.css', 'resources/js/office-demo.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand demo-access-brand">
                 <div class="office-logo" aria-hidden="true">▶</div>
-                <p class="eyebrow">ESTIBA WMS · DEMO COMERCIAL</p>
+                <p class="eyebrow">FoliOS · DEMO COMERCIAL</p>
                 <h1 id="officeAccessTitle">Presenta el WMS sin exponer la operación real.</h1>
                 <p>El acceso verifica una cuenta administradora. Los datos de la demostración se crean después, exclusivamente en esta sesión del navegador.</p>
                 <div class="feature-row"><span>Datos ficticios</span><span>Sin temporada en MySQL</span><span>Sesión local</span></div>
@@ -53,7 +53,7 @@
             <header class="demo-topbar">
                 <div class="demo-brand">
                     <span aria-hidden="true">▶</span>
-                    <div><strong>ESTIBA WMS</strong><small>RECORRIDO COMERCIAL</small></div>
+                    <div><strong>FoliOS</strong><small>RECORRIDO COMERCIAL</small></div>
                     <b>DEMO LOCAL</b>
                 </div>
                 <div class="demo-session-identity">

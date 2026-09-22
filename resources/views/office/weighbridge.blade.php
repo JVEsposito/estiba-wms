@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Romana</title>
+        <title>FoliOS · Romana</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-weighbridge.css', 'resources/js/office-weighbridge.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand weighbridge-access-brand">
                 <div class="office-logo" aria-hidden="true">⚖</div>
-                <p class="eyebrow">ESTIBA WMS · ROMANA</p>
+                <p class="eyebrow">FoliOS · ROMANA</p>
                 <h1 id="officeAccessTitle">Registra exactamente lo que ingresó al frigorífico.</h1>
                 <p>El pesaje inicial es el contrato operacional con el cliente: guía, transporte, envases y kilos quedan trazados desde el primer minuto.</p>
                 <div class="feature-row"><span>Pesaje en dos tiempos</span><span>Correlativo inviolable</span><span>Aviso de Recibo PDF</span></div>

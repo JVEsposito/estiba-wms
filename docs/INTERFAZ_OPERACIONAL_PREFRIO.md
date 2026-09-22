@@ -1,6 +1,6 @@
 # Interfaz operacional de Prefrío
 
-Esta entrega adopta el lenguaje visual corporativo de ESTIBA en
+Esta entrega adopta el lenguaje visual corporativo de FoliOS en
 `/oficina/prefrio`. La pantalla pasa a funcionar como un centro de control
 térmico claro y denso: primero muestra la vigencia de la consulta y sus
 indicadores, después los túneles y procesos, y finalmente el expediente del

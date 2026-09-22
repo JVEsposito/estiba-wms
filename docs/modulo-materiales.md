@@ -3,7 +3,7 @@
 ## Objetivo
 
 Controlar materiales almacenados en cámaras o bodegas usando el mismo plano,
-sesiones exclusivas y motor de movimientos de Estiba WMS, pero permitiendo
+sesiones exclusivas y motor de movimientos de FoliOS, pero permitiendo
 retiros parciales por cantidad.
 
 ## Modelo operacional

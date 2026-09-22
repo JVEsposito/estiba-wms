@@ -36,8 +36,8 @@ class GeneradorEtiquetaMaterialNlbl
             }
         }
 
-        $nombreSolucion = 'Etiquetas Estiba WMS';
-        $archivos['Etiquetas Estiba WMS.slnx'] = $this->solucion(
+        $nombreSolucion = 'Etiquetas FoliOS';
+        $archivos['Etiquetas FoliOS.slnx'] = $this->solucion(
             $nombreSolucion,
             count($archivos),
         );
@@ -231,7 +231,7 @@ class GeneradorEtiquetaMaterialNlbl
   <DocumentDesigns>
     <DocumentDesign Type="FormatDocumentDesign">
       <Id>{$idDiseno}</Id>
-      <Name>Etiqueta Estiba WMS</Name>
+      <Name>Etiqueta FoliOS</Name>
       <SampleValue Type="StringContents" />
       <Type>0</Type>
       <Items>
@@ -239,7 +239,7 @@ class GeneradorEtiquetaMaterialNlbl
       </Items>
       <Height>{$alto}</Height>
       <Width>{$ancho}</Width>
-      <MergeName>Etiqueta Estiba WMS</MergeName>
+      <MergeName>Etiqueta FoliOS</MergeName>
     </DocumentDesign>
   </DocumentDesigns>
   <PrintScenarioCollection>

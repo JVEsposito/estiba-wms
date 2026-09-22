@@ -34,7 +34,7 @@ negocio.
 ## Contrato visual
 
 La composición toma como referencia las maquetas corporativas entregadas para
-ESTIBA: topbar navy, navegación lateral compacta, encabezados oscuros por bloque,
+FoliOS: topbar navy, navegación lateral compacta, encabezados oscuros por bloque,
 tablas operacionales, barras de ocupación visibles y una jerarquía continua de
 centro de control. Los indicadores redundantes no forman una franja adicional:
 se integran en los encabezados de cada panel, junto a la lectura que explican.
@@ -73,7 +73,7 @@ modo `off` la interfaz declara que el planificador está detenido y no presenta
 un ciclo antiguo como si continuara vigente.
 
 `Operación ahora` se expone como acceso principal del shell, por encima de los
-módulos administrativos. La oficina usa una sola apariencia operacional ESTIBA;
+módulos administrativos. La oficina usa una sola apariencia operacional FoliOS;
 la actualización verificable de temporada y planta se integra en la cabecera y
 no compite con la navegación lateral.
 

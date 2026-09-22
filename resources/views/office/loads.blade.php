@@ -6,7 +6,7 @@
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
 
-        <title>Estiba WMS · Órdenes de carga</title>
+        <title>FoliOS · Órdenes de carga</title>
 
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-loads.css', 'resources/js/office-loads.js'])
@@ -16,7 +16,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand loads-access-brand">
                 <div class="office-logo" aria-hidden="true">⇥</div>
-                <p class="eyebrow">ESTIBA WMS · DESPACHO · CARGAS</p>
+                <p class="eyebrow">FoliOS · DESPACHO · CARGAS</p>
                 <h1 id="officeAccessTitle">Prepara la carga antes de mover un solo pallet.</h1>
                 <p>Asigna folios, define prioridades y publica órdenes para que la operación trabaje con una referencia única y trazable.</p>
                 <div class="feature-row">

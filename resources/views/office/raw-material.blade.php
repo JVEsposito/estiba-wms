@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Materia prima</title>
+        <title>FoliOS · Materia prima</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-raw-material.css', 'resources/js/office-raw-material.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand raw-material-access-brand">
                 <div class="office-logo" aria-hidden="true">◫</div>
-                <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
+                <p class="eyebrow">FoliOS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Convierte cada recepción validada en lotes trazables.</h1>
                 <p>Digitación transforma cada segmento validado en un lote trazable y lo deriva al proceso operacional correspondiente.</p>
                 <div class="feature-row"><span>Lotes manuales</span><span>Neto confirmado</span><span>GGN y SdP</span><span>Destino controlado</span></div>

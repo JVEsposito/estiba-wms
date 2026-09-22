@@ -749,7 +749,7 @@ class RecepcionMaterialApiTest extends TestCase
 
         $this->assertStringStartsWith("PK\x03\x04", $respuesta->getContent());
         $this->assertStringContainsString('Formats/FGE0000001', $respuesta->getContent());
-        $this->assertStringContainsString('Etiquetas Estiba WMS.slnx', $respuesta->getContent());
+        $this->assertStringContainsString('Etiquetas FoliOS.slnx', $respuesta->getContent());
         $trabajoId = $respuesta->headers->get('X-Estiba-Print-Job');
         $this->assertDatabaseHas('trabajos_impresion_materiales', [
             'id' => $trabajoId,

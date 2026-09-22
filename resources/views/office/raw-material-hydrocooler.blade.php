@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#07151e">
         <meta name="color-scheme" content="light dark">
-        <title>Estiba WMS · Hidrocooler</title>
+        <title>FoliOS · Hidrocooler</title>
         @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
             @vite(['resources/css/office.css', 'resources/css/office-hydrocooler.css', 'resources/js/office-hydrocooler.js'])
         @endif
@@ -14,7 +14,7 @@
         <section class="office-access" id="officeAccess" aria-labelledby="officeAccessTitle">
             <div class="office-access__brand hydrocooler-access-brand">
                 <div class="office-logo" aria-hidden="true">❄</div>
-                <p class="eyebrow">ESTIBA WMS · MATERIA PRIMA</p>
+                <p class="eyebrow">FoliOS · MATERIA PRIMA</p>
                 <h1 id="officeAccessTitle">Un ciclo de Hidrocooler por cada lote.</h1>
                 <p>Registra tiempos, operador, equipo, temperaturas, kilos y el destino físico de la fruta sin perder trazabilidad.</p>
                 <div class="feature-row"><span>1 lote por ciclo</span><span>Tiempo real</span><span>Temperaturas</span><span>Salida controlada</span></div>

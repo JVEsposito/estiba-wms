@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -618,9 +619,14 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.topbar}>
           <View style={styles.brand}>
-            <View style={styles.brandMark}><Text style={styles.brandIcon}>❄</Text></View>
+            <Image
+              accessibilityLabel="FoliOS"
+              accessible
+              resizeMode="contain"
+              source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
+              style={styles.brandLogo}
+            />
             <View>
-              <Text style={styles.brandName}>ESTIBA WMS</Text>
               <Text style={styles.brandModule}>OPERACIÓN TABLET</Text>
             </View>
           </View>
@@ -956,18 +962,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brand: { minWidth: 190, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: colors.cyanDark,
-    backgroundColor: colors.selected,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandIcon: { color: colors.cyan, fontSize: 23 },
-  brandName: { color: colors.text, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
+  brandLogo: { width: 112, height: 28 },
   brandModule: { marginTop: 2, color: colors.cyan, fontSize: 7, fontWeight: '900', letterSpacing: 1.7 },
   statuses: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   moduleNav: { padding: 3, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, flexDirection: 'row', gap: 3 },
