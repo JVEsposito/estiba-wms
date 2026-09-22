@@ -20,6 +20,7 @@ use App\Models\PerfilImpresionEtiqueta;
 use App\Models\Posicion;
 use App\Models\ProveedorMaterial;
 use App\Models\RecepcionMaterial;
+use App\Models\Temporada;
 use App\Models\TrabajoImpresionMaterial;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -33,6 +34,35 @@ use ZipArchive;
 class RecepcionMaterialApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_bandeja_muestra_solo_temporada_activa_y_permite_consultar_historial_explicito(): void
+    {
+        [, $token, $cliente, $proveedor, $item] = $this->prepararCatalogo();
+        $temporadaAnterior = Temporada::query()->where('activa', true)->firstOrFail();
+        $recepcion = $this->conToken($token)
+            ->postJson('/api/materiales/recepciones', $this->payloadRecepcion(
+                $cliente, $proveedor, $item, [['cantidad' => 1, 'lote_proveedor' => 'ANT-01']],
+            ))
+            ->assertCreated()->json('data');
+
+        $this->conToken($token)->getJson('/api/materiales/recepciones')
+            ->assertOk()->assertJsonPath('data.0.id', $recepcion['id']);
+
+        $temporadaAnterior->update(['activa' => false]);
+        $temporadaNueva = Temporada::create([
+            'codigo' => 'TEMP-TRAZA-MAT',
+            'nombre' => 'Temporada siguiente',
+            'activa' => true,
+        ]);
+        $this->conToken($token)->getJson('/api/materiales/recepciones')
+            ->assertOk()->assertJsonCount(0, 'data');
+        $this->conToken($token)->getJson('/api/materiales/recepciones?temporada_id='.$temporadaAnterior->id)
+            ->assertOk()->assertJsonPath('data.0.id', $recepcion['id']);
+
+        $temporadaNueva->update(['activa' => false]);
+        $this->conToken($token)->getJson('/api/materiales/recepciones')
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
 
     public function test_confirma_bultos_y_permite_ubicar_pendientes_y_bloqueados(): void
     {
