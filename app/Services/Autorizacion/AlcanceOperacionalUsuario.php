@@ -952,16 +952,15 @@ class AlcanceOperacionalUsuario
         }
 
         /*
-         * Los perfiles predeterminados nacieron como capa de compatibilidad con los
-         * roles históricos y conservan esa semántica. Un perfil personalizado, en
-         * cambio, representa una decisión explícita de administración: sus módulos
-         * pasan a ser la autoridad operacional y no quedan bloqueados por la matriz
-         * legacy del rol base.
+         * Todo perfil activo asignado representa una decisión explícita de
+         * administración: sus módulos son la autoridad operacional, sin importar si
+         * el perfil es predeterminado o personalizado. La matriz legacy del rol se
+         * conserva únicamente para usuarios sin perfil.
          *
          * "Solo consulta" sigue siendo una frontera transversal: un perfil de consulta
          * únicamente recibe capacidades cuyo permiso histórico admite Consulta.
          */
-        if ($perfil && ! $perfil->predeterminado) {
+        if ($perfil) {
             if ($perfil->rol_base === RolUsuario::Consulta) {
                 return in_array(RolUsuario::Consulta, $roles, true)
                     && $this->catalogoModulos->usuarioTieneModulo($usuario, $modulos);
