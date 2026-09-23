@@ -76,6 +76,21 @@ reactivar hasta 200 solicitudes por ejecución y volver a enviarlas al worker:
 php artisan planificador:recuperar-proyecciones --reintentar-agotados --limite=200
 ```
 
+Si se corrigió la causa de un solo tipo de proyección, limitar la intervención
+para no reactivar fallos de otros tipos, por ejemplo:
+
+```bash
+php artisan planificador:recuperar-proyecciones --reintentar-agotados --tipo=concentracion_carga --limite=200
+```
+
+Los tipos disponibles son `concentracion_carga`, `concentracion_movimiento`,
+`segregacion_movimiento`, `reordenamiento_movimiento`,
+`desocupacion_movimiento` y `prioridad_buffer_repa`. Cada reactivación se registra
+con fecha en el log de Laravel, tipo, límite, total reactivado, usuario del
+sistema operativo si está disponible y servidor. Ese usuario identifica el
+proceso de consola; para identificar a una persona deben usarse las bitácoras
+de acceso del servidor.
+
 El scheduler ordinario nunca reactiva agotados. El comando requiere una cola
 distinta de `sync`, respeta el límite y conserva los descartes por fuentes
 eliminadas. Confirmar luego en Salud que `agotados` baje y que `pendientes`

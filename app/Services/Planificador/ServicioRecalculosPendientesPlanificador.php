@@ -94,7 +94,7 @@ final class ServicioRecalculosPendientesPlanificador
         }
     }
 
-    public function recuperar(int $limite = 200): int
+    public function recuperar(int $limite = 200, ?string $tipo = null): int
     {
         if (config('queue.default') === 'sync') {
             return 0;
@@ -102,6 +102,7 @@ final class ServicioRecalculosPendientesPlanificador
 
         $pendientes = DB::table(self::TABLA)
             ->where('pendiente', true)
+            ->when($tipo !== null, fn ($consulta) => $consulta->where('tipo', $tipo))
             ->orderBy('ultimo_reenvio_at')
             ->orderBy('id')
             ->limit($limite)
@@ -116,16 +117,17 @@ final class ServicioRecalculosPendientesPlanificador
         return $pendientes->count();
     }
 
-    public function reactivarAgotados(int $limite = 200): int
+    public function reactivarAgotados(int $limite = 200, ?string $tipo = null): int
     {
         if (config('queue.default') === 'sync') {
             return 0;
         }
 
-        return DB::transaction(function () use ($limite): int {
+        return DB::transaction(function () use ($limite, $tipo): int {
             $ids = DB::table(self::TABLA)
                 ->where('pendiente', false)
                 ->whereNotNull('agotado_at')
+                ->when($tipo !== null, fn ($consulta) => $consulta->where('tipo', $tipo))
                 ->orderBy('agotado_at')
                 ->orderBy('id')
                 ->limit($limite)

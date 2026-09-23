@@ -13,6 +13,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -298,5 +299,81 @@ class RecalculosPendientesPlanificadorTest extends TestCase
             'fuente_id' => $fuenteId,
             'pendiente' => false,
         ]);
+    }
+
+    public function test_reintento_por_tipo_solo_reactiva_y_reenvia_el_tipo_indicado_y_deja_rastro(): void
+    {
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $cargaId = (string) Str::uuid();
+        $repaId = (string) Str::uuid();
+        $otroPendienteId = (string) Str::uuid();
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $cargaId);
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $repaId);
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::SEGREGACION, $otroPendienteId);
+
+        DB::table('recalculos_pendientes_planificador')
+            ->whereIn('fuente_id', [$cargaId, $repaId])
+            ->update(['pendiente' => false, 'agotado_at' => now(), 'intentos_fallidos' => 5]);
+
+        Queue::fake();
+        Log::spy();
+        config(['queue.default' => 'database']);
+        $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', [
+            '--tipo' => ServicioRecalculosPendientesPlanificador::CARGA,
+            '--reintentar-agotados' => true,
+        ]));
+
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $cargaId,
+            'pendiente' => true,
+            'agotado_at' => null,
+            'intentos_fallidos' => 0,
+        ]);
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $repaId,
+            'pendiente' => false,
+            'intentos_fallidos' => 5,
+        ]);
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $otroPendienteId,
+            'pendiente' => true,
+            'ultimo_reenvio_at' => null,
+        ]);
+        Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class, 1);
+        Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class,
+            fn (EjecutarRecalculoPendientePlanificador $job): bool => $job->fuenteId === $cargaId);
+        Log::shouldHaveReceived('notice')->once()->withArgs(
+            fn (string $mensaje, array $contexto): bool => str_contains($mensaje, 'Reintento manual')
+                && $contexto['tipo'] === ServicioRecalculosPendientesPlanificador::CARGA
+                && $contexto['reactivados'] === 1
+                && $contexto['limite'] === 200
+                && $contexto['usuario_sistema'] !== ''
+                && $contexto['servidor'] !== '',
+        );
+    }
+
+    public function test_el_tipo_invalido_o_sin_reintento_no_actua_sobre_las_proyecciones(): void
+    {
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $fuenteId = (string) Str::uuid();
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+        DB::table('recalculos_pendientes_planificador')
+            ->where('fuente_id', $fuenteId)
+            ->update(['pendiente' => false, 'agotado_at' => now()]);
+
+        Queue::fake();
+        config(['queue.default' => 'database']);
+        $this->assertSame(1, Artisan::call('planificador:recuperar-proyecciones', [
+            '--tipo' => ServicioRecalculosPendientesPlanificador::CARGA,
+        ]));
+        $this->assertSame(1, Artisan::call('planificador:recuperar-proyecciones', [
+            '--tipo' => 'tipo_inexistente',
+            '--reintentar-agotados' => true,
+        ]));
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $fuenteId,
+            'pendiente' => false,
+        ]);
+        Queue::assertNothingPushed();
     }
 }
