@@ -238,9 +238,7 @@ Las pruebas de dominio deben cubrir idempotencia, concurrencia, temporadas, auto
 
 ## Evolución pendiente
 
-- creación de lotes definitivos desde Validación MP;
-- asociación explícita entre recepción, lote y procesos posteriores;
-- repaletizaje con genealogía de folios;
+- conciliación de saldos de Materiales, Envases y Materia Prima con sus movimientos y orígenes;
 - offline ampliado;
 - integración ERP;
 - telemetría y evidencia fotográfica.

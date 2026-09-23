@@ -273,9 +273,8 @@ exportación Android
 
 ## Pendientes principales
 
-- Crear lotes definitivos desde los segmentos de Validación MP.
-- Definir asociaciones explícitas entre recepciones, lotes y procesos posteriores sin reutilizar identificadores.
-- Implementar repaletizaje y genealogía de saldos.
+- Ampliar la auditoría de integridad con conciliaciones de inventario de Materiales, cuenta de Envases y lotes de Materia Prima.
+- Verificar en cada instalación las colas, el scheduler, las proyecciones y la restauración de respaldos.
 - Extender la operación offline a los módulos que todavía dependen de conectividad.
 - Integrar el ERP mediante adaptadores desacoplados.
 - Incorporar telemetría automática y fotografías donde aporten valor operacional.
