@@ -266,9 +266,11 @@ class RegistroHidrocoolerXlsx
             ])->filter()->implode("\n"),
             collect([
                 $this->etiqueta($proceso->condicion_visual_agua),
-                $proceso->dosificador_operativo === null ? null : ($proceso->dosificador_operativo ? 'Dosif. operativo' : 'Dosif. no operativo'),
+                $proceso->dosificador_operativo === null ? null : ($proceso->dosificador_operativo ? 'Ini dosif. operativo' : 'Ini dosif. no operativo'),
+                $proceso->control_inicial_conforme === null ? null : ($proceso->control_inicial_conforme ? 'Ini SOP conforme' : 'Ini SOP no conforme'),
                 $this->etiqueta($proceso->manejo_agua),
                 $proceso->condicion_visual_agua_final ? 'Fin '.$this->etiqueta($proceso->condicion_visual_agua_final) : null,
+                $proceso->dosificador_operativo_final === null ? null : ($proceso->dosificador_operativo_final ? 'Fin dosif. operativo' : 'Fin dosif. no operativo'),
                 $proceso->control_final_conforme === null ? null : ($proceso->control_final_conforme ? 'SOP conforme' : 'SOP no conforme'),
             ])->filter()->implode("\n"),
             collect([

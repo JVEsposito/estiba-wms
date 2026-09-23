@@ -233,10 +233,15 @@ class RegistroHidrocoolerPdf
                 $proceso->cloro_libre_final_ppm !== null ? 'Fin '.$this->numero($proceso->cloro_libre_final_ppm).' ppm / pH '.$this->numero($proceso->ph_agua_final) : null,
             ])->filter()->implode("\n"),
             collect([
-                $this->etiqueta($proceso->condicion_visual_agua),
-                $proceso->dosificador_operativo === null ? null : ($proceso->dosificador_operativo ? 'Dosif. operativo' : 'Dosif. no operativo'),
-                $this->etiqueta($proceso->manejo_agua),
-                $proceso->condicion_visual_agua_final ? 'Fin '.$this->etiqueta($proceso->condicion_visual_agua_final) : null,
+                $proceso->condicion_visual_agua ? 'I agua '.($proceso->condicion_visual_agua === 'conforme' ? 'C' : 'NC')
+                    .' / D '.($proceso->dosificador_operativo ? 'Si' : 'No') : null,
+                $proceso->control_inicial_conforme === null ? null : ($proceso->control_inicial_conforme ? 'I SOP conforme' : 'I SOP no conforme'),
+                $proceso->condicion_visual_agua_final ? 'F agua '.($proceso->condicion_visual_agua_final === 'conforme' ? 'C' : 'NC')
+                    .' / D '.($proceso->dosificador_operativo_final ? 'Si' : 'No') : null,
+                collect([
+                    $proceso->control_final_conforme === null ? null : ($proceso->control_final_conforme ? 'F SOP C' : 'F SOP NC'),
+                    $this->etiqueta($proceso->manejo_agua),
+                ])->filter()->implode(' / '),
             ])->filter()->implode("\n"),
             collect([
                 $proceso->destino_salida === 'proceso' ? 'A proceso' : ($proceso->destino_salida === 'camara' ? 'Camara MP' : null),
