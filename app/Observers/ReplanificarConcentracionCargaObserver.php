@@ -3,14 +3,12 @@
 namespace App\Observers;
 
 use App\Models\Carga;
-use App\Models\User;
-use App\Services\Cargas\ServicioPlanConcentracionCarga;
-use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 
-class ReplanificarConcentracionCargaObserver implements ShouldHandleEventsAfterCommit
+class ReplanificarConcentracionCargaObserver
 {
     public function __construct(
-        private readonly ServicioPlanConcentracionCarga $planificador,
+        private readonly ServicioRecalculosPendientesPlanificador $recalculos,
     ) {}
 
     public function updated(Carga $carga): void
@@ -26,15 +24,6 @@ class ReplanificarConcentracionCargaObserver implements ShouldHandleEventsAfterC
             return;
         }
 
-        $usuarioId = $carga->actualizada_por_user_id
-            ?? $carga->publicada_por_user_id
-            ?? $carga->creada_por_user_id;
-        $usuario = $usuarioId ? User::query()->find($usuarioId) : null;
-
-        if (! $usuario) {
-            return;
-        }
-
-        $this->planificador->sincronizar($carga, $usuario);
+        $this->recalculos->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $carga->id);
     }
 }

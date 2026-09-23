@@ -25,3 +25,7 @@ Schedule::command('tareas:expirar-reservas --limite=250')
 Schedule::command('planificador:recalcular-arbitraje')
     ->everyMinute()
     ->withoutOverlapping(2);
+
+Schedule::command('planificador:recuperar-proyecciones')
+    ->everyMinute()
+    ->withoutOverlapping(2);

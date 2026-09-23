@@ -38,13 +38,13 @@ use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
-use App\Observers\ReplanificarDesocupacionMovimientoObserver;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Camaras\ServicioControlEvacuacionEmergencia;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
 use App\Services\Estiba\ServicioSesionEstiba;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -904,6 +904,9 @@ class ControlEvacuacionEmergenciaTest extends TestCase
             generadoDispositivoAt: now(),
             tareaMovimiento: $tarea->refresh(),
         );
-        app(ReplanificarDesocupacionMovimientoObserver::class)->created($movimiento);
+        app(ServicioRecalculosPendientesPlanificador::class)->ejecutar(
+            ServicioRecalculosPendientesPlanificador::DESOCUPACION,
+            $movimiento->id,
+        );
     }
 }

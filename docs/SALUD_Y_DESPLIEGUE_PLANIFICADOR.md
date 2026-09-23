@@ -88,6 +88,11 @@ El panel considera atrasada una evaluación al superar
 y calculada, espera, duración del último cálculo y contadores de ejecuciones
 exitosas o fallidas sin publicar el detalle interno de la excepción.
 
+Los recálculos especializados de carga, segregación y cámara tienen además una
+solicitud persistida por fuente. `proyecciones_pendientes` resume las versiones
+sin confirmar y muestra cuándo un worker dejó de procesarlas. El mismo
+scheduler recupera esos trabajos con `planificador:recuperar-proyecciones`.
+
 Las mismas señales actuales de salud se reutilizan en el puesto de mando de
 `Operación ahora`, sin ejecutar allí las métricas históricas de planes,
 movimientos y arbitraje. Así el refresco operacional conserva un costo acotado y

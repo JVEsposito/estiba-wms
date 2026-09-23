@@ -3,14 +3,12 @@
 namespace App\Observers;
 
 use App\Models\UbicacionActual;
-use App\Models\User;
-use App\Services\Cargas\ServicioPlanConcentracionCarga;
-use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 
-class ReplanificarConcentracionUbicacionObserver implements ShouldHandleEventsAfterCommit
+class ReplanificarConcentracionUbicacionObserver
 {
     public function __construct(
-        private readonly ServicioPlanConcentracionCarga $planificador,
+        private readonly ServicioRecalculosPendientesPlanificador $recalculos,
     ) {}
 
     public function created(UbicacionActual $ubicacion): void
@@ -34,11 +32,6 @@ class ReplanificarConcentracionUbicacionObserver implements ShouldHandleEventsAf
             return;
         }
 
-        $usuario = User::query()->find($movimiento->user_id);
-        if (! $usuario) {
-            return;
-        }
-
-        $this->planificador->sincronizarTrasMovimiento($movimiento, $usuario);
+        $this->recalculos->solicitar(ServicioRecalculosPendientesPlanificador::UBICACION, $movimiento->id);
     }
 }
