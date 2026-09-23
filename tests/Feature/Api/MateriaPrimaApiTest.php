@@ -486,6 +486,7 @@ class MateriaPrimaApiTest extends TestCase
         $contexto = $this->prepararRecepcionValidada();
         $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
         $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $camarero = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
         $lote = $this->actingAs($digitador, 'sanctum')
             ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
                 'numero_lote' => 'LOTE-HIDRO-RETENIDO',
@@ -543,8 +544,9 @@ class MateriaPrimaApiTest extends TestCase
             ->assertJsonPath('en_curso', 0);
         $this->getJson('/api/materia-prima/hidrocooler/lotes?bandeja=retenidos')
             ->assertJsonPath('data.0.id', $lote['id']);
-        $this->getJson('/api/materia-prima/fruta-proceso/lotes?estado=abiertos')
-            ->assertJsonCount(0, 'data');
+        $this->actingAs($camarero, 'sanctum')
+            ->getJson('/api/materia-prima/fruta-proceso/lotes?estado=abiertos')
+            ->assertOk()->assertJsonCount(0, 'data');
 
         $liberacion = [
             'operacion_id' => (string) Str::uuid(),
@@ -555,7 +557,8 @@ class MateriaPrimaApiTest extends TestCase
             'evaluacion_producto' => 'Se segregó el lote y se evaluó la fruta expuesta.',
             'verificacion_liberacion' => 'Se renovó el agua y se verificó el control sanitario.',
         ];
-        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+        $this->actingAs($digitador, 'sanctum')
+            ->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
             ->assertForbidden();
         $this->actingAs($supervisor, 'sanctum');
         $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)

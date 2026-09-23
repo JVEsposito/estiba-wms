@@ -48,7 +48,7 @@
                 <div class="raw-material-kpis">
                     <article><span>SEGMENTOS POR LOTIZAR</span><strong id="pendingSegmentsCount">0</strong><small>Validados por la APK</small></article>
                     <article><span>BORRADORES</span><strong id="draftLotsCount">0</strong><small>Pendientes de confirmación</small></article>
-                    <article><span>HIDROCOOLER</span><strong id="hydrocoolerLotsCount">0</strong><small>Pendientes o en curso</small></article>
+                    <article><span>HIDROCOOLER</span><strong id="hydrocoolerLotsCount">0</strong><small>Pendientes, en curso o retenidos</small></article>
                     <article><span>PENDIENTES DE CÁMARA</span><strong id="cameraPendingCount">0</strong><small>Listos para asignar</small></article>
                 </div>
 
@@ -63,7 +63,7 @@
                             <div><p class="eyebrow">TRAZABILIDAD OPERACIONAL</p><h2>Lotes de la temporada</h2></div>
                             <form class="lot-filters" id="lotFilters">
                                 <input name="buscar" maxlength="100" placeholder="Lote, recepción, GGN o SdP">
-                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="disponible_proceso">Disponible directo a proceso</option><option value="asignado_camara">Asignado</option><option value="entrega_parcial_proceso">Entrega parcial a Packing</option><option value="entregado_proceso">Entregado a Packing</option><option value="anulado">Anulado</option></select>
+                                <select name="estado"><option value="">Todos los estados</option><option value="borrador">Borrador</option><option value="pendiente_hidrocooler">Pendiente hidrocooler</option><option value="hidrocooler_en_curso">Hidrocooler en curso</option><option value="hidrocooler_retenido">Retenido por Hidrocooler</option><option value="pendiente_asignacion">Pendiente cámara</option><option value="disponible_proceso">Disponible directo a proceso</option><option value="asignado_camara">Asignado</option><option value="entrega_parcial_proceso">Entrega parcial a Packing</option><option value="entregado_proceso">Entregado a Packing</option><option value="anulado">Anulado</option></select>
                                 <button class="secondary-button" type="submit">Filtrar</button>
                             </form>
                         </div>
