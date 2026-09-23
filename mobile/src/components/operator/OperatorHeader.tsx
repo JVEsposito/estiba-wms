@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { operatorTheme as o } from '../../theme/operatorTheme';
@@ -6,11 +7,12 @@ type Props = {
   connected: boolean;
   deviceName: string;
   modeLabel: string;
+  navigation?: ReactNode;
   role: string;
   userName: string;
 };
 
-export function OperatorHeader({ connected, deviceName, modeLabel, role, userName }: Props) {
+export function OperatorHeader({ connected, deviceName, modeLabel, navigation, role, userName }: Props) {
   const { width } = useWindowDimensions();
   const compact = width < o.breakpoint.compact;
 
@@ -30,6 +32,8 @@ export function OperatorHeader({ connected, deviceName, modeLabel, role, userNam
           <Text style={styles.device}>{deviceName}</Text>
         </View>
       </View>
+
+      {navigation ? <View style={styles.navigation}>{navigation}</View> : null}
 
       <View style={[styles.contextBlock, compact && styles.contextBlockCompact]}>
         <View accessibilityLabel={`Estado de conexión: ${modeLabel}`} style={styles.connection}>
@@ -63,6 +67,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: o.space[4],
+    flexWrap: 'wrap',
   },
   headerCompact: {
     alignItems: 'stretch',
@@ -81,6 +86,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#78909C',
   },
   productCopy: { minWidth: 0 },
+  navigation: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexGrow: 1, gap: 8 },
   product: {
     color: o.color.onNavy,
     fontSize: o.type.small,

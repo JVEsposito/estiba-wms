@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -618,18 +617,6 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.topbar}>
-          <View style={styles.brand}>
-            <Image
-              accessibilityLabel="FoliOS"
-              accessible
-              resizeMode="contain"
-              source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
-              style={styles.brandLogo}
-            />
-            <View>
-              <Text style={styles.brandModule}>OPERACIÓN TABLET</Text>
-            </View>
-          </View>
           <View style={styles.moduleNav}>
             <Pressable
               onPress={() => setActiveModule('camaras')}
@@ -682,16 +669,9 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
               />
             )}
           </View>
-          <View style={styles.operator}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{initials(auth.usuario.nombre)}</Text></View>
-            <View style={styles.operatorCopy}>
-              <Text numberOfLines={1} style={styles.operatorName}>{auth.usuario.nombre}</Text>
-              <Text numberOfLines={1} style={styles.deviceName}>{auth.dispositivo.nombre}</Text>
-            </View>
-            <Pressable onPress={() => void logout()} style={styles.logout}>
-              <Text style={styles.logoutText}>Salir</Text>
-            </Pressable>
-          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Cerrar sesión" onPress={() => void logout()} style={styles.logout}>
+            <Text style={styles.logoutText}>Salir</Text>
+          </Pressable>
         </View>
 
         {error ? (
@@ -932,10 +912,6 @@ function Status({ color, label }: { color: string; label: string }) {
   );
 }
 
-function initials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-}
-
 function positionLabel(position: Position) {
   return position.etiqueta
     ?? `B${String(position.banda).padStart(2, '0')}-P${String(position.posicion).padStart(2, '0')}-N${position.nivel}`;
@@ -949,21 +925,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   page: { flexGrow: 1, padding: 12, backgroundColor: colors.background },
   topbar: {
-    minHeight: 65,
     marginBottom: 12,
-    paddingHorizontal: 12,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.backgroundDeep,
+    paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+    flexWrap: 'wrap',
   },
-  brand: { minWidth: 190, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandLogo: { width: 112, height: 28 },
-  brandModule: { marginTop: 2, color: colors.cyan, fontSize: 7, fontWeight: '900', letterSpacing: 1.7 },
   statuses: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   moduleNav: { padding: 3, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, flexDirection: 'row', gap: 3 },
   moduleButton: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 7 },
@@ -982,14 +951,8 @@ const styles = StyleSheet.create({
   },
   statusDot: { width: 7, height: 7, borderRadius: 4 },
   statusText: { color: colors.text, fontSize: 8, fontWeight: '800' },
-  operator: { minWidth: 205, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
-  avatar: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.selected, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.cyan, fontSize: 10, fontWeight: '900' },
-  operatorCopy: { maxWidth: 130 },
-  operatorName: { color: colors.text, fontSize: 9, fontWeight: '900' },
-  deviceName: { marginTop: 2, color: colors.muted, fontSize: 7 },
-  logout: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
-  logoutText: { color: colors.muted, fontSize: 8, fontWeight: '900' },
+  logout: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colors.border },
+  logoutText: { color: colors.text, fontSize: 12, fontWeight: '800' },
   errorBanner: {
     marginBottom: 10,
     padding: 10,
