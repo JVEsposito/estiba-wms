@@ -99,6 +99,8 @@ se eliminan y el scheduler recupera las restantes con
 Una vez corregido el error de un cálculo agotado, ejecutar manualmente
 `planificador:recuperar-proyecciones --reintentar-agotados --limite=200` con
 el worker activo. El scheduler periódico mantiene el comando sin esa opción.
+Agregar `--tipo=concentracion_carga` cuando solo se haya corregido ese tipo de
+proyección. La ejecución manual queda registrada en el log de Laravel.
 
 Las mismas señales actuales de salud se reutilizan en el puesto de mando de
 `Operación ahora`, sin ejecutar allí las métricas históricas de planes,

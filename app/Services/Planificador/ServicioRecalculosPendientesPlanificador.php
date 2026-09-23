@@ -38,6 +38,19 @@ final class ServicioRecalculosPendientesPlanificador
 
     private const TABLA = 'recalculos_pendientes_planificador';
 
+    /** @return list<string> */
+    public static function tipos(): array
+    {
+        return [
+            self::CARGA,
+            self::UBICACION,
+            self::SEGREGACION,
+            self::REORDENAMIENTO,
+            self::DESOCUPACION,
+            self::BUFFER_REPA,
+        ];
+    }
+
     public function solicitar(string $tipo, string $fuenteId, ?string $objetivoId = null): void
     {
         DB::transaction(function () use ($tipo, $fuenteId, $objetivoId): void {
@@ -94,7 +107,7 @@ final class ServicioRecalculosPendientesPlanificador
         }
     }
 
-    public function recuperar(int $limite = 200): int
+    public function recuperar(int $limite = 200, ?string $tipo = null): int
     {
         if (config('queue.default') === 'sync') {
             return 0;
@@ -102,6 +115,7 @@ final class ServicioRecalculosPendientesPlanificador
 
         $pendientes = DB::table(self::TABLA)
             ->where('pendiente', true)
+            ->when($tipo !== null, fn ($consulta) => $consulta->where('tipo', $tipo))
             ->orderBy('ultimo_reenvio_at')
             ->orderBy('id')
             ->limit($limite)
@@ -116,16 +130,17 @@ final class ServicioRecalculosPendientesPlanificador
         return $pendientes->count();
     }
 
-    public function reactivarAgotados(int $limite = 200): int
+    public function reactivarAgotados(int $limite = 200, ?string $tipo = null): int
     {
         if (config('queue.default') === 'sync') {
             return 0;
         }
 
-        return DB::transaction(function () use ($limite): int {
+        return DB::transaction(function () use ($limite, $tipo): int {
             $ids = DB::table(self::TABLA)
                 ->where('pendiente', false)
                 ->whereNotNull('agotado_at')
+                ->when($tipo !== null, fn ($consulta) => $consulta->where('tipo', $tipo))
                 ->orderBy('agotado_at')
                 ->orderBy('id')
                 ->limit($limite)
