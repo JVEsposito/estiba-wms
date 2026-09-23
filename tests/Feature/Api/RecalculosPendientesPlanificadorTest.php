@@ -121,7 +121,9 @@ class RecalculosPendientesPlanificadorTest extends TestCase
     {
         $consultas = [];
         DB::listen(function (QueryExecuted $consulta) use (&$consultas): void {
-            if (str_contains(strtolower($consulta->sql), 'insert into recalculos_pendientes_planificador')) {
+            $sql = strtolower($consulta->sql);
+            if (str_starts_with($sql, 'insert')
+                && str_contains($sql, 'recalculos_pendientes_planificador')) {
                 $consultas[] = $consulta->sql;
             }
         });
