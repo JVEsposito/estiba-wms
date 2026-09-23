@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { ReceptionDefectsPanel } from '../components/ReceptionDefectsPanel';
 import { AuthSession } from '../domain/estiba';
 import { ContainerType, MpCatalog, MpReception, MpSegmentDraft, SegregationReason } from '../domain/validationMp';
 import { confirmMpValidation, findMpReception, getMpCatalog, listPendingMp, takeMpReception } from '../services/validationMpApi';
@@ -40,7 +41,7 @@ export function ValidationMpScreen({ auth, baseUrl, onLogout }: Props) {
     try {
       const loaded = await findMpReception(baseUrl, auth.token, normalized);
       setReception(loaded); setNumber(loaded.numero_recepcion);
-      setValidationId(loaded.validacion?.estado === 'en_curso' ? loaded.validacion.id : null);
+      setValidationId(loaded.validacion?.estado === 'en_curso' && loaded.validacion.validador.id === auth.usuario.id ? loaded.validacion.id : null);
       setQuantities(Object.fromEntries(types.map((type) => [type, String(loaded.envases.find((x) => x.tipo_envase === type)?.cantidad_declarada ?? 0)])) as Record<ContainerType, string>);
       setCatalog(await getMpCatalog(baseUrl, auth.token, loaded.id));
       setTagsChecked(false); setSegregation(false); setSegments([]); setObservation('');
@@ -73,7 +74,9 @@ export function ValidationMpScreen({ auth, baseUrl, onLogout }: Props) {
     try {
       const result = await confirmMpValidation(baseUrl, auth.token, validationId, { containers: actualContainers, tagsChecked, segregation, segments, observation });
       Alert.alert('Recepción validada', `${result.numero_recepcion} quedó lista${result.segmentos.length ? ` con ${result.segmentos.length} segmento(s) pendiente(s) de lote` : ''}.`);
-      setReception(null); setValidationId(null); setNumber(''); await refresh();
+      setValidationId(null);
+      setReception((current) => current ? { ...current, estado_validacion_mp: 'validada', validacion: result } : null);
+      await refresh();
     } catch (reason) { setError(message(reason)); }
     finally { setBusy(false); }
   }
@@ -96,6 +99,7 @@ export function ValidationMpScreen({ auth, baseUrl, onLogout }: Props) {
           {reception.tipo_recepcion === 'fruta_pesaje_envases' && reception.estado_romana !== 'cerrado' ? <Text style={styles.info}>Pesaje acumulativo aún abierto en Romana. Puedes preparar la revisión, pero la confirmación quedará bloqueada hasta que se pesen todos los envases.</Text> : null}
           <TextInput multiline onChangeText={setObservation} placeholder="Observación opcional" placeholderTextColor={colors.muted} style={styles.observation} value={observation}/><Pressable disabled={reception.tipo_recepcion === 'fruta_pesaje_envases' && reception.estado_romana !== 'cerrado'} onPress={() => void confirm()} style={[styles.primary, reception.tipo_recepcion === 'fruta_pesaje_envases' && reception.estado_romana !== 'cerrado' && styles.disabled]}><Text style={styles.primaryText}>Confirmar Validación MP</Text></Pressable>
         </View>}
+        {(validationId || reception.validacion?.validador.id === auth.usuario.id) ? <ReceptionDefectsPanel baseUrl={baseUrl} guideNumber={reception.numero_guia_despacho} key={reception.id} receptionId={reception.id} token={auth.token}/> : null}
       </>}
     </ScrollView>
   </View>;
