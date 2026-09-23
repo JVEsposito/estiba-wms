@@ -1,5 +1,6 @@
 import { createOperationalPoller } from './shared/operational-poller';
 import { cameraDisplayName } from './shared/camera-display';
+import { bandNumberingLabel, orderBandsForCamera } from './shared/camera-layout';
 
 const $ = (id) => document.getElementById(id);
 
@@ -635,7 +636,10 @@ function renderPositionMap() {
     }
 
     const levels = [...new Set(positions.map((position) => Number(position.nivel)))].sort((a, b) => a - b);
-    const bands = [...new Set(positions.map((position) => Number(position.banda)))].sort((a, b) => a - b);
+    const bands = orderBandsForCamera(
+        state.plan,
+        [...new Set(positions.map((position) => Number(position.banda)))],
+    );
     const maxPosition = Math.max(...positions.map((position) => Number(position.posicion)));
     const operationalBands = new Map(
         (state.plan?.bandas_operacionales || []).map((band) => [Number(band.numero), band]),
@@ -664,7 +668,7 @@ function renderPositionMap() {
         return `
             <section class="level-group">
                 <div class="level-heading">NIVEL ${level}</div>
-                <div class="map-orientation"><strong>↑ FONDO</strong><span>P01 se ocupa primero</span></div>
+                <div class="map-orientation"><strong>↑ FONDO</strong><span>${escapeHtml(bandNumberingLabel(state.plan))} · P01 se ocupa primero</span></div>
                 <div class="band-layout">
                     ${bandColumns}
                 </div>
@@ -1368,7 +1372,10 @@ function renderDestinations() {
 
     elements.moveDestinationHint.textContent = `${free.length} posiciones disponibles`;
     const levels = [...new Set(positions.map((position) => Number(position.nivel)))].sort((a, b) => a - b);
-    const bands = [...new Set(positions.map((position) => Number(position.banda)))].sort((a, b) => a - b);
+    const bands = orderBandsForCamera(
+        plan,
+        [...new Set(positions.map((position) => Number(position.banda)))],
+    );
     const maxPosition = Math.max(...positions.map((position) => Number(position.posicion)));
     const lookup = new Map(positions.map((position) => [
         `${position.nivel}|${position.banda}|${position.posicion}`,
@@ -1395,7 +1402,7 @@ function renderDestinations() {
         return `
             <section class="destination-level">
                 <div class="destination-level__heading">NIVEL ${level}</div>
-                <div class="destination-orientation"><strong>↑ FONDO</strong><span>P01 se ocupa primero</span></div>
+                <div class="destination-orientation"><strong>↑ FONDO</strong><span>${escapeHtml(bandNumberingLabel(plan))} · P01 se ocupa primero</span></div>
                 <div class="destination-band-layout">${bandColumns}</div>
                 <div class="destination-orientation destination-orientation--entrance"><strong>↓ ENTRADA</strong></div>
             </section>`;

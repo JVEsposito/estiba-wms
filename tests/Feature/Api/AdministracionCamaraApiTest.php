@@ -30,16 +30,19 @@ class AdministracionCamaraApiTest extends TestCase
                 'bandas' => 2,
                 'posiciones_por_banda' => 3,
                 'niveles' => 2,
+                'sentido_numeracion_bandas' => 'derecha_a_izquierda',
             ])
             ->assertOk()
             ->assertJsonPath('data.nombre', 'Cámara norte ampliada')
             ->assertJsonPath('data.dimensiones.bandas', 2)
             ->assertJsonPath('data.dimensiones.posiciones_por_banda', 3)
             ->assertJsonPath('data.dimensiones.niveles', 2)
+            ->assertJsonPath('data.sentido_numeracion_bandas', 'derecha_a_izquierda')
             ->assertJsonPath('data.capacidad.total', 12);
 
         $camara->refresh();
         $this->assertSame('preparacion', $camara->tipo);
+        $this->assertSame('derecha_a_izquierda', $camara->sentido_numeracion_bandas->value);
         $this->assertSame(1, $camara->version_plano);
         $this->assertSame($administrador->id, $camara->actualizado_por_user_id);
         $this->assertDatabaseHas('posiciones', [

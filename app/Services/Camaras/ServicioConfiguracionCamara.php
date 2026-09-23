@@ -5,6 +5,7 @@ namespace App\Services\Camaras;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
 use App\Enums\EstadoPosicion;
+use App\Enums\SentidoNumeracionBandas;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BandaOperacional;
 use App\Models\Camara;
@@ -56,6 +57,8 @@ class ServicioConfiguracionCamara
                 'cantidad_bandas' => (int) $datos['bandas'],
                 'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],
                 'cantidad_niveles' => (int) $datos['niveles'],
+                'sentido_numeracion_bandas' => $datos['sentido_numeracion_bandas']
+                    ?? SentidoNumeracionBandas::IzquierdaADerecha->value,
                 'creado_por_user_id' => $usuario->id,
                 'actualizado_por_user_id' => $usuario->id,
             ]);
@@ -155,6 +158,8 @@ class ServicioConfiguracionCamara
                 'cantidad_bandas' => (int) $datos['bandas'],
                 'posiciones_por_banda' => (int) $datos['posiciones_por_banda'],
                 'cantidad_niveles' => (int) $datos['niveles'],
+                'sentido_numeracion_bandas' => $datos['sentido_numeracion_bandas']
+                    ?? $camaraBloqueada->sentido_numeracion_bandas->value,
                 'version_plano' => $camaraBloqueada->version_plano + 1,
                 'actualizado_por_user_id' => $usuario->id,
             ]);

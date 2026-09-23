@@ -26,6 +26,7 @@ class CamaraConfiguracionResource extends JsonResource
             'contenido' => $this->contenido->value,
             'estado' => $this->estado->value,
             'version_plano' => $this->version_plano,
+            'sentido_numeracion_bandas' => $this->sentido_numeracion_bandas->value,
             'dimensiones' => [
                 'bandas' => $this->cantidad_bandas,
                 'posiciones_por_banda' => $this->posiciones_por_banda,

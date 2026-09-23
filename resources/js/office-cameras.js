@@ -1,5 +1,10 @@
 import { cameraDisplayName } from './shared/camera-display';
 import {
+    bandNumberingLabel,
+    LEFT_TO_RIGHT,
+    orderBandsForCamera,
+} from './shared/camera-layout';
+import {
     beginOperationalCameraSnapshot,
     formatOperationalTemperature,
     operationalPositionDescription,
@@ -51,6 +56,7 @@ const elements = {
     capacity: byId('previewCapacity'),
     active: byId('previewActive'),
     disabled: byId('previewDisabled'),
+    bandDirection: byId('previewBandDirection'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -338,12 +344,20 @@ function renderPreview() {
     elements.capacity.textContent = String(total);
     elements.disabled.textContent = String(state.disabled.size);
     elements.active.textContent = String(total - state.disabled.size);
+    const layout = {
+        sentido_numeracion_bandas: elements.createForm.elements.sentido_numeracion_bandas.value,
+    };
+    elements.bandDirection.textContent = `${bandNumberingLabel(layout)}.`;
 
     elements.levelTabs.innerHTML = Array.from({ length: niveles }, (_, index) => index + 1).map((level) => `
         <button class="level-tab${state.selectedLevel === level ? ' is-active' : ''}" data-level="${level}" type="button">Nivel ${level}</button>
     `).join('');
 
-    elements.preview.innerHTML = Array.from({ length: bandas }, (_, index) => index + 1).map((band) => {
+    const visualBands = orderBandsForCamera(
+        layout,
+        Array.from({ length: bandas }, (_, index) => index + 1),
+    );
+    elements.preview.innerHTML = visualBands.map((band) => {
         const cells = Array.from({ length: posiciones }, (_, positionIndex) => positionIndex + 1).map((position) => {
             const key = keyOf(band, position, state.selectedLevel);
             const disabled = state.disabled.has(key);
@@ -521,6 +535,7 @@ function renderOperationalBandDetail(band) {
 
 function renderOperationalBands(plan) {
     const bands = [...(plan?.bandas_operacionales || [])].sort((left, right) => Number(left.numero) - Number(right.numero));
+    const visualBands = orderBandsForCamera(plan, bands, (band) => band.numero);
     elements.cameraBandMapSummary.textContent = `${formatNumber(bands.length)} bandas · ${formatNumber(plan?.posiciones?.length || 0)} posiciones`;
     if (!bands.length) {
         elements.cameraBandMap.innerHTML = '<div class="camera-ops-empty">Esta cámara no tiene bandas operacionales informadas.</div>';
@@ -534,8 +549,8 @@ function renderOperationalBands(plan) {
     }
 
     elements.cameraBandMap.innerHTML = `
-        <div class="camera-ops__orientation"><strong>↑ FONDO</strong><span>Posiciones físicas informadas por el WMS</span></div>
-        <div class="camera-ops__bands">${bands.map((band) => {
+        <div class="camera-ops__orientation"><strong>↑ FONDO</strong><span>${escapeHtml(bandNumberingLabel(plan))} · posiciones físicas informadas por el WMS</span></div>
+        <div class="camera-ops__bands">${visualBands.map((band) => {
             const capacity = band.capacidad || {};
             const positions = bandPositions(plan, band.numero);
             const selected = Number(band.numero) === Number(state.selectedOperationalBand);
@@ -739,7 +754,7 @@ function renderCameras() {
             <article class="camera-item${camera.estado === 'inactiva' ? ' is-inactive' : ''}">
                 <div><strong>${escapeHtml(operationalMode ? displayName : camera.codigo)}</strong><span class="state-dot${camera.estado === 'inactiva' ? ' is-inactive' : ''}" title="${camera.estado === 'inactiva' ? 'Inactiva' : 'Activa'}"></span></div>
                 ${operationalMode ? '' : `<h3>${escapeHtml(displayName)}</h3>`}
-                <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles</p>
+                <p>${escapeHtml(statusText(camera.contenido))} · ${camera.dimensiones.bandas} bandas · ${camera.dimensiones.posiciones_por_banda} posiciones · ${camera.dimensiones.niveles} niveles · ${escapeHtml(bandNumberingLabel(camera))}</p>
                 <div class="camera-item__capacity"><span>${camera.capacidad.activas} operativas</span><span>${camera.capacidad.ocupadas} ocupadas</span></div>
                 ${(canAdminister || (canSupervise && camera.acceso?.bloqueada)) ? `<div class="camera-item__actions">${canAdminister ? `<button data-edit-camera="${camera.id}" type="button">Editar cámara</button>` : ''}${canSupervise && camera.acceso?.bloqueada ? `<button data-force-close-session="${camera.acceso.sesion?.id || ''}" type="button">Cerrar sesión forzosamente</button>` : ''}</div>` : ''}
             </article>
@@ -757,6 +772,7 @@ function resetForm() {
     elements.createForm.elements.bandas.value = 3;
     elements.createForm.elements.posiciones_por_banda.value = 4;
     elements.createForm.elements.niveles.value = 2;
+    elements.createForm.elements.sentido_numeracion_bandas.value = LEFT_TO_RIGHT;
     elements.createForm.elements.contenido.value = allowedCreationContent() || 'productos';
     applyCreationContentScope();
     elements.eyebrow.textContent = 'NUEVO PLANO';
@@ -786,6 +802,7 @@ function editForm(camera) {
     elements.createForm.elements.bandas.value = camera.dimensiones.bandas;
     elements.createForm.elements.posiciones_por_banda.value = camera.dimensiones.posiciones_por_banda;
     elements.createForm.elements.niveles.value = camera.dimensiones.niveles;
+    elements.createForm.elements.sentido_numeracion_bandas.value = camera.sentido_numeracion_bandas || LEFT_TO_RIGHT;
     elements.eyebrow.textContent = 'ADMINISTRAR PLANO';
     elements.title.textContent = `Editar ${camera.codigo}`;
     elements.description.textContent = 'Los cambios de tamaño conservan el historial de todas las posiciones retiradas.';
@@ -947,7 +964,7 @@ elements.loginForm.addEventListener('submit', async (event) => {
 });
 
 elements.createForm.addEventListener('input', (event) => {
-    if (['bandas', 'posiciones_por_banda', 'niveles'].includes(event.target.name)) renderPreview();
+    if (['bandas', 'posiciones_por_banda', 'niveles', 'sentido_numeracion_bandas'].includes(event.target.name)) renderPreview();
 });
 
 elements.levelTabs.addEventListener('click', (event) => {
@@ -1025,6 +1042,7 @@ elements.createForm.addEventListener('submit', async (event) => {
         bandas: Number(form.get('bandas')),
         posiciones_por_banda: Number(form.get('posiciones_por_banda')),
         niveles: Number(form.get('niveles')),
+        sentido_numeracion_bandas: form.get('sentido_numeracion_bandas'),
         posiciones_fuera_servicio: [...state.disabled].map((key) => {
             const [banda, posicion, nivel] = key.split(':').map(Number);
             return { banda, posicion, nivel };
@@ -1082,6 +1100,7 @@ elements.deactivate.addEventListener('click', async () => {
                     bandas: Number(form.get('bandas')),
                     posiciones_por_banda: Number(form.get('posiciones_por_banda')),
                     niveles: Number(form.get('niveles')),
+                    sentido_numeracion_bandas: form.get('sentido_numeracion_bandas'),
                     estado: 'activa',
                     posiciones_fuera_servicio: [...state.disabled].map((key) => {
                         const [banda, posicion, nivel] = key.split(':').map(Number);

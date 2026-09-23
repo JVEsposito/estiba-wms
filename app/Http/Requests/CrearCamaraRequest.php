@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\SentidoNumeracionBandas;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Foundation\Http\FormRequest;
@@ -36,6 +37,10 @@ class CrearCamaraRequest extends FormRequest
             'bandas' => ['required', 'integer', 'min:1', 'max:40'],
             'posiciones_por_banda' => ['required', 'integer', 'min:1', 'max:40'],
             'niveles' => ['required', 'integer', 'min:1', 'max:10'],
+            'sentido_numeracion_bandas' => [
+                'sometimes',
+                Rule::enum(SentidoNumeracionBandas::class),
+            ],
             'posiciones_fuera_servicio' => ['sometimes', 'array', 'max:1000'],
             'posiciones_fuera_servicio.*' => [
                 'required',
