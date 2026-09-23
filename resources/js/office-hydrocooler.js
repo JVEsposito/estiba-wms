@@ -6,7 +6,7 @@ const elements = {
     loginError: byId('officeLoginError'), logout: byId('officeLogoutButton'),
     userName: byId('officeUserName'), userRole: byId('officeUserRole'), initials: byId('officeInitials'),
     reload: byId('reloadButton'), season: byId('seasonDescription'), pending: byId('pendingCount'),
-    active: byId('activeCount'), activeKilos: byId('activeKilos'), completedToday: byId('completedToday'),
+    active: byId('activeCount'), retained: byId('retainedCount'), activeKilos: byId('activeKilos'), completedToday: byId('completedToday'),
     averageDuration: byId('averageDuration'), tabs: [...document.querySelectorAll('[data-tray]')],
     filters: byId('hydrocoolerFilters'), equipmentFilter: byId('equipmentFilter'), list: byId('hydrocoolerList'),
     equipmentOptions: byId('equipmentOptions'), startDialog: byId('startDialog'), startForm: byId('startForm'),
@@ -14,6 +14,8 @@ const elements = {
     startError: byId('startError'), finishDialog: byId('finishDialog'), finishForm: byId('finishForm'),
     finishTitle: byId('finishTitle'), finishDescription: byId('finishDescription'), finishSummary: byId('finishSummary'),
     finishError: byId('finishError'), loading: byId('officeLoading'), loadingText: byId('officeLoadingText'),
+    releaseDialog: byId('releaseDialog'), releaseForm: byId('releaseForm'), releaseTitle: byId('releaseTitle'),
+    releaseDescription: byId('releaseDescription'), releaseError: byId('releaseError'),
     toasts: byId('officeToasts'),
     registerButtons: [...document.querySelectorAll('[data-register]')],
 };
@@ -50,6 +52,7 @@ function can(capability) {
 function label(value) {
     const labels = {
         pendiente_hidrocooler: 'Pendiente', hidrocooler_en_curso: 'En curso',
+        hidrocooler_retenido: 'Retenido', retenidos: 'retenidos',
         pendiente_asignacion: 'A cámara MP', disponible_proceso: 'Directo a proceso',
         camara: 'Cámara MP', proceso: 'Directo a proceso', bins: 'bins', totes: 'totes', esponjas: 'esponjas',
         conforme: 'Conforme', no_conforme: 'No conforme', sin_novedad: 'Sin novedad',
@@ -140,6 +143,7 @@ function renderSummary() {
     const summary = state.summary || {};
     elements.pending.textContent = formatNumber(summary.pendientes);
     elements.active.textContent = formatNumber(summary.en_curso);
+    elements.retained.textContent = formatNumber(summary.retenidos);
     elements.activeKilos.textContent = formatNumber(summary.kilos_en_curso, 3);
     elements.completedToday.textContent = formatNumber(summary.completados_hoy);
     elements.averageDuration.textContent = formatDuration(summary.duracion_promedio_hoy);
@@ -162,7 +166,7 @@ function card(lot) {
     const cycle = lot.hidrocooler;
     const active = lot.estado === 'hidrocooler_en_curso';
     const complete = Boolean(cycle?.termino_at);
-    const status = complete ? label(cycle.destino_salida) : label(lot.estado);
+    const status = lot.estado === 'hidrocooler_retenido' ? 'Retenido' : complete ? label(cycle.destino_salida) : label(lot.estado);
     const duration = complete ? cycle.duracion_minutos : (active ? currentDuration(cycle?.inicio_at) : null);
     const product = [lot.trazabilidad.especie, lot.trazabilidad.variedad, lot.trazabilidad.cuartel].filter(Boolean).join(' · ');
     const canOperate = can('puede_operar_hidrocooler_materia_prima');
@@ -170,9 +174,11 @@ function card(lot) {
         ? `<button class="primary-button" data-start="${escapeHtml(lot.id)}" type="button">Iniciar ciclo</button>`
         : canOperate && active
             ? `<button class="primary-button" data-finish="${escapeHtml(lot.id)}" type="button">Finalizar ciclo</button>`
+            : can('puede_supervisar_lotes_materia_prima') && lot.estado === 'hidrocooler_retenido'
+                ? `<button class="primary-button" data-release="${escapeHtml(lot.id)}" type="button">Evaluar y liberar</button>`
             : '';
     const note = [cycle?.observacion_inicio, cycle?.observacion].filter(Boolean).join(' · ');
-    return `<article class="cycle-card${active ? ' is-active' : ''}${complete ? ' is-complete' : ''}">
+    return `<article class="cycle-card${active ? ' is-active' : ''}${complete ? ' is-complete' : ''}${lot.estado === 'hidrocooler_retenido' ? ' is-retained' : ''}">
         <div class="cycle-card__heading"><div><h3>${escapeHtml(lot.numero_lote)}</h3><p>${escapeHtml(lot.cliente?.nombre)} · recepción ${escapeHtml(lot.recepcion?.numero_recepcion)}</p></div><span class="hydro-status">${escapeHtml(status)}</span></div>
         <div class="cycle-facts">
             <div><span>CICLO / EQUIPO</span><strong>${escapeHtml(cycle?.codigo || 'Por iniciar')}<br>${escapeHtml(cycle?.equipo || 'Sin equipo')}</strong></div>
@@ -182,7 +188,8 @@ function card(lot) {
             <div><span>TURNO / BOMBAS</span><strong>${escapeHtml(cycle?.turno ? `Turno ${cycle.turno}` : 'Pendiente')}<br>${cycle?.cantidad_bombas_funcionando === null || cycle?.cantidad_bombas_funcionando === undefined ? '—' : `${cycle.cantidad_bombas_funcionando} bombas`}</strong></div>
         </div>
         <div class="cycle-temperature"><div><span>INICIAL FRUTA</span>${escapeHtml(formatTemperature(cycle?.temperatura_inicial_c))}</div><div><span>OBJETIVO</span>${escapeHtml(formatTemperature(cycle?.temperatura_objetivo_c))}</div><div><span>FINAL FRUTA</span>${escapeHtml(formatTemperature(cycle?.temperatura_c))}</div></div>
-        ${cycle ? `<div class="cycle-quality"><div><span>CLORO / PH</span>${cycle.cloro_libre_ppm === null ? '—' : `${escapeHtml(formatNumber(cycle.cloro_libre_ppm, 2))} ppm`} · ${cycle.ph_agua === null ? '—' : escapeHtml(formatNumber(cycle.ph_agua, 2))}</div><div><span>AGUA / DOSIFICADOR</span>${cycle.condicion_visual_agua ? escapeHtml(label(cycle.condicion_visual_agua)) : '—'} · ${cycle.dosificador_operativo === null ? '—' : (cycle.dosificador_operativo ? 'Operativo' : 'No operativo')}</div><div><span>CONTROL AGUA</span>${cycle.manejo_agua ? escapeHtml(label(cycle.manejo_agua)) : '—'}</div></div>` : ''}
+        ${cycle ? `<div class="cycle-quality"><div><span>CLORO / PH INICIO → FIN</span>${cycle.cloro_libre_ppm === null ? '—' : `${escapeHtml(formatNumber(cycle.cloro_libre_ppm, 2))} ppm · pH ${escapeHtml(formatNumber(cycle.ph_agua, 2))}`} → ${cycle.cloro_libre_final_ppm === null ? '—' : `${escapeHtml(formatNumber(cycle.cloro_libre_final_ppm, 2))} ppm · pH ${escapeHtml(formatNumber(cycle.ph_agua_final, 2))}`}</div><div><span>AGUA / DOSIFICADOR</span>${cycle.condicion_visual_agua ? escapeHtml(label(cycle.condicion_visual_agua)) : '—'} · ${cycle.dosificador_operativo === null ? '—' : (cycle.dosificador_operativo ? 'Operativo' : 'No operativo')}</div><div><span>CONTROL AGUA</span>${cycle.manejo_agua ? escapeHtml(label(cycle.manejo_agua)) : '—'}</div></div>` : ''}
+        ${cycle?.motivo_retencion ? `<p class="cycle-note">Desviación: ${escapeHtml(cycle.motivo_retencion)}${cycle.liberado_at ? ` · Liberado por ${escapeHtml(cycle.liberado_por || 'supervisión')} ${escapeHtml(formatDate(cycle.liberado_at))}` : ' · pendiente de evaluación'}</p>` : ''}
         <p class="cycle-note">${cycle ? `Inicio ${escapeHtml(formatDate(cycle.inicio_at))}${cycle.termino_at ? ` · término ${escapeHtml(formatDate(cycle.termino_at))}` : ''}${note ? ` · ${escapeHtml(note)}` : ''}` : `Confirmado ${escapeHtml(formatDate(lot.confirmado_at))} · CSG ${escapeHtml(lot.trazabilidad.csg)}`}</p>
         ${action ? `<div class="cycle-card__actions">${action}</div>` : ''}
     </article>`;
@@ -250,6 +257,14 @@ function openFinish(lotId) {
     elements.finishDescription.textContent = `${lot.hidrocooler.codigo} · ${lot.hidrocooler.equipo} · inicio ${formatDate(lot.hidrocooler.inicio_at)}.`;
     elements.finishSummary.innerHTML = summaryMarkup(lot); elements.finishDialog.showModal(); form.termino_at.focus();
 }
+function openRelease(lotId) {
+    const lot = state.lots.find((item) => item.id === lotId); if (!lot?.hidrocooler) return;
+    state.selected = lot; elements.releaseForm.reset(); elements.releaseError.textContent = '';
+    const form = elements.releaseForm.elements; form.lote_id.value = lot.id; form.operacion_id.value = uuid();
+    elements.releaseTitle.textContent = `Evaluar ${lot.numero_lote}`;
+    elements.releaseDescription.textContent = `${lot.hidrocooler.motivo_retencion}. Destino tras liberar: ${label(lot.hidrocooler.destino_salida)}. Solo supervisión puede disponer del producto.`;
+    elements.releaseDialog.showModal(); form.temperatura_verificacion_c.focus();
+}
 async function submitStart() {
     const data = new FormData(elements.startForm);
     const payload = {
@@ -260,6 +275,7 @@ async function submitStart() {
         temperatura_objetivo_c: Number(data.get('temperatura_objetivo_c')),
         temperatura_agua_inicial_c: data.get('temperatura_agua_inicial_c') === '' ? null : Number(data.get('temperatura_agua_inicial_c')),
         cloro_libre_ppm: Number(data.get('cloro_libre_ppm')), ph_agua: Number(data.get('ph_agua')),
+        control_inicial_conforme: data.get('control_inicial_conforme') === '1',
         condicion_visual_agua: data.get('condicion_visual_agua'),
         dosificador_operativo: data.get('dosificador_operativo') === '1', manejo_agua: data.get('manejo_agua'),
         observacion_inicio: String(data.get('observacion_inicio') || '').trim() || null,
@@ -277,16 +293,39 @@ async function submitFinish() {
         operacion_id: data.get('operacion_id'), termino_at: new Date(data.get('termino_at')).toISOString(),
         temperatura_c: Number(data.get('temperatura_c')),
         temperatura_agua_final_c: data.get('temperatura_agua_final_c') === '' ? null : Number(data.get('temperatura_agua_final_c')),
+        cloro_libre_final_ppm: Number(data.get('cloro_libre_final_ppm')),
+        ph_agua_final: Number(data.get('ph_agua_final')),
+        condicion_visual_agua_final: data.get('condicion_visual_agua_final'),
+        dosificador_operativo_final: data.get('dosificador_operativo_final') === '1',
+        control_final_conforme: data.get('control_final_conforme') === '1',
         destino_salida: data.get('destino_salida'), observacion: String(data.get('observacion') || '').trim() || null,
         accion_correctiva: String(data.get('accion_correctiva') || '').trim() || null,
     };
     setBusy(true, 'Finalizando ciclo…');
     try {
-        await api(`/api/materia-prima/lotes/${data.get('lote_id')}/hidrocooler/completar`, { method: 'POST', body: JSON.stringify(payload) });
+        const response = await api(`/api/materia-prima/lotes/${data.get('lote_id')}/hidrocooler/completar`, { method: 'POST', body: JSON.stringify(payload) });
         elements.finishDialog.close();
-        toast(payload.destino_salida === 'proceso' ? 'Ciclo finalizado; lote disponible directo a Fruta a proceso.' : 'Ciclo finalizado; lote pendiente de asignación a cámara.');
+        toast(response.data?.estado === 'hidrocooler_retenido' ? 'Ciclo finalizado; lote retenido hasta evaluación de supervisión.' : payload.destino_salida === 'proceso' ? 'Ciclo finalizado; lote disponible directo a Fruta a proceso.' : 'Ciclo finalizado; lote pendiente de asignación a cámara.');
         await load();
     } catch (error) { elements.finishError.textContent = error.message; }
+    finally { setBusy(false); }
+}
+async function submitRelease() {
+    const data = new FormData(elements.releaseForm);
+    const payload = {
+        operacion_id: data.get('operacion_id'),
+        temperatura_verificacion_c: Number(data.get('temperatura_verificacion_c')),
+        cloro_libre_verificacion_ppm: Number(data.get('cloro_libre_verificacion_ppm')),
+        ph_agua_verificacion: Number(data.get('ph_agua_verificacion')),
+        control_verificacion_conforme: data.get('control_verificacion_conforme') === '1',
+        evaluacion_producto: String(data.get('evaluacion_producto') || '').trim(),
+        verificacion_liberacion: String(data.get('verificacion_liberacion') || '').trim(),
+    };
+    setBusy(true, 'Verificando liberación…');
+    try {
+        await api(`/api/materia-prima/lotes/${data.get('lote_id')}/hidrocooler/liberar`, { method: 'POST', body: JSON.stringify(payload) });
+        elements.releaseDialog.close(); toast('Lote liberado por supervisión con evaluación registrada.'); await load();
+    } catch (error) { elements.releaseError.textContent = error.message; }
     finally { setBusy(false); }
 }
 
@@ -308,7 +347,8 @@ elements.filters.addEventListener('submit', (event) => { event.preventDefault();
 elements.tabs.forEach((tab) => tab.addEventListener('click', () => { state.tray = tab.dataset.tray; void load(); }));
 elements.list.addEventListener('click', (event) => {
     const start = event.target.closest('[data-start]'); if (start) { openStart(start.dataset.start); return; }
-    const finish = event.target.closest('[data-finish]'); if (finish) openFinish(finish.dataset.finish);
+    const finish = event.target.closest('[data-finish]'); if (finish) { openFinish(finish.dataset.finish); return; }
+    const release = event.target.closest('[data-release]'); if (release) openRelease(release.dataset.release);
 });
 elements.startForm.addEventListener('submit', (event) => {
     if (event.submitter?.value === 'cancel') return;
@@ -320,12 +360,17 @@ elements.finishForm.addEventListener('submit', (event) => {
     event.preventDefault();
     if (elements.finishForm.reportValidity()) void submitFinish();
 });
+elements.releaseForm.addEventListener('submit', (event) => {
+    if (event.submitter?.value === 'cancel') return;
+    event.preventDefault();
+    if (elements.releaseForm.reportValidity()) void submitRelease();
+});
 
 function startRefresh() {
     state.poller?.stop();
     state.poller = createOperationalPoller(() => load({ silent: true }), {
         intervalMs: 30000,
-        canRun: () => Boolean(state.token) && !elements.startDialog.open && !elements.finishDialog.open,
+        canRun: () => Boolean(state.token) && !elements.startDialog.open && !elements.finishDialog.open && !elements.releaseDialog.open,
     });
     state.poller.start();
 }

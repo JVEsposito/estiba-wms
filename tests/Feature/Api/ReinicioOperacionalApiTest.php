@@ -318,6 +318,7 @@ class ReinicioOperacionalApiTest extends TestCase
             'temperatura_objetivo_c' => 4,
             'cloro_libre_ppm' => 100,
             'ph_agua' => 6.5,
+            'control_inicial_conforme' => true,
             'condicion_visual_agua' => 'conforme',
             'dosificador_operativo' => true,
             'manejo_agua' => 'sin_novedad',

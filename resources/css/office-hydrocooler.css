@@ -42,7 +42,7 @@ body {
 
 .hydrocooler-kpis {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 12px;
     margin-bottom: 15px;
 }
@@ -61,7 +61,8 @@ body {
 .hydrocooler-kpis article:nth-child(2)::before { background: var(--hydro-gold); }
 .hydrocooler-kpis article:nth-child(3)::before { background: var(--hydro-ice); }
 .hydrocooler-kpis article:nth-child(4)::before { background: var(--hydro-green); }
-.hydrocooler-kpis article:nth-child(5)::before { background: var(--cyan); }
+.hydrocooler-kpis article:nth-child(5)::before { background: var(--hydro-gold); }
+.hydrocooler-kpis article:nth-child(6)::before { background: var(--cyan); }
 .hydrocooler-kpis span { color: var(--muted); font-size: .62rem; font-weight: 900; letter-spacing: .08em; }
 .hydrocooler-kpis strong { display: block; margin: 13px 0 5px; font-size: 2rem; line-height: 1; }
 .hydrocooler-kpis small { color: var(--muted); font-size: .66rem; }
@@ -97,6 +98,8 @@ body {
 .hydro-status::before { width: 6px; height: 6px; border-radius: 50%; background: currentColor; content: ''; }
 .cycle-card.is-active .hydro-status { color: var(--hydro-gold); }
 .cycle-card.is-complete .hydro-status { color: var(--hydro-green); }
+.cycle-card.is-retained { border-color: rgba(239, 195, 111, .6); }
+.cycle-card.is-retained .hydro-status { color: var(--hydro-gold); }
 .cycle-facts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-top: 13px; }
 .cycle-facts div { min-height: 64px; border: 1px solid var(--line); border-radius: 9px; background: rgba(9, 26, 35, .7); padding: 9px; }
 .cycle-facts span,

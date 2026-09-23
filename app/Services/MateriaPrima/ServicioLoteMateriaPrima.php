@@ -344,6 +344,14 @@ class ServicioLoteMateriaPrima
                 throw new ConflictoOperacion('El lote ya posee un ciclo de hidrocooler registrado.');
             }
 
+            if ($datos['control_inicial_conforme'] !== true
+                || $datos['condicion_visual_agua'] !== 'conforme'
+                || $datos['dosificador_operativo'] !== true) {
+                throw ValidationException::withMessages([
+                    'control_inicial_conforme' => 'No inicies el ciclo con agua o dosificador no conformes. Corrige y vuelve a medir antes de procesar fruta.',
+                ]);
+            }
+
             $equipo = trim($datos['equipo']);
             if (ProcesoHidrocoolerMateriaPrima::query()
                 ->where('estado', EstadoHidrocoolerMateriaPrima::EnCurso->value)
@@ -379,6 +387,7 @@ class ServicioLoteMateriaPrima
                     : null,
                 'cloro_libre_ppm' => round((float) $datos['cloro_libre_ppm'], 2),
                 'ph_agua' => round((float) $datos['ph_agua'], 2),
+                'control_inicial_conforme' => $datos['control_inicial_conforme'],
                 'condicion_visual_agua' => $datos['condicion_visual_agua'],
                 'dosificador_operativo' => $datos['dosificador_operativo'],
                 'manejo_agua' => $datos['manejo_agua'],
@@ -412,6 +421,7 @@ class ServicioLoteMateriaPrima
                         : null,
                     'cloro_libre_ppm' => (float) $datos['cloro_libre_ppm'],
                     'ph_agua' => (float) $datos['ph_agua'],
+                    'control_inicial_conforme' => (bool) $datos['control_inicial_conforme'],
                     'condicion_visual_agua' => $datos['condicion_visual_agua'],
                     'dosificador_operativo' => (bool) $datos['dosificador_operativo'],
                     'manejo_agua' => $datos['manejo_agua'],
@@ -476,9 +486,25 @@ class ServicioLoteMateriaPrima
                     'destino_salida' => 'La salida directa a proceso solo admite lotes en bins.',
                 ]);
             }
-            $estadoNuevo = $destino === 'proceso'
-                ? EstadoLoteMateriaPrima::DisponibleProceso
-                : EstadoLoteMateriaPrima::PendienteAsignacion;
+            $motivos = [];
+            if ($proceso->control_inicial_conforme !== true
+                || $proceso->condicion_visual_agua !== 'conforme'
+                || $proceso->dosificador_operativo !== true) {
+                $motivos[] = 'Control inicial de agua o dosificador con desviación';
+            }
+            if ($datos['control_final_conforme'] !== true
+                || $datos['condicion_visual_agua_final'] !== 'conforme'
+                || $datos['dosificador_operativo_final'] !== true) {
+                $motivos[] = 'Control final de agua o dosificador con desviación';
+            }
+            if ((float) $datos['temperatura_c'] > (float) $proceso->temperatura_objetivo_c) {
+                $motivos[] = 'Temperatura final de fruta superior al objetivo';
+            }
+            $estadoNuevo = $motivos !== []
+                ? EstadoLoteMateriaPrima::HidrocoolerRetenido
+                : ($destino === 'proceso'
+                    ? EstadoLoteMateriaPrima::DisponibleProceso
+                    : EstadoLoteMateriaPrima::PendienteAsignacion);
             $proceso->update([
                 'operacion_termino_id' => $datos['operacion_id'],
                 'payload_termino_hash' => $hash,
@@ -490,6 +516,12 @@ class ServicioLoteMateriaPrima
                 'temperatura_agua_final_c' => filled($datos['temperatura_agua_final_c'] ?? null)
                     ? round((float) $datos['temperatura_agua_final_c'], 2)
                     : null,
+                'cloro_libre_final_ppm' => round((float) $datos['cloro_libre_final_ppm'], 2),
+                'ph_agua_final' => round((float) $datos['ph_agua_final'], 2),
+                'condicion_visual_agua_final' => $datos['condicion_visual_agua_final'],
+                'dosificador_operativo_final' => $datos['dosificador_operativo_final'],
+                'control_final_conforme' => $datos['control_final_conforme'],
+                'motivo_retencion' => $motivos !== [] ? implode('; ', $motivos) : null,
                 'destino_salida' => $destino,
                 'observacion' => $datos['observacion'] ?? null,
                 'accion_correctiva' => $datos['accion_correctiva'] ?? null,
@@ -517,7 +549,92 @@ class ServicioLoteMateriaPrima
                         ? (float) $proceso->temperatura_agua_final_c
                         : null,
                     'destino_salida' => $destino,
+                    'cloro_libre_final_ppm' => (float) $datos['cloro_libre_final_ppm'],
+                    'ph_agua_final' => (float) $datos['ph_agua_final'],
+                    'condicion_visual_agua_final' => $datos['condicion_visual_agua_final'],
+                    'dosificador_operativo_final' => (bool) $datos['dosificador_operativo_final'],
+                    'control_final_conforme' => (bool) $datos['control_final_conforme'],
+                    'motivo_retencion' => $proceso->motivo_retencion,
                     'accion_correctiva' => $datos['accion_correctiva'] ?? null,
+                    'payload_hash' => $hash,
+                ],
+            );
+
+            return $this->cargar($lote);
+        }, attempts: 3);
+    }
+
+    /** @param array<string, mixed> $datos */
+    public function liberarHidrocooler(
+        LoteMateriaPrima $lote,
+        array $datos,
+        User $usuario,
+    ): LoteMateriaPrima {
+        $hash = $this->hash($this->payloadHidrocooler($datos));
+
+        return DB::transaction(function () use ($lote, $datos, $usuario, $hash): LoteMateriaPrima {
+            $lote = LoteMateriaPrima::query()->lockForUpdate()->findOrFail($lote->id);
+            $proceso = ProcesoHidrocoolerMateriaPrima::query()
+                ->where('lote_materia_prima_id', $lote->id)
+                ->lockForUpdate()->firstOrFail();
+            $operacion = ProcesoHidrocoolerMateriaPrima::query()
+                ->where('operacion_liberacion_id', $datos['operacion_id'])->first();
+            if ($operacion && $operacion->id !== $proceso->id) {
+                throw new ConflictoOperacion('El identificador de liberación ya fue utilizado en otro lote.');
+            }
+            if ($proceso->operacion_liberacion_id !== null) {
+                if ($proceso->operacion_liberacion_id !== $datos['operacion_id']
+                    || ! hash_equals($proceso->payload_liberacion_hash, $hash)) {
+                    throw new ConflictoOperacion('El lote ya fue liberado con otra operación o datos.');
+                }
+
+                return $this->cargar($lote);
+            }
+            if ($lote->estado !== EstadoLoteMateriaPrima::HidrocoolerRetenido
+                || $proceso->estado !== EstadoHidrocoolerMateriaPrima::Completado
+                || ! $proceso->destino_salida) {
+                throw new ConflictoOperacion('El lote no está retenido tras completar Hidrocooler.');
+            }
+            if ((float) $datos['temperatura_verificacion_c'] > (float) $proceso->temperatura_objetivo_c) {
+                throw ValidationException::withMessages([
+                    'temperatura_verificacion_c' => 'La fruta sigue sobre la temperatura objetivo; no puede liberarse.',
+                ]);
+            }
+
+            $estadoNuevo = $proceso->destino_salida === 'proceso'
+                ? EstadoLoteMateriaPrima::DisponibleProceso
+                : EstadoLoteMateriaPrima::PendienteAsignacion;
+            $proceso->update([
+                'operacion_liberacion_id' => $datos['operacion_id'],
+                'payload_liberacion_hash' => $hash,
+                'temperatura_verificacion_c' => round((float) $datos['temperatura_verificacion_c'], 2),
+                'cloro_libre_verificacion_ppm' => round((float) $datos['cloro_libre_verificacion_ppm'], 2),
+                'ph_agua_verificacion' => round((float) $datos['ph_agua_verificacion'], 2),
+                'evaluacion_producto' => $datos['evaluacion_producto'],
+                'verificacion_liberacion' => $datos['verificacion_liberacion'],
+                'liberado_por_user_id' => $usuario->id,
+                'liberado_at' => now(),
+            ]);
+            $lote->update([
+                'estado' => $estadoNuevo,
+                'version' => $lote->version + 1,
+                'actualizado_por_user_id' => $usuario->id,
+            ]);
+            $this->registrarEvento(
+                $lote,
+                'hidrocooler_liberado',
+                $usuario,
+                $datos['operacion_id'],
+                EstadoLoteMateriaPrima::HidrocoolerRetenido,
+                $estadoNuevo,
+                [
+                    'motivo_retencion' => $proceso->motivo_retencion,
+                    'destino_salida' => $proceso->destino_salida,
+                    'temperatura_verificacion_c' => (float) $datos['temperatura_verificacion_c'],
+                    'cloro_libre_verificacion_ppm' => (float) $datos['cloro_libre_verificacion_ppm'],
+                    'ph_agua_verificacion' => (float) $datos['ph_agua_verificacion'],
+                    'evaluacion_producto' => $datos['evaluacion_producto'],
+                    'verificacion_liberacion' => $datos['verificacion_liberacion'],
                     'payload_hash' => $hash,
                 ],
             );
@@ -1037,6 +1154,7 @@ class ServicioLoteMateriaPrima
             'anuladoPor',
             'hidrocooler.iniciadoPor',
             'hidrocooler.completadoPor',
+            'hidrocooler.liberadoPor',
             'asignacionCamara.camara',
             'asignacionCamara.asignadoPor',
             'eventos.usuario',
