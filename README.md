@@ -274,6 +274,7 @@ exportación Android
 ## Pendientes principales
 
 - Ampliar la auditoría de integridad con conciliaciones de inventario de Materiales, cuenta de Envases y lotes de Materia Prima.
+- Vincular el producto terminado con los lotes de materia prima de origen para trazabilidad y recall.
 - Verificar en cada instalación las colas, el scheduler, las proyecciones y la restauración de respaldos.
 - Extender la operación offline a los módulos que todavía dependen de conectividad.
 - Integrar el ERP mediante adaptadores desacoplados.

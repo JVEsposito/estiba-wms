@@ -24,7 +24,10 @@ Una recepción de Romana no crea, habilita ni mueve:
 
 El correlativo `REC-*` identifica exclusivamente el expediente contractual de recepción. No es un folio ni un número de lote.
 
-La trazabilidad futura con lotes o procesos posteriores debe implementarse mediante asociaciones explícitas, sin reutilizar identificadores ni convertir el cierre de Romana en una transición de Frigorífico.
+La trazabilidad de materia prima usa asociaciones explícitas entre recepción,
+Validación MP, segmentos y lotes, sin reutilizar identificadores ni convertir el
+cierre de Romana en una transición de Frigorífico. Aún falta vincular los
+folios de producto terminado con los lotes de materia prima que los originaron.
 
 ## Temporada global
 
@@ -311,7 +314,7 @@ En `local` y `testing`:
 
 ## Pendientes
 
-- asociación explícita con lotes definitivos;
+- vínculo entre producto terminado y lotes de materia prima de origen para recall;
 - telemetría directa desde la báscula;
 - firma digital o integración documental externa;
 - integración ERP;

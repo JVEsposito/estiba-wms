@@ -229,6 +229,7 @@ La WMS es la fuente de verdad de ubicaciones y movimientos. Una futura integraci
 ## Fuera del alcance actual
 
 - Integración automática con Suit Export u otro ERP productivo.
+- Vínculo entre producto terminado y lotes de materia prima de origen para recall.
 - Impresión de etiquetas en módulos que todavía no disponen de ella; Materiales ya cuenta con impresión.
 - Telemetría automática desde equipos de frío o romana.
 - Evidencia fotográfica en todos los procesos.
