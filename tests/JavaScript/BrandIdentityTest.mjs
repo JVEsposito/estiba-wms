@@ -29,11 +29,13 @@ test('las superficies principales consumen la marca FoliOS', () => {
     const cameraOperation = read('resources/views/welcome.blade.php');
     const mobileLogin = read('mobile/src/screens/LoginScreen.tsx');
     const operatorHeader = read('mobile/src/components/operator/OperatorHeader.tsx');
+    const operationalScreen = read('mobile/src/screens/OperationalScreen.tsx');
 
     assert.match(officeNavigation, /<x-folios-logo surface="dark"/);
     assert.equal((cameraOperation.match(/<x-folios-logo/g) ?? []).length, 2);
     assert.match(mobileLogin, /folios-lockup-horizontal-on-dark\.png/);
     assert.match(operatorHeader, /folios-lockup-horizontal-on-dark\.png/);
+    assert.doesNotMatch(operationalScreen, /folios-lockup-horizontal-on-dark\.png/);
 });
 
 test('las superficies heredadas usan el frost oficial como acento', () => {

@@ -60,19 +60,7 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
         modeLabel={api.mode === 'connected' ? 'Modo conectado' : api.mode === 'demo' ? 'Modo demostración' : 'Sin configurar'}
         role={auth.usuario.rol}
         userName={auth.usuario.nombre}
-      />
-      <View style={styles.navigation}>
-        <View style={styles.switcherCopy}>
-          <Text style={styles.eyebrow}>FRIGORÍFICO · CAMARERO</Text>
-          <Text style={styles.switcherTitle}>
-            {view === 'labores'
-              ? 'Trabajo guiado'
-              : view === 'ambiente'
-                ? 'Control ambiental horario'
-                : 'Plano y operación actual'}
-          </Text>
-        </View>
-        <View style={styles.buttons}>
+        navigation={<View accessibilityRole="tablist" style={styles.buttons}>
           <Pressable
             accessibilityRole="tab"
             accessibilityState={{ selected: view === 'labores' }}
@@ -104,8 +92,8 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
               <Text style={styles.logoutText}>Salir</Text>
             </Pressable>
           ) : null}
-        </View>
-      </View>
+        </View>}
+      />
 
       {environmentalAvailable && environmentalDue > 0 && view !== 'ambiente' ? (
         <Pressable
@@ -134,22 +122,6 @@ export function OperationalWorkspaceScreen({ api, auth, onLogout }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: o.color.canvas },
-  navigation: {
-    minHeight: 76,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: o.color.border,
-    backgroundColor: o.color.surface,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
-    flexWrap: 'wrap',
-  },
-  switcherCopy: { flexShrink: 1 },
-  eyebrow: { color: o.color.muted, fontSize: o.type.caption, fontWeight: '800', letterSpacing: 1.2 },
-  switcherTitle: { color: o.color.text, fontSize: o.type.heading, fontWeight: '800', marginTop: 2 },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   button: {
     minHeight: o.touch.minimum,
@@ -158,14 +130,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: o.radius.control,
     borderWidth: 1,
-    borderColor: o.color.borderStrong,
-    backgroundColor: o.color.surface,
+    borderColor: '#78909C',
+    backgroundColor: o.color.navyRaised,
   },
-  buttonActive: { borderColor: o.color.primary, backgroundColor: o.color.selected, borderLeftWidth: 4 },
-  buttonText: { color: o.color.muted, fontSize: o.type.small, fontWeight: '700' },
+  buttonActive: { borderColor: '#A7DCF3', backgroundColor: o.color.selected, borderLeftWidth: 4 },
+  buttonText: { color: o.color.onNavy, fontSize: o.type.small, fontWeight: '700' },
   buttonTextActive: { color: o.color.primaryPressed },
-  logout: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: o.radius.control, borderWidth: 1, borderColor: o.color.critical },
-  logoutText: { color: o.color.critical, fontSize: o.type.small, fontWeight: '800' },
+  logout: { minHeight: o.touch.minimum, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: o.radius.control, borderWidth: 1, borderColor: '#FFB7BF' },
+  logoutText: { color: '#FFCFD4', fontSize: o.type.small, fontWeight: '800' },
   environmentalPrompt: {
     minHeight: 56,
     paddingHorizontal: 18,

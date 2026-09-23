@@ -75,6 +75,9 @@ test('la base visual expone cabecera, estados, rutas y folios reutilizables', ()
     assert.match(primitives, /export function OperatorEntityCode/);
     assert.match(primitives, /export function OperatorRouteLine/);
     assert.match(workspace, /<OperatorHeader/);
+    assert.match(workspace, /navigation=\{<View accessibilityRole="tablist"/);
+    assert.doesNotMatch(workspace, /<View style=\{styles\.navigation\}>/);
+    assert.match(header, /\{navigation \? <View style=\{styles\.navigation\}>\{navigation\}<\/View> : null\}/);
     assert.match(inbox, /<OperatorTaskHome/);
     assert.match(inbox, /<OperatorTaskExecution/);
     assert.match(home, /<OperatorPriorityBadge/);
