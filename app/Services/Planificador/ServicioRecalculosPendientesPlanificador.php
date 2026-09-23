@@ -147,7 +147,14 @@ final class ServicioRecalculosPendientesPlanificador
             $this->recalcular($tipo, $registro->objetivo_id ?? $fuenteId);
             $this->confirmar($registro);
         } catch (ModelNotFoundException $error) {
-            $this->descartar($registro, $error);
+            if ($this->fuenteEliminada($tipo, $registro->objetivo_id ?? $fuenteId)) {
+                $this->descartar($registro, $error);
+
+                return;
+            }
+
+            $this->registrarFallo($registro, $error);
+            throw $error;
         } catch (Throwable $error) {
             $this->registrarFallo($registro, $error);
             throw $error;
@@ -206,6 +213,24 @@ final class ServicioRecalculosPendientesPlanificador
                 'ultimo_error' => mb_substr($error->getMessage(), 0, 500),
                 'updated_at' => now(),
             ]);
+    }
+
+    private function fuenteEliminada(string $tipo, string $objetivoId): bool
+    {
+        if ($tipo === self::CARGA) {
+            return ! Carga::query()->whereKey($objetivoId)->exists();
+        }
+
+        if (in_array($tipo, [
+            self::UBICACION,
+            self::SEGREGACION,
+            self::REORDENAMIENTO,
+            self::DESOCUPACION,
+        ], true)) {
+            return ! Movimiento::query()->whereKey($objetivoId)->exists();
+        }
+
+        return false;
     }
 
     private function recalcular(string $tipo, string $fuenteId): void
