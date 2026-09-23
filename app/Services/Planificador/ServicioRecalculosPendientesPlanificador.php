@@ -15,6 +15,7 @@ use App\Services\Camaras\ServicioOportunidadReordenamiento;
 use App\Services\Cargas\ServicioPlanConcentracionCarga;
 use App\Services\Retenciones\ServicioPlanSegregacionRetenidos;
 use App\Services\Validacion\ServicioPrioridadBufferRepaletizaje;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -107,7 +108,7 @@ final class ServicioRecalculosPendientesPlanificador
             'pendientes' => (clone $pendientes)->count(),
             'atrasados' => (clone $pendientes)->where('solicitado_at', '<', now()->subMinutes(5))->count(),
             'fallidos' => (clone $pendientes)->whereNotNull('fallo_at')->count(),
-            'mas_antiguo_segundos' => $primero ? max(0, now()->diffInSeconds($primero)) : null,
+            'mas_antiguo_segundos' => $primero ? (int) max(0, Carbon::parse($primero)->diffInSeconds(now())) : null,
         ];
     }
 

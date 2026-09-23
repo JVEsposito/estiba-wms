@@ -105,6 +105,9 @@ class RecalculosPendientesPlanificadorTest extends TestCase
         }
 
         $this->assertSame(1, $servicio->salud()['fallidos']);
+        $this->travel(6)->minutes();
+        $this->assertSame(1, $servicio->salud()['atrasados']);
+        $this->assertGreaterThanOrEqual(360, $servicio->salud()['mas_antiguo_segundos']);
         Queue::fake();
         config(['queue.default' => 'database']);
         $this->assertSame(1, $servicio->recuperar());
