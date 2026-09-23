@@ -67,7 +67,7 @@ class RegistroHidrocoolerPdf
         $contenido .= "650 525 m 650 575 l S 720 525 m 720 575 l S\n";
         $contenido .= "650 542 m 822 542 l S 650 559 m 822 559 l S\n";
         $contenido .= $this->texto(35, 551, 16, 'REGISTRO DE CONTROL DE HIDROCOOLER', true, '0.04 0.28 0.35');
-        $contenido .= $this->texto(35, 535, 7, 'Control operacional y PCC - trazabilidad por lote y ciclo');
+        $contenido .= $this->texto(35, 535, 7, 'Control operacional - trazabilidad por lote y ciclo');
         $contenido .= $this->texto(656, 565, 6, 'CODIGO', true);
         $contenido .= $this->texto(728, 565, 6, 'POR DEFINIR');
         $contenido .= $this->texto(656, 548, 6, 'VERSION', true);
@@ -86,17 +86,17 @@ class RegistroHidrocoolerPdf
             27,
             489,
             6,
-            'Referencia: cloro libre 80-120 ppm y pH 6-7, o rango vigente validado. Ante desviacion: detener, ajustar, recircular o renovar agua, retener fruta y documentar la accion.',
+            'Criterios: procedimiento vigente de planta y ficha del sanitizante. Desviaciones: detener, evaluar producto, documentar y autorizar disposicion.',
             false,
             '0.11 0.31 0.36',
         );
-        $contenido .= $this->texto(27, 479, 5.5, 'Frecuencia minima: inicio, durante proceso, cambio de lote y recambio de agua.');
+        $contenido .= $this->texto(27, 479, 5.5, 'Frecuencia segun procedimiento de planta; controles intermedios en registro complementario.');
 
         $anchos = [24, 45, 54, 50, 58, 72, 50, 36, 55, 56, 45, 42, 58, 42, 95];
         $encabezados = [
             'N', 'Fecha', "Equipo\nTurno", "Ciclo\nLote", "Recep.\nGuia", "CSG - Cuartel\nVariedad",
             "Envases\nKg", 'Bombas', "Inicio - Termino\nMin", "T fruta\nIni - Obj - Fin",
-            "T agua\nIni - Fin", "Cloro\npH", "Agua - Dosif.\nControl", 'Destino', "Observaciones\nAccion correctiva",
+            "T agua\nIni - Fin", "Cloro/pH\nIni - Fin", "Agua - Dosif.\nControl", 'Destino', "Observaciones\nAccion correctiva",
         ];
         $x = 30;
         $altoEncabezado = 34;
@@ -229,19 +229,26 @@ class RegistroHidrocoolerPdf
             $this->temperaturas([$proceso->temperatura_inicial_c, $proceso->temperatura_objetivo_c, $proceso->temperatura_c]),
             $this->temperaturas([$proceso->temperatura_agua_inicial_c, $proceso->temperatura_agua_final_c]),
             collect([
-                $proceso->cloro_libre_ppm !== null ? $this->numero($proceso->cloro_libre_ppm).' ppm' : null,
-                $proceso->ph_agua !== null ? 'pH '.$this->numero($proceso->ph_agua) : null,
+                $proceso->cloro_libre_ppm !== null ? 'Ini '.$this->numero($proceso->cloro_libre_ppm).' ppm / pH '.$this->numero($proceso->ph_agua) : null,
+                $proceso->cloro_libre_final_ppm !== null ? 'Fin '.$this->numero($proceso->cloro_libre_final_ppm).' ppm / pH '.$this->numero($proceso->ph_agua_final) : null,
             ])->filter()->implode("\n"),
             collect([
                 $this->etiqueta($proceso->condicion_visual_agua),
                 $proceso->dosificador_operativo === null ? null : ($proceso->dosificador_operativo ? 'Dosif. operativo' : 'Dosif. no operativo'),
                 $this->etiqueta($proceso->manejo_agua),
+                $proceso->condicion_visual_agua_final ? 'Fin '.$this->etiqueta($proceso->condicion_visual_agua_final) : null,
             ])->filter()->implode("\n"),
-            $proceso->destino_salida === 'proceso' ? 'A proceso' : ($proceso->destino_salida === 'camara' ? 'Camara MP' : ''),
+            collect([
+                $proceso->destino_salida === 'proceso' ? 'A proceso' : ($proceso->destino_salida === 'camara' ? 'Camara MP' : null),
+                $proceso->motivo_retencion ? ($proceso->liberado_at ? 'Ret./lib.' : 'RETENIDO') : 'Liberado',
+            ])->filter()->implode("\n"),
             collect([
                 $proceso->observacion_inicio,
                 $proceso->observacion,
                 $proceso->accion_correctiva ? 'Accion: '.$proceso->accion_correctiva : null,
+                $proceso->motivo_retencion ? 'Retencion: '.$proceso->motivo_retencion : null,
+                $proceso->evaluacion_producto ? 'Producto: '.$proceso->evaluacion_producto : null,
+                $proceso->verificacion_liberacion ? 'Liberacion: '.$proceso->verificacion_liberacion : null,
             ])->filter()->implode("\n"),
         ];
     }

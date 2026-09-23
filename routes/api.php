@@ -273,6 +273,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/iniciar', [MateriaPrimaController::class, 'iniciarHidrocooler']);
         Route::post('/lotes/{loteMateriaPrima}/hidrocooler/completar', [MateriaPrimaController::class, 'completarHidrocooler']);
     });
+    Route::post('/materia-prima/lotes/{loteMateriaPrima}/hidrocooler/liberar', [MateriaPrimaController::class, 'liberarHidrocooler'])
+        ->middleware('can:supervisar-lotes-materia-prima');
     Route::post('/materia-prima/lotes/{loteMateriaPrima}/anular', [MateriaPrimaController::class, 'anular'])
         ->middleware('can:supervisar-lotes-materia-prima');
     Route::middleware('can:consultar-fruta-proceso')->prefix('materia-prima/fruta-proceso')->group(function () {

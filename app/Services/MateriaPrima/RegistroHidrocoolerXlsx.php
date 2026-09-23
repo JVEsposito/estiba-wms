@@ -85,7 +85,7 @@ class RegistroHidrocoolerXlsx
             $this->inlineCell('M2', '0', 3),
         ], 22);
         $filas[] = $this->row(3, [
-            $this->inlineCell('A3', 'Control operacional y PCC · trazabilidad por lote/ciclo', 4),
+            $this->inlineCell('A3', 'Control operacional · trazabilidad por lote/ciclo', 4),
             $this->inlineCell('K3', 'FECHA', 2),
             $this->inlineCell('M3', $contexto['fecha'], 3),
         ], 22);
@@ -102,13 +102,13 @@ class RegistroHidrocoolerXlsx
         $filas[] = $this->row(5, [
             $this->inlineCell('A5', 'Temporada', 2),
             $this->inlineCell('C5', $contexto['temporada'], 3),
-            $this->inlineCell('E5', 'Frecuencia mínima', 2),
-            $this->inlineCell('G5', 'Inicio · durante proceso · cambio de lote · recambio de agua', 3),
+            $this->inlineCell('E5', 'Frecuencia de control', 2),
+            $this->inlineCell('G5', 'Según procedimiento vigente de planta; controles intermedios en registro complementario', 3),
         ], 26);
         $filas[] = $this->row(6, [
             $this->inlineCell(
                 'A6',
-                'REFERENCIA DE CONTROL: cloro libre 80-120 ppm y pH 6-7, o el rango vigente validado por la planta. Ante una desviación: detener, ajustar, recircular o renovar agua, retener fruta desde el último control conforme y documentar la acción.',
+                'CRITERIOS: aplicar procedimiento vigente de la planta y ficha del sanitizante. Controlar agua durante la operación; ante una desviación detener, documentar, evaluar el producto afectado y autorizar su disposición.',
                 5,
             ),
         ], 34);
@@ -116,8 +116,8 @@ class RegistroHidrocoolerXlsx
         $encabezados = [
             'N°', 'Fecha', "Equipo\nTurno", "Ciclo\nLote", "Recepción\nGuía", "CSG · Cuartel\nVariedad",
             "Envases\nKg netos", 'Bombas', "Inicio · Término\nDuración", "T° fruta\nInicial · Obj. · Final",
-            "T° agua\nInicial · Final", "Cloro ppm\npH", "Agua visual · Dosif.\nFiltrado/recambio",
-            'Destino', "Observaciones\nAcción correctiva",
+            "T° agua\nInicial · Final", "Cloro ppm / pH\nInicio · Final", "Agua visual · Dosif.\nFiltrado/recambio",
+            'Destino / estado', "Observaciones\nAcción / disposición",
         ];
         $celdasEncabezado = [];
         foreach ($encabezados as $indice => $encabezado) {
@@ -231,6 +231,9 @@ class RegistroHidrocoolerXlsx
             $proceso->observacion_inicio,
             $proceso->observacion,
             $proceso->accion_correctiva ? 'Acción: '.$proceso->accion_correctiva : null,
+            $proceso->motivo_retencion ? 'Retención: '.$proceso->motivo_retencion : null,
+            $proceso->evaluacion_producto ? 'Producto: '.$proceso->evaluacion_producto : null,
+            $proceso->verificacion_liberacion ? 'Liberación: '.$proceso->verificacion_liberacion : null,
         ])->filter()->implode("\n");
 
         return [
@@ -257,15 +260,22 @@ class RegistroHidrocoolerXlsx
             ]),
             $this->temperaturas([$proceso->temperatura_agua_inicial_c, $proceso->temperatura_agua_final_c]),
             collect([
-                $proceso->cloro_libre_ppm !== null ? $this->numero($proceso->cloro_libre_ppm).' ppm' : null,
-                $proceso->ph_agua !== null ? 'pH '.$this->numero($proceso->ph_agua) : null,
+                $proceso->cloro_libre_ppm !== null ? 'Ini '.$this->numero($proceso->cloro_libre_ppm).' ppm · pH '.$this->numero($proceso->ph_agua) : null,
+                $proceso->cloro_libre_final_ppm !== null ? 'Fin '.$this->numero($proceso->cloro_libre_final_ppm).' ppm · pH '.$this->numero($proceso->ph_agua_final) : null,
+                $proceso->cloro_libre_verificacion_ppm !== null ? 'Verif. '.$this->numero($proceso->cloro_libre_verificacion_ppm).' ppm · pH '.$this->numero($proceso->ph_agua_verificacion) : null,
             ])->filter()->implode("\n"),
             collect([
                 $this->etiqueta($proceso->condicion_visual_agua),
                 $proceso->dosificador_operativo === null ? null : ($proceso->dosificador_operativo ? 'Dosif. operativo' : 'Dosif. no operativo'),
                 $this->etiqueta($proceso->manejo_agua),
+                $proceso->condicion_visual_agua_final ? 'Fin '.$this->etiqueta($proceso->condicion_visual_agua_final) : null,
+                $proceso->control_final_conforme === null ? null : ($proceso->control_final_conforme ? 'SOP conforme' : 'SOP no conforme'),
             ])->filter()->implode("\n"),
-            $proceso->destino_salida === 'proceso' ? 'Directo a proceso' : ($proceso->destino_salida === 'camara' ? 'Cámara MP' : ''),
+            collect([
+                $proceso->destino_salida === 'proceso' ? 'Directo a proceso' : ($proceso->destino_salida === 'camara' ? 'Cámara MP' : null),
+                $proceso->motivo_retencion ? ($proceso->liberado_at ? 'Retenido y liberado' : 'RETENIDO') : 'Liberado al cierre',
+                $proceso->liberado_at ? $proceso->liberado_at->format('d-m H:i') : null,
+            ])->filter()->implode("\n"),
             $observaciones,
         ];
     }

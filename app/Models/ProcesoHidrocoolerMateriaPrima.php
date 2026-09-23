@@ -35,6 +35,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'condicion_visual_agua',
     'dosificador_operativo',
     'manejo_agua',
+    'control_inicial_conforme',
+    'cloro_libre_final_ppm',
+    'ph_agua_final',
+    'condicion_visual_agua_final',
+    'dosificador_operativo_final',
+    'control_final_conforme',
+    'motivo_retencion',
+    'operacion_liberacion_id',
+    'payload_liberacion_hash',
+    'temperatura_verificacion_c',
+    'cloro_libre_verificacion_ppm',
+    'ph_agua_verificacion',
+    'evaluacion_producto',
+    'verificacion_liberacion',
+    'liberado_por_user_id',
+    'liberado_at',
     'temperatura_c',
     'temperatura_agua_final_c',
     'destino_salida',
@@ -65,6 +81,11 @@ class ProcesoHidrocoolerMateriaPrima extends Model
         return $this->belongsTo(User::class, 'completado_por_user_id');
     }
 
+    public function liberadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'liberado_por_user_id');
+    }
+
     protected function casts(): array
     {
         return [
@@ -81,6 +102,15 @@ class ProcesoHidrocoolerMateriaPrima extends Model
             'cloro_libre_ppm' => 'decimal:2',
             'ph_agua' => 'decimal:2',
             'dosificador_operativo' => 'boolean',
+            'control_inicial_conforme' => 'boolean',
+            'cloro_libre_final_ppm' => 'decimal:2',
+            'ph_agua_final' => 'decimal:2',
+            'dosificador_operativo_final' => 'boolean',
+            'control_final_conforme' => 'boolean',
+            'temperatura_verificacion_c' => 'decimal:2',
+            'cloro_libre_verificacion_ppm' => 'decimal:2',
+            'ph_agua_verificacion' => 'decimal:2',
+            'liberado_at' => 'datetime',
             'temperatura_c' => 'decimal:2',
             'temperatura_agua_final_c' => 'decimal:2',
         ];

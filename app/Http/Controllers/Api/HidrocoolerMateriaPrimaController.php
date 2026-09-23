@@ -33,6 +33,7 @@ class HidrocoolerMateriaPrimaController extends Controller
                 'temporada' => null,
                 'pendientes' => 0,
                 'en_curso' => 0,
+                'retenidos' => 0,
                 'completados_hoy' => 0,
                 'kilos_en_curso' => 0,
                 'duracion_promedio_hoy' => 0,
@@ -60,6 +61,9 @@ class HidrocoolerMateriaPrimaController extends Controller
             'en_curso' => (clone $lotes)
                 ->where('estado', EstadoLoteMateriaPrima::HidrocoolerEnCurso->value)
                 ->count(),
+            'retenidos' => (clone $lotes)
+                ->where('estado', EstadoLoteMateriaPrima::HidrocoolerRetenido->value)
+                ->count(),
             'completados_hoy' => (clone $completadosHoy)->count(),
             'kilos_en_curso' => round((float) (clone $procesos)
                 ->where('estado', EstadoHidrocoolerMateriaPrima::EnCurso->value)
@@ -79,7 +83,7 @@ class HidrocoolerMateriaPrimaController extends Controller
     {
         Gate::authorize('consultar-hidrocooler-materia-prima');
         $request->validate([
-            'bandeja' => ['nullable', Rule::in(['pendientes', 'en_curso', 'historial'])],
+            'bandeja' => ['nullable', Rule::in(['pendientes', 'en_curso', 'retenidos', 'historial'])],
             'buscar' => ['nullable', 'string', 'max:100'],
             'equipo' => ['nullable', 'string', 'max:100'],
             'turno' => ['nullable', Rule::in(['A', 'B'])],
@@ -100,6 +104,8 @@ class HidrocoolerMateriaPrimaController extends Controller
                 ->where('estado', EstadoLoteMateriaPrima::PendienteHidrocooler->value))
             ->when($bandeja === 'en_curso', fn (Builder $query) => $query
                 ->where('estado', EstadoLoteMateriaPrima::HidrocoolerEnCurso->value))
+            ->when($bandeja === 'retenidos', fn (Builder $query) => $query
+                ->where('estado', EstadoLoteMateriaPrima::HidrocoolerRetenido->value))
             ->when($bandeja === 'historial', fn (Builder $query) => $query
                 ->whereHas('hidrocooler', fn (Builder $hidrocooler) => $hidrocooler
                     ->where('estado', EstadoHidrocoolerMateriaPrima::Completado->value)))
@@ -310,6 +316,7 @@ class HidrocoolerMateriaPrimaController extends Controller
             'confirmadoPor',
             'hidrocooler.iniciadoPor',
             'hidrocooler.completadoPor',
+            'hidrocooler.liberadoPor',
             'asignacionCamara.camara',
         ];
     }

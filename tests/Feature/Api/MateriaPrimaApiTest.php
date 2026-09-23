@@ -280,6 +280,7 @@ class MateriaPrimaApiTest extends TestCase
                 'temperatura_agua_inicial_c' => 1.8,
                 'cloro_libre_ppm' => 95,
                 'ph_agua' => 6.5,
+                'control_inicial_conforme' => true,
                 'condicion_visual_agua' => 'conforme',
                 'dosificador_operativo' => true,
                 'manejo_agua' => 'sin_novedad',
@@ -310,6 +311,11 @@ class MateriaPrimaApiTest extends TestCase
                 'termino_at' => now()->toAtomString(),
                 'temperatura_c' => 3.75,
                 'temperatura_agua_final_c' => 1.65,
+                'cloro_libre_final_ppm' => 95,
+                'ph_agua_final' => 6.5,
+                'condicion_visual_agua_final' => 'conforme',
+                'dosificador_operativo_final' => true,
+                'control_final_conforme' => true,
                 'destino_salida' => 'camara',
                 'observacion' => 'Pulpa dentro del rango.',
                 'accion_correctiva' => null,
@@ -382,6 +388,7 @@ class MateriaPrimaApiTest extends TestCase
             'temperatura_agua_inicial_c' => 1.9,
             'cloro_libre_ppm' => 105,
             'ph_agua' => 6.7,
+            'control_inicial_conforme' => true,
             'condicion_visual_agua' => 'conforme',
             'dosificador_operativo' => true,
             'manejo_agua' => 'filtrado',
@@ -418,6 +425,11 @@ class MateriaPrimaApiTest extends TestCase
                 'termino_at' => now()->toAtomString(),
                 'temperatura_c' => 3.8,
                 'temperatura_agua_final_c' => 1.7,
+                'cloro_libre_final_ppm' => 105,
+                'ph_agua_final' => 6.7,
+                'condicion_visual_agua_final' => 'conforme',
+                'dosificador_operativo_final' => true,
+                'control_final_conforme' => true,
                 'destino_salida' => 'proceso',
                 'observacion' => 'Liberado directamente a Packing.',
                 'accion_correctiva' => 'Se verificó el filtro antes de liberar.',
@@ -466,6 +478,102 @@ class MateriaPrimaApiTest extends TestCase
         ]);
         $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 1);
         $this->assertDatabaseCount('asignaciones_camara_lote_materia_prima', 0);
+    }
+
+    public function test_hidrocooler_retiene_desviaciones_y_solo_supervision_libera_tras_evaluar_producto(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 10:00:00'));
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, [
+                'numero_lote' => 'LOTE-HIDRO-RETENIDO',
+                'requiere_hidrocooler' => true,
+            ]))->assertCreated()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk();
+
+        $inicio = [
+            'operacion_id' => (string) Str::uuid(),
+            'equipo' => 'HIDRO-01',
+            'turno' => 'A',
+            'cantidad_bombas_funcionando' => 2,
+            'inicio_at' => now()->subMinutes(30)->toAtomString(),
+            'temperatura_inicial_c' => 18,
+            'temperatura_objetivo_c' => 4,
+            'cloro_libre_ppm' => 95,
+            'ph_agua' => 6.5,
+            'control_inicial_conforme' => true,
+            'condicion_visual_agua' => 'conforme',
+            'dosificador_operativo' => true,
+            'manejo_agua' => 'sin_novedad',
+        ];
+        $inicioNoConforme = $inicio;
+        $inicioNoConforme['control_inicial_conforme'] = false;
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar", $inicioNoConforme)
+            ->assertUnprocessable()->assertJsonValidationErrors('control_inicial_conforme');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar", $inicio)
+            ->assertOk();
+        $termino = [
+            'operacion_id' => (string) Str::uuid(),
+            'termino_at' => now()->toAtomString(),
+            'temperatura_c' => 6,
+            'cloro_libre_final_ppm' => 40,
+            'ph_agua_final' => 6.5,
+            'condicion_visual_agua_final' => 'no_conforme',
+            'dosificador_operativo_final' => false,
+            'control_final_conforme' => false,
+            'destino_salida' => 'proceso',
+            'accion_correctiva' => 'Agua renovada; fruta apartada para evaluación.',
+        ];
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/completar", $termino)
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'hidrocooler_retenido')
+            ->assertJsonPath('data.hidrocooler.cloro_libre_final_ppm', 40)
+            ->assertJsonPath('data.hidrocooler.control_final_conforme', false)
+            ->assertJsonPath('data.hidrocooler.destino_salida', 'proceso')
+            ->assertJsonPath('data.hidrocooler.liberado_at', null);
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/completar", $termino)
+            ->assertJsonPath('data.estado', 'hidrocooler_retenido');
+        $this->getJson('/api/materia-prima/hidrocooler/resumen')
+            ->assertJsonPath('retenidos', 1)
+            ->assertJsonPath('en_curso', 0);
+        $this->getJson('/api/materia-prima/hidrocooler/lotes?bandeja=retenidos')
+            ->assertJsonPath('data.0.id', $lote['id']);
+        $this->getJson('/api/materia-prima/fruta-proceso/lotes?estado=abiertos')
+            ->assertJsonCount(0, 'data');
+
+        $liberacion = [
+            'operacion_id' => (string) Str::uuid(),
+            'temperatura_verificacion_c' => 5,
+            'cloro_libre_verificacion_ppm' => 95,
+            'ph_agua_verificacion' => 6.5,
+            'control_verificacion_conforme' => true,
+            'evaluacion_producto' => 'Se segregó el lote y se evaluó la fruta expuesta.',
+            'verificacion_liberacion' => 'Se renovó el agua y se verificó el control sanitario.',
+        ];
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+            ->assertForbidden();
+        $this->actingAs($supervisor, 'sanctum');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+            ->assertUnprocessable()->assertJsonValidationErrors('temperatura_verificacion_c');
+        $this->assertDatabaseHas('lotes_materia_prima', [
+            'id' => $lote['id'], 'estado' => 'hidrocooler_retenido',
+        ]);
+        $liberacion['temperatura_verificacion_c'] = 3.8;
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+            ->assertOk()->assertJsonPath('data.estado', 'disponible_proceso')
+            ->assertJsonPath('data.hidrocooler.liberado_por', $supervisor->name)
+            ->assertJsonPath('data.hidrocooler.temperatura_verificacion_c', 3.8);
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+            ->assertOk()->assertJsonPath('data.estado', 'disponible_proceso');
+        $liberacion['operacion_id'] = (string) Str::uuid();
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/liberar", $liberacion)
+            ->assertConflict();
+        $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 1);
     }
 
     public function test_controla_identificadores_disponibilidad_y_correccion_supervisada(): void

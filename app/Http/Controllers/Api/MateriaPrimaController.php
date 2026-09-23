@@ -15,6 +15,7 @@ use App\Http\Requests\ConfirmarLoteMateriaPrimaRequest;
 use App\Http\Requests\CorregirOrigenLoteMateriaPrimaRequest;
 use App\Http\Requests\GuardarLoteMateriaPrimaRequest;
 use App\Http\Requests\IniciarHidrocoolerMateriaPrimaRequest;
+use App\Http\Requests\LiberarHidrocoolerMateriaPrimaRequest;
 use App\Http\Resources\LoteMateriaPrimaResource;
 use App\Models\CalibreValidacion;
 use App\Models\Camara;
@@ -62,6 +63,8 @@ class MateriaPrimaController extends Controller
                     EstadoLoteMateriaPrima::PendienteHidrocooler,
                     EstadoLoteMateriaPrima::HidrocoolerEnCurso,
                 ])->count(),
+                'retenidos_hidrocooler' => (clone $base)
+                    ->where('estado', EstadoLoteMateriaPrima::HidrocoolerRetenido->value)->count(),
                 'pendientes_asignacion' => (clone $base)
                     ->where('estado', EstadoLoteMateriaPrima::PendienteAsignacion->value)->count(),
                 'disponibles_proceso' => (clone $base)
@@ -361,6 +364,20 @@ class MateriaPrimaController extends Controller
         );
     }
 
+    public function liberarHidrocooler(
+        LiberarHidrocoolerMateriaPrimaRequest $request,
+        LoteMateriaPrima $loteMateriaPrima,
+        ServicioLoteMateriaPrima $servicio,
+    ): LoteMateriaPrimaResource {
+        return new LoteMateriaPrimaResource(
+            $servicio->liberarHidrocooler(
+                $loteMateriaPrima,
+                $request->validated(),
+                $request->user(),
+            ),
+        );
+    }
+
     public function asignarCamara(
         AsignarCamaraLoteMateriaPrimaRequest $request,
         LoteMateriaPrima $loteMateriaPrima,
@@ -410,6 +427,7 @@ class MateriaPrimaController extends Controller
             'anuladoPor',
             'hidrocooler.iniciadoPor',
             'hidrocooler.completadoPor',
+            'hidrocooler.liberadoPor',
             'asignacionCamara.camara',
             'asignacionCamara.asignadoPor',
         ];

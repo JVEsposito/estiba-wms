@@ -107,6 +107,7 @@ function label(value) {
         borrador: 'Borrador',
         pendiente_hidrocooler: 'Pendiente hidrocooler',
         hidrocooler_en_curso: 'Hidrocooler en curso',
+        hidrocooler_retenido: 'Retenido por Hidrocooler',
         pendiente_asignacion: 'Pendiente de cámara',
         disponible_proceso: 'Disponible directo a proceso',
         asignado_camara: 'Asignado a cámara',
@@ -159,7 +160,7 @@ function localDateValue() {
 function stateBadge(status) {
     const style = status === 'borrador'
         ? 'draft'
-        : ['pendiente_hidrocooler', 'hidrocooler_en_curso'].includes(status)
+        : ['pendiente_hidrocooler', 'hidrocooler_en_curso', 'hidrocooler_retenido'].includes(status)
             ? 'hydro'
             : status === 'pendiente_asignacion'
                 ? 'camera'
@@ -291,7 +292,7 @@ function renderSummary() {
     const summary = state.summary;
     elements.pendingSegmentsCount.textContent = String(summary?.segmentos_pendientes || 0);
     elements.draftLotsCount.textContent = String(summary?.lotes?.borradores || 0);
-    elements.hydrocoolerLotsCount.textContent = String(summary?.lotes?.pendientes_hidrocooler || 0);
+    elements.hydrocoolerLotsCount.textContent = String((summary?.lotes?.pendientes_hidrocooler || 0) + (summary?.lotes?.retenidos_hidrocooler || 0));
     elements.cameraPendingCount.textContent = String(summary?.lotes?.pendientes_asignacion || 0);
     elements.seasonDescription.textContent = summary?.temporada
         ? `${summary.temporada.nombre} · ${summary.temporada.codigo}. Lotización y destino de materia prima validada.`

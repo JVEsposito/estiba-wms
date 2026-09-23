@@ -48,6 +48,7 @@
                     <article><span>CICLOS EN CURSO</span><strong id="activeCount">0</strong><small>Un lote por equipo</small></article>
                     <article><span>KILOS EN CURSO</span><strong id="activeKilos">0</strong><small>Peso congelado al iniciar</small></article>
                     <article><span>COMPLETADOS HOY</span><strong id="completedToday">0</strong><small>Con destino definido</small></article>
+                    <article><span>RETENIDOS</span><strong id="retainedCount">0</strong><small>Esperan evaluación y liberación</small></article>
                     <article><span>TIEMPO PROMEDIO HOY</span><strong id="averageDuration">0 min</strong><small>Calculado por el servidor</small></article>
                 </div>
 
@@ -56,6 +57,7 @@
                         <div class="hydrocooler-tabs" role="tablist" aria-label="Bandejas Hidrocooler">
                             <button class="is-active" data-tray="pendientes" type="button">Pendientes</button>
                             <button data-tray="en_curso" type="button">En curso</button>
+                            <button data-tray="retenidos" type="button">Retenidos</button>
                             <button data-tray="historial" type="button">Historial</button>
                         </div>
                         <form id="hydrocoolerFilters">
@@ -90,6 +92,7 @@
                     <label><span>Temperatura inicial agua °C</span><input name="temperatura_agua_inicial_c" type="number" min="-20" max="50" step="0.01"></label>
                     <label><span>Cloro libre ppm *</span><input name="cloro_libre_ppm" type="number" min="0" max="500" step="0.01" required></label>
                     <label><span>pH del agua *</span><input name="ph_agua" type="number" min="0" max="14" step="0.01" required></label>
+                    <label><span>Cloro y pH conformes al procedimiento de planta *</span><select name="control_inicial_conforme" required><option value="">Seleccionar</option><option value="1">Sí, conformes</option><option value="0">No, hay desviación</option></select></label>
                     <label><span>Condición visual del agua *</span><select name="condicion_visual_agua" required><option value="">Seleccionar</option><option value="conforme">Conforme</option><option value="no_conforme">No conforme</option></select></label>
                     <label><span>Dosificador *</span><select name="dosificador_operativo" required><option value="">Seleccionar</option><option value="1">Operativo</option><option value="0">No operativo</option></select></label>
                     <label><span>Control del agua *</span><select name="manejo_agua" required><option value="">Seleccionar</option><option value="sin_novedad">Sin novedad</option><option value="filtrado">Filtrado</option><option value="recambio">Recambio</option></select></label>
@@ -111,12 +114,35 @@
                     <label><span>Fecha y hora de término *</span><input name="termino_at" type="datetime-local" required></label>
                     <label><span>Temperatura final fruta °C *</span><input name="temperatura_c" type="number" min="-20" max="50" step="0.01" required></label>
                     <label><span>Temperatura final agua °C</span><input name="temperatura_agua_final_c" type="number" min="-20" max="50" step="0.01"></label>
+                    <label><span>Cloro libre final ppm *</span><input name="cloro_libre_final_ppm" type="number" min="0" max="500" step="0.01" required></label>
+                    <label><span>pH final del agua *</span><input name="ph_agua_final" type="number" min="0" max="14" step="0.01" required></label>
+                    <label><span>Cloro y pH finales conformes al procedimiento *</span><select name="control_final_conforme" required><option value="">Seleccionar</option><option value="1">Sí, conformes</option><option value="0">No, hay desviación</option></select></label>
+                    <label><span>Condición visual final del agua *</span><select name="condicion_visual_agua_final" required><option value="">Seleccionar</option><option value="conforme">Conforme</option><option value="no_conforme">No conforme</option></select></label>
+                    <label><span>Dosificador al término *</span><select name="dosificador_operativo_final" required><option value="">Seleccionar</option><option value="1">Operativo</option><option value="0">No operativo</option></select></label>
                     <fieldset class="destination-choice"><legend>Destino después del Hidrocooler *</legend><label><input name="destino_salida" type="radio" value="camara" checked required><span><strong>Cámara MP</strong><small>Queda pendiente de asignación a cámara.</small></span></label><label><input name="destino_salida" type="radio" value="proceso" required><span><strong>Directo a Fruta a proceso</strong><small>Disponible para viajes a Packing sin ubicación ficticia.</small></span></label></fieldset>
                     <label class="field-wide"><span>Observación de término</span><textarea name="observacion" maxlength="2000"></textarea></label>
                     <label class="field-wide"><span>Acción correctiva aplicada</span><textarea name="accion_correctiva" maxlength="2000" placeholder="Completar cuando exista una desviación de temperatura, agua, cloro, pH, dosificador o bombas."></textarea></label>
                 </div>
                 <p class="form-error" id="finishError" role="alert"></p>
-                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Finalizar y liberar lote</button></div>
+                <p>Si algún control no es conforme o la fruta supera el objetivo, el lote quedará retenido para evaluación de supervisión.</p>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Finalizar ciclo</button></div>
+            </form>
+        </dialog>
+
+        <dialog class="hydrocooler-dialog" id="releaseDialog">
+            <form method="dialog" id="releaseForm" novalidate>
+                <div class="hydrocooler-dialog__heading"><div><p class="eyebrow">DISPOSICIÓN DE PRODUCTO</p><h2 id="releaseTitle">Evaluar lote retenido</h2><p id="releaseDescription"></p></div><button value="cancel" type="submit" aria-label="Cerrar">×</button></div>
+                <input name="lote_id" type="hidden"><input name="operacion_id" type="hidden">
+                <div class="hydrocooler-fields">
+                    <label><span>Temperatura de fruta verificada °C *</span><input name="temperatura_verificacion_c" type="number" min="-20" max="50" step="0.01" required></label>
+                    <label><span>Cloro libre verificado ppm *</span><input name="cloro_libre_verificacion_ppm" type="number" min="0" max="500" step="0.01" required></label>
+                    <label><span>pH verificado *</span><input name="ph_agua_verificacion" type="number" min="0" max="14" step="0.01" required></label>
+                    <label><span>Control de agua conforme al procedimiento vigente *</span><select name="control_verificacion_conforme" required><option value="">Seleccionar</option><option value="1">Sí, verificado conforme</option></select></label>
+                    <label class="field-wide"><span>Evaluación del producto afectado *</span><textarea name="evaluacion_producto" minlength="10" maxlength="2000" required></textarea></label>
+                    <label class="field-wide"><span>Acción correctiva y verificación para liberar *</span><textarea name="verificacion_liberacion" minlength="10" maxlength="2000" required></textarea></label>
+                </div>
+                <p class="form-error" id="releaseError" role="alert"></p>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel" type="submit">Cancelar</button><button class="primary-button" value="default" type="submit">Liberar bajo responsabilidad de supervisión</button></div>
             </form>
         </dialog>
 

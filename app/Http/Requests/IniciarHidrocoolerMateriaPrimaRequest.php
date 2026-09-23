@@ -26,6 +26,7 @@ class IniciarHidrocoolerMateriaPrimaRequest extends FormRequest
             'temperatura_agua_inicial_c' => ['nullable', 'numeric', 'between:-20,50', 'decimal:0,2'],
             'cloro_libre_ppm' => ['required', 'numeric', 'between:0,500', 'decimal:0,2'],
             'ph_agua' => ['required', 'numeric', 'between:0,14', 'decimal:0,2'],
+            'control_inicial_conforme' => ['required', 'boolean'],
             'condicion_visual_agua' => ['required', Rule::in(['conforme', 'no_conforme'])],
             'dosificador_operativo' => ['required', 'boolean'],
             'manejo_agua' => ['required', Rule::in(['sin_novedad', 'filtrado', 'recambio'])],

@@ -109,6 +109,7 @@ class LoteMateriaPrimaResource extends JsonResource
                 'ph_agua' => $this->hidrocooler->ph_agua !== null
                     ? (float) $this->hidrocooler->ph_agua
                     : null,
+                'control_inicial_conforme' => $this->hidrocooler->control_inicial_conforme,
                 'condicion_visual_agua' => $this->hidrocooler->condicion_visual_agua,
                 'dosificador_operativo' => $this->hidrocooler->dosificador_operativo,
                 'manejo_agua' => $this->hidrocooler->manejo_agua,
@@ -118,6 +119,24 @@ class LoteMateriaPrimaResource extends JsonResource
                 'temperatura_agua_final_c' => $this->hidrocooler->temperatura_agua_final_c !== null
                     ? (float) $this->hidrocooler->temperatura_agua_final_c
                     : null,
+                'cloro_libre_final_ppm' => $this->hidrocooler->cloro_libre_final_ppm !== null
+                    ? (float) $this->hidrocooler->cloro_libre_final_ppm : null,
+                'ph_agua_final' => $this->hidrocooler->ph_agua_final !== null
+                    ? (float) $this->hidrocooler->ph_agua_final : null,
+                'condicion_visual_agua_final' => $this->hidrocooler->condicion_visual_agua_final,
+                'dosificador_operativo_final' => $this->hidrocooler->dosificador_operativo_final,
+                'control_final_conforme' => $this->hidrocooler->control_final_conforme,
+                'motivo_retencion' => $this->hidrocooler->motivo_retencion,
+                'temperatura_verificacion_c' => $this->hidrocooler->temperatura_verificacion_c !== null
+                    ? (float) $this->hidrocooler->temperatura_verificacion_c : null,
+                'cloro_libre_verificacion_ppm' => $this->hidrocooler->cloro_libre_verificacion_ppm !== null
+                    ? (float) $this->hidrocooler->cloro_libre_verificacion_ppm : null,
+                'ph_agua_verificacion' => $this->hidrocooler->ph_agua_verificacion !== null
+                    ? (float) $this->hidrocooler->ph_agua_verificacion : null,
+                'evaluacion_producto' => $this->hidrocooler->evaluacion_producto,
+                'verificacion_liberacion' => $this->hidrocooler->verificacion_liberacion,
+                'liberado_at' => $this->hidrocooler->liberado_at?->toAtomString(),
+                'liberado_por' => $this->hidrocooler->liberadoPor?->name,
                 'destino_salida' => $this->hidrocooler->destino_salida,
                 'observacion_inicio' => $this->hidrocooler->observacion_inicio,
                 'observacion' => $this->hidrocooler->observacion,
