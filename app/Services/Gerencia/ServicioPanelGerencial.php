@@ -688,7 +688,7 @@ class ServicioPanelGerencial
         $tipos = collect(TipoEnvaseRomana::cases())->mapWithKeys(function (TipoEnvaseRomana $tipo) use ($existencias, $movimientosHoy, $tendencia, $saldos, $inicioSemana): array {
             $codigo = $tipo->value;
             $dias = collect(range(0, 6))->map(function (int $desplazamiento) use ($tendencia, $codigo, $inicioSemana): array {
-                $fecha = $inicioSemana->addDays($desplazamiento);
+                $fecha = $inicioSemana->copy()->addDays($desplazamiento);
                 $registro = $tendencia->get($codigo, collect())
                     ->first(fn (MovimientoEnvase $movimiento): bool => $movimiento->getAttribute('fecha') === $fecha->toDateString());
 

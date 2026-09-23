@@ -222,6 +222,7 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.envases.tipos.bins.saldos_clientes.0.cliente', 'Cliente panel')
             ->assertJsonPath('data.envases.tipos.bins.saldos_clientes.0.saldo', 32)
             ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.0.entradas', 20)
+            ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.6.fecha', '2026-09-23')
             ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.6.salidas', 8)
             ->assertJsonCount(7, 'data.envases.tipos.bins.tendencia_diaria')
             ->assertJsonPath('data.envases.tipos.totes.existencia', 5)
