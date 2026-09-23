@@ -27,6 +27,7 @@ final class ServicioSaludPlanificador
     public function __construct(
         private readonly ServicioDesplieguePlanificador $despliegue,
         private readonly ServicioEstadoArbitrajePlanificador $estadoArbitraje,
+        private readonly ServicioRecalculosPendientesPlanificador $recalculos,
     ) {}
 
     /** @return array<string, mixed> */
@@ -55,6 +56,7 @@ final class ServicioSaludPlanificador
             ],
             'despliegue' => $despliegue,
             'vigencia_arbitraje' => $vigenciaArbitraje,
+            'proyecciones_pendientes' => $this->recalculos->salud(),
             'salud' => $salud,
             'metricas' => $operacion,
         ];

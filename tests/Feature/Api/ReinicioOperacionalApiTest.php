@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Enums\CategoriaOperacionalMaterial;
 use App\Enums\RolUsuario;
 use App\Models\CalibreValidacion;
+use App\Models\Carga;
 use App\Models\Cliente;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
@@ -14,6 +15,7 @@ use App\Models\ItemMaterial;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -58,6 +60,21 @@ class ReinicioOperacionalApiTest extends TestCase
             'password' => 'password',
         ]);
         $folioPt = $this->crearFolio($temporada, 'PT-RESET-001', 'pallet');
+        $carga = Carga::query()->create([
+            'temporada_id' => $temporada->id,
+            'codigo' => 'CAR-RESET-001',
+            'estado' => 'borrador',
+            'creada_por_user_id' => $administrador->id,
+            'actualizada_por_user_id' => $administrador->id,
+        ]);
+        $recalculos = app(ServicioRecalculosPendientesPlanificador::class);
+        $recalculos->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $carga->id);
+        $recalculos->solicitar(
+            ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
+            (string) Str::uuid(),
+            $temporada->id,
+        );
+        $this->assertDatabaseCount('recalculos_pendientes_planificador', 2);
         DB::table('secuencias_validacion_folio')->insert([
             'numero_folio' => $folioPt->numero_folio,
             'ultimo_intento' => 2,
@@ -98,6 +115,7 @@ class ReinicioOperacionalApiTest extends TestCase
         $this->assertDatabaseCount('segmentos_validacion_mp', 0);
         $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 0);
         $this->assertDatabaseCount('movimientos_envases', 0);
+        $this->assertDatabaseCount('recalculos_pendientes_planificador', 0);
 
         $this->assertDatabaseHas('temporadas', [
             'id' => $temporada->id,

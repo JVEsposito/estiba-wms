@@ -7,6 +7,7 @@ use App\Models\ReinicioOperacional;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Gerencia\ServicioPanelGerencial;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 use App\Services\Revisiones\RevisionBandejasOperacionales;
 use DomainException;
 use Illuminate\Database\Query\Builder;
@@ -311,6 +312,36 @@ class ServicioReinicioOperacional
         $movimientosEnvases = $this->movimientosEnvases($temporada);
         $guias = $this->guiasEnvases($temporada);
         $sesiones = $this->sesionesRelacionadas($folios, $asignacionesCarga);
+        $cargaIds = (clone $cargas)->pluck('id');
+        $movimientoIds = DB::table('movimientos')
+            ->whereIn('folio_id', clone $folios)
+            ->pluck('id');
+
+        $eliminados['recalculos_planificador'] = DB::table('recalculos_pendientes_planificador')
+            ->where(function (Builder $consulta) use (
+                $temporada,
+                $cargaIds,
+                $movimientoIds,
+            ): void {
+                $consulta
+                    ->where('objetivo_id', $temporada->id)
+                    ->orWhere(function (Builder $porCarga) use ($cargaIds): void {
+                        $porCarga
+                            ->where('tipo', ServicioRecalculosPendientesPlanificador::CARGA)
+                            ->whereIn('fuente_id', $cargaIds);
+                    })
+                    ->orWhere(function (Builder $porMovimiento) use ($movimientoIds): void {
+                        $porMovimiento
+                            ->whereIn('tipo', [
+                                ServicioRecalculosPendientesPlanificador::UBICACION,
+                                ServicioRecalculosPendientesPlanificador::SEGREGACION,
+                                ServicioRecalculosPendientesPlanificador::REORDENAMIENTO,
+                                ServicioRecalculosPendientesPlanificador::DESOCUPACION,
+                            ])
+                            ->whereIn('fuente_id', $movimientoIds);
+                    });
+            })
+            ->delete();
 
         $notificaciones = DB::table('notificaciones_operacionales')
             ->select('id')

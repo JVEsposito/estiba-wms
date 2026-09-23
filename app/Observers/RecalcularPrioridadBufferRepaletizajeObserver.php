@@ -4,10 +4,14 @@ namespace App\Observers;
 
 use App\Enums\TipoPlanOperacional;
 use App\Models\TareaMovimiento;
-use App\Services\Validacion\ServicioPrioridadBufferRepaletizaje;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 
 class RecalcularPrioridadBufferRepaletizajeObserver
 {
+    public function __construct(
+        private readonly ServicioRecalculosPendientesPlanificador $recalculos,
+    ) {}
+
     public function updated(TareaMovimiento $tarea): void
     {
         if (! $tarea->wasChanged('estado')) {
@@ -21,7 +25,12 @@ class RecalcularPrioridadBufferRepaletizajeObserver
             return;
         }
 
-        app(ServicioPrioridadBufferRepaletizaje::class)
-            ->recalcular($plan->temporada_id);
+        // Cada tarea usa una fila propia para no serializar todas las
+        // transacciones REPA de la temporada sobre una única clave.
+        $this->recalculos->solicitar(
+            ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
+            $tarea->id,
+            $plan->temporada_id,
+        );
     }
 }

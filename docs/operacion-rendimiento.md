@@ -56,6 +56,26 @@ verifica que la proyección de arbitraje tenga un job vigente. El bloqueo
 compartido evita que una ejecución manual y una programada de integridad
 escriban resultados al mismo tiempo.
 
+Los recálculos de concentración, segregación, reordenamiento, desocupación y
+prioridad del buffer REPA dejan una solicitud persistida en la misma transacción
+que origina el cambio. El worker los procesa fuera de la petición HTTP. El
+scheduler ejecuta `planificador:recuperar-proyecciones` cada minuto para volver
+a publicar solicitudes pendientes. Una proyección confirmada elimina su fila;
+si llega una versión nueva durante el cálculo, la fila permanece pendiente.
+`/api/administracion/planificador/salud` informa `proyecciones_pendientes`:
+total pendiente, atrasados más de cinco minutos, fallidos recuperables,
+agotados, descartados por fuente inexistente y edad del más antiguo. Un fallo
+funcional se intenta como máximo cinco veces; después queda agotado y el
+watchdog deja de republicarlo. Los descartes y agotamientos se conservan como
+señal diagnóstica sin contaminar el contador de trabajo pendiente.
+
+Antes de habilitar el modo guiado en planta, comprobar en la instalación real
+que cron ejecuta `schedule:run`, el worker supervisado procesa la cola de base
+de datos, `failed_jobs` se consulta y las proyecciones pendientes regresan a
+cero después de un movimiento de prueba. Revisar además los respaldos reales
+de MySQL y realizar una restauración de prueba: la documentación del repositorio
+no demuestra por sí sola que estas tareas estén configuradas fuera de él.
+
 ## Telescope
 
 Telescope es una herramienta de diagnóstico local y no contiene datos operacionales. En desarrollo puede habilitarse temporalmente con `APP_ENV=local` y `TELESCOPE_ENABLED=true`. La tarea programada conserva 48 horas de historial siempre que el scheduler de Laravel esté funcionando.

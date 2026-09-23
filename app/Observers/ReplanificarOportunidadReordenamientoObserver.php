@@ -3,23 +3,16 @@
 namespace App\Observers;
 
 use App\Models\Movimiento;
-use App\Models\User;
-use App\Services\Camaras\ServicioOportunidadReordenamiento;
-use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 
-class ReplanificarOportunidadReordenamientoObserver implements ShouldHandleEventsAfterCommit
+class ReplanificarOportunidadReordenamientoObserver
 {
     public function __construct(
-        private readonly ServicioOportunidadReordenamiento $planificador,
+        private readonly ServicioRecalculosPendientesPlanificador $recalculos,
     ) {}
 
     public function created(Movimiento $movimiento): void
     {
-        $usuario = User::query()->find($movimiento->user_id);
-        if (! $usuario) {
-            return;
-        }
-
-        $this->planificador->sincronizarTrasMovimiento($movimiento, $usuario);
+        $this->recalculos->solicitar(ServicioRecalculosPendientesPlanificador::REORDENAMIENTO, $movimiento->id);
     }
 }

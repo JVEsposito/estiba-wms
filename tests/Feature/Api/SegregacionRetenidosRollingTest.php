@@ -34,12 +34,12 @@ use App\Models\RetencionOperacionalFolio;
 use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
-use App\Observers\ReplanificarSegregacionMovimientoObserver;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
 use App\Services\Estiba\ServicioSesionEstiba;
 use App\Services\Folios\ServicioHabilitacionAlmacenamiento;
+use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 use App\Services\Retenciones\ServicioPlanSegregacionRetenidos;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -109,9 +109,12 @@ class SegregacionRetenidosRollingTest extends TestCase
             generadoDispositivoAt: now(),
             tareaMovimiento: $tarea->refresh(),
         );
-        // RefreshDatabase mantiene una transacción externa y, por eso, los
-        // observers after-commit se ejercitan explícitamente en esta prueba.
-        app(ReplanificarSegregacionMovimientoObserver::class)->created($movimiento);
+        // El test invoca el worker porque RefreshDatabase mantiene abierta
+        // la transacción externa y evita el despacho después del commit.
+        app(ServicioRecalculosPendientesPlanificador::class)->ejecutar(
+            ServicioRecalculosPendientesPlanificador::SEGREGACION,
+            $movimiento->id,
+        );
 
         $this->assertSame(EstadoOperacionalFolio::Bloqueado, $folio->refresh()->estado_operacional);
         $this->assertSame($contexto['destino']->id, $folio->ubicacionActual->posicion_id);
