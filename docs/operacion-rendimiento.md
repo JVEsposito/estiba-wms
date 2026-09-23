@@ -69,6 +69,18 @@ funcional se intenta como máximo cinco veces; después queda agotado y el
 watchdog deja de republicarlo. Los descartes y agotamientos se conservan como
 señal diagnóstica sin contaminar el contador de trabajo pendiente.
 
+Después de corregir y desplegar la causa de un agotamiento, un operador puede
+reactivar hasta 200 solicitudes por ejecución y volver a enviarlas al worker:
+
+```bash
+php artisan planificador:recuperar-proyecciones --reintentar-agotados --limite=200
+```
+
+El scheduler ordinario nunca reactiva agotados. El comando requiere una cola
+distinta de `sync`, respeta el límite y conserva los descartes por fuentes
+eliminadas. Confirmar luego en Salud que `agotados` baje y que `pendientes`
+vuelva a cero; revisar también `failed_jobs` si la causa fue una excepción.
+
 Antes de habilitar el modo guiado en planta, comprobar en la instalación real
 que cron ejecuta `schedule:run`, el worker supervisado procesa la cola de base
 de datos, `failed_jobs` se consulta y las proyecciones pendientes regresan a
