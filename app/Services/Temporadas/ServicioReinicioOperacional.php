@@ -312,23 +312,22 @@ class ServicioReinicioOperacional
         $movimientosEnvases = $this->movimientosEnvases($temporada);
         $guias = $this->guiasEnvases($temporada);
         $sesiones = $this->sesionesRelacionadas($folios, $asignacionesCarga);
-        $cargaIds = (clone $cargas)->pluck('id');
         $movimientoIds = DB::table('movimientos')
-            ->whereIn('folio_id', clone $folios)
-            ->pluck('id');
+            ->select('id')
+            ->whereIn('folio_id', clone $folios);
 
         $eliminados['recalculos_planificador'] = DB::table('recalculos_pendientes_planificador')
             ->where(function (Builder $consulta) use (
                 $temporada,
-                $cargaIds,
+                $cargas,
                 $movimientoIds,
             ): void {
                 $consulta
                     ->where('objetivo_id', $temporada->id)
-                    ->orWhere(function (Builder $porCarga) use ($cargaIds): void {
+                    ->orWhere(function (Builder $porCarga) use ($cargas): void {
                         $porCarga
                             ->where('tipo', ServicioRecalculosPendientesPlanificador::CARGA)
-                            ->whereIn('fuente_id', $cargaIds);
+                            ->whereIn('fuente_id', clone $cargas);
                     })
                     ->orWhere(function (Builder $porMovimiento) use ($movimientoIds): void {
                         $porMovimiento
@@ -338,7 +337,7 @@ class ServicioReinicioOperacional
                                 ServicioRecalculosPendientesPlanificador::REORDENAMIENTO,
                                 ServicioRecalculosPendientesPlanificador::DESOCUPACION,
                             ])
-                            ->whereIn('fuente_id', $movimientoIds);
+                            ->whereIn('fuente_id', clone $movimientoIds);
                     });
             })
             ->delete();

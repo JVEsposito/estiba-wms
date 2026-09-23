@@ -116,6 +116,42 @@ final class ServicioRecalculosPendientesPlanificador
         return $pendientes->count();
     }
 
+    public function reactivarAgotados(int $limite = 200): int
+    {
+        if (config('queue.default') === 'sync') {
+            return 0;
+        }
+
+        return DB::transaction(function () use ($limite): int {
+            $ids = DB::table(self::TABLA)
+                ->where('pendiente', false)
+                ->whereNotNull('agotado_at')
+                ->orderBy('agotado_at')
+                ->orderBy('id')
+                ->limit($limite)
+                ->pluck('id');
+
+            if ($ids->isEmpty()) {
+                return 0;
+            }
+
+            return DB::table(self::TABLA)
+                ->whereIn('id', $ids)
+                ->where('pendiente', false)
+                ->whereNotNull('agotado_at')
+                ->update([
+                    'pendiente' => true,
+                    'intentos_fallidos' => 0,
+                    'solicitado_at' => now(),
+                    'ultimo_reenvio_at' => null,
+                    'fallo_at' => null,
+                    'agotado_at' => null,
+                    'ultimo_error' => null,
+                    'updated_at' => now(),
+                ]);
+        });
+    }
+
     /** @return array{pendientes: int, atrasados: int, fallidos: int, agotados: int, descartados: int, mas_antiguo_segundos: ?int} */
     public function salud(): array
     {

@@ -11,6 +11,7 @@ use App\Services\Cargas\ServicioPlanConcentracionCarga;
 use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -220,5 +221,82 @@ class RecalculosPendientesPlanificadorTest extends TestCase
         config(['queue.default' => 'database']);
         $this->assertSame(0, $servicio->recuperar());
         Queue::assertNothingPushed();
+
+        $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', [
+            '--reintentar-agotados' => true,
+        ]));
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $carga->id,
+            'pendiente' => true,
+            'intentos_fallidos' => 0,
+            'agotado_at' => null,
+        ]);
+        Queue::assertPushed(
+            EjecutarRecalculoPendientePlanificador::class,
+            fn (EjecutarRecalculoPendientePlanificador $job): bool => $job->fuenteId === $carga->id,
+        );
+
+        app()->forgetInstance(ServicioPlanConcentracionCarga::class);
+        $servicio->ejecutar(ServicioRecalculosPendientesPlanificador::CARGA, $carga->id);
+        $this->assertDatabaseMissing('recalculos_pendientes_planificador', ['fuente_id' => $carga->id]);
+    }
+
+    public function test_reintento_manual_respeta_limite_y_no_reactiva_fuentes_descartadas(): void
+    {
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $tipo = ServicioRecalculosPendientesPlanificador::CARGA;
+        $fuentes = [(string) Str::uuid(), (string) Str::uuid(), (string) Str::uuid()];
+        foreach ($fuentes as $fuenteId) {
+            $servicio->solicitar($tipo, $fuenteId);
+        }
+
+        DB::table('recalculos_pendientes_planificador')
+            ->whereIn('fuente_id', array_slice($fuentes, 0, 2))
+            ->update([
+                'pendiente' => false,
+                'agotado_at' => now(),
+                'intentos_fallidos' => ServicioRecalculosPendientesPlanificador::MAX_INTENTOS_FALLIDOS,
+            ]);
+        $servicio->ejecutar($tipo, $fuentes[2]);
+
+        Queue::fake();
+        config(['queue.default' => 'database']);
+        $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', ['--limite' => 1]));
+        Queue::assertNothingPushed();
+
+        $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', [
+            '--limite' => 1,
+            '--reintentar-agotados' => true,
+        ]));
+        $this->assertSame(1, $servicio->salud()['pendientes']);
+        $this->assertSame(1, $servicio->salud()['agotados']);
+        $this->assertSame(1, $servicio->salud()['descartados']);
+        Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class, 1);
+
+        $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', [
+            '--limite' => 1,
+            '--reintentar-agotados' => true,
+        ]));
+        $this->assertSame(0, $servicio->salud()['agotados']);
+        $this->assertSame(1, $servicio->salud()['descartados']);
+    }
+
+    public function test_no_reactiva_agotados_con_cola_sin_worker(): void
+    {
+        $fuenteId = (string) Str::uuid();
+        app(ServicioRecalculosPendientesPlanificador::class)
+            ->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+        DB::table('recalculos_pendientes_planificador')
+            ->where('fuente_id', $fuenteId)
+            ->update(['pendiente' => false, 'agotado_at' => now()]);
+
+        config(['queue.default' => 'sync']);
+        $this->assertSame(1, Artisan::call('planificador:recuperar-proyecciones', [
+            '--reintentar-agotados' => true,
+        ]));
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $fuenteId,
+            'pendiente' => false,
+        ]);
     }
 }

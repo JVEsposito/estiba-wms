@@ -96,6 +96,10 @@ recuperables, agotados y descartes por fuentes eliminadas. Las filas confirmadas
 se eliminan y el scheduler recupera las restantes con
 `planificador:recuperar-proyecciones`.
 
+Una vez corregido el error de un cálculo agotado, ejecutar manualmente
+`planificador:recuperar-proyecciones --reintentar-agotados --limite=200` con
+el worker activo. El scheduler periódico mantiene el comando sin esa opción.
+
 Las mismas señales actuales de salud se reutilizan en el puesto de mando de
 `Operación ahora`, sin ejecutar allí las métricas históricas de planes,
 movimientos y arbitraje. Así el refresco operacional conserva un costo acotado y
