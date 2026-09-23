@@ -38,6 +38,19 @@ final class ServicioRecalculosPendientesPlanificador
 
     private const TABLA = 'recalculos_pendientes_planificador';
 
+    /** @return list<string> */
+    public static function tipos(): array
+    {
+        return [
+            self::CARGA,
+            self::UBICACION,
+            self::SEGREGACION,
+            self::REORDENAMIENTO,
+            self::DESOCUPACION,
+            self::BUFFER_REPA,
+        ];
+    }
+
     public function solicitar(string $tipo, string $fuenteId, ?string $objetivoId = null): void
     {
         DB::transaction(function () use ($tipo, $fuenteId, $objetivoId): void {

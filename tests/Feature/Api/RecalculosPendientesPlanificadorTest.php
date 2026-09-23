@@ -13,6 +13,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -342,7 +343,7 @@ class RecalculosPendientesPlanificadorTest extends TestCase
         Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class, 1);
         Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class,
             fn (EjecutarRecalculoPendientePlanificador $job): bool => $job->fuenteId === $cargaId);
-        Log::shouldHaveReceived('notice')->once()->withArgs(
+        Log::shouldHaveReceived('warning')->once()->withArgs(
             fn (string $mensaje, array $contexto): bool => str_contains($mensaje, 'Reintento manual')
                 && $contexto['tipo'] === ServicioRecalculosPendientesPlanificador::CARGA
                 && $contexto['reactivados'] === 1
@@ -375,5 +376,49 @@ class RecalculosPendientesPlanificadorTest extends TestCase
             'pendiente' => false,
         ]);
         Queue::assertNothingPushed();
+    }
+
+    public function test_reintento_manual_se_escribe_en_el_log_con_nivel_warning_de_planta(): void
+    {
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $fuenteId = (string) Str::uuid();
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+        DB::table('recalculos_pendientes_planificador')
+            ->where('fuente_id', $fuenteId)
+            ->update(['pendiente' => false, 'agotado_at' => now()]);
+
+        Queue::fake();
+        config(['queue.default' => 'database']);
+        $ruta = storage_path('logs/test-reintento-'.Str::uuid().'.log');
+        $original = [
+            'logging.default' => config('logging.default'),
+            'logging.channels.single.path' => config('logging.channels.single.path'),
+            'logging.channels.single.level' => config('logging.channels.single.level'),
+        ];
+
+        try {
+            config([
+                'logging.default' => 'single',
+                'logging.channels.single.path' => $ruta,
+                'logging.channels.single.level' => 'warning',
+            ]);
+            Log::forgetChannel('single');
+            Log::notice('Control de filtro de nivel');
+
+            $this->assertSame(0, Artisan::call('planificador:recuperar-proyecciones', [
+                '--reintentar-agotados' => true,
+                '--tipo' => ServicioRecalculosPendientesPlanificador::CARGA,
+            ]));
+
+            $contenido = File::get($ruta);
+            $this->assertStringNotContainsString('Control de filtro de nivel', $contenido);
+            $this->assertStringContainsString('Reintento manual de proyecciones agotadas', $contenido);
+            $this->assertStringContainsString('"reactivados":1', $contenido);
+            $this->assertStringContainsString('"tipo":"concentracion_carga"', $contenido);
+        } finally {
+            config($original);
+            Log::forgetChannel('single');
+            File::delete($ruta);
+        }
     }
 }

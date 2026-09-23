@@ -86,7 +86,7 @@ php artisan planificador:recuperar-proyecciones --reintentar-agotados --tipo=con
 Los tipos disponibles son `concentracion_carga`, `concentracion_movimiento`,
 `segregacion_movimiento`, `reordenamiento_movimiento`,
 `desocupacion_movimiento` y `prioridad_buffer_repa`. Cada reactivación se registra
-con fecha en el log de Laravel, tipo, límite, total reactivado, usuario del
+con nivel `warning` y fecha en el log de Laravel, tipo, límite, total reactivado, usuario del
 sistema operativo si está disponible y servidor. Ese usuario identifica el
 proceso de consola; para identificar a una persona deben usarse las bitácoras
 de acceso del servidor.

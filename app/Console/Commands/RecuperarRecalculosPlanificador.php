@@ -8,15 +8,6 @@ use Illuminate\Support\Facades\Log;
 
 final class RecuperarRecalculosPlanificador extends Command
 {
-    private const TIPOS = [
-        ServicioRecalculosPendientesPlanificador::CARGA,
-        ServicioRecalculosPendientesPlanificador::UBICACION,
-        ServicioRecalculosPendientesPlanificador::SEGREGACION,
-        ServicioRecalculosPendientesPlanificador::REORDENAMIENTO,
-        ServicioRecalculosPendientesPlanificador::DESOCUPACION,
-        ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
-    ];
-
     protected $signature = 'planificador:recuperar-proyecciones
         {--limite=200 : Máximo de fuentes por ejecución}
         {--tipo=todos : Tipo de proyección agotada que se desea reintentar; todos por defecto}
@@ -42,8 +33,8 @@ final class RecuperarRecalculosPlanificador extends Command
             return self::FAILURE;
         }
 
-        if ($tipo !== null && ! in_array($tipo, self::TIPOS, true)) {
-            $this->components->error('Tipo inválido. Tipos permitidos: '.implode(', ', self::TIPOS));
+        if ($tipo !== null && ! in_array($tipo, $recalculos::tipos(), true)) {
+            $this->components->error('Tipo inválido. Tipos permitidos: '.implode(', ', $recalculos::tipos()));
 
             return self::FAILURE;
         }
@@ -56,7 +47,7 @@ final class RecuperarRecalculosPlanificador extends Command
             }
 
             $reactivados = $recalculos->reactivarAgotados($limite, $tipo);
-            Log::notice('Reintento manual de proyecciones agotadas del planificador', [
+            Log::warning('Reintento manual de proyecciones agotadas del planificador', [
                 'tipo' => $tipo,
                 'limite' => $limite,
                 'reactivados' => $reactivados,
