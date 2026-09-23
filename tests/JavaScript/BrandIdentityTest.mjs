@@ -47,10 +47,11 @@ test('las superficies heredadas usan el frost oficial como acento', () => {
 test('el cambio visible conserva identificadores técnicos compatibles', () => {
     const config = JSON.parse(read('mobile/app.json')).expo;
     assert.equal(config.name, 'FoliOS');
-    assert.equal(config.version, '1.3.0');
+    assert.match(config.version, /^\d+\.\d+\.\d+$/);
+    assert.equal(config.runtimeVersion.policy, 'appVersion');
     assert.equal(config.slug, 'estiba-wms-camaras');
     assert.equal(config.android.package, 'cl.estiba.wms.camaras');
-    assert.equal(config.android.versionCode, 5);
+    assert.ok(Number.isInteger(config.android.versionCode) && config.android.versionCode >= 5);
 
     const visibleSources = [
         'resources/views/welcome.blade.php',

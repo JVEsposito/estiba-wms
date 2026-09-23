@@ -47,4 +47,21 @@ o el validador que la registró en la temporada vigente.
 Los archivos se guardan en el disco privado `local` (`storage/app/private`). **Los
 respaldos deben incluir ese directorio además de la base de datos**; un volcado SQL
 por sí solo no conserva las fotos. La pantalla PDA y las exportaciones de Oficina se
-agregarán en los PR siguientes.
+incluyen en PR separados.
+
+## Pantalla de Validación MP
+
+Después de tomar una recepción, el validador ve **Defectos detectados** bajo el conteo.
+También puede buscar nuevamente por correlativo una recepción que ya haya validado y
+registrar otro defecto si sigue siendo su temporada activa. La tablet muestra los
+registros existentes y permite capturar de una a tres fotos por defecto, además de
+una foto opcional de la guía. Las fotos elegidas se previsualizan antes del envío.
+El número de guía se toma de Romana y no se modifica en la tablet.
+
+Si se corta la red durante la carga, el formulario conserva el UUID y las fotos para
+reintentar el mismo envío sin duplicarlo. El registro requiere conexión al servidor;
+la captura pendiente no se conserva si se cierra la aplicación. Agregar la cámara
+requiere **compilar e instalar un APK nuevo** (versión 1.4.0): una actualización OTA
+del APK anterior no puede incorporar el módulo nativo `expo-image-picker`.
+
+La exportación para Oficina se implementará en el PR siguiente.
