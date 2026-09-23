@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\CuentaCorrienteEnvaseController;
 use App\Http\Controllers\Api\DesocupacionCamaraController;
 use App\Http\Controllers\Api\DespachoFrigorificoController;
 use App\Http\Controllers\Api\DespachoMaterialController;
+use App\Http\Controllers\Api\DefectoRecepcionMpController;
 use App\Http\Controllers\Api\EmbarqueController;
 use App\Http\Controllers\Api\EvacuacionEmergenciaController;
 use App\Http\Controllers\Api\FolioPrefrioController;
@@ -248,7 +249,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/recepciones/{recepcion}/catalogos', [ValidacionMpController::class, 'catalogos']);
         Route::post('/recepciones/{recepcion}/tomar', [ValidacionMpController::class, 'tomar']);
         Route::post('/validaciones/{validacionMp}/confirmar', [ValidacionMpController::class, 'confirmar']);
+        Route::get('/recepciones/{recepcion}/defectos', [DefectoRecepcionMpController::class, 'porRecepcion']);
+        Route::post('/recepciones/{recepcion}/defectos', [DefectoRecepcionMpController::class, 'store'])
+            ->middleware('throttle:30,1');
     });
+    Route::middleware('can:auditar-defectos-recepcion-mp')->prefix('materia-prima/defectos-recepcion')->group(function () {
+        Route::get('/', [DefectoRecepcionMpController::class, 'index']);
+        Route::get('/{defecto}', [DefectoRecepcionMpController::class, 'show']);
+    });
+    Route::get('/materia-prima/defectos-recepcion/{defecto}/evidencias/{evidencia}',
+        [DefectoRecepcionMpController::class, 'evidencia']);
     Route::middleware('can:consultar-materia-prima')->prefix('materia-prima')->group(function () {
         Route::get('/resumen', [MateriaPrimaController::class, 'resumen']);
         Route::get('/catalogos', [MateriaPrimaController::class, 'catalogos']);

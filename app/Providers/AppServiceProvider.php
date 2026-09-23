@@ -404,6 +404,10 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeValidarMp($usuario),
         );
         Gate::define(
+            'auditar-defectos-recepcion-mp',
+            fn (User $usuario): bool => $alcance->puedeAuditarDefectosRecepcionMp($usuario),
+        );
+        Gate::define(
             'consultar-materia-prima',
             fn (User $usuario): bool => $alcance->puedeConsultarMateriaPrima($usuario),
         );
