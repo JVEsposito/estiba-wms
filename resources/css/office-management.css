@@ -815,3 +815,118 @@ body {
         justify-content: flex-start;
     }
 }
+
+/* Materia prima y envases: cada cantidad conserva su unidad y su significado. */
+.management-view--raw-flow > .management-panel {
+    min-height: 0;
+}
+
+.management-operational-metrics--raw {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.management-raw-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.management-raw-footer .management-average {
+    margin: 0;
+}
+
+.management-container-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 16px;
+}
+
+.management-container-types button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 13px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: rgba(3, 11, 16, .42);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: .78rem;
+}
+
+.management-container-types button.is-active {
+    border-color: var(--cyan);
+    color: var(--cyan-light);
+    background: rgba(22, 201, 194, .1);
+}
+
+.management-container-types button:focus-visible {
+    outline: 2px solid var(--cyan-light);
+    outline-offset: 2px;
+}
+
+.management-container-types strong {
+    font-size: .95rem;
+}
+
+.management-container-detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 22px;
+    margin-top: 22px;
+}
+
+.management-container-detail h3 {
+    margin: 0 0 10px;
+    font-size: .9rem;
+}
+
+.management-container-detail .chart-container--bar {
+    height: 245px;
+    min-height: 245px;
+}
+
+.management-container-detail .management-panel-intro {
+    margin: 10px 0 14px;
+}
+
+.management-container-balances {
+    min-height: 176px;
+}
+
+.management-container-balance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: .75rem;
+}
+
+.management-container-balance strong {
+    white-space: nowrap;
+    color: var(--green);
+}
+
+.management-container-balance strong.is-negative {
+    color: var(--red);
+}
+
+.management-operational-metrics--review {
+    margin-top: 16px;
+}
+
+@media (max-width: 900px) {
+    .management-operational-metrics--raw,
+    .management-container-detail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .management-container-detail {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
