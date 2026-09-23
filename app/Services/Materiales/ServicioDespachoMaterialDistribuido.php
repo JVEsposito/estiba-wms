@@ -135,6 +135,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 ->with(['detalles', 'destino'])
                 ->lockForUpdate()
                 ->findOrFail($despacho->id);
+            $this->asegurarTemporadaVigente($despacho);
             $payloadHash = $this->payloadHash([
                 'despacho_material_id' => $despacho->id,
                 'retiros' => $retiros,

@@ -241,7 +241,7 @@ class MaterialesApiTest extends TestCase
         [$camara, $posicion] = $this->crearCamara('MAT-TEMP-01', ContenidoCamara::Materiales);
         $sesion = $this->abrirSesion($tokenTablet, $camara);
 
-        $this->ubicarMaterial(
+        $folioHistoricoId = $this->ubicarMaterial(
             $tokenTablet,
             $posicion,
             $sesion,
@@ -264,6 +264,39 @@ class MaterialesApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data')
             ->assertJsonMissing(['id' => $despachoId]);
+
+        $this->conToken($tokenOficina)
+            ->getJson("/api/materiales/despachos/{$despachoId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $despachoId);
+
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/cancelar", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo' => 'Cancelación de una solicitud histórica.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->conToken($tokenTablet)
+            ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
+                'operacion_id' => (string) Str::uuid(),
+                'retiros' => [[
+                    'folio_id' => $folioHistoricoId,
+                    'cantidad' => 1,
+                    'sesion_estiba_id' => $sesion,
+                ]],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('codigo', 'regla_de_negocio');
+
+        $this->assertDatabaseHas('despachos_materiales', [
+            'id' => $despachoId,
+            'estado' => 'pendiente',
+            'cancelado_at' => null,
+        ]);
+        $this->assertSame('5.000', FolioMaterial::findOrFail($folioHistoricoId)->cantidad_reservada);
+        $this->assertDatabaseCount('retiros_materiales', 0);
 
         $this->conToken($tokenOficina)
             ->getJson('/api/materiales/inventario')
