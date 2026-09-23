@@ -1,0 +1,41 @@
+.defect-workspace { padding: clamp(16px, 2vw, 32px); max-width: 1900px; margin: auto; }
+.defect-heading, .defect-results-heading, .defect-export, .defect-dialog__head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.defect-heading { margin-bottom: 20px; }
+.defect-heading h1 { margin: 0; font-size: clamp(2rem, 3vw, 3rem); letter-spacing: -.03em; }
+.defect-heading p:last-child, .defect-export p { color: var(--muted); margin: 6px 0 0; }
+.defect-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+.defect-filters { display: grid; grid-template-columns: repeat(4, minmax(135px, 1fr)) minmax(160px, 1.5fr) auto; gap: 12px; padding: 20px; align-items: end; }
+.defect-filters label { min-width: 0; display: grid; gap: 6px; color: var(--text); font-size: .8rem; font-weight: 700; }
+.defect-filters input, .defect-filters select { min-height: 43px; background: var(--raised); color: var(--text); border-color: var(--line); }
+.defect-filters button, .defect-export button, .defect-heading button, .defect-pages button { min-height: 43px; }
+.defect-export { padding: 14px 20px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.defect-export > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.defect-results-heading { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.defect-results-heading h2 { margin: 0; font-size: 1.2rem; }
+.defect-results-heading span { color: var(--muted); }
+.defect-table-wrap { overflow: auto; }
+.defect-table { width: 100%; border-collapse: collapse; text-align: left; }
+.defect-table th { font-size: .75rem; color: var(--text); background: var(--raised); white-space: nowrap; }
+.defect-table td, .defect-table th { padding: 13px 15px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.defect-table td { font-size: .84rem; color: var(--text); }
+.defect-table small { display: block; margin-top: 4px; color: var(--muted); }
+.defect-table td button { min-height: 36px; background: var(--raised); border: 1px solid var(--line); border-radius: 7px; color: var(--text); padding: 4px 12px; }
+.defect-table td button:hover { border-color: var(--cyan); }
+.defect-pages { display: flex; justify-content: center; align-items: center; padding: 13px; gap: 12px; }
+.defect-pages span { color: var(--text); }
+.defect-pages button:disabled { opacity: .5; cursor: default; }
+.defect-dialog { width: min(870px, calc(100vw - 30px)); max-height: min(90vh, 900px); overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 20px; }
+.defect-dialog::backdrop { background: rgba(2, 12, 18, .8); }
+.defect-dialog__head { border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.defect-dialog__head h2 { margin: 0; }
+.defect-dialog__head button { background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 8px; font-size: 1.5rem; min-width: 38px; }
+.defect-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.defect-detail-grid div { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-wrap: anywhere; }
+.defect-detail-grid small { display: block; color: var(--muted); margin-bottom: 5px; }
+.defect-description { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.defect-photos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.defect-photos figure { margin: 0; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.defect-photos img { width: 100%; max-height: 350px; object-fit: contain; display: block; }
+.defect-photos figcaption { padding: 7px 2px 1px; color: var(--text); }
+@media (max-width: 1100px) { .defect-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .defect-filters__search { grid-column: span 2; } }
+@media (max-width: 600px) { .defect-heading, .defect-export { align-items: flex-start; flex-direction: column; } .defect-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .defect-filters__search, .defect-filters button { grid-column: span 2; } .defect-detail-grid { grid-template-columns: 1fr; } }

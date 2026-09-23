@@ -66,6 +66,8 @@ export default defineConfig({
                 'resources/css/office-container-dispatches.css',
                 'resources/js/office-container-dispatches.js',
                 'resources/css/office-raw-material.css',
+                'resources/css/office-raw-material-defects.css',
+                'resources/js/office-raw-material-defects.js',
                 'resources/css/office-queries.css',
                 'resources/js/office-raw-material.js',
                 'resources/css/office-hydrocooler.css',

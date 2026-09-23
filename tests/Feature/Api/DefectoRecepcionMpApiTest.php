@@ -12,6 +12,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
+use ZipArchive;
 
 class DefectoRecepcionMpApiTest extends TestCase
 {
@@ -96,6 +97,41 @@ class DefectoRecepcionMpApiTest extends TestCase
         $this->getJson('/api/materia-prima/defectos-recepcion/'.$defecto['id'])
             ->assertOk()->assertJsonPath('data.numero_guia_despacho', 'GD-DEF-001');
         $this->get($defecto['evidencias'][0]['url'])->assertOk();
+    }
+
+    public function test_auditoria_exporta_los_filtros_y_fotos_privadas_de_una_temporada_anterior(): void
+    {
+        Storage::fake('local');
+        [$recepcion] = $this->prepararRecepcionTomada();
+        $defecto = $this->post("/api/validacion-mp/recepciones/{$recepcion['id']}/defectos",
+            $this->entrada((string) Str::uuid()), ['Accept' => 'application/json'])
+            ->assertCreated()->json('data');
+        Temporada::query()->whereKey($defecto['temporada_id'])->update(['activa' => false]);
+        $nueva = Temporada::create([
+            'codigo' => 'TEMP-NUEVA', 'nombre' => 'Temporada siguiente', 'fecha_inicio' => now(),
+            'fecha_fin' => now()->addYear(), 'activa' => true,
+        ]);
+        $base = '/api/materia-prima/defectos-recepcion';
+        $auditor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);
+        $this->actingAs($auditor, 'sanctum')->getJson($base)->assertOk()->assertJsonPath('total', 0);
+        $this->getJson($base.'/temporadas')->assertOk()->assertJsonFragment(['id' => $nueva->id]);
+        $filtro = '?temporada_id='.$defecto['temporada_id'].'&categoria=envase_danado&buscar=GD-DEF-001';
+        $this->getJson($base.$filtro)->assertOk()->assertJsonPath('total', 1);
+        $this->getJson($base.'/exportaciones/xlsx?temporada_id='.$defecto['temporada_id'].'&categoria=otro')
+            ->assertOk()->assertDownload();
+        $this->getJson($base.'/exportaciones/pdf'.$filtro)
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $respuesta = $this->get($base.'/exportaciones/zip'.$filtro)->assertOk()->assertDownload();
+        $zip = new ZipArchive;
+        $this->assertSame(true, $zip->open($respuesta->baseResponse->getFile()->getPathname()));
+        $this->assertNotFalse($zip->getFromName('registro.xlsx'));
+        $this->assertStringStartsWith('%PDF-1.4', $zip->getFromName('registro.pdf'));
+        foreach ($defecto['evidencias'] as $foto) {
+            $this->assertNotFalse($zip->locateName("fotos/{$defecto['id']}/{$foto['tipo']}-{$foto['id']}.png"));
+        }
+        $zip->close();
+        $this->actingAs(User::factory()->create(['rol' => RolUsuario::ValidadorMp]), 'sanctum')
+            ->getJson($base.'/exportaciones/zip'.$filtro)->assertForbidden();
     }
 
     public function test_rechaza_defectos_sin_evidencia_fotografica(): void

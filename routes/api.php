@@ -255,6 +255,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('can:auditar-defectos-recepcion-mp')->prefix('materia-prima/defectos-recepcion')->group(function () {
         Route::get('/', [DefectoRecepcionMpController::class, 'index']);
+        Route::get('/temporadas', [DefectoRecepcionMpController::class, 'temporadas']);
+        Route::get('/exportaciones/{formato}', [DefectoRecepcionMpController::class, 'exportar']);
         Route::get('/{defecto}', [DefectoRecepcionMpController::class, 'show']);
     });
     Route::get('/materia-prima/defectos-recepcion/{defecto}/evidencias/{evidencia}',

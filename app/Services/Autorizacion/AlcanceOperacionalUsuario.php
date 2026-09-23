@@ -918,6 +918,7 @@ class AlcanceOperacionalUsuario
             'puede_administrar_tuneles_prefrio' => $this->puedeAdministrarTunelesPrefrio($usuario),
             'puede_consultar_panel_gerencial' => $this->puedeConsultarPanelGerencial($usuario),
             'puede_consultar_romana' => $this->puedeConsultarRomana($usuario),
+            'puede_auditar_defectos_recepcion_mp' => $this->puedeAuditarDefectosRecepcionMp($usuario),
             'puede_operar_romana' => $this->puedeOperarRomana($usuario),
             'puede_corregir_recepciones_romana' => $this->puedeCorregirRecepcionesRomana($usuario),
             'puede_validar_mp' => $this->puedeValidarMp($usuario),
