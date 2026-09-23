@@ -674,6 +674,12 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeAuditarDefectosRecepcionMp(User $usuario): bool
+    {
+        return in_array($usuario->rol, [RolUsuario::Administrador, RolUsuario::SupervisorFrio], true)
+            && ($this->puedeConsultarRomana($usuario) || $this->puedeConsultarMateriaPrima($usuario));
+    }
+
     public function puedeConsultarMateriaPrima(User $usuario): bool
     {
         return $this->rolActivoEnModulo($usuario, [
