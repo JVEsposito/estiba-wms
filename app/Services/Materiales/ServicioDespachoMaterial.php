@@ -170,6 +170,7 @@ class ServicioDespachoMaterial
                 ->with('detalles')
                 ->lockForUpdate()
                 ->findOrFail($despacho->id);
+            $this->asegurarTemporadaVigente($despacho);
             $payloadHash = $this->payloadHash([
                 'despacho_material_id' => $despacho->id,
                 'retiros' => $retiros,
@@ -396,6 +397,7 @@ class ServicioDespachoMaterial
                     ->with('detalles')
                     ->lockForUpdate()
                     ->findOrFail($despacho->id);
+                $this->asegurarTemporadaVigente($despacho);
                 $payloadHash = $this->payloadHash([
                     'despacho_material_id' => $despacho->id,
                     'motivo' => $motivo,
@@ -613,6 +615,13 @@ class ServicioDespachoMaterial
         }
 
         return $reservas;
+    }
+
+    protected function asegurarTemporadaVigente(DespachoMaterial $despacho): void
+    {
+        if ($despacho->temporada_id !== $this->temporadaActiva->buscar()?->id) {
+            throw new DomainException('El despacho pertenece a una temporada histórica y no admite operaciones.');
+        }
     }
 
     private function validarSesion(
