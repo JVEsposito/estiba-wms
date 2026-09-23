@@ -15,12 +15,15 @@ use App\Services\Camaras\ServicioOportunidadReordenamiento;
 use App\Services\Cargas\ServicioPlanConcentracionCarga;
 use App\Services\Retenciones\ServicioPlanSegregacionRetenidos;
 use App\Services\Validacion\ServicioPrioridadBufferRepaletizaje;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class ServicioRecalculosPendientesPlanificador
 {
+    public const MAX_INTENTOS_FALLIDOS = 5;
+
     public const CARGA = 'concentracion_carga';
 
     public const UBICACION = 'concentracion_movimiento';
@@ -35,25 +38,41 @@ final class ServicioRecalculosPendientesPlanificador
 
     private const TABLA = 'recalculos_pendientes_planificador';
 
-    public function solicitar(string $tipo, string $fuenteId): void
+    public function solicitar(string $tipo, string $fuenteId, ?string $objetivoId = null): void
     {
-        DB::transaction(function () use ($tipo, $fuenteId): void {
+        DB::transaction(function () use ($tipo, $fuenteId, $objetivoId): void {
             $ahora = now();
-            DB::table(self::TABLA)->insertOrIgnore([
-                'tipo' => $tipo,
-                'fuente_id' => $fuenteId,
-                'version_solicitada' => 0,
-                'version_calculada' => 0,
-                'created_at' => $ahora,
-                'updated_at' => $ahora,
-            ]);
-            DB::table(self::TABLA)
-                ->where('tipo', $tipo)
-                ->where('fuente_id', $fuenteId)
-                ->increment('version_solicitada', 1, [
+            $objetivoId ??= $fuenteId;
+
+            // Una sola sentencia evita el interbloqueo de gap locks que podía
+            // ocurrir con insertOrIgnore + increment sobre una clave nueva.
+            DB::table(self::TABLA)->upsert(
+                [[
+                    'tipo' => $tipo,
+                    'fuente_id' => $fuenteId,
+                    'objetivo_id' => $objetivoId,
+                    'version_solicitada' => 1,
+                    'version_calculada' => 0,
+                    'pendiente' => true,
+                    'intentos_fallidos' => 0,
                     'solicitado_at' => $ahora,
+                    'created_at' => $ahora,
                     'updated_at' => $ahora,
-                ]);
+                ]],
+                ['tipo', 'fuente_id'],
+                [
+                    'objetivo_id' => $objetivoId,
+                    'version_solicitada' => DB::raw('version_solicitada + 1'),
+                    'pendiente' => true,
+                    'intentos_fallidos' => 0,
+                    'solicitado_at' => $ahora,
+                    'fallo_at' => null,
+                    'descartado_at' => null,
+                    'agotado_at' => null,
+                    'ultimo_error' => null,
+                    'updated_at' => $ahora,
+                ],
+            );
 
             // El registro pendiente se confirma con la mutación física. Un fallo
             // al publicar el job no cambia la respuesta al operador: el watchdog
@@ -82,7 +101,7 @@ final class ServicioRecalculosPendientesPlanificador
         }
 
         $pendientes = DB::table(self::TABLA)
-            ->whereColumn('version_solicitada', '>', 'version_calculada')
+            ->where('pendiente', true)
             ->orderBy('ultimo_reenvio_at')
             ->orderBy('id')
             ->limit($limite)
@@ -97,17 +116,19 @@ final class ServicioRecalculosPendientesPlanificador
         return $pendientes->count();
     }
 
-    /** @return array{pendientes: int, atrasados: int, fallidos: int, mas_antiguo_segundos: ?int} */
+    /** @return array{pendientes: int, atrasados: int, fallidos: int, agotados: int, descartados: int, mas_antiguo_segundos: ?int} */
     public function salud(): array
     {
         $pendientes = DB::table(self::TABLA)
-            ->whereColumn('version_solicitada', '>', 'version_calculada');
+            ->where('pendiente', true);
         $primero = (clone $pendientes)->min('solicitado_at');
 
         return [
             'pendientes' => (clone $pendientes)->count(),
             'atrasados' => (clone $pendientes)->where('solicitado_at', '<', now()->subMinutes(5))->count(),
             'fallidos' => (clone $pendientes)->whereNotNull('fallo_at')->count(),
+            'agotados' => DB::table(self::TABLA)->whereNotNull('agotado_at')->count(),
+            'descartados' => DB::table(self::TABLA)->whereNotNull('descartado_at')->count(),
             'mas_antiguo_segundos' => $primero ? (int) max(0, Carbon::parse($primero)->diffInSeconds(now())) : null,
         ];
     }
@@ -118,27 +139,73 @@ final class ServicioRecalculosPendientesPlanificador
             ->where('tipo', $tipo)
             ->where('fuente_id', $fuenteId)
             ->first();
-        if (! $registro || $registro->version_solicitada <= $registro->version_calculada) {
+        if (! $registro || ! $registro->pendiente) {
             return;
         }
 
         try {
-            $this->recalcular($tipo, $fuenteId);
-            DB::table(self::TABLA)->where('id', $registro->id)->update([
+            $this->recalcular($tipo, $registro->objetivo_id ?? $fuenteId);
+            $this->confirmar($registro);
+        } catch (ModelNotFoundException $error) {
+            $this->descartar($registro, $error);
+        } catch (Throwable $error) {
+            $this->registrarFallo($registro, $error);
+            throw $error;
+        }
+    }
+
+    private function confirmar(object $registro): void
+    {
+        $eliminados = DB::table(self::TABLA)
+            ->where('id', $registro->id)
+            ->where('version_solicitada', $registro->version_solicitada)
+            ->delete();
+        if ($eliminados === 1) {
+            return;
+        }
+
+        // Llegó una solicitud nueva durante el cálculo. Conservamos la fila
+        // pendiente y solo avanzamos la versión que acaba de ser proyectada.
+        DB::table(self::TABLA)
+            ->where('id', $registro->id)
+            ->where('version_calculada', '<', $registro->version_solicitada)
+            ->update([
                 'version_calculada' => $registro->version_solicitada,
                 'calculado_at' => now(),
-                'fallo_at' => null,
-                'ultimo_error' => null,
                 'updated_at' => now(),
             ]);
-        } catch (Throwable $error) {
-            DB::table(self::TABLA)->where('id', $registro->id)->update([
-                'fallo_at' => now(),
+    }
+
+    private function descartar(object $registro, ModelNotFoundException $error): void
+    {
+        DB::table(self::TABLA)
+            ->where('id', $registro->id)
+            ->where('version_solicitada', $registro->version_solicitada)
+            ->update([
+                'pendiente' => false,
+                'descartado_at' => now(),
+                'fallo_at' => null,
                 'ultimo_error' => mb_substr($error->getMessage(), 0, 500),
                 'updated_at' => now(),
             ]);
-            throw $error;
-        }
+    }
+
+    private function registrarFallo(object $registro, Throwable $error): void
+    {
+        $intentos = ((int) $registro->intentos_fallidos) + 1;
+        $agotado = $intentos >= self::MAX_INTENTOS_FALLIDOS;
+
+        DB::table(self::TABLA)
+            ->where('id', $registro->id)
+            ->where('version_solicitada', $registro->version_solicitada)
+            ->update([
+                'pendiente' => ! $agotado,
+                'intentos_fallidos' => $intentos,
+                'fallo_at' => now(),
+                'agotado_at' => $agotado ? now() : null,
+                'ultimo_error' => mb_substr($error->getMessage(), 0, 500),
+                'updated_at' => now(),
+            ]);
     }
 
     private function recalcular(string $tipo, string $fuenteId): void

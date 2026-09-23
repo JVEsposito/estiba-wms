@@ -12,7 +12,7 @@ final class EjecutarRecalculoPendientePlanificador implements ShouldBeUniqueUnti
 {
     use Queueable;
 
-    public int $tries = 5;
+    public int $tries = ServicioRecalculosPendientesPlanificador::MAX_INTENTOS_FALLIDOS;
 
     public int $timeout = 90;
 

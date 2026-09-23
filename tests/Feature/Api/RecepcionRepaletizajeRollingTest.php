@@ -230,11 +230,12 @@ class RecepcionRepaletizajeRollingTest extends TestCase
         $tareas[0]->update(['estado' => EstadoTareaMovimiento::EnProceso]);
         $this->assertDatabaseHas('recalculos_pendientes_planificador', [
             'tipo' => ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
-            'fuente_id' => $temporada->id,
+            'fuente_id' => $tareas[0]->id,
+            'objetivo_id' => $temporada->id,
             'version_calculada' => 0,
         ]);
         app(ServicioRecalculosPendientesPlanificador::class)
-            ->ejecutar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $temporada->id);
+            ->ejecutar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $tareas[0]->id);
 
         $restantes = PlanOperacional::query()
             ->whereKeyNot($tareas[0]->plan_operacional_id)
@@ -249,7 +250,7 @@ class RecepcionRepaletizajeRollingTest extends TestCase
         $tareas[1]->refresh()->update(['estado' => EstadoTareaMovimiento::Asumida]);
         $tareas[1]->refresh()->update(['estado' => EstadoTareaMovimiento::EnProceso]);
         app(ServicioRecalculosPendientesPlanificador::class)
-            ->ejecutar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $temporada->id);
+            ->ejecutar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $tareas[1]->id);
 
         $ultimo = PlanOperacional::query()
             ->whereKeyNot($tareas[0]->plan_operacional_id)

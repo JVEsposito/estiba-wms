@@ -60,11 +60,14 @@ Los recálculos de concentración, segregación, reordenamiento, desocupación y
 prioridad del buffer REPA dejan una solicitud persistida en la misma transacción
 que origina el cambio. El worker los procesa fuera de la petición HTTP. El
 scheduler ejecuta `planificador:recuperar-proyecciones` cada minuto para volver
-a publicar solicitudes cuya versión calculada aún no alcanza la solicitada.
+a publicar solicitudes pendientes. Una proyección confirmada elimina su fila;
+si llega una versión nueva durante el cálculo, la fila permanece pendiente.
 `/api/administracion/planificador/salud` informa `proyecciones_pendientes`:
-total pendiente, atrasados más de cinco minutos, fallidos y edad del más
-antiguo. Los casos de fallos permanecen pendientes aunque la tablet ya haya
-recibido confirmación del movimiento físico.
+total pendiente, atrasados más de cinco minutos, fallidos recuperables,
+agotados, descartados por fuente inexistente y edad del más antiguo. Un fallo
+funcional se intenta como máximo cinco veces; después queda agotado y el
+watchdog deja de republicarlo. Los descartes y agotamientos se conservan como
+señal diagnóstica sin contaminar el contador de trabajo pendiente.
 
 Antes de habilitar el modo guiado en planta, comprobar en la instalación real
 que cron ejecuta `schedule:run`, el worker supervisado procesa la cola de base

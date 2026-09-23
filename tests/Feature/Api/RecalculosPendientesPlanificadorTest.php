@@ -7,8 +7,9 @@ use App\Jobs\EjecutarRecalculoPendientePlanificador;
 use App\Models\Carga;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Cargas\ServicioPlanConcentracionCarga;
 use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -42,20 +43,18 @@ class RecalculosPendientesPlanificadorTest extends TestCase
 
         app(ServicioRecalculosPendientesPlanificador::class)->ejecutar($tipo, $carga->id);
 
-        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+        $this->assertDatabaseMissing('recalculos_pendientes_planificador', [
             'tipo' => $tipo,
             'fuente_id' => $carga->id,
-            'version_solicitada' => 1,
-            'version_calculada' => 1,
-            'ultimo_error' => null,
         ]);
 
         $carga->update(['version' => 3]);
         $this->assertDatabaseHas('recalculos_pendientes_planificador', [
             'tipo' => $tipo,
             'fuente_id' => $carga->id,
-            'version_solicitada' => 2,
-            'version_calculada' => 1,
+            'version_solicitada' => 1,
+            'version_calculada' => 0,
+            'pendiente' => true,
         ]);
     }
 
@@ -86,38 +85,138 @@ class RecalculosPendientesPlanificadorTest extends TestCase
         ]);
     }
 
-    public function test_un_fallo_del_calculo_conserva_la_solicitud_y_el_watchdog_la_reenvia(): void
+    public function test_una_fuente_eliminada_se_descarta_sin_reintentos_ni_ruido_en_salud(): void
     {
         $fuenteId = (string) Str::uuid();
         $tipo = ServicioRecalculosPendientesPlanificador::CARGA;
         $servicio = app(ServicioRecalculosPendientesPlanificador::class);
         $servicio->solicitar($tipo, $fuenteId);
 
-        try {
-            $servicio->ejecutar($tipo, $fuenteId);
-            $this->fail('Se esperaba un error de recálculo.');
-        } catch (ModelNotFoundException) {
-            $this->assertDatabaseHas('recalculos_pendientes_planificador', [
-                'fuente_id' => $fuenteId,
-                'version_solicitada' => 1,
-                'version_calculada' => 0,
-            ]);
-        }
+        $servicio->ejecutar($tipo, $fuenteId);
 
-        $this->assertSame(1, $servicio->salud()['fallidos']);
-        $this->travel(6)->minutes();
-        $this->assertSame(1, $servicio->salud()['atrasados']);
-        $this->assertGreaterThanOrEqual(360, $servicio->salud()['mas_antiguo_segundos']);
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $fuenteId,
+            'pendiente' => false,
+            'version_solicitada' => 1,
+            'version_calculada' => 0,
+        ]);
+        $this->assertSame(0, $servicio->salud()['pendientes']);
+        $this->assertSame(0, $servicio->salud()['fallidos']);
+        $this->assertSame(1, $servicio->salud()['descartados']);
         Queue::fake();
         config(['queue.default' => 'database']);
-        $this->assertSame(1, $servicio->recuperar());
-        Queue::assertPushed(EjecutarRecalculoPendientePlanificador::class, 1);
+        $this->assertSame(0, $servicio->recuperar());
+        Queue::assertNothingPushed();
 
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $this->actingAs($administrador, 'sanctum')
             ->getJson('/api/administracion/planificador/salud')
             ->assertOk()
-            ->assertJsonPath('data.proyecciones_pendientes.pendientes', 1)
-            ->assertJsonPath('data.proyecciones_pendientes.fallidos', 1);
+            ->assertJsonPath('data.proyecciones_pendientes.pendientes', 0)
+            ->assertJsonPath('data.proyecciones_pendientes.fallidos', 0)
+            ->assertJsonPath('data.proyecciones_pendientes.descartados', 1);
+    }
+
+    public function test_solicitar_usa_una_sola_sentencia_atomica_por_version(): void
+    {
+        $consultas = [];
+        DB::listen(function (QueryExecuted $consulta) use (&$consultas): void {
+            if (str_contains(strtolower($consulta->sql), 'insert into recalculos_pendientes_planificador')) {
+                $consultas[] = $consulta->sql;
+            }
+        });
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $fuenteId = (string) Str::uuid();
+
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+
+        $this->assertCount(2, $consultas);
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $fuenteId,
+            'version_solicitada' => 2,
+            'pendiente' => true,
+        ]);
+    }
+
+    public function test_la_cola_database_se_publica_solo_despues_del_commit(): void
+    {
+        Queue::fake();
+        config(['queue.default' => 'database']);
+        $fuenteId = (string) Str::uuid();
+
+        DB::transaction(function () use ($fuenteId): void {
+            app(ServicioRecalculosPendientesPlanificador::class)
+                ->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $fuenteId);
+            Queue::assertNothingPushed();
+        });
+
+        Queue::assertPushed(
+            EjecutarRecalculoPendientePlanificador::class,
+            fn (EjecutarRecalculoPendientePlanificador $job): bool => $job->fuenteId === $fuenteId,
+        );
+    }
+
+    public function test_repa_usa_una_fila_por_tarea_aunque_compartan_temporada(): void
+    {
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $temporadaId = Temporada::query()->where('activa', true)->firstOrFail()->id;
+        $tareaUno = (string) Str::uuid();
+        $tareaDos = (string) Str::uuid();
+
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $tareaUno, $temporadaId);
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $tareaDos, $temporadaId);
+
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'tipo' => ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
+            'fuente_id' => $tareaUno,
+            'objetivo_id' => $temporadaId,
+        ]);
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'tipo' => ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
+            'fuente_id' => $tareaDos,
+            'objetivo_id' => $temporadaId,
+        ]);
+        $this->assertSame(2, DB::table('recalculos_pendientes_planificador')
+            ->where('tipo', ServicioRecalculosPendientesPlanificador::BUFFER_REPA)
+            ->count());
+    }
+
+    public function test_un_fallo_permanente_se_agota_y_el_watchdog_deja_de_reenviarlo(): void
+    {
+        $usuario = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $carga = Carga::create([
+            'temporada_id' => Temporada::query()->where('activa', true)->firstOrFail()->id,
+            'codigo' => 'CAR-PROY-FALLA',
+            'estado' => 'borrador',
+            'creada_por_user_id' => $usuario->id,
+            'actualizada_por_user_id' => $usuario->id,
+        ]);
+        $this->mock(ServicioPlanConcentracionCarga::class)
+            ->shouldReceive('sincronizar')
+            ->times(ServicioRecalculosPendientesPlanificador::MAX_INTENTOS_FALLIDOS)
+            ->andThrow(new RuntimeException('Fallo permanente de prueba.'));
+        $servicio = app(ServicioRecalculosPendientesPlanificador::class);
+        $servicio->solicitar(ServicioRecalculosPendientesPlanificador::CARGA, $carga->id);
+
+        for ($intento = 0; $intento < ServicioRecalculosPendientesPlanificador::MAX_INTENTOS_FALLIDOS; $intento++) {
+            try {
+                $servicio->ejecutar(ServicioRecalculosPendientesPlanificador::CARGA, $carga->id);
+            } catch (RuntimeException) {
+                // El worker reintenta hasta que la solicitud queda agotada.
+            }
+        }
+
+        $this->assertDatabaseHas('recalculos_pendientes_planificador', [
+            'fuente_id' => $carga->id,
+            'pendiente' => false,
+            'intentos_fallidos' => ServicioRecalculosPendientesPlanificador::MAX_INTENTOS_FALLIDOS,
+        ]);
+        $this->assertSame(0, $servicio->salud()['fallidos']);
+        $this->assertSame(1, $servicio->salud()['agotados']);
+        Queue::fake();
+        config(['queue.default' => 'database']);
+        $this->assertSame(0, $servicio->recuperar());
+        Queue::assertNothingPushed();
     }
 }

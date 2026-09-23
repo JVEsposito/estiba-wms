@@ -25,6 +25,12 @@ class RecalcularPrioridadBufferRepaletizajeObserver
             return;
         }
 
-        $this->recalculos->solicitar(ServicioRecalculosPendientesPlanificador::BUFFER_REPA, $plan->temporada_id);
+        // Cada tarea usa una fila propia para no serializar todas las
+        // transacciones REPA de la temporada sobre una única clave.
+        $this->recalculos->solicitar(
+            ServicioRecalculosPendientesPlanificador::BUFFER_REPA,
+            $tarea->id,
+            $plan->temporada_id,
+        );
     }
 }
