@@ -178,7 +178,7 @@ function card(lot) {
                 ? `<button class="primary-button" data-release="${escapeHtml(lot.id)}" type="button">Evaluar y liberar</button>`
             : '';
     const note = [cycle?.observacion_inicio, cycle?.observacion].filter(Boolean).join(' · ');
-    return `<article class="cycle-card${active ? ' is-active' : ''}${complete ? ' is-complete' : ''}">
+    return `<article class="cycle-card${active ? ' is-active' : ''}${complete ? ' is-complete' : ''}${lot.estado === 'hidrocooler_retenido' ? ' is-retained' : ''}">
         <div class="cycle-card__heading"><div><h3>${escapeHtml(lot.numero_lote)}</h3><p>${escapeHtml(lot.cliente?.nombre)} · recepción ${escapeHtml(lot.recepcion?.numero_recepcion)}</p></div><span class="hydro-status">${escapeHtml(status)}</span></div>
         <div class="cycle-facts">
             <div><span>CICLO / EQUIPO</span><strong>${escapeHtml(cycle?.codigo || 'Por iniciar')}<br>${escapeHtml(cycle?.equipo || 'Sin equipo')}</strong></div>
