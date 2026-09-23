@@ -27,7 +27,7 @@ Este documento define los términos utilizados por FoliOS. Las reglas, contratos
 | Validación MP | Revisión de materia prima posterior a Romana. Confirma envases reales y crea segregaciones provisionales. |
 | Segregación | División de una recepción por CSG, cuartel, variedad u otra combinación permitida. |
 | Segmento `pendiente_lote` | Resultado provisional de Validación MP que todavía no posee número de lote definitivo. |
-| Lote | Identidad futura de una unidad de materia prima procesable. No se confunde con `REC-*` ni con un folio frigorífico. |
+| Lote | Unidad de materia prima procesable creada por Digitación desde un segmento de Validación MP. No se confunde con `REC-*` ni con un folio frigorífico. |
 
 ## Producto terminado y Frigorífico
 
@@ -37,7 +37,7 @@ Este documento define los términos utilizados por FoliOS. Las reglas, contratos
 | Folio | Número único que identifica individualmente un bulto de producto o material dentro del inventario. |
 | Bulto | Unidad física identificada por un folio. |
 | Pallet | Bulto completo de producto. |
-| Saldo | Bulto incompleto de producto. Se ubica y mueve como folio; su repaletizaje formal continúa pendiente. |
+| Saldo | Bulto incompleto de producto. Se ubica y mueve como folio y puede participar en un repaletizaje formal con genealogía. |
 | Condición SAG | Condición operacional o regulatoria asociada a un folio de producto. |
 | Condición térmica | Estado del folio respecto de su tratamiento térmico: pendiente, en proceso, aprobado, reproceso, heredado o retenido. |
 | Habilitación para almacenamiento | Decisión separada que determina si el producto puede ingresar a cámara. |
@@ -114,4 +114,4 @@ Este documento define los términos utilizados por FoliOS. Las reglas, contratos
 - Cada cambio físico genera evidencia auditable.
 - Las anulaciones y correcciones se explican mediante nuevos registros o movimientos compensatorios.
 - Un conflicto nunca sobrescribe silenciosamente el estado central.
-- El repaletizaje requiere un módulo propio y genealogía explícita de folios.
+- El repaletizaje se registra en un módulo propio con genealogía explícita de folios.
