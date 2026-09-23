@@ -174,11 +174,14 @@ class DefectoRecepcionMpController extends Controller
         abort_unless($puedeAuditar || $esSuRegistroVigente, 403);
         abort_unless(Storage::disk('local')->exists($evidencia->ruta), 404);
 
-        return response()->file(Storage::disk('local')->path($evidencia->ruta), [
+        $respuesta = response()->file(Storage::disk('local')->path($evidencia->ruta), [
             'Content-Type' => $evidencia->mime,
-            'Cache-Control' => 'no-store, private',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+        $respuesta->setPrivate();
+        $respuesta->headers->set('Cache-Control', 'no-store, private');
+
+        return $respuesta;
     }
 
     private function asegurarTemporadaActiva(RecepcionRomana $recepcion): void
