@@ -19,6 +19,7 @@ use App\Enums\EstadoTecnicoTunelPrefrio;
 use App\Enums\EstadoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
+use App\Enums\TipoEnvaseRomana;
 use App\Models\Camara;
 use App\Models\Carga;
 use App\Models\CargaFolio;
@@ -43,7 +44,7 @@ use Illuminate\Support\Str;
 
 class ServicioPanelGerencial
 {
-    public const CLAVE_CACHE = 'gerencia:panel:resumen:v3';
+    public const CLAVE_CACHE = 'gerencia:panel:resumen:v4';
 
     private const CLAVE_BLOQUEO = 'gerencia:panel:resumen:bloqueo';
 
@@ -591,7 +592,10 @@ class ServicioPanelGerencial
             ->pluck('total', 'estado');
 
         return [
-            'lotes_activos' => (clone $base)->count(),
+            'lotes_activos' => (clone $base)->whereNotIn('estado', [
+                EstadoLoteMateriaPrima::Borrador->value,
+                EstadoLoteMateriaPrima::EntregadoProceso->value,
+            ])->count(),
             'borradores' => (int) $porEstado->get(EstadoLoteMateriaPrima::Borrador->value, 0),
             'pendientes_hidrocooler' => (int) $porEstado->get(
                 EstadoLoteMateriaPrima::PendienteHidrocooler->value,
@@ -599,6 +603,10 @@ class ServicioPanelGerencial
             ),
             'hidrocooler_en_curso' => (int) $porEstado->get(
                 EstadoLoteMateriaPrima::HidrocoolerEnCurso->value,
+                0,
+            ),
+            'hidrocooler_retenido' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::HidrocoolerRetenido->value,
                 0,
             ),
             'pendientes_asignacion' => (int) $porEstado->get(
@@ -612,6 +620,10 @@ class ServicioPanelGerencial
             'en_camara' => (int) $porEstado->get(EstadoLoteMateriaPrima::AsignadoCamara->value, 0),
             'entrega_parcial' => (int) $porEstado->get(
                 EstadoLoteMateriaPrima::EntregaParcialProceso->value,
+                0,
+            ),
+            'entregados_proceso' => (int) $porEstado->get(
+                EstadoLoteMateriaPrima::EntregadoProceso->value,
                 0,
             ),
             'confirmados_hoy' => LoteMateriaPrima::query()
@@ -632,13 +644,81 @@ class ServicioPanelGerencial
      */
     private function envases(string $temporadaId): array
     {
+        $inicioHoy = now()->startOfDay();
+        $inicioSemana = now()->subDays(6)->startOfDay();
         $hoy = MovimientoEnvase::query()
             ->where('temporada_id', $temporadaId)
-            ->where('ocurrido_at', '>=', now()->startOfDay());
+            ->where('ocurrido_at', '>=', $inicioHoy);
+
+        $existencias = MovimientoEnvase::query()
+            ->where('temporada_id', $temporadaId)
+            ->groupBy('tipo_envase')
+            ->select('tipo_envase')
+            ->selectRaw('COALESCE(SUM(CAST(cantidad AS SIGNED) * signo_existencia), 0) as total')
+            ->pluck('total', 'tipo_envase');
+
+        $movimientosHoy = (clone $hoy)
+            ->groupBy('tipo_envase')
+            ->select('tipo_envase')
+            ->selectRaw('COALESCE(SUM(CASE WHEN signo_existencia > 0 THEN cantidad ELSE 0 END), 0) as entradas')
+            ->selectRaw('COALESCE(SUM(CASE WHEN signo_existencia < 0 THEN cantidad ELSE 0 END), 0) as salidas')
+            ->get()
+            ->keyBy(fn (MovimientoEnvase $movimiento): string => $movimiento->tipo_envase->value);
+
+        $tendencia = MovimientoEnvase::query()
+            ->where('temporada_id', $temporadaId)
+            ->where('ocurrido_at', '>=', $inicioSemana)
+            ->groupBy('tipo_envase')
+            ->groupByRaw('DATE(ocurrido_at)')
+            ->selectRaw('tipo_envase, DATE(ocurrido_at) as fecha')
+            ->selectRaw('COALESCE(SUM(CASE WHEN signo_existencia > 0 THEN cantidad ELSE 0 END), 0) as entradas')
+            ->selectRaw('COALESCE(SUM(CASE WHEN signo_existencia < 0 THEN cantidad ELSE 0 END), 0) as salidas')
+            ->get()
+            ->groupBy(fn (MovimientoEnvase $movimiento): string => $movimiento->tipo_envase->value);
+
+        $saldos = MovimientoEnvase::query()
+            ->where('temporada_id', $temporadaId)
+            ->groupBy('cliente_id', 'tipo_envase')
+            ->select('cliente_id', 'tipo_envase')
+            ->selectRaw('SUM(CAST(cantidad AS SIGNED) * signo_cuenta) as saldo')
+            ->with('cliente:id,nombre')
+            ->get()
+            ->groupBy(fn (MovimientoEnvase $movimiento): string => $movimiento->tipo_envase->value);
+
+        $tipos = collect(TipoEnvaseRomana::cases())->mapWithKeys(function (TipoEnvaseRomana $tipo) use ($existencias, $movimientosHoy, $tendencia, $saldos, $inicioSemana): array {
+            $codigo = $tipo->value;
+            $dias = collect(range(0, 6))->map(function (int $desplazamiento) use ($tendencia, $codigo, $inicioSemana): array {
+                $fecha = $inicioSemana->copy()->addDays($desplazamiento);
+                $registro = $tendencia->get($codigo, collect())
+                    ->first(fn (MovimientoEnvase $movimiento): bool => $movimiento->getAttribute('fecha') === $fecha->toDateString());
+
+                return [
+                    'fecha' => $fecha->toDateString(),
+                    'etiqueta' => $fecha->format('d/m'),
+                    'entradas' => (int) ($registro?->getAttribute('entradas') ?? 0),
+                    'salidas' => (int) ($registro?->getAttribute('salidas') ?? 0),
+                ];
+            });
+
+            return [$codigo => [
+                'existencia' => (int) $existencias->get($codigo, 0),
+                'entradas_hoy' => (int) ($movimientosHoy->get($codigo)?->getAttribute('entradas') ?? 0),
+                'salidas_hoy' => (int) ($movimientosHoy->get($codigo)?->getAttribute('salidas') ?? 0),
+                'tendencia_diaria' => $dias->all(),
+                'saldos_clientes' => $saldos->get($codigo, collect())
+                    ->filter(fn (MovimientoEnvase $movimiento): bool => (int) $movimiento->getAttribute('saldo') !== 0)
+                    ->sortByDesc(fn (MovimientoEnvase $movimiento): int => abs((int) $movimiento->getAttribute('saldo')))
+                    ->take(5)
+                    ->map(fn (MovimientoEnvase $movimiento): array => [
+                        'cliente' => $movimiento->cliente?->nombre ?? 'Cliente sin nombre',
+                        'saldo' => (int) $movimiento->getAttribute('saldo'),
+                    ])->values()->all(),
+            ]];
+        })->all();
 
         return [
             'movimientos_hoy' => (clone $hoy)->count(),
-            'unidades_movidas_hoy' => (int) (clone $hoy)->sum('cantidad'),
+            'tipos' => $tipos,
             'pendientes_revision' => MovimientoEnvase::query()
                 ->where('temporada_id', $temporadaId)
                 ->where('estado_revision', EstadoRevisionMovimientoEnvase::Pendiente->value)
@@ -1002,6 +1082,17 @@ class ServicioPanelGerencial
             ]);
         }
 
+        if ($materiaPrima['hidrocooler_retenido'] > 0) {
+            $alertas->push([
+                'nivel' => 'critica',
+                'area' => 'Materia prima',
+                'titulo' => 'Lotes retenidos en hidrocooler',
+                'detalle' => "{$materiaPrima['hidrocooler_retenido']} lote(s) requieren resolución antes de continuar.",
+                'metrica' => $materiaPrima['hidrocooler_retenido'],
+                'href' => '/oficina/materia-prima/hidrocooler',
+            ]);
+        }
+
         if ($romana['pendientes_destare'] > 0) {
             $alertas->push([
                 'nivel' => 'advertencia',
@@ -1020,6 +1111,17 @@ class ServicioPanelGerencial
                 'titulo' => 'Movimientos pendientes de revisión',
                 'detalle' => "{$envases['pendientes_revision']} movimiento(s) requieren chequeo documental.",
                 'metrica' => $envases['pendientes_revision'],
+                'href' => '/oficina/envases/cuenta-corriente',
+            ]);
+        }
+
+        if ($envases['observados'] > 0) {
+            $alertas->push([
+                'nivel' => 'advertencia',
+                'area' => 'Envases',
+                'titulo' => 'Movimientos observados',
+                'detalle' => "{$envases['observados']} movimiento(s) requieren gestión documental.",
+                'metrica' => $envases['observados'],
                 'href' => '/oficina/envases/cuenta-corriente',
             ]);
         }

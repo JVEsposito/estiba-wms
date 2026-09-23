@@ -52,7 +52,7 @@
                 <div>
                     <p class="eyebrow">RESUMEN DE LA OPERACIÓN</p>
                     <h1>Panel gerencial</h1>
-                    <p>Recepciones de romana, capacidad física, inventario utilizable y operación de prefrío al momento.</p>
+                    <p>Capacidad, recepciones, materia prima y envases de la temporada en una lectura clara.</p>
                 </div>
                 <div class="management-refresh">
                     <label class="management-season">
@@ -340,7 +340,7 @@
                 </div>
 
                 <div
-                    class="management-view management-view--domain-pair"
+                    class="management-view management-view--single management-view--raw-flow"
                     id="management-panel-raw-material"
                     data-office-panel-group="management"
                     data-office-panel-id="raw-material"
@@ -355,27 +355,54 @@
                                 <a class="management-panel-link" href="/oficina/materia-prima/existencias">Existencia MP →</a>
                             </div>
                         </header>
-                        <div class="management-operational-metrics">
-                            <article><span>LOTES ACTIVOS</span><strong id="rawLotsActiveMetric">0</strong><small>en circuito</small></article>
+                        <p class="management-panel-intro">Lotes vigentes de la temporada: excluye borradores, anulados y entregados por completo.</p>
+                        <div class="management-operational-metrics management-operational-metrics--raw">
+                            <article><span>EN CIRCUITO</span><strong id="rawLotsActiveMetric">0</strong><small>lotes vigentes</small></article>
                             <article class="is-warning"><span>ESPERA HIDROCOOLER</span><strong id="rawHydrocoolerPendingMetric">0</strong><small>pendientes</small></article>
                             <article><span>EN HIDROCOOLER</span><strong id="rawHydrocoolerActiveMetric">0</strong><small>proceso activo</small></article>
+                            <article class="is-critical"><span>RETENIDOS</span><strong id="rawHydrocoolerHeldMetric">0</strong><small>requieren resolución</small></article>
                             <article class="is-warning"><span>SIN CÁMARA</span><strong id="rawAssignmentPendingMetric">0</strong><small>esperan asignación</small></article>
                             <article><span>EN CÁMARA</span><strong id="rawInCameraMetric">0</strong><small>lotes ubicados</small></article>
                             <article><span>ENTREGA PARCIAL</span><strong id="rawPartialDeliveryMetric">0</strong><small>saldo por procesar</small></article>
                         </div>
-                        <div class="management-average"><span>INGRESO CONFIRMADO HOY</span><strong id="rawConfirmedTodayMetric">0 lotes · 0 kg</strong></div>
+                        <div class="management-raw-footer">
+                            <div class="management-average"><span>INGRESO CONFIRMADO HOY</span><strong id="rawConfirmedTodayMetric">0 lotes · 0 kg</strong></div>
+                            <div class="management-average"><span>FUERA DEL CIRCUITO</span><strong id="rawOutsideCircuitMetric">0 borradores · 0 entregados</strong></div>
+                        </div>
                     </article>
 
                     <article class="management-panel">
                         <header>
-                            <div><p class="eyebrow">CUENTA DE ENVASES</p><h2>Movimientos y revisión documental</h2></div>
+                            <div><p class="eyebrow">ENVASES</p><h2>Existencia física y cuenta por cliente</h2></div>
                             <a class="management-panel-link" href="/oficina/envases/cuenta-corriente">Abrir cuenta →</a>
                         </header>
-                        <div class="management-operational-metrics">
-                            <article><span>MOVIMIENTOS HOY</span><strong id="containerMovementsTodayMetric">0</strong><small>registros</small></article>
-                            <article><span>UNIDADES HOY</span><strong id="containerUnitsTodayMetric">0</strong><small>movidas</small></article>
-                            <article class="is-warning"><span>PENDIENTES</span><strong id="containerPendingReviewMetric">0</strong><small>sin revisión</small></article>
-                            <article class="is-critical"><span>OBSERVADOS</span><strong id="containerObservedMetric">0</strong><small>requieren gestión</small></article>
+                        <p class="management-panel-intro">Selecciona un tipo para comparar cantidades equivalentes. La existencia física y el saldo de la cuenta se calculan por separado.</p>
+                        <div class="management-container-types" role="group" aria-label="Tipo de envase">
+                            <button type="button" class="is-active" data-management-container-type="bins" aria-pressed="true">Bins <strong id="containerBinsStock">0</strong></button>
+                            <button type="button" data-management-container-type="totes" aria-pressed="false">Totes <strong id="containerTotesStock">0</strong></button>
+                            <button type="button" data-management-container-type="esponjas" aria-pressed="false">Esponjas <strong id="containerEsponjasStock">0</strong></button>
+                        </div>
+                        <div class="management-operational-metrics management-operational-metrics--four">
+                            <article class="is-positive"><span>EXISTENCIA FÍSICA</span><strong id="containerStockMetric">0</strong><small id="containerStockUnit">bins de la temporada</small></article>
+                            <article><span>ENTRADAS HOY</span><strong id="containerEntriesTodayMetric">0</strong><small id="containerEntriesUnit">bins ingresados</small></article>
+                            <article><span>SALIDAS HOY</span><strong id="containerExitsTodayMetric">0</strong><small id="containerExitsUnit">bins despachados</small></article>
+                            <article><span>MOVIMIENTOS HOY</span><strong id="containerMovementsTodayMetric">0</strong><small>registros de todos los tipos</small></article>
+                        </div>
+                        <div class="management-container-detail">
+                            <div>
+                                <h3>Entradas y salidas · últimos 7 días</h3>
+                                <div class="chart-container chart-container--bar"><canvas id="containerFlowChart" role="img" aria-label="Entradas y salidas de envases en los últimos siete días"></canvas></div>
+                                <p class="management-panel-intro" id="containerFlowDescription">Las entradas incluyen recepciones y reversiones; las salidas corresponden a despachos.</p>
+                            </div>
+                            <div>
+                                <h3>Saldos de cuenta por cliente</h3>
+                                <p class="management-panel-intro">Hasta cinco saldos de mayor magnitud para el tipo seleccionado. Los negativos indican más salidas que ingresos en la cuenta.</p>
+                                <div class="management-container-balances" id="containerClientBalances"></div>
+                                <div class="management-operational-metrics management-operational-metrics--review">
+                                    <article class="is-warning"><span>PENDIENTES</span><strong id="containerPendingReviewMetric">0</strong><small>sin revisión · todos los tipos</small></article>
+                                    <article class="is-critical"><span>OBSERVADOS</span><strong id="containerObservedMetric">0</strong><small>requieren gestión · todos los tipos</small></article>
+                                </div>
+                            </div>
                         </div>
                     </article>
                 </div>

@@ -86,12 +86,25 @@ const elements = {
     rawLotsActive: byId('rawLotsActiveMetric'),
     rawHydrocoolerPending: byId('rawHydrocoolerPendingMetric'),
     rawHydrocoolerActive: byId('rawHydrocoolerActiveMetric'),
+    rawHydrocoolerHeld: byId('rawHydrocoolerHeldMetric'),
     rawAssignmentPending: byId('rawAssignmentPendingMetric'),
     rawInCamera: byId('rawInCameraMetric'),
     rawPartialDelivery: byId('rawPartialDeliveryMetric'),
     rawConfirmedToday: byId('rawConfirmedTodayMetric'),
+    rawOutsideCircuit: byId('rawOutsideCircuitMetric'),
+    containerTypeButtons: document.querySelectorAll('[data-management-container-type]'),
+    containerBinsStock: byId('containerBinsStock'),
+    containerTotesStock: byId('containerTotesStock'),
+    containerEsponjasStock: byId('containerEsponjasStock'),
+    containerStock: byId('containerStockMetric'),
+    containerStockUnit: byId('containerStockUnit'),
+    containerEntriesToday: byId('containerEntriesTodayMetric'),
+    containerEntriesUnit: byId('containerEntriesUnit'),
+    containerExitsToday: byId('containerExitsTodayMetric'),
+    containerExitsUnit: byId('containerExitsUnit'),
+    containerClientBalances: byId('containerClientBalances'),
+    containerFlowDescription: byId('containerFlowDescription'),
     containerMovementsToday: byId('containerMovementsTodayMetric'),
-    containerUnitsToday: byId('containerUnitsTodayMetric'),
     containerPendingReview: byId('containerPendingReviewMetric'),
     containerObserved: byId('containerObservedMetric'),
     loading: byId('officeLoading'),
@@ -109,6 +122,7 @@ const state = {
     identity: readJson(keys.identity),
     dashboard: null,
     seasonId: null,
+    containerType: 'bins',
     loading: false,
     poller: null,
     charts: new Map(),
@@ -666,15 +680,72 @@ function renderRawMaterial(rawMaterial, containers) {
     elements.rawLotsActive.textContent = formatInteger(rawMaterial.lotes_activos);
     elements.rawHydrocoolerPending.textContent = formatInteger(rawMaterial.pendientes_hidrocooler);
     elements.rawHydrocoolerActive.textContent = formatInteger(rawMaterial.hidrocooler_en_curso);
+    elements.rawHydrocoolerHeld.textContent = formatInteger(rawMaterial.hidrocooler_retenido);
     elements.rawAssignmentPending.textContent = formatInteger(rawMaterial.pendientes_asignacion);
     elements.rawInCamera.textContent = formatInteger(rawMaterial.en_camara);
     elements.rawPartialDelivery.textContent = formatInteger(rawMaterial.entrega_parcial);
     elements.rawConfirmedToday.textContent = `${formatInteger(rawMaterial.confirmados_hoy)} lotes · ${formatWeight(rawMaterial.kilos_confirmados_hoy)} kg`;
+    elements.rawOutsideCircuit.textContent = `${formatInteger(rawMaterial.borradores)} borradores · ${formatInteger(rawMaterial.entregados_proceso)} entregados`;
 
     elements.containerMovementsToday.textContent = formatInteger(containers.movimientos_hoy);
-    elements.containerUnitsToday.textContent = formatInteger(containers.unidades_movidas_hoy);
     elements.containerPendingReview.textContent = formatInteger(containers.pendientes_revision);
     elements.containerObserved.textContent = formatInteger(containers.observados);
+    renderContainerType();
+}
+
+function renderContainerType() {
+    const types = state.dashboard?.envases?.tipos || {};
+    const type = state.containerType;
+    const selected = types[type];
+    if (!selected) return;
+
+    elements.containerBinsStock.textContent = formatInteger(types.bins?.existencia);
+    elements.containerTotesStock.textContent = formatInteger(types.totes?.existencia);
+    elements.containerEsponjasStock.textContent = formatInteger(types.esponjas?.existencia);
+    elements.containerTypeButtons.forEach((button) => {
+        const active = button.dataset.managementContainerType === type;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+
+    elements.containerStock.textContent = formatInteger(selected.existencia);
+    elements.containerStockUnit.textContent = `${type} registrados en esta temporada`;
+    elements.containerEntriesToday.textContent = formatInteger(selected.entradas_hoy);
+    elements.containerEntriesUnit.textContent = `${type} ingresados o revertidos`;
+    elements.containerExitsToday.textContent = formatInteger(selected.salidas_hoy);
+    elements.containerExitsUnit.textContent = `${type} despachados`;
+
+    const balances = selected.saldos_clientes || [];
+    elements.containerClientBalances.innerHTML = balances.length
+        ? balances.map((item) => `<div class="management-container-balance"><span>${escapeHtml(item.cliente)}</span><strong class="${item.saldo < 0 ? 'is-negative' : ''}">${item.saldo > 0 ? '+' : ''}${formatInteger(item.saldo)}</strong></div>`).join('')
+        : '<div class="management-empty">Sin saldos registrados para este tipo de envase.</div>';
+
+    const days = selected.tendencia_diaria || [];
+    const entries = days.reduce((sum, day) => sum + Number(day.entradas), 0);
+    const exits = days.reduce((sum, day) => sum + Number(day.salidas), 0);
+    elements.containerFlowDescription.textContent = `${formatInteger(entries)} ${type} entraron y ${formatInteger(exits)} salieron en los últimos 7 días. Incluye reversiones de despacho en entradas.`;
+    replaceChart('containers', 'containerFlowChart', {
+        type: 'bar',
+        data: {
+            labels: days.map((day) => day.etiqueta),
+            datasets: [
+                { label: 'Entradas', data: days.map((day) => day.entradas), backgroundColor: palette.green, borderRadius: 4 },
+                { label: 'Salidas', data: days.map((day) => day.salidas), backgroundColor: palette.amber, borderRadius: 4 },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${formatInteger(context.raw)} ${type}` } },
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: palette.grid }, ticks: { precision: 0 } },
+            },
+        },
+    });
 }
 
 function renderCameraTable(cameras) {
@@ -793,6 +864,10 @@ elements.seasonSelect.addEventListener('change', () => {
     void loadDashboard({ blocking: true });
 });
 elements.materialUnitSelect.addEventListener('change', renderMaterialChart);
+elements.containerTypeButtons.forEach((button) => button.addEventListener('click', () => {
+    state.containerType = button.dataset.managementContainerType;
+    renderContainerType();
+}));
 
 document.addEventListener('estiba:office-panel-change', (event) => {
     if (event.detail?.group !== 'management') return;

@@ -10,11 +10,13 @@ use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
 use App\Models\Camara;
 use App\Models\Carga;
+use App\Models\Cliente;
 use App\Models\ClienteMaterial;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\FolioMaterial;
 use App\Models\ItemMaterial;
+use App\Models\MovimientoEnvase;
 use App\Models\Posicion;
 use App\Models\PosicionTunelPrefrio;
 use App\Models\ProcesoPrefrio;
@@ -168,6 +170,63 @@ class PanelGerencialApiTest extends TestCase
             ->assertJsonPath('data.productos.total_activos', 1)
             ->assertJsonPath('data.productos.pendientes_ubicacion', 0)
             ->assertJsonPath('data.productos.bloqueados', 1);
+    }
+
+    public function test_desglosa_envases_por_tipo_stock_fisico_cuenta_cliente_y_siete_dias(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-09-23 12:00:00'));
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $anterior = Temporada::create([
+            'codigo' => '2025-2026',
+            'nombre' => 'Temporada anterior',
+            'fecha_inicio' => '2025-10-01',
+            'fecha_fin' => '2026-02-28',
+            'activa' => false,
+        ]);
+        $cliente = Cliente::create(['codigo' => 'CLI-PANEL', 'nombre' => 'Cliente panel', 'activo' => true]);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
+
+        $movimiento = function (string $tipo, int $cantidad, int $existencia, int $cuenta, string $fecha, string $temporadaId) use ($cliente, $administrador): void {
+            MovimientoEnvase::create([
+                'operacion_id' => (string) Str::uuid(),
+                'temporada_id' => $temporadaId,
+                'cliente_id' => $cliente->id,
+                'documento_tipo' => 'prueba',
+                'numero_documento' => (string) Str::uuid(),
+                'tipo_movimiento' => $existencia < 0 ? 'despacho_cliente' : 'recepcion_compra',
+                'tipo_envase' => $tipo,
+                'cantidad' => $cantidad,
+                'signo_cuenta' => $cuenta,
+                'signo_existencia' => $existencia,
+                'propiedad' => 'cliente',
+                'ocurrido_at' => $fecha,
+                'estado_revision' => 'pendiente',
+                'creado_por_user_id' => $administrador->id,
+            ]);
+        };
+
+        $movimiento('bins', 20, 1, 0, '2026-09-17 09:00:00', $temporada->id);
+        $movimiento('bins', 8, -1, -1, '2026-09-23 10:00:00', $temporada->id);
+        $movimiento('totes', 5, 1, 1, '2026-09-23 11:00:00', $temporada->id);
+        $movimiento('bins', 99, 1, 1, '2026-09-23 10:00:00', $anterior->id);
+        $movimiento('bins', 40, 1, 1, '2026-09-16 09:00:00', $temporada->id);
+
+        $this->actingAs($gerencia, 'sanctum')
+            ->getJson('/api/gerencia/resumen')
+            ->assertOk()
+            ->assertJsonPath('data.envases.movimientos_hoy', 2)
+            ->assertJsonPath('data.envases.tipos.bins.existencia', 52)
+            ->assertJsonPath('data.envases.tipos.bins.entradas_hoy', 0)
+            ->assertJsonPath('data.envases.tipos.bins.salidas_hoy', 8)
+            ->assertJsonPath('data.envases.tipos.bins.saldos_clientes.0.cliente', 'Cliente panel')
+            ->assertJsonPath('data.envases.tipos.bins.saldos_clientes.0.saldo', 32)
+            ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.0.entradas', 20)
+            ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.6.fecha', '2026-09-23')
+            ->assertJsonPath('data.envases.tipos.bins.tendencia_diaria.6.salidas', 8)
+            ->assertJsonCount(7, 'data.envases.tipos.bins.tendencia_diaria')
+            ->assertJsonPath('data.envases.tipos.totes.existencia', 5)
+            ->assertJsonPath('data.envases.tipos.esponjas.existencia', 0);
     }
 
     public function test_restringe_el_panel_a_perfiles_gerenciales_de_solo_consulta(): void
