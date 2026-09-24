@@ -499,6 +499,7 @@ elements.login.addEventListener('submit', async (event) => {
         showApp();
         await loadBase();
     } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); }
+    if (state.token) runSearchFromUrl();
 });
 
 elements.logout.addEventListener('click', async () => {
@@ -509,6 +510,16 @@ elements.reload.addEventListener('click', async () => {
     setBusy(true, 'Actualizando consultas…');
     try { await loadBase(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
+
+// El buscador global del menú llega con ?q=; al abrir la oficina se ejecuta esa búsqueda.
+function runSearchFromUrl() {
+    const term = new URLSearchParams(window.location.search).get('q')?.trim();
+    if (!term || term.length < 2) return;
+    const form = state.activeSection === 'trazabilidad' ? elements.traceLots : elements.globalSearch;
+    if (!form?.elements.q) return;
+    form.elements.q.value = term;
+    form.requestSubmit();
+}
 
 elements.globalSearch.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -581,6 +592,7 @@ async function boot() {
     try { await loadBase(); } catch (error) {
         if (error.status !== 401) toast(error.message, true);
     } finally { setBusy(false); }
+    runSearchFromUrl();
 }
 
 void boot();
