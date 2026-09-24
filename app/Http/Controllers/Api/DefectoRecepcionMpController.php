@@ -237,7 +237,7 @@ class DefectoRecepcionMpController extends Controller
             }
             foreach ($defectos as $defecto) {
                 foreach ($defecto->evidencias as $foto) {
-                    if (! Storage::disk('local')->exists($foto->ruta)) {
+                    if (Storage::disk('local')->missing($foto->ruta)) {
                         throw new RuntimeException("Falta la fotografía {$foto->id} del registro {$defecto->id}.");
                     }
                     $extension = match ($foto->mime) {
