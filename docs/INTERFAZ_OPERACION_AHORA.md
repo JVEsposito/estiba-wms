@@ -144,3 +144,25 @@ Si solo existe un ciclo, la interfaz lo declara como primer ciclo confirmado. Si
 no hay cambios, muestra una confirmación explícita en lugar de una bandeja vacía.
 La comparación respeta los temas claro y oscuro, el diseño táctil y el escape de
 todo texto recibido desde el servidor.
+
+## Vista de planta
+
+El plano ocupa todo el ancho, debajo del puesto de mando, con fondo de plano
+técnico y leyenda lateral. El color verde, ámbar y rojo se reserva para el
+estado; el tipo de recinto se reconoce por forma, etiqueta e icono.
+
+| Recinto | Qué muestra |
+|---|---|
+| Cámara | Código, ocupación en porcentaje con barra, posiciones ocupadas, personal y equipos móviles en sesión y alerta de control ambiental. Sobre 90 % el recinto se rellena en rojo. |
+| Túnel | Carga de posiciones, estado del ciclo y avance respecto del objetivo. Mantención, fuera de servicio o inactivo se muestran con trama roja y llave. |
+| Andén | Bloque de muelle con el camión presente, patente o carga; si no hay presencia queda libre. |
+| Bodega | Bodega física de materiales con estanterías. |
+| Área REPA | Pallets en el buffer respecto del máximo configurado, con el mismo criterio de prioridad que el recálculo del buffer. |
+| Área Recepción MP | Recepciones por validar, camiones en Romana y validaciones en curso de la temporada activa. |
+
+Una cámara inactiva sigue apareciendo en el catálogo como fuera de servicio para
+que el plano no pierda su referencia. Personal y equipo móvil provienen de las
+sesiones de estiba abiertas: el equipo corresponde al dispositivo con que opera
+el camarero, no a un registro independiente de grúas.
+
+Las pruebas visuales y de modelo viven en `tests/JavaScript/plant-view.test.mjs`.

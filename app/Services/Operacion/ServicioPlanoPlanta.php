@@ -2,14 +2,20 @@
 
 namespace App\Services\Operacion;
 
+use App\Enums\EstadoCamara;
+use App\Enums\EstadoRecepcionRomana;
+use App\Enums\EstadoValidacionMp;
 use App\Enums\TipoAlmacenMaterial;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\AlmacenMaterial;
 use App\Models\Anden;
 use App\Models\Camara;
 use App\Models\PlanoPlanta;
+use App\Models\RecepcionRomana;
+use App\Models\Temporada;
 use App\Models\TunelPrefrio;
 use App\Models\User;
+use App\Services\Validacion\ServicioPrioridadBufferRepaletizaje;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,12 +23,30 @@ class ServicioPlanoPlanta
 {
     public const CODIGO_PRINCIPAL = 'principal';
 
+    /** Categorías de áreas dibujadas; repa y recepcion_mp muestran indicadores vivos. */
+    public const CATEGORIAS_ZONA = [
+        'repa',
+        'recepcion_mp',
+        'materiales',
+        'packing',
+        'bodega',
+        'pasillo',
+        'patio',
+        'oficina',
+        'muelle',
+        'otro',
+    ];
+
+    public function __construct(
+        private readonly ServicioPrioridadBufferRepaletizaje $bufferRepaletizaje,
+    ) {}
+
     /**
      * @param  array<int, array<string, mixed>>  $camaras
      * @param  array<int, array<string, mixed>>  $tuneles
      * @return array<string, mixed>
      */
-    public function obtener(array $camaras, array $tuneles, bool $puedeEditar): array
+    public function obtener(array $camaras, array $tuneles, bool $puedeEditar, ?Temporada $temporada = null): array
     {
         $plano = PlanoPlanta::query()->where('codigo', self::CODIGO_PRINCIPAL)->first();
         $catalogo = $this->catalogo($camaras, $tuneles);
@@ -35,6 +59,43 @@ class ServicioPlanoPlanta
             'puede_editar' => $puedeEditar,
             'elementos' => $plano?->elementos ?? [],
             'catalogo' => $catalogo,
+            'indicadores' => $this->indicadores($temporada),
+        ];
+    }
+
+    /**
+     * Indicadores vivos para las áreas dibujadas que representan procesos.
+     *
+     * @return array<string, mixed>
+     */
+    private function indicadores(?Temporada $temporada): array
+    {
+        if ($temporada === null) {
+            return ['repa' => null, 'recepcion_mp' => null];
+        }
+
+        $buffer = $this->bufferRepaletizaje->estado($temporada->id);
+        $recepciones = RecepcionRomana::query()
+            ->where('temporada_id', $temporada->id);
+
+        return [
+            'repa' => [
+                'pallets_pendientes' => $buffer['pallets_pendientes'],
+                'maximo' => $buffer['maximo'],
+                'umbral_alta' => $buffer['umbral_alta'],
+                'prioridad' => $buffer['prioridad']->value,
+            ],
+            'recepcion_mp' => [
+                'en_romana' => (clone $recepciones)
+                    ->where('estado', '!=', EstadoRecepcionRomana::Cerrado->value)
+                    ->count(),
+                'pendientes_validacion' => (clone $recepciones)
+                    ->where('estado_validacion_mp', EstadoValidacionMp::Pendiente->value)
+                    ->count(),
+                'en_validacion' => (clone $recepciones)
+                    ->where('estado_validacion_mp', EstadoValidacionMp::EnCurso->value)
+                    ->count(),
+            ],
         ];
     }
 
@@ -114,7 +175,7 @@ class ServicioPlanoPlanta
         foreach ($elementos as $indice => $elemento) {
             $categoriaValida = in_array(
                 $elemento['categoria'] ?? 'otro',
-                ['packing', 'bodega', 'pasillo', 'patio', 'oficina', 'muelle', 'otro'],
+                self::CATEGORIAS_ZONA,
                 true,
             );
 
@@ -152,7 +213,26 @@ class ServicioPlanoPlanta
                 'advertencia' => 'warning',
                 default => 'success',
             },
+            'estado' => 'operativa',
         ]);
+
+        // Una cámara inactiva sigue existiendo físicamente: el plano la muestra
+        // fuera de servicio en vez de perder la referencia.
+        $activas = collect($camaras)->pluck('id')->all();
+        $items = $items->concat(Camara::query()
+            ->where('estado', EstadoCamara::Inactiva->value)
+            ->whereKeyNot($activas)
+            ->orderBy('codigo')
+            ->get(['id', 'codigo', 'nombre'])
+            ->map(fn (Camara $camara): array => [
+                'tipo' => 'camara',
+                'id' => $camara->id,
+                'codigo' => $camara->codigo,
+                'nombre' => $camara->nombre,
+                'detalle' => 'Fuera de servicio',
+                'tono' => 'neutral',
+                'estado' => 'fuera_servicio',
+            ]));
 
         $items = $items->concat(collect($tuneles)->map(fn (array $tunel): array => [
             'tipo' => 'tunel',
@@ -178,6 +258,9 @@ class ServicioPlanoPlanta
                     'nombre' => $anden->nombre,
                     'detalle' => $presencia ? 'Ocupado · '.($presencia->patente ?: $presencia->carga?->codigo) : 'Disponible',
                     'tono' => $presencia ? 'warning' : 'success',
+                    'ocupado' => $presencia !== null,
+                    'patente' => $presencia?->patente,
+                    'carga_codigo' => $presencia?->carga?->codigo,
                 ];
             });
 

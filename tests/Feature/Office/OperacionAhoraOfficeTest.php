@@ -27,7 +27,9 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="operationSupervisionClose"', false)
             ->assertSee('Explicación, evidencia física e intervenciones autorizadas')
             ->assertSee('<th scope="col">Razón operacional</th>', false)
-            ->assertSee('Vista operacional de recintos')
+            ->assertSee('Vista de planta')
+            ->assertSee('data-legend="repa"', false)
+            ->assertSee('<option value="recepcion_mp">', false)
             ->assertSee('Editar plano')
             ->assertSee('Plano físico y estado en vivo de la planta')
             ->assertSee('operationMapDialog', false)
@@ -96,8 +98,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('operationLocationLabel', $script);
         $this->assertStringContainsString('SIN REGISTRO', $script);
         $this->assertStringContainsString('renderFacility', $script);
-        $this->assertStringContainsString('catalog?.nombre || item.nombre', $script);
-        $this->assertStringContainsString('`${mapTypeLabel(item.tipo)} · ${code}`', $script);
+        $this->assertStringContainsString("from './shared/plant-view'", $script);
+        $this->assertStringContainsString('plantNodeModel(item, index)', $script);
+        $this->assertStringContainsString('plantNodeLabel(model)', $script);
         $this->assertStringContainsString("api('/api/administracion/operacion-ahora/plano'", $script);
         $this->assertStringContainsString('resizeElement', $script);
         $this->assertStringContainsString('reconcilePlantSnapshot', $script);
@@ -141,10 +144,12 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('grid-template-columns: repeat(12, minmax(0, 1fr))', $styles);
         $this->assertStringContainsString('max-height: 196px', $styles);
         $this->assertStringContainsString('repeating-linear-gradient', $styles);
-        $this->assertStringContainsString('color: #102d41 !important', $styles);
-        $this->assertStringContainsString('color: #395b6b !important', $styles);
+        $this->assertStringContainsString('color: var(--plant-ink) !important', $styles);
+        $this->assertStringContainsString('color: var(--plant-muted) !important', $styles);
         $this->assertStringContainsString('container-type: size', $styles);
-        $this->assertStringContainsString('min(10cqw, 21cqh)', $styles);
+        $this->assertStringContainsString('@container plant-node', $styles);
+        $this->assertStringContainsString(':root[data-office-theme="dark-industrial"] :is(.plant-view, .operation-map-dialog)', $styles);
+        $this->assertStringContainsString('.operation-now-panel--facility { grid-column: 1 / -1; grid-row: 2; }', $styles);
         $this->assertStringContainsString('operation-now-panel--planner', $styles);
         $this->assertStringContainsString('operation-now-table--planner', $styles);
         $this->assertStringContainsString('operation-supervision__surface', $styles);

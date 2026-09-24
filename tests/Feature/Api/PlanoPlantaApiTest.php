@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\EstadoCamara;
 use App\Enums\RolUsuario;
 use App\Enums\TipoAlmacenMaterial;
 use App\Models\AlmacenMaterial;
@@ -136,6 +137,73 @@ class PlanoPlantaApiTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    public function test_el_plano_publica_indicadores_vivos_y_recintos_fuera_de_servicio(): void
+    {
+        $temporada = Temporada::create([
+            'codigo' => 'VIVO',
+            'nombre' => 'Temporada viva',
+            'fecha_inicio' => '2026-08-01',
+            'fecha_fin' => '2027-03-31',
+            'activa' => true,
+        ]);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $activa = $this->crearCamara();
+        $inactiva = Camara::create([
+            'codigo' => 'CAM-PLANO-02',
+            'nombre' => 'Cámara en mantención',
+            'contenido' => ContenidoCamara::Productos,
+            'estado' => EstadoCamara::Inactiva,
+        ]);
+        $anden = $this->crearAnden($administrador);
+
+        $respuesta = $this->actingAs($administrador, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.planta.indicadores.repa.pallets_pendientes', 0)
+            ->assertJsonPath('data.planta.indicadores.repa.maximo', config('planificador.repa_buffer_max_pallets'))
+            ->assertJsonPath('data.planta.indicadores.repa.prioridad', 'normal')
+            ->assertJsonPath('data.planta.indicadores.recepcion_mp.en_romana', 0)
+            ->assertJsonPath('data.planta.indicadores.recepcion_mp.pendientes_validacion', 0)
+            ->assertJsonPath('data.planta.indicadores.recepcion_mp.en_validacion', 0);
+
+        $catalogo = collect($respuesta->json('data.planta.catalogo'))->keyBy('id');
+        $this->assertSame('operativa', $catalogo[$activa->id]['estado']);
+        $this->assertSame('fuera_servicio', $catalogo[$inactiva->id]['estado']);
+        $this->assertSame(1, $catalogo->where('id', $activa->id)->count());
+        $this->assertFalse($catalogo[$anden->id]['ocupado']);
+        $this->assertNull($catalogo[$anden->id]['patente']);
+        $this->assertSame($temporada->id, $respuesta->json('data.temporada.id'));
+    }
+
+    public function test_acepta_areas_de_proceso_y_rechaza_categorias_desconocidas(): void
+    {
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        $elementos = [
+            $this->elemento('zona', null, 'REPA', 200, 200, 'repa'),
+            $this->elemento('zona', null, 'Recepción MP', 2300, 200, 'recepcion_mp'),
+            $this->elemento('zona', null, 'Materiales', 4400, 200, 'materiales'),
+        ];
+
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson('/api/administracion/operacion-ahora/plano', [
+                'version_esperada' => 0,
+                'nombre' => 'Planta frigorífica',
+                'elementos' => $elementos,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.version', 1);
+
+        $elementos[0]['categoria'] = 'invernadero';
+        $this->actingAs($administrador, 'sanctum')
+            ->putJson('/api/administracion/operacion-ahora/plano', [
+                'version_esperada' => 1,
+                'nombre' => 'Planta frigorífica',
+                'elementos' => $elementos,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['elementos.0.categoria']);
+    }
+
     private function elemento(string $tipo, ?string $referencia, string $nombre, int $x, int $y, ?string $categoria = null): array
     {
         return [

@@ -15,6 +15,13 @@ import {
     reconcilePlantSnapshot,
     resizeElement,
 } from './shared/plant-layout';
+import {
+    buildPlantIndex,
+    plantNodeLabel,
+    plantNodeModel,
+    tunnelStateLabel,
+    tunnelStateTone,
+} from './shared/plant-view';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
@@ -683,27 +690,54 @@ function currentMapElements(plant = state.snapshot?.planta) {
     return plant?.configurado ? plant.elementos : autoLayout(plant?.catalogo || []);
 }
 
-function mapCatalogIndex() {
-    return new Map((state.snapshot?.planta?.catalogo || [])
-        .map((item) => [catalogKey(item.tipo, item.id), item]));
-}
-
 function mapTypeLabel(type) {
     return { camara: 'Cámara', tunel: 'Túnel', anden: 'Andén', almacen: 'Bodega', zona: 'Área' }[type] || 'Recinto';
 }
 
-function mapNodeMarkup(item, editable = false) {
-    const catalog = item.tipo === 'zona' ? null : mapCatalogIndex().get(catalogKey(item.tipo, item.referencia_id));
-    const code = catalog?.codigo || mapTypeLabel(item.tipo);
-    const name = catalog?.nombre || item.nombre;
-    const detail = catalog?.detalle || (item.tipo === 'zona' ? humanize(item.categoria || 'otro') : 'Referencia no disponible');
-    const tone = catalog?.tono || (item.tipo === 'zona' ? 'neutral' : 'warning');
-    const selected = editable && state.mapSelectedId === item.id;
+const PLANT_GLYPHS = {
+    wrench: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.6 2.6l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.4-.4-2.4Z"/></svg>',
+    truck: '<svg viewBox="0 0 40 72" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><rect x="6" y="2" width="28" height="48" rx="2"/><path d="M6 12h28M6 22h28M6 32h28M6 42h28" class="plant-glyph__slats"/><rect x="9" y="53" width="22" height="16" rx="4"/><rect x="12" y="56" width="16" height="5" rx="1" class="plant-glyph__glass"/></svg>',
+    dock: '<svg viewBox="0 0 40 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path d="M8 4h24v56H8z" class="plant-glyph__outline"/><path d="M12 12h16M12 22h16M12 32h16M12 42h16M12 52h16" class="plant-glyph__outline"/></svg>',
+    racks: '<svg viewBox="0 0 64 32" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g class="plant-glyph__outline"><rect x="2" y="3" width="17" height="26"/><rect x="24" y="3" width="17" height="26"/><rect x="46" y="3" width="16" height="26"/><path d="M2 12h17M2 20h17M24 12h17M24 20h17M46 12h16M46 20h16"/></g></svg>',
+    bins: '<svg viewBox="0 0 64 28" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g><rect x="2" y="6" width="13" height="18" rx="1"/><rect x="18" y="6" width="13" height="18" rx="1"/><rect x="34" y="6" width="13" height="18" rx="1"/><rect x="50" y="6" width="12" height="18" rx="1"/></g><path d="M2 12h60M2 18h60" class="plant-glyph__slats"/></svg>',
+    repa: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" class="plant-glyph__outline"/></svg>',
+    person: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0Z"/></svg>',
+    forklift: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17V8h7l3 5v4ZM15 4v15h6M5 7V4h4"/><circle cx="6" cy="19" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20ZM12 10v5M12 18h.01"/></svg>',
+};
 
-    return `<article class="operation-map-node${selected ? ' is-selected' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-tone="${escapeHtml(tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(`${mapTypeLabel(item.tipo)} ${code}, ${name}: ${detail}`)}">
-        <span class="operation-map-node__type">${escapeHtml(item.tipo === 'zona' ? humanize(item.categoria || 'Área') : `${mapTypeLabel(item.tipo)} · ${code}`)}</span>
-        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
-        <small>${escapeHtml(detail)}</small>
+function plantCrewMarkup(crew) {
+    if (!crew || (!crew.personas.length && !crew.equipos.length)) return '';
+    const people = crew.personas.length
+        ? `<span class="plant-node__crew-item" data-crew="personal" title="${escapeHtml(crew.personas.join(', '))}">${PLANT_GLYPHS.person}${number(crew.personas.length)}</span>`
+        : '';
+    const devices = crew.equipos.length
+        ? `<span class="plant-node__crew-item" data-crew="equipo" title="${escapeHtml(crew.equipos.join(', '))}">${PLANT_GLYPHS.forklift}${number(crew.equipos.length)}</span>`
+        : '';
+    return `<span class="plant-node__crew">${people}${devices}</span>`;
+}
+
+function mapNodeMarkup(item, editable = false, index = buildPlantIndex(state.snapshot || {})) {
+    const model = plantNodeModel(item, index);
+    const selected = editable && state.mapSelectedId === item.id;
+    const showName = model.name && model.name !== model.code;
+    const meter = model.meter
+        ? `<span class="plant-node__meter" data-tone="${escapeHtml(model.meter.tone)}"${model.meter.label ? ` title="${escapeHtml(`${model.meter.value}% ${model.meter.label}`)}"` : ''}><i style="--plant-meter:${model.meter.value}%"></i></span>`
+        : '';
+    const alerts = model.alerts.length
+        ? `<span class="plant-node__alert" title="${escapeHtml(model.alerts.join(' · '))}">${PLANT_GLYPHS.alert}</span>`
+        : '';
+
+    return `<article class="operation-map-node plant-node${selected ? ' is-selected' : ''}${model.fill ? ' is-filled' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-zone="${escapeHtml(model.zone || '')}" data-state="${escapeHtml(model.state)}" data-tone="${escapeHtml(model.tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(plantNodeLabel(model))}" title="${escapeHtml(plantNodeLabel(model))}">
+        <span class="plant-node__tag">${escapeHtml(model.tag)}</span>
+        ${alerts}
+        ${model.glyph ? `<span class="plant-node__glyph" data-glyph="${escapeHtml(model.glyph)}">${PLANT_GLYPHS[model.glyph] || ''}</span>` : ''}
+        <strong class="plant-node__code">${escapeHtml(model.code)}</strong>
+        ${model.value ? `<span class="plant-node__value">${escapeHtml(model.value)}</span>` : ''}
+        ${meter}
+        ${model.detail ? `<small class="plant-node__detail">${escapeHtml(model.detail)}</small>` : ''}
+        ${showName ? `<small class="plant-node__name">${escapeHtml(model.name)}</small>` : ''}
+        ${plantCrewMarkup(model.crew)}
         ${editable ? '<button class="operation-map-node__resize" type="button" aria-label="Redimensionar"></button>' : ''}
     </article>`;
 }
@@ -713,7 +747,9 @@ function renderMapStage(target, items, editable = false) {
         target.innerHTML = empty('Plano sin recintos', editable ? 'Agrega recintos desde el catálogo o dibuja una nueva área.' : 'Administración aún no ha configurado la planta.');
         return;
     }
-    target.innerHTML = items.map((item) => mapNodeMarkup(item, editable)).join('');
+    const index = buildPlantIndex(state.snapshot || {});
+    const ordered = [...items].sort((left, right) => (left.tipo === 'zona' ? 0 : 1) - (right.tipo === 'zona' ? 0 : 1));
+    target.innerHTML = ordered.map((item) => mapNodeMarkup(item, editable, index)).join('');
 }
 
 function setMapZoom(kind, value) {
@@ -756,29 +792,6 @@ function renderAlerts(data) {
         <p>${escapeHtml(alert.evidence)}</p>
         <a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a>
     </article>`).join('');
-}
-
-function tunnelStateLabel(tunnel) {
-    return {
-        borrador: 'Borrador',
-        cargando: 'Cargando',
-        listo_para_iniciar: 'Listo',
-        en_proceso: 'En ciclo',
-        pendiente_verificacion: 'Verificación',
-        disponible: 'En espera',
-        mantenimiento: 'Mantención',
-        fuera_servicio: 'Fuera de servicio',
-        inactivo: 'Inactivo',
-    }[tunnel.estado_operacional] || humanize(tunnel.estado_operacional);
-}
-
-function tunnelStateTone(tunnel) {
-    if (!tunnel.operable || ['mantenimiento', 'fuera_servicio', 'inactivo'].includes(tunnel.estado_operacional)) return 'neutral';
-    if (tunnel.proceso_activo?.objetivo_excedido) return 'critical';
-    if (tunnel.estado_operacional === 'pendiente_verificacion') return 'warning';
-    if (tunnel.estado_operacional === 'en_proceso') return 'success';
-    if (tunnel.estado_operacional === 'disponible') return 'neutral';
-    return 'info';
 }
 
 function tunnelProgress(tunnel) {

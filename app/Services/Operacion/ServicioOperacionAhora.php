@@ -75,6 +75,7 @@ class ServicioOperacionAhora
                 $camaras,
                 $prefrio['tuneles'],
                 $puedeEditarPlano,
+                $temporada,
             ),
         ];
     }
