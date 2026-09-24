@@ -100,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/resumen', [ConsultaOficinaController::class, 'resumen']);
         Route::get('/buscar', [ConsultaOficinaController::class, 'buscar']);
         Route::get('/trazabilidad', [ConsultaOficinaController::class, 'trazabilidad']);
+        Route::get('/trazabilidad/exportar', [ConsultaOficinaController::class, 'exportarTrazabilidad']);
         Route::get('/catalogos', [ConsultaOficinaController::class, 'catalogos']);
         Route::get('/productores', [ConsultaOficinaController::class, 'productores']);
         Route::get('/productores/{productorCsg}', [ConsultaOficinaController::class, 'productor']);

@@ -83,6 +83,21 @@ class ReinicioOperacionalApiTest extends TestCase
         ]);
         [$folioBodega, $itemBodega] = $this->crearExistenciaBodega($temporada, $administrador);
         $materiaPrima = $this->crearOperacionMateriaPrima($temporada);
+        // Pallet con composición trazada y vínculo verificado al lote MP: el reinicio
+        // debe descartar la proyección antes de eliminar folios y lotes.
+        $folioPt->update(['datos_externos' => ['composicion' => [[
+            'csg' => 'CSG-RESET-01',
+            'cantidad_cajas' => 10,
+            'lote_materia_prima' => 'LOTE-RESET-001',
+            'proceso_packing' => 'P-RESET',
+        ]]]]);
+        DB::table('trazabilidad_folio_origenes')
+            ->where('folio_id', $folioPt->id)
+            ->update(['lote_materia_prima_id' => $materiaPrima['lote_id']]);
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $folioPt->id,
+            'lote_materia_prima_id' => $materiaPrima['lote_id'],
+        ]);
 
         $vistaPrevia = $this->actingAs($administrador, 'sanctum')
             ->getJson("/api/administracion/temporadas/{$temporada->id}/reinicio-operacional")
@@ -111,6 +126,7 @@ class ReinicioOperacionalApiTest extends TestCase
         $this->assertDatabaseMissing('folios', ['id' => $folioPt->id]);
         $this->assertDatabaseMissing('recepciones_romana', ['id' => $materiaPrima['recepcion_id']]);
         $this->assertDatabaseMissing('lotes_materia_prima', ['id' => $materiaPrima['lote_id']]);
+        $this->assertDatabaseCount('trazabilidad_folio_origenes', 0);
         $this->assertDatabaseCount('validaciones_mp', 0);
         $this->assertDatabaseCount('segmentos_validacion_mp', 0);
         $this->assertDatabaseCount('procesos_hidrocooler_materia_prima', 0);

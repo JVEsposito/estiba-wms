@@ -9,6 +9,7 @@ use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 
 /**
  * Responde en ambos sentidos: qué folios contienen un lote o proceso de packing
@@ -16,37 +17,27 @@ use Illuminate\Support\Collection;
  */
 class ServicioTrazabilidadLotes
 {
-    private const LIMITE_FOLIOS = 200;
+    public const POR_PAGINA = 50;
 
-    /** @return array<string, mixed> */
-    public function consultar(string $termino): array
+    /**
+     * El resumen cuenta todos los folios y cajas afectados; el listado se pagina. Para un
+     * retiro de mercado se usa la exportación, que incluye todos los folios sin límite.
+     *
+     * @return array<string, mixed>
+     */
+    public function consultar(string $termino, int $pagina = 1): array
     {
         $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($termino) ?? '';
+        $totalFolios = $this->foliosAfectados($codigo)->count();
+        $paginas = max(1, (int) ceil($totalFolios / self::POR_PAGINA));
+        $pagina = min(max(1, $pagina), $paginas);
 
-        $folioIds = TrazabilidadFolioOrigen::query()
-            ->where(fn (Builder $consulta) => $consulta
-                ->where('numero_lote_materia_prima', $codigo)
-                ->orWhere('numero_proceso_packing', $codigo))
-            ->pluck('folio_id')
-            ->merge(Folio::query()->where('numero_folio', $codigo)->pluck('id'))
-            ->unique()
-            ->take(self::LIMITE_FOLIOS)
-            ->values();
-
-        $folios = Folio::query()
-            ->whereIn('id', $folioIds)
-            ->with([
-                'temporada',
-                'ubicacionActual.posicion.camara',
-                'asignacionesCarga' => fn ($consulta) => $consulta->latest()->with('carga'),
-            ])
+        $folios = $this->foliosAfectados($codigo)
+            ->with($this->relacionesFolio())
             ->orderBy('numero_folio')
+            ->forPage($pagina, self::POR_PAGINA)
             ->get();
-        $lineas = TrazabilidadFolioOrigen::query()
-            ->whereIn('folio_id', $folioIds)
-            ->with('loteMateriaPrima.recepcion')
-            ->get()
-            ->groupBy('folio_id');
+        $lineas = $this->lineasPorFolio($folios->modelKeys());
 
         $lotesConsultados = LoteMateriaPrima::query()
             ->whereRaw('UPPER(TRIM(numero_lote)) = ?', [$codigo])
@@ -62,13 +53,133 @@ class ServicioTrazabilidadLotes
                 $codigo,
             ))->all(),
             'resumen' => [
-                'folios' => $folios->count(),
-                'folios_activos' => $folios->where('activo', true)->count(),
-                'cajas_coincidentes' => $lineas->flatten()
-                    ->filter(fn (TrazabilidadFolioOrigen $linea): bool => $this->coincide($linea, $codigo))
-                    ->sum('cantidad_cajas'),
-                'limite_alcanzado' => $folioIds->count() >= self::LIMITE_FOLIOS,
+                'folios' => $totalFolios,
+                'folios_activos' => $this->foliosAfectados($codigo)->where('activo', true)->count(),
+                'cajas_coincidentes' => (int) $this->lineasCoincidentes($codigo)->sum('cantidad_cajas'),
+                'lineas_sin_lote_verificado' => $this->lineasCoincidentes($codigo)
+                    ->where('numero_lote_materia_prima', $codigo)
+                    ->whereNull('lote_materia_prima_id')
+                    ->count(),
             ],
+            'paginacion' => [
+                'pagina' => $pagina,
+                'por_pagina' => self::POR_PAGINA,
+                'paginas' => $paginas,
+                'total' => $totalFolios,
+            ],
+        ];
+    }
+
+    /** @return array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}> */
+    public function columnasExportacion(): array
+    {
+        return [
+            ['clave' => 'folio', 'titulo' => 'Folio', 'ancho' => 18],
+            ['clave' => 'activo', 'titulo' => 'Activo', 'ancho' => 9],
+            ['clave' => 'estado', 'titulo' => 'Estado', 'ancho' => 18],
+            ['clave' => 'temporada', 'titulo' => 'Temporada', 'ancho' => 12],
+            ['clave' => 'exportadora', 'titulo' => 'Cliente', 'ancho' => 24],
+            ['clave' => 'variedad', 'titulo' => 'Variedad', 'ancho' => 16],
+            ['clave' => 'calibre', 'titulo' => 'Calibre', 'ancho' => 10],
+            ['clave' => 'camara', 'titulo' => 'Cámara', 'ancho' => 12],
+            ['clave' => 'posicion', 'titulo' => 'Posición', 'ancho' => 14],
+            ['clave' => 'carga', 'titulo' => 'Carga', 'ancho' => 14],
+            ['clave' => 'estado_carga', 'titulo' => 'Estado carga', 'ancho' => 16],
+            ['clave' => 'csg', 'titulo' => 'CSG', 'ancho' => 12],
+            ['clave' => 'predio', 'titulo' => 'Predio', 'ancho' => 22],
+            ['clave' => 'fecha_embalaje', 'titulo' => 'Fecha embalaje', 'ancho' => 14],
+            ['clave' => 'lote_materia_prima', 'titulo' => 'Lote MP (etiqueta)', 'ancho' => 18],
+            ['clave' => 'recepcion', 'titulo' => 'Recepción MP verificada', 'ancho' => 22],
+            ['clave' => 'proceso_packing', 'titulo' => 'Proceso packing', 'ancho' => 16],
+            ['clave' => 'cantidad_cajas', 'titulo' => 'Cajas', 'ancho' => 10, 'tipo' => 'numero'],
+            ['clave' => 'coincide', 'titulo' => 'Línea buscada', 'ancho' => 13],
+        ];
+    }
+
+    /**
+     * Una fila por línea de composición de cada folio afectado, sin límite de folios.
+     *
+     * @return LazyCollection<int, array<string, mixed>>
+     */
+    public function filasExportacion(string $termino): LazyCollection
+    {
+        $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($termino) ?? '';
+
+        return $this->foliosAfectados($codigo)
+            ->with($this->relacionesFolio())
+            ->lazyById(200)
+            ->chunk(200)
+            ->flatMap(function (LazyCollection $folios) use ($codigo): array {
+                $lineas = $this->lineasPorFolio($folios->map(fn (Folio $folio): string => $folio->id)->all());
+                $filas = [];
+
+                foreach ($folios as $folio) {
+                    $base = $this->folio($folio, collect(), $codigo);
+                    $lineasFolio = $lineas->get($folio->id, collect());
+                    foreach ($lineasFolio->isEmpty() ? [null] : $lineasFolio as $linea) {
+                        $filas[] = [
+                            'folio' => $base['numero'],
+                            'activo' => $base['activo'] ? 'Sí' : 'No',
+                            'estado' => $base['estado'],
+                            'temporada' => $base['temporada'],
+                            'exportadora' => $base['exportadora'],
+                            'variedad' => $base['variedad'],
+                            'calibre' => $base['calibre'],
+                            'camara' => $base['ubicacion']['camara'] ?? null,
+                            'posicion' => $base['ubicacion']['posicion'] ?? null,
+                            'carga' => $base['carga']['codigo'] ?? null,
+                            'estado_carga' => $base['carga']['estado'] ?? null,
+                            'csg' => $linea?->csg,
+                            'predio' => $linea?->predio,
+                            'fecha_embalaje' => $linea?->fecha_embalaje?->toDateString(),
+                            'lote_materia_prima' => $linea?->numero_lote_materia_prima,
+                            'recepcion' => $linea?->loteMateriaPrima?->recepcion?->numero_recepcion,
+                            'proceso_packing' => $linea?->numero_proceso_packing,
+                            'cantidad_cajas' => $linea?->cantidad_cajas,
+                            'coincide' => $linea && $this->coincide($linea, $codigo) ? 'Sí' : 'No',
+                        ];
+                    }
+                }
+
+                return $filas;
+            });
+    }
+
+    /** Folios cuya composición informa el lote o proceso buscado, o cuyo número coincide. */
+    private function foliosAfectados(string $codigo): Builder
+    {
+        return Folio::query()
+            ->where(fn (Builder $consulta) => $consulta
+                ->whereIn('id', $this->lineasCoincidentes($codigo)->select('folio_id'))
+                ->orWhere('numero_folio', $codigo));
+    }
+
+    private function lineasCoincidentes(string $codigo): Builder
+    {
+        return TrazabilidadFolioOrigen::query()
+            ->where(fn (Builder $consulta) => $consulta
+                ->where('numero_lote_materia_prima', $codigo)
+                ->orWhere('numero_proceso_packing', $codigo));
+    }
+
+    /** @param array<int, string> $folioIds */
+    private function lineasPorFolio(array $folioIds): Collection
+    {
+        return TrazabilidadFolioOrigen::query()
+            ->whereIn('folio_id', $folioIds)
+            ->with('loteMateriaPrima.recepcion')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('folio_id');
+    }
+
+    /** @return array<int|string, mixed> */
+    private function relacionesFolio(): array
+    {
+        return [
+            'temporada',
+            'ubicacionActual.posicion.camara',
+            'asignacionesCarga' => fn ($consulta) => $consulta->latest()->with('carga'),
         ];
     }
 
@@ -100,7 +211,7 @@ class ServicioTrazabilidadLotes
                 'predio' => $linea->predio,
                 'fecha_embalaje' => $linea->fecha_embalaje?->toDateString(),
                 'lote_materia_prima' => $linea->numero_lote_materia_prima,
-                'lote_registrado' => $linea->lote_materia_prima_id !== null,
+                'lote_verificado' => $linea->lote_materia_prima_id !== null,
                 'recepcion' => $linea->loteMateriaPrima?->recepcion?->numero_recepcion,
                 'proceso_packing' => $linea->numero_proceso_packing,
                 'cantidad_cajas' => $linea->cantidad_cajas,

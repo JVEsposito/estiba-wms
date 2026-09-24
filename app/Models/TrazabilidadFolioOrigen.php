@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'predio',
     'fecha_embalaje',
     'numero_lote_materia_prima',
+    'cliente_id',
     'lote_materia_prima_id',
     'numero_proceso_packing',
     'cantidad_cajas',

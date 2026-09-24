@@ -14,19 +14,22 @@ return new class extends Migration
         // proceso de packing. La fuente de verdad sigue siendo folios.datos_externos.
         Schema::create('trazabilidad_folio_origenes', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->foreignUuid('folio_id')->constrained('folios')->restrictOnDelete();
+            // Es una proyección: desaparece con su folio y nunca impide eliminar un lote MP.
+            $table->foreignUuid('folio_id')->constrained('folios')->cascadeOnDelete();
             $table->foreignUuid('temporada_id')->constrained('temporadas')->restrictOnDelete();
             $table->string('csg', 50)->nullable();
             $table->string('predio', 150)->nullable();
             $table->date('fecha_embalaje')->nullable();
             $table->string('numero_lote_materia_prima', 80)->nullable();
-            $table->foreignUuid('lote_materia_prima_id')->nullable()->constrained('lotes_materia_prima')->restrictOnDelete();
+            // Cliente del origen validado; el vínculo con el lote MP solo se afirma si coincide.
+            $table->foreignUuid('cliente_id')->nullable()->constrained('clientes')->nullOnDelete();
+            $table->foreignUuid('lote_materia_prima_id')->nullable()->constrained('lotes_materia_prima')->nullOnDelete();
             $table->string('numero_proceso_packing', 80)->nullable();
             $table->unsignedInteger('cantidad_cajas');
             $table->timestamps();
 
             $table->index('folio_id', 'trazabilidad_folio_idx');
-            $table->index(['temporada_id', 'numero_lote_materia_prima'], 'trazabilidad_lote_numero_idx');
+            $table->index(['temporada_id', 'numero_lote_materia_prima', 'cliente_id'], 'trazabilidad_lote_numero_idx');
             $table->index('lote_materia_prima_id', 'trazabilidad_lote_idx');
             $table->index(['temporada_id', 'numero_proceso_packing'], 'trazabilidad_proceso_idx');
             $table->index(['temporada_id', 'csg'], 'trazabilidad_csg_idx');

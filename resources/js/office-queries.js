@@ -40,6 +40,7 @@ const state = {
     activeSection: elements.app.dataset.queriesSection || 'busqueda',
     catalogs: { clientes: [] },
     producers: [],
+    traceTerm: '',
 };
 
 class ApiError extends Error {
@@ -521,17 +522,20 @@ elements.globalSearch.addEventListener('submit', async (event) => {
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
 
-// Trazabilidad MP → PT: resumen, lotes digitados y folios con su composición por lote y proceso.
+// Trazabilidad MP → PT: resumen total, lotes digitados y folios paginados con su composición.
+// El Excel incluye todos los folios afectados y es el respaldo para decidir un retiro.
 function renderTraceLots(payload) {
-    const { resumen, lotes, folios, termino } = payload;
+    const { resumen, lotes, folios, termino, paginacion } = payload;
+    state.traceTerm = termino;
     if (!folios.length && !lotes.length) {
         elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)}.</div>`;
         return;
     }
     const summary = `<div class="trace-lots-summary">
-        <span><strong>${escapeHtml(resumen.folios)}</strong> folios (${escapeHtml(resumen.folios_activos)} activos)</span>
+        <span><strong>${escapeHtml(resumen.folios)}</strong> folios en total (${escapeHtml(resumen.folios_activos)} activos)</span>
         <span><strong>${escapeHtml(resumen.cajas_coincidentes)}</strong> cajas de ${escapeHtml(termino)}</span>
-        ${resumen.limite_alcanzado ? '<span class="trace-lots-unregistered">Se muestran los primeros 200 folios.</span>' : ''}
+        ${resumen.lineas_sin_lote_verificado ? `<span class="trace-lots-unregistered">${escapeHtml(resumen.lineas_sin_lote_verificado)} líneas sin recepción MP verificada</span>` : ''}
+        ${resumen.folios ? '<button type="button" class="trace-button" data-trace-export>Descargar todos los folios (Excel)</button>' : ''}
     </div>`;
     const lots = lotes.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Lotes de materia prima</caption>
         <thead><tr><th>Lote MP</th><th>Recepción</th><th>Cliente</th><th>CSG / predio</th><th>Variedad</th><th>Cosecha</th><th>Kilos netos</th><th>Estado</th></tr></thead>
@@ -541,21 +545,57 @@ function renderTraceLots(payload) {
         <td>${escapeHtml(folio.exportadora ?? '—')}<br><small>${escapeHtml([folio.variedad, folio.calibre].filter(Boolean).join(' · '))}</small></td>
         <td>${folio.ubicacion ? `${escapeHtml(folio.ubicacion.camara)} · ${escapeHtml(folio.ubicacion.posicion)}` : '—'}</td>
         <td>${folio.carga ? `${escapeHtml(folio.carga.codigo)}<br><small>${escapeHtml(label(folio.carga.estado))}</small>` : '—'}</td>
-        <td><div class="trace-lots-lines">${folio.lineas.map((linea) => `<span data-match="${linea.coincide ? 'true' : 'false'}">${escapeHtml(linea.cantidad_cajas)} cajas · CSG ${escapeHtml(linea.csg ?? '—')} · lote ${escapeHtml(linea.lote_materia_prima ?? 'sin informar')}${linea.recepcion ? ` (${escapeHtml(linea.recepcion)})` : ''} · proceso ${escapeHtml(linea.proceso_packing ?? 'sin informar')}${linea.lote_materia_prima && !linea.lote_registrado ? ' <em class="trace-lots-unregistered">lote no digitado en FoliOS</em>' : ''}</span>`).join('')}</div></td>
+        <td><div class="trace-lots-lines">${folio.lineas.map((linea) => `<span data-match="${linea.coincide ? 'true' : 'false'}">${escapeHtml(linea.cantidad_cajas)} cajas · CSG ${escapeHtml(linea.csg ?? '—')} · lote ${escapeHtml(linea.lote_materia_prima ?? 'sin informar')}${linea.recepcion ? ` (${escapeHtml(linea.recepcion)})` : ''} · proceso ${escapeHtml(linea.proceso_packing ?? 'sin informar')}${linea.lote_materia_prima && !linea.lote_verificado ? ' <em class="trace-lots-unregistered">recepción MP no verificada</em>' : ''}</span>`).join('')}</div></td>
     </tr>`).join('');
+    const pages = paginacion && paginacion.paginas > 1 ? `<nav class="trace-lots-pages" aria-label="Páginas de folios">
+        <button type="button" class="trace-button" data-trace-page="${paginacion.pagina - 1}" ${paginacion.pagina <= 1 ? 'disabled' : ''}>← Anterior</button>
+        <span>Página ${escapeHtml(paginacion.pagina)} de ${escapeHtml(paginacion.paginas)}</span>
+        <button type="button" class="trace-button" data-trace-page="${paginacion.pagina + 1}" ${paginacion.pagina >= paginacion.paginas ? 'disabled' : ''}>Siguiente →</button>
+    </nav>` : '';
     const table = folios.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Folios relacionados</caption>
         <thead><tr><th>Folio</th><th>Cliente / producto</th><th>Ubicación</th><th>Carga</th><th>Composición (cajas · CSG · lote · proceso)</th></tr></thead>
         <tbody>${rows}</tbody></table>` : '<div class="query-empty">El lote existe, pero ningún folio lo informa todavía.</div>';
-    elements.traceLotsResults.innerHTML = summary + lots + table;
+    elements.traceLotsResults.innerHTML = summary + lots + table + pages;
 }
 
-elements.traceLots?.addEventListener('submit', async (event) => {
-    event.preventDefault();
+async function loadTraceLots(term, page = 1) {
     setBusy(true, 'Trazando lote…');
     try {
-        const params = new URLSearchParams(new FormData(elements.traceLots));
+        const params = new URLSearchParams({ q: term, pagina: String(page) });
         renderTraceLots((await api(`/api/consultas/trazabilidad?${params.toString()}`)).data);
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+}
+
+async function downloadTraceLots(term) {
+    setBusy(true, 'Preparando Excel de trazabilidad…');
+    try {
+        const response = await fetch(`/api/consultas/trazabilidad/exportar?${new URLSearchParams({ q: term }).toString()}`, {
+            headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', Authorization: `Bearer ${state.token}` },
+        });
+        if (!response.ok) throw new ApiError('No fue posible generar el Excel de trazabilidad.', response.status);
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'trazabilidad.xlsx';
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+}
+
+elements.traceLots?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void loadTraceLots(String(new FormData(elements.traceLots).get('q') ?? ''));
+});
+
+elements.traceLotsResults?.addEventListener('click', (event) => {
+    const page = event.target.closest('[data-trace-page]');
+    if (page && !page.disabled) {
+        void loadTraceLots(state.traceTerm, Number(page.dataset.tracePage));
+        return;
+    }
+    if (event.target.closest('[data-trace-export]')) void downloadTraceLots(state.traceTerm);
 });
 
 elements.sagSearch.addEventListener('submit', async (event) => {

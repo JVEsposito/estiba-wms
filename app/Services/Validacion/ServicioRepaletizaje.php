@@ -1173,7 +1173,7 @@ class ServicioRepaletizaje
         ];
         // El lote de materia prima y el proceso de packing viajan con sus cajas a los
         // folios resultantes; sin ellos la trazabilidad se cortaría en el repaletizaje.
-        foreach (['lote_materia_prima', 'lote_materia_prima_id', 'proceso_packing'] as $campo) {
+        foreach (['lote_materia_prima', 'proceso_packing'] as $campo) {
             if (filled($linea[$campo] ?? null)) {
                 $normalizada[$campo] = (string) $linea[$campo];
             }

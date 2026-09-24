@@ -30,7 +30,6 @@ class ServicioValidacionPallet
         private readonly AlcanceOperacionalUsuario $alcance,
         private readonly ProteccionFolioAnulado $proteccionFolioAnulado,
         private readonly MotorTransicionesOperacionales $motorTransiciones,
-        private readonly ProyeccionTrazabilidadFolio $trazabilidad,
     ) {}
 
     /**
@@ -150,7 +149,6 @@ class ServicioValidacionPallet
                 $origenes,
                 $combinaciones,
                 $payload,
-                $temporada,
             ): array {
                 $origen = $origenes->get($linea['origen_validacion_id']);
                 $combinacion = $combinaciones->get($linea['origen_validacion_id']);
@@ -164,10 +162,7 @@ class ServicioValidacionPallet
                     'predio' => $origen->predio,
                     'fecha_embalaje' => $payload['fecha_embalaje'],
                     'cantidad_cajas' => (int) $linea['cantidad_cajas'],
-                    ...($lote !== null ? [
-                        'lote_materia_prima' => $lote,
-                        'lote_materia_prima_id' => $this->trazabilidad->loteRegistrado($temporada->id, $lote),
-                    ] : []),
+                    ...($lote !== null ? ['lote_materia_prima' => $lote] : []),
                     ...($proceso !== null ? ['proceso_packing' => $proceso] : []),
                 ];
             })->values();

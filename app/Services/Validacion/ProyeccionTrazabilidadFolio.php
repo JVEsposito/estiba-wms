@@ -28,12 +28,14 @@ class ProyeccionTrazabilidadFolio
         $lineas = collect($folio->datos_externos['composicion'] ?? [])
             ->filter(fn (mixed $linea): bool => is_array($linea) && (int) ($linea['cantidad_cajas'] ?? 0) > 0)
             ->values();
+        $clientes = $this->clientesPorOrigen($lineas->pluck('origen_validacion_id')->filter()->unique()->all());
 
-        DB::transaction(function () use ($folio, $lineas): void {
+        DB::transaction(function () use ($folio, $lineas, $clientes): void {
             TrazabilidadFolioOrigen::query()->where('folio_id', $folio->id)->delete();
 
             foreach ($lineas as $linea) {
                 $numeroLote = self::normalizarCodigo($linea['lote_materia_prima'] ?? null);
+                $clienteId = $clientes[$linea['origen_validacion_id'] ?? ''] ?? null;
 
                 TrazabilidadFolioOrigen::create([
                     'folio_id' => $folio->id,
@@ -42,8 +44,8 @@ class ProyeccionTrazabilidadFolio
                     'predio' => filled($linea['predio'] ?? null) ? trim((string) $linea['predio']) : null,
                     'fecha_embalaje' => filled($linea['fecha_embalaje'] ?? null) ? $linea['fecha_embalaje'] : null,
                     'numero_lote_materia_prima' => $numeroLote,
-                    'lote_materia_prima_id' => $linea['lote_materia_prima_id']
-                        ?? $this->loteRegistrado($folio->temporada_id, $numeroLote),
+                    'cliente_id' => $clienteId,
+                    'lote_materia_prima_id' => $this->loteRegistrado($folio->temporada_id, $numeroLote, $clienteId),
                     'numero_proceso_packing' => self::normalizarCodigo($linea['proceso_packing'] ?? null),
                     'cantidad_cajas' => (int) $linea['cantidad_cajas'],
                 ]);
@@ -52,22 +54,77 @@ class ProyeccionTrazabilidadFolio
     }
 
     /**
-     * Busca el lote digitado en Materia Prima con el mismo número y temporada. Si existe
-     * más de uno vigente (clientes distintos) no se adivina: queda solo el número impreso.
+     * Busca el lote digitado en Materia Prima con el mismo número, temporada y cliente.
+     * Sin cliente verificable, o con más de un lote vigente posible, no se afirma ningún
+     * vínculo: la consulta muestra solo el número impreso en la etiqueta.
      */
-    public function loteRegistrado(?string $temporadaId, ?string $numeroLote): ?string
+    public function loteRegistrado(?string $temporadaId, ?string $numeroLote, ?string $clienteId): ?string
     {
-        if ($temporadaId === null || $numeroLote === null) {
+        if ($temporadaId === null || $numeroLote === null || $clienteId === null) {
             return null;
         }
 
         $lotes = LoteMateriaPrima::query()
             ->where('temporada_id', $temporadaId)
+            ->where('cliente_id', $clienteId)
             ->whereRaw('UPPER(TRIM(numero_lote)) = ?', [$numeroLote])
             ->where('estado', '!=', EstadoLoteMateriaPrima::Anulado->value)
             ->limit(2)
             ->pluck('id');
 
         return $lotes->count() === 1 ? $lotes->first() : null;
+    }
+
+    /**
+     * Recalcula los vínculos afectados cuando un lote MP se digita, cambia de número o
+     * cliente, o se anula. Cubre el caso habitual de un pallet validado antes que su lote.
+     */
+    public function conciliarLote(LoteMateriaPrima $lote): void
+    {
+        $numeros = collect([
+            self::normalizarCodigo($lote->numero_lote),
+            self::normalizarCodigo($lote->getOriginal('numero_lote')),
+        ])->filter()->unique()->values()->all();
+        $temporadas = collect([$lote->temporada_id, $lote->getOriginal('temporada_id')])
+            ->filter()->unique()->values()->all();
+
+        TrazabilidadFolioOrigen::query()
+            ->where(fn ($consulta) => $consulta
+                ->where('lote_materia_prima_id', $lote->id)
+                ->orWhere(fn ($porNumero) => $porNumero
+                    ->whereIn('temporada_id', $temporadas)
+                    ->whereIn('numero_lote_materia_prima', $numeros)))
+            ->select(['temporada_id', 'numero_lote_materia_prima', 'cliente_id'])
+            ->distinct()
+            ->get()
+            ->each(function (TrazabilidadFolioOrigen $grupo): void {
+                TrazabilidadFolioOrigen::query()
+                    ->where('temporada_id', $grupo->temporada_id)
+                    ->where('numero_lote_materia_prima', $grupo->numero_lote_materia_prima)
+                    ->where('cliente_id', $grupo->cliente_id)
+                    ->update(['lote_materia_prima_id' => $this->loteRegistrado(
+                        $grupo->temporada_id,
+                        $grupo->numero_lote_materia_prima,
+                        $grupo->cliente_id,
+                    )]);
+            });
+    }
+
+    /**
+     * @param  array<int, string>  $origenIds
+     * @return array<string, string>
+     */
+    private function clientesPorOrigen(array $origenIds): array
+    {
+        if ($origenIds === []) {
+            return [];
+        }
+
+        return DB::table('origenes_validacion as origen')
+            ->join('clientes_validacion as cliente', 'cliente.id', '=', 'origen.cliente_validacion_id')
+            ->whereIn('origen.id', $origenIds)
+            ->whereNotNull('cliente.cliente_id')
+            ->pluck('cliente.cliente_id', 'origen.id')
+            ->all();
     }
 }

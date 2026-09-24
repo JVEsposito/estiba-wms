@@ -288,8 +288,13 @@ Cada línea de la composición del bulto puede informar, además del CSG y sus c
   combinación CSG + lote + proceso no puede repetirse.
 - Ambos campos son opcionales y se normalizan en mayúsculas. Si no vienen, el hash del
   payload no cambia, por lo que las PDA anteriores conservan su idempotencia.
-- Si el lote coincide con uno solo digitado en Materia Prima en la misma temporada, se
-  vincula su identificador; si no existe o es ambiguo se conserva solo el número impreso.
+- La composición guarda solo el número impreso. El vínculo con un lote digitado en
+  Materia Prima se calcula en la proyección y solo se afirma cuando coinciden número,
+  temporada y **cliente** (el cliente global del origen validado frente al del lote), y
+  existe un único lote vigente. Si no se puede verificar, la consulta muestra el número
+  con la advertencia «recepción MP no verificada» y no atribuye ninguna recepción.
+- Si el lote se digita después de validar el pallet, o cambia su número, cliente o estado
+  (por ejemplo, se anula), los vínculos afectados se concilian automáticamente.
 - Correcciones simples y repaletizajes conservan lote y proceso en cada línea; la clave de
   composición del repaletizaje los incluye para no fusionar lotes distintos.
 
@@ -298,3 +303,12 @@ reconstruye automáticamente cada vez que cambia `folios.datos_externos`. La ofi
 **Consultas → Trazabilidad de lotes** (`GET /api/consultas/trazabilidad?q=`) busca por lote,
 proceso de packing o folio y muestra lotes MP con su recepción `REC-*`, folios, ubicación,
 carga y composición.
+
+- El resumen cuenta **todos** los folios afectados, los activos, las cajas del lote o
+  proceso buscado y las líneas sin recepción verificada.
+- El listado se pagina de 50 en 50 (`&pagina=`).
+- Para decidir el alcance de un retiro se usa **Descargar todos los folios (Excel)**
+  (`GET /api/consultas/trazabilidad/exportar?q=`): una fila por línea de composición de
+  cada folio afectado, sin límite, con ubicación, carga y la marca «Línea buscada».
+- El reinicio operacional de una temporada descarta esta proyección antes de eliminar
+  folios y lotes; además, la tabla nunca impide eliminar un folio o un lote.

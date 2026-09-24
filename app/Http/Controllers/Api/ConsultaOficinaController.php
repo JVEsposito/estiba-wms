@@ -12,10 +12,14 @@ use App\Models\ProductorCsg;
 use App\Services\Consultas\ServicioAsociacionProductorCsg;
 use App\Services\Consultas\ServicioConsultaOperacional;
 use App\Services\Consultas\ServicioTrazabilidadLotes;
+use App\Services\Existencias\GeneradorLibroXlsx;
+use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ConsultaOficinaController extends Controller
 {
@@ -49,9 +53,44 @@ class ConsultaOficinaController extends Controller
         Gate::authorize('consultar-oficina-consultas');
         $datos = $request->validate([
             'q' => ['required', 'string', 'min:2', 'max:80'],
+            'pagina' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        return response()->json(['data' => $servicio->consultar($datos['q'])]);
+        return response()->json(['data' => $servicio->consultar($datos['q'], (int) ($datos['pagina'] ?? 1))]);
+    }
+
+    /** Todos los folios afectados por un lote o proceso, sin límite, para un retiro de mercado. */
+    public function exportarTrazabilidad(
+        Request $request,
+        ServicioTrazabilidadLotes $servicio,
+        GeneradorLibroXlsx $generador,
+    ): BinaryFileResponse {
+        Gate::authorize('consultar-oficina-consultas');
+        $datos = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:80'],
+        ]);
+        $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($datos['q']) ?? '';
+        $ruta = $generador->generar(
+            'Trazabilidad '.$codigo,
+            $servicio->columnasExportacion(),
+            $servicio->filasExportacion($codigo),
+            [
+                'fecha_corte' => now()->toAtomString(),
+                'usuario' => $request->user()?->name,
+                'temporada' => 'Todas',
+            ],
+            'Trazabilidad',
+        );
+        $archivo = 'trazabilidad_'.Str::slug($codigo, '_').'_'.now()->format('Y-m-d_Hi').'.xlsx';
+
+        return response()->download(
+            $ruta,
+            $archivo,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'no-store, private',
+            ],
+        )->deleteFileAfterSend();
     }
 
     public function buscar(

@@ -124,7 +124,10 @@
 /* Trazabilidad de lotes: resumen, lotes MP y folios con su composición. */
 .trace-lots-form { grid-template-columns: minmax(0, 1fr) auto; }
 .trace-lots-results { display: grid; gap: 14px; margin-top: 14px; }
-.trace-lots-summary { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: .82rem; }
+.trace-lots-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; font-size: .82rem; }
+.trace-lots-summary [data-trace-export] { margin-left: auto; }
+.trace-lots-pages { display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: .8rem; }
+.trace-lots-pages button:disabled { opacity: .45; cursor: default; }
 .trace-lots-summary strong { font-size: 1.05rem; }
 .trace-lots-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
 .trace-lots-table :where(th, td) { padding: 7px 9px; border-bottom: 1px solid var(--corporate-border, var(--line)); text-align: left; vertical-align: top; }

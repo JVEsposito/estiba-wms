@@ -167,7 +167,7 @@ class ServicioCorreccionValidacionPallet
                     'cantidad_cajas' => $payload['cantidad_cajas'],
                     // La corrección simple no cambia la trazabilidad a materia prima.
                     ...collect($composicionAnterior->first() ?? [])
-                        ->only(['lote_materia_prima', 'lote_materia_prima_id', 'proceso_packing'])
+                        ->only(['lote_materia_prima', 'proceso_packing'])
                         ->all(),
                 ]]);
             $csgResumen = $composicion->pluck('csg')->unique()->count() === 1

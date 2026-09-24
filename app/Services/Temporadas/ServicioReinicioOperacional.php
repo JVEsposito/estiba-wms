@@ -447,6 +447,17 @@ class ServicioReinicioOperacional
             $operaciones,
         );
 
+        // La trazabilidad es una proyección de la composición: se descarta junto con sus
+        // folios y deja de apuntar a los lotes MP que se eliminan más abajo.
+        $eliminados['trazabilidad_origenes'] = DB::table('trazabilidad_folio_origenes')
+            ->whereIn('folio_id', clone $folios)
+            ->delete();
+        DB::table('trazabilidad_folio_origenes')
+            ->whereIn('lote_materia_prima_id', DB::table('lotes_materia_prima')
+                ->select('id')
+                ->where('temporada_id', $temporada->id))
+            ->update(['lote_materia_prima_id' => null]);
+
         DB::table('validaciones_pallet')
             ->where('temporada_id', $temporada->id)
             ->update(['validacion_conflicto_id' => null]);
