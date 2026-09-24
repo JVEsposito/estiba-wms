@@ -75,8 +75,13 @@ en enlaces públicos. El validador registra desde la tablet y no puede exportar.
 registros y la activa. `GET /api/materia-prima/defectos-recepcion/exportaciones/{formato}`
 acepta los mismos filtros que la bandeja (sin paginación). `xlsx` incluye las
 columnas de trazabilidad, descripción, validador e identificadores de fotos; `pdf`
-ofrece una ficha por defecto; `zip` contiene ambos documentos y fotos originales
+ofrece una ficha por defecto y páginas de fotografías incorporadas; `zip` contiene ambos documentos y fotos originales
 agrupadas por ID de registro. Los límites son 2000, 300 y 150 registros,
 respectivamente; para superar un límite se deben acotar las fechas. Todas las
 descargas requieren el permiso `auditar-defectos-recepcion-mp` y se entregan con
 cabeceras de caché privada.
+
+La generación del PDF convierte las imágenes admitidas a copias JPEG reducidas para
+incluirlas en el documento. Requiere habilitar la extensión `gd` en el PHP del
+servidor (en Laragon, el `php.ini` usado por Apache); el ZIP conserva además los
+archivos originales sin convertir.
