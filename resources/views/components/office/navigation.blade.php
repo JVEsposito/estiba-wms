@@ -96,7 +96,7 @@
                 <span class="estiba-office-menu-icon" aria-hidden="true"></span>
                 <span data-office-menu-label>Menú</span>
             </button>
-            <x-folios-logo surface="dark" class="folios-logo--office" />
+            <a class="estiba-office-home" href="/oficina" data-office-home title="Ir a mi inicio"><x-folios-logo surface="dark" class="folios-logo--office" /></a>
         </div>
         <div class="estiba-office-system">
             <span>SISTEMA DE GESTIÓN</span>
@@ -123,6 +123,16 @@
     </header>
 
     <aside class="estiba-office-sidebar" id="officeSidebar" aria-label="Navegación de Oficina">
+        {{-- Búsqueda global: folio, lote, recepción, CSG o guía desde cualquier oficina. --}}
+        <form class="estiba-office-search" action="/oficina/consultas/busqueda" method="get" role="search"
+            data-navigation-permissions="puede_consultar_oficina_consultas"
+            data-navigation-module="consultas.busqueda">
+            <label class="estiba-office-nav-label" for="officeGlobalSearch">BUSCAR</label>
+            <div>
+                <input id="officeGlobalSearch" name="q" type="search" minlength="2" maxlength="100" placeholder="Folio, lote, REC, CSG…" autocomplete="off" required>
+                <button type="submit" aria-label="Buscar">⌕</button>
+            </div>
+        </form>
         @php($operationNowDefinition = collect($offices['administracion'])->firstWhere('key', 'operacion-ahora'))
         <nav class="estiba-office-primary" aria-label="Operación en tiempo real">
             <p class="estiba-office-nav-label">OPERACIÓN</p>

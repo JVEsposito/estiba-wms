@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ServicioConsultaOperacional
 {
+    /** La búsqueda es una vista rápida: no reemplaza el alcance completo de Trazabilidad de lotes. */
+    public const LIMITE_POR_CATEGORIA = 20;
+
     /** @return array<string, mixed> */
     public function buscar(string $termino, string $tipo = 'todos'): array
     {
@@ -18,6 +21,7 @@ class ServicioConsultaOperacional
 
         return [
             'termino' => trim($termino),
+            'limite_por_categoria' => self::LIMITE_POR_CATEGORIA,
             'folios' => in_array($tipo, ['todos', 'folios'], true)
                 ? $this->buscarFolios($patron)
                 : [],
@@ -48,7 +52,7 @@ class ServicioConsultaOperacional
             })
             ->with(['temporada', 'ubicacionActual.posicion.camara'])
             ->latest('fecha_ingreso')
-            ->limit(20)
+            ->limit(self::LIMITE_POR_CATEGORIA)
             ->get()
             ->map(function (Folio $folio): array {
                 $posicion = $folio->ubicacionActual?->posicion;
@@ -93,7 +97,7 @@ class ServicioConsultaOperacional
             })
             ->with(['temporada', 'cliente', 'recepcion', 'asignacionCamara.camara', 'hidrocooler'])
             ->latest()
-            ->limit(20)
+            ->limit(self::LIMITE_POR_CATEGORIA)
             ->get()
             ->map(fn (LoteMateriaPrima $lote): array => [
                 'id' => $lote->id,
@@ -132,7 +136,7 @@ class ServicioConsultaOperacional
             })
             ->with('clientes')
             ->latest('ultima_verificacion_at')
-            ->limit(20)
+            ->limit(self::LIMITE_POR_CATEGORIA)
             ->get()
             ->map(fn (ProductorCsg $productor): array => [
                 'id' => $productor->id,
@@ -168,7 +172,7 @@ class ServicioConsultaOperacional
             ->with(['temporada', 'cliente'])
             ->withCount('lotesMateriaPrima')
             ->latest('ingreso_at')
-            ->limit(20)
+            ->limit(self::LIMITE_POR_CATEGORIA)
             ->get()
             ->map(fn (RecepcionRomana $recepcion): array => [
                 'id' => $recepcion->id,

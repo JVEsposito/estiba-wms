@@ -23,6 +23,11 @@ const elements = {
     reviewDialog: byId('reviewDialog'),
     reviewForm: byId('reviewForm'),
     reviewError: byId('reviewError'),
+    propertyDialog: byId('propertyDialog'),
+    propertyForm: byId('propertyForm'),
+    propertySummary: byId('propertySummary'),
+    propertyError: byId('propertyError'),
+    propertyCancel: byId('propertyCancel'),
     loading: byId('officeLoading'),
     loadingText: byId('officeLoadingText'),
     toasts: byId('officeToasts'),
@@ -174,7 +179,14 @@ function render(data) {
             const reviewButton = state.identity?.puede_revisar_cuenta_envases
                 ? `<button class="review-button" data-review="${movement.id}">Revisar</button>`
                 : '';
-            return `<tr><td>${formatDate(movement.ocurrido_at)}</td><td><b>${escapeHtml(movement.cliente?.nombre)}</b><br><small>${escapeHtml(movement.numero_documento)}</small></td><td>${escapeHtml(label(movement.tipo_envase))} · ${movement.cantidad}</td><td class="${movement.impacto_cuenta < 0 ? 'impact-negative' : 'impact-positive'}">${movement.impacto_cuenta > 0 ? '+' : ''}${movement.impacto_cuenta}</td><td>${escapeHtml(label(movement.propiedad))}</td><td>${escapeHtml(label(movement.estado_revision))}</td><td><div class="table-actions">${guideButton}${reviewButton || '—'}</div></td></tr>`;
+            const propertyButton = state.identity?.puede_corregir_propiedad_envases && movement.puede_corregir_propiedad
+                ? `<button class="property-button" data-correct-property="${escapeHtml(movement.id)}">Corregir propiedad</button>`
+                : '';
+            const documentNote = movement.corregido ? ' · ingreso corregido' : movement.correccion_propiedad ? ' · ajuste de propiedad' : '';
+            const trace = movement.correccion_propiedad
+                ? `<br><small>Motivo: ${escapeHtml(movement.correccion_propiedad.motivo)} · ${formatDate(movement.correccion_propiedad.corregido_at)}</small>`
+                : '';
+            return `<tr><td>${formatDate(movement.ocurrido_at)}</td><td><b>${escapeHtml(movement.cliente?.nombre)}</b><br><small>${escapeHtml(movement.numero_documento)}${documentNote}</small>${trace}</td><td>${escapeHtml(label(movement.tipo_envase))} · ${movement.cantidad}</td><td class="${movement.impacto_cuenta < 0 ? 'impact-negative' : 'impact-positive'}">${movement.impacto_cuenta > 0 ? '+' : ''}${movement.impacto_cuenta}</td><td>${escapeHtml(label(movement.propiedad))}</td><td>${escapeHtml(label(movement.estado_revision))}</td><td><div class="table-actions">${guideButton}${reviewButton}${propertyButton || (!guideButton && !reviewButton ? '—' : '')}</div></td></tr>`;
         }).join('')
         : '<tr><td colspan="7">Aún no hay movimientos confirmados.</td></tr>';
 }
@@ -226,12 +238,23 @@ elements.filters.addEventListener('submit', (event) => {
 });
 document.addEventListener('click', async (event) => {
     const reviewButton = event.target.closest('[data-review]');
+    const propertyButton = event.target.closest('[data-correct-property]');
     const documentButton = event.target.closest('[data-guide-document]');
     if (reviewButton) {
         elements.reviewForm.reset();
         elements.reviewForm.elements.movimiento_id.value = reviewButton.dataset.review;
         elements.reviewError.textContent = '';
         elements.reviewDialog.showModal();
+    }
+    if (propertyButton) {
+        const movement = state.movements.find((item) => item.id === propertyButton.dataset.correctProperty);
+        if (!movement) return;
+        elements.propertyForm.reset();
+        elements.propertyForm.elements.movimiento_id.value = movement.id;
+        elements.propertyForm.elements.concepto_envases.value = movement.propiedad === 'propia' ? 'arriendo' : 'compra';
+        elements.propertySummary.textContent = `${movement.numero_documento} · ${movement.cliente?.nombre || ''} · ${label(movement.propiedad)} → ${movement.propiedad === 'propia' ? 'Arrendada' : 'Propia'}`;
+        elements.propertyError.textContent = '';
+        elements.propertyDialog.showModal();
     }
     if (documentButton) {
         try {
@@ -242,6 +265,22 @@ document.addEventListener('click', async (event) => {
         } catch (error) {
             toast(error.message, true);
         }
+    }
+});
+elements.propertyCancel.addEventListener('click', () => elements.propertyDialog.close());
+elements.propertyForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(elements.propertyForm));
+    try {
+        await api(`/api/envases/cuenta-corriente/movimientos/${data.movimiento_id}/corregir-propiedad`, {
+            method: 'POST',
+            body: JSON.stringify({ concepto_envases: data.concepto_envases, motivo: data.motivo }),
+        });
+        elements.propertyDialog.close();
+        toast('Propiedad corregida. Los ajustes quedaron registrados.');
+        await load();
+    } catch (error) {
+        elements.propertyError.textContent = error.message;
     }
 });
 elements.reviewForm.addEventListener('submit', async (event) => {

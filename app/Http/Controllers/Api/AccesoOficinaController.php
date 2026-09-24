@@ -122,6 +122,7 @@ class AccesoOficinaController extends Controller
                 'puede_asociar_productores_csg' => $capacidades['puede_asociar_productores_csg'],
                 'puede_consultar_cuenta_envases' => $capacidades['puede_consultar_cuenta_envases'],
                 'puede_revisar_cuenta_envases' => $capacidades['puede_revisar_cuenta_envases'],
+                'puede_corregir_propiedad_envases' => $usuario->can('corregir-propiedad-envases'),
                 'puede_gestionar_despacho_envases' => $capacidades['puede_gestionar_despacho_envases'],
                 'puede_anular_despacho_envases' => $capacidades['puede_anular_despacho_envases'],
             ],

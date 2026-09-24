@@ -20,6 +20,8 @@
 .sag-search-form button { grid-column: 1 / -1; }
 .source-note { margin: 14px 0; color: var(--muted); font-size: .7rem; line-height: 1.5; }
 .query-empty { padding: 30px 18px; border: 1px dashed var(--line); border-radius: 13px; color: var(--muted); text-align: center; }
+.query-search-limit { margin: 0 0 12px; padding: 9px 12px; border-left: 3px solid var(--warning-text, #855600); background: color-mix(in srgb, var(--warning-text, #855600) 8%, transparent); color: var(--text); font-size: .82rem; }
+.query-search-limit a { color: inherit; font-weight: 800; }
 .result-group { margin-top: 18px; }
 .result-group h3 { display: flex; align-items: center; justify-content: space-between; margin: 0 0 9px; font-size: .85rem; text-transform: uppercase; letter-spacing: .08em; }
 .result-group h3 span { display: grid; min-width: 25px; height: 25px; place-items: center; border-radius: 999px; background: var(--soft); color: var(--cyan); font-size: .68rem; }

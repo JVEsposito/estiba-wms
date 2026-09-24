@@ -235,6 +235,7 @@ class ConsultaOperacionalApiTest extends TestCase
 
         $this->getJson('/api/consultas/buscar?q=105410&tipo=todos')
             ->assertOk()
+            ->assertJsonPath('limite_por_categoria', 20)
             ->assertJsonPath('productores.0.codigo', '105410')
             ->assertJsonPath('productores.0.clientes.0', 'Exportadora Uno');
 

@@ -141,7 +141,7 @@
             </form>
         </section>
 
-        <main class="office-app is-hidden" id="officeApp" data-lobby-domain="{{ $lobbyDomain }}">
+        <main class="office-app is-hidden" id="officeApp" data-lobby-domain="{{ $lobbyDomain }}" @if ($officeHomeRedirect ?? false) data-office-home-redirect @endif>
             <x-office.navigation :domain="$lobbyDomain" office="resumen" :context="$lobby['context']" :icon="$lobby['icon']" />
 
             <section class="domain-lobby-workspace">
