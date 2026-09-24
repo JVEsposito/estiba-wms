@@ -68,6 +68,8 @@
                     <button class="secondary-button" id="reloadInventoryButton" type="button">↻ Actualizar estado</button>
                 </header>
 
+                <form class="panel inventory-filters" id="inventoryFilters" hidden onsubmit="return false"></form>
+
                 <section class="inventory-cards inventory-cards--dedicated" id="inventoryCards" aria-live="polite"></section>
 
                 <section class="inventory-help-grid">

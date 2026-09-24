@@ -81,13 +81,13 @@ Route::view('/oficina/operacion-ahora', 'office.operation-now');
 Route::view('/oficina/gerencia', 'office.management');
 Route::redirect('/oficina/existencias', '/oficina/materiales/exportaciones');
 Route::view('/oficina/frigorifico/existencias', 'office.inventory-exports', [
-    'inventoryType' => 'producto-terminado',
+    'inventoryType' => 'producto-terminado,despachos-producto-terminado',
     'inventoryDomain' => 'frigorifico',
     'inventoryOffice' => 'existencias-pt',
     'inventoryContext' => 'FRIGORÍFICO · PT',
     'inventoryArea' => 'Producto terminado',
-    'inventoryTitle' => 'Existencia de producto terminado',
-    'inventoryDescription' => 'Folios activos desde Validación y Prefrío hasta cámara, carga y despacho.',
+    'inventoryTitle' => 'Existencia y despachos de producto terminado',
+    'inventoryDescription' => 'Folios activos desde Validación y Prefrío hasta cámara y carga, y folios despachados por cliente.',
     'inventoryIcon' => '◇',
 ]);
 Route::view('/oficina/materiales/exportaciones', 'office.inventory-exports', [

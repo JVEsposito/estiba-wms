@@ -47,6 +47,7 @@ class GeneradorLibroXlsxTest extends TestCase
         $this->assertNotFalse($zip->locateName('xl/workbook.xml'));
         $this->assertNotFalse($zip->locateName('xl/styles.xml'));
         $this->assertNotFalse($zip->locateName('xl/worksheets/sheet1.xml'));
+        $this->assertNotFalse($zip->locateName('xl/worksheets/sheet2.xml'));
 
         $estilos = $zip->getFromName('xl/styles.xml');
         $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
@@ -54,11 +55,21 @@ class GeneradorLibroXlsxTest extends TestCase
         $this->assertIsString($hoja);
         $this->assertStringContainsString('numFmtId="164" formatCode="yyyy-mm-dd"', $estilos);
         $this->assertStringContainsString('numFmtId="165" formatCode="yyyy-mm-dd hh:mm"', $estilos);
-        $this->assertStringContainsString('<c r="B7" s="4"><v>12.5</v></c>', $hoja);
-        $this->assertMatchesRegularExpression('/<c r="C7" s="5"><v>[0-9.]+<\/v><\/c>/', $hoja);
-        $this->assertMatchesRegularExpression('/<c r="D7" s="6"><v>[0-9.]+<\/v><\/c>/', $hoja);
-        $this->assertStringContainsString('<c r="A8" t="inlineStr" s="3"><is><t xml:space="preserve">PAL-002</t></is></c>', $hoja);
-        $this->assertStringContainsString('<autoFilter ref="A6:D8"/>', $hoja);
+        // Formato de base de datos: encabezados en la fila 1 y datos desde la fila 2.
+        $this->assertStringContainsString('<c r="A1" t="inlineStr" s="2"><is><t xml:space="preserve">Folio</t></is></c>', $hoja);
+        $this->assertStringContainsString('<c r="B2" s="4"><v>12.5</v></c>', $hoja);
+        $this->assertMatchesRegularExpression('/<c r="C2" s="5"><v>[0-9.]+<\/v><\/c>/', $hoja);
+        $this->assertMatchesRegularExpression('/<c r="D2" s="6"><v>[0-9.]+<\/v><\/c>/', $hoja);
+        $this->assertStringContainsString('<c r="A3" t="inlineStr" s="3"><is><t xml:space="preserve">PAL-002</t></is></c>', $hoja);
+        $this->assertStringContainsString('<autoFilter ref="A1:D3"/>', $hoja);
+        $this->assertStringContainsString('<pane ySplit="1" topLeftCell="A2"', $hoja);
+        $this->assertStringNotContainsString('Fecha de corte', $hoja);
+
+        $corte = $zip->getFromName('xl/worksheets/sheet2.xml');
+        $this->assertIsString($corte);
+        $this->assertStringContainsString('Fecha de corte', $corte);
+        $this->assertStringContainsString('<t xml:space="preserve">2</t>', $corte);
+        $this->assertStringContainsString('<sheet name="Corte" sheetId="2" r:id="rId3"/>', $zip->getFromName('xl/workbook.xml'));
         $zip->close();
         @unlink($ruta);
     }

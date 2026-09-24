@@ -11,6 +11,7 @@ const elements = {
     logout: byId('officeLogoutButton'),
     reload: byId('reloadInventoryButton'),
     cards: byId('inventoryCards'),
+    filters: byId('inventoryFilters'),
     connectionRows: byId('inventoryConnectionRows'),
     connectionCount: byId('inventoryConnectionCount'),
     loading: byId('officeLoading'),
@@ -204,6 +205,7 @@ function formatDate(value) {
 function typeAppearance(type) {
     if (type === 'materiales') return { icon: '▦', modifier: 'inventory-card--materials' };
     if (type === 'materia-prima') return { icon: '⌁', modifier: 'inventory-card--raw' };
+    if (type === 'despachos-producto-terminado') return { icon: '↗', modifier: 'inventory-card--product' };
     return { icon: '◇', modifier: 'inventory-card--product' };
 }
 
@@ -271,7 +273,7 @@ async function handleDownload(type, action) {
     try {
         const filename = connected
             ? await download(`/api/existencias/${encodeURIComponent(type)}/conexion-excel`, { method: 'POST' })
-            : await download(`/api/existencias/${encodeURIComponent(type)}/corte`);
+            : await download(`/api/existencias/${encodeURIComponent(type)}/corte${filterQuery(type)}`);
         toast(connected
             ? `${filename} creado. Ábrelo en Excel y guarda el libro como XLSX.`
             : `${filename} descargado correctamente.`);
@@ -299,6 +301,33 @@ async function revokeConnection(id) {
     }
 }
 
+// Filtros del corte: un archivo por cliente y, en despachos, por período de salida.
+function renderFilters(clients) {
+    if (!elements.filters) return;
+    const withClients = clients.length > 0;
+    const withDispatches = state.types.some((type) => type.tipo === 'despachos-producto-terminado');
+    elements.filters.hidden = !withClients && !withDispatches;
+    if (elements.filters.hidden) return;
+    const selected = elements.filters.elements?.cliente?.value || '';
+    elements.filters.innerHTML = `
+        <label><span>Cliente</span><select name="cliente"><option value="">Todos los clientes</option>${clients.map((client) => `<option value="${escapeHtml(client)}"${client === selected ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')}</select></label>
+        ${withDispatches ? '<label><span>Despachos desde</span><input name="desde" type="date"></label><label><span>Hasta</span><input name="hasta" type="date"></label>' : ''}
+        <p>El corte XLSX aplica estos filtros; las fechas solo afectan a despachos.</p>`;
+}
+
+function filterQuery(type) {
+    if (!elements.filters || elements.filters.hidden) return '';
+    const data = new FormData(elements.filters);
+    const params = new URLSearchParams();
+    if (data.get('cliente')) params.set('cliente', data.get('cliente'));
+    if (type === 'despachos-producto-terminado') {
+        if (data.get('desde')) params.set('desde', data.get('desde'));
+        if (data.get('hasta')) params.set('hasta', data.get('hasta'));
+    }
+    const query = params.toString();
+    return query ? `?${query}` : '';
+}
+
 async function loadInventory(showLoading = true) {
     if (showLoading) setBusy(true, 'Consultando existencias autorizadas…');
     try {
@@ -306,6 +335,7 @@ async function loadInventory(showLoading = true) {
         const payload = await api(`/api/existencias?${query.toString()}`);
         state.types = payload.data || [];
         state.connections = payload.conexiones || [];
+        renderFilters(payload.clientes || []);
         showApp();
         renderCards();
         renderConnections();

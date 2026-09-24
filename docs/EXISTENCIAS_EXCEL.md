@@ -2,11 +2,12 @@
 
 ## Alcance
 
-La oficina `/oficina/existencias` entrega tres inventarios independientes:
+La oficina `/oficina/existencias` entrega tres inventarios independientes y un historial de despachos:
 
 1. **Producto terminado:** una fila por folio activo de pallet o saldo.
 2. **Materiales:** una fila por folio material, conservando cantidad inicial, actual, reservada, disponible y unidad de medida.
 3. **Materia prima:** una fila por lote vigente, con trazabilidad, pesos, hidrocooler y cámara asignada.
+4. **Despachos de producto terminado:** una fila por folio despachado en cargas cerradas, filtrable por cliente y período (ver más abajo).
 
 El servidor define qué registros constituyen existencia. Excel no reconstruye estados ni suma unidades incompatibles.
 
@@ -14,14 +15,15 @@ El servidor define qué registros constituyen existencia. Excel no reconstruye e
 
 ### Corte estático XLSX
 
-Genera un libro con:
+Genera un libro en formato de base de datos, listo para filtrar, cruzar o cargar en otro
+sistema:
 
-- fecha y hora de corte;
-- usuario que realizó la descarga;
-- temporada consultada;
-- encabezados congelados;
-- autofiltros;
-- valores numéricos almacenados como números.
+- hoja de datos con los **encabezados en la fila 1** y una fila por registro, sin títulos
+  ni celdas combinadas;
+- encabezados congelados y autofiltros;
+- valores numéricos y fechas almacenados como tales;
+- hoja **Corte** con reporte, fecha y hora de corte, usuario, temporada, cantidad de
+  registros y, si se aplicaron, cliente y período.
 
 El archivo no cambia después de descargarlo y sirve como evidencia histórica.
 
@@ -55,6 +57,7 @@ El token se guarda cifrado mediante hash SHA-256; el servidor no conserva el tok
 ## Permisos
 
 - Producto terminado: perfiles autorizados para producto, cargas, Prefrío o consulta gerencial.
+- Despachos de producto terminado: perfiles con consulta de cargas.
 - Materiales: perfiles con consulta de inventario y despachos de materiales.
 - Materia prima: perfiles con consulta de lotes de materia prima.
 
@@ -73,3 +76,24 @@ Tipos válidos:
 - `producto-terminado`
 - `materiales`
 - `materia-prima`
+- `despachos-producto-terminado`
+
+## Despachos de producto terminado por cliente
+
+La oficina **Frigorífico → Existencias PT** agrupa dos archivos:
+
+- **Existencia de producto terminado**: folios activos de la temporada.
+- **Despachos de producto terminado**: una fila por folio despachado en cargas cerradas,
+  con fecha de salida, carga, orden de embarque, patente, conductor, cliente, producto,
+  CSG, fecha de embalaje, lotes de materia prima y procesos de packing.
+
+La barra de filtros permite elegir un **cliente** (aplica a ambos archivos) y un
+**período de salida** (solo despachos). Así se genera un archivo por cliente para enviarlo
+sin exponer información de otros clientes:
+
+```http
+GET /api/existencias/despachos-producto-terminado/corte?cliente=Exportadora%20Norte&desde=2026-09-01&hasta=2026-09-30
+```
+
+El nombre del archivo incluye el cliente. Las conexiones autoactualizables (`.iqy`)
+entregan la temporada completa sin filtro de cliente.

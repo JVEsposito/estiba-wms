@@ -3,12 +3,17 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\CondicionTermicaFolio;
+use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoProcesoPrefrio;
 use App\Enums\HabilitacionAlmacenamientoFolio;
+use App\Enums\PrioridadCarga;
 use App\Enums\RolUsuario;
 use App\Enums\TipoBulto;
+use App\Models\Carga;
+use App\Models\CargaFolio;
 use App\Models\ConexionExistencia;
 use App\Models\Folio;
 use App\Models\PosicionTunelPrefrio;
@@ -34,8 +39,9 @@ class ExistenciasApiTest extends TestCase
         $this->withToken($token)
             ->getJson('/api/existencias')
             ->assertOk()
-            ->assertJsonCount(3, 'data')
+            ->assertJsonCount(4, 'data')
             ->assertJsonFragment(['tipo' => 'producto-terminado'])
+            ->assertJsonFragment(['tipo' => 'despachos-producto-terminado'])
             ->assertJsonFragment(['tipo' => 'materiales'])
             ->assertJsonFragment(['tipo' => 'materia-prima']);
 
@@ -261,8 +267,9 @@ class ExistenciasApiTest extends TestCase
 
         $this->get('/oficina/frigorifico/existencias')
             ->assertOk()
-            ->assertSee('Existencia de producto terminado')
-            ->assertSee('data-inventory-type="producto-terminado"', false)
+            ->assertSee('Existencia y despachos de producto terminado')
+            ->assertSee('data-inventory-type="producto-terminado,despachos-producto-terminado"', false)
+            ->assertSee('id="inventoryFilters"', false)
             ->assertSee('data-office-key="existencias-pt"', false)
             ->assertDontSee('Tres inventarios. Una fuente oficial.');
 
@@ -292,6 +299,92 @@ class ExistenciasApiTest extends TestCase
         $this->assertStringContainsString('const movementForm = event.currentTarget;', $script);
         $this->assertStringContainsString('submitButton.disabled = true;', $script);
         $this->assertStringNotContainsString('event.currentTarget.elements', $script);
+    }
+
+    public function test_despachos_pt_se_exportan_por_cliente_y_periodo(): void
+    {
+        [$administrador, $token] = $this->acceso(RolUsuario::Administrador);
+        $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'TEMP-EX-DESP',
+            'nombre' => 'Temporada despachos',
+            'activa' => true,
+        ], usuarioId: $administrador->id);
+        $carga = Carga::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => 'CAR-EX-000001',
+            'estado' => EstadoCarga::Cerrada,
+            'prioridad' => PrioridadCarga::Normal,
+            'version' => 5,
+            'patente' => 'ABCD12',
+            'conductor' => 'Conductor Prueba',
+            'creada_por_user_id' => $administrador->id,
+            'actualizada_por_user_id' => $administrador->id,
+            'cerrada_por_user_id' => $administrador->id,
+            'cerrada_at' => '2026-09-20 15:00:00',
+        ]);
+        foreach ([['PAL-DESP-A', 'Exportadora Norte', '2026-09-20 14:00:00'], ['PAL-DESP-B', 'Exportadora Sur', '2026-09-20 14:30:00'], ['PAL-DESP-C', 'Exportadora Norte', '2026-09-10 10:00:00']] as [$numero, $cliente, $salida]) {
+            $folio = Folio::create([
+                'temporada_id' => $temporada->id,
+                'numero_folio' => $numero,
+                'tipo_bulto' => TipoBulto::Pallet,
+                'estado_operacional' => EstadoOperacionalFolio::Despachado,
+                'condicion_termica' => CondicionTermicaFolio::PrefrioAprobado,
+                'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::Habilitado,
+                'fecha_ingreso' => now(),
+                'activo' => true,
+                'exportadora' => $cliente,
+                'variedad' => 'Santina',
+                'datos_externos' => [
+                    'cantidad_cajas' => 120,
+                    'composicion' => [
+                        ['csg' => '111', 'cantidad_cajas' => 80, 'lote_materia_prima' => 'L-1', 'proceso_packing' => 'P-9'],
+                        ['csg' => '111', 'cantidad_cajas' => 40, 'lote_materia_prima' => 'L-2', 'proceso_packing' => 'P-9'],
+                    ],
+                ],
+            ]);
+            CargaFolio::create([
+                'carga_id' => $carga->id,
+                'folio_id' => $folio->id,
+                'estado' => EstadoCargaFolio::EnAnden,
+                'asignado_por_user_id' => $administrador->id,
+                'asignado_at' => '2026-09-01 08:00:00',
+                'finalizado_por_user_id' => $administrador->id,
+                'finalizado_at' => $salida,
+            ]);
+        }
+
+        $servicio = app(ServicioExistencias::class);
+        $filas = $servicio->filas(ServicioExistencias::DESPACHOS_PRODUCTO_TERMINADO, [
+            'cliente' => 'exportadora norte',
+            'desde' => '2026-09-15',
+        ])->values()->all();
+
+        $this->assertCount(1, $filas);
+        $this->assertSame('PAL-DESP-A', $filas[0]['folio']);
+        $this->assertSame('CAR-EX-000001', $filas[0]['carga']);
+        $this->assertSame('ABCD12', $filas[0]['patente']);
+        $this->assertSame('L-1 | L-2', $filas[0]['lotes_materia_prima']);
+        $this->assertSame('P-9', $filas[0]['procesos_packing']);
+
+        $this->withToken($token)
+            ->getJson('/api/existencias?tipo=producto-terminado,despachos-producto-terminado')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('clientes', ['Exportadora Norte', 'Exportadora Sur']);
+
+        $respuesta = $this->withToken($token)
+            ->get('/api/existencias/despachos-producto-terminado/corte?cliente=Exportadora%20Sur&desde=2026-09-01&hasta=2026-09-30')
+            ->assertOk()
+            ->assertDownload();
+        $this->assertStringContainsString(
+            'Despachos_Producto_Terminado_exportadora_sur_',
+            (string) $respuesta->headers->get('content-disposition'),
+        );
+
+        $this->withToken($token)
+            ->getJson('/api/existencias/despachos-producto-terminado/corte?desde=2026-09-30&hasta=2026-09-01')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['hasta']);
     }
 
     /** @return array{User, string} */
