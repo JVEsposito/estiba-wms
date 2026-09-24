@@ -198,6 +198,7 @@ Ocultar una acción en la interfaz nunca reemplaza la autorización del backend.
 - [Validación MP](docs/MODULO_VALIDACION_MP.md)
 - [Materia prima y lotización](docs/MODULO_MATERIA_PRIMA.md)
 - [Cuenta corriente y despacho de envases](docs/MODULO_ENVASES.md)
+- [Confirmación antes de retirar un pallet](docs/CONFIRMACION_INICIO_TAREA.md)
 
 ## Puesta en marcha local
 

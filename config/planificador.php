@@ -111,5 +111,20 @@ return [
     |
     */
     'reserva_tarea_minutos' => max(1, (int) env('WMS_RESERVA_TAREA_MINUTOS', 10)),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Confirmación física antes de retirar un pallet
+    |--------------------------------------------------------------------------
+    |
+    | Al iniciar una tarea el camarero digita los últimos 4 dígitos del folio
+    | leídos en la etiqueta y su PIN operacional. false desactiva la exigencia
+    | como rollback operacional sin redesplegar la aplicación.
+    |
+    */
+    'confirmacion_inicio_tarea' => filter_var(
+        env('WMS_CONFIRMACION_INICIO_TAREA', true),
+        FILTER_VALIDATE_BOOL,
+    ),
     'tarea_estancada_minutos' => max(5, (int) env('WMS_PLANNER_STALE_TASK_MINUTES', 30)),
 ];

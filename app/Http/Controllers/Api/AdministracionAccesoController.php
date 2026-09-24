@@ -171,6 +171,7 @@ class AdministracionAccesoController extends Controller
             ] : null,
             'activo' => $usuario->activo,
             'debe_cambiar_password' => $usuario->debe_cambiar_password,
+            'pin_operacional_configurado' => $usuario->pin_operacional_hash !== null,
             'permisos' => $this->alcance->capacidadesApi($usuario),
             'creado_at' => $usuario->created_at?->toAtomString(),
             'actualizado_at' => $usuario->updated_at?->toAtomString(),

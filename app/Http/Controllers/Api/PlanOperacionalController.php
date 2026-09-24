@@ -21,6 +21,7 @@ use App\Models\SesionEstiba;
 use App\Models\TareaMovimiento;
 use App\Models\Temporada;
 use App\Services\Autenticacion\ContextoOperacional;
+use App\Services\Estiba\ServicioConfirmacionInicioTarea;
 use App\Services\Estiba\ServicioManiobrasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
@@ -392,12 +393,35 @@ class PlanOperacionalController extends Controller
         TareaMovimiento $tareaMovimiento,
         ContextoOperacional $contexto,
         ServicioPlanesOperacionales $servicio,
+        ServicioConfirmacionInicioTarea $confirmaciones,
     ): TareaMovimientoResource {
         [$usuario, $dispositivo] = $contexto->obtener($request);
 
-        return new TareaMovimientoResource(
-            $servicio->iniciar($tareaMovimiento, $usuario, $dispositivo),
+        if (! $confirmaciones->exigida()) {
+            return new TareaMovimientoResource(
+                $servicio->iniciar($tareaMovimiento, $usuario, $dispositivo),
+            );
+        }
+
+        $datos = $request->validate([
+            'confirmacion_folio' => ['required', 'string', 'max:50'],
+            'pin' => ['required', 'string', 'max:10'],
+        ], [
+            'confirmacion_folio.required' => 'Digita los últimos 4 dígitos del folio leídos en la etiqueta.',
+            'pin.required' => 'Ingresa tu PIN operacional.',
+        ]);
+
+        $confirmaciones->verificar(
+            $tareaMovimiento,
+            $usuario,
+            $dispositivo,
+            $datos['confirmacion_folio'],
+            $datos['pin'],
         );
+        $tarea = $servicio->iniciar($tareaMovimiento, $usuario, $dispositivo);
+        $confirmaciones->registrarConfirmada($tarea, $usuario, $dispositivo, $datos['confirmacion_folio']);
+
+        return new TareaMovimientoResource($tarea);
     }
 
     public function liberar(

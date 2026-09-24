@@ -14,6 +14,16 @@ import { fetchWithTimeout } from './httpClient';
 
 export const TABLET_PLANNER_VERSION = 'rolling-global-2';
 
+export type StartConfirmation = {
+  folioDigits: string;
+  pin: string;
+};
+
+export type OperatorPinStatus = {
+  configurado: boolean;
+  bloqueado_hasta: string | null;
+};
+
 export class OperationalTasksApi {
   constructor(private readonly baseUrl: string) {}
 
@@ -89,12 +99,26 @@ export class OperationalTasksApi {
     )).data;
   }
 
-  async start(token: string, taskId: string) {
+  async start(token: string, taskId: string, confirmation: StartConfirmation) {
     return (await this.request<{ data: OperationalTask }>(
       `/api/tareas-movimiento/${encodeURIComponent(taskId)}/iniciar`,
       token,
-      { method: 'POST' },
+      {
+        method: 'POST',
+        body: JSON.stringify({ confirmacion_folio: confirmation.folioDigits, pin: confirmation.pin }),
+      },
     )).data;
+  }
+
+  async pinStatus(token: string) {
+    return (await this.request<{ data: OperatorPinStatus }>('/api/usuario/pin', token)).data;
+  }
+
+  async savePin(token: string, pin: string, currentPin?: string) {
+    return (await this.request<{ data: OperatorPinStatus }>('/api/usuario/pin', token, {
+      method: 'PUT',
+      body: JSON.stringify({ pin, pin_confirmation: pin, pin_actual: currentPin ?? null }),
+    })).data;
   }
 
   async completeDirectPrefrio(token: string, taskId: string) {
