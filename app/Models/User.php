@@ -20,7 +20,7 @@ use Laravel\Sanctum\HasApiTokens;
 use Laravel\Sanctum\NewAccessToken;
 
 #[Fillable(['name', 'email', 'password', 'rol', 'perfil_acceso_id', 'activo', 'debe_cambiar_password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'pin_operacional_hash'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -111,6 +111,9 @@ class User extends Authenticatable
             'rol' => RolUsuario::class,
             'activo' => 'boolean',
             'debe_cambiar_password' => 'boolean',
+            'pin_operacional_actualizado_at' => 'datetime',
+            'pin_operacional_intentos_fallidos' => 'integer',
+            'pin_operacional_bloqueado_hasta' => 'datetime',
         ];
     }
 }

@@ -37,7 +37,7 @@ Los valores por defecto conservan compatibilidad con la operación existente. La
    pertenezcan a planes u objetivos distintos.
 7. La tablet envía la propuesta del paso actual con versión de tarea, plan y cámara.
 8. El servidor acepta o rechaza la propuesta y materializa solamente el destino próximo todavía válido.
-9. El camarero pulsa **RETIRAR PALLET · INICIAR MOVIMIENTO**.
+9. El camarero pulsa **RETIRAR PALLET · INICIAR MOVIMIENTO**, digita los últimos 4 dígitos del folio leídos en la etiqueta y confirma con su PIN operacional (ver [Confirmación antes de retirar](CONFIRMACION_INICIO_TAREA.md)).
 10. El paso pasa a `en_proceso`: este es el punto de no retorno.
 11. El camarero sigue el patrón mostrado, sin escanear en el camino normal.
 12. Confirmar el movimiento físico o usar **NO COINCIDE**.

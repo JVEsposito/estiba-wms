@@ -12,6 +12,7 @@ use App\Models\Folio;
 use App\Models\Posicion;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Autenticacion\ServicioPinOperacional;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioMovimientoEstiba;
 use App\Services\Estiba\ServicioPlanesOperacionales;
@@ -258,8 +259,13 @@ class HorizonteMovilApiTest extends TestCase
             $contexto['dispositivo'],
         );
 
+        app(ServicioPinOperacional::class)->configurar($contexto['camarero'], '2580', null);
+
         $this->conToken($contexto['token'])
-            ->postJson("/api/tareas-movimiento/{$tarea->id}/iniciar")
+            ->postJson("/api/tareas-movimiento/{$tarea->id}/iniciar", [
+                'confirmacion_folio' => '001',
+                'pin' => '2580',
+            ])
             ->assertOk()
             ->assertJsonPath('data.estado', 'en_proceso')
             ->assertJsonPath('data.punto_no_retorno', true)

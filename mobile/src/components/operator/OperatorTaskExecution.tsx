@@ -16,16 +16,20 @@ import {
 } from '../../domain/operatorManeuver';
 import { operatorTheme as o } from '../../theme/operatorTheme';
 import type { OperatorExceptionKind } from '../../domain/operatorManeuverException';
+import type { StartConfirmation } from '../../services/operationalTasksApi';
 import { OperatorExceptionReport } from './OperatorExceptionReport';
+import { OperatorFolioConfirmation, type FolioConfirmationState } from './OperatorFolioConfirmation';
 import { OperatorPhysicalContextPanel } from './OperatorPhysicalContextPanel';
 import { OperatorEntityCode, OperatorPriorityBadge, OperatorStatusBadge } from './OperatorPrimitives';
 
 type Props = {
   busy: boolean;
+  confirmation: FolioConfirmationState | null;
   deviceName: string;
   hasPhysicalDestination: boolean;
   leaseExpired: boolean;
   onBack: () => void;
+  onCancelConfirmation: () => void;
   onComplete: () => void;
   onCompleteDirect: () => void;
   onCompleteTemporary: () => void;
@@ -33,8 +37,11 @@ type Props = {
     type: ManeuverDiscrepancyType,
     detail: string,
   ) => Promise<ReportedManeuverDiscrepancy | null>;
+  onConfirmStart: (confirmation: StartConfirmation) => void;
+  onCreatePin: (pin: string) => Promise<boolean>;
   onRecalculate: () => void;
   onRelease: () => void;
+  /** Abre la confirmación de folio y PIN; el retiro se envía desde onConfirmStart. */
   onStart: () => void;
   operatorName: string;
   secondsRemaining: number | null;
@@ -43,14 +50,18 @@ type Props = {
 
 export function OperatorTaskExecution({
   busy,
+  confirmation,
   deviceName,
   hasPhysicalDestination,
   leaseExpired,
   onBack,
+  onCancelConfirmation,
   onComplete,
   onCompleteDirect,
   onCompleteTemporary,
   onReportException,
+  onConfirmStart,
+  onCreatePin,
   onRecalculate,
   onRelease,
   onStart,
@@ -90,6 +101,23 @@ export function OperatorTaskExecution({
         onCancel={() => setExceptionKind(null)}
         onClose={onBack}
         onSubmit={onReportException}
+        task={task}
+      />
+    );
+  }
+
+  if (confirmation && !moving) {
+    return (
+      <OperatorFolioConfirmation
+        busy={busy}
+        onCancel={onCancelConfirmation}
+        onConfirm={onConfirmStart}
+        onCreatePin={onCreatePin}
+        onMismatch={() => {
+          onCancelConfirmation();
+          if (task.maniobra) setExceptionKind('mismatch');
+        }}
+        state={confirmation}
         task={task}
       />
     );

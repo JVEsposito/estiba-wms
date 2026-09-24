@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\OperacionAhoraController;
 use App\Http\Controllers\Api\PanelGerencialController;
 use App\Http\Controllers\Api\PerfilAccesoController;
 use App\Http\Controllers\Api\PerfilImpresionEtiquetaController;
+use App\Http\Controllers\Api\PinOperacionalController;
 use App\Http\Controllers\Api\PlanOperacionalController;
 use App\Http\Controllers\Api\PlanoPlantaController;
 use App\Http\Controllers\Api\ProcesoPrefrioController;
@@ -71,6 +72,8 @@ Route::post('/acceso-oficina', [AccesoOficinaController::class, 'store'])->middl
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::put('/usuario/password', CambioPasswordUsuarioController::class)->middleware('throttle:6,1');
+    Route::get('/usuario/pin', [PinOperacionalController::class, 'show']);
+    Route::put('/usuario/pin', [PinOperacionalController::class, 'update'])->middleware('throttle:6,1');
     Route::get('/oficina/contexto', ContextoOficinaController::class);
     Route::get('/user', fn (Request $request) => $request->user());
     Route::get('/demo/autorizar', [AccesoOficinaController::class, 'autorizarDemo']);
@@ -512,6 +515,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/perfiles-acceso/{perfilAcceso}', [PerfilAccesoController::class, 'update']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::put('/administracion/usuarios/{usuario}', [AdministracionAccesoController::class, 'actualizarUsuario']);
+        Route::post('/administracion/usuarios/{usuario}/restablecer-pin', [PinOperacionalController::class, 'restablecer']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
         Route::post('/administracion/clientes', [ClienteGlobalController::class, 'store']);
         Route::put('/administracion/clientes/{cliente}', [ClienteGlobalController::class, 'update']);

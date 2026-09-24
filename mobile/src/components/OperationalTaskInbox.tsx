@@ -31,7 +31,8 @@ import { calculateRollingFrontier } from '../domain/rollingPlanner';
 import { useOperationalPolling } from '../hooks/useOperationalPolling';
 import { ApiError } from '../services/apiError';
 import { EstibaApi } from '../services/estibaApi';
-import { OperationalTasksApi } from '../services/operationalTasksApi';
+import { OperationalTasksApi, type StartConfirmation } from '../services/operationalTasksApi';
+import type { FolioConfirmationState } from './operator/OperatorFolioConfirmation';
 import { OperatorTaskExecution } from './operator/OperatorTaskExecution';
 import { OperatorTaskHome } from './operator/OperatorTaskHome';
 import { operatorTheme as o } from '../theme/operatorTheme';
@@ -68,6 +69,7 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [confirmation, setConfirmation] = useState<FolioConfirmationState | null>(null);
   const [clock, setClock] = useState(Date.now());
   const initialLoad = useRef(true);
   const loadInFlight = useRef(false);
@@ -93,6 +95,11 @@ export function OperationalTaskInbox({ api, auth }: Props) {
   useEffect(() => {
     void loadTasks();
   }, [taskApi, auth.token]);
+
+  // La confirmación pertenece a una tarea concreta antes de iniciar.
+  useEffect(() => {
+    setConfirmation(null);
+  }, [activeTask?.id, activeTask?.estado]);
 
   useEffect(() => {
     if (!activeTask?.reserva?.vence_at
@@ -352,21 +359,61 @@ export function OperationalTaskInbox({ api, auth }: Props) {
     }
   }
 
-  async function startPhysicalTask() {
-    if (!taskApi || !activeTask || activeTask.estado === 'en_proceso') return;
-    if (activeTask.tipo_movimiento !== 'retiro'
-      && (!activeTask.destino?.posicion || activeTask.reserva?.tipo_compromiso !== 'fisica')) {
+  function canStartPhysicalTask(task: OperationalTask | null): task is OperationalTask {
+    if (!taskApi || !task || task.estado === 'en_proceso') return false;
+    if (task.tipo_movimiento !== 'retiro'
+      && (!task.destino?.posicion || task.reserva?.tipo_compromiso !== 'fisica')) {
       setError('Primero debe existir un destino físico validado por el servidor.');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function refreshPinStatus() {
+    if (!taskApi) return;
+    try {
+      const pinStatus = await taskApi.pinStatus(auth.token);
+      setConfirmation((current) => current ? { ...current, pinStatus } : current);
+    } catch (reason) {
+      setConfirmation(null);
+      setError(messageFrom(reason));
+    }
+  }
+
+  function openStartConfirmation() {
+    if (!canStartPhysicalTask(activeTask)) return;
+    setError('');
+    setConfirmation({ pinStatus: null, error: '' });
+    void refreshPinStatus();
+  }
+
+  async function createOperatorPin(pin: string) {
+    if (!taskApi) return false;
+    setBusy(true);
+    try {
+      const pinStatus = await taskApi.savePin(auth.token, pin);
+      setConfirmation((current) => current ? { pinStatus, error: '' } : current);
+      return true;
+    } catch (reason) {
+      setConfirmation((current) => current ? { ...current, error: messageFrom(reason) } : current);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startPhysicalTask(folioConfirmation: StartConfirmation) {
+    if (!canStartPhysicalTask(activeTask)) return;
 
     setBusy(true);
     setError('');
+    setConfirmation((current) => current ? { ...current, error: '' } : current);
     const sessions: OpenSession[] = [];
     try {
       await acquireExecutionSessions(activeTask, sessions);
-      const started = await taskApi.start(auth.token, activeTask.id);
+      const started = await taskApi!.start(auth.token, activeTask.id, folioConfirmation);
       executionSessions.current = sessions;
+      setConfirmation(null);
       setActiveTask(started);
       replaceMine([started]);
       setNotice(
@@ -375,6 +422,13 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       );
     } catch (reason) {
       await closeTemporarySessions(sessions);
+      if (reason instanceof ApiError && reason.status === 422) {
+        // Folio o PIN rechazados: se corrige dentro de la misma confirmación.
+        setConfirmation((current) => current ? { ...current, error: messageFrom(reason) } : current);
+        await refreshPinStatus();
+        return;
+      }
+      setConfirmation(null);
       setError(messageFrom(reason));
       await loadTasks({ quiet: true });
     } finally {
@@ -728,17 +782,21 @@ export function OperationalTaskInbox({ api, auth }: Props) {
       {activeTask ? (
         <OperatorTaskExecution
           busy={busy}
+          confirmation={confirmation}
           deviceName={auth.dispositivo.nombre}
           hasPhysicalDestination={hasPhysicalDestination}
           leaseExpired={leaseExpired}
           onBack={() => setActiveTask(null)}
+          onCancelConfirmation={() => setConfirmation(null)}
           onComplete={() => void completeTask()}
           onCompleteDirect={() => void completeDirectWithdrawal()}
           onCompleteTemporary={() => void completeTemporaryExtraction()}
           onReportException={sendDiscrepancy}
+          onConfirmStart={(folioConfirmation) => void startPhysicalTask(folioConfirmation)}
+          onCreatePin={createOperatorPin}
           onRecalculate={() => void calculateAndMaterializeFrontier(activeTask)}
           onRelease={() => requestRelease(activeTask)}
-          onStart={() => void startPhysicalTask()}
+          onStart={openStartConfirmation}
           operatorName={auth.usuario.nombre}
           secondsRemaining={secondsRemaining}
           task={activeTask}

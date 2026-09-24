@@ -177,7 +177,11 @@ if (form && tableBody) {
                 if (!user) return;
                 const cell = document.createElement('td');
                 cell.dataset.userActions = 'true';
-                cell.innerHTML = `<div class="admin-season-actions"><button data-edit-user="${user.id}" type="button">Editar</button></div>`;
+                // El PIN operacional confirma retiros en tablet; restablecerlo obliga a crear uno nuevo.
+                const resetPin = user.pin_operacional_configurado && user.activo
+                    ? `<button data-reset-pin="${user.id}" type="button" title="El usuario creará un PIN nuevo en su próximo retiro.">Restablecer PIN</button>`
+                    : '';
+                cell.innerHTML = `<div class="admin-season-actions"><button data-edit-user="${user.id}" type="button">Editar</button>${resetPin}</div>`;
                 row.append(cell);
             });
         } finally {
@@ -185,7 +189,26 @@ if (form && tableBody) {
         }
     }
 
+    async function resetPin(button) {
+        const user = users.find((candidate) => String(candidate.id) === String(button.dataset.resetPin));
+        if (!user || !window.confirm(`¿Restablecer el PIN operacional de ${user.nombre}? Deberá crear uno nuevo en su próximo retiro de pallet.`)) return;
+        button.disabled = true;
+        try {
+            await api(`/api/administracion/usuarios/${user.id}/restablecer-pin`, { method: 'POST' });
+            user.pin_operacional_configurado = false;
+            button.textContent = 'PIN restablecido';
+        } catch (exception) {
+            button.disabled = false;
+            window.alert(exception.message);
+        }
+    }
+
     tableBody.addEventListener('click', (event) => {
+        const reset = event.target.closest('[data-reset-pin]');
+        if (reset) {
+            void resetPin(reset);
+            return;
+        }
         const button = event.target.closest('[data-edit-user]');
         if (!button) return;
         const user = users.find((candidate) => String(candidate.id) === String(button.dataset.editUser));
