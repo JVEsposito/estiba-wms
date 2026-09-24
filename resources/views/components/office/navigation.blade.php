@@ -178,6 +178,8 @@
         <a id="officeManagementNav" href="/oficina/gerencia" tabindex="-1"></a>
         <a id="officeRomanaNav" href="/oficina/romana" tabindex="-1"></a>
         <a id="officeRawMaterialNav" href="/oficina/materia-prima" tabindex="-1"></a>
+        <a id="officeContainerAccountsNav" href="/oficina/envases/cuenta-corriente" tabindex="-1"></a>
+        <a id="officeValidationNav" href="/oficina/validacion" tabindex="-1"></a>
         <a id="officeCamerasNav" href="/oficina/frigorifico/camaras" tabindex="-1"></a>
         <a id="officeLoadsNav" href="/oficina/frigorifico/despacho/cargas" tabindex="-1"></a>
         <a id="officeMaterialsNav" href="/oficina/materiales" tabindex="-1"></a>

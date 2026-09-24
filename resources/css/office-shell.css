@@ -327,7 +327,8 @@
     border-top: 1px solid #345468;
 }
 
-.estiba-office-offices a { min-height: 38px; padding-left: 24px; color: #c7d6de; font-size: 13px; }
+/* padding-right reserva el espacio del chevron absoluto para que los nombres largos no lo pisen. */
+.estiba-office-offices a { min-height: 38px; padding-right: 28px; padding-left: 24px; color: #c7d6de; font-size: 13px; }
 .estiba-office-offices a::before { width: 5px; height: 5px; flex: 0 0 5px; border: 1px solid #7893a3; content: ""; }
 /* Blanco, no --eui-shell-frost: .estiba-office-sidebar a.is-active (arriba) ya pone
    fondo frost en esta misma fila (el selector matchea cualquier <a> del sidebar, incluidos

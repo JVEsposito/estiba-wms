@@ -2253,9 +2253,15 @@ dialog[class*="dialog"] :is(p, small, label, legend, label > span) { color: var(
     .weighbridge-filters { grid-template-columns: repeat(2, minmax(145px, 1fr)); }
 }
 
-/* La cabecera navy mantiene contraste estable en ambos temas. */
+/*
+ * La cabecera navy mantiene contraste estable en ambos temas. El selector con
+ * .office-app supera en especificidad a la regla transversal de títulos
+ * (.office-app :is(h1, h2, h3, h4):not([data-office-shell] *)), que en tema
+ * claro dejaba los títulos navy sobre fondo navy.
+ */
 [data-estiba-contrast="navy"],
-[data-estiba-contrast="navy"] :is(h1, h2, h3, h4, p, small, strong, span, dt, dd, a, button, label, legend) {
+[data-estiba-contrast="navy"] :is(h1, h2, h3, h4, p, small, strong, span, dt, dd, a, button, label, legend),
+.office-app [data-estiba-contrast="navy"] :is(h1, h2, h3, h4):not([data-office-shell] *) {
     color: #ffffff !important;
 }
 
