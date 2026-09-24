@@ -23,6 +23,7 @@ use App\Models\RecepcionMaterial;
 use App\Models\Temporada;
 use App\Models\TrabajoImpresionMaterial;
 use App\Models\User;
+use App\Models\UbicacionActual;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,71 @@ use ZipArchive;
 class RecepcionMaterialApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_busqueda_de_folios_para_camat_respeta_prefijo_temporada_y_ubicacion(): void
+    {
+        [, , , , $item] = $this->prepararCatalogo();
+        [, , $token] = $this->crearOperador();
+        [$camara, $posicion] = $this->crearCamaraMateriales();
+        $otraCamara = Camara::create([
+            'codigo' => 'MAT-REC-02',
+            'nombre' => 'Otra cámara de materiales',
+            'contenido' => ContenidoCamara::Materiales,
+        ]);
+
+        $crear = function (string $numero, ?string $temporadaId = null) use ($item): Folio {
+            $folio = Folio::create([
+                'numero_folio' => $numero,
+                'temporada_id' => $temporadaId,
+                'tipo_bulto' => 'material',
+                'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
+                'fecha_ingreso' => now(),
+                'activo' => true,
+            ]);
+            FolioMaterial::create([
+                'folio_id' => $folio->id,
+                'item_material_id' => $item->id,
+                'cantidad_inicial' => 10,
+                'cantidad_actual' => 10,
+                'cantidad_reservada' => 0,
+                'unidad_medida' => 'rollos',
+            ]);
+
+            return $folio;
+        };
+
+        $disponible = $crear('FGE0000092');
+        $sinPosicion = $crear('FGE0000093');
+        UbicacionActual::create(['folio_id' => $sinPosicion->id, 'camara_id' => $camara->id, 'ubicado_at' => now()]);
+        $ocupado = $crear('FGE0000094');
+        UbicacionActual::create(['folio_id' => $ocupado->id, 'camara_id' => $camara->id, 'posicion_id' => $posicion->id, 'ubicado_at' => now()]);
+        $otraUbicacion = $crear('FGE0000095');
+        UbicacionActual::create(['folio_id' => $otraUbicacion->id, 'camara_id' => $otraCamara->id, 'ubicado_at' => now()]);
+        $pasada = Temporada::create(['codigo' => 'TEMP-PASADA-BUSQUEDA', 'nombre' => 'Pasada', 'activa' => false]);
+        $crear('FGE0000096', $pasada->id);
+        $agotado = $crear('FGE0000097');
+        $agotado->material->update(['cantidad_actual' => 0]);
+
+        $url = '/api/movimientos/folios-materiales-disponibles?'.http_build_query([
+            'prefijo' => 'fge000', 'camara_id' => $camara->id,
+        ]);
+        $this->withToken($token)->getJson($url)
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.numero_folio', $disponible->numero_folio)
+            ->assertJsonPath('data.1.numero_folio', $sinPosicion->numero_folio);
+
+        $this->withToken($token)->getJson($url.'&solo_camara=1')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.numero_folio', $disponible->numero_folio);
+        $this->withToken($token)->getJson('/api/movimientos/folios-materiales-disponibles?'.http_build_query([
+            'prefijo' => 'FGE%', 'camara_id' => $camara->id,
+        ]))->assertOk()->assertJsonCount(0, 'data');
+        $this->withToken($token)->getJson('/api/movimientos/folios-materiales-disponibles?prefijo=F&camara_id='.$camara->id)
+            ->assertUnprocessable();
+        $otroUsuario = User::factory()->create(['rol' => RolUsuario::CamareroFrio]);
+        $this->actingAs($otroUsuario)->getJson($url)->assertForbidden();
+    }
 
     public function test_bandeja_muestra_solo_temporada_activa_y_permite_consultar_historial_explicito(): void
     {

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\TipoBulto;
+use App\Enums\ContenidoCamara;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ConsultarFolioUbicacionRequest;
+use App\Http\Requests\BuscarFoliosMaterialUbicacionRequest;
 use App\Http\Requests\MoverFolioRequest;
 use App\Http\Requests\MovimientosRecientesRequest;
 use App\Http\Requests\UbicarFolioRequest;
@@ -30,6 +32,59 @@ use Symfony\Component\HttpFoundation\Response;
 
 class MovimientoController extends Controller
 {
+    public function buscarFoliosMateriales(
+        BuscarFoliosMaterialUbicacionRequest $request,
+        ServicioHabilitacionAlmacenamiento $habilitacion,
+    ): JsonResponse {
+        $datos = $request->validated();
+        $camara = Camara::query()->findOrFail($datos['camara_id']);
+        abort_unless($camara->contenido === ContenidoCamara::Materiales, 404);
+
+        $prefijo = mb_strtoupper(trim($datos['prefijo']));
+        // Escapar comodines para que el usuario solo busque un prefijo literal.
+        $patron = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $prefijo).'%';
+        $folios = Folio::query()
+            ->where('tipo_bulto', TipoBulto::Material->value)
+            ->where('activo', true)
+            ->where('temporada_id', '=', $this->consultaTemporadaActiva())
+            ->whereRaw("numero_folio LIKE ? ESCAPE '!'", [$patron])
+            ->whereHas('material', fn (Builder $consulta) => $consulta
+                ->where('cantidad_actual', '>', 0)
+                ->whereHas('item.cliente.temporada', fn (Builder $temporada) => $temporada
+                    ->where('activa', true)))
+            ->where(function (Builder $consulta) use ($camara, $datos): void {
+                $consulta->whereDoesntHave('ubicacionActual');
+                if (! ($datos['solo_camara'] ?? false)) {
+                    $consulta->orWhereHas('ubicacionActual', fn (Builder $ubicacion) => $ubicacion
+                        ->where('camara_id', $camara->id)
+                        ->whereNull('posicion_id'));
+                }
+            })
+            ->with(['material.item:id,codigo,nombre', 'ubicacionActual'])
+            ->orderBy('numero_folio')
+            ->limit(30)
+            ->get()
+            ->filter(function (Folio $folio) use ($habilitacion, $camara, $datos): bool {
+                $ubicacion = $folio->ubicacionActual;
+                if ($ubicacion && (($datos['solo_camara'] ?? false)
+                    || $ubicacion->posicion_id
+                    || $ubicacion->camara_id !== $camara->id)) {
+                    return false;
+                }
+
+                return $this->disponibilidadUbicacionInicial($folio, $habilitacion)[0];
+            })
+            ->take(12)
+            ->map(fn (Folio $folio): array => [
+                'numero_folio' => $folio->numero_folio,
+                'item' => $folio->material->item->nombre,
+                'codigo_item' => $folio->material->item->codigo,
+            ])
+            ->values();
+
+        return response()->json(['data' => $folios]);
+    }
+
     public function consultarFolio(
         ConsultarFolioUbicacionRequest $request,
         ServicioHabilitacionAlmacenamiento $habilitacion,

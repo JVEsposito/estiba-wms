@@ -843,6 +843,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
         }}
         onConfirm={confirmLocate}
         onLookup={(folioNumber) => api.lookupFolio(auth.token, folioNumber, plan?.id)}
+        onSearchMaterialFolios={(prefix) => api.searchAvailableMaterialFolios(auth.token, prefix, plan!.id, locateCameraOnly)}
         plan={plan}
         position={selectedPosition}
         visible={locateVisible}
