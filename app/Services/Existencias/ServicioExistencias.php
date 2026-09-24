@@ -236,6 +236,7 @@ class ServicioExistencias
             self::DESPACHOS_PRODUCTO_TERMINADO => $this->despachosProductoTerminado(
                 $filtros['desde'] ?? null,
                 $filtros['hasta'] ?? null,
+                $filtros['cliente'] ?? null,
             ),
             self::MATERIALES => $this->materiales(),
             self::MATERIA_PRIMA => $this->materiaPrima(),
@@ -265,11 +266,10 @@ class ServicioExistencias
     }
 
     /** @return LazyCollection<int, array<string, mixed>> */
-    private function despachosProductoTerminado(?string $desde, ?string $hasta): LazyCollection
+    private function despachosProductoTerminado(?string $desde, ?string $hasta, ?string $cliente): LazyCollection
     {
         $zona = config('app.operational_timezone', config('app.timezone'));
-
-        return CargaFolio::query()
+        $consulta = CargaFolio::query()
             ->with(['carga.temporada', 'folio'])
             ->where('estado', EstadoCargaFolio::EnAnden->value)
             ->whereNotNull('finalizado_at')
@@ -278,9 +278,12 @@ class ServicioExistencias
                 ->whereHas('temporada', fn ($temporada) => $temporada->where('activa', true)))
             ->when($desde, fn ($consulta) => $consulta->where('finalizado_at', '>=', CarbonImmutable::parse($desde, $zona)->startOfDay()->utc()))
             ->when($hasta, fn ($consulta) => $consulta->where('finalizado_at', '<=', CarbonImmutable::parse($hasta, $zona)->endOfDay()->utc()))
-            ->orderBy('finalizado_at')
-            ->orderBy('id')
-            ->lazy(200)
+            // El filtro por cliente se resuelve en la base: una temporada puede tener
+            // 150.000 despachos y el archivo de un cliente solo necesita los suyos.
+            ->when(filled($cliente), fn ($consulta) => $consulta->whereHas('folio', fn ($folio) => $folio
+                ->whereRaw('UPPER(TRIM(exportadora)) = ?', [mb_strtoupper(trim((string) $cliente))])));
+
+        return $this->recorrerPorFinalizacion($consulta)
             ->map(function (CargaFolio $asignacion): array {
                 $folio = $asignacion->folio;
                 $carga = $asignacion->carga;
@@ -310,6 +313,38 @@ class ServicioExistencias
                     'procesos_packing' => $this->valoresUnicos($composicion->pluck('proceso_packing')),
                 ];
             });
+    }
+
+    /**
+     * Recorre por (finalizado_at, id) en bloques de 500. A diferencia de lazy(), que pagina con
+     * OFFSET y relee todas las filas anteriores en cada bloque, el costo por bloque es constante.
+     *
+     * @return LazyCollection<int, CargaFolio>
+     */
+    private function recorrerPorFinalizacion($consulta): LazyCollection
+    {
+        return LazyCollection::make(function () use ($consulta) {
+            $ultimo = null;
+
+            do {
+                $bloque = (clone $consulta)
+                    ->when($ultimo, fn ($siguiente) => $siguiente->where(fn ($posterior) => $posterior
+                        ->where('finalizado_at', '>', $ultimo->finalizado_at)
+                        ->orWhere(fn ($empate) => $empate
+                            ->where('finalizado_at', $ultimo->finalizado_at)
+                            ->where('id', '>', $ultimo->id))))
+                    ->orderBy('finalizado_at')
+                    ->orderBy('id')
+                    ->limit(500)
+                    ->get();
+
+                foreach ($bloque as $asignacion) {
+                    yield $asignacion;
+                }
+
+                $ultimo = $bloque->last();
+            } while ($bloque->count() === 500);
+        });
     }
 
     public function temporadaActiva(): ?string
@@ -385,8 +420,8 @@ class ServicioExistencias
                     'estado_sag' => $estadoSag['etiqueta'],
                     'destinos_sag' => implode(' · ', $estadoSag['destinos']),
                     'predio' => $datos['predio'] ?? null,
-                    'condicion_termica' => $this->humanizar($folio->condicion_termica->value),
-                    'habilitacion_almacenamiento' => $this->humanizar($folio->habilitacion_almacenamiento->value),
+                    'condicion_termica' => $this->humanizar($folio->condicion_termica?->value),
+                    'habilitacion_almacenamiento' => $this->humanizar($folio->habilitacion_almacenamiento?->value),
                     'tunel_prefrio' => $proceso
                         ? trim(($proceso->tunel?->codigo ?? '').' · '.$proceso->codigo, ' ·')
                         : null,
@@ -754,7 +789,7 @@ class ServicioExistencias
             return 'Pendiente de ubicación';
         }
 
-        return match ($folio->condicion_termica->value) {
+        return match ($folio->condicion_termica?->value) {
             'pendiente_prefrio' => 'Pendiente de Prefrío',
             'requiere_reproceso' => 'Requiere reproceso',
             'retenido' => 'Retenido',

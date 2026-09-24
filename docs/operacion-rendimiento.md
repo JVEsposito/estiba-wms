@@ -118,3 +118,47 @@ No se deben incluir tablas de folios, procesos, movimientos, validaciones ni usu
 ## Servidor HTTP
 
 `php artisan serve` es adecuado para una prueba puntual. La instalación de planta debe publicarse mediante Apache o Nginx con el document root apuntando a `public/`, OPcache habilitado y HTTPS cuando la red lo permita.
+
+## Volumen de referencia y banco de pruebas
+
+La planta procesa del orden de **150.000 folios PT por temporada** (nunca simultáneos: la
+capacidad de cámaras y túneles ronda los 1.000 pallets) con 9 dispositivos en turno. La carga
+concurrente es baja; lo que crece es el historial: validaciones, movimientos, trazabilidad y
+operaciones sincronizadas, que se acumulan temporada tras temporada.
+
+`scripts/rendimiento/generar-volumen.sql` crea en una base **de pruebas** 150.000 folios en la
+temporada activa y 150.000 en otra, 600.000 líneas de trazabilidad y 500.000 operaciones
+sincronizadas. El script se detiene si el nombre de la base no contiene `bench`, `prueba` o
+`test`.
+
+```bash
+mysql -u root -p -e "CREATE DATABASE estiba_bench"
+DB_DATABASE=estiba_bench php artisan migrate --seed
+mysql -u root -p estiba_bench < scripts/rendimiento/generar-volumen.sql
+DB_DATABASE=estiba_bench php artisan tinker --execute="$(sed 1d scripts/rendimiento/medir.php)"
+```
+
+Resultados con ese volumen (MariaDB local, mediana de 3 ejecuciones):
+
+| Consulta | Antes | Después |
+|---|---|---|
+| Búsqueda global de folios | 2,2 – 2,6 s | 0,21 – 0,28 s |
+| Operación ahora: última sincronización | 1,4 s | 1 ms |
+| Operación ahora: sincronizaciones del día | 3,2 s | 25 ms |
+| Operación ahora completa (24 consultas) | > 4,6 s | 38 ms |
+| Trazabilidad de un lote o proceso (página) | 17 – 21 s | 29 – 53 ms |
+| Recorrer 40.000 despachos para Excel | 271 s (OFFSET) | 2,1 s (por clave) |
+
+Criterios que sostienen estos tiempos:
+
+- **Índices** en `operaciones_sincronizacion.recibida_servidor_at` y en
+  `folios (temporada_id, numero_folio, fecha_ingreso)`.
+- **Nada de `id IN (subconsulta) OR …`** sobre folios: se resuelven primero los IDs con sus
+  índices y luego se consultan esos folios.
+- **Búsqueda global de folios**: número exacto en cualquier temporada, fragmento del número
+  (por ejemplo los últimos dígitos) en la temporada activa, y lote MP o proceso de packing
+  desde la trazabilidad. Ya no busca texto libre (variedad, marca, exportadora) ni dentro del
+  JSON de datos externos; para eso están los filtros de cada oficina.
+- **Exportaciones grandes** recorren por clave (`lazyById` o fecha + id) y no con `lazy()`, que
+  pagina con OFFSET y relee todas las filas anteriores en cada bloque. Los filtros (cliente,
+  período) se aplican en la base, no en PHP.
