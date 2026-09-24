@@ -32,7 +32,10 @@
                         <small id="operationTimezone">Hora operacional</small>
                         <small id="operationShift">Turno sin configurar</small>
                     </div>
-                    <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
+                    <div class="operation-now-command__actions">
+                        <x-estiba.button class="operation-now-refresh" id="operationRefresh" variant="secondary" icon="refresh">Actualizar</x-estiba.button>
+                        <button type="button" class="operation-now-pin-button" id="operationPinsOpen" hidden>PIN de operadores</button>
+                    </div>
                 </header>
 
                 <section class="operation-now-syncbar" aria-label="Estado y sincronización de la operación">
@@ -255,9 +258,21 @@
                 </article>
             </dialog>
 
+            <dialog class="operation-cycle-comparison operation-pin-panel" id="operationPinsDialog" aria-labelledby="operationPinsTitle">
+                <article class="operation-cycle-comparison__surface">
+                    <header class="operation-cycle-comparison__header" data-estiba-contrast="navy">
+                        <div><p>SUPERVISIÓN DE TURNO</p><h2 id="operationPinsTitle">PIN de operadores</h2><span>Restablecer deja al operador sin PIN: lo vuelve a crear en la tablet al iniciar su próxima tarea.</span></div>
+                        <button type="button" id="operationPinsClose" aria-label="Cerrar PIN de operadores">Cerrar</button>
+                    </header>
+                    <div class="operation-cycle-comparison__content" id="operationPinsContent">
+                        <div class="operation-now-empty">Cargando operadores…</div>
+                    </div>
+                </article>
+            </dialog>
+
             <dialog class="operation-cycle-comparison" id="operationCycleComparisonDialog" aria-labelledby="operationCycleComparisonTitle">
                 <article class="operation-cycle-comparison__surface">
-                    <header class="operation-cycle-comparison__header">
+                    <header class="operation-cycle-comparison__header" data-estiba-contrast="navy">
                         <div><p>HISTORIAL DEL PLANIFICADOR</p><h2 id="operationCycleComparisonTitle">Comparar ciclos</h2><span>Qué cambió y por qué respecto de la evaluación anterior</span></div>
                         <button type="button" id="operationCycleComparisonClose" aria-label="Cerrar comparación de ciclos">Cerrar</button>
                     </header>

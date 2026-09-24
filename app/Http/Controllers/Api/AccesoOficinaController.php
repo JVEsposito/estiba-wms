@@ -118,6 +118,7 @@ class AccesoOficinaController extends Controller
                 'puede_entregar_fruta_proceso' => $capacidades['puede_entregar_fruta_proceso'],
                 'puede_corregir_entregas_fruta_proceso' => $capacidades['puede_corregir_entregas_fruta_proceso'],
                 'puede_consultar_oficina_consultas' => $capacidades['puede_consultar_oficina_consultas'],
+                'puede_gestionar_pines_operadores' => $capacidades['puede_gestionar_pines_operadores'],
                 'puede_consultar_sag' => $capacidades['puede_consultar_sag'],
                 'puede_asociar_productores_csg' => $capacidades['puede_asociar_productores_csg'],
                 'puede_consultar_cuenta_envases' => $capacidades['puede_consultar_cuenta_envases'],

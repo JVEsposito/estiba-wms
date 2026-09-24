@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\RolUsuario;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\Autenticacion\ServicioPinOperacional;
+use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +32,28 @@ class PinOperacionalController extends Controller
         return response()->json(['data' => $pines->estado($request->user()->refresh())]);
     }
 
+    /** Operadores de frío activos y el estado de su PIN, para el supervisor de turno. */
+    public function operadores(ServicioPinOperacional $pines): JsonResponse
+    {
+        $operadores = User::query()
+            ->where('activo', true)
+            ->whereIn('rol', array_map(
+                fn (RolUsuario $rol): string => $rol->value,
+                AlcanceOperacionalUsuario::ROLES_PIN_SUPERVISADOS,
+            ))
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $usuario): array => [
+                'id' => $usuario->id,
+                'nombre' => $usuario->name,
+                'rol' => $usuario->rol->value,
+                'pin' => $pines->estado($usuario),
+            ])
+            ->values();
+
+        return response()->json(['data' => $operadores]);
+    }
+
     public function restablecer(Request $request, User $usuario, ServicioPinOperacional $pines): JsonResponse
     {
         if (! $usuario->activo) {
@@ -38,7 +62,7 @@ class PinOperacionalController extends Controller
             ]);
         }
 
-        $pines->restablecer($usuario);
+        $pines->restablecer($usuario, $request->user());
 
         return response()->json(['data' => $pines->estado($usuario->refresh())]);
     }

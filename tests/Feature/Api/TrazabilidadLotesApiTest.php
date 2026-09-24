@@ -157,6 +157,26 @@ class TrazabilidadLotesApiTest extends TestCase
         $this->assertDatabaseCount('trazabilidad_folio_origenes', 1);
     }
 
+    public function test_el_proceso_de_packing_muestra_los_lotes_entregados_a_esa_orden_en_la_temporada(): void
+    {
+        $norte = $this->cliente('NORTE');
+        $lote = $this->lote($norte, 'L-700');
+        $otraTemporada = $this->temporada('TRZ-2027');
+        $loteOtraTemporada = $this->lote($norte, 'L-700', $otraTemporada);
+        $this->entrega($lote, 'p-88');
+        $this->entrega($lote, 'P-88', anulada: true);
+        $this->entrega($loteOtraTemporada, 'P-88');
+        $this->folio('TRZ-PROCESO', $this->origen($norte), 'L-700', 'P-88');
+
+        $this->actingAs($this->administrador, 'sanctum')
+            ->getJson('/api/consultas/trazabilidad?q=P-88&temporada_id='.$this->temporadaId)
+            ->assertOk()
+            ->assertJsonCount(1, 'data.entregas_proceso')
+            ->assertJsonPath('data.entregas_proceso.0.lote', 'L-700')
+            ->assertJsonPath('data.entregas_proceso.0.cliente', 'Exportadora NORTE')
+            ->assertJsonPath('data.resumen.folios', 1);
+    }
+
     public function test_el_excel_de_trazabilidad_requiere_acceso_a_consultas(): void
     {
         $romana = User::factory()->create(['rol' => RolUsuario::OperadorRomana, 'activo' => true]);
@@ -242,6 +262,32 @@ class TrazabilidadLotesApiTest extends TestCase
                 'proceso_packing' => $proceso,
             ])]],
         ]);
+    }
+
+    private function entrega(LoteMateriaPrima $lote, string $numeroOrden, bool $anulada = false): void
+    {
+        Schema::disableForeignKeyConstraints();
+        DB::table('entregas_fruta_proceso')->insert([
+            'id' => (string) Str::uuid(),
+            'operacion_id' => (string) Str::uuid(),
+            'payload_hash' => str_repeat('b', 64),
+            'lote_materia_prima_id' => $lote->id,
+            'asignacion_camara_lote_id' => (string) Str::uuid(),
+            'camara_id' => (string) Str::uuid(),
+            'cantidad_envases' => 10,
+            'kilos_enviados' => 4200,
+            'saldo_anterior' => 10,
+            'saldo_posterior' => 0,
+            'linea_proceso' => '1',
+            'turno' => 'A',
+            'numero_orden' => $numeroOrden,
+            'entregado_por_user_id' => $this->administrador->id,
+            'entregado_at' => now(),
+            'anulado_at' => $anulada ? now() : null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Schema::enableForeignKeyConstraints();
     }
 
     /** El lote se crea sin su recepción ni catálogo MP: esta prueba solo necesita número y cliente. */

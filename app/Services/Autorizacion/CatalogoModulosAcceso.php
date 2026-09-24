@@ -315,6 +315,7 @@ class CatalogoModulosAcceso
                 'materiales.exportaciones',
             ],
             RolUsuario::Despachador => [
+                'consultas.busqueda',
                 'materia-prima.romana',
                 'materia-prima.cuenta-envases',
                 'materia-prima.despacho-envases',

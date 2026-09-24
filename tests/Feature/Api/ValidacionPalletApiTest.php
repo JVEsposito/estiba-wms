@@ -175,6 +175,34 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.resumen.cajas_coincidentes', 120);
     }
 
+    public function test_con_la_exigencia_activa_lote_y_proceso_son_obligatorios_salvo_en_un_rechazo(): void
+    {
+        config(['validacion.exigir_lote_proceso' => true]);
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-EXIGE');
+
+        // PDA anterior: sin composición.
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $this->payload($catalogo, 'PAL-EXIGE-01'))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('composicion');
+
+        $linea = ['origen_validacion_id' => $catalogo['origen_validacion_id'], 'cantidad_cajas' => 120];
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', [
+                ...$this->payload($catalogo, 'PAL-EXIGE-01'),
+                'composicion' => [[...$linea, 'lote_materia_prima' => 'L-1']],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('composicion.0.proceso_packing');
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', [
+                ...$this->payload($catalogo, 'PAL-EXIGE-01'),
+                'composicion' => [[...$linea, 'lote_materia_prima' => 'L-1', 'proceso_packing' => 'P-1']],
+            ])
+            ->assertCreated();
+    }
+
     public function test_rechaza_repetir_la_misma_combinacion_de_csg_lote_y_proceso(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-LOTES-DUP');
@@ -314,6 +342,8 @@ class ValidacionPalletApiTest extends TestCase
 
     public function test_supervisor_puede_rechazar_y_el_rechazo_es_terminal(): void
     {
+        // Un rechazo no exige lote ni proceso: la etiqueta puede ser ilegible o faltar.
+        config(['validacion.exigir_lote_proceso' => true]);
         [$catalogo, $token] = $this->contexto(RolUsuario::SupervisorFrio, 'SUP-01');
         $rechazo = [
             ...$this->payload($catalogo, 'PAL-0004'),
@@ -328,6 +358,7 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonPath('data.estado', 'aceptada')
             ->assertJsonPath('data.folio', null)
             ->json('data.id');
+        config(['validacion.exigir_lote_proceso' => false]);
 
         $aprobacion = $this->payload($catalogo, 'PAL-0004');
 

@@ -29,6 +29,10 @@ Bluetooth, el servidor también acepta el folio completo como confirmación.
 - Cinco intentos fallidos lo bloquean durante 5 minutos.
 - Un administrador puede restablecerlo desde **Accesos → Usuarios → Seleccionar acción →
   Restablecer PIN**. El usuario crea uno nuevo en su próximo retiro.
+- El supervisor de frío lo restablece desde **Operación ahora → PIN de operadores**, solo
+  para camareros de frío, operadores de Prefrío y validadores; nunca el propio ni el de
+  otro supervisor o administrador. Se registra quién lo restableció
+  (`users.pin_operacional_restablecido_por_user_id` y el log del servidor).
 - Se guarda solo como hash y nunca se expone en las respuestas.
 
 ## Contrato
@@ -37,7 +41,8 @@ Bluetooth, el servidor también acepta el folio completo como confirmación.
 GET  /api/usuario/pin
 PUT  /api/usuario/pin                      {pin, pin_confirmation, pin_actual?}
 POST /api/tareas-movimiento/{id}/iniciar   {confirmacion_folio, pin}
-POST /api/administracion/usuarios/{id}/restablecer-pin
+POST /api/administracion/usuarios/{id}/restablecer-pin   (administrador o supervisor de frío)
+GET  /api/operacion/pines-operadores                     (operadores de frío y estado del PIN)
 ```
 
 Un rechazo de folio o PIN responde `422` con el error en `confirmacion_folio` o `pin`.

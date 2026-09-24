@@ -518,7 +518,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     }
   }
 
-  function validateForm() {
+  function validateForm(result?: ValidationResult) {
     if (!catalog) return 'No existe un catálogo sincronizado en esta PDA.';
     if (!line || !shift) return 'Selecciona la línea de proceso y el turno antes de validar.';
     if (!folio.trim()) return 'Escanea o ingresa el folio.';
@@ -531,6 +531,10 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     if (new Set(originDrafts.map(compositionKey)).size !== originDrafts.length) return 'No repitas la misma combinación de CSG, lote y proceso.';
     if (!selectedCombination) return 'Una combinación artículo–CSG no está habilitada.';
     if (originDrafts.some((draft) => !Number.isInteger(Number(draft.boxes)) || Number(draft.boxes) < 1)) return 'Ingresa las cajas de cada CSG.';
+    // Lote MP y proceso de packing son obligatorios para trazar el pallet (salvo un rechazo).
+    if (result !== 'rechazado' && originDrafts.some((draft) => !normalizeCode(draft.lot) || !normalizeCode(draft.process))) {
+      return 'Ingresa el lote MP y el proceso de packing de cada línea, según la etiqueta.';
+    }
     if (compositionBoxes !== Number(boxes)) return `La composición por CSG suma ${compositionBoxes} cajas y el bulto declara ${boxes}.`;
     if (outbox.some((item) => normalizeFolio(item.payload.numero_folio) === normalizeFolio(folio))) {
       return 'El folio posee una validación local pendiente o con error. Sincronízala antes de registrar otro intento.';
@@ -539,7 +543,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   }
 
   async function submit(result: ValidationResult, reason?: string, note?: string) {
-    const problem = validateForm();
+    const problem = validateForm(result);
     if (problem) {
       setError(problem);
       return;
@@ -788,8 +792,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
                 <View style={styles.originCompositionSelect}><SelectField compact={compact} disabled={terminalDecision || !brand} label={`CSG / Predio ${index + 1}`} options={csgOptions} searchable value={draft.originId} onChange={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, originId: value } : item))} /></View>
                 <View style={styles.originBoxes}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, boxes: value.replace(/[^0-9]/g, '') } : item))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={draft.boxes} /></View>
                 {originDrafts.length > 1 ? <Pressable disabled={terminalDecision} onPress={() => setOriginDrafts((current) => current.filter((item) => item.key !== draft.key))} style={styles.removeOrigin}><Text style={styles.removeOriginText}>Quitar</Text></Pressable> : null}
-                <View style={styles.traceField}><Text style={styles.label}>Lote MP</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, lot: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.lot} /></View>
-                <View style={styles.traceField}><Text style={styles.label}>Proceso packing</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, process: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.process} /></View>
+                <View style={styles.traceField}><Text style={styles.label}>Lote MP *</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, lot: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.lot} /></View>
+                <View style={styles.traceField}><Text style={styles.label}>Proceso packing *</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, process: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.process} /></View>
               </View>
             ))}
             <Pressable disabled={terminalDecision || !brand} onPress={() => setOriginDrafts((current) => [...current, newOriginDraft()])} style={[styles.addOrigin, (terminalDecision || !brand) && styles.disabled]}><Text style={styles.addOriginText}>+ Agregar línea (otro CSG, lote o proceso)</Text></Pressable>
