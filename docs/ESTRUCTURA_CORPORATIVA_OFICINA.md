@@ -79,3 +79,31 @@ opcional y no bloquea el despliegue.
 
 Siguiente capacidad del plan: registro ambiental manual horario, antes de la
 pantalla Operación ahora. Esta entrega no registra temperaturas ni crea avisos.
+
+## Entrada única, inicio por rol y búsqueda global
+
+- `/oficina` es la entrada única: tras iniciar sesión, cada usuario llega a la pantalla de
+  su rol. El logo de FoliOS en la cabecera lleva siempre a esa misma pantalla.
+
+| Rol | Pantalla de inicio |
+|---|---|
+| Administrador, supervisor de frío | Operación ahora |
+| Despachador | Cargas |
+| Operador de Prefrío | Prefrío |
+| Operador de Romana | Romana |
+| Digitador de materia prima | Digitación de lotes |
+| Validador MP | Resumen de Materia Prima |
+| Supervisor y camarero de materiales | Resumen de Materiales |
+| Validador PT | Validación |
+| Camarero de frío | Cámaras PT |
+| Consulta | Resumen de Consultas |
+
+  Los perfiles son configurables: si el perfil no habilita la pantalla del rol, se usa la
+  primera oficina accesible.
+- El menú lateral ofrece **Buscar** (folio, lote, recepción `REC-*`, CSG, guía…) en todas
+  las oficinas para perfiles con acceso a Consultas. Abre la búsqueda operacional con el
+  término y la ejecuta; la trazabilidad de lotes también acepta `?q=`.
+- La búsqueda es una vista rápida: muestra hasta 20 coincidencias recientes por categoría
+  (`limite_por_categoria` en la respuesta) y lo advierte cuando se alcanza el límite. El
+  alcance completo de un lote o proceso, por ejemplo para un retiro, se obtiene en
+  **Trazabilidad de lotes**, enlazada desde el mismo aviso.
