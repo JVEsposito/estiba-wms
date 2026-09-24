@@ -322,6 +322,27 @@
             </section>
         </main>
 
+        <dialog class="admin-reset-dialog admin-archive-dialog" id="seasonArchiveDialog" aria-labelledby="seasonArchiveTitle">
+            <div class="admin-reset-dialog__shell">
+                <header>
+                    <div>
+                        <p class="eyebrow">ARCHIVO DE TEMPORADA</p>
+                        <h2 id="seasonArchiveTitle">Archivo completo</h2>
+                        <p id="seasonArchiveDescription">Respaldo restaurable de la temporada cerrada: esquema, datos, Excel de líneas limpias y verificación de integridad. Generarlo no borra ningún dato.</p>
+                    </div>
+                    <button class="admin-reset-dialog__close" id="closeSeasonArchive" type="button" aria-label="Cerrar">×</button>
+                </header>
+                <div class="admin-archive-dialog__body">
+                    <p class="admin-archive-dialog__eligibility" id="seasonArchiveEligibility"></p>
+                    <div id="seasonArchiveList"><p>Cargando archivos…</p></div>
+                </div>
+                <footer>
+                    <button class="secondary-button" id="cancelSeasonArchive" type="button">Cerrar</button>
+                    <button class="primary-button" id="createSeasonArchive" type="button" disabled>Generar archivo</button>
+                </footer>
+            </div>
+        </dialog>
+
         <dialog class="admin-reset-dialog" id="operationalResetDialog" aria-labelledby="operationalResetTitle">
             <form class="admin-reset-dialog__shell" id="operationalResetForm" novalidate>
                 <header>

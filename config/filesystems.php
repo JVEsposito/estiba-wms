@@ -38,6 +38,15 @@ return [
             'report' => false,
         ],
 
+        // Archivos de temporada (respaldo restaurable). Hoy en el servidor de planta; para
+        // la nube basta con apuntar ARCHIVO_TEMPORADAS_DISK a un disco s3.
+        'archivo_temporadas' => [
+            'driver' => 'local',
+            'root' => env('ARCHIVO_TEMPORADAS_RUTA', storage_path('app/archivo-temporadas')),
+            'throw' => true,
+            'report' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

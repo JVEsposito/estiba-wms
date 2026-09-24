@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AdministracionTemporadaController;
 use App\Http\Controllers\Api\AdministracionValidacionController;
 use App\Http\Controllers\Api\AlmacenMaterialController;
 use App\Http\Controllers\Api\AndenController;
+use App\Http\Controllers\Api\ArchivoTemporadaController;
 use App\Http\Controllers\Api\BandaOperacionalController;
 use App\Http\Controllers\Api\BloqueoMaterialController;
 use App\Http\Controllers\Api\CamaraController;
@@ -511,6 +512,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/clientes', [ClienteGlobalController::class, 'index']);
         Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
         Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
+    });
+    Route::middleware('can:archivar-temporadas')->group(function () {
+        Route::get('/administracion/temporadas/{temporada}/archivos', [ArchivoTemporadaController::class, 'index']);
+        Route::post('/administracion/temporadas/{temporada}/archivos', [ArchivoTemporadaController::class, 'store'])
+            ->middleware('throttle:3,1');
+        Route::get('/administracion/archivos-temporada/{archivo}/descargar', [ArchivoTemporadaController::class, 'descargar']);
     });
     Route::get('/operacion/pines-operadores', [PinOperacionalController::class, 'operadores'])
         ->middleware('can:gestionar-pines-operadores');
