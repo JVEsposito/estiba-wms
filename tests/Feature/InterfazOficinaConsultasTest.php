@@ -26,6 +26,12 @@ class InterfazOficinaConsultasTest extends TestCase
             ->assertSee('Consultar productor SAG')
             ->assertSee('pendiente de asociación a cliente');
 
+        $this->get('/oficina/consultas/trazabilidad')
+            ->assertOk()
+            ->assertSee('data-queries-section="trazabilidad"', false)
+            ->assertSee('id="traceLotsForm"', false)
+            ->assertSee('Trazabilidad de lotes');
+
         $this->get('/oficina/consultas/productores')
             ->assertOk()
             ->assertSee('data-queries-section="productores"', false)

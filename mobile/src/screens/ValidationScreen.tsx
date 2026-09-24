@@ -68,7 +68,8 @@ type FolioReview = {
   attempt: ValidationAttempt | null;
 };
 
-type OriginDraft = { key: string; originId: string; boxes: string };
+// Cada línea del bulto: CSG, cajas y, cuando la etiqueta los trae, lote MP y proceso de packing.
+type OriginDraft = { key: string; originId: string; boxes: string; lot: string; process: string };
 
 export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenProps) {
   const { height, width } = useWindowDimensions();
@@ -431,6 +432,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       key: newOriginDraft().key,
       originId: line.origen_validacion_id,
       boxes: String(line.cantidad_cajas),
+      lot: 'lote_materia_prima' in line ? line.lote_materia_prima ?? '' : '',
+      process: 'proceso_packing' in line ? line.proceso_packing ?? '' : '',
     })));
     setPackingDate(attempt.catalogo.fecha_embalaje ?? todayLocal());
     setObservation(null);
@@ -525,7 +528,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
     if (!selectedArticle) return 'Completa especie, variedad, calibre y envase.';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(packingDate)) return 'Ingresa una fecha de embalaje válida.';
     if (selectedOrigins.some((origin) => !origin)) return 'Completa todos los CSG del bulto.';
-    if (new Set(originDrafts.map((draft) => draft.originId)).size !== originDrafts.length) return 'No repitas el mismo CSG en el bulto.';
+    if (new Set(originDrafts.map(compositionKey)).size !== originDrafts.length) return 'No repitas la misma combinación de CSG, lote y proceso.';
     if (!selectedCombination) return 'Una combinación artículo–CSG no está habilitada.';
     if (originDrafts.some((draft) => !Number.isInteger(Number(draft.boxes)) || Number(draft.boxes) < 1)) return 'Ingresa las cajas de cada CSG.';
     if (compositionBoxes !== Number(boxes)) return `La composición por CSG suma ${compositionBoxes} cajas y el bulto declara ${boxes}.`;
@@ -559,6 +562,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
       composicion: originDrafts.map((draft) => ({
         origen_validacion_id: draft.originId,
         cantidad_cajas: Number(draft.boxes),
+        ...(normalizeCode(draft.lot) ? { lote_materia_prima: normalizeCode(draft.lot) } : {}),
+        ...(normalizeCode(draft.process) ? { proceso_packing: normalizeCode(draft.process) } : {}),
       })),
       categoria_validacion_id: selectedCategory.id,
       resultado: result,
@@ -780,12 +785,14 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
             {originDrafts.map((draft, index) => (
               <View key={draft.key} style={[styles.originCompositionRow, compact && styles.originCompositionRowCompact]}>
-                <View style={styles.originCompositionSelect}><SelectField compact={compact} disabled={terminalDecision || !brand} label={`CSG / Predio ${index + 1}`} options={csgOptions.filter((option) => option.value === draft.originId || !originDrafts.some((item) => item.originId === option.value))} searchable value={draft.originId} onChange={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, originId: value } : item))} /></View>
+                <View style={styles.originCompositionSelect}><SelectField compact={compact} disabled={terminalDecision || !brand} label={`CSG / Predio ${index + 1}`} options={csgOptions} searchable value={draft.originId} onChange={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, originId: value } : item))} /></View>
                 <View style={styles.originBoxes}><Text style={styles.label}>Cajas *</Text><TextInput editable={!terminalDecision} keyboardType="number-pad" onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, boxes: value.replace(/[^0-9]/g, '') } : item))} placeholder="0" placeholderTextColor={colors.muted} style={styles.boxInput} value={draft.boxes} /></View>
                 {originDrafts.length > 1 ? <Pressable disabled={terminalDecision} onPress={() => setOriginDrafts((current) => current.filter((item) => item.key !== draft.key))} style={styles.removeOrigin}><Text style={styles.removeOriginText}>Quitar</Text></Pressable> : null}
+                <View style={styles.traceField}><Text style={styles.label}>Lote MP</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, lot: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.lot} /></View>
+                <View style={styles.traceField}><Text style={styles.label}>Proceso packing</Text><TextInput autoCapitalize="characters" autoCorrect={false} editable={!terminalDecision} onChangeText={(value) => setOriginDrafts((current) => current.map((item) => item.key === draft.key ? { ...item, process: value } : item))} placeholder="Según etiqueta" placeholderTextColor={colors.muted} style={styles.traceInput} value={draft.process} /></View>
               </View>
             ))}
-            <Pressable disabled={terminalDecision || !brand} onPress={() => setOriginDrafts((current) => [...current, newOriginDraft()])} style={[styles.addOrigin, (terminalDecision || !brand) && styles.disabled]}><Text style={styles.addOriginText}>+ Agregar otro CSG</Text></Pressable>
+            <Pressable disabled={terminalDecision || !brand} onPress={() => setOriginDrafts((current) => [...current, newOriginDraft()])} style={[styles.addOrigin, (terminalDecision || !brand) && styles.disabled]}><Text style={styles.addOriginText}>+ Agregar línea (otro CSG, lote o proceso)</Text></Pressable>
 
             <View style={styles.selectionSummary}>
               <Text style={styles.selectionSummaryTitle}>{selectedCombination && selectedCategory ? 'Combinación habilitada' : 'Completa los datos obligatorios'}</Text>
@@ -1009,7 +1016,9 @@ function ObservationModal({ catalog, draft, onCancel, onConfirm }: { catalog: Va
 function uniqueOptions(values: string[]): Option[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')).map((value) => ({ value, label: value }));
 }
-function newOriginDraft(): OriginDraft { return { key: `${Date.now()}-${Math.random()}`, originId: '', boxes: '' }; }
+function newOriginDraft(): OriginDraft { return { key: `${Date.now()}-${Math.random()}`, originId: '', boxes: '', lot: '', process: '' }; }
+function normalizeCode(value: string) { return value.trim().toUpperCase(); }
+function compositionKey(draft: OriginDraft) { return `${draft.originId}|${normalizeCode(draft.lot)}|${normalizeCode(draft.process)}`; }
 function todayLocal(): string {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
@@ -1100,10 +1109,12 @@ const styles = StyleSheet.create({
   compositionTotal: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden', fontSize: 10, fontWeight: '900' },
   compositionTotalOk: { color: colors.green, backgroundColor: colors.greenDark },
   compositionTotalPending: { color: colors.amber, backgroundColor: colors.amberDark },
-  originCompositionRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, marginBottom: 8, padding: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.backgroundDeep },
+  originCompositionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 9, marginBottom: 8, padding: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.backgroundDeep },
   originCompositionRowCompact: { flexWrap: 'wrap' },
   originCompositionSelect: { flex: 1, minWidth: 220 },
   originBoxes: { width: 105 },
+  traceField: { flex: 1, minWidth: 150 },
+  traceInput: { minHeight: 48, borderWidth: 1, borderColor: colors.border, borderRadius: 9, backgroundColor: colors.backgroundDeep, color: colors.text, paddingHorizontal: 11, fontSize: 15 },
   removeOrigin: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 10 },
   removeOriginText: { color: colors.red, fontSize: 10, fontWeight: '900' },
   addOrigin: { alignItems: 'center', padding: 11, borderWidth: 1, borderColor: colors.cyanDark, borderRadius: 10, borderStyle: 'dashed' },

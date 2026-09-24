@@ -110,7 +110,8 @@
 [data-queries-section] [data-queries-view] { display: none !important; }
 [data-queries-section="busqueda"] [data-queries-view="busqueda"],
 [data-queries-section="sag"] [data-queries-view="sag"],
-[data-queries-section="productores"] [data-queries-view="productores"] { display: block !important; }
+[data-queries-section="productores"] [data-queries-view="productores"],
+[data-queries-section="trazabilidad"] [data-queries-view="trazabilidad"] { display: block !important; }
 [data-queries-section="busqueda"] .queries-grid,
 [data-queries-section="sag"] .queries-grid { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 1250px) {
@@ -119,3 +120,15 @@
     .folio-dossier-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .folio-spec-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* Trazabilidad de lotes: resumen, lotes MP y folios con su composición. */
+.trace-lots-form { grid-template-columns: minmax(0, 1fr) auto; }
+.trace-lots-results { display: grid; gap: 14px; margin-top: 14px; }
+.trace-lots-summary { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: .82rem; }
+.trace-lots-summary strong { font-size: 1.05rem; }
+.trace-lots-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.trace-lots-table :where(th, td) { padding: 7px 9px; border-bottom: 1px solid var(--corporate-border, var(--line)); text-align: left; vertical-align: top; }
+.trace-lots-table tr[data-inactive="true"] { opacity: .6; }
+.trace-lots-lines { display: grid; gap: 3px; }
+.trace-lots-lines span[data-match="true"] { font-weight: 800; color: var(--corporate-blue, #0f6ead); }
+.trace-lots-unregistered { color: var(--warning-text, #855600); font-size: .72rem; }

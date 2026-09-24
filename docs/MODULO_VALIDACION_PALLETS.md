@@ -271,3 +271,30 @@ En `local` y `testing`:
 - evidencia fotográfica;
 - integración ERP;
 - procedimiento administrado para reabrir una decisión terminal cuando exista una causa autorizada.
+
+## Trazabilidad a materia prima
+
+Cada línea de la composición del bulto puede informar, además del CSG y sus cajas, el
+**lote de materia prima** y el **proceso de packing** impresos en la etiqueta del pallet:
+
+```json
+"composicion": [
+  { "origen_validacion_id": "…", "cantidad_cajas": 80, "lote_materia_prima": "L-2401", "proceso_packing": "P-77" },
+  { "origen_validacion_id": "…", "cantidad_cajas": 40, "lote_materia_prima": "L-2402", "proceso_packing": "P-77" }
+]
+```
+
+- Un mismo CSG puede repetirse cuando aporta cajas de lotes o procesos distintos; la
+  combinación CSG + lote + proceso no puede repetirse.
+- Ambos campos son opcionales y se normalizan en mayúsculas. Si no vienen, el hash del
+  payload no cambia, por lo que las PDA anteriores conservan su idempotencia.
+- Si el lote coincide con uno solo digitado en Materia Prima en la misma temporada, se
+  vincula su identificador; si no existe o es ambiguo se conserva solo el número impreso.
+- Correcciones simples y repaletizajes conservan lote y proceso en cada línea; la clave de
+  composición del repaletizaje los incluye para no fusionar lotes distintos.
+
+La tabla `trazabilidad_folio_origenes` proyecta esa composición (una fila por línea) y se
+reconstruye automáticamente cada vez que cambia `folios.datos_externos`. La oficina
+**Consultas → Trazabilidad de lotes** (`GET /api/consultas/trazabilidad?q=`) busca por lote,
+proceso de packing o folio y muestra lotes MP con su recepción `REC-*`, folios, ubicación,
+carga y composición.

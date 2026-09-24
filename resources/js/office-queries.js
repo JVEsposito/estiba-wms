@@ -14,6 +14,8 @@ const elements = {
     associatedCount: byId('associatedCount'),
     sagTodayCount: byId('sagTodayCount'),
     globalSearch: byId('globalSearchForm'),
+    traceLots: byId('traceLotsForm'),
+    traceLotsResults: byId('traceLotsResults'),
     searchResults: byId('searchResults'),
     sagSearch: byId('sagSearchForm'),
     sagResult: byId('sagResult'),
@@ -516,6 +518,43 @@ elements.globalSearch.addEventListener('submit', async (event) => {
     try {
         const params = new URLSearchParams(new FormData(elements.globalSearch));
         renderSearchResults(await api(`/api/consultas/buscar?${params.toString()}`));
+    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+});
+
+// Trazabilidad MP → PT: resumen, lotes digitados y folios con su composición por lote y proceso.
+function renderTraceLots(payload) {
+    const { resumen, lotes, folios, termino } = payload;
+    if (!folios.length && !lotes.length) {
+        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)}.</div>`;
+        return;
+    }
+    const summary = `<div class="trace-lots-summary">
+        <span><strong>${escapeHtml(resumen.folios)}</strong> folios (${escapeHtml(resumen.folios_activos)} activos)</span>
+        <span><strong>${escapeHtml(resumen.cajas_coincidentes)}</strong> cajas de ${escapeHtml(termino)}</span>
+        ${resumen.limite_alcanzado ? '<span class="trace-lots-unregistered">Se muestran los primeros 200 folios.</span>' : ''}
+    </div>`;
+    const lots = lotes.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Lotes de materia prima</caption>
+        <thead><tr><th>Lote MP</th><th>Recepción</th><th>Cliente</th><th>CSG / predio</th><th>Variedad</th><th>Cosecha</th><th>Kilos netos</th><th>Estado</th></tr></thead>
+        <tbody>${lotes.map((lote) => `<tr><td><strong>${escapeHtml(lote.numero)}</strong></td><td>${escapeHtml(lote.recepcion ?? '—')}<br><small>${escapeHtml(lote.guia ?? '')}</small></td><td>${escapeHtml(lote.cliente ?? '—')}</td><td>${escapeHtml(lote.csg)}<br><small>${escapeHtml(lote.predio ?? '')}</small></td><td>${escapeHtml(lote.variedad ?? '—')}</td><td>${escapeHtml(lote.fecha_cosecha ?? '—')}</td><td>${escapeHtml(Number(lote.kilos_netos).toLocaleString('es-CL'))}</td><td>${escapeHtml(label(lote.estado))}</td></tr>`).join('')}</tbody></table>` : '';
+    const rows = folios.map((folio) => `<tr data-inactive="${folio.activo ? 'false' : 'true'}">
+        <td><strong>${escapeHtml(folio.numero)}</strong><br><small>${escapeHtml(label(folio.estado))}${folio.activo ? '' : ' · inactivo'}</small></td>
+        <td>${escapeHtml(folio.exportadora ?? '—')}<br><small>${escapeHtml([folio.variedad, folio.calibre].filter(Boolean).join(' · '))}</small></td>
+        <td>${folio.ubicacion ? `${escapeHtml(folio.ubicacion.camara)} · ${escapeHtml(folio.ubicacion.posicion)}` : '—'}</td>
+        <td>${folio.carga ? `${escapeHtml(folio.carga.codigo)}<br><small>${escapeHtml(label(folio.carga.estado))}</small>` : '—'}</td>
+        <td><div class="trace-lots-lines">${folio.lineas.map((linea) => `<span data-match="${linea.coincide ? 'true' : 'false'}">${escapeHtml(linea.cantidad_cajas)} cajas · CSG ${escapeHtml(linea.csg ?? '—')} · lote ${escapeHtml(linea.lote_materia_prima ?? 'sin informar')}${linea.recepcion ? ` (${escapeHtml(linea.recepcion)})` : ''} · proceso ${escapeHtml(linea.proceso_packing ?? 'sin informar')}${linea.lote_materia_prima && !linea.lote_registrado ? ' <em class="trace-lots-unregistered">lote no digitado en FoliOS</em>' : ''}</span>`).join('')}</div></td>
+    </tr>`).join('');
+    const table = folios.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Folios relacionados</caption>
+        <thead><tr><th>Folio</th><th>Cliente / producto</th><th>Ubicación</th><th>Carga</th><th>Composición (cajas · CSG · lote · proceso)</th></tr></thead>
+        <tbody>${rows}</tbody></table>` : '<div class="query-empty">El lote existe, pero ningún folio lo informa todavía.</div>';
+    elements.traceLotsResults.innerHTML = summary + lots + table;
+}
+
+elements.traceLots?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setBusy(true, 'Trazando lote…');
+    try {
+        const params = new URLSearchParams(new FormData(elements.traceLots));
+        renderTraceLots((await api(`/api/consultas/trazabilidad?${params.toString()}`)).data);
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
 

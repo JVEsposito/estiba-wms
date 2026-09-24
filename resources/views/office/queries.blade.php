@@ -7,6 +7,10 @@
                 'title' => 'Búsqueda operacional',
                 'description' => 'Encuentra folios, lotes, recepciones y productores en la base interna.',
             ],
+            'trazabilidad' => [
+                'title' => 'Trazabilidad de lotes',
+                'description' => 'Qué folios contienen un lote de materia prima o proceso de packing, y de dónde viene cada folio.',
+            ],
             'sag' => [
                 'title' => 'Consulta SAG / CSG',
                 'description' => 'Verifica productores en el registro público y conserva el resultado trazable.',
@@ -88,6 +92,19 @@
                     <p class="source-note">Fuente: Sistema de Registro Agrícola del SAG. La disponibilidad depende del servicio público externo.</p>
                     <div class="sag-result" id="sagResult"><div class="query-empty">Aquí aparecerá el resultado de la consulta SAG.</div></div>
                 </article>
+            </section>
+
+            <section class="query-panel trace-lots-panel" data-queries-view="trazabilidad">
+                <header>
+                    <p class="eyebrow">MATERIA PRIMA → PRODUCTO TERMINADO</p>
+                    <h2>Buscar lote, proceso o folio</h2>
+                    <p>Ingresa el número de lote MP o de proceso de packing impreso en la etiqueta del pallet, o un folio, para ver la cadena completa.</p>
+                </header>
+                <form class="query-search-form trace-lots-form" id="traceLotsForm">
+                    <input name="q" minlength="2" maxlength="80" placeholder="Lote MP, proceso de packing o folio" required>
+                    <button class="primary-button" type="submit">Trazar</button>
+                </form>
+                <div class="trace-lots-results" id="traceLotsResults"><div class="query-empty">Los folios y lotes relacionados aparecerán aquí.</div></div>
             </section>
 
             <section class="query-panel producers-panel" data-queries-view="productores">

@@ -1171,7 +1171,14 @@ class ServicioRepaletizaje
                 : null,
             'cantidad_cajas' => max(0, (int) ($linea['cantidad_cajas'] ?? 0)),
         ];
-        $normalizada['clave'] = $this->claveComposicion($normalizada);
+        // El lote de materia prima y el proceso de packing viajan con sus cajas a los
+        // folios resultantes; sin ellos la trazabilidad se cortaría en el repaletizaje.
+        foreach (['lote_materia_prima', 'lote_materia_prima_id', 'proceso_packing'] as $campo) {
+            if (filled($linea[$campo] ?? null)) {
+                $normalizada[$campo] = (string) $linea[$campo];
+            }
+        }
+        $normalizada['clave'] = self::claveComposicion($normalizada);
 
         return $normalizada;
     }
@@ -1193,13 +1200,20 @@ class ServicioRepaletizaje
     }
 
     /** @param array<string, mixed> $linea */
-    private function claveComposicion(array $linea): string
+    public static function claveComposicion(array $linea): string
     {
-        return hash('sha256', implode('|', [
+        $partes = [
             mb_strtoupper(trim((string) ($linea['csg'] ?? ''))),
             mb_strtoupper(trim((string) ($linea['predio'] ?? ''))),
             (string) ($linea['fecha_embalaje'] ?? ''),
-        ]));
+        ];
+        // Solo se agregan cuando existen, para conservar la clave de las líneas anteriores.
+        if (filled($linea['lote_materia_prima'] ?? null) || filled($linea['proceso_packing'] ?? null)) {
+            $partes[] = mb_strtoupper(trim((string) ($linea['lote_materia_prima'] ?? '')));
+            $partes[] = mb_strtoupper(trim((string) ($linea['proceso_packing'] ?? '')));
+        }
+
+        return hash('sha256', implode('|', $partes));
     }
 
     /** @param array<string, mixed> $datosExternos */

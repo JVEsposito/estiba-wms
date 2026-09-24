@@ -57,6 +57,7 @@
         'consultas' => [
             ['key' => 'resumen', 'module' => '', 'label' => 'Resumen', 'href' => '/oficina/consultas', 'permissions' => ['puede_consultar_oficina_consultas', 'puede_consultar_sag']],
             ['key' => 'busqueda', 'module' => 'consultas.busqueda', 'label' => 'Búsqueda Operacional', 'href' => '/oficina/consultas/busqueda', 'permissions' => ['puede_consultar_oficina_consultas']],
+            ['key' => 'trazabilidad', 'module' => 'consultas.busqueda', 'label' => 'Trazabilidad de lotes', 'href' => '/oficina/consultas/trazabilidad', 'permissions' => ['puede_consultar_oficina_consultas']],
             ['key' => 'sag', 'module' => 'consultas.sag', 'label' => 'Productores SAG / CSG', 'href' => '/oficina/consultas/sag', 'permissions' => ['puede_consultar_sag']],
             ['key' => 'productores', 'module' => 'consultas.productores', 'label' => 'Productores Verificados', 'href' => '/oficina/consultas/productores', 'permissions' => ['puede_consultar_oficina_consultas']],
         ],

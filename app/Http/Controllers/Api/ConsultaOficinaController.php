@@ -11,6 +11,7 @@ use App\Models\LoteMateriaPrima;
 use App\Models\ProductorCsg;
 use App\Services\Consultas\ServicioAsociacionProductorCsg;
 use App\Services\Consultas\ServicioConsultaOperacional;
+use App\Services\Consultas\ServicioTrazabilidadLotes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -39,6 +40,18 @@ class ConsultaOficinaController extends Controller
                 ->whereDate('ocurrido_at', today())
                 ->count(),
         ]);
+    }
+
+    public function trazabilidad(
+        Request $request,
+        ServicioTrazabilidadLotes $servicio,
+    ): JsonResponse {
+        Gate::authorize('consultar-oficina-consultas');
+        $datos = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:80'],
+        ]);
+
+        return response()->json(['data' => $servicio->consultar($datos['q'])]);
     }
 
     public function buscar(
