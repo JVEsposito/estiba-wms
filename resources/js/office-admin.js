@@ -43,6 +43,11 @@ const elements = {
     migrationTitle: byId('seasonMigrationTitle'),
     migrationError: byId('seasonMigrationError'),
     migrationCancel: byId('cancelSeasonMigration'),
+    archiveDialog: byId('seasonArchiveDialog'),
+    archiveDescription: byId('seasonArchiveDescription'),
+    archiveEligibility: byId('seasonArchiveEligibility'),
+    archiveList: byId('seasonArchiveList'),
+    archiveCreate: byId('createSeasonArchive'),
     resetDialog: byId('operationalResetDialog'),
     resetForm: byId('operationalResetForm'),
     resetDescription: byId('operationalResetDescription'),
@@ -372,10 +377,108 @@ function renderSeasons() {
             <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
             <td><strong>${Number(season.intervalo_embarques_minutos || 60)} min</strong><small>24 horas · flujo global</small></td>
             <td>${statusBadge(season.activa)}</td>
-            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? `<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>` : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>`}</div></td>
+            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? `<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>` : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>${state.identity?.rol === 'administrador' ? `<button data-archive-season="${season.id}" type="button">Archivo</button>` : ''}`}</div></td>
         </tr>
     `).join('');
 }
+
+// Archivo de temporada: solo administradores y solo temporadas cerradas hace más de 60 días.
+const archiveState = { seasonId: null, timer: null };
+
+function archiveStatus(archive) {
+    return { en_proceso: 'En preparación', verificado: 'Verificado', fallido: 'Falló' }[archive.estado] || archive.estado;
+}
+
+function archiveSize(bytes) {
+    if (!bytes) return '—';
+    const value = Number(bytes);
+    return value < 1048576
+        ? `${Math.max(1, Math.round(value / 1024)).toLocaleString('es-CL')} KB`
+        : `${(value / 1048576).toLocaleString('es-CL', { maximumFractionDigits: 1 })} MB`;
+}
+
+function renderSeasonArchive(payload) {
+    const { elegible, motivo, archivos } = payload;
+    elements.archiveEligibility.textContent = elegible ? 'La temporada puede archivarse.' : motivo;
+    elements.archiveEligibility.dataset.tone = elegible ? 'success' : 'warning';
+    const inProgress = archivos.some((archive) => archive.estado === 'en_proceso');
+    elements.archiveCreate.disabled = !elegible || inProgress;
+    elements.archiveList.innerHTML = archivos.length ? `<table class="admin-archive-table"><thead><tr><th>Solicitado</th><th>Estado</th><th>Contenido</th><th>Tamaño</th><th><span class="office-visually-hidden">Acción</span></th></tr></thead><tbody>${archivos.map((archive) => `<tr>
+        <td>${escapeHtml(new Date(archive.creado_at).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }))}<small>${escapeHtml(archive.solicitado_por || '')}</small></td>
+        <td><span data-archive-state="${escapeHtml(archive.estado)}">${escapeHtml(archiveStatus(archive))}</span>${archive.mensaje_error ? `<small>${escapeHtml(archive.mensaje_error)}</small>` : ''}</td>
+        <td>${archive.tablas ? `${Number(archive.tablas)} tablas · ${Number(archive.filas).toLocaleString('es-CL')} filas<small>Excel: ${escapeHtml(archive.excel.join(', ') || '—')}</small>` : '—'}</td>
+        <td>${escapeHtml(archiveSize(archive.tamano_bytes))}</td>
+        <td>${archive.estado === 'verificado' ? `<button type="button" data-download-archive="${escapeHtml(archive.id)}">Descargar</button>` : ''}</td>
+    </tr>`).join('')}</tbody></table>` : '<p>Esta temporada todavía no tiene archivos.</p>';
+    window.clearTimeout(archiveState.timer);
+    if (inProgress && elements.archiveDialog.open) archiveState.timer = window.setTimeout(() => void loadSeasonArchive(), 10000);
+}
+
+async function loadSeasonArchive() {
+    if (!archiveState.seasonId) return;
+    try {
+        renderSeasonArchive((await api(`/api/administracion/temporadas/${archiveState.seasonId}/archivos`)).data);
+    } catch (error) {
+        elements.archiveList.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+    }
+}
+
+async function openSeasonArchive(seasonId) {
+    const season = state.seasons.find((candidate) => candidate.id === seasonId);
+    if (!season) return;
+    archiveState.seasonId = season.id;
+    elements.archiveDescription.textContent = `Temporada ${season.codigo} · ${season.nombre}. Respaldo restaurable: esquema, datos, Excel de líneas limpias y verificación de integridad. Generarlo no borra ningún dato.`;
+    elements.archiveList.innerHTML = '<p>Cargando archivos…</p>';
+    elements.archiveEligibility.textContent = '';
+    elements.archiveCreate.disabled = true;
+    elements.archiveDialog.showModal();
+    await loadSeasonArchive();
+}
+
+async function downloadSeasonArchive(archiveId) {
+    setBusy(true, 'Descargando archivo de temporada…');
+    try {
+        const response = await fetch(`/api/administracion/archivos-temporada/${encodeURIComponent(archiveId)}/descargar`, {
+            headers: { Accept: 'application/zip', Authorization: `Bearer ${state.token}` },
+        });
+        if (!response.ok) throw new ApiError('No fue posible descargar el archivo.', response.status);
+        const name = /filename="?([^";]+)"?/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'archivo-temporada.zip';
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        setBusy(false);
+    }
+}
+
+function closeSeasonArchive() {
+    window.clearTimeout(archiveState.timer);
+    archiveState.seasonId = null;
+    elements.archiveDialog.close();
+}
+
+byId('closeSeasonArchive')?.addEventListener('click', closeSeasonArchive);
+byId('cancelSeasonArchive')?.addEventListener('click', closeSeasonArchive);
+elements.archiveList?.addEventListener('click', (event) => {
+    const download = event.target.closest('[data-download-archive]');
+    if (download) void downloadSeasonArchive(download.dataset.downloadArchive);
+});
+elements.archiveCreate?.addEventListener('click', async () => {
+    if (!archiveState.seasonId) return;
+    elements.archiveCreate.disabled = true;
+    try {
+        await api(`/api/administracion/temporadas/${archiveState.seasonId}/archivos`, { method: 'POST' });
+        toast('Archivo en preparación. Puedes cerrar esta ventana; el proceso continúa en el servidor.');
+    } catch (error) {
+        toast(error.message, true);
+    }
+    await loadSeasonArchive();
+});
 
 function renderResetPreview(preview) {
     const scopes = preview.resumen || {};
@@ -663,6 +766,8 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
     const activate = event.target.closest('[data-activate-season]');
     const migrate = event.target.closest('[data-migrate-season]');
     const reset = event.target.closest('[data-reset-season]');
+    const archive = event.target.closest('[data-archive-season]');
+    if (archive) await openSeasonArchive(archive.dataset.archiveSeason);
     if (edit) {
         const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
         if (!season) return;

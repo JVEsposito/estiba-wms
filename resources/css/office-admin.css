@@ -758,3 +758,15 @@
 .admin-grid.office-panel-workspace {
     margin-top: 16px;
 }
+
+/* Archivo de temporada */
+.admin-archive-dialog__body { display: grid; gap: 12px; padding: 14px 18px; }
+.admin-archive-dialog__eligibility { margin: 0; padding: 8px 12px; border-left: 3px solid var(--line); font-size: .85rem; }
+.admin-archive-dialog__eligibility[data-tone="success"] { border-left-color: var(--success, #1f7a4d); }
+.admin-archive-dialog__eligibility[data-tone="warning"] { border-left-color: var(--warning-text, #855600); }
+.admin-archive-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.admin-archive-table :where(th, td) { padding: 8px 9px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.admin-archive-table small { display: block; color: var(--muted); font-size: .72rem; }
+.admin-archive-table [data-archive-state="verificado"] { color: var(--success, #1f7a4d); font-weight: 800; }
+.admin-archive-table [data-archive-state="fallido"] { color: var(--danger, #b42318); font-weight: 800; }
+.admin-archive-table button { min-height: 36px; padding: 5px 12px; cursor: pointer; }

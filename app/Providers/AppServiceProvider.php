@@ -441,6 +441,10 @@ class AppServiceProvider extends ServiceProvider
                 || $alcance->puedeCorregirEntregasFrutaProceso($usuario),
         );
         Gate::define(
+            'archivar-temporadas',
+            fn (User $usuario): bool => $usuario->activo && $usuario->rol === RolUsuario::Administrador,
+        );
+        Gate::define(
             'gestionar-pines-operadores',
             fn (User $usuario): bool => $alcance->puedeGestionarPinesOperadores($usuario),
         );
