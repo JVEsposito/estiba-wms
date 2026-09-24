@@ -483,6 +483,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
     const succeeded = await runOperation(async () => {
       await api.withdrawMaterial(auth.token, form.despacho_id, {
         operacion_id: materialWithdrawOperationId.current,
+        ...(form.motivo_excepcion_fifo ? { motivo_excepcion_fifo: form.motivo_excepcion_fifo } : {}),
         retiros: [{
           folio_id: operationalPosition.folio!.id,
           cantidad: form.cantidad,
@@ -873,6 +874,7 @@ export function OperationalScreen({ api, auth, onLogout }: OperationalScreenProp
           setMaterialDispatchVisible(false);
         }}
         onConfirm={confirmMaterialDispatch}
+        operatorId={String(auth.usuario.id)}
         position={operationalPosition}
         visible={materialDispatchVisible}
       />

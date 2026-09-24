@@ -14,6 +14,7 @@ use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Models\BloqueoCamara;
+use App\Models\AsignacionDespachoMaterial;
 use App\Models\DespachoMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\DetalleDespachoMaterial;
@@ -92,6 +93,13 @@ class ServicioDespachoMaterial
                 throw new DomainException('El destino no existe o se encuentra inactivo.');
             }
 
+            $asignado = isset($datos['asignado_a_user_id'])
+                ? User::query()->find($datos['asignado_a_user_id']) : null;
+            if (isset($datos['asignado_a_user_id'])
+                && (! $asignado?->activo || ! $asignado->can('retirar-materiales'))) {
+                throw new DomainException('El camarero asignado no está activo o no puede retirar materiales.');
+            }
+
             $despacho = DespachoMaterial::create([
                 'temporada_id' => $temporada->id,
                 'codigo' => $this->siguienteCodigoBloqueado(),
@@ -100,6 +108,8 @@ class ServicioDespachoMaterial
                 'origen' => $dispositivo
                     ? OrigenDespachoMaterial::Tablet
                     : OrigenDespachoMaterial::Oficina,
+                'modalidad' => $datos['modalidad'] ?? 'delegado',
+                'asignado_a_user_id' => $asignado?->id,
                 'estado' => EstadoDespachoMaterial::Pendiente,
                 'destino_material_id' => $destino->id,
                 'destino_nombre' => $destino->nombre,
@@ -108,6 +118,16 @@ class ServicioDespachoMaterial
                 'creado_por_user_id' => $usuario->id,
                 'creado_desde_dispositivo_id' => $dispositivo?->id,
             ]);
+
+            if ($asignado) {
+                AsignacionDespachoMaterial::create([
+                    'operacion_id' => $datos['operacion_id'],
+                    'despacho_material_id' => $despacho->id,
+                    'asignado_a_user_id' => $asignado->id,
+                    'asignado_por_user_id' => $usuario->id,
+                    'motivo' => 'Asignación inicial del despacho delegado.',
+                ]);
+            }
 
             foreach ($datos['items'] as $linea) {
                 $item = ItemMaterial::query()
@@ -151,7 +171,9 @@ class ServicioDespachoMaterial
         string $operacionId,
         array $retiros,
         User $usuario,
-        Dispositivo $dispositivo,
+        ?Dispositivo $dispositivo,
+        bool $requiereSesion = true,
+        ?string $motivoExcepcionFifo = null,
     ): DespachoMaterial {
         if (! $this->alcance->puedeRetirarMateriales($usuario)) {
             throw new OperacionNoAutorizada(
@@ -165,16 +187,21 @@ class ServicioDespachoMaterial
             $retiros,
             $usuario,
             $dispositivo,
+            $motivoExcepcionFifo,
         ): DespachoMaterial {
             $despacho = DespachoMaterial::query()
                 ->with('detalles')
                 ->lockForUpdate()
                 ->findOrFail($despacho->id);
             $this->asegurarTemporadaVigente($despacho);
-            $payloadHash = $this->payloadHash([
+            $payload = [
                 'despacho_material_id' => $despacho->id,
                 'retiros' => $retiros,
-            ]);
+            ];
+            if ($motivoExcepcionFifo !== null) {
+                $payload['motivo_excepcion_fifo'] = $motivoExcepcionFifo;
+            }
+            $payloadHash = $this->payloadHash($payload);
             $operacionRetiro = OperacionRetiroMaterial::query()
                 ->lockForUpdate()
                 ->find($operacionId);
@@ -182,7 +209,7 @@ class ServicioDespachoMaterial
             if ($operacionRetiro) {
                 if ($operacionRetiro->despacho_material_id !== $despacho->id
                     || $operacionRetiro->user_id !== $usuario->id
-                    || $operacionRetiro->dispositivo_id !== $dispositivo->id
+                    || $operacionRetiro->dispositivo_id !== $dispositivo?->id
                     || ! hash_equals($operacionRetiro->payload_hash, $payloadHash)) {
                     throw new ConflictoOperacion(
                         'El UUID del retiro ya fue utilizado con datos diferentes.',
@@ -198,6 +225,10 @@ class ServicioDespachoMaterial
             ], true)) {
                 throw new DomainException('El despacho ya no admite retiros.');
             }
+            if ($despacho->asignado_a_user_id !== null
+                && (int) $despacho->asignado_a_user_id !== (int) $usuario->id) {
+                throw new OperacionNoAutorizada('Este despacho está asignado a otro camarero.');
+            }
 
             $operacionRetiro = OperacionRetiroMaterial::create([
                 'id' => $operacionId,
@@ -210,7 +241,10 @@ class ServicioDespachoMaterial
             $sugerencias = [];
             foreach ($despacho->detalles as $detalle) {
                 $sugerencias[$detalle->id] = $this->liberarReservas($detalle)
-                    ->pluck('folio_id')
+                    ->map(fn (ReservaMaterial $reserva) => [
+                        'folio_id' => $reserva->folio_id,
+                        'cantidad' => (float) $reserva->cantidad,
+                    ])
                     ->all();
             }
 
@@ -276,11 +310,12 @@ class ServicioDespachoMaterial
 
                 $anterior = (float) $folioMaterial->cantidad_actual;
                 $resultante = round($anterior - $cantidad, 3);
-                $siguioFifo = in_array(
-                    $folioMaterial->folio_id,
-                    $sugerencias[$detalle->id] ?? [],
-                    true,
+                $siguioFifo = $this->sigueReservaFifo(
+                    $sugerencias, $detalle->id, $folioMaterial->folio_id, $cantidad,
                 );
+                if (! $siguioFifo && mb_strlen(trim((string) $motivoExcepcionFifo)) < 5) {
+                    throw new DomainException('Justifica la excepción FIFO antes de retirar otro folio.');
+                }
 
                 $folioMaterial->update(['cantidad_actual' => $resultante]);
                 $retiro = RetiroMaterial::create([
@@ -295,6 +330,7 @@ class ServicioDespachoMaterial
                     'user_id' => $usuario->id,
                     'dispositivo_id' => $dispositivo->id,
                     'siguio_fifo' => $siguioFifo,
+                    'motivo_excepcion_fifo' => $siguioFifo ? null : $motivoExcepcionFifo,
                     'retirado_at' => now(),
                 ]);
                 MovimientoInventarioMaterial::create([
@@ -313,6 +349,7 @@ class ServicioDespachoMaterial
                     'motivo' => 'Despacho de materiales.',
                     'metadatos' => [
                         'siguio_fifo' => $siguioFifo,
+                        'motivo_excepcion_fifo' => $siguioFifo ? null : $motivoExcepcionFifo,
                         'camara' => $camara->codigo,
                         'posicion' => $posicion?->etiqueta,
                     ],
@@ -471,6 +508,57 @@ class ServicioDespachoMaterial
         return $despacho->load($this->relacionesCarga());
     }
 
+    public function reasignar(
+        DespachoMaterial $despacho,
+        string $operacionId,
+        int $asignadoA,
+        string $motivo,
+        User $usuario,
+    ): DespachoMaterial {
+        if (! $this->alcance->puedeGestionarDespachosMateriales($usuario)) {
+            throw new OperacionNoAutorizada('No tienes permiso para reasignar despachos.');
+        }
+
+        return DB::transaction(function () use ($despacho, $operacionId, $asignadoA, $motivo, $usuario): DespachoMaterial {
+            $despacho = DespachoMaterial::query()->lockForUpdate()->findOrFail($despacho->id);
+            $this->asegurarTemporadaVigente($despacho);
+            $existente = AsignacionDespachoMaterial::query()->where('operacion_id', $operacionId)->first();
+            if ($existente) {
+                if ($existente->despacho_material_id !== $despacho->id
+                    || $existente->asignado_por_user_id !== $usuario->id
+                    || $existente->asignado_a_user_id !== $asignadoA
+                    || $existente->motivo !== $motivo) {
+                    throw new ConflictoOperacion('El UUID de reasignación ya fue utilizado con otros datos.');
+                }
+
+                return $this->cargar($despacho);
+            }
+
+            if ($despacho->modalidad !== 'delegado'
+                || ! in_array($despacho->estado, [EstadoDespachoMaterial::Pendiente, EstadoDespachoMaterial::Parcial], true)) {
+                throw new DomainException('Solo se pueden reasignar despachos delegados pendientes.');
+            }
+            $destinatario = User::query()->find($asignadoA);
+            if (! $destinatario?->activo || ! $destinatario->can('retirar-materiales')) {
+                throw new DomainException('El camarero elegido no está activo o no puede retirar materiales.');
+            }
+            if ((int) $despacho->asignado_a_user_id === $asignadoA) {
+                throw new DomainException('El despacho ya está asignado a este camarero.');
+            }
+
+            $despacho->update(['asignado_a_user_id' => $asignadoA]);
+            AsignacionDespachoMaterial::create([
+                'operacion_id' => $operacionId,
+                'despacho_material_id' => $despacho->id,
+                'asignado_a_user_id' => $asignadoA,
+                'asignado_por_user_id' => $usuario->id,
+                'motivo' => $motivo,
+            ]);
+
+            return $this->cargar($despacho);
+        }, attempts: 3);
+    }
+
     /**
      * @param  EloquentCollection<int, DespachoMaterial>  $despachos
      * @return EloquentCollection<int, DespachoMaterial>
@@ -527,6 +615,9 @@ class ServicioDespachoMaterial
         return [
             'temporada:id,codigo,nombre,activa',
             'creadoPor:id,name',
+            'asignadoA:id,name',
+            'asignaciones.asignadoA:id,name',
+            'asignaciones.asignadoPor:id,name',
             'dispositivo:id,codigo,nombre',
             'canceladoPor:id,name',
             'dispositivoCancelacion:id,codigo,nombre',
@@ -615,6 +706,32 @@ class ServicioDespachoMaterial
         }
 
         return $reservas;
+    }
+
+    /**
+     * Compara el retiro con la cantidad y el orden reservados antes de liberar
+     * FIFO. Retirar de un folio sugerido mientras el anterior sigue pendiente
+     * también constituye una excepción.
+     *
+     * @param  array<string, array<int, array{folio_id: string, cantidad: float}>>  $reservas
+     */
+    protected function sigueReservaFifo(array &$reservas, string $detalleId, string $folioId, float $cantidad): bool
+    {
+        if (! isset($reservas[$detalleId])) {
+            return false;
+        }
+        $anteriorPendiente = false;
+        foreach ($reservas[$detalleId] as &$reserva) {
+            if ($reserva['folio_id'] === $folioId) {
+                $cubierto = $cantidad <= $reserva['cantidad'] + 0.0001;
+                $reserva['cantidad'] = max(0, round($reserva['cantidad'] - $cantidad, 3));
+
+                return ! $anteriorPendiente && $cubierto;
+            }
+            $anteriorPendiente ||= $reserva['cantidad'] > 0.0001;
+        }
+
+        return false;
     }
 
     protected function asegurarTemporadaVigente(DespachoMaterial $despacho): void

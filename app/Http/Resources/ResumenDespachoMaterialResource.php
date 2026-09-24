@@ -22,7 +22,9 @@ class ResumenDespachoMaterialResource extends JsonResource
             ] : null),
             'codigo' => $this->codigo,
             'origen' => $this->origen->value,
+            'modalidad' => $this->modalidad,
             'estado' => $this->estado->value,
+            'asignado_a_user_id' => $this->asignado_a_user_id,
             'destino' => [
                 'id' => $this->destino_material_id,
                 'nombre' => $this->destino_nombre,

@@ -164,8 +164,19 @@ cantidad de un ítem. El sistema reserva folios por fecha de ingreso y número d
 folio, y devuelve esas reservas como sugerencia FIFO. El despacho queda ligado
 a la temporada global activa y no admite ítems de otro ciclo.
 
-FIFO no bloquea la operación: el camarero puede retirar desde otro folio. La
-decisión queda registrada en `retiros_materiales.siguio_fifo`.
+Oficina permite elegir entre despacho delegado (reserva para retiro en tablet,
+con asignación opcional a un camarero) y entrega directa desde bodega. La
+entrega directa admite varios folios e ítems y confirma en una sola transacción
+la solicitud, los retiros y la transferencia de custodia al centro de costo.
+Un despacho delegado pendiente puede reasignarse con motivo; cada cambio
+queda registrado con usuario, fecha y UUID de operación.
+
+FIFO no bloquea la operación: se puede retirar desde otro folio o saltar uno
+anterior reservado. Cada retiro distinto del orden y cantidad reservados exige
+un motivo de al menos cinco caracteres. La decisión y su motivo quedan en
+`retiros_materiales.siguio_fifo` y `motivo_excepcion_fifo`; la trazabilidad
+de Oficina muestra las reservas activas, entregas y reasignaciones. Los retiros
+anteriores a esta regla pueden conservar `motivo_excepcion_fifo` vacío.
 
 Cada retiro:
 

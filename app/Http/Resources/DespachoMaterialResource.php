@@ -22,7 +22,19 @@ class DespachoMaterialResource extends JsonResource
             ] : null),
             'codigo' => $this->codigo,
             'origen' => $this->origen->value,
+            'modalidad' => $this->modalidad,
             'estado' => $this->estado->value,
+            'asignado_a' => $this->whenLoaded('asignadoA', fn () => $this->asignadoA ? [
+                'id' => $this->asignadoA->id,
+                'nombre' => $this->asignadoA->name,
+            ] : null),
+            'asignaciones' => $this->whenLoaded('asignaciones', fn () => $this->asignaciones->map(fn ($asignacion) => [
+                'id' => $asignacion->id,
+                'usuario' => ['id' => $asignacion->asignadoA->id, 'nombre' => $asignacion->asignadoA->name],
+                'realizada_por' => ['id' => $asignacion->asignadoPor->id, 'nombre' => $asignacion->asignadoPor->name],
+                'motivo' => $asignacion->motivo,
+                'created_at' => $asignacion->created_at?->toAtomString(),
+            ])->values()),
             'destino' => [
                 'id' => $this->destino_material_id,
                 'nombre' => $this->destino_nombre,
@@ -130,6 +142,7 @@ class DespachoMaterialResource extends JsonResource
                                             'nombre' => $retiro->dispositivo->nombre,
                                         ] : null,
                                         'siguio_fifo' => $retiro->siguio_fifo,
+                                        'motivo_excepcion_fifo' => $retiro->motivo_excepcion_fifo,
                                         'retirado_at' => $retiro->retirado_at?->toAtomString(),
                                     ];
                                 })->values()

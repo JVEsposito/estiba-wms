@@ -299,6 +299,9 @@ export function MaterialDispatchOperation({
                       <Text style={[styles.fifoResult, !withdrawal.siguio_fifo && styles.fifoException]}>
                         {withdrawal.siguio_fifo ? 'FIFO' : 'EXCEPCIÓN FIFO'}
                       </Text>
+                      {!withdrawal.siguio_fifo && withdrawal.motivo_excepcion_fifo ? (
+                        <Text style={styles.traceMeta}>{withdrawal.motivo_excepcion_fifo}</Text>
+                      ) : null}
                     </View>
                   </View>
                 ))}

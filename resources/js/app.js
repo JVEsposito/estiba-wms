@@ -1173,7 +1173,8 @@ function materialDispatchDetail(dispatch, folio) {
 function matchingMaterialDispatches(folio = state.selectedPosition?.folio) {
     return state.materialDispatches.filter((dispatch) => {
         const detail = materialDispatchDetail(dispatch, folio);
-        return detail && Number(detail.cantidad_pendiente) > 0;
+        return detail && Number(detail.cantidad_pendiente) > 0
+            && (!dispatch.asignado_a_user_id || String(dispatch.asignado_a_user_id) === String(state.identity?.usuario?.id));
     });
 }
 
@@ -1191,7 +1192,7 @@ function openMaterialDispatchDialog() {
     elements.materialBalance.innerHTML = `
         <div><span>SALDO ACTUAL</span><strong>${escapeHtml(material.cantidad_actual)} ${escapeHtml(material.unidad_medida)}</strong></div>
         <div><span>DISPONIBLE</span><strong>${escapeHtml(material.cantidad_disponible)} ${escapeHtml(material.unidad_medida)}</strong></div>`;
-    elements.materialDispatchSelect.innerHTML = '<option value="">Nuevo despacho directo</option>'
+    elements.materialDispatchSelect.innerHTML = '<option value="">Nuevo despacho y retiro desde tablet</option>'
         + matchingMaterialDispatches(position.folio).map((dispatch) => (
             `<option value="${escapeHtml(dispatch.id)}">${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)} · ${escapeHtml(dispatch.destino.centro_costo)}</option>`
         )).join('');
@@ -1236,12 +1237,19 @@ function updateMaterialDispatchForm() {
         elements.materialFifoNotice.classList.add('is-hidden');
         elements.materialFifoNotice.classList.remove('is-override');
         elements.materialFifoNotice.textContent = '';
+        const reason = elements.materialDispatchForm.querySelector('[name="motivo_excepcion_fifo"]');
+        reason.closest('label').classList.add('is-hidden');
+        reason.required = false;
         return;
     }
 
-    const followsFifo = detail.sugerencias_fifo.some((suggestion) => suggestion.folio_id === folio.id);
+    const followsFifo = detail.sugerencias_fifo[0]?.folio_id === folio.id
+        && Number(amountInput.value || 0) <= Number(detail.sugerencias_fifo[0]?.cantidad || 0);
     elements.materialFifoNotice.classList.remove('is-hidden');
     elements.materialFifoNotice.classList.toggle('is-override', ! followsFifo);
+    const reason = elements.materialDispatchForm.querySelector('[name="motivo_excepcion_fifo"]');
+    reason.closest('label').classList.toggle('is-hidden', followsFifo);
+    reason.required = ! followsFifo;
     elements.materialFifoNotice.innerHTML = followsFifo
         ? `<strong>Folio sugerido por FIFO.</strong> <span>Pendiente ${escapeHtml(detail.cantidad_pendiente)} ${escapeHtml(detail.unidad_medida)} para ${escapeHtml(dispatch.destino.nombre)}.</span>`
         : `<strong>Selección distinta de FIFO.</strong> <span>Se permitirá el retiro y quedará registrado en la trazabilidad.</span>`;
@@ -1260,6 +1268,12 @@ async function dispatchMaterial(form) {
 
     if (! Number.isFinite(amount) || amount <= 0 || amount > maximum) {
         elements.materialDispatchError.textContent = `Ingresa una cantidad entre 0,001 y ${maximum.toFixed(3)} ${material.unidad_medida}.`;
+        return;
+    }
+    if (values.despacho_id && !elements.materialFifoNotice.classList.contains('is-hidden')
+        && elements.materialFifoNotice.classList.contains('is-override')
+        && String(values.motivo_excepcion_fifo || '').trim().length < 5) {
+        elements.materialDispatchError.textContent = 'Explica la excepción FIFO (mínimo 5 caracteres).';
         return;
     }
 
@@ -1289,6 +1303,7 @@ async function dispatchMaterial(form) {
                 method: 'POST',
                 body: JSON.stringify({
                     operacion_id: state.materialWithdrawOperationId,
+                    ...(values.motivo_excepcion_fifo?.trim() ? { motivo_excepcion_fifo: values.motivo_excepcion_fifo.trim() } : {}),
                     retiros: [{
                         folio_id: position.folio.id,
                         cantidad: amount,
@@ -1648,6 +1663,7 @@ elements.materialDispatchSelect?.addEventListener('change', () => {
     elements.materialDispatchError.textContent = '';
     updateMaterialDispatchForm();
 });
+elements.materialDispatchForm?.elements.cantidad?.addEventListener('input', updateMaterialDispatchForm);
 elements.moveCameraSelect?.addEventListener('change', (event) => {
     elements.moveError.textContent = '';
     loadDestinationPlan(event.currentTarget.value);

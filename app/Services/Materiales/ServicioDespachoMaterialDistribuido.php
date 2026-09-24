@@ -70,29 +70,53 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
         }
 
         return DB::transaction(function () use ($datos, $usuario): DespachoMaterial {
-            $folio = FolioMaterial::query()
-                ->with('item')
-                ->findOrFail($datos['folio_id']);
+            $retiros = $datos['retiros'] ?? [[
+                'folio_id' => $datos['folio_id'],
+                'cantidad' => $datos['cantidad'],
+            ]];
+            $folios = FolioMaterial::query()
+                ->whereIn('folio_id', array_column($retiros, 'folio_id'))
+                ->get()
+                ->keyBy('folio_id');
+            $cantidades = [];
+            foreach ($retiros as $retiro) {
+                $folio = $folios->get($retiro['folio_id']);
+                if (! $folio) {
+                    throw new DomainException('Uno de los folios no existe.');
+                }
+                $cantidades[$folio->item_material_id] = round(
+                    ($cantidades[$folio->item_material_id] ?? 0) + (float) $retiro['cantidad'], 3,
+                );
+            }
+            if (count($cantidades) > 50) {
+                throw new DomainException('La entrega admite hasta 50 ítems distintos.');
+            }
+            $items = isset($datos['retiros'])
+                ? collect($cantidades)->map(fn ($cantidad, $itemId) => [
+                    'item_material_id' => $itemId, 'cantidad' => $cantidad,
+                ])->values()->all()
+                : [[
+                    'item_material_id' => $folios->get($datos['folio_id'])->item_material_id,
+                    'cantidad' => $datos['cantidad'],
+                ]];
             $despacho = $this->crear([
                 'operacion_id' => $datos['operacion_id'],
                 'destino_material_id' => $datos['destino_material_id'],
                 'observacion' => $datos['observacion'] ?? null,
-                'items' => [[
-                    'item_material_id' => $folio->item_material_id,
-                    'cantidad' => $datos['cantidad'],
-                ]],
+                'items' => $items,
             ], $usuario, null, notificar: false);
+            if ($despacho->modalidad !== 'directo') {
+                $despacho->update(['modalidad' => 'directo']);
+            }
 
             return $this->retirar(
                 $despacho,
                 $datos['operacion_id'],
-                [[
-                    'folio_id' => $folio->folio_id,
-                    'cantidad' => $datos['cantidad'],
-                ]],
+                $retiros,
                 $usuario,
                 null,
                 requiereSesion: false,
+                motivoExcepcionFifo: $datos['motivo_excepcion_fifo'] ?? null,
             );
         }, attempts: 3);
     }
@@ -110,6 +134,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
         User $usuario,
         ?Dispositivo $dispositivo,
         bool $requiereSesion = true,
+        ?string $motivoExcepcionFifo = null,
     ): DespachoMaterial {
         if (! $this->alcanceDistribuido->puedeRetirarMateriales($usuario)) {
             throw new OperacionNoAutorizada(
@@ -130,16 +155,21 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
             $usuario,
             $dispositivo,
             $requiereSesion,
+            $motivoExcepcionFifo,
         ): DespachoMaterial {
             $despacho = DespachoMaterial::query()
                 ->with(['detalles', 'destino'])
                 ->lockForUpdate()
                 ->findOrFail($despacho->id);
             $this->asegurarTemporadaVigente($despacho);
-            $payloadHash = $this->payloadHash([
+            $payload = [
                 'despacho_material_id' => $despacho->id,
                 'retiros' => $retiros,
-            ]);
+            ];
+            if ($motivoExcepcionFifo !== null) {
+                $payload['motivo_excepcion_fifo'] = $motivoExcepcionFifo;
+            }
+            $payloadHash = $this->payloadHash($payload);
             $operacionRetiro = OperacionRetiroMaterial::query()
                 ->lockForUpdate()
                 ->find($operacionId);
@@ -162,6 +192,10 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 EstadoDespachoMaterial::Parcial,
             ], true)) {
                 throw new DomainException('La solicitud ya no admite entregas.');
+            }
+            if ($despacho->asignado_a_user_id !== null
+                && (int) $despacho->asignado_a_user_id !== (int) $usuario->id) {
+                throw new OperacionNoAutorizada('Este despacho está asignado a otro camarero.');
             }
 
             $destinoCatalogo = DestinoMaterial::query()
@@ -198,7 +232,10 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
             $sugerencias = [];
             foreach ($despacho->detalles as $detalle) {
                 $sugerencias[$detalle->id] = $this->liberarReservas($detalle)
-                    ->pluck('folio_id')
+                    ->map(fn (ReservaMaterial $reserva) => [
+                        'folio_id' => $reserva->folio_id,
+                        'cantidad' => (float) $reserva->cantidad,
+                    ])
                     ->all();
             }
 
@@ -296,11 +333,12 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                 );
                 $destinoAnterior = (float) $saldoDestino->cantidad_actual;
                 $destinoResultante = round($destinoAnterior + $cantidad, 3);
-                $siguioFifo = in_array(
-                    $folioMaterial->folio_id,
-                    $sugerencias[$detalle->id] ?? [],
-                    true,
+                $siguioFifo = $this->sigueReservaFifo(
+                    $sugerencias, $detalle->id, $folioMaterial->folio_id, $cantidad,
                 );
+                if (! $siguioFifo && mb_strlen(trim((string) $motivoExcepcionFifo)) < 5) {
+                    throw new DomainException('Debes indicar el motivo de la excepción FIFO (mínimo 5 caracteres).');
+                }
 
                 $saldoOrigen->update([
                     'cantidad_actual' => $origenResultante,
@@ -325,6 +363,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'user_id' => $usuario->id,
                     'dispositivo_id' => $dispositivo?->id,
                     'siguio_fifo' => $siguioFifo,
+                    'motivo_excepcion_fifo' => $siguioFifo ? null : $motivoExcepcionFifo,
                     'retirado_at' => now(),
                 ]);
                 MovimientoAlmacenMaterial::create([
@@ -350,6 +389,7 @@ class ServicioDespachoMaterialDistribuido extends ServicioDespachoMaterial
                     'dispositivo_id' => $dispositivo?->id,
                     'metadatos' => [
                         'siguio_fifo' => $siguioFifo,
+                        'motivo_excepcion_fifo' => $siguioFifo ? null : $motivoExcepcionFifo,
                         'camara_origen' => $camara->codigo,
                         'posicion_origen' => $posicion?->etiqueta,
                         'existencia_total_empresa' => (float) $folioMaterial->cantidad_actual,

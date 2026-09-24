@@ -18,6 +18,10 @@ const elements = {
     destinationCancel: byId('cancelDestinationEdit'), destinationList: byId('destinationsMaterialList'),
     dispatchForm: byId('dispatchMaterialForm'), dispatchError: byId('dispatchMaterialError'),
     dispatchDestination: byId('dispatchDestination'), dispatchLines: byId('dispatchMaterialLines'),
+    dispatchAssignee: byId('dispatchAssignee'), dispatchAssigneeField: byId('dispatchAssigneeField'),
+    dispatchFolioSelection: byId('dispatchFolioSelection'), dispatchFifoReasonField: byId('dispatchFifoReasonField'), dispatchSubmit: byId('dispatchSubmit'),
+    dispatchTraceDialog: byId('materialDispatchTraceDialog'), dispatchTraceTitle: byId('dispatchTraceTitle'), dispatchTraceBody: byId('dispatchTraceBody'),
+    dispatchTraceClose: byId('closeMaterialDispatchTrace'), dispatchReassignForm: byId('dispatchReassignForm'), dispatchReassignError: byId('dispatchReassignError'),
     stockSync: byId('materialsStockSync'),
     addDispatchLine: byId('addDispatchLine'), dispatchList: byId('dispatchMaterialList'),
     inventorySearch: byId('materialsInventorySearch'), inventoryClient: byId('materialsInventoryClient'), inventorySummary: byId('materialsInventorySummary'), inventoryBody: byId('materialsInventoryBody'),
@@ -52,6 +56,7 @@ const state = {
     seasons: [], selectedSeasonId: null, clients: [], providers: [], items: [], destinations: [], dispatches: [], inventory: [], inventorySummary: [], inventoryItems: [], inventoryTotals: {}, inventoryMeta: null, inventoryCurrentPage: 1, imports: [], importPreview: null, dispatchOperationId: null, directDispatchOperationId: null, directDispatchFolioId: null, directConsumptionOperationId: null, directConsumptionFolioId: null, correctionOperationId: null,
     cancellationOperations: new Map(), blockOperations: new Map(), operationalRefreshPromise: null, inventorySyncedAt: null,
     regularizationItemId: null, regularizationOperationId: null,
+    assignees: [], dispatchFolios: new Map(), dispatchAllocations: new Map(), dispatchPreviewVersion: 0, reassignOperationId: null, traceDispatchId: null,
     operationalPoller: null,
 };
 const operationalRefreshIntervalMs = 30000;
@@ -288,7 +293,7 @@ function renderDispatches() {
         const detail = dispatch.items.map((item) => `${item.item.cliente?.temporada?.codigo || ''}/${item.item.cliente?.codigo || ''}/${item.item.codigo}: ${quantity(item.cantidad_despachada)}/${quantity(item.cantidad_solicitada)} ${item.unidad_medida}`).join(' · ');
         const shortage = dispatch.items.some((item) => Number(item.cantidad_reservada) + Number(item.cantidad_despachada) < Number(item.cantidad_solicitada));
         const canCancel = state.identity?.puede_cancelar_despachos_materiales === true;
-        return `<article class="dispatch-row"><div><strong>${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)}</strong><small>${escapeHtml(dispatch.destino.centro_costo)} · ${escapeHtml(detail)}${shortage ? ' · Falta existencia por reservar' : ''}</small></div><div class="dispatch-row__state"><span>${escapeHtml(statusText(dispatch.estado))}</span>${canCancel && ['pendiente', 'parcial'].includes(dispatch.estado) ? `<button data-cancel-dispatch="${dispatch.id}" type="button">Cancelar</button>` : ''}</div></article>`;
+        return `<article class="dispatch-row"><div><strong>${escapeHtml(dispatch.codigo)} · ${escapeHtml(dispatch.destino.nombre)}</strong><small>${escapeHtml(dispatch.destino.centro_costo)} · ${escapeHtml(dispatch.modalidad === 'directo' ? 'Directo desde bodega' : 'Delegado a tablet')} · ${escapeHtml(detail)}${shortage ? ' · Falta existencia por reservar' : ''}</small></div><div class="dispatch-row__state"><span>${escapeHtml(statusText(dispatch.estado))}</span><button data-trace-dispatch="${dispatch.id}" type="button">Ver trazabilidad</button>${canCancel && ['pendiente', 'parcial'].includes(dispatch.estado) ? `<button data-cancel-dispatch="${dispatch.id}" type="button">Cancelar</button>` : ''}</div></article>`;
     }).join('') || '<p class="empty-state">No existen despachos de materiales.</p>';
 }
 function renderInventory() {
@@ -459,6 +464,7 @@ async function loadAll() {
         applyInventoryResponse(inventory);
     }
     renderAll();
+    if (section === 'despachos') await loadDispatchAssignees();
 }
 
 async function refreshOperationalData({ required = false } = {}) {
@@ -523,6 +529,116 @@ function dispatchItemsPayload() {
         if (amount > stock) throw new ApiError(`${item.nombre}: solicitaste ${quantity(amount)} ${item.unidad_medida}, pero solo hay ${quantity(stock)} disponibles.`, 422);
         return { item_material_id: itemId, cantidad: amount };
     });
+}
+function isDirectDispatch() { return elements.dispatchForm.elements.modalidad.value === 'directo'; }
+async function loadDispatchAssignees() {
+    if (state.identity?.puede_gestionar_despachos_materiales !== true) return;
+    const response = await api('/api/materiales/despachos/camareros');
+    state.assignees = response.data;
+    const options = '<option value="">Cualquier camarero autorizado</option>'
+        + state.assignees.map((person) => `<option value="${Number(person.id)}">${escapeHtml(person.nombre)}</option>`).join('');
+    elements.dispatchAssignee.innerHTML = options;
+    elements.dispatchReassignForm.elements.asignado_a_user_id.innerHTML = options;
+}
+function toggleDispatchMode() {
+    const direct = isDirectDispatch();
+    elements.dispatchAssigneeField.classList.toggle('is-hidden', direct);
+    elements.dispatchFolioSelection.classList.toggle('is-hidden', !direct);
+    elements.dispatchFifoReasonField.classList.toggle('is-hidden', !direct);
+    elements.dispatchSubmit.textContent = direct ? 'Entregar ahora' : 'Crear despacho y reservar';
+    elements.dispatchAssignee.disabled = direct;
+    if (direct) void refreshDispatchFolioSelection();
+    else { ++state.dispatchPreviewVersion; elements.dispatchFifoReasonField.classList.add('is-hidden'); }
+}
+async function refreshDispatchFolioSelection() {
+    if (!isDirectDispatch()) return;
+    const version = ++state.dispatchPreviewVersion;
+    const lines = [...elements.dispatchLines.querySelectorAll('.dispatch-line')]
+        .map((row) => ({ itemId: row.querySelector('[name="item_material_id"]').value, amount: Number(row.querySelector('[name="cantidad"]').value) }))
+        .filter((line) => line.itemId && line.amount > 0);
+    if (!lines.length) { elements.dispatchFolioSelection.innerHTML = '<p>Elige ítems y cantidades para distribuir la entrega entre folios.</p>'; return; }
+    elements.dispatchFolioSelection.textContent = 'Consultando folios disponibles en orden FIFO…';
+    try {
+        await Promise.all(lines.map(async (line) => {
+            if (state.dispatchFolios.has(line.itemId)) return;
+            const folios = [];
+            let page = 1;
+            let lastPage = 1;
+            do {
+                const query = new URLSearchParams({ item_material_id: line.itemId, per_page: '100', page: String(page) });
+                const response = await api(`/api/materiales/inventario?${query}`);
+                folios.push(...response.data.filter((folio) => folio.reservable && Number(folio.cantidad_disponible) > 0));
+                lastPage = Number(response.meta?.last_page || 1);
+                page += 1;
+            } while (page <= lastPage && page <= 10);
+            if (page <= lastPage) throw new ApiError('Hay más de 1.000 folios de un mismo ítem. Acota la entrega desde inventario.', 422);
+            folios.sort((a, b) => String(a.fecha_ingreso).localeCompare(String(b.fecha_ingreso)) || a.numero_folio.localeCompare(b.numero_folio));
+            state.dispatchFolios.set(line.itemId, folios);
+        }));
+        if (version !== state.dispatchPreviewVersion) return;
+        elements.dispatchFolioSelection.innerHTML = lines.map((line) => {
+            const item = activeItems().find((candidate) => candidate.id === line.itemId);
+            const folios = state.dispatchFolios.get(line.itemId) || [];
+            let pending = line.amount;
+            return `<section class="dispatch-folio-group"><h3>${escapeHtml(item?.codigo)} · ${escapeHtml(item?.nombre)} · ${quantity(line.amount)} ${escapeHtml(item?.unidad_medida)}</h3>${folios.map((folio) => {
+                const suggested = Math.round(Math.min(pending, Number(folio.cantidad_disponible)) * 1000) / 1000;
+                pending = Math.max(0, Math.round((pending - suggested) * 1000) / 1000);
+                const value = state.dispatchAllocations.has(folio.folio_id) ? state.dispatchAllocations.get(folio.folio_id) : suggested;
+                return `<label class="dispatch-folio-row"><span>${escapeHtml(folio.numero_folio)} · ${escapeHtml(folio.camara?.codigo || 'Sin cámara')}/${escapeHtml(folio.posicion?.etiqueta || 'Sin posición')} · disponible ${quantity(folio.cantidad_disponible)}</span><input type="number" data-dispatch-folio="${folio.folio_id}" data-item-id="${line.itemId}" data-fifo="${suggested}" min="0" max="${Number(folio.cantidad_disponible)}" step="0.001" value="${value}"></label>`;
+            }).join('') || '<p>Sin folios disponibles.</p>'}${pending > 0 ? `<p class="form-error">Faltan ${quantity(pending)} ${escapeHtml(item?.unidad_medida)} para completar el despacho.</p>` : ''}</section>`;
+        }).join('');
+        updateDispatchFifoReason();
+    } catch (error) {
+        if (version === state.dispatchPreviewVersion) elements.dispatchFolioSelection.textContent = error.message;
+    }
+}
+function updateDispatchFifoReason() {
+    const exception = [...elements.dispatchFolioSelection.querySelectorAll('[data-dispatch-folio]')]
+        .some((input) => Math.abs(Number(input.value || 0) - Number(input.dataset.fifo)) > 0.0001);
+    elements.dispatchFifoReasonField.classList.toggle('is-hidden', !exception);
+    elements.dispatchFifoReasonField.querySelector('textarea').required = exception;
+}
+function directDispatchWithdrawals(items) {
+    const inputs = [...elements.dispatchFolioSelection.querySelectorAll('[data-dispatch-folio]')];
+    if (!inputs.length) throw new ApiError('Espera a que se carguen los folios disponibles.', 422);
+    const retiros = inputs.filter((input) => Number(input.value) > 0).map((input) => ({ folio_id: input.dataset.dispatchFolio, cantidad: Number(input.value) }));
+    if (retiros.length > 100) throw new ApiError('La entrega admite un máximo de 100 folios.', 422);
+    for (const item of items) {
+        const chosen = inputs.filter((input) => input.dataset.itemId === item.item_material_id)
+            .reduce((sum, input) => sum + Number(input.value || 0), 0);
+        if (Math.abs(chosen - item.cantidad) > 0.0001) throw new ApiError('Distribuye toda la cantidad solicitada entre los folios del ítem.', 422);
+        if (inputs.some((input) => input.dataset.itemId === item.item_material_id
+            && (Number(input.value) < 0 || Number(input.value) > Number(input.max)))) throw new ApiError('Un folio supera su cantidad disponible.', 422);
+    }
+    if (!elements.dispatchFifoReasonField.classList.contains('is-hidden')
+        && elements.dispatchFifoReasonField.querySelector('textarea').value.trim().length < 5) throw new ApiError('Explica la excepción FIFO (mínimo 5 caracteres).', 422);
+    return retiros;
+}
+async function openDispatchTrace(dispatchId) {
+    state.traceDispatchId = dispatchId;
+    elements.dispatchTraceTitle.textContent = 'Cargando trazabilidad…';
+    elements.dispatchTraceBody.textContent = '';
+    elements.dispatchReassignForm.classList.add('is-hidden');
+    if (!elements.dispatchTraceDialog.open) elements.dispatchTraceDialog.showModal();
+    try {
+        const { data: dispatch } = await api(`/api/materiales/despachos/${dispatchId}`);
+        if (state.traceDispatchId !== dispatchId) return;
+        elements.dispatchTraceTitle.textContent = `${dispatch.codigo} · ${dispatch.destino.nombre}`;
+        const events = [{ at: dispatch.created_at, label: 'Solicitud creada', detail: dispatch.creado_por?.nombre || 'Oficina' },
+            ...(dispatch.asignaciones || []).map((entry) => ({ at: entry.created_at, label: 'Asignación', detail: `${entry.usuario.nombre} · ${entry.motivo} · por ${entry.realizada_por.nombre}` })),
+            ...dispatch.items.flatMap((item) => (item.retiros || []).map((entry) => ({ at: entry.retirado_at, label: 'Entrega', detail: `${entry.folio.numero_folio} · ${quantity(entry.cantidad_retirada)} ${item.unidad_medida} · ${entry.usuario?.nombre || 'Usuario'} · ${entry.dispositivo?.codigo || 'Oficina'}${entry.siguio_fifo ? ' · FIFO' : ` · Excepción FIFO: ${entry.motivo_excepcion_fifo || 'sin motivo histórico'}`}` }))),
+            ...(dispatch.cancelacion ? [{ at: dispatch.cancelacion.cancelado_at, label: 'Cancelación', detail: dispatch.cancelacion.motivo }] : [])]
+            .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        elements.dispatchTraceBody.innerHTML = `<p><strong>${escapeHtml(dispatch.modalidad === 'directo' ? 'Directo desde bodega' : 'Delegado a tablet')}</strong> · ${escapeHtml(statusText(dispatch.estado))} · ${escapeHtml(dispatch.destino.centro_costo)}</p><p>Asignado: ${escapeHtml(dispatch.asignado_a?.nombre || 'Sin asignación individual')}</p>`
+            + dispatch.items.map((item) => `<section class="dispatch-trace-item"><h3>${escapeHtml(item.item.codigo)} · ${escapeHtml(item.item.nombre)} · ${quantity(item.cantidad_despachada)}/${quantity(item.cantidad_solicitada)} ${escapeHtml(item.unidad_medida)}</h3>`
+                + `<p>Reserva FIFO: ${(item.sugerencias_fifo || []).map((folio) => `${escapeHtml(folio.numero_folio)} (${quantity(folio.cantidad)}) · ${escapeHtml(folio.camara?.codigo || 'Sin cámara')}/${escapeHtml(folio.posicion?.etiqueta || 'Sin posición')}`).join(' · ') || 'Sin reservas activas'}</p>`
+                + (item.retiros || []).map((entry) => `<p><strong>${escapeHtml(entry.folio.numero_folio)}</strong> · ${quantity(entry.cantidad_retirada)} ${escapeHtml(item.unidad_medida)} · ${escapeHtml(entry.camara?.codigo || 'Sin cámara')}/${escapeHtml(entry.posicion?.etiqueta || 'Sin posición')} · ${escapeHtml(entry.usuario?.nombre || 'Usuario')} · ${escapeHtml(entry.dispositivo?.codigo || 'Oficina')} · ${escapeHtml(dateTime(entry.retirado_at))} · ${entry.siguio_fifo ? 'FIFO' : `<strong>Excepción FIFO: ${escapeHtml(entry.motivo_excepcion_fifo || 'sin motivo histórico')}</strong>`}</p>`).join('') + '</section>').join('')
+            + `<h3>Historial</h3><ol>${events.map((entry) => `<li><strong>${escapeHtml(entry.label)}</strong> · ${escapeHtml(dateTime(entry.at))} · ${escapeHtml(entry.detail)}</li>`).join('')}</ol>`;
+        const canReassign = dispatch.modalidad === 'delegado' && ['pendiente', 'parcial'].includes(dispatch.estado)
+            && state.identity?.puede_gestionar_despachos_materiales === true;
+        elements.dispatchReassignForm.classList.toggle('is-hidden', !canReassign);
+        elements.dispatchReassignForm.elements.asignado_a_user_id.value = dispatch.asignado_a?.id || '';
+    } catch (error) { elements.dispatchTraceBody.textContent = error.message; }
 }
 function resetItemForm() { elements.itemForm.reset(); elements.itemForm.elements.id.value = ''; elements.itemForm.elements.activo.checked = true; elements.itemCancel.classList.add('is-hidden'); elements.itemError.textContent = ''; }
 function resetProviderForm() { elements.providerForm.reset(); elements.providerForm.elements.id.value = ''; elements.providerForm.elements.activo.checked = true; elements.providerCancel.classList.add('is-hidden'); elements.providerError.textContent = ''; renderProviders(); }
@@ -627,11 +743,11 @@ elements.importConfirm.addEventListener('click', async () => {
         state.importPreview = response.data; await loadAll(); renderImportPreview(); toast('Catálogo de materiales importado correctamente.');
     } catch (error) { elements.importError.textContent = error.message; } finally { setBusy(false); }
 });
-elements.addDispatchLine.addEventListener('click', () => { state.dispatchOperationId = null; addDispatchLine(); });
+elements.addDispatchLine.addEventListener('click', () => { state.dispatchOperationId = null; addDispatchLine(); void refreshDispatchFolioSelection(); });
 elements.dispatchLines.addEventListener('click', (event) => {
     const remove = event.target.closest('[data-remove-line]');
     if (remove && elements.dispatchLines.children.length > 1) {
-        state.dispatchOperationId = null; remove.closest('.dispatch-line').remove(); return;
+        state.dispatchOperationId = null; remove.closest('.dispatch-line').remove(); state.dispatchAllocations.clear(); void refreshDispatchFolioSelection(); return;
     }
     const option = event.target.closest('[data-select-item]');
     if (!option) return;
@@ -642,6 +758,7 @@ elements.dispatchLines.addEventListener('click', (event) => {
     row.querySelector('.material-item-search').value = itemLabel(item);
     closeItemResults(); updateDispatchLine(row); state.dispatchOperationId = null;
     row.querySelector('[name="cantidad"]').focus();
+    state.dispatchAllocations.clear(); void refreshDispatchFolioSelection();
 });
 elements.dispatchLines.addEventListener('focusin', (event) => {
     const input = event.target.closest('.material-item-search');
@@ -658,6 +775,7 @@ elements.dispatchLines.addEventListener('input', (event) => {
         updateDispatchLine(row); renderItemResults(row);
     } else if (event.target.matches('[name="cantidad"]')) {
         updateDispatchLine(row);
+        state.dispatchAllocations.clear(); void refreshDispatchFolioSelection();
     }
 });
 elements.dispatchLines.addEventListener('keydown', (event) => {
@@ -669,6 +787,15 @@ elements.dispatchLines.addEventListener('keydown', (event) => {
     }
 });
 document.addEventListener('click', (event) => { if (!event.target.closest('.material-item-picker')) closeItemResults(); });
+elements.dispatchForm.addEventListener('change', (event) => {
+    if (event.target.matches('[name="modalidad"]')) { state.dispatchAllocations.clear(); toggleDispatchMode(); }
+});
+elements.dispatchFolioSelection.addEventListener('input', (event) => {
+    if (!event.target.matches('[data-dispatch-folio]')) return;
+    state.dispatchAllocations.set(event.target.dataset.dispatchFolio, Number(event.target.value || 0));
+    state.dispatchOperationId = null;
+    updateDispatchFifoReason();
+});
 elements.dispatchForm.addEventListener('submit', async (event) => {
     event.preventDefault(); elements.dispatchError.textContent = '';
     try {
@@ -681,16 +808,28 @@ elements.dispatchForm.addEventListener('submit', async (event) => {
     try { items = dispatchItemsPayload(); } catch (error) { elements.dispatchError.textContent = error.message; return; }
     const form = new FormData(elements.dispatchForm);
     state.dispatchOperationId ||= operationUuid();
-    const payload = { operacion_id: state.dispatchOperationId, destino_material_id: form.get('destino_material_id'), observacion: form.get('observacion'), items };
-    setBusy(true, 'Creando despacho y reservando existencia…');
+    const direct = isDirectDispatch();
+    const payload = { operacion_id: state.dispatchOperationId, destino_material_id: form.get('destino_material_id'), observacion: form.get('observacion') };
     try {
-        const response = await api('/api/materiales/despachos', { method: 'POST', body: JSON.stringify(payload) });
-        state.dispatchOperationId = null; elements.dispatchForm.reset(); elements.dispatchLines.innerHTML = ''; addDispatchLine();
-        await loadAll(); toast(`${response.data.codigo} fue creado correctamente.`);
+        if (direct) {
+            payload.retiros = directDispatchWithdrawals(items);
+            if (!elements.dispatchFifoReasonField.classList.contains('is-hidden')) payload.motivo_excepcion_fifo = String(form.get('motivo_excepcion_fifo')).trim();
+        } else {
+            payload.items = items;
+            if (form.get('asignado_a_user_id')) payload.asignado_a_user_id = Number(form.get('asignado_a_user_id'));
+        }
+    } catch (error) { elements.dispatchError.textContent = error.message; return; }
+    setBusy(true, direct ? 'Entregando desde bodega…' : 'Creando despacho y reservando existencia…');
+    try {
+        const response = await api(direct ? '/api/materiales/despachos/directos' : '/api/materiales/despachos', { method: 'POST', body: JSON.stringify(payload) });
+        state.dispatchOperationId = null; state.dispatchFolios.clear(); state.dispatchAllocations.clear(); elements.dispatchForm.reset(); elements.dispatchLines.innerHTML = ''; addDispatchLine(); toggleDispatchMode();
+        await loadAll(); toast(`${response.data.codigo} ${direct ? 'entregado' : 'creado'} correctamente.`);
     } catch (error) { elements.dispatchError.textContent = error.message; } finally { setBusy(false); }
 });
 elements.dispatchForm.addEventListener('input', () => { state.dispatchOperationId = null; });
 elements.dispatchList.addEventListener('click', async (event) => {
+    const trace = event.target.closest('[data-trace-dispatch]');
+    if (trace) { await openDispatchTrace(trace.dataset.traceDispatch); return; }
     const button = event.target.closest('[data-cancel-dispatch]');
     if (!button) return;
     const dispatchId = button.dataset.cancelDispatch;
@@ -720,6 +859,28 @@ elements.dispatchList.addEventListener('click', async (event) => {
     } finally {
         setBusy(false);
     }
+});
+elements.dispatchTraceClose.addEventListener('click', () => { state.traceDispatchId = null; elements.dispatchTraceDialog.close(); });
+elements.dispatchReassignForm.addEventListener('input', () => { state.reassignOperationId = null; });
+elements.dispatchReassignForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.dispatchReassignError.textContent = '';
+    const form = new FormData(elements.dispatchReassignForm);
+    const assigned = Number(form.get('asignado_a_user_id'));
+    const reason = String(form.get('motivo') || '').trim();
+    if (!assigned || reason.length < 5) { elements.dispatchReassignError.textContent = 'Elige un camarero e indica el motivo (mínimo 5 caracteres).'; return; }
+    const operationId = state.reassignOperationId ||= operationUuid();
+    setBusy(true, 'Reasignando despacho…');
+    try {
+        await api(`/api/materiales/despachos/${state.traceDispatchId}/reasignar`, {
+            method: 'POST', body: JSON.stringify({ operacion_id: operationId, asignado_a_user_id: assigned, motivo: reason }),
+        });
+        state.reassignOperationId = null;
+        elements.dispatchReassignForm.reset();
+        await openDispatchTrace(state.traceDispatchId);
+        await loadAll();
+        toast('Reasignación registrada en el historial.');
+    } catch (error) { elements.dispatchReassignError.textContent = error.message; } finally { setBusy(false); }
 });
 elements.inventorySearch.addEventListener('input', () => {
     window.clearTimeout(inventorySearchTimer);
