@@ -4,6 +4,8 @@ namespace App\Services\MateriaPrima;
 
 use App\Models\DefectoRecepcionMp;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 class RegistroDefectosRecepcionPdf
 {
@@ -34,26 +36,87 @@ class RegistroDefectosRecepcionPdf
             }
             $contenido .= $this->texto(40, $y - 10, 11, 'Descripción del defecto', true);
             $y -= 30;
-            foreach ($this->lineas($defecto->descripcion, 98) as $linea) {
+            $lineas = $this->lineas($defecto->descripcion, 88);
+            foreach (array_splice($lineas, 0, 24) as $linea) {
                 $contenido .= $this->texto(40, $y, 10, $linea);
                 $y -= 15;
             }
-            $y -= 15;
-            $contenido .= $this->texto(40, $y, 11, 'Evidencias (descargar imágenes en el ZIP)', true);
-            foreach ($defecto->evidencias as $evidencia) {
-                $y -= 17;
-                $contenido .= $this->texto(40, $y, 9, strtoupper($evidencia->tipo).' · '.$evidencia->id);
+            $contenido .= $this->pie();
+            $paginas[] = ['contenido' => $contenido, 'imagenes' => []];
+
+            foreach (array_chunk($lineas, 42) as $bloque) {
+                $continuacion = $this->texto(40, 790, 15, 'DESCRIPCIÓN DEL DEFECTO · CONTINUACIÓN', true);
+                $y = 760;
+                foreach ($bloque as $linea) {
+                    $continuacion .= $this->texto(40, $y, 10, $linea);
+                    $y -= 15;
+                }
+                $paginas[] = ['contenido' => $continuacion.$this->pie(), 'imagenes' => []];
             }
-            $contenido .= $this->texto(40, 35, 9, 'FoliOS · Registro de auditoría generado '.now()->format('d-m-Y H:i'));
-            $paginas[] = $contenido;
+
+            foreach ($defecto->evidencias->chunk(4) as $grupo) {
+                $contenido = $this->texto(40, 790, 15, 'FOTOGRAFÍAS DEL DEFECTO', true);
+                $contenido .= $this->texto(40, 765, 10, 'Recepción: '.$defecto->numero_recepcion_snapshot.' · Registro: '.$defecto->id);
+                $imagenes = [];
+                foreach ($grupo->values() as $posicion => $evidencia) {
+                    $foto = $this->prepararImagen($evidencia->ruta);
+                    $columna = $posicion % 2;
+                    $fila = intdiv($posicion, 2);
+                    $ancho = min(240, 280 * $foto['ancho'] / $foto['alto']);
+                    $alto = $ancho * $foto['alto'] / $foto['ancho'];
+                    $x = (int) (40 + $columna * 270 + (240 - $ancho) / 2);
+                    $techo = 710 - $fila * 335;
+                    $y = (int) ($techo - $alto);
+                    $clave = 'Im'.$posicion;
+                    $contenido .= $this->texto(40 + $columna * 270, $techo + 12, 10,
+                        ($evidencia->tipo === 'guia' ? 'Guía' : 'Defecto').' · '.$evidencia->id);
+                    $contenido .= sprintf("q %.2F 0 0 %.2F %d %d cm /%s Do Q\n", $ancho, $alto, $x, $y, $clave);
+                    $imagenes[$clave] = $foto;
+                }
+                $paginas[] = ['contenido' => $contenido.$this->pie(), 'imagenes' => $imagenes];
+            }
         }
         if ($paginas === []) {
-            $paginas[] = $this->texto(40, 790, 17, 'DEFECTOS DE RECEPCIÓN', true)
+            $paginas[] = ['contenido' => $this->texto(40, 790, 17, 'DEFECTOS DE RECEPCIÓN', true)
                 .$this->texto(40, 760, 10, "Temporada: {$temporada}")
-                .$this->texto(40, 735, 10, 'No hay registros que coincidan con los filtros.');
+                .$this->texto(40, 735, 10, 'No hay registros que coincidan con los filtros.'), 'imagenes' => []];
         }
 
         return $this->documento($paginas);
+    }
+
+    /** @return array{datos:string,ancho:int,alto:int} */
+    private function prepararImagen(string $ruta): array
+    {
+        if (! extension_loaded('gd')) {
+            throw new RuntimeException('La exportación PDF con fotos requiere habilitar la extensión GD de PHP.');
+        }
+        if (! Storage::disk('local')->exists($ruta)) {
+            throw new RuntimeException('Falta una fotografía del registro de defectos.');
+        }
+        $original = @imagecreatefromstring(Storage::disk('local')->get($ruta));
+        if ($original === false) {
+            throw new RuntimeException('No se pudo leer una fotografía del registro de defectos.');
+        }
+        $ancho = imagesx($original);
+        $alto = imagesy($original);
+        $escala = min(1, 900 / max($ancho, $alto));
+        $ancho = max(1, (int) round($ancho * $escala));
+        $alto = max(1, (int) round($alto * $escala));
+        $imagen = imagecreatetruecolor($ancho, $alto);
+        $blanco = imagecolorallocate($imagen, 255, 255, 255);
+        imagefill($imagen, 0, 0, $blanco);
+        imagecopyresampled($imagen, $original, 0, 0, 0, 0, $ancho, $alto, imagesx($original), imagesy($original));
+        imagedestroy($original);
+        ob_start();
+        $generada = imagejpeg($imagen, null, 68);
+        $datos = ob_get_clean();
+        imagedestroy($imagen);
+        if (! $generada || $datos === false) {
+            throw new RuntimeException('No se pudo incorporar una fotografía al PDF.');
+        }
+
+        return ['datos' => $datos, 'ancho' => $ancho, 'alto' => $alto];
     }
 
     /** @return array<int, string> */
@@ -77,6 +140,11 @@ class RegistroDefectosRecepcionPdf
         return $lineas;
     }
 
+    private function pie(): string
+    {
+        return $this->texto(40, 35, 9, 'FoliOS · Registro de auditoría generado '.now()->format('d-m-Y H:i'));
+    }
+
     private function texto(int $x, int $y, int $tamano, string $texto, bool $negrita = false): string
     {
         $texto = iconv('UTF-8', 'Windows-1252//TRANSLIT', $texto) ?: '';
@@ -86,7 +154,7 @@ class RegistroDefectosRecepcionPdf
         return "BT /{$fuente} {$tamano} Tf 0.10 0.18 0.23 rg {$x} {$y} Td ({$texto}) Tj ET\n";
     }
 
-    /** @param array<int, string> $paginas */
+    /** @param array<int, array{contenido:string,imagenes:array<string, array{datos:string,ancho:int,alto:int}>}> $paginas */
     private function documento(array $paginas): string
     {
         $objetos = [
@@ -95,12 +163,22 @@ class RegistroDefectosRecepcionPdf
             4 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
         ];
         $hijos = [];
-        foreach ($paginas as $indice => $contenido) {
-            $pagina = 5 + $indice * 2;
-            $flujo = $pagina + 1;
-            $hijos[] = "{$pagina} 0 R";
-            $objetos[$pagina] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {$flujo} 0 R >>";
-            $objetos[$flujo] = '<< /Length '.strlen($contenido)." >>\nstream\n{$contenido}endstream";
+        $siguiente = 5;
+        foreach ($paginas as $pagina) {
+            $numeroPagina = $siguiente++;
+            $numeroContenido = $siguiente++;
+            $hijos[] = "{$numeroPagina} 0 R";
+            $referencias = [];
+            foreach ($pagina['imagenes'] as $nombre => $imagen) {
+                $numeroImagen = $siguiente++;
+                $referencias[] = "/{$nombre} {$numeroImagen} 0 R";
+                $datos = $imagen['datos'];
+                $objetos[$numeroImagen] = "<< /Type /XObject /Subtype /Image /Width {$imagen['ancho']} /Height {$imagen['alto']} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ".strlen($datos)." >>\nstream\n{$datos}\nendstream";
+            }
+            $recursos = '<< /Font << /F1 3 0 R /F2 4 0 R >> /XObject << '.implode(' ', $referencias).' >> >>';
+            $objetos[$numeroPagina] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources {$recursos} /Contents {$numeroContenido} 0 R >>";
+            $contenido = $pagina['contenido'];
+            $objetos[$numeroContenido] = '<< /Length '.strlen($contenido)." >>\nstream\n{$contenido}endstream";
         }
         $objetos[2] = '<< /Type /Pages /Kids ['.implode(' ', $hijos).'] /Count '.count($hijos).' >>';
         ksort($objetos);
