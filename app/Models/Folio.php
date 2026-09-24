@@ -11,6 +11,7 @@ use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -49,6 +50,13 @@ class Folio extends Model
 
     protected static function booted(): void
     {
+        // La composición vive en datos_externos; su proyección consultable se mantiene al día.
+        static::saved(function (Folio $folio): void {
+            if ($folio->wasRecentlyCreated || $folio->wasChanged(['datos_externos', 'temporada_id'])) {
+                app(ProyeccionTrazabilidadFolio::class)->sincronizar($folio);
+            }
+        });
+
         static::creating(function (Folio $folio): void {
             if ($folio->temporada_id !== null) {
                 return;

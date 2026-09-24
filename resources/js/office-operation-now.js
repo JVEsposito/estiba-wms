@@ -57,6 +57,7 @@ const elements = {
     plannerMode: byId('plannerModeSignal'),
     plannerFreshness: byId('plannerFreshnessSignal'),
     plannerHealth: byId('plannerHealthSignal'),
+    plannerTechnical: byId('plannerTechnical'),
     plannerCycleMeta: byId('plannerCycleMeta'),
     plannerComparisonOpen: byId('plannerComparisonOpen'),
     plannerRiskRows: byId('plannerRiskRows'),
@@ -475,26 +476,51 @@ function plannerModeLabel(mode) {
     return { off: 'Detenido', shadow: 'Observando', guided: 'Guiado' }[mode] || humanize(mode || 'sin modo');
 }
 
-function plannerDecisionLabel(decision) {
+// Estado del planificador en palabras de supervisión, sin nombres de configuración.
+function plannerModeStatus(mode) {
     return {
-        en_ejecucion: 'En ejecución',
-        seleccionada: 'Seleccionada',
-        alternativa: 'Alternativa',
-        excluida_conflicto: 'Conflicto',
-        fuera_frontera: 'Fuera de frontera',
-        fuera_rollout: 'Fuera de rollout',
-        fuera_planificador: 'Fuera del planificador',
+        off: 'Planificador apagado',
+        shadow: 'Planificador observando',
+        guided: 'Planificador dirigiendo',
+    }[mode] || `Planificador ${humanize(mode || 'sin modo').toLowerCase()}`;
+}
+
+function plannerHealthStatus(status) {
+    return {
+        saludable: 'Sin alertas',
+        advertencia: 'Con advertencias',
+        critico: 'Alertas críticas',
+    }[status] || 'Sin lectura de alertas';
+}
+
+// «Fuera de frontera» agrupa causas distintas; el factor decisivo evita atribuir una
+// espera de cupo a una maniobra que en realidad está pausada.
+function plannerDecisionLabel(decision, factor = '') {
+    if (decision === 'fuera_frontera') {
+        return {
+            pausa_supervision: 'Pausada por supervisión',
+            objetivo_pausado: 'Objetivo pausado',
+            frontera_completa: 'Esperando cupo',
+        }[factor] || 'No publicada ahora';
+    }
+    return {
+        en_ejecucion: 'En curso',
+        seleccionada: 'Lista para tomar',
+        alternativa: 'En espera',
+        excluida_conflicto: 'Bloqueada por otra',
+        fuera_rollout: 'Cámara sin planificador',
+        fuera_planificador: 'Gestión manual',
     }[decision] || humanize(decision);
 }
 
 function plannerFreshnessLabel(status) {
     return {
-        detenido: 'Detenido',
-        pendiente: 'Pendiente',
-        recalculando: 'Recalculando',
-        actual: 'Actual',
-        atrasado: 'Atrasado',
-        error: 'Error',
+        detenido: 'detenido',
+        pendiente: 'pendiente',
+        recalculando: 'recalculando',
+        actual: 'al día',
+        atrasado: 'atrasado',
+        error: 'con error',
     }[status] || humanize(status || 'sin lectura');
 }
 
@@ -538,29 +564,31 @@ function renderPlanner(planner = {}) {
 
     elements.plannerPanel.dataset.tone = panelTone;
     elements.plannerMode.dataset.tone = modeTone;
-    elements.plannerMode.textContent = `Modo ${plannerModeLabel(mode)}`;
+    elements.plannerMode.textContent = plannerModeStatus(mode);
     elements.plannerFreshness.dataset.tone = freshnessTone;
-    elements.plannerFreshness.textContent = `Vigencia ${plannerFreshnessLabel(freshness.estado)}`;
-    elements.plannerFreshness.title = freshness.detalle || 'Sin detalle de vigencia';
+    elements.plannerFreshness.textContent = `Cálculo ${plannerFreshnessLabel(freshness.estado)}`;
+    elements.plannerFreshness.title = freshness.detalle || 'Sin detalle del último cálculo';
     elements.plannerHealth.dataset.tone = healthTone;
-    elements.plannerHealth.textContent = `Salud ${humanize(health.estado || 'sin lectura')}`;
+    elements.plannerHealth.textContent = plannerHealthStatus(health.estado);
     elements.plannerCycleMeta.textContent = cycle
         ? `Evaluado ${dateTime(freshness.evaluado_at, { timeOnly: true })} · ${number(decisions.length)} decisiones`
-        : plannerFreshnessLabel(freshness.estado);
+        : 'Sin cálculo vigente';
     elements.plannerCycleMeta.title = freshness.detalle || '';
     elements.plannerComparisonOpen.disabled = !cycle || state.comparisonLoading;
     elements.plannerComparisonOpen.title = cycle
         ? 'Comparar el ciclo vigente con su antecedente confirmado'
         : 'Todavía no existe un ciclo para comparar';
 
+    elements.plannerTechnical.hidden = state.identity?.rol !== 'administrador';
+    setText('plannerTechnicalMode', `${plannerModeLabel(mode)} (${mode})`);
     setText('plannerCompute', deployment.compute === 'tablet' ? 'Tablet' : humanize(deployment.compute));
     setText('plannerHorizon', deployment.horizon === 'rolling' ? 'Continuo' : humanize(deployment.horizon));
     setText('plannerRollout', deployment.rollout_limitado
         ? `${number(deployment.camaras_configuradas?.length || 0)} cámaras`
         : 'Toda la planta');
     setText('plannerCapacity', cycle
-        ? `${number(cycle.capacidad_ejecucion)} / ${number(cycle.frontera_max)}`
-        : 'Sin arbitraje');
+        ? `${number(cycle.capacidad_ejecucion)} de ${number(cycle.frontera_max)} cupos`
+        : 'Sin cálculo vigente');
     setText('plannerRunningCount', cycle ? number(summary.en_ejecucion || 0) : '—');
     setText('plannerSelectedCount', cycle ? number(summary.seleccionada || 0) : '—');
     setText('plannerAlternativeCount', cycle ? number(summary.alternativa || 0) : '—');
@@ -568,11 +596,11 @@ function renderPlanner(planner = {}) {
     setText('plannerRolloutCount', cycle ? number(summary.fuera_rollout || 0) : '—');
 
     const riskDefinitions = [
-        ['leases_vencidos_activos', 'Leases vencidos', 'critical'],
-        ['tareas_estancadas', 'Tareas estancadas', 'warning'],
-        ['custodias_temporales_activas', 'Custodias activas', 'warning'],
-        ['maniobras_completadas_con_custodia', 'Custodias sin retorno', 'critical'],
-        ['discrepancias_abiertas', 'Discrepancias', 'warning'],
+        ['leases_vencidos_activos', 'Reservas de tarea vencidas', 'critical'],
+        ['tareas_estancadas', 'Tareas detenidas', 'warning'],
+        ['custodias_temporales_activas', 'Pallets fuera de su posición', 'warning'],
+        ['maniobras_completadas_con_custodia', 'Pallets sin devolver', 'critical'],
+        ['discrepancias_abiertas', 'Diferencias reportadas', 'warning'],
     ];
     elements.plannerRiskRows.innerHTML = riskDefinitions.map(([key, label, warningTone]) => {
         const value = Number(risks[key] || 0);
@@ -582,14 +610,14 @@ function renderPlanner(planner = {}) {
     if (!cycle) {
         const stopped = mode === 'off';
         elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty(
-            stopped ? 'Planificador detenido por configuración' : 'Sin ciclo de arbitraje vigente',
-            stopped ? 'WMS_PLANNER_MODE=off: la operación continúa sin decisiones automatizadas.' : (freshness.detalle || 'El recálculo desacoplado todavía no confirma una frontera.'),
+            stopped ? 'Planificador detenido por configuración' : 'Sin cálculo vigente',
+            stopped ? 'La operación continúa con asignación manual de movimientos.' : (freshness.detalle || 'El planificador todavía no confirma qué maniobras ofrecer.'),
         )}</td></tr>`;
         return;
     }
 
     if (!decisions.length) {
-        elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty('Frontera sin maniobras', 'El ciclo está vigente, pero no encontró trabajo operacional elegible.')}</td></tr>`;
+        elements.plannerDecisionRows.innerHTML = `<tr><td colspan="6">${empty('Sin maniobras pendientes', 'El cálculo está al día y no encontró movimientos que ordenar.')}</td></tr>`;
         return;
     }
 
@@ -601,8 +629,8 @@ function renderPlanner(planner = {}) {
         const stepTitle = step?.instruccion || humanize(step?.tipo_movimiento || 'sin instrucción');
 
         return `<tr data-decision="${escapeHtml(decision.decision)}">
-            <td><span class="operation-now-code">#${escapeHtml(number(decision.orden))}</span>${signal(plannerDecisionLabel(decision.decision), toneForPlannerDecision(decision.decision))}</td>
-            <td><strong>${escapeHtml(decision.titulo || 'Maniobra sin título')}</strong><span class="operation-now-subtext">Prioridad ${escapeHtml(humanize(decision.prioridad))} · ${escapeHtml(humanize(decision.objetivo?.tipo || 'sin objetivo'))} · neto ${escapeHtml(number(decision.beneficio_neto))}</span></td>
+            <td><span class="operation-now-code">#${escapeHtml(number(decision.orden))}</span>${signal(plannerDecisionLabel(decision.decision, decision.explicacion?.factor_decisivo?.codigo), toneForPlannerDecision(decision.decision))}</td>
+            <td><strong>${escapeHtml(decision.titulo || 'Maniobra sin título')}</strong><span class="operation-now-subtext">Prioridad ${escapeHtml(humanize(decision.prioridad))} · ${escapeHtml(humanize(decision.objetivo?.tipo || 'sin objetivo'))}</span></td>
             <td>${signal(humanize(decision.estado), toneForPriority(decision.prioridad))}<div class="operation-now-planner__progress"><span class="operation-now-meter" data-tone="${toneForPlannerDecision(decision.decision)}" style="--operation-progress:${clampedPercent(progress.porcentaje)}%"><i></i></span><small>${escapeHtml(number(progress.pasos_completados))}/${escapeHtml(number(progress.pasos_total))}</small></div></td>
             <td><span class="operation-now-code">${escapeHtml(step?.folio?.numero_folio || 'Sin folio')}</span><span class="operation-now-subtext">${escapeHtml(plannerRoute(step))} · ${escapeHtml(stepTitle)}</span></td>
             <td><strong>${escapeHtml(responsible)}</strong><span class="operation-now-subtext">${escapeHtml(device)}</span></td>

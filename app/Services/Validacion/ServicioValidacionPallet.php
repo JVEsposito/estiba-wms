@@ -152,6 +152,8 @@ class ServicioValidacionPallet
             ): array {
                 $origen = $origenes->get($linea['origen_validacion_id']);
                 $combinacion = $combinaciones->get($linea['origen_validacion_id']);
+                $lote = $linea['lote_materia_prima'] ?? null;
+                $proceso = $linea['proceso_packing'] ?? null;
 
                 return [
                     'origen_validacion_id' => $origen->id,
@@ -160,6 +162,8 @@ class ServicioValidacionPallet
                     'predio' => $origen->predio,
                     'fecha_embalaje' => $payload['fecha_embalaje'],
                     'cantidad_cajas' => (int) $linea['cantidad_cajas'],
+                    ...($lote !== null ? ['lote_materia_prima' => $lote] : []),
+                    ...($proceso !== null ? ['proceso_packing' => $proceso] : []),
                 ];
             })->values();
             $origen = $origenes->get($composicion->first()['origen_validacion_id']);
@@ -333,10 +337,14 @@ class ServicioValidacionPallet
             'composicion' => collect($datos['composicion'] ?? [[
                 'origen_validacion_id' => $datos['origen_validacion_id'],
                 'cantidad_cajas' => (int) $datos['cantidad_cajas'],
-            ]])->map(fn (array $linea): array => [
+            ]])->map(fn (array $linea): array => array_filter([
                 'origen_validacion_id' => $linea['origen_validacion_id'],
                 'cantidad_cajas' => (int) $linea['cantidad_cajas'],
-            ])->values()->all(),
+                // Solo se incluyen si vienen informados: así el hash de las PDA anteriores
+                // no cambia y sus reintentos siguen siendo idempotentes.
+                'lote_materia_prima' => ProyeccionTrazabilidadFolio::normalizarCodigo($linea['lote_materia_prima'] ?? null),
+                'proceso_packing' => ProyeccionTrazabilidadFolio::normalizarCodigo($linea['proceso_packing'] ?? null),
+            ], fn (mixed $valor): bool => $valor !== null))->values()->all(),
             'categoria_validacion_id' => $datos['categoria_validacion_id'],
             'resultado' => $datos['resultado'],
             'motivo' => $datos['motivo'] ?? null,

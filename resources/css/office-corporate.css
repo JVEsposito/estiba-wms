@@ -2415,3 +2415,84 @@ dialog[class*="dialog"],
 .weighbridge-kpis article:nth-child(4) {
     border-top-color: var(--success-text) !important;
 }
+
+/*
+ * Densidad para pantallas de 900 px de alto (notebooks de oficina).
+ * El título identifica la oficina y los indicadores resumen; el protagonista es la
+ * tabla, el plano o el formulario que se opera. Va al final para prevalecer sobre las
+ * capas anteriores sin tocar cada módulo.
+ */
+.office-app h1:not([data-office-shell] *) {
+    padding-bottom: 6px;
+    font-size: clamp(1.4rem, 1.55vw, 1.75rem) !important;
+    line-height: 1.1 !important;
+    text-transform: none;
+    letter-spacing: -.01em !important;
+}
+
+.office-app :is(
+    .management-heading, .admin-heading, .accounts-heading, .dispatch-heading,
+    .weighbridge-heading, .validation-heading, .materials-heading, .prefrio-heading,
+    .hydrocooler-heading, .sag-heading, .shipment-heading, .raw-material-heading,
+    .return-heading, .repa-heading, .annulment-heading, .process-heading,
+    .queries-heading, .integrity-heading, .inventory-heading, .custody-heading,
+    .discrepancies-heading, .domain-lobby-heading
+) {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+.office-app :is(
+    .management-heading, .admin-heading, .accounts-heading, .dispatch-heading,
+    .weighbridge-heading, .validation-heading, .materials-heading, .prefrio-heading,
+    .hydrocooler-heading, .sag-heading, .shipment-heading, .raw-material-heading,
+    .return-heading, .repa-heading, .annulment-heading, .process-heading,
+    .queries-heading, .integrity-heading, .inventory-heading, .custody-heading,
+    .discrepancies-heading, .domain-lobby-heading
+) h1 + p {
+    margin-top: 4px !important;
+    font-size: .88rem !important;
+    line-height: 1.4 !important;
+}
+
+.office-app :is(
+    [class$="-metrics"],
+    [class*="-metrics "],
+    [class$="-kpis"],
+    [class*="-kpis "],
+    [class*="kpi-grid"]
+) > article,
+.office-app .management-kpi {
+    min-height: 0 !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+.office-app :is(
+    [class$="-metrics"],
+    [class*="-metrics "],
+    [class$="-kpis"],
+    [class*="-kpis "],
+    [class*="kpi-grid"]
+) > article > strong,
+.office-app .management-kpi > strong {
+    margin-top: 2px !important;
+    font-size: clamp(1.25rem, 1.5vw, 1.6rem) !important;
+    line-height: 1.1 !important;
+}
+
+/* Rótulo y detalle de indicadores como bloques: el interlineado heredado inflaba cada tarjeta. */
+.office-app :is(
+    [class$="-metrics"],
+    [class*="-metrics "],
+    [class$="-kpis"],
+    [class*="-kpis "],
+    [class*="kpi-grid"]
+) > article > :is(span, small, p) {
+    display: block;
+    line-height: 1.35 !important;
+}
+
+.office-app .management-kpi > p {
+    margin: 2px 0 8px !important;
+}

@@ -14,6 +14,9 @@ const elements = {
     associatedCount: byId('associatedCount'),
     sagTodayCount: byId('sagTodayCount'),
     globalSearch: byId('globalSearchForm'),
+    traceLots: byId('traceLotsForm'),
+    traceLotsResults: byId('traceLotsResults'),
+    traceLotsSeason: byId('traceLotsSeason'),
     searchResults: byId('searchResults'),
     sagSearch: byId('sagSearchForm'),
     sagResult: byId('sagResult'),
@@ -38,6 +41,8 @@ const state = {
     activeSection: elements.app.dataset.queriesSection || 'busqueda',
     catalogs: { clientes: [] },
     producers: [],
+    traceTerm: '',
+    traceSeason: '',
 };
 
 class ApiError extends Error {
@@ -252,8 +257,12 @@ function renderSearchResults(payload) {
         elements.searchResults.innerHTML = `<div class="query-empty">No se encontraron registros para “${escapeHtml(payload.termino)}”.</div>`;
         return;
     }
-    elements.searchResults.innerHTML = groups.filter((group) => payload[group]?.length).map((group) => `
-        <section class="result-group"><h3>${escapeHtml(label(group))}<span>${payload[group].length}</span></h3>
+    // Cada categoría muestra solo las coincidencias más recientes; no es un listado de alcance.
+    const limit = Number(payload.limite_por_categoria || 0);
+    const truncated = limit > 0 && groups.some((group) => (payload[group]?.length || 0) >= limit);
+    const notice = truncated ? `<p class="query-search-limit">Se muestran hasta ${escapeHtml(limit)} coincidencias por categoría. Para conocer todos los folios de un lote o proceso usa <a href="/oficina/consultas/trazabilidad?q=${encodeURIComponent(payload.termino)}">Trazabilidad de lotes</a>.</p>` : '';
+    elements.searchResults.innerHTML = notice + groups.filter((group) => payload[group]?.length).map((group) => `
+        <section class="result-group"><h3>${escapeHtml(label(group))}<span>${limit > 0 && payload[group].length >= limit ? `primeros ${payload[group].length}` : payload[group].length}</span></h3>
         <div class="result-cards">${payload[group].map((item) => resultCard(group, item)).join('')}</div></section>`).join('');
 }
 
@@ -499,6 +508,7 @@ elements.login.addEventListener('submit', async (event) => {
         showApp();
         await loadBase();
     } catch (error) { elements.loginError.textContent = error.message; } finally { setBusy(false); }
+    if (state.token) runSearchFromUrl();
 });
 
 elements.logout.addEventListener('click', async () => {
@@ -510,6 +520,16 @@ elements.reload.addEventListener('click', async () => {
     try { await loadBase(); toast('Información actualizada.'); } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 });
 
+// El buscador global del menú llega con ?q=; al abrir la oficina se ejecuta esa búsqueda.
+function runSearchFromUrl() {
+    const term = new URLSearchParams(window.location.search).get('q')?.trim();
+    if (!term || term.length < 2) return;
+    const form = state.activeSection === 'trazabilidad' ? elements.traceLots : elements.globalSearch;
+    if (!form?.elements.q) return;
+    form.elements.q.value = term;
+    form.requestSubmit();
+}
+
 elements.globalSearch.addEventListener('submit', async (event) => {
     event.preventDefault();
     setBusy(true, 'Buscando trazabilidad…');
@@ -517,6 +537,96 @@ elements.globalSearch.addEventListener('submit', async (event) => {
         const params = new URLSearchParams(new FormData(elements.globalSearch));
         renderSearchResults(await api(`/api/consultas/buscar?${params.toString()}`));
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+});
+
+// Trazabilidad MP → PT: resumen total, lotes digitados y folios paginados con su composición.
+// El Excel incluye todos los folios afectados y es el respaldo para decidir un retiro.
+function renderTraceSeasons(seasons = [], current = null) {
+    const select = elements.traceLotsSeason;
+    if (!select || !seasons.length) return;
+    select.innerHTML = seasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.codigo)}${season.activa ? ' · activa' : ' · cerrada'}</option>`).join('');
+    if (current) select.value = current.id;
+}
+
+function renderTraceLots(payload) {
+    const { resumen, lotes, folios, termino, paginacion, temporada, temporadas } = payload;
+    state.traceTerm = termino;
+    state.traceSeason = temporada?.id ?? '';
+    renderTraceSeasons(temporadas, temporada);
+    const seasonLabel = temporada ? `temporada ${temporada.codigo}` : 'la temporada';
+    if (!folios.length && !lotes.length) {
+        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)} en ${escapeHtml(seasonLabel)}.</div>`;
+        return;
+    }
+    const summary = `<div class="trace-lots-summary">
+        <span><strong>${escapeHtml(resumen.folios)}</strong> folios en total en ${escapeHtml(seasonLabel)} (${escapeHtml(resumen.folios_activos)} activos)</span>
+        <span><strong>${escapeHtml(resumen.cajas_coincidentes)}</strong> cajas de ${escapeHtml(termino)}</span>
+        ${resumen.lineas_sin_lote_verificado ? `<span class="trace-lots-unregistered">${escapeHtml(resumen.lineas_sin_lote_verificado)} líneas sin recepción MP verificada</span>` : ''}
+        ${resumen.folios ? '<button type="button" class="trace-button" data-trace-export>Descargar todos los folios (Excel)</button>' : ''}
+    </div>`;
+    const lots = lotes.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Lotes de materia prima</caption>
+        <thead><tr><th>Lote MP</th><th>Recepción</th><th>Cliente</th><th>CSG / predio</th><th>Variedad</th><th>Cosecha</th><th>Kilos netos</th><th>Estado</th></tr></thead>
+        <tbody>${lotes.map((lote) => `<tr><td><strong>${escapeHtml(lote.numero)}</strong></td><td>${escapeHtml(lote.recepcion ?? '—')}<br><small>${escapeHtml(lote.guia ?? '')}</small></td><td>${escapeHtml(lote.cliente ?? '—')}</td><td>${escapeHtml(lote.csg)}<br><small>${escapeHtml(lote.predio ?? '')}</small></td><td>${escapeHtml(lote.variedad ?? '—')}</td><td>${escapeHtml(lote.fecha_cosecha ?? '—')}</td><td>${escapeHtml(Number(lote.kilos_netos).toLocaleString('es-CL'))}</td><td>${escapeHtml(label(lote.estado))}</td></tr>`).join('')}</tbody></table>` : '';
+    const rows = folios.map((folio) => `<tr data-inactive="${folio.activo ? 'false' : 'true'}">
+        <td><strong>${escapeHtml(folio.numero)}</strong><br><small>${escapeHtml(label(folio.estado))}${folio.activo ? '' : ' · inactivo'}</small></td>
+        <td>${escapeHtml(folio.exportadora ?? '—')}<br><small>${escapeHtml([folio.variedad, folio.calibre].filter(Boolean).join(' · '))}</small></td>
+        <td>${folio.ubicacion ? `${escapeHtml(folio.ubicacion.camara)} · ${escapeHtml(folio.ubicacion.posicion)}` : '—'}</td>
+        <td>${folio.carga ? `${escapeHtml(folio.carga.codigo)}<br><small>${escapeHtml(label(folio.carga.estado))}</small>` : '—'}</td>
+        <td><div class="trace-lots-lines">${folio.lineas.map((linea) => `<span data-match="${linea.coincide ? 'true' : 'false'}">${escapeHtml(linea.cantidad_cajas)} cajas · CSG ${escapeHtml(linea.csg ?? '—')} · lote ${escapeHtml(linea.lote_materia_prima ?? 'sin informar')}${linea.recepcion ? ` (${escapeHtml(linea.recepcion)})` : ''} · proceso ${escapeHtml(linea.proceso_packing ?? 'sin informar')}${linea.lote_materia_prima && !linea.lote_verificado ? ' <em class="trace-lots-unregistered">recepción MP no verificada</em>' : ''}</span>`).join('')}</div></td>
+    </tr>`).join('');
+    const pages = paginacion && paginacion.paginas > 1 ? `<nav class="trace-lots-pages" aria-label="Páginas de folios">
+        <button type="button" class="trace-button" data-trace-page="${paginacion.pagina - 1}" ${paginacion.pagina <= 1 ? 'disabled' : ''}>← Anterior</button>
+        <span>Página ${escapeHtml(paginacion.pagina)} de ${escapeHtml(paginacion.paginas)}</span>
+        <button type="button" class="trace-button" data-trace-page="${paginacion.pagina + 1}" ${paginacion.pagina >= paginacion.paginas ? 'disabled' : ''}>Siguiente →</button>
+    </nav>` : '';
+    const table = folios.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Folios relacionados</caption>
+        <thead><tr><th>Folio</th><th>Cliente / producto</th><th>Ubicación</th><th>Carga</th><th>Composición (cajas · CSG · lote · proceso)</th></tr></thead>
+        <tbody>${rows}</tbody></table>` : '<div class="query-empty">El lote existe, pero ningún folio lo informa todavía.</div>';
+    elements.traceLotsResults.innerHTML = summary + lots + table + pages;
+}
+
+async function loadTraceLots(term, page = 1, season = '') {
+    setBusy(true, 'Trazando lote…');
+    try {
+        const params = new URLSearchParams({ q: term, pagina: String(page) });
+        if (season) params.set('temporada_id', season);
+        renderTraceLots((await api(`/api/consultas/trazabilidad?${params.toString()}`)).data);
+    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+}
+
+async function downloadTraceLots(term, season = '') {
+    setBusy(true, 'Preparando Excel de trazabilidad…');
+    try {
+        const params = new URLSearchParams({ q: term });
+        if (season) params.set('temporada_id', season);
+        const response = await fetch(`/api/consultas/trazabilidad/exportar?${params.toString()}`, {
+            headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', Authorization: `Bearer ${state.token}` },
+        });
+        if (!response.ok) throw new ApiError('No fue posible generar el Excel de trazabilidad.', response.status);
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'trazabilidad.xlsx';
+        const url = URL.createObjectURL(await response.blob());
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { toast(error.message, true); } finally { setBusy(false); }
+}
+
+elements.traceLots?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(elements.traceLots);
+    void loadTraceLots(String(data.get('q') ?? ''), 1, String(data.get('temporada_id') ?? ''));
+});
+
+elements.traceLotsResults?.addEventListener('click', (event) => {
+    const page = event.target.closest('[data-trace-page]');
+    if (page && !page.disabled) {
+        void loadTraceLots(state.traceTerm, Number(page.dataset.tracePage), state.traceSeason);
+        return;
+    }
+    if (event.target.closest('[data-trace-export]')) void downloadTraceLots(state.traceTerm, state.traceSeason);
 });
 
 elements.sagSearch.addEventListener('submit', async (event) => {
@@ -581,6 +691,7 @@ async function boot() {
     try { await loadBase(); } catch (error) {
         if (error.status !== 401) toast(error.message, true);
     } finally { setBusy(false); }
+    runSearchFromUrl();
 }
 
 void boot();

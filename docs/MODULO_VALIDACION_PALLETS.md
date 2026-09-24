@@ -271,3 +271,53 @@ En `local` y `testing`:
 - evidencia fotográfica;
 - integración ERP;
 - procedimiento administrado para reabrir una decisión terminal cuando exista una causa autorizada.
+
+## Trazabilidad a materia prima
+
+Cada línea de la composición del bulto puede informar, además del CSG y sus cajas, el
+**lote de materia prima** y el **proceso de packing** impresos en la etiqueta del pallet:
+
+```json
+"composicion": [
+  { "origen_validacion_id": "…", "cantidad_cajas": 80, "lote_materia_prima": "L-2401", "proceso_packing": "P-77" },
+  { "origen_validacion_id": "…", "cantidad_cajas": 40, "lote_materia_prima": "L-2402", "proceso_packing": "P-77" }
+]
+```
+
+- Un mismo CSG puede repetirse cuando aporta cajas de lotes o procesos distintos; la
+  combinación CSG + lote + proceso no puede repetirse.
+- Ambos campos son opcionales y se normalizan en mayúsculas. Si no vienen, el hash del
+  payload no cambia, por lo que las PDA anteriores conservan su idempotencia.
+- La composición guarda solo el número impreso. El vínculo con un lote digitado en
+  Materia Prima se calcula en la proyección y solo se afirma cuando coinciden número,
+  temporada de origen y **cliente** (el cliente global del origen validado frente al del
+  lote), y existe un único lote vigente. La temporada de origen es la del origen validado
+  (la temporada en que se embaló): aunque el folio cambie de temporada, su trazabilidad
+  nunca se reinterpreta con los lotes de otra temporada. Si no se puede verificar, la consulta muestra el número
+  con la advertencia «recepción MP no verificada» y no atribuye ninguna recepción.
+- Si el lote se digita después de validar el pallet, o cambia su número, cliente o estado
+  (por ejemplo, se anula), los vínculos afectados se concilian automáticamente.
+- Correcciones simples y repaletizajes conservan lote y proceso en cada línea; la clave de
+  composición del repaletizaje los incluye para no fusionar lotes distintos.
+
+La tabla `trazabilidad_folio_origenes` proyecta esa composición (una fila por línea) y se
+reconstruye automáticamente cada vez que cambia `folios.datos_externos`. La oficina
+**Consultas → Trazabilidad de lotes** (`GET /api/consultas/trazabilidad?q=`) busca por lote,
+proceso de packing o folio y muestra lotes MP con su recepción `REC-*`, folios, ubicación,
+carga y composición.
+
+- Cada consulta corresponde a una sola temporada (la activa por defecto): los números de
+  lote y proceso se repiten entre temporadas y nunca se mezclan. Las temporadas cerradas
+  siguen disponibles en el selector, porque la trazabilidad es historial y no se borra
+  al cerrar la temporada.
+- El resumen cuenta **todos** los folios afectados de la temporada, los activos, las
+  cajas del lote o proceso buscado y las líneas sin recepción verificada.
+- El listado se pagina de 50 en 50 (`&pagina=`).
+- Para decidir el alcance de un retiro se usa **Descargar todos los folios (Excel)**
+  (`GET /api/consultas/trazabilidad/exportar?q=`): una fila por línea de composición de
+  cada folio afectado, sin límite, con ubicación, carga y la marca «Línea buscada».
+- La tabla protege sus referencias: ningún borrado de folios, lotes o clientes la
+  elimina ni la modifica de forma implícita.
+- El reinicio controlado de datos de prueba solo descarta la trazabilidad de los folios
+  que él mismo elimina. Si un pallet de otra temporada depende de un lote que se
+  eliminaría, el reinicio se bloquea sin borrar datos.

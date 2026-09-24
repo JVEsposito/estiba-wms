@@ -133,7 +133,8 @@
 
 .reservation-item button,
 .document-button,
-.review-button {
+.review-button,
+.property-button {
     min-height: 34px;
     border: 1px solid var(--line);
     border-radius: 8px;

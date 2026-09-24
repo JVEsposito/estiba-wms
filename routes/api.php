@@ -99,6 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('can:consultar-oficina-consultas')->prefix('consultas')->group(function () {
         Route::get('/resumen', [ConsultaOficinaController::class, 'resumen']);
         Route::get('/buscar', [ConsultaOficinaController::class, 'buscar']);
+        Route::get('/trazabilidad', [ConsultaOficinaController::class, 'trazabilidad']);
+        Route::get('/trazabilidad/exportar', [ConsultaOficinaController::class, 'exportarTrazabilidad']);
         Route::get('/catalogos', [ConsultaOficinaController::class, 'catalogos']);
         Route::get('/productores', [ConsultaOficinaController::class, 'productores']);
         Route::get('/productores/{productorCsg}', [ConsultaOficinaController::class, 'productor']);
@@ -134,6 +136,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/envases/cuenta-corriente/movimientos/{movimientoEnvase}/revisar', [CuentaCorrienteEnvaseController::class, 'revisar'])
         ->middleware('can:revisar-cuenta-envases');
+    Route::post('/envases/cuenta-corriente/movimientos/{movimientoEnvase}/corregir-propiedad', [CuentaCorrienteEnvaseController::class, 'corregirPropiedad'])
+        ->middleware('can:corregir-propiedad-envases');
     Route::middleware('can:consultar-cuenta-envases')->prefix('envases/guias-despacho')->group(function () {
         Route::get('/catalogos', [GuiaDespachoEnvaseController::class, 'catalogos']);
         Route::get('/', [GuiaDespachoEnvaseController::class, 'index']);

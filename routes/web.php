@@ -6,6 +6,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Entrada única de Oficina: tras iniciar sesión, cada perfil llega a su pantalla de inicio.
+Route::view('/oficina', 'office.domain-lobby', [
+    'lobbyDomain' => 'consultas',
+    'officeHomeRedirect' => true,
+]);
 Route::redirect('/oficina/camaras', '/oficina/frigorifico/camaras');
 Route::view('/oficina/frigorifico', 'office.domain-lobby', [
     'lobbyDomain' => 'frigorifico',
@@ -121,6 +126,10 @@ Route::view('/oficina/consultas/busqueda', 'office.queries', [
 Route::view('/oficina/consultas/sag', 'office.queries', [
     'navigationOffice' => 'sag',
     'queriesSection' => 'sag',
+]);
+Route::view('/oficina/consultas/trazabilidad', 'office.queries', [
+    'navigationOffice' => 'trazabilidad',
+    'queriesSection' => 'trazabilidad',
 ]);
 Route::view('/oficina/consultas/productores', 'office.queries', [
     'navigationOffice' => 'productores',

@@ -419,3 +419,28 @@
     .office-app:has(> [data-office-shell]) { padding-inline-start: 0; }
     .estiba-office-shell { display: none; }
 }
+
+/* Búsqueda global en el menú lateral y logo como acceso a la pantalla de inicio. */
+.estiba-office-home { display: inline-flex; align-items: center; }
+.estiba-office-search { margin: 0 0 8px; padding: 10px 13px 12px; border-bottom: 1px solid #345468; }
+.estiba-office-search > div { display: flex; gap: 6px; margin-top: 6px; }
+.estiba-office-search input {
+    flex: 1;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid #49677a;
+    background: #0b2536;
+    color: #fff;
+    font-size: 13px;
+}
+.estiba-office-search input::placeholder { color: #9fb6c3; }
+.estiba-office-search button {
+    min-width: 36px;
+    min-height: 36px;
+    border: 1px solid #49677a;
+    background: var(--eui-shell-frost);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+}

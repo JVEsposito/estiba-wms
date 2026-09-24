@@ -146,7 +146,7 @@ function message(reason: unknown) { return reason instanceof Error ? reason.mess
 const styles = StyleSheet.create({
   panel: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel, gap: 12 },
   heading: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  headingCopy: { flex: 1 }, eyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  headingCopy: { flex: 1 }, eyebrow: { color: colors.cyan, fontSize: 14, fontWeight: '900', letterSpacing: 1.1 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', marginTop: 3 }, muted: { color: colors.muted, fontSize: 12, marginTop: 3 },
   body: { color: colors.text, fontSize: 14, marginTop: 4 }, record: { padding: 12, borderRadius: 10, backgroundColor: colors.backgroundDeep, borderWidth: 1, borderColor: colors.border },
   recordTitle: { color: colors.cyan, fontSize: 14, fontWeight: '900' },

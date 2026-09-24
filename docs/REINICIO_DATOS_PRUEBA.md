@@ -14,6 +14,8 @@ la operación de la temporada global activa para los dominios:
 - Folios `pallet` y `saldo`, validaciones PT, cargas, Prefrío, ubicaciones y
   movimientos de cámara correspondientes a la temporada activa.
 - Notificaciones y lecturas vinculadas exclusivamente con esos registros.
+- La trazabilidad lote MP → pallet de esos mismos folios. Si un pallet de otra
+  temporada depende de un lote de la temporada reiniciada, el reinicio se bloquea.
 
 Los correlativos globales se conservan para evitar reutilizar identificadores
 que todavía puedan existir en el historial de otra temporada.

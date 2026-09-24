@@ -68,7 +68,7 @@
                         <header class="operation-now-panel__heading">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v5H4zM4 15h7v5H4zM15 15h5v5h-5zM8 9v3h9v3M8 12H7v3"/></svg>
-                                <div><h2 id="operationPlannerTitle">Puesto de mando del planificador</h2><span>Arbitraje, rollout y realidad física vigente</span></div>
+                                <div><h2 id="operationPlannerTitle">Puesto de mando del planificador</h2><span>Qué ordena el planificador y qué ocurre en planta</span></div>
                             </div>
                             <div class="operation-now-panel__tools operation-now-planner__signals">
                                 <strong class="operation-now-planner__cycle" id="plannerCycleMeta">Consultando ciclo…</strong>
@@ -80,26 +80,33 @@
                         </header>
                         <div class="operation-now-panel__body operation-now-planner">
                             <dl class="operation-now-planner__context" aria-label="Configuración vigente del planificador">
-                                <div><dt>Cómputo</dt><dd id="plannerCompute">—</dd></div>
-                                <div><dt>Horizonte</dt><dd id="plannerHorizon">—</dd></div>
-                                <div><dt>Rollout</dt><dd id="plannerRollout">—</dd></div>
-                                <div><dt>Capacidad / frontera</dt><dd id="plannerCapacity">—</dd></div>
+                                <div><dt>Cámaras dirigidas</dt><dd id="plannerRollout">—</dd></div>
+                                <div><dt>Maniobras simultáneas</dt><dd id="plannerCapacity">—</dd></div>
                             </dl>
                             <dl class="operation-now-planner__summary" aria-label="Decisiones del ciclo vigente">
-                                <div data-decision="en_ejecucion"><dt>En ejecución</dt><dd id="plannerRunningCount">0</dd></div>
-                                <div data-decision="seleccionada"><dt>Seleccionadas</dt><dd id="plannerSelectedCount">0</dd></div>
-                                <div data-decision="alternativa"><dt>Alternativas</dt><dd id="plannerAlternativeCount">0</dd></div>
-                                <div data-decision="excluida_conflicto"><dt>Conflictos</dt><dd id="plannerConflictCount">0</dd></div>
-                                <div data-decision="fuera_rollout"><dt>Fuera rollout</dt><dd id="plannerRolloutCount">0</dd></div>
+                                <div data-decision="en_ejecucion"><dt>En curso</dt><dd id="plannerRunningCount">0</dd></div>
+                                <div data-decision="seleccionada"><dt>Listas para tomar</dt><dd id="plannerSelectedCount">0</dd></div>
+                                <div data-decision="alternativa"><dt>En espera</dt><dd id="plannerAlternativeCount">0</dd></div>
+                                <div data-decision="excluida_conflicto"><dt>Bloqueadas por otra</dt><dd id="plannerConflictCount">0</dd></div>
+                                <div data-decision="fuera_rollout"><dt>Sin planificador</dt><dd id="plannerRolloutCount">0</dd></div>
                             </dl>
                             <div class="operation-now-planner__risks" id="plannerRiskRows" aria-label="Riesgos físicos actuales"><span>Evaluando riesgos…</span></div>
                             <div class="operation-now-table-scroll operation-now-planner__decisions">
                                 <table class="operation-now-table operation-now-table--planner">
                                     <caption class="office-visually-hidden">Decisiones de arbitraje del ciclo operacional vigente</caption>
-                                    <thead><tr><th scope="col">Orden / decisión</th><th scope="col">Maniobra</th><th scope="col">Estado / progreso</th><th scope="col">Movimiento actual</th><th scope="col">Responsable</th><th scope="col">Razón operacional</th></tr></thead>
-                                    <tbody id="plannerDecisionRows"><tr><td colspan="6"><div class="operation-now-empty">Consultando arbitraje…</div></td></tr></tbody>
+                                    <thead><tr><th scope="col">Orden / situación</th><th scope="col">Maniobra</th><th scope="col">Estado / progreso</th><th scope="col">Movimiento actual</th><th scope="col">Responsable</th><th scope="col">Motivo</th></tr></thead>
+                                    <tbody id="plannerDecisionRows"><tr><td colspan="6"><div class="operation-now-empty">Consultando planificador…</div></td></tr></tbody>
                                 </table>
                             </div>
+                            {{-- Parámetros de despliegue: útiles para administración, ruido para supervisión. --}}
+                            <details class="operation-now-planner__technical" id="plannerTechnical" hidden>
+                                <summary>Detalle técnico</summary>
+                                <dl>
+                                    <div><dt>Modo</dt><dd id="plannerTechnicalMode">—</dd></div>
+                                    <div><dt>Cálculo</dt><dd id="plannerCompute">—</dd></div>
+                                    <div><dt>Horizonte</dt><dd id="plannerHorizon">—</dd></div>
+                                </dl>
+                            </details>
                         </div>
                     </section>
 
