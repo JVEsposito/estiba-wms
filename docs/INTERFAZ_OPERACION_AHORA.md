@@ -217,8 +217,9 @@ configuración:
 | rollout | Cámaras dirigidas |
 | capacidad / frontera | Maniobras simultáneas (`N de M cupos`) |
 | seleccionada / alternativa / excluida_conflicto | Lista para tomar / En espera / Bloqueada por otra |
-| fuera_frontera / fuera_rollout / fuera_planificador | En cola / Sin planificador / Gestión manual |
-| leases vencidos | Tareas tomadas y abandonadas |
+| fuera_frontera según su factor: frontera_completa / pausa_supervision / objetivo_pausado | Esperando cupo / Pausada por supervisión / Objetivo pausado (sin factor: No publicada ahora) |
+| fuera_rollout / fuera_planificador | Cámara sin planificador / Gestión manual |
+| leases vencidos | Reservas de tarea vencidas (no se atribuye causa: puede ser abandono, pérdida de señal o cambio de turno) |
 | custodias activas / sin retorno | Pallets fuera de su posición / Pallets sin devolver |
 
 Modo, cálculo y horizonte permanecen en **Detalle técnico**, plegado y visible solo para

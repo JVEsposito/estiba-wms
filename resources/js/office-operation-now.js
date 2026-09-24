@@ -493,13 +493,21 @@ function plannerHealthStatus(status) {
     }[status] || 'Sin lectura de alertas';
 }
 
-function plannerDecisionLabel(decision) {
+// «Fuera de frontera» agrupa causas distintas; el factor decisivo evita atribuir una
+// espera de cupo a una maniobra que en realidad está pausada.
+function plannerDecisionLabel(decision, factor = '') {
+    if (decision === 'fuera_frontera') {
+        return {
+            pausa_supervision: 'Pausada por supervisión',
+            objetivo_pausado: 'Objetivo pausado',
+            frontera_completa: 'Esperando cupo',
+        }[factor] || 'No publicada ahora';
+    }
     return {
         en_ejecucion: 'En curso',
         seleccionada: 'Lista para tomar',
         alternativa: 'En espera',
         excluida_conflicto: 'Bloqueada por otra',
-        fuera_frontera: 'En cola',
         fuera_rollout: 'Cámara sin planificador',
         fuera_planificador: 'Gestión manual',
     }[decision] || humanize(decision);
@@ -588,7 +596,7 @@ function renderPlanner(planner = {}) {
     setText('plannerRolloutCount', cycle ? number(summary.fuera_rollout || 0) : '—');
 
     const riskDefinitions = [
-        ['leases_vencidos_activos', 'Tareas tomadas y abandonadas', 'critical'],
+        ['leases_vencidos_activos', 'Reservas de tarea vencidas', 'critical'],
         ['tareas_estancadas', 'Tareas detenidas', 'warning'],
         ['custodias_temporales_activas', 'Pallets fuera de su posición', 'warning'],
         ['maniobras_completadas_con_custodia', 'Pallets sin devolver', 'critical'],
@@ -621,7 +629,7 @@ function renderPlanner(planner = {}) {
         const stepTitle = step?.instruccion || humanize(step?.tipo_movimiento || 'sin instrucción');
 
         return `<tr data-decision="${escapeHtml(decision.decision)}">
-            <td><span class="operation-now-code">#${escapeHtml(number(decision.orden))}</span>${signal(plannerDecisionLabel(decision.decision), toneForPlannerDecision(decision.decision))}</td>
+            <td><span class="operation-now-code">#${escapeHtml(number(decision.orden))}</span>${signal(plannerDecisionLabel(decision.decision, decision.explicacion?.factor_decisivo?.codigo), toneForPlannerDecision(decision.decision))}</td>
             <td><strong>${escapeHtml(decision.titulo || 'Maniobra sin título')}</strong><span class="operation-now-subtext">Prioridad ${escapeHtml(humanize(decision.prioridad))} · ${escapeHtml(humanize(decision.objetivo?.tipo || 'sin objetivo'))}</span></td>
             <td>${signal(humanize(decision.estado), toneForPriority(decision.prioridad))}<div class="operation-now-planner__progress"><span class="operation-now-meter" data-tone="${toneForPlannerDecision(decision.decision)}" style="--operation-progress:${clampedPercent(progress.porcentaje)}%"><i></i></span><small>${escapeHtml(number(progress.pasos_completados))}/${escapeHtml(number(progress.pasos_total))}</small></div></td>
             <td><span class="operation-now-code">${escapeHtml(step?.folio?.numero_folio || 'Sin folio')}</span><span class="operation-now-subtext">${escapeHtml(plannerRoute(step))} · ${escapeHtml(stepTitle)}</span></td>
