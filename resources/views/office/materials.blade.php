@@ -390,14 +390,31 @@
                     <section class="panel materials-panel" id="materialDispatchWorkspace" data-materials-view="despachos">
                         <div class="materials-panel__heading"><div><p class="eyebrow">SOLICITUD</p><h2>Nuevo despacho de materiales</h2></div><span id="materialsStockSync" aria-live="polite">Consultando stock disponible…</span></div>
                         <form class="materials-form" id="dispatchMaterialForm" novalidate>
+                            <fieldset class="materials-wide"><legend>Modalidad del despacho</legend>
+                                <label><input type="radio" name="modalidad" value="delegado" checked> Delegado a tablet · Bodega reserva FIFO; el camarero retira</label>
+                                <label><input type="radio" name="modalidad" value="directo"> Directo desde bodega · seleccionar folios y entregar ahora</label>
+                            </fieldset>
                             <label><span>Destino *</span><select name="destino_material_id" id="dispatchDestination" required></select></label>
+                            <label id="dispatchAssigneeField"><span>Camarero asignado</span><select name="asignado_a_user_id" id="dispatchAssignee"><option value="">Cualquier camarero autorizado</option></select></label>
                             <label class="materials-wide"><span>Observación</span><textarea name="observacion" maxlength="1000" rows="2"></textarea></label>
                             <div class="dispatch-lines" id="dispatchMaterialLines"></div>
                             <button class="secondary-button" id="addDispatchLine" type="button">+ Agregar ítem</button>
+                            <div id="dispatchFolioSelection" class="materials-wide is-hidden" aria-live="polite"></div>
+                            <label id="dispatchFifoReasonField" class="materials-wide is-hidden"><span>Motivo de excepción FIFO *</span><textarea name="motivo_excepcion_fifo" minlength="5" maxlength="1000" rows="2" placeholder="Explica por qué se omite el folio más antiguo"></textarea></label>
                             <p class="form-error" id="dispatchMaterialError" role="alert"></p>
-                            <div class="materials-actions"><button class="primary-button" type="submit">Crear despacho y reservar</button></div>
+                            <div class="materials-actions"><button class="primary-button" id="dispatchSubmit" type="submit">Crear despacho y reservar</button></div>
                         </form>
                         <div class="dispatch-list" id="dispatchMaterialList"></div>
+                        <dialog class="materials-import" id="materialDispatchTraceDialog">
+                            <div class="materials-import__header"><div><p class="eyebrow">TRAZABILIDAD DEL DESPACHO</p><h2 id="dispatchTraceTitle">Cargando…</h2></div><button id="closeMaterialDispatchTrace" type="button" aria-label="Cerrar">×</button></div>
+                            <div id="dispatchTraceBody" class="materials-import__form"></div>
+                            <form id="dispatchReassignForm" class="materials-import__form is-hidden">
+                                <label><span>Reasignar camarero *</span><select name="asignado_a_user_id" required></select></label>
+                                <label><span>Motivo de reasignación *</span><textarea name="motivo" minlength="5" maxlength="1000" required></textarea></label>
+                                <p id="dispatchReassignError" class="form-error" role="alert"></p>
+                                <div class="materials-import__actions"><button type="submit" class="primary-button">Guardar reasignación</button></div>
+                            </form>
+                        </dialog>
                     </section>
 
                     <section class="panel materials-panel materials-inventory-panel" id="materialInventoryWorkspace" data-materials-view="inventario">

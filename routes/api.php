@@ -363,6 +363,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/materiales/catalogo', [CatalogoMaterialController::class, 'catalogo']);
         Route::get('/materiales/inventario', [DespachoMaterialController::class, 'inventario']);
         Route::get('/materiales/despachos', [DespachoMaterialController::class, 'index']);
+        Route::get('/materiales/despachos/camareros', [DespachoMaterialController::class, 'camareros'])
+            ->middleware('can:gestionar-despachos-materiales');
         Route::get('/materiales/despachos/{despachoMaterial}', [DespachoMaterialController::class, 'show']);
     });
     Route::get('/materiales/kardex', [DespachoMaterialController::class, 'kardex'])
@@ -374,6 +376,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/materiales/inventario/{folioMaterial}/liberar-bloqueo', [BloqueoMaterialController::class, 'liberar']);
     });
     Route::post('/materiales/despachos', [DespachoMaterialController::class, 'store'])
+        ->middleware('can:gestionar-despachos-materiales');
+    Route::post('/materiales/despachos/{despachoMaterial}/reasignar', [DespachoMaterialController::class, 'reasignar'])
         ->middleware('can:gestionar-despachos-materiales');
     Route::post('/materiales/despachos/directos', [DespachoMaterialController::class, 'directo'])
         ->middleware('can:gestionar-despachos-materiales');

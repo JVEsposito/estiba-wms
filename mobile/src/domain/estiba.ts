@@ -262,6 +262,7 @@ export type MaterialDispatchItem = {
   cantidad_pendiente: string;
   cantidad_reservada: string;
   unidad_medida: string;
+  reservas_fifo?: Array<{ numero_folio: string; cantidad: string; estado: string; orden_fifo: number; reservado_at: string }>;
   sugerencias_fifo: Array<{
     folio_id: string;
     numero_folio: string;
@@ -280,6 +281,7 @@ export type MaterialDispatchItem = {
     usuario: { id: string; nombre: string } | null;
     dispositivo: { id: string; codigo: string; nombre: string } | null;
     siguio_fifo: boolean;
+    motivo_excepcion_fifo?: string | null;
     retirado_at: string;
   }>;
 };
@@ -288,6 +290,9 @@ export type MaterialDispatch = {
   id: string;
   codigo: string;
   origen: 'oficina' | 'tablet';
+  modalidad?: 'delegado' | 'directo';
+  asignado_a?: { id: number; nombre: string } | null;
+  asignado_a_user_id?: number | null;
   estado: 'pendiente' | 'parcial' | 'completado' | 'cancelado';
   destino: { id: string; nombre: string; centro_costo: string };
   observacion: string | null;
@@ -652,6 +657,7 @@ export type CreateMaterialDispatchPayload = {
 
 export type WithdrawMaterialPayload = {
   operacion_id: string;
+  motivo_excepcion_fifo?: string;
   retiros: Array<{ folio_id: string; cantidad: number; sesion_estiba_id: string }>;
 };
 

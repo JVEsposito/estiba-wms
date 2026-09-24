@@ -586,6 +586,112 @@ class MaterialesApiTest extends TestCase
         ]);
     }
 
+    public function test_entrega_directa_admite_varios_folios_y_exige_justificacion_al_omitir_fifo(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [, , $tokenTablet] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion1, $posicion2] = $this->crearCamara('CAM-FIFO-DIRECTO', ContenidoCamara::Materiales, 2);
+        $sesion = $this->abrirSesion($tokenTablet, $camara);
+        $folioAntiguo = $this->ubicarMaterial($tokenTablet, $posicion1, $sesion, $item, 'FIFO-ANTIGUO', 0, 5, now()->subDay()->toAtomString());
+        $folioNuevo = $this->ubicarMaterial($tokenTablet, $posicion2, $sesion, $item, 'FIFO-NUEVO', 1, 10, now()->toAtomString());
+
+        $payload = [
+            'operacion_id' => (string) Str::uuid(),
+            'destino_material_id' => $destino->id,
+            'retiros' => [['folio_id' => $folioNuevo, 'cantidad' => 6]],
+        ];
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', [
+                ...$payload,
+                'folio_id' => $folioAntiguo,
+                'cantidad' => 1,
+            ])
+            ->assertUnprocessable();
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', $payload)
+            ->assertUnprocessable();
+        $this->assertDatabaseCount('despachos_materiales', 0);
+
+        $payload['motivo_excepcion_fifo'] = 'Folio antiguo inaccesible en cámara.';
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.modalidad', 'directo')
+            ->assertJsonPath('data.items.0.retiros.0.siguio_fifo', false)
+            ->assertJsonPath('data.items.0.reservas_fifo.0.numero_folio', 'FIFO-ANTIGUO')
+            ->assertJsonPath('data.items.0.retiros.0.motivo_excepcion_fifo', $payload['motivo_excepcion_fifo']);
+        $this->assertSame('5.000', FolioMaterial::findOrFail($folioAntiguo)->cantidad_actual);
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', $payload)
+            ->assertCreated();
+        $this->assertDatabaseCount('despachos_materiales', 1);
+        $this->assertDatabaseCount('retiros_materiales', 1);
+
+        $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'retiros' => [
+                    ['folio_id' => $folioAntiguo, 'cantidad' => 5],
+                    ['folio_id' => $folioNuevo, 'cantidad' => 3],
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.items.0.cantidad_despachada', '8.000')
+            ->assertJsonPath('data.items.0.retiros.0.siguio_fifo', true);
+        $this->assertDatabaseCount('retiros_materiales', 3);
+    }
+
+    public function test_asignacion_y_reasignacion_del_despacho_quedan_auditadas_y_limitan_el_retiro(): void
+    {
+        [$administrador, $tokenOficina] = $this->crearAdministrador();
+        [$primero, , $tokenPrimero] = $this->crearOperador();
+        [$segundo] = $this->crearOperador();
+        $item = $this->crearItem($administrador);
+        $destino = $this->crearDestino($administrador);
+        [$camara, $posicion] = $this->crearCamara('CAM-ASIGNACION', ContenidoCamara::Materiales);
+        $sesion = $this->abrirSesion($tokenPrimero, $camara);
+        $folio = $this->ubicarMaterial($tokenPrimero, $posicion, $sesion, $item, 'MAT-ASIGNACION', 0, 10, now()->toAtomString());
+        $despachoId = $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos', [
+                'operacion_id' => (string) Str::uuid(),
+                'destino_material_id' => $destino->id,
+                'asignado_a_user_id' => $primero->id,
+                'items' => [['item_material_id' => $item->id, 'cantidad' => 2]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.modalidad', 'delegado')
+            ->assertJsonPath('data.asignado_a.id', $primero->id)
+            ->json('data.id');
+
+        $operacion = (string) Str::uuid();
+        $reasignacion = [
+            'operacion_id' => $operacion,
+            'asignado_a_user_id' => $segundo->id,
+            'motivo' => 'Cambio de turno del camarero.',
+        ];
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/reasignar", $reasignacion)
+            ->assertOk()
+            ->assertJsonPath('data.asignado_a.id', $segundo->id)
+            ->assertJsonCount(2, 'data.asignaciones');
+        $this->conToken($tokenOficina)
+            ->postJson("/api/materiales/despachos/{$despachoId}/reasignar", $reasignacion)
+            ->assertOk()
+            ->assertJsonCount(2, 'data.asignaciones');
+
+        $this->conToken($tokenPrimero)
+            ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
+                'operacion_id' => (string) Str::uuid(),
+                'retiros' => [['folio_id' => $folio, 'cantidad' => 2, 'sesion_estiba_id' => $sesion]],
+            ])
+            ->assertForbidden();
+        $this->assertDatabaseCount('retiros_materiales', 0);
+    }
+
     public function test_despacho_directo_desde_oficina_exige_ubicacion_material_valida(): void
     {
         [$administrador, $tokenOficina] = $this->crearAdministrador();
@@ -1232,6 +1338,7 @@ class MaterialesApiTest extends TestCase
         $this->conToken($tokenTablet)
             ->postJson("/api/materiales/despachos/{$despachoId}/retirar", [
                 'operacion_id' => (string) Str::uuid(),
+                'motivo_excepcion_fifo' => 'Folio antiguo inaccesible físicamente.',
                 'retiros' => [[
                     'folio_id' => $folioNoSugerido,
                     'cantidad' => 2,
@@ -1242,6 +1349,7 @@ class MaterialesApiTest extends TestCase
             ->assertJsonPath('data.estado', 'completado');
 
         $this->assertFalse(RetiroMaterial::query()->latest()->firstOrFail()->siguio_fifo);
+        $this->assertSame('Folio antiguo inaccesible físicamente.', RetiroMaterial::query()->latest()->firstOrFail()->motivo_excepcion_fifo);
     }
 
     public function test_operador_no_puede_cancelar_un_despacho_de_materiales(): void

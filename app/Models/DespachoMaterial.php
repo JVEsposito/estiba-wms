@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'operacion_id',
     'payload_hash',
     'origen',
+    'modalidad',
+    'asignado_a_user_id',
     'estado',
     'destino_material_id',
     'destino_nombre',
@@ -51,6 +53,16 @@ class DespachoMaterial extends Model
     public function detalles(): HasMany
     {
         return $this->hasMany(DetalleDespachoMaterial::class, 'despacho_material_id');
+    }
+
+    public function asignadoA(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'asignado_a_user_id');
+    }
+
+    public function asignaciones(): HasMany
+    {
+        return $this->hasMany(AsignacionDespachoMaterial::class)->orderBy('created_at')->orderBy('id');
     }
 
     public function creadoPor(): BelongsTo

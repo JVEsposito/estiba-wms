@@ -18,6 +18,7 @@ class RetirarDespachoMaterialRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
+            'motivo_excepcion_fifo' => ['nullable', 'string', 'min:5', 'max:1000'],
             'retiros' => ['required', 'array', 'min:1', 'max:100'],
             'retiros.*' => ['required', 'array:folio_id,cantidad,sesion_estiba_id'],
             'retiros.*.folio_id' => [
@@ -33,5 +34,14 @@ class RetirarDespachoMaterialRequest extends FormRequest
                 'exists:sesiones_estiba,id',
             ],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'motivo_excepcion_fifo' => $this->filled('motivo_excepcion_fifo')
+                ? trim((string) $this->input('motivo_excepcion_fifo'))
+                : null,
+        ]);
     }
 }

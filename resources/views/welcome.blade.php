@@ -320,6 +320,7 @@
                     </label>
                 </div>
                 <div class="fifo-notice is-hidden" id="materialFifoNotice"></div>
+                <label class="form-field form-field--wide is-hidden" id="materialFifoReasonField"><span>Motivo de excepción FIFO *</span><textarea name="motivo_excepcion_fifo" minlength="5" maxlength="1000" placeholder="Explica la selección de otro folio"></textarea></label>
                 <p class="form-error" id="materialDispatchError" role="alert"></p>
                 <div class="dialog-actions">
                     <button class="button button--secondary" type="button" data-close-dialog="materialDispatchDialog">Cancelar</button>

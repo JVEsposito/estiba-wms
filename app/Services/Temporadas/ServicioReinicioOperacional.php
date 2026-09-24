@@ -64,6 +64,7 @@ class ServicioReinicioOperacional
         'folios_materiales_liberados',
         'correcciones_items_folios_materiales',
         'despachos_materiales',
+        'asignaciones_despachos_materiales',
         'detalles_despacho_materiales',
         'reservas_materiales',
         'operaciones_retiro_materiales',

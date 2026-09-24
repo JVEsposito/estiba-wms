@@ -574,6 +574,7 @@ export function MoveModal({
 export type MaterialDispatchFormValue = {
   cantidad: number;
   despacho_id: string;
+  motivo_excepcion_fifo?: string;
 };
 
 export function MaterialDispatchModal({
@@ -582,6 +583,7 @@ export function MaterialDispatchModal({
   error,
   onCancel,
   onConfirm,
+  operatorId,
   position,
   visible,
 }: {
@@ -590,15 +592,16 @@ export function MaterialDispatchModal({
   error: string;
   onCancel: () => void;
   onConfirm: (value: MaterialDispatchFormValue) => Promise<void>;
+  operatorId: string;
   position: Position | null;
   visible: boolean;
 }) {
   const { height, width } = useWindowDimensions();
   const compact = height < 700 || width < 1000;
   const material = position?.folio?.material;
-  const matchingDispatches = dispatches.filter((dispatch) => dispatch.items.some((detail) => (
-    detail.item.id === material?.item.id && Number(detail.cantidad_pendiente) > 0
-  )));
+  const matchingDispatches = dispatches.filter((dispatch) =>
+    (!dispatch.asignado_a_user_id || String(dispatch.asignado_a_user_id) === operatorId)
+    && dispatch.items.some((detail) => detail.item.id === material?.item.id && Number(detail.cantidad_pendiente) > 0));
   const prioritizedDispatches = [...matchingDispatches].sort((left, right) => (
     reservationForFolio(right, material?.item.id, position?.folio?.id)
       - reservationForFolio(left, material?.item.id, position?.folio?.id)
@@ -606,11 +609,13 @@ export function MaterialDispatchModal({
   const preferredDispatchId = prioritizedDispatches[0]?.id;
   const [dispatchId, setDispatchId] = useState<string>();
   const [amount, setAmount] = useState('');
+  const [fifoReason, setFifoReason] = useState('');
 
   useEffect(() => {
     if (!visible) return;
     setDispatchId(preferredDispatchId ?? matchingDispatches[0]?.id);
     setAmount('');
+    setFifoReason('');
   }, [preferredDispatchId, visible, position?.folio?.id]);
 
   const selectedDispatch = matchingDispatches.find((dispatch) => dispatch.id === dispatchId);
@@ -629,7 +634,8 @@ export function MaterialDispatchModal({
     currentAmount,
     freeAmount + reservedForSelectedDispatch,
   );
-  const followsFifo = reservedForSelectedDispatch > 0;
+  const followsFifo = selectedDetail?.sugerencias_fifo[0]?.folio_id === position?.folio?.id
+    && Number(amount || 0) <= reservedForSelectedDispatch;
   const maximum = Math.max(
     0,
     Math.min(dispatchableForSelectedOrder, pendingAmount),
@@ -637,8 +643,8 @@ export function MaterialDispatchModal({
 
   async function submit() {
     const parsed = Number(amount);
-    if (parsed <= 0 || parsed > maximum || !dispatchId) return;
-    await onConfirm({ cantidad: parsed, despacho_id: dispatchId });
+    if (parsed <= 0 || parsed > maximum || !dispatchId || (!followsFifo && fifoReason.trim().length < 5)) return;
+    await onConfirm({ cantidad: parsed, despacho_id: dispatchId, ...(!followsFifo ? { motivo_excepcion_fifo: fifoReason.trim() } : {}) });
   }
 
   return (
@@ -668,7 +674,7 @@ export function MaterialDispatchModal({
                     active={dispatchId === dispatch.id}
                     key={dispatch.id}
                     label={materialDispatchLabel(dispatch, material?.item.id, position?.folio?.id, material?.unidad_medida)}
-                    onPress={() => { setDispatchId(dispatch.id); setAmount(''); }}
+                    onPress={() => { setDispatchId(dispatch.id); setAmount(''); setFifoReason(''); }}
                   />
                 ))}
               </View>
@@ -687,8 +693,15 @@ export function MaterialDispatchModal({
               <TextInput keyboardType="decimal-pad" onChangeText={setAmount} placeholder="0" placeholderTextColor="#627C88" selectionColor={colors.cyan} style={styles.input} value={amount} />
             </View>
 
+            {!followsFifo && dispatchId ? (
+              <View style={[styles.field, styles.wide, styles.materialField]}>
+                <Text style={styles.label}>Motivo de excepción FIFO * (mínimo 5 caracteres)</Text>
+                <TextInput multiline onChangeText={setFifoReason} placeholder="Explica por qué se omite la reserva FIFO" placeholderTextColor="#627C88" selectionColor={colors.cyan} style={styles.input} value={fifoReason} />
+              </View>
+            ) : null}
+
             <ModalError message={error} />
-            <DialogActions busy={busy} compact={compact} confirmDisabled={Number(amount) <= 0 || Number(amount) > maximum || !dispatchId} confirmLabel="Confirmar despacho" onCancel={onCancel} onConfirm={submit} />
+            <DialogActions busy={busy} compact={compact} confirmDisabled={Number(amount) <= 0 || Number(amount) > maximum || !dispatchId || (!followsFifo && fifoReason.trim().length < 5)} confirmLabel="Confirmar despacho" onCancel={onCancel} onConfirm={submit} />
           </View>
         </View>
       </SafeAreaView>

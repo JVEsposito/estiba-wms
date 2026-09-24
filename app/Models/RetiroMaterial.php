@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'user_id',
     'dispositivo_id',
     'siguio_fifo',
+    'motivo_excepcion_fifo',
     'retirado_at',
 ])]
 class RetiroMaterial extends Model

@@ -28,6 +28,8 @@ class ServicioConsultaInventarioMaterial
         $this->aplicarAlcanceOperacional($consulta);
 
         $consulta
+            ->when($filtros['item_material_id'] ?? null, fn (EloquentBuilder $query, string $itemId) => $query
+                ->where('item_material_id', $itemId))
             ->when($filtros['cliente_id'] ?? null, fn (EloquentBuilder $query, string $clienteId) => $query
                 ->whereHas('item', fn (EloquentBuilder $items) => $items
                     ->where('cliente_material_id', $clienteId)))

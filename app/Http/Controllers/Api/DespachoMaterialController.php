@@ -13,6 +13,7 @@ use App\Models\DespachoMaterial;
 use App\Models\MovimientoInventarioMaterial;
 use App\Models\PersonalAccessToken;
 use App\Models\Temporada;
+use App\Models\User;
 use App\Services\Autenticacion\ContextoOperacional;
 use App\Services\Materiales\ServicioConsultaInventarioMaterial;
 use App\Services\Materiales\ServicioDespachoMaterial;
@@ -110,9 +111,44 @@ class DespachoMaterialController extends Controller
             $request->validated('retiros'),
             $usuario,
             $dispositivo,
+            motivoExcepcionFifo: $request->validated('motivo_excepcion_fifo'),
         );
 
         return new DespachoMaterialResource($despacho);
+    }
+
+    public function camareros(): JsonResponse
+    {
+        Gate::authorize('gestionar-despachos-materiales');
+
+        return response()->json(['data' => User::query()
+            ->where('activo', true)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (User $usuario) => $usuario->can('retirar-materiales'))
+            ->map(fn (User $usuario) => ['id' => $usuario->id, 'nombre' => $usuario->name])
+            ->values()]);
+    }
+
+    public function reasignar(
+        Request $request,
+        DespachoMaterial $despachoMaterial,
+        ServicioDespachoMaterial $servicio,
+    ): DespachoMaterialResource {
+        Gate::authorize('gestionar-despachos-materiales');
+        $datos = $request->validate([
+            'operacion_id' => ['required', 'uuid'],
+            'asignado_a_user_id' => ['required', 'integer', 'exists:users,id'],
+            'motivo' => ['required', 'string', 'min:5', 'max:1000'],
+        ]);
+
+        return new DespachoMaterialResource($servicio->reasignar(
+            $despachoMaterial,
+            $datos['operacion_id'],
+            (int) $datos['asignado_a_user_id'],
+            trim($datos['motivo']),
+            $request->user(),
+        ));
     }
 
     public function cancelar(
@@ -143,6 +179,7 @@ class DespachoMaterialController extends Controller
         $filtros = $request->validate([
             'vista' => ['nullable', Rule::in(['detalle', 'resumen'])],
             'cliente_id' => ['nullable', 'uuid', 'exists:clientes_materiales,id'],
+            'item_material_id' => ['nullable', 'uuid', 'exists:items_materiales,id'],
             'q' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', Rule::in([10, 25, 50, 100])],
             'page' => ['nullable', 'integer', 'min:1'],

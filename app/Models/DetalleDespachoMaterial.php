@@ -37,6 +37,12 @@ class DetalleDespachoMaterial extends Model
         return $this->hasMany(ReservaMaterial::class, 'detalle_despacho_material_id');
     }
 
+    public function historialReservas(): HasMany
+    {
+        return $this->hasMany(ReservaMaterial::class, 'detalle_despacho_material_id')
+            ->orderBy('orden_fifo');
+    }
+
     public function retiros(): HasMany
     {
         return $this->hasMany(RetiroMaterial::class, 'detalle_despacho_material_id');

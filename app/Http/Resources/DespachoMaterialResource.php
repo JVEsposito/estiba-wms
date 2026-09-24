@@ -22,7 +22,19 @@ class DespachoMaterialResource extends JsonResource
             ] : null),
             'codigo' => $this->codigo,
             'origen' => $this->origen->value,
+            'modalidad' => $this->modalidad,
             'estado' => $this->estado->value,
+            'asignado_a' => $this->whenLoaded('asignadoA', fn () => $this->asignadoA ? [
+                'id' => $this->asignadoA->id,
+                'nombre' => $this->asignadoA->name,
+            ] : null),
+            'asignaciones' => $this->whenLoaded('asignaciones', fn () => $this->asignaciones->map(fn ($asignacion) => [
+                'id' => $asignacion->id,
+                'usuario' => ['id' => $asignacion->asignadoA->id, 'nombre' => $asignacion->asignadoA->name],
+                'realizada_por' => ['id' => $asignacion->asignadoPor->id, 'nombre' => $asignacion->asignadoPor->name],
+                'motivo' => $asignacion->motivo,
+                'created_at' => $asignacion->created_at?->toAtomString(),
+            ])->values()),
             'destino' => [
                 'id' => $this->destino_material_id,
                 'nombre' => $this->destino_nombre,
@@ -73,6 +85,15 @@ class DespachoMaterialResource extends JsonResource
                         ), 3, '.', ''),
                         'cantidad_reservada' => number_format($reservado, 3, '.', ''),
                         'unidad_medida' => $detalle->unidad_medida,
+                        'reservas_fifo' => $detalle->relationLoaded('historialReservas')
+                            ? $detalle->historialReservas->map(fn ($reserva) => [
+                                'numero_folio' => $reserva->folioMaterial->folio->numero_folio,
+                                'cantidad' => $reserva->cantidad,
+                                'estado' => $reserva->estado->value,
+                                'orden_fifo' => $reserva->orden_fifo,
+                                'reservado_at' => $reserva->created_at?->toAtomString(),
+                            ])->values()
+                            : [],
                         'sugerencias_fifo' => $detalle->relationLoaded('reservas')
                             ? $detalle->reservas->map(function ($reserva): array {
                                 $folio = $reserva->folioMaterial->folio;
@@ -130,6 +151,7 @@ class DespachoMaterialResource extends JsonResource
                                             'nombre' => $retiro->dispositivo->nombre,
                                         ] : null,
                                         'siguio_fifo' => $retiro->siguio_fifo,
+                                        'motivo_excepcion_fifo' => $retiro->motivo_excepcion_fifo,
                                         'retirado_at' => $retiro->retirado_at?->toAtomString(),
                                     ];
                                 })->values()
