@@ -19,10 +19,10 @@ class DespacharDirectoMaterialRequest extends FormRequest
     {
         return [
             'operacion_id' => ['required', 'uuid'],
-            'folio_id' => ['required_without:retiros', 'prohibited_with:retiros', 'uuid', 'exists:folios_materiales,folio_id'],
+            'folio_id' => ['required_without:retiros', 'prohibits:retiros', 'uuid', 'exists:folios_materiales,folio_id'],
             'destino_material_id' => ['required', 'uuid', 'exists:destinos_materiales,id'],
-            'cantidad' => ['required_with:folio_id', 'prohibited_with:retiros', 'numeric', 'gt:0', 'decimal:0,3'],
-            'retiros' => ['required_without:folio_id', 'prohibited_with:folio_id', 'array', 'min:1', 'max:100'],
+            'cantidad' => ['required_with:folio_id', 'prohibits:retiros', 'numeric', 'gt:0', 'decimal:0,3'],
+            'retiros' => ['required_without:folio_id', 'prohibits:folio_id', 'array', 'min:1', 'max:100'],
             'retiros.*' => ['required', 'array:folio_id,cantidad'],
             'retiros.*.folio_id' => ['required', 'uuid', 'distinct', 'exists:folios_materiales,folio_id'],
             'retiros.*.cantidad' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],

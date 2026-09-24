@@ -603,6 +603,13 @@ class MaterialesApiTest extends TestCase
             'retiros' => [['folio_id' => $folioNuevo, 'cantidad' => 6]],
         ];
         $this->conToken($tokenOficina)
+            ->postJson('/api/materiales/despachos/directos', [
+                ...$payload,
+                'folio_id' => $folioAntiguo,
+                'cantidad' => 1,
+            ])
+            ->assertUnprocessable();
+        $this->conToken($tokenOficina)
             ->postJson('/api/materiales/despachos/directos', $payload)
             ->assertUnprocessable();
         $this->assertDatabaseCount('despachos_materiales', 0);
