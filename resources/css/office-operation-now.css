@@ -443,7 +443,7 @@
     background: var(--corporate-card);
 }
 
-.operation-now-planner__context { grid-template-columns: repeat(4, minmax(0, 1fr)); border-right: 1px solid var(--corporate-border); }
+.operation-now-planner__context { grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 1px solid var(--corporate-border); }
 .operation-now-planner__summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 .operation-now-planner__context div,
@@ -507,6 +507,14 @@
 .operation-now-planner__risks strong { color: inherit; font-size: .78rem; font-variant-numeric: tabular-nums; }
 
 .operation-now-planner__decisions { grid-column: 1 / -1; max-height: 290px; overflow-y: auto; }
+
+/* Parámetros de despliegue visibles solo para administración. */
+.operation-now-planner__technical { grid-column: 1 / -1; padding: 6px 12px; border-top: 1px solid var(--corporate-border); color: var(--text-subtle); font-size: .72rem; }
+.operation-now-planner__technical summary { cursor: pointer; font-weight: 800; }
+.operation-now-planner__technical dl { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 6px 0 0; }
+.operation-now-planner__technical div { display: flex; gap: 6px; }
+.operation-now-planner__technical dt { font-weight: 800; }
+.operation-now-planner__technical dd { margin: 0; color: var(--text-strong); }
 .operation-now-table--planner { min-width: 1120px; table-layout: fixed; font-size: .8rem; }
 .operation-now-table--planner :where(th, td):nth-child(1) { width: 12%; }
 .operation-now-table--planner :where(th, td):nth-child(2) { width: 20%; }

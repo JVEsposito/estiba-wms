@@ -9,12 +9,18 @@ use App\Models\Cliente;
 use App\Models\ConsultaSag;
 use App\Models\LoteMateriaPrima;
 use App\Models\ProductorCsg;
+use App\Models\Temporada;
 use App\Services\Consultas\ServicioAsociacionProductorCsg;
 use App\Services\Consultas\ServicioConsultaOperacional;
+use App\Services\Consultas\ServicioTrazabilidadLotes;
+use App\Services\Existencias\GeneradorLibroXlsx;
+use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ConsultaOficinaController extends Controller
 {
@@ -39,6 +45,69 @@ class ConsultaOficinaController extends Controller
                 ->whereDate('ocurrido_at', today())
                 ->count(),
         ]);
+    }
+
+    public function trazabilidad(
+        Request $request,
+        ServicioTrazabilidadLotes $servicio,
+    ): JsonResponse {
+        Gate::authorize('consultar-oficina-consultas');
+        $datos = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:80'],
+            'temporada_id' => ['nullable', 'uuid', Rule::exists('temporadas', 'id')],
+            'pagina' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return response()->json(['data' => $servicio->consultar(
+            $datos['q'],
+            $this->temporadaTrazabilidad($datos['temporada_id'] ?? null),
+            (int) ($datos['pagina'] ?? 1),
+        )]);
+    }
+
+    /** Todos los folios afectados por un lote o proceso, sin límite, para un retiro de mercado. */
+    public function exportarTrazabilidad(
+        Request $request,
+        ServicioTrazabilidadLotes $servicio,
+        GeneradorLibroXlsx $generador,
+    ): BinaryFileResponse {
+        Gate::authorize('consultar-oficina-consultas');
+        $datos = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:80'],
+            'temporada_id' => ['nullable', 'uuid', Rule::exists('temporadas', 'id')],
+        ]);
+        $temporada = $this->temporadaTrazabilidad($datos['temporada_id'] ?? null);
+        $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($datos['q']) ?? '';
+        $ruta = $generador->generar(
+            'Trazabilidad '.$codigo,
+            $servicio->columnasExportacion(),
+            $servicio->filasExportacion($codigo, $temporada),
+            [
+                'fecha_corte' => now()->toAtomString(),
+                'usuario' => $request->user()?->name,
+                'temporada' => $temporada->codigo,
+            ],
+            'Trazabilidad',
+        );
+        $archivo = 'trazabilidad_'.Str::slug($temporada->codigo.'_'.$codigo, '_').'_'.now()->format('Y-m-d_Hi').'.xlsx';
+
+        return response()->download(
+            $ruta,
+            $archivo,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'no-store, private',
+            ],
+        )->deleteFileAfterSend();
+    }
+
+    /** Temporada consultada: la indicada, o la activa. Las temporadas cerradas siguen consultables. */
+    private function temporadaTrazabilidad(?string $temporadaId): Temporada
+    {
+        return $temporadaId !== null
+            ? Temporada::query()->findOrFail($temporadaId)
+            : Temporada::query()->where('activa', true)->first()
+                ?? Temporada::query()->orderByDesc('codigo')->firstOrFail();
     }
 
     public function buscar(

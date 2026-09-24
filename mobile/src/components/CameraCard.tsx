@@ -89,14 +89,14 @@ const styles = StyleSheet.create({
   },
   state: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  stateText: { fontSize: 10, fontWeight: '800' },
-  content: { marginTop: 7, color: colors.muted, fontSize: 10, fontWeight: '800' },
+  stateText: { fontSize: 14, fontWeight: '800' },
+  content: { marginTop: 7, color: colors.muted, fontSize: 14, fontWeight: '800' },
   occupancyRow: {
     marginTop: 13,
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  occupancyLabel: { color: colors.muted, fontSize: 10, fontWeight: '700' },
+  occupancyLabel: { color: colors.muted, fontSize: 14, fontWeight: '700' },
   occupancyValue: { color: colors.text, fontSize: 12, fontWeight: '900' },
   progress: {
     height: 6,
@@ -106,5 +106,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderSoft,
   },
   progressValue: { height: '100%', borderRadius: 3, backgroundColor: colors.cyan },
-  detail: { marginTop: 7, color: colors.muted, fontSize: 9 },
+  detail: { marginTop: 7, color: colors.muted, fontSize: 13 },
 });

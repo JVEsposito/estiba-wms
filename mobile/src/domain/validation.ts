@@ -82,6 +82,8 @@ export type RegisterValidationPayload = {
   composicion: Array<{
     origen_validacion_id: string;
     cantidad_cajas: number;
+    lote_materia_prima?: string;
+    proceso_packing?: string;
   }>;
   categoria_validacion_id: string;
   resultado: ValidationResult;
@@ -122,6 +124,8 @@ export type ValidationAttempt = {
       predio: string | null;
       fecha_embalaje: string | null;
       cantidad_cajas: number;
+      lote_materia_prima?: string | null;
+      proceso_packing?: string | null;
     }> | null;
     categoria: { id: string; nombre: string; codigo_externo: string | null } | null;
   };

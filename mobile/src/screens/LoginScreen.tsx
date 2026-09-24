@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { ApiMode, LoginPayload } from '../domain/estiba';
@@ -32,6 +33,8 @@ export function LoginScreen({
   onSaveBaseUrl,
 }: LoginScreenProps) {
   const unconfigured = mode === 'unconfigured';
+  // En la PDA de validación (vertical, ~360 dp) las dos columnas no caben: se apilan.
+  const narrow = useWindowDimensions().width < 720;
   const [email, setEmail] = useState(mode === 'demo' ? 'administrador@folios.demo' : '');
   const [password, setPassword] = useState(mode === 'demo' ? 'password' : '');
   const [deviceCode, setDeviceCode] = useState(mode === 'demo' ? 'DEMO-01' : '');
@@ -79,28 +82,32 @@ export function LoginScreen({
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.keyboard}
     >
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandPanel}>
+      <ScrollView contentContainerStyle={[styles.page, narrow && styles.pageNarrow]} keyboardShouldPersistTaps="handled">
+        <View style={[styles.brandPanel, narrow && styles.brandPanelNarrow]}>
           <Image
             accessibilityLabel="FoliOS"
             accessible
             resizeMode="contain"
             source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
-            style={styles.brandLogo}
+            style={[styles.brandLogo, narrow && styles.brandLogoNarrow]}
           />
           <Text style={styles.eyebrow}>OPERACIÓN EN FRÍO</Text>
-          <Text style={styles.brandCopy}>
-            Ubicación, movimiento y trazabilidad de folios desde una interfaz diseñada para tablets.
-          </Text>
-          <View style={styles.features}>
-            <Feature label="Plano actualizado" />
-            <Feature label="Edición controlada" />
-            <Feature label="Trazabilidad" />
-          </View>
+          {narrow ? null : (
+            <>
+              <Text style={styles.brandCopy}>
+                Ubicación, movimiento y trazabilidad de folios desde una interfaz diseñada para tablets.
+              </Text>
+              <View style={styles.features}>
+                <Feature label="Plano actualizado" />
+                <Feature label="Edición controlada" />
+                <Feature label="Trazabilidad" />
+              </View>
+            </>
+          )}
         </View>
 
-        <View style={styles.formPanel}>
-          <View style={styles.serverRow}>
+        <View style={[styles.formPanel, narrow && styles.formPanelNarrow]}>
+          <View style={[styles.serverRow, narrow && styles.serverRowNarrow]}>
             <View style={[
               styles.modeChip,
               mode === 'demo' && styles.demoChip,
@@ -296,6 +303,11 @@ function Feature({ label }: { label: string }) {
 const styles = StyleSheet.create({
   keyboard: { flex: 1, backgroundColor: colors.backgroundDeep },
   page: { flexGrow: 1, flexDirection: 'row' },
+  pageNarrow: { flexDirection: 'column' },
+  serverRowNarrow: { flexWrap: 'wrap' },
+  brandPanelNarrow: { flex: 0, minHeight: 0, paddingHorizontal: 20, paddingVertical: 22 },
+  brandLogoNarrow: { width: 200, height: 48, marginBottom: 10 },
+  formPanelNarrow: { flex: 1, minHeight: 0, paddingHorizontal: 20, paddingVertical: 20, justifyContent: 'flex-start' },
   brandPanel: {
     flex: 1.05,
     minHeight: 520,
@@ -304,12 +316,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
   },
   brandLogo: { width: 300, height: 72, marginBottom: 24 },
-  eyebrow: { color: colors.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.8 },
+  eyebrow: { color: colors.cyan, fontSize: 14, fontWeight: '900', letterSpacing: 1.8 },
   brandCopy: { maxWidth: 430, marginTop: 22, color: colors.muted, fontSize: 15, lineHeight: 23 },
   features: { marginTop: 32, flexDirection: 'row', flexWrap: 'wrap', gap: 18 },
   feature: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   featureDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.green },
-  featureText: { color: colors.text, fontSize: 11, fontWeight: '700' },
+  featureText: { color: colors.text, fontSize: 14, fontWeight: '700' },
   formPanel: {
     flex: 0.95,
     minHeight: 520,
@@ -341,9 +353,9 @@ const styles = StyleSheet.create({
   modeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.green },
   demoDot: { backgroundColor: colors.amber },
   unconfiguredDot: { backgroundColor: colors.red },
-  modeText: { maxWidth: 360, color: colors.muted, fontSize: 8, fontWeight: '900' },
+  modeText: { maxWidth: 360, color: colors.muted, fontSize: 12, fontWeight: '900' },
   serverButton: {
-    minHeight: 38,
+    minHeight: 48,
     paddingHorizontal: 12,
     borderRadius: 9,
     borderWidth: 1,
@@ -352,11 +364,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  serverButtonText: { color: colors.cyan, fontSize: 9, fontWeight: '900' },
+  serverButtonText: { color: colors.cyan, fontSize: 13, fontWeight: '900' },
   formTitle: { color: colors.text, fontSize: 30, fontWeight: '900' },
   formIntro: { marginTop: 7, marginBottom: 17, color: colors.muted, fontSize: 12 },
   field: { marginTop: 11, gap: 6 },
-  label: { color: colors.text, fontSize: 10, fontWeight: '800' },
+  label: { color: colors.text, fontSize: 14, fontWeight: '800' },
   input: {
     height: 48,
     paddingHorizontal: 13,
@@ -367,7 +379,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 13,
   },
-  error: { minHeight: 17, marginTop: 8, color: colors.red, fontSize: 9 },
+  error: { minHeight: 17, marginTop: 8, color: colors.red, fontSize: 13 },
   configurationError: {
     marginTop: 12,
     padding: 10,
@@ -376,7 +388,7 @@ const styles = StyleSheet.create({
     borderColor: colors.red,
     backgroundColor: '#421B21',
   },
-  configurationErrorText: { color: '#FFB7B7', fontSize: 9, lineHeight: 13 },
+  configurationErrorText: { color: '#FFB7B7', fontSize: 13, lineHeight: 17 },
   submit: {
     height: 50,
     paddingHorizontal: 16,
@@ -390,7 +402,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.75 },
   submitText: { color: colors.accentText, fontSize: 12, fontWeight: '900' },
   submitArrow: { color: colors.accentText, fontSize: 21, fontWeight: '900' },
-  help: { marginTop: 12, color: colors.muted, fontSize: 8, lineHeight: 12, textAlign: 'center' },
+  help: { marginTop: 12, color: colors.muted, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   serverOverlay: {
     flex: 1,
     padding: 24,
@@ -410,7 +422,7 @@ const styles = StyleSheet.create({
   serverHeading: { flexDirection: 'row', justifyContent: 'space-between', gap: 18 },
   serverHeadingCopy: { flex: 1 },
   serverTitle: { marginTop: 4, color: colors.text, fontSize: 24, fontWeight: '900' },
-  serverIntro: { marginTop: 6, color: colors.muted, fontSize: 10, lineHeight: 15 },
+  serverIntro: { marginTop: 6, color: colors.muted, fontSize: 14, lineHeight: 18 },
   serverClose: {
     width: 38,
     height: 38,
@@ -421,8 +433,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   serverCloseText: { color: colors.text, fontSize: 24, lineHeight: 26 },
-  serverExample: { marginTop: 8, color: colors.muted, fontSize: 8, lineHeight: 12 },
-  serverError: { minHeight: 17, marginTop: 8, color: colors.red, fontSize: 9 },
+  serverExample: { marginTop: 8, color: colors.muted, fontSize: 12, lineHeight: 16 },
+  serverError: { minHeight: 17, marginTop: 8, color: colors.red, fontSize: 13 },
   serverActions: { marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   cancelButton: {
     minWidth: 110,
@@ -433,7 +445,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelButtonText: { color: colors.text, fontSize: 10, fontWeight: '900' },
+  cancelButtonText: { color: colors.text, fontSize: 14, fontWeight: '900' },
   saveServerButton: {
     minWidth: 170,
     height: 44,
@@ -443,5 +455,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveServerText: { color: colors.accentText, fontSize: 10, fontWeight: '900' },
+  saveServerText: { color: colors.accentText, fontSize: 14, fontWeight: '900' },
 });
