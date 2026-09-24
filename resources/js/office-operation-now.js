@@ -11,10 +11,21 @@ import {
     autoLayout,
     availableCatalog,
     catalogKey,
+    connectionProblem,
+    describeConnections,
     moveElement,
     reconcilePlantSnapshot,
+    removeElement,
     resizeElement,
+    unconnectedPlaces,
 } from './shared/plant-layout';
+import {
+    buildPlantIndex,
+    plantNodeLabel,
+    plantNodeModel,
+    tunnelStateLabel,
+    tunnelStateTone,
+} from './shared/plant-view';
 
 const tokenKey = 'estiba_wms_office_token';
 const identityKey = 'estiba_wms_office_identity';
@@ -69,6 +80,9 @@ const elements = {
     mapCatalogItems: byId('operationMapCatalogItems'),
     mapInspector: byId('operationMapInspector'),
     mapSelectionName: byId('operationMapSelectionName'),
+    mapConnect: byId('operationMapConnect'),
+    mapConnectionList: byId('operationMapConnectionList'),
+    mapNetworkSummary: byId('operationMapNetworkSummary'),
     editorStage: byId('operationEditorStage'),
     editorZoomLabel: byId('operationEditorZoomLabel'),
     alertsPanel: byId('operationAlertsPanel'),
@@ -87,6 +101,8 @@ const state = {
     editorZoom: 1,
     mapEditing: false,
     mapDraft: [],
+    mapConnections: [],
+    mapConnecting: null,
     mapSelectedId: null,
     mapDrag: null,
     mapRevision: 0,
@@ -683,37 +699,86 @@ function currentMapElements(plant = state.snapshot?.planta) {
     return plant?.configurado ? plant.elementos : autoLayout(plant?.catalogo || []);
 }
 
-function mapCatalogIndex() {
-    return new Map((state.snapshot?.planta?.catalogo || [])
-        .map((item) => [catalogKey(item.tipo, item.id), item]));
-}
-
 function mapTypeLabel(type) {
     return { camara: 'Cámara', tunel: 'Túnel', anden: 'Andén', almacen: 'Bodega', zona: 'Área' }[type] || 'Recinto';
 }
 
-function mapNodeMarkup(item, editable = false) {
-    const catalog = item.tipo === 'zona' ? null : mapCatalogIndex().get(catalogKey(item.tipo, item.referencia_id));
-    const code = catalog?.codigo || mapTypeLabel(item.tipo);
-    const name = catalog?.nombre || item.nombre;
-    const detail = catalog?.detalle || (item.tipo === 'zona' ? humanize(item.categoria || 'otro') : 'Referencia no disponible');
-    const tone = catalog?.tono || (item.tipo === 'zona' ? 'neutral' : 'warning');
-    const selected = editable && state.mapSelectedId === item.id;
+const PLANT_GLYPHS = {
+    wrench: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3.5 17.3a1.8 1.8 0 0 0 2.6 2.6l5.8-5.8a4 4 0 0 0 5.2-5.4l-2.5 2.5-2.4-.4-.4-2.4Z"/></svg>',
+    truck: '<svg viewBox="0 0 40 72" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><rect x="6" y="2" width="28" height="48" rx="2"/><path d="M6 12h28M6 22h28M6 32h28M6 42h28" class="plant-glyph__slats"/><rect x="9" y="53" width="22" height="16" rx="4"/><rect x="12" y="56" width="16" height="5" rx="1" class="plant-glyph__glass"/></svg>',
+    dock: '<svg viewBox="0 0 40 64" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path d="M8 4h24v56H8z" class="plant-glyph__outline"/><path d="M12 12h16M12 22h16M12 32h16M12 42h16M12 52h16" class="plant-glyph__outline"/></svg>',
+    racks: '<svg viewBox="0 0 64 32" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g class="plant-glyph__outline"><rect x="2" y="3" width="17" height="26"/><rect x="24" y="3" width="17" height="26"/><rect x="46" y="3" width="16" height="26"/><path d="M2 12h17M2 20h17M24 12h17M24 20h17M46 12h16M46 20h16"/></g></svg>',
+    bins: '<svg viewBox="0 0 64 28" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g><rect x="2" y="6" width="13" height="18" rx="1"/><rect x="18" y="6" width="13" height="18" rx="1"/><rect x="34" y="6" width="13" height="18" rx="1"/><rect x="50" y="6" width="12" height="18" rx="1"/></g><path d="M2 12h60M2 18h60" class="plant-glyph__slats"/></svg>',
+    repa: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11l-3-3M20 17H9l3 3" class="plant-glyph__outline"/></svg>',
+    person: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0Z"/></svg>',
+    forklift: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17V8h7l3 5v4ZM15 4v15h6M5 7V4h4"/><circle cx="6" cy="19" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20ZM12 10v5M12 18h.01"/></svg>',
+};
 
-    return `<article class="operation-map-node${selected ? ' is-selected' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-tone="${escapeHtml(tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(`${mapTypeLabel(item.tipo)} ${code}, ${name}: ${detail}`)}">
-        <span class="operation-map-node__type">${escapeHtml(item.tipo === 'zona' ? humanize(item.categoria || 'Área') : `${mapTypeLabel(item.tipo)} · ${code}`)}</span>
-        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
-        <small>${escapeHtml(detail)}</small>
+function plantCrewMarkup(crew) {
+    if (!crew || (!crew.personas.length && !crew.equipos.length)) return '';
+    const people = crew.personas.length
+        ? `<span class="plant-node__crew-item" data-crew="personal" title="${escapeHtml(crew.personas.join(', '))}">${PLANT_GLYPHS.person}${number(crew.personas.length)}</span>`
+        : '';
+    const devices = crew.equipos.length
+        ? `<span class="plant-node__crew-item" data-crew="equipo" title="${escapeHtml(crew.equipos.join(', '))}">${PLANT_GLYPHS.forklift}${number(crew.equipos.length)}</span>`
+        : '';
+    return `<span class="plant-node__crew">${people}${devices}</span>`;
+}
+
+function mapNodeMarkup(item, editable = false, index = buildPlantIndex(state.snapshot || {}), unconnected = false) {
+    const model = plantNodeModel(item, index);
+    const selected = editable && state.mapSelectedId === item.id;
+    const connecting = editable && state.mapConnecting === item.id;
+    const showName = model.name && model.name !== model.code;
+    const meter = model.meter
+        ? `<span class="plant-node__meter" data-tone="${escapeHtml(model.meter.tone)}"${model.meter.label ? ` title="${escapeHtml(`${model.meter.value}% ${model.meter.label}`)}"` : ''}><i style="--plant-meter:${model.meter.value}%"></i></span>`
+        : '';
+    const alerts = model.alerts.length
+        ? `<span class="plant-node__alert" title="${escapeHtml(model.alerts.join(' · '))}">${PLANT_GLYPHS.alert}</span>`
+        : '';
+
+    return `<article class="operation-map-node plant-node${selected ? ' is-selected' : ''}${connecting ? ' is-connecting' : ''}${unconnected ? ' is-unconnected' : ''}${model.fill ? ' is-filled' : ''}" data-id="${escapeHtml(item.id)}" data-type="${escapeHtml(item.tipo)}" data-zone="${escapeHtml(model.zone || '')}" data-state="${escapeHtml(model.state)}" data-tone="${escapeHtml(model.tone)}" data-rotation="${Number(item.rotacion) || 0}" style="left:${item.x / 100}%;top:${item.y / 100}%;width:${item.ancho / 100}%;height:${item.alto / 100}%" aria-label="${escapeHtml(plantNodeLabel(model))}" title="${escapeHtml(plantNodeLabel(model))}">
+        <span class="plant-node__tag">${escapeHtml(model.tag)}</span>
+        ${alerts}
+        ${model.glyph ? `<span class="plant-node__glyph" data-glyph="${escapeHtml(model.glyph)}">${PLANT_GLYPHS[model.glyph] || ''}</span>` : ''}
+        <strong class="plant-node__code">${escapeHtml(model.code)}</strong>
+        ${model.value ? `<span class="plant-node__value">${escapeHtml(model.value)}</span>` : ''}
+        ${meter}
+        ${model.detail ? `<small class="plant-node__detail">${escapeHtml(model.detail)}</small>` : ''}
+        ${showName ? `<small class="plant-node__name">${escapeHtml(model.name)}</small>` : ''}
+        ${plantCrewMarkup(model.crew)}
+        ${unconnected ? '<span class="plant-node__access">Sin acceso</span>' : ''}
         ${editable ? '<button class="operation-map-node__resize" type="button" aria-label="Redimensionar"></button>' : ''}
     </article>`;
 }
 
-function renderMapStage(target, items, editable = false) {
+const MAP_LAYER = { zona: 0, pasillo: 1 };
+
+function mapDoorMarkup(connection, byId) {
+    const from = byId.get(connection.desde);
+    const to = byId.get(connection.hacia);
+    if (!from || !to) return '';
+    const point = connection.point || {
+        x: Math.round((from.x + from.ancho / 2 + to.x + to.ancho / 2) / 2),
+        y: Math.round((from.y + from.alto / 2 + to.y + to.alto / 2) / 2),
+    };
+    const label = `${connection.valid ? 'Acceso' : 'Conexión sin borde compartido'}: ${from.nombre} ↔ ${to.nombre}`;
+    return `<span class="plant-door${connection.valid ? '' : ' is-invalid'}" data-connection="${escapeHtml(connection.id)}" style="left:${point.x / 100}%;top:${point.y / 100}%" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"></span>`;
+}
+
+function renderMapStage(target, items, editable = false, connections = []) {
     if (!items.length) {
         target.innerHTML = empty('Plano sin recintos', editable ? 'Agrega recintos desde el catálogo o dibuja una nueva área.' : 'Administración aún no ha configurado la planta.');
         return;
     }
-    target.innerHTML = items.map((item) => mapNodeMarkup(item, editable)).join('');
+    const index = buildPlantIndex(state.snapshot || {});
+    const ordered = [...items].sort((left, right) => (MAP_LAYER[left.tipo] ?? 2) - (MAP_LAYER[right.tipo] ?? 2));
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const unconnected = editable ? new Set(unconnectedPlaces(items, connections)) : new Set();
+    const nodes = ordered.map((item) => mapNodeMarkup(item, editable, index, unconnected.has(item.id))).join('');
+    const doors = describeConnections(items, connections).map((connection) => mapDoorMarkup(connection, byId)).join('');
+    target.innerHTML = nodes + doors;
 }
 
 function setMapZoom(kind, value) {
@@ -728,7 +793,7 @@ function setMapZoom(kind, value) {
 function renderFacility(data) {
     const plant = data.planta;
     const items = currentMapElements(plant);
-    renderMapStage(elements.facilityMap, items);
+    renderMapStage(elements.facilityMap, items, false, plant.configurado ? (plant.conexiones || []) : []);
     elements.facilityStatus.textContent = plant.configurado ? `Plano v${plant.version}` : 'Distribución automática';
     elements.facilityStatus.dataset.tone = plant.configurado ? 'success' : 'warning';
     elements.facilitySubtitle.textContent = plant.configurado
@@ -756,29 +821,6 @@ function renderAlerts(data) {
         <p>${escapeHtml(alert.evidence)}</p>
         <a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a>
     </article>`).join('');
-}
-
-function tunnelStateLabel(tunnel) {
-    return {
-        borrador: 'Borrador',
-        cargando: 'Cargando',
-        listo_para_iniciar: 'Listo',
-        en_proceso: 'En ciclo',
-        pendiente_verificacion: 'Verificación',
-        disponible: 'En espera',
-        mantenimiento: 'Mantención',
-        fuera_servicio: 'Fuera de servicio',
-        inactivo: 'Inactivo',
-    }[tunnel.estado_operacional] || humanize(tunnel.estado_operacional);
-}
-
-function tunnelStateTone(tunnel) {
-    if (!tunnel.operable || ['mantenimiento', 'fuera_servicio', 'inactivo'].includes(tunnel.estado_operacional)) return 'neutral';
-    if (tunnel.proceso_activo?.objetivo_excedido) return 'critical';
-    if (tunnel.estado_operacional === 'pendiente_verificacion') return 'warning';
-    if (tunnel.estado_operacional === 'en_proceso') return 'success';
-    if (tunnel.estado_operacional === 'disponible') return 'neutral';
-    return 'info';
 }
 
 function tunnelProgress(tunnel) {
@@ -950,12 +992,39 @@ function renderMapCatalog() {
         : '<p>Todos los recintos existentes ya están incorporados.</p>';
 }
 
+function renderConnectionList(selected) {
+    const byId = new Map(state.mapDraft.map((item) => [item.id, item]));
+    const own = describeConnections(state.mapDraft, state.mapConnections)
+        .filter((connection) => selected && (connection.desde === selected.id || connection.hacia === selected.id));
+    elements.mapConnectionList.innerHTML = own.length
+        ? own.map((connection) => {
+            const other = byId.get(connection.desde === selected.id ? connection.hacia : connection.desde);
+            return `<li${connection.valid ? '' : ' class="is-invalid"'}><span>${escapeHtml(other?.nombre || 'Elemento eliminado')}${connection.valid ? '' : ' · sin borde compartido'}</span><button type="button" data-connection-remove="${escapeHtml(connection.id)}" aria-label="Quitar conexión con ${escapeHtml(other?.nombre || 'elemento')}">Quitar</button></li>`;
+        }).join('')
+        : '<li class="is-empty">Sin conexiones</li>';
+}
+
+function renderNetworkSummary() {
+    const places = state.mapDraft.filter((item) => !['zona', 'pasillo'].includes(item.tipo)).length;
+    const withoutAccess = unconnectedPlaces(state.mapDraft, state.mapConnections).length;
+    const invalid = describeConnections(state.mapDraft, state.mapConnections).filter((connection) => !connection.valid).length;
+    elements.mapNetworkSummary.dataset.tone = invalid ? 'critical' : (withoutAccess ? 'warning' : 'success');
+    elements.mapNetworkSummary.innerHTML = `<strong>RED DE LA PLANTA</strong>
+        <span>${number(state.mapConnections.length)} conexiones · ${number(places - withoutAccess)} de ${number(places)} recintos con acceso</span>
+        ${invalid ? `<span>${number(invalid)} conexiones quedaron sin borde compartido; acerca los elementos o quítalas antes de guardar.</span>` : ''}`;
+}
+
 function renderEditor() {
-    renderMapStage(elements.editorStage, state.mapDraft, state.mapEditing);
+    renderMapStage(elements.editorStage, state.mapDraft, state.mapEditing, state.mapConnections);
     renderMapCatalog();
     const selected = state.mapDraft.find((item) => item.id === state.mapSelectedId);
     elements.mapInspector.hidden = !state.mapEditing || !selected;
     elements.mapSelectionName.textContent = selected?.nombre || 'Ninguno';
+    elements.mapConnect.textContent = state.mapConnecting ? 'Cancelar conexión' : 'Conectar con…';
+    elements.mapConnect.setAttribute('aria-pressed', String(Boolean(state.mapConnecting)));
+    elements.editorStage.classList.toggle('is-connecting', Boolean(state.mapConnecting));
+    renderConnectionList(selected);
+    renderNetworkSummary();
     setMapZoom('editor', state.editorZoom);
 }
 
@@ -964,6 +1033,8 @@ function openMapDialog(editing) {
     if (!plant) return;
     state.mapEditing = Boolean(editing && plant.puede_editar);
     state.mapDraft = JSON.parse(JSON.stringify(currentMapElements(plant)));
+    state.mapConnections = JSON.parse(JSON.stringify(plant.configurado ? (plant.conexiones || []) : []));
+    state.mapConnecting = null;
     state.mapSelectedId = null;
     elements.mapDialogTitle.textContent = state.mapEditing ? 'Editar plano operacional' : plant.nombre;
     elements.mapDialogHint.textContent = state.mapEditing
@@ -1015,6 +1086,7 @@ async function saveMap() {
                 version_esperada: state.snapshot.planta.version,
                 nombre: state.snapshot.planta.nombre || 'Planta principal',
                 elementos: state.mapDraft,
+                conexiones: state.mapConnections,
             }),
         });
         state.snapshot.planta = {
@@ -1042,6 +1114,10 @@ function beginMapPointer(event) {
     const item = state.mapDraft.find((candidate) => candidate.id === node.dataset.id);
     if (!item) return;
     event.preventDefault();
+    if (state.mapConnecting) {
+        finishConnection(item.id);
+        return;
+    }
     state.mapSelectedId = item.id;
     state.mapDrag = {
         id: item.id,
@@ -1050,6 +1126,19 @@ function beginMapPointer(event) {
         startY: event.clientY,
         initial: { ...item },
     };
+    renderEditor();
+}
+
+function finishConnection(targetId) {
+    const origin = state.mapConnecting;
+    if (targetId === origin) return;
+    const problem = connectionProblem(state.mapDraft, origin, targetId, state.mapConnections);
+    if (problem) {
+        toast(problem, true);
+        return;
+    }
+    state.mapConnections.push({ id: crypto.randomUUID(), desde: origin, hacia: targetId });
+    state.mapConnecting = null;
     renderEditor();
 }
 
@@ -1086,11 +1175,17 @@ byId('operationMapZoneForm').addEventListener('submit', (event) => {
     event.preventDefault();
     const name = byId('operationMapZoneName').value.trim();
     if (!name) return;
-    state.mapDraft.push({
-        id: crypto.randomUUID(), tipo: 'zona', referencia_id: null, nombre: name,
-        categoria: byId('operationMapZoneType').value, x: 500, y: 500,
-        ancho: 2200, alto: 1400, rotacion: 0,
-    });
+    const kind = byId('operationMapZoneType').value;
+    // Un pasillo es un elemento de circulación angosto; el resto son áreas.
+    state.mapDraft.push(kind === 'pasillo'
+        ? {
+            id: crypto.randomUUID(), tipo: 'pasillo', referencia_id: null, nombre: name,
+            categoria: null, x: 500, y: 500, ancho: 3000, alto: 300, rotacion: 0,
+        }
+        : {
+            id: crypto.randomUUID(), tipo: 'zona', referencia_id: null, nombre: name,
+            categoria: kind, x: 500, y: 500, ancho: 2200, alto: 1400, rotacion: 0,
+        });
     state.mapSelectedId = state.mapDraft.at(-1).id;
     event.target.reset();
     renderEditor();
@@ -1105,8 +1200,27 @@ byId('operationMapRotate').addEventListener('click', () => {
     renderEditor();
 });
 byId('operationMapRemove').addEventListener('click', () => {
-    state.mapDraft = state.mapDraft.filter((item) => item.id !== state.mapSelectedId);
+    const result = removeElement(state.mapDraft, state.mapConnections, state.mapSelectedId);
+    state.mapDraft = result.elementos;
+    state.mapConnections = result.conexiones;
     state.mapSelectedId = null;
+    state.mapConnecting = null;
+    renderEditor();
+});
+elements.mapConnect.addEventListener('click', () => {
+    state.mapConnecting = state.mapConnecting ? null : state.mapSelectedId;
+    renderEditor();
+});
+elements.mapConnectionList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-connection-remove]');
+    if (!button) return;
+    state.mapConnections = state.mapConnections.filter((connection) => connection.id !== button.dataset.connectionRemove);
+    renderEditor();
+});
+elements.mapDialog.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !state.mapConnecting) return;
+    event.preventDefault();
+    state.mapConnecting = null;
     renderEditor();
 });
 elements.editorStage.addEventListener('pointerdown', beginMapPointer);

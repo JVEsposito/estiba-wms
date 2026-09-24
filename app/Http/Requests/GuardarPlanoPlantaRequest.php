@@ -14,15 +14,19 @@ class GuardarPlanoPlantaRequest extends FormRequest
             'nombre' => ['required', 'string', 'max:120'],
             'elementos' => ['present', 'array', 'max:150'],
             'elementos.*.id' => ['required', 'uuid', 'distinct'],
-            'elementos.*.tipo' => ['required', Rule::in(['camara', 'tunel', 'anden', 'almacen', 'zona'])],
+            'elementos.*.tipo' => ['required', Rule::in(['camara', 'tunel', 'anden', 'almacen', 'zona', 'pasillo'])],
             'elementos.*.referencia_id' => ['nullable', 'uuid'],
             'elementos.*.nombre' => ['required', 'string', 'max:100'],
             'elementos.*.categoria' => ['nullable', 'string', 'max:30'],
             'elementos.*.x' => ['required', 'integer', 'between:0,10000'],
             'elementos.*.y' => ['required', 'integer', 'between:0,10000'],
-            'elementos.*.ancho' => ['required', 'integer', 'between:300,10000'],
-            'elementos.*.alto' => ['required', 'integer', 'between:300,10000'],
+            'elementos.*.ancho' => ['required', 'integer', 'between:100,10000'],
+            'elementos.*.alto' => ['required', 'integer', 'between:100,10000'],
             'elementos.*.rotacion' => ['required', Rule::in([0, 90, 180, 270])],
+            'conexiones' => ['sometimes', 'array', 'max:400'],
+            'conexiones.*.id' => ['required', 'uuid', 'distinct'],
+            'conexiones.*.desde' => ['required', 'uuid'],
+            'conexiones.*.hacia' => ['required', 'uuid'],
         ];
     }
 
@@ -31,6 +35,8 @@ class GuardarPlanoPlantaRequest extends FormRequest
         return [
             'elementos.max' => 'El plano admite hasta 150 elementos.',
             'elementos.*.id.distinct' => 'Cada elemento del plano debe tener un identificador único.',
+            'conexiones.max' => 'El plano admite hasta 400 conexiones.',
+            'conexiones.*.id.distinct' => 'Cada conexión debe tener un identificador único.',
             'elementos.*.ancho.between' => 'El ancho de cada elemento debe permanecer dentro del plano.',
             'elementos.*.alto.between' => 'El alto de cada elemento debe permanecer dentro del plano.',
         ];

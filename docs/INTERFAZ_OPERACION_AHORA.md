@@ -144,3 +144,62 @@ Si solo existe un ciclo, la interfaz lo declara como primer ciclo confirmado. Si
 no hay cambios, muestra una confirmación explícita en lugar de una bandeja vacía.
 La comparación respeta los temas claro y oscuro, el diseño táctil y el escape de
 todo texto recibido desde el servidor.
+
+## Vista de planta
+
+El plano ocupa todo el ancho, debajo del puesto de mando, con fondo de plano
+técnico y leyenda lateral. El color verde, ámbar y rojo se reserva para el
+estado; el tipo de recinto se reconoce por forma, etiqueta e icono.
+
+| Recinto | Qué muestra |
+|---|---|
+| Cámara | Código, ocupación en porcentaje con barra, posiciones ocupadas, personal y equipos móviles en sesión y alerta de control ambiental. Sobre 90 % el recinto se rellena en rojo. |
+| Túnel | Carga de posiciones, estado del ciclo y avance respecto del objetivo. Mantención, fuera de servicio o inactivo se muestran con trama roja y llave. |
+| Andén | Bloque de muelle con el camión presente, patente o carga; si no hay presencia queda libre. |
+| Bodega | Bodega física de materiales con estanterías. |
+| Área REPA | Pallets en el buffer respecto del máximo configurado, con el mismo criterio de prioridad que el recálculo del buffer. |
+| Área Recepción MP | Recepciones por validar, camiones en Romana y validaciones en curso de la temporada activa. |
+
+Una cámara inactiva sigue apareciendo en el catálogo como fuera de servicio para
+que el plano no pierda su referencia. Personal y equipo móvil provienen de las
+sesiones de estiba abiertas: el equipo corresponde al dispositivo con que opera
+el camarero, no a un registro independiente de grúas.
+
+## Red física de la planta
+
+El editor distingue tres clases de espacio que no son recintos del catálogo:
+
+- **Pasillo:** elemento de circulación; puede tener solo 100 unidades de grosor
+  y requiere al menos 300 de largo. Rotarlo cambia su orientación.
+- **Área no operativa:** sala de máquinas, muros o espacios sin tránsito. Se
+  dibuja con trama gris y no admite conexiones.
+- **Área de proceso:** REPA, Recepción MP, patio, oficina u otra; puede
+  conectarse si tiene tránsito.
+
+Una conexión une dos elementos que comparten un borde: la puerta de una cámara
+hacia un pasillo, la boca de un túnel hacia una cámara, dos tramos de pasillo o
+un andén dentro del patio. Se crea seleccionando un elemento, pulsando
+«Conectar con…» y eligiendo el vecino; Escape cancela. El editor marca en rojo
+las conexiones que quedaron sin borde compartido después de mover un elemento y
+señala los recintos «Sin acceso».
+
+El servidor es la autoridad. `ServicioRedPlanta` valida al guardar que:
+
+- ambos extremos existan en el plano y sean distintos;
+- ninguno sea un área no operativa;
+- el par no esté repetido;
+- los elementos se toquen o queden a 100 unidades como máximo, con al menos 100
+  de borde compartido, o se superpongan.
+
+La misma regla vive en `resources/js/shared/plant-layout.js` para la vista
+previa; `tests/Unit/Services/Operacion/ServicioRedPlantaTest.php` y
+`tests/JavaScript/plant-network.test.mjs` usan los mismos casos.
+
+`GET /api/operacion-ahora` publica `planta.conexiones` y `planta.red` (conexiones,
+pasillos, recintos con y sin acceso y redes independientes).
+`GET /api/operacion-ahora/plano/recorrido?desde=&hacia=` devuelve el camino más
+corto entre dos elementos del plano guardado y su distancia relativa entre
+centros, en unidades del plano. Es la base para que el planificador considere
+recorridos reales; hoy ninguna regla de arbitraje la consume.
+
+Las pruebas visuales y de modelo viven en `tests/JavaScript/plant-view.test.mjs`.

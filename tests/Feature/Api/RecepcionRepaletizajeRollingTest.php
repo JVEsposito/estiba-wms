@@ -18,6 +18,7 @@ use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Planificador\ServicioRecalculosPendientesPlanificador;
+use App\Services\Validacion\ServicioPrioridadBufferRepaletizaje;
 use App\Services\Validacion\ServicioRepaletizaje;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -152,6 +153,11 @@ class RecepcionRepaletizajeRollingTest extends TestCase
 
         $planesAltos = PlanOperacional::query()->get();
         $this->assertCount(8, $planesAltos);
+        // La lectura del tablero usa la misma regla que el recálculo.
+        $estadoTablero = app(ServicioPrioridadBufferRepaletizaje::class)->estado($temporada->id);
+        $this->assertSame(8, $estadoTablero['pallets_pendientes']);
+        $this->assertSame('alta', $estadoTablero['prioridad']->value);
+        $this->assertSame(10, $estadoTablero['maximo']);
         $this->assertTrue($planesAltos->every(
             fn (PlanOperacional $plan): bool => $plan->prioridad->value === 'alta'
                 && $plan->contexto['buffer_repa_pallets_pendientes'] === 8

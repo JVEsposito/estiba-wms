@@ -82,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:consultar-panel-gerencial');
     Route::get('/operacion-ahora/planificador/replay', ReplayCicloPlanificadorController::class)
         ->middleware('can:consultar-panel-gerencial');
+    Route::get('/operacion-ahora/plano/recorrido', [PlanoPlantaController::class, 'recorrido'])
+        ->middleware('can:consultar-panel-gerencial');
     Route::put('/administracion/operacion-ahora/plano', [PlanoPlantaController::class, 'update'])
         ->middleware('can:administrar-plano-planta');
     Route::get('/administracion/integridad-operacional', [IntegridadOperacionalController::class, 'index'])

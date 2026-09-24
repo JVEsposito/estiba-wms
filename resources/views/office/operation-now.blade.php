@@ -169,7 +169,7 @@
                         <header class="operation-now-panel__heading">
                             <div class="operation-now-panel__title">
                                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-5h6v5"/></svg>
-                                <div><h2 id="operationFacilityTitle">Vista operacional de recintos</h2><span id="operationFacilitySubtitle">Plano físico y estado en vivo de la planta</span></div>
+                                <div><h2 id="operationFacilityTitle">Vista de planta</h2><span id="operationFacilitySubtitle">Plano físico y estado en vivo de la planta</span></div>
                             </div>
                             <div class="operation-now-panel__tools operation-now-map-tools">
                                 <span class="operation-now-map-status" id="operationFacilityStatus">Cargando plano…</span>
@@ -180,12 +180,29 @@
                                 <button class="operation-now-map-action operation-now-map-action--primary" id="operationMapEdit" type="button" hidden>Editar plano</button>
                             </div>
                         </header>
-                        <div class="operation-now-panel__body operation-now-facility">
+                        <div class="operation-now-panel__body operation-now-facility plant-view">
+                            <aside class="plant-legend" aria-label="Leyenda del plano">
+                                <strong>Recintos</strong>
+                                <span data-legend="camara">Cámara</span>
+                                <span data-legend="tunel">Túnel prefrío</span>
+                                <span data-legend="anden">Muelle / andén</span>
+                                <span data-legend="repa">REPA</span>
+                                <span data-legend="recepcion_mp">Recepción MP</span>
+                                <span data-legend="materiales">Materiales</span>
+                                <span data-legend="pasillo">Pasillo</span>
+                                <span data-legend="no_operativo">No operativo</span>
+                                <span data-legend="acceso">Acceso / puerta</span>
+                                <strong>En la cámara</strong>
+                                <span data-legend="equipo">Equipo móvil</span>
+                                <span data-legend="personal">Personal</span>
+                                <strong>Ocupación</strong>
+                                <span data-legend="success">Bajo 70 %</span>
+                                <span data-legend="warning">70 a 90 %</span>
+                                <span data-legend="critical">Sobre 90 %</span>
+                                <span data-legend="mantencion">Mantención</span>
+                            </aside>
                             <div class="operation-now-map-viewport" id="operationFacilityViewport">
-                                <div class="operation-now-map-stage" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
-                            </div>
-                            <div class="operation-now-map-legend" aria-label="Leyenda del plano">
-                                <span data-type="camara">Cámara</span><span data-type="tunel">Túnel</span><span data-type="anden">Andén</span><span data-type="almacen">Bodega</span><span data-type="zona">Zona</span>
+                                <div class="operation-now-map-stage plant-stage" id="operationFacilityMap"><div class="operation-now-empty">Preparando vista operacional…</div></div>
                             </div>
                         </div>
                     </section>
@@ -262,18 +279,22 @@
                             <form class="operation-map-zone-form" id="operationMapZoneForm">
                                 <strong>DIBUJAR ÁREA</strong>
                                 <label>Nombre<input id="operationMapZoneName" maxlength="100" placeholder="Ej. Patio de recepción" required></label>
-                                <label>Tipo<select id="operationMapZoneType"><option value="packing">Packing</option><option value="bodega">Bodega</option><option value="pasillo">Pasillo</option><option value="patio">Patio</option><option value="oficina">Oficina</option><option value="muelle">Muelle</option><option value="otro">Otro</option></select></label>
+                                <label>Tipo<select id="operationMapZoneType"><option value="repa">REPA (buffer en vivo)</option><option value="recepcion_mp">Recepción MP (en vivo)</option><option value="materiales">Materiales</option><option value="packing">Packing</option><option value="bodega">Bodega</option><option value="pasillo">Pasillo (circulación)</option><option value="no_operativo">No operativo (sin tránsito)</option><option value="patio">Patio</option><option value="oficina">Oficina</option><option value="muelle">Muelle</option><option value="otro">Otro</option></select></label>
                                 <button type="submit">Agregar área</button>
                             </form>
-                            <div class="operation-map-help"><strong>Cómo editar</strong><span>Arrastra para mover. Usa la esquina inferior para redimensionar. Selecciona un recinto para rotarlo o quitarlo.</span></div>
+                            <div class="operation-map-network" id="operationMapNetworkSummary" data-tone="neutral"><strong>RED DE LA PLANTA</strong><span>Sin conexiones</span></div>
+                            <div class="operation-map-help"><strong>Cómo editar</strong><span>Arrastra para mover. Usa la esquina inferior para redimensionar. Selecciona un recinto para rotarlo o quitarlo.</span><strong>Conexiones</strong><span>Selecciona un recinto o pasillo, pulsa «Conectar con…» y elige el elemento vecino. Ambos deben compartir un borde: la puerta se dibuja en ese borde.</span></div>
                         </aside>
                         <main class="operation-map-dialog__viewport" id="operationEditorViewport">
-                            <div class="operation-now-map-stage operation-now-map-stage--editor" id="operationEditorStage"></div>
+                            <div class="operation-now-map-stage operation-now-map-stage--editor plant-stage" id="operationEditorStage"></div>
                         </main>
                         <aside class="operation-map-inspector" id="operationMapInspector" hidden>
                             <strong>ELEMENTO SELECCIONADO</strong>
                             <span id="operationMapSelectionName">Ninguno</span>
                             <div><button id="operationMapRotate" type="button">Rotar 90°</button><button id="operationMapRemove" type="button">Quitar</button></div>
+                            <button class="operation-map-inspector__connect" id="operationMapConnect" type="button" aria-pressed="false">Conectar con…</button>
+                            <strong>CONEXIONES</strong>
+                            <ul class="operation-map-inspector__connections" id="operationMapConnectionList"></ul>
                         </aside>
                     </div>
                 </div>
