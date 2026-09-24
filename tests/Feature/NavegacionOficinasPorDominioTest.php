@@ -33,6 +33,7 @@ class NavegacionOficinasPorDominioTest extends TestCase
         $script = file_get_contents(resource_path('js/office-queries.js'));
         $this->assertIsString($script);
         $this->assertStringContainsString('function runSearchFromUrl()', $script);
+        $this->assertStringContainsString('query-search-limit', $script);
     }
 
     public function test_materia_prima_muestra_solo_sus_oficinas_secundarias(): void

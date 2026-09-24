@@ -103,3 +103,7 @@ pantalla Operación ahora. Esta entrega no registra temperaturas ni crea avisos.
 - El menú lateral ofrece **Buscar** (folio, lote, recepción `REC-*`, CSG, guía…) en todas
   las oficinas para perfiles con acceso a Consultas. Abre la búsqueda operacional con el
   término y la ejecuta; la trazabilidad de lotes también acepta `?q=`.
+- La búsqueda es una vista rápida: muestra hasta 20 coincidencias recientes por categoría
+  (`limite_por_categoria` en la respuesta) y lo advierte cuando se alcanza el límite. El
+  alcance completo de un lote o proceso, por ejemplo para un retiro, se obtiene en
+  **Trazabilidad de lotes**, enlazada desde el mismo aviso.

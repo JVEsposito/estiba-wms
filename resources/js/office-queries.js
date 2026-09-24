@@ -252,8 +252,12 @@ function renderSearchResults(payload) {
         elements.searchResults.innerHTML = `<div class="query-empty">No se encontraron registros para “${escapeHtml(payload.termino)}”.</div>`;
         return;
     }
-    elements.searchResults.innerHTML = groups.filter((group) => payload[group]?.length).map((group) => `
-        <section class="result-group"><h3>${escapeHtml(label(group))}<span>${payload[group].length}</span></h3>
+    // Cada categoría muestra solo las coincidencias más recientes; no es un listado de alcance.
+    const limit = Number(payload.limite_por_categoria || 0);
+    const truncated = limit > 0 && groups.some((group) => (payload[group]?.length || 0) >= limit);
+    const notice = truncated ? `<p class="query-search-limit">Se muestran hasta ${escapeHtml(limit)} coincidencias por categoría. Para conocer todos los folios de un lote o proceso usa <a href="/oficina/consultas/trazabilidad?q=${encodeURIComponent(payload.termino)}">Trazabilidad de lotes</a>.</p>` : '';
+    elements.searchResults.innerHTML = notice + groups.filter((group) => payload[group]?.length).map((group) => `
+        <section class="result-group"><h3>${escapeHtml(label(group))}<span>${limit > 0 && payload[group].length >= limit ? `primeros ${payload[group].length}` : payload[group].length}</span></h3>
         <div class="result-cards">${payload[group].map((item) => resultCard(group, item)).join('')}</div></section>`).join('');
 }
 
