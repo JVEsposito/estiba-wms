@@ -98,10 +98,13 @@
                 <header>
                     <p class="eyebrow">MATERIA PRIMA → PRODUCTO TERMINADO</p>
                     <h2>Buscar lote, proceso o folio</h2>
-                    <p>Ingresa el número de lote MP o de proceso de packing impreso en la etiqueta del pallet, o un folio, para ver la cadena completa.</p>
+                    <p>Ingresa el número de lote MP o de proceso de packing impreso en la etiqueta del pallet, o un folio, para ver la cadena completa. Los números se repiten entre temporadas: cada consulta corresponde a una sola temporada, y las cerradas siguen disponibles.</p>
                 </header>
                 <form class="query-search-form trace-lots-form" id="traceLotsForm">
                     <input name="q" minlength="2" maxlength="80" placeholder="Lote MP, proceso de packing o folio" required>
+                    <label class="trace-lots-season"><span>Temporada</span>
+                        <select name="temporada_id" id="traceLotsSeason"><option value="">Temporada activa</option></select>
+                    </label>
                     <button class="primary-button" type="submit">Trazar</button>
                 </form>
                 <div class="trace-lots-results" id="traceLotsResults"><div class="query-empty">Los folios y lotes relacionados aparecerán aquí.</div></div>

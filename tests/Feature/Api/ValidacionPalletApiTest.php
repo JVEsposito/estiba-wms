@@ -161,7 +161,7 @@ class ValidacionPalletApiTest extends TestCase
         $consulta = User::factory()->create(['rol' => RolUsuario::Administrador, 'activo' => true]);
         $this->app['auth']->forgetGuards();
         $this->actingAs($consulta, 'sanctum')
-            ->getJson('/api/consultas/trazabilidad?q=l-2402')
+            ->getJson('/api/consultas/trazabilidad?q=l-2402&temporada_id='.$folio->temporada_id)
             ->assertOk()
             ->assertJsonPath('data.termino', 'L-2402')
             ->assertJsonPath('data.resumen.folios', 1)
@@ -170,7 +170,7 @@ class ValidacionPalletApiTest extends TestCase
             ->assertJsonCount(2, 'data.folios.0.lineas');
 
         $this->actingAs($consulta, 'sanctum')
-            ->getJson('/api/consultas/trazabilidad?q=P-77')
+            ->getJson('/api/consultas/trazabilidad?q=P-77&temporada_id='.$folio->temporada_id)
             ->assertOk()
             ->assertJsonPath('data.resumen.cajas_coincidentes', 120);
     }

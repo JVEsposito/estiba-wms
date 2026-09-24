@@ -16,6 +16,7 @@ const elements = {
     globalSearch: byId('globalSearchForm'),
     traceLots: byId('traceLotsForm'),
     traceLotsResults: byId('traceLotsResults'),
+    traceLotsSeason: byId('traceLotsSeason'),
     searchResults: byId('searchResults'),
     sagSearch: byId('sagSearchForm'),
     sagResult: byId('sagResult'),
@@ -41,6 +42,7 @@ const state = {
     catalogs: { clientes: [] },
     producers: [],
     traceTerm: '',
+    traceSeason: '',
 };
 
 class ApiError extends Error {
@@ -524,15 +526,25 @@ elements.globalSearch.addEventListener('submit', async (event) => {
 
 // Trazabilidad MP → PT: resumen total, lotes digitados y folios paginados con su composición.
 // El Excel incluye todos los folios afectados y es el respaldo para decidir un retiro.
+function renderTraceSeasons(seasons = [], current = null) {
+    const select = elements.traceLotsSeason;
+    if (!select || !seasons.length) return;
+    select.innerHTML = seasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.codigo)}${season.activa ? ' · activa' : ' · cerrada'}</option>`).join('');
+    if (current) select.value = current.id;
+}
+
 function renderTraceLots(payload) {
-    const { resumen, lotes, folios, termino, paginacion } = payload;
+    const { resumen, lotes, folios, termino, paginacion, temporada, temporadas } = payload;
     state.traceTerm = termino;
+    state.traceSeason = temporada?.id ?? '';
+    renderTraceSeasons(temporadas, temporada);
+    const seasonLabel = temporada ? `temporada ${temporada.codigo}` : 'la temporada';
     if (!folios.length && !lotes.length) {
-        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)}.</div>`;
+        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)} en ${escapeHtml(seasonLabel)}.</div>`;
         return;
     }
     const summary = `<div class="trace-lots-summary">
-        <span><strong>${escapeHtml(resumen.folios)}</strong> folios en total (${escapeHtml(resumen.folios_activos)} activos)</span>
+        <span><strong>${escapeHtml(resumen.folios)}</strong> folios en total en ${escapeHtml(seasonLabel)} (${escapeHtml(resumen.folios_activos)} activos)</span>
         <span><strong>${escapeHtml(resumen.cajas_coincidentes)}</strong> cajas de ${escapeHtml(termino)}</span>
         ${resumen.lineas_sin_lote_verificado ? `<span class="trace-lots-unregistered">${escapeHtml(resumen.lineas_sin_lote_verificado)} líneas sin recepción MP verificada</span>` : ''}
         ${resumen.folios ? '<button type="button" class="trace-button" data-trace-export>Descargar todos los folios (Excel)</button>' : ''}
@@ -558,18 +570,21 @@ function renderTraceLots(payload) {
     elements.traceLotsResults.innerHTML = summary + lots + table + pages;
 }
 
-async function loadTraceLots(term, page = 1) {
+async function loadTraceLots(term, page = 1, season = '') {
     setBusy(true, 'Trazando lote…');
     try {
         const params = new URLSearchParams({ q: term, pagina: String(page) });
+        if (season) params.set('temporada_id', season);
         renderTraceLots((await api(`/api/consultas/trazabilidad?${params.toString()}`)).data);
     } catch (error) { toast(error.message, true); } finally { setBusy(false); }
 }
 
-async function downloadTraceLots(term) {
+async function downloadTraceLots(term, season = '') {
     setBusy(true, 'Preparando Excel de trazabilidad…');
     try {
-        const response = await fetch(`/api/consultas/trazabilidad/exportar?${new URLSearchParams({ q: term }).toString()}`, {
+        const params = new URLSearchParams({ q: term });
+        if (season) params.set('temporada_id', season);
+        const response = await fetch(`/api/consultas/trazabilidad/exportar?${params.toString()}`, {
             headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', Authorization: `Bearer ${state.token}` },
         });
         if (!response.ok) throw new ApiError('No fue posible generar el Excel de trazabilidad.', response.status);
@@ -586,16 +601,17 @@ async function downloadTraceLots(term) {
 
 elements.traceLots?.addEventListener('submit', (event) => {
     event.preventDefault();
-    void loadTraceLots(String(new FormData(elements.traceLots).get('q') ?? ''));
+    const data = new FormData(elements.traceLots);
+    void loadTraceLots(String(data.get('q') ?? ''), 1, String(data.get('temporada_id') ?? ''));
 });
 
 elements.traceLotsResults?.addEventListener('click', (event) => {
     const page = event.target.closest('[data-trace-page]');
     if (page && !page.disabled) {
-        void loadTraceLots(state.traceTerm, Number(page.dataset.tracePage));
+        void loadTraceLots(state.traceTerm, Number(page.dataset.tracePage), state.traceSeason);
         return;
     }
-    if (event.target.closest('[data-trace-export]')) void downloadTraceLots(state.traceTerm);
+    if (event.target.closest('[data-trace-export]')) void downloadTraceLots(state.traceTerm, state.traceSeason);
 });
 
 elements.sagSearch.addEventListener('submit', async (event) => {

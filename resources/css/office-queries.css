@@ -122,7 +122,10 @@
 }
 
 /* Trazabilidad de lotes: resumen, lotes MP y folios con su composición. */
-.trace-lots-form { grid-template-columns: minmax(0, 1fr) auto; }
+.trace-lots-form { grid-template-columns: minmax(0, 1fr) minmax(160px, 220px) auto; align-items: end; }
+.trace-lots-season { display: grid; gap: 4px; font-size: .72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.trace-lots-season select { min-height: 44px; }
+@media (max-width: 720px) { .trace-lots-form { grid-template-columns: 1fr; } }
 .trace-lots-results { display: grid; gap: 14px; margin-top: 14px; }
 .trace-lots-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; font-size: .82rem; }
 .trace-lots-summary [data-trace-export] { margin-left: auto; }

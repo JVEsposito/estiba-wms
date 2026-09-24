@@ -14,16 +14,19 @@ return new class extends Migration
         // proceso de packing. La fuente de verdad sigue siendo folios.datos_externos.
         Schema::create('trazabilidad_folio_origenes', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            // Es una proyección: desaparece con su folio y nunca impide eliminar un lote MP.
-            $table->foreignUuid('folio_id')->constrained('folios')->cascadeOnDelete();
+            // La trazabilidad es historial: sobrevive al cierre de la temporada y ningún borrado
+            // la elimina de forma implícita.
+            $table->foreignUuid('folio_id')->constrained('folios')->restrictOnDelete();
+            // Temporada en que se embaló el pallet (la del origen validado). El vínculo con el lote
+            // MP se resuelve solo dentro de ella, aunque el folio cambie de temporada.
             $table->foreignUuid('temporada_id')->constrained('temporadas')->restrictOnDelete();
             $table->string('csg', 50)->nullable();
             $table->string('predio', 150)->nullable();
             $table->date('fecha_embalaje')->nullable();
             $table->string('numero_lote_materia_prima', 80)->nullable();
             // Cliente del origen validado; el vínculo con el lote MP solo se afirma si coincide.
-            $table->foreignUuid('cliente_id')->nullable()->constrained('clientes')->nullOnDelete();
-            $table->foreignUuid('lote_materia_prima_id')->nullable()->constrained('lotes_materia_prima')->nullOnDelete();
+            $table->foreignUuid('cliente_id')->nullable()->constrained('clientes')->restrictOnDelete();
+            $table->foreignUuid('lote_materia_prima_id')->nullable()->constrained('lotes_materia_prima')->restrictOnDelete();
             $table->string('numero_proceso_packing', 80)->nullable();
             $table->unsignedInteger('cantidad_cajas');
             $table->timestamps();

@@ -447,16 +447,12 @@ class ServicioReinicioOperacional
             $operaciones,
         );
 
-        // La trazabilidad es una proyección de la composición: se descarta junto con sus
-        // folios y deja de apuntar a los lotes MP que se eliminan más abajo.
+        // Solo se descarta la trazabilidad de los folios que este reinicio elimina. La de otras
+        // temporadas nunca se modifica: asegurarSeparacionBodega bloquea el reinicio si depende
+        // de estos lotes.
         $eliminados['trazabilidad_origenes'] = DB::table('trazabilidad_folio_origenes')
             ->whereIn('folio_id', clone $folios)
             ->delete();
-        DB::table('trazabilidad_folio_origenes')
-            ->whereIn('lote_materia_prima_id', DB::table('lotes_materia_prima')
-                ->select('id')
-                ->where('temporada_id', $temporada->id))
-            ->update(['lote_materia_prima_id' => null]);
 
         DB::table('validaciones_pallet')
             ->where('temporada_id', $temporada->id)
@@ -603,6 +599,17 @@ class ServicioReinicioOperacional
                     'Se detectó un folio compartido con Bodega. El reinicio fue bloqueado sin borrar datos.',
                 );
             }
+        }
+
+        if (DB::table('trazabilidad_folio_origenes')
+            ->whereNotIn('folio_id', clone $folios)
+            ->whereIn('lote_materia_prima_id', DB::table('lotes_materia_prima')
+                ->select('id')
+                ->where('temporada_id', $temporada->id))
+            ->exists()) {
+            throw new DomainException(
+                'Hay pallets fuera de este reinicio cuya trazabilidad apunta a lotes de la temporada. El reinicio fue bloqueado sin borrar datos.',
+            );
         }
 
         if (DB::table('carga_folios as cf')

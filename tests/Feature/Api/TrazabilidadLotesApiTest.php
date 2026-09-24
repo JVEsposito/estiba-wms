@@ -7,6 +7,7 @@ use App\Enums\RolUsuario;
 use App\Models\Cliente;
 use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
+use App\Models\Temporada;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ class TrazabilidadLotesApiTest extends TestCase
             'lote_materia_prima_id' => null,
         ]);
         $this->actingAs($this->administrador, 'sanctum')
-            ->getJson('/api/consultas/trazabilidad?q=L-900')
+            ->getJson('/api/consultas/trazabilidad?q=L-900&temporada_id='.$this->temporadaId)
             ->assertOk()
             ->assertJsonPath('data.resumen.lineas_sin_lote_verificado', 1)
             ->assertJsonPath('data.folios.0.lineas.0.lote_verificado', false)
@@ -92,20 +93,20 @@ class TrazabilidadLotesApiTest extends TestCase
         }
 
         $this->actingAs($this->administrador, 'sanctum')
-            ->getJson('/api/consultas/trazabilidad?q=p-5')
+            ->getJson('/api/consultas/trazabilidad?q=p-5&temporada_id='.$this->temporadaId)
             ->assertOk()
             ->assertJsonPath('data.resumen.folios', 60)
             ->assertJsonPath('data.resumen.cajas_coincidentes', 600)
             ->assertJsonPath('data.paginacion.paginas', 2)
             ->assertJsonCount(50, 'data.folios')
             ->assertJsonPath('data.folios.0.numero', 'TRZ-001');
-        $this->getJson('/api/consultas/trazabilidad?q=P-5&pagina=2')
+        $this->getJson('/api/consultas/trazabilidad?q=P-5&pagina=2&temporada_id='.$this->temporadaId)
             ->assertOk()
             ->assertJsonPath('data.paginacion.pagina', 2)
             ->assertJsonCount(10, 'data.folios')
             ->assertJsonPath('data.folios.9.numero', 'TRZ-060');
 
-        $respuesta = $this->get('/api/consultas/trazabilidad/exportar?q=P-5')->assertOk();
+        $respuesta = $this->get('/api/consultas/trazabilidad/exportar?q=P-5&temporada_id='.$this->temporadaId)->assertOk();
         $zip = new ZipArchive;
         $this->assertTrue($zip->open($respuesta->baseResponse->getFile()->getPathname()));
         $hoja = $zip->getFromName('xl/worksheets/sheet1.xml');
@@ -114,6 +115,46 @@ class TrazabilidadLotesApiTest extends TestCase
         foreach (range(1, 60) as $numero) {
             $this->assertStringContainsString(sprintf('TRZ-%03d', $numero), $hoja);
         }
+    }
+
+    public function test_un_mismo_numero_de_lote_en_otra_temporada_no_se_mezcla_y_el_historial_se_conserva(): void
+    {
+        $norte = $this->cliente('NORTE');
+        $this->folio('TRZ-TEMP-A', $this->origen($norte), 'L-500');
+        $activa = Temporada::query()->where('activa', true)->firstOrFail();
+        $this->folio('TRZ-TEMP-B', $this->origen($norte, $activa->id), 'L-500', temporadaId: $activa->id);
+
+        // Sin indicar temporada se consulta la activa; la cerrada sigue disponible.
+        $this->actingAs($this->administrador, 'sanctum')
+            ->getJson('/api/consultas/trazabilidad?q=L-500')
+            ->assertOk()
+            ->assertJsonPath('data.temporada.id', $activa->id)
+            ->assertJsonPath('data.resumen.folios', 1)
+            ->assertJsonPath('data.folios.0.numero', 'TRZ-TEMP-B')
+            ->assertJsonCount(Temporada::query()->count(), 'data.temporadas');
+        $this->getJson('/api/consultas/trazabilidad?q=L-500&temporada_id='.$this->temporadaId)
+            ->assertOk()
+            ->assertJsonPath('data.temporada.codigo', 'TRZ-2026')
+            ->assertJsonPath('data.resumen.folios', 1)
+            ->assertJsonPath('data.folios.0.numero', 'TRZ-TEMP-A');
+    }
+
+    public function test_el_vinculo_con_el_lote_queda_en_la_temporada_de_origen_aunque_el_folio_cambie(): void
+    {
+        $norte = $this->cliente('NORTE');
+        $loteOrigen = $this->lote($norte, 'L-600');
+        $folio = $this->folio('TRZ-TRASLADO', $this->origen($norte), 'L-600');
+        $otraTemporada = $this->temporada('TRZ-2027');
+        $this->lote($norte, 'L-600', $otraTemporada);
+
+        $folio->update(['temporada_id' => $otraTemporada]);
+
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $folio->id,
+            'temporada_id' => $this->temporadaId,
+            'lote_materia_prima_id' => $loteOrigen->id,
+        ]);
+        $this->assertDatabaseCount('trazabilidad_folio_origenes', 1);
     }
 
     public function test_el_excel_de_trazabilidad_requiere_acceso_a_consultas(): void
@@ -134,13 +175,30 @@ class TrazabilidadLotesApiTest extends TestCase
         ]);
     }
 
-    private function origen(Cliente $cliente): string
+    private function temporada(string $codigo): string
     {
+        $id = (string) Str::uuid();
+        DB::table('temporadas')->insert([
+            'id' => $id,
+            'codigo' => $codigo,
+            'nombre' => 'Temporada '.$codigo,
+            'activa' => false,
+            'version_catalogo' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $id;
+    }
+
+    private function origen(Cliente $cliente, ?string $temporadaId = null): string
+    {
+        $temporadaId ??= $this->temporadaId;
         $clienteValidacion = (string) Str::uuid();
         $origen = (string) Str::uuid();
         DB::table('clientes_validacion')->insert([
             'id' => $clienteValidacion,
-            'temporada_id' => $this->temporadaId,
+            'temporada_id' => $temporadaId,
             'cliente_id' => $cliente->id,
             'nombre' => $cliente->nombre,
             'activo' => true,
@@ -149,7 +207,7 @@ class TrazabilidadLotesApiTest extends TestCase
         ]);
         DB::table('origenes_validacion')->insert([
             'id' => $origen,
-            'temporada_id' => $this->temporadaId,
+            'temporada_id' => $temporadaId,
             'cliente_validacion_id' => $clienteValidacion,
             'cliente' => $cliente->codigo,
             'marca' => 'ATLAS',
@@ -162,10 +220,15 @@ class TrazabilidadLotesApiTest extends TestCase
         return $origen;
     }
 
-    private function folio(string $numero, string $origenId, string $lote, ?string $proceso = null): Folio
-    {
+    private function folio(
+        string $numero,
+        string $origenId,
+        string $lote,
+        ?string $proceso = null,
+        ?string $temporadaId = null,
+    ): Folio {
         return Folio::query()->create([
-            'temporada_id' => $this->temporadaId,
+            'temporada_id' => $temporadaId ?? $this->temporadaId,
             'numero_folio' => $numero,
             'tipo_bulto' => 'pallet',
             'estado_operacional' => 'disponible',
@@ -182,7 +245,7 @@ class TrazabilidadLotesApiTest extends TestCase
     }
 
     /** El lote se crea sin su recepción ni catálogo MP: esta prueba solo necesita número y cliente. */
-    private function lote(Cliente $cliente, string $numero): LoteMateriaPrima
+    private function lote(Cliente $cliente, string $numero, ?string $temporadaId = null): LoteMateriaPrima
     {
         Schema::disableForeignKeyConstraints();
 
@@ -192,7 +255,7 @@ class TrazabilidadLotesApiTest extends TestCase
                 'payload_hash' => str_repeat('a', 64),
                 'segmento_validacion_mp_id' => (string) Str::uuid(),
                 'recepcion_romana_id' => (string) Str::uuid(),
-                'temporada_id' => $this->temporadaId,
+                'temporada_id' => $temporadaId ?? $this->temporadaId,
                 'cliente_id' => $cliente->id,
                 'numero_lote' => $numero,
                 'estado' => EstadoLoteMateriaPrima::DisponibleProceso->value,

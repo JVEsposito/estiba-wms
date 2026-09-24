@@ -28,24 +28,28 @@ class ProyeccionTrazabilidadFolio
         $lineas = collect($folio->datos_externos['composicion'] ?? [])
             ->filter(fn (mixed $linea): bool => is_array($linea) && (int) ($linea['cantidad_cajas'] ?? 0) > 0)
             ->values();
-        $clientes = $this->clientesPorOrigen($lineas->pluck('origen_validacion_id')->filter()->unique()->all());
+        $origenes = $this->origenesValidados($lineas->pluck('origen_validacion_id')->filter()->unique()->all());
 
-        DB::transaction(function () use ($folio, $lineas, $clientes): void {
+        DB::transaction(function () use ($folio, $lineas, $origenes): void {
             TrazabilidadFolioOrigen::query()->where('folio_id', $folio->id)->delete();
 
             foreach ($lineas as $linea) {
                 $numeroLote = self::normalizarCodigo($linea['lote_materia_prima'] ?? null);
-                $clienteId = $clientes[$linea['origen_validacion_id'] ?? ''] ?? null;
+                $origen = $origenes[$linea['origen_validacion_id'] ?? ''] ?? null;
+                $clienteId = $origen?->cliente_id;
+                // La línea pertenece a la temporada en que se embaló; nunca se reinterpreta con
+                // los lotes de otra temporada, aunque el folio se traslade.
+                $temporadaId = $origen?->temporada_id ?? $folio->temporada_id;
 
                 TrazabilidadFolioOrigen::create([
                     'folio_id' => $folio->id,
-                    'temporada_id' => $folio->temporada_id,
+                    'temporada_id' => $temporadaId,
                     'csg' => self::normalizarCodigo($linea['csg'] ?? null),
                     'predio' => filled($linea['predio'] ?? null) ? trim((string) $linea['predio']) : null,
                     'fecha_embalaje' => filled($linea['fecha_embalaje'] ?? null) ? $linea['fecha_embalaje'] : null,
                     'numero_lote_materia_prima' => $numeroLote,
                     'cliente_id' => $clienteId,
-                    'lote_materia_prima_id' => $this->loteRegistrado($folio->temporada_id, $numeroLote, $clienteId),
+                    'lote_materia_prima_id' => $this->loteRegistrado($temporadaId, $numeroLote, $clienteId),
                     'numero_proceso_packing' => self::normalizarCodigo($linea['proceso_packing'] ?? null),
                     'cantidad_cajas' => (int) $linea['cantidad_cajas'],
                 ]);
@@ -111,20 +115,22 @@ class ProyeccionTrazabilidadFolio
     }
 
     /**
+     * Temporada y cliente global de cada origen validado de la composición.
+     *
      * @param  array<int, string>  $origenIds
-     * @return array<string, string>
+     * @return array<string, object{temporada_id: string, cliente_id: ?string}>
      */
-    private function clientesPorOrigen(array $origenIds): array
+    private function origenesValidados(array $origenIds): array
     {
         if ($origenIds === []) {
             return [];
         }
 
         return DB::table('origenes_validacion as origen')
-            ->join('clientes_validacion as cliente', 'cliente.id', '=', 'origen.cliente_validacion_id')
+            ->leftJoin('clientes_validacion as cliente', 'cliente.id', '=', 'origen.cliente_validacion_id')
             ->whereIn('origen.id', $origenIds)
-            ->whereNotNull('cliente.cliente_id')
-            ->pluck('cliente.cliente_id', 'origen.id')
+            ->get(['origen.id', 'origen.temporada_id', 'cliente.cliente_id'])
+            ->keyBy('id')
             ->all();
     }
 }

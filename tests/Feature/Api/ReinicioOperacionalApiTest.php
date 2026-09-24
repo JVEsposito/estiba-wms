@@ -164,6 +164,44 @@ class ReinicioOperacionalApiTest extends TestCase
     /**
      * @return array<string, mixed>
      */
+    public function test_bloquea_el_reinicio_si_otra_temporada_depende_de_sus_lotes_en_la_trazabilidad(): void
+    {
+        $temporada = Temporada::query()->where('activa', true)->firstOrFail();
+        $administrador = User::factory()->create([
+            'rol' => RolUsuario::Administrador,
+            'password' => 'password',
+        ]);
+        $materiaPrima = $this->crearOperacionMateriaPrima($temporada);
+        $otraTemporada = Temporada::query()->create([
+            'codigo' => 'HIST-2025',
+            'nombre' => 'Temporada histórica',
+            'activa' => false,
+        ]);
+        $folioHistorico = $this->crearFolio($otraTemporada, 'PT-HIST-001', 'pallet');
+        $folioHistorico->update(['datos_externos' => ['composicion' => [[
+            'cantidad_cajas' => 12,
+            'lote_materia_prima' => 'LOTE-RESET-001',
+        ]]]]);
+        DB::table('trazabilidad_folio_origenes')
+            ->where('folio_id', $folioHistorico->id)
+            ->update(['lote_materia_prima_id' => $materiaPrima['lote_id']]);
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson(
+                "/api/administracion/temporadas/{$temporada->id}/reinicio-operacional",
+                $this->confirmacion($temporada, (string) Str::uuid()),
+            )
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Hay pallets fuera de este reinicio cuya trazabilidad apunta a lotes de la temporada. El reinicio fue bloqueado sin borrar datos.');
+
+        $this->assertDatabaseHas('lotes_materia_prima', ['id' => $materiaPrima['lote_id']]);
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $folioHistorico->id,
+            'lote_materia_prima_id' => $materiaPrima['lote_id'],
+        ]);
+        $this->assertDatabaseCount('reinicios_operacionales', 0);
+    }
+
     private function confirmacion(
         Temporada $temporada,
         ?string $operacionId = null,

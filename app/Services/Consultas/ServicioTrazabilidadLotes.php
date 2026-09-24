@@ -4,6 +4,7 @@ namespace App\Services\Consultas;
 
 use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
+use App\Models\Temporada;
 use App\Models\TrazabilidadFolioOrigen;
 use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use BackedEnum;
@@ -25,14 +26,14 @@ class ServicioTrazabilidadLotes
      *
      * @return array<string, mixed>
      */
-    public function consultar(string $termino, int $pagina = 1): array
+    public function consultar(string $termino, Temporada $temporada, int $pagina = 1): array
     {
         $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($termino) ?? '';
-        $totalFolios = $this->foliosAfectados($codigo)->count();
+        $totalFolios = $this->foliosAfectados($codigo, $temporada)->count();
         $paginas = max(1, (int) ceil($totalFolios / self::POR_PAGINA));
         $pagina = min(max(1, $pagina), $paginas);
 
-        $folios = $this->foliosAfectados($codigo)
+        $folios = $this->foliosAfectados($codigo, $temporada)
             ->with($this->relacionesFolio())
             ->orderBy('numero_folio')
             ->forPage($pagina, self::POR_PAGINA)
@@ -40,12 +41,20 @@ class ServicioTrazabilidadLotes
         $lineas = $this->lineasPorFolio($folios->modelKeys());
 
         $lotesConsultados = LoteMateriaPrima::query()
+            ->where('temporada_id', $temporada->id)
             ->whereRaw('UPPER(TRIM(numero_lote)) = ?', [$codigo])
             ->with(['recepcion', 'cliente', 'temporada'])
             ->get();
 
         return [
             'termino' => $codigo,
+            'temporada' => $this->temporada($temporada),
+            'temporadas' => Temporada::query()
+                ->orderByDesc('activa')
+                ->orderByDesc('codigo')
+                ->get()
+                ->map(fn (Temporada $opcion): array => $this->temporada($opcion))
+                ->all(),
             'lotes' => $lotesConsultados->map(fn (LoteMateriaPrima $lote): array => $this->lote($lote))->all(),
             'folios' => $folios->map(fn (Folio $folio): array => $this->folio(
                 $folio,
@@ -54,9 +63,9 @@ class ServicioTrazabilidadLotes
             ))->all(),
             'resumen' => [
                 'folios' => $totalFolios,
-                'folios_activos' => $this->foliosAfectados($codigo)->where('activo', true)->count(),
-                'cajas_coincidentes' => (int) $this->lineasCoincidentes($codigo)->sum('cantidad_cajas'),
-                'lineas_sin_lote_verificado' => $this->lineasCoincidentes($codigo)
+                'folios_activos' => $this->foliosAfectados($codigo, $temporada)->where('activo', true)->count(),
+                'cajas_coincidentes' => (int) $this->lineasCoincidentes($codigo, $temporada)->sum('cantidad_cajas'),
+                'lineas_sin_lote_verificado' => $this->lineasCoincidentes($codigo, $temporada)
                     ->where('numero_lote_materia_prima', $codigo)
                     ->whereNull('lote_materia_prima_id')
                     ->count(),
@@ -101,11 +110,11 @@ class ServicioTrazabilidadLotes
      *
      * @return LazyCollection<int, array<string, mixed>>
      */
-    public function filasExportacion(string $termino): LazyCollection
+    public function filasExportacion(string $termino, Temporada $temporada): LazyCollection
     {
         $codigo = ProyeccionTrazabilidadFolio::normalizarCodigo($termino) ?? '';
 
-        return $this->foliosAfectados($codigo)
+        return $this->foliosAfectados($codigo, $temporada)
             ->with($this->relacionesFolio())
             ->lazyById(200)
             ->chunk(200)
@@ -145,18 +154,24 @@ class ServicioTrazabilidadLotes
             });
     }
 
-    /** Folios cuya composición informa el lote o proceso buscado, o cuyo número coincide. */
-    private function foliosAfectados(string $codigo): Builder
+    /**
+     * Folios de la temporada cuya composición informa el lote o proceso buscado, o cuyo
+     * número coincide. Los números de lote se repiten entre temporadas: nunca se mezclan.
+     */
+    private function foliosAfectados(string $codigo, Temporada $temporada): Builder
     {
         return Folio::query()
             ->where(fn (Builder $consulta) => $consulta
-                ->whereIn('id', $this->lineasCoincidentes($codigo)->select('folio_id'))
-                ->orWhere('numero_folio', $codigo));
+                ->whereIn('id', $this->lineasCoincidentes($codigo, $temporada)->select('folio_id'))
+                ->orWhere(fn (Builder $porNumero) => $porNumero
+                    ->where('numero_folio', $codigo)
+                    ->where('temporada_id', $temporada->id)));
     }
 
-    private function lineasCoincidentes(string $codigo): Builder
+    private function lineasCoincidentes(string $codigo, Temporada $temporada): Builder
     {
         return TrazabilidadFolioOrigen::query()
+            ->where('temporada_id', $temporada->id)
             ->where(fn (Builder $consulta) => $consulta
                 ->where('numero_lote_materia_prima', $codigo)
                 ->orWhere('numero_proceso_packing', $codigo));
@@ -236,6 +251,17 @@ class ServicioTrazabilidadLotes
             'variedad' => $lote->variedad_snapshot,
             'fecha_cosecha' => $lote->fecha_cosecha?->toDateString(),
             'kilos_netos' => (float) $lote->kilos_netos_confirmados,
+        ];
+    }
+
+    /** @return array{id: string, codigo: string, nombre: ?string, activa: bool} */
+    private function temporada(Temporada $temporada): array
+    {
+        return [
+            'id' => $temporada->id,
+            'codigo' => $temporada->codigo,
+            'nombre' => $temporada->nombre,
+            'activa' => (bool) $temporada->activa,
         ];
     }
 
