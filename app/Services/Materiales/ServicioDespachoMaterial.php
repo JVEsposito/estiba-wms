@@ -602,7 +602,6 @@ class ServicioDespachoMaterial
                 ->where('estado', EstadoReservaMaterial::Activa->value)
                 ->orderBy('orden_fifo'),
             'detalles.reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
-            'detalles.historialReservas.folioMaterial.folio',
         ]);
 
         return $despachos;
@@ -627,6 +626,7 @@ class ServicioDespachoMaterial
                 ->where('estado', EstadoReservaMaterial::Activa->value)
                 ->orderBy('orden_fifo'),
             'detalles.reservas.folioMaterial.folio.ubicacionActual.posicion.camara',
+            'detalles.historialReservas.folioMaterial.folio',
             'detalles.retiros.folioMaterial.folio',
             'detalles.retiros.camara:id,codigo,nombre',
             'detalles.retiros.posicion:id,camara_id,etiqueta',
