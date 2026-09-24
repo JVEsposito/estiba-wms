@@ -203,3 +203,23 @@ centros, en unidades del plano. Es la base para que el planificador considere
 recorridos reales; hoy ninguna regla de arbitraje la consume.
 
 Las pruebas visuales y de modelo viven en `tests/JavaScript/plant-view.test.mjs`.
+
+## Lenguaje de supervisión
+
+El puesto de mando del planificador usa términos de planta en lugar de nombres de
+configuración:
+
+| Dato técnico | Se muestra como |
+|---|---|
+| `mode_global` off / shadow / guided | Planificador apagado / observando / dirigiendo |
+| vigencia del arbitraje | Cálculo al día, recalculando, pendiente, atrasado, con error |
+| salud saludable / advertencia / crítico | Sin alertas / Con advertencias / Alertas críticas |
+| rollout | Cámaras dirigidas |
+| capacidad / frontera | Maniobras simultáneas (`N de M cupos`) |
+| seleccionada / alternativa / excluida_conflicto | Lista para tomar / En espera / Bloqueada por otra |
+| fuera_frontera / fuera_rollout / fuera_planificador | En cola / Sin planificador / Gestión manual |
+| leases vencidos | Tareas tomadas y abandonadas |
+| custodias activas / sin retorno | Pallets fuera de su posición / Pallets sin devolver |
+
+Modo, cálculo y horizonte permanecen en **Detalle técnico**, plegado y visible solo para
+el rol administrador.

@@ -13,7 +13,9 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('Operación ahora')
             ->assertSee('CENTRO DE CONTROL · INFORMACIÓN EN VIVO')
             ->assertSee('Puesto de mando del planificador')
-            ->assertSee('Arbitraje, rollout y realidad física vigente')
+            ->assertSee('Qué ordena el planificador y qué ocurre en planta')
+            ->assertDontSee('Fuera rollout')
+            ->assertSee('id="plannerTechnical"', false)
             ->assertSee('id="operationPlannerPanel"', false)
             ->assertSee('id="plannerFreshnessSignal"', false)
             ->assertSee('id="plannerDecisionRows"', false)
@@ -26,7 +28,7 @@ class OperacionAhoraOfficeTest extends TestCase
             ->assertSee('id="operationSupervisionContent"', false)
             ->assertSee('id="operationSupervisionClose"', false)
             ->assertSee('Explicación, evidencia física e intervenciones autorizadas')
-            ->assertSee('<th scope="col">Razón operacional</th>', false)
+            ->assertSee('<th scope="col">Motivo</th>', false)
             ->assertSee('Vista de planta')
             ->assertSee('data-legend="repa"', false)
             ->assertSee('<option value="recepcion_mp">', false)
@@ -81,7 +83,9 @@ class OperacionAhoraOfficeTest extends TestCase
         $this->assertStringContainsString('renderPlanner', $script);
         $this->assertStringContainsString('data.planificador?.salud?.riesgos', $script);
         $this->assertStringContainsString('data.planificador?.arbitraje?.vigencia', $script);
-        $this->assertStringContainsString('Vigencia ${plannerFreshnessLabel', $script);
+        $this->assertStringContainsString('Cálculo ${plannerFreshnessLabel', $script);
+        $this->assertStringNotContainsString('WMS_PLANNER_MODE', $script);
+        $this->assertStringContainsString("state.identity?.rol !== 'administrador'", $script);
         $this->assertStringContainsString('Planificador detenido por configuración', $script);
         $this->assertStringContainsString('plannerConflictDetail', $script);
         $this->assertStringContainsString('createManeuverSupervisionDrawer', $script);
