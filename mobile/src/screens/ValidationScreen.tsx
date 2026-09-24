@@ -1175,7 +1175,7 @@ const styles = StyleSheet.create({
   sessionMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   sessionMetric: { flexGrow: 1, flexBasis: '29%', minWidth: 88, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
   sessionMetricTight: { flexBasis: '46%', minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 9 },
-  sessionMetricLabelTight: { flexShrink: 1, fontSize: 10.5, letterSpacing: .2, marginRight: 6 },
+  sessionMetricLabelTight: { flexShrink: 1, fontSize: 11, letterSpacing: .2, marginRight: 6 },
   sessionMetricValueTight: { fontSize: 17, marginTop: 0 },
   sessionMetricPositive: { borderColor: colors.green, backgroundColor: colors.greenDark },
   sessionMetricWarning: { borderColor: colors.amber, backgroundColor: colors.amberDark },
