@@ -9,4 +9,5 @@ enum TipoMovimientoEnvase: string
     case RecepcionCompra = 'recepcion_compra';
     case DespachoCliente = 'despacho_cliente';
     case ReversionDespacho = 'reversion_despacho';
+    case CorreccionPropiedad = 'correccion_propiedad';
 }

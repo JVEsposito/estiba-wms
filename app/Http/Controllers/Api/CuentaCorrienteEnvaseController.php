@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EstadoGuiaDespachoEnvase;
 use App\Enums\EstadoRevisionMovimientoEnvase;
 use App\Enums\EstadoValidacionMp;
+use App\Enums\ConceptoEnvasesRomana;
+use App\Enums\TipoMovimientoEnvase;
 use App\Enums\TipoEnvaseRomana;
 use App\Http\Controllers\Controller;
 use App\Models\Cliente;
@@ -14,6 +16,7 @@ use App\Models\MovimientoEnvase;
 use App\Models\RevisionMovimientoEnvase;
 use App\Models\Temporada;
 use App\Services\Temporadas\ServicioTemporadaActiva;
+use App\Services\Envases\ServicioCorreccionPropiedadEnvases;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,9 +61,13 @@ class CuentaCorrienteEnvaseController extends Controller
         $filtros['temporada_id'] ??= $temporadaActiva->obtener()->id;
 
         $consulta = MovimientoEnvase::query()
-            ->with(['cliente:id,codigo,nombre', 'temporada:id,codigo,nombre', 'creadoPor:id,name', 'revisiones.usuario:id,name']);
+            ->with(['cliente:id,codigo,nombre', 'temporada:id,codigo,nombre,activa', 'creadoPor:id,name', 'revisiones.usuario:id,name']);
         $this->aplicarFiltros($consulta, $filtros);
         $movimientos = $consulta->orderByDesc('ocurrido_at')->limit(300)->get();
+        $corregidos = MovimientoEnvase::query()
+            ->where('tipo_movimiento', TipoMovimientoEnvase::CorreccionPropiedad->value)
+            ->whereIn('movimiento_origen_id', $movimientos->pluck('id'))
+            ->pluck('movimiento_origen_id')->all();
 
         $pendientes = DetalleEnvaseRecepcionRomana::query()
             ->with('recepcion')
@@ -178,7 +185,7 @@ class CuentaCorrienteEnvaseController extends Controller
             ->values();
 
         return response()->json([
-            'data' => $movimientos->map(fn (MovimientoEnvase $movimiento): array => $this->movimiento($movimiento)),
+            'data' => $movimientos->map(fn (MovimientoEnvase $movimiento): array => $this->movimiento($movimiento, in_array($movimiento->id, $corregidos, true))),
             'pendientes' => $pendientes->map(fn (DetalleEnvaseRecepcionRomana $detalle): array => [
                 'id' => $detalle->id,
                 'estado' => 'pendiente_validacion',
@@ -249,6 +256,26 @@ class CuentaCorrienteEnvaseController extends Controller
         )]);
     }
 
+    public function corregirPropiedad(
+        Request $request,
+        MovimientoEnvase $movimientoEnvase,
+        ServicioCorreccionPropiedadEnvases $servicio,
+    ): JsonResponse {
+        Gate::authorize('corregir-propiedad-envases');
+        $datos = $request->validate([
+            'concepto_envases' => ['required', Rule::enum(ConceptoEnvasesRomana::class)],
+            'motivo' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+        $servicio->corregir(
+            $movimientoEnvase,
+            ConceptoEnvasesRomana::from($datos['concepto_envases']),
+            trim($datos['motivo']),
+            $request->user(),
+        );
+
+        return response()->json(['message' => 'Propiedad corregida. El ingreso original y sus asientos de ajuste siguen disponibles para auditoría.']);
+    }
+
     /** @param array<string, mixed> $filtros */
     private function aplicarFiltros(Builder $consulta, array $filtros): void
     {
@@ -273,7 +300,7 @@ class CuentaCorrienteEnvaseController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function movimiento(MovimientoEnvase $movimiento): array
+    private function movimiento(MovimientoEnvase $movimiento, bool $corregido = false): array
     {
         return [
             'id' => $movimiento->id,
@@ -283,6 +310,13 @@ class CuentaCorrienteEnvaseController extends Controller
             'impacto_cuenta' => $movimiento->cantidad * $movimiento->signo_cuenta,
             'impacto_existencia' => $movimiento->cantidad * $movimiento->signo_existencia,
             'propiedad' => $movimiento->propiedad->value,
+            'corregido' => $corregido,
+            'puede_corregir_propiedad' => ! $corregido
+                && $movimiento->temporada?->activa
+                && $movimiento->recepcion_romana_id !== null
+                && in_array($movimiento->tipo_movimiento, [TipoMovimientoEnvase::RecepcionCompra, TipoMovimientoEnvase::RecepcionArriendo], true)
+                && ! isset($movimiento->datos['correccion_propiedad']),
+            'correccion_propiedad' => $movimiento->datos['correccion_propiedad'] ?? null,
             'documento_tipo' => $movimiento->documento_tipo,
             'documento_id' => $movimiento->documento_id,
             'numero_documento' => $movimiento->numero_documento,
