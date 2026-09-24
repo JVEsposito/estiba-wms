@@ -46,8 +46,7 @@ o el validador que la registró en la temporada vigente.
 
 Los archivos se guardan en el disco privado `local` (`storage/app/private`). **Los
 respaldos deben incluir ese directorio además de la base de datos**; un volcado SQL
-por sí solo no conserva las fotos. La pantalla PDA y las exportaciones de Oficina se
-incluyen en PR separados.
+por sí solo no conserva las fotos.
 
 ## Pantalla de Validación MP
 
@@ -64,4 +63,25 @@ la captura pendiente no se conserva si se cierra la aplicación. Agregar la cám
 requiere **compilar e instalar un APK nuevo** (versión 1.4.0): una actualización OTA
 del APK anterior no puede incorporar el módulo nativo `expo-image-picker`.
 
-La exportación para Oficina se implementará en el PR siguiente.
+## Auditoría y descargas de Oficina
+
+La pantalla `/oficina/materia-prima/defectos-recepcion` permite a administración y
+supervisión autorizada consultar la temporada activa y el historial. Filtra por
+temporada, fecha, categoría y número de guía, recepción o cliente. Muestra la
+descripción completa y carga las fotos desde la API autenticada sin exponer el token
+en enlaces públicos. El validador registra desde la tablet y no puede exportar.
+
+`GET /api/materia-prima/defectos-recepcion/temporadas` devuelve temporadas con
+registros y la activa. `GET /api/materia-prima/defectos-recepcion/exportaciones/{formato}`
+acepta los mismos filtros que la bandeja (sin paginación). `xlsx` incluye las
+columnas de trazabilidad, descripción, validador e identificadores de fotos; `pdf`
+ofrece una ficha por defecto y páginas de fotografías incorporadas; `zip` contiene ambos documentos y fotos originales
+agrupadas por ID de registro. Los límites son 2000, 300 y 150 registros,
+respectivamente; para superar un límite se deben acotar las fechas. Todas las
+descargas requieren el permiso `auditar-defectos-recepcion-mp` y se entregan con
+cabeceras de caché privada.
+
+La generación del PDF convierte las imágenes admitidas a copias JPEG reducidas para
+incluirlas en el documento. Requiere habilitar la extensión `gd` en el PHP del
+servidor (en Laragon, el `php.ini` usado por Apache); el ZIP conserva además los
+archivos originales sin convertir.

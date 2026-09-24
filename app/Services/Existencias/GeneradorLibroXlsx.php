@@ -21,6 +21,7 @@ class GeneradorLibroXlsx
         array $columnas,
         iterable $filas,
         array $metadatos,
+        string $nombreHoja = 'Existencia',
     ): string {
         $rutaTemporal = $this->rutaTemporal('estiba-xlsx-', '.xlsx');
         $rutaFilas = $this->rutaTemporal('estiba-xlsx-filas-');
@@ -57,7 +58,7 @@ class GeneradorLibroXlsx
             $zip->addFromString('_rels/.rels', $this->rootRelationships());
             $zip->addFromString('docProps/app.xml', $this->appProperties());
             $zip->addFromString('docProps/core.xml', $this->coreProperties($titulo));
-            $zip->addFromString('xl/workbook.xml', $this->workbook());
+            $zip->addFromString('xl/workbook.xml', $this->workbook($nombreHoja));
             $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
             $zip->addFromString('xl/styles.xml', $this->styles());
             if (! $zip->addFile($rutaHoja, 'xl/worksheets/sheet1.xml')) {
@@ -144,13 +145,15 @@ XML;
 XML;
     }
 
-    private function workbook(): string
+    private function workbook(string $nombreHoja): string
     {
-        return <<<'XML'
+        $nombre = $this->escapar($nombreHoja);
+
+        return <<<XML
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
     <bookViews><workbookView xWindow="0" yWindow="0" windowWidth="24000" windowHeight="12000"/></bookViews>
-    <sheets><sheet name="Existencia" sheetId="1" r:id="rId1"/></sheets>
+    <sheets><sheet name="{$nombre}" sheetId="1" r:id="rId1"/></sheets>
     <calcPr calcId="191029"/>
 </workbook>
 XML;
