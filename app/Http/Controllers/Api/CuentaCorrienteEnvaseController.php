@@ -311,7 +311,7 @@ class CuentaCorrienteEnvaseController extends Controller
             'impacto_existencia' => $movimiento->cantidad * $movimiento->signo_existencia,
             'propiedad' => $movimiento->propiedad->value,
             'corregido' => $corregido,
-            'puede_corregir_propiedad' => ! $corregido
+            'puede_corregir_propiedad' => $corregido === false
                 && $movimiento->temporada?->activa
                 && $movimiento->recepcion_romana_id !== null
                 && in_array($movimiento->tipo_movimiento, [TipoMovimientoEnvase::RecepcionCompra, TipoMovimientoEnvase::RecepcionArriendo], true)
