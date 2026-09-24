@@ -248,6 +248,24 @@ class ConsultaOperacionalApiTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_el_despachador_usa_la_busqueda_global_pero_no_administra_productores(): void
+    {
+        $despachador = User::factory()->create([
+            'rol' => RolUsuario::Despachador,
+            'activo' => true,
+            'password' => 'password',
+        ]);
+
+        $this->postJson('/api/acceso-oficina', ['email' => $despachador->email, 'password' => 'password'])
+            ->assertOk()
+            ->assertJsonPath('usuario.puede_consultar_oficina_consultas', true)
+            ->assertJsonPath('usuario.puede_asociar_productores_csg', false);
+        $this->actingAs($despachador, 'sanctum')
+            ->getJson('/api/consultas/buscar?q=PT-2026&tipo=todos')
+            ->assertOk()
+            ->assertJsonPath('limite_por_categoria', 20);
+    }
+
     public function test_crea_el_csg_y_sincroniza_sus_clientes_sin_duplicar_el_maestro(): void
     {
         $supervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio]);

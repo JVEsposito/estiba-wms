@@ -188,23 +188,44 @@ class ConfirmacionInicioTareaApiTest extends TestCase
         $this->assertArrayNotHasKey('pin_operacional_hash', $contexto['camarero']->refresh()->toArray());
     }
 
-    public function test_solo_administracion_restablece_el_pin(): void
+    public function test_administracion_y_supervision_de_frio_restablecen_el_pin_de_operadores(): void
     {
         $contexto = $this->prepararTareaAsumida();
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador, 'activo' => true]);
+        $otroSupervisor = User::factory()->create(['rol' => RolUsuario::SupervisorFrio, 'activo' => true]);
+
+        $this->actingAs($contexto['supervisor'], 'sanctum')
+            ->getJson('/api/operacion/pines-operadores')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $contexto['camarero']->id, 'rol' => 'camarero_frio'])
+            ->assertJsonMissing(['id' => $administrador->id]);
+
+        // El supervisor de frío no restablece a administradores, a otros supervisores ni a sí mismo.
+        foreach ([$administrador, $otroSupervisor, $contexto['supervisor']] as $objetivo) {
+            $this->actingAs($contexto['supervisor'], 'sanctum')
+                ->postJson("/api/administracion/usuarios/{$objetivo->id}/restablecer-pin")
+                ->assertForbidden();
+        }
+        $this->actingAs($contexto['camarero'], 'sanctum')
+            ->getJson('/api/operacion/pines-operadores')
+            ->assertForbidden();
 
         $this->actingAs($contexto['supervisor'], 'sanctum')
             ->postJson("/api/administracion/usuarios/{$contexto['camarero']->id}/restablecer-pin")
-            ->assertForbidden();
-
-        $this->actingAs($administrador, 'sanctum')
-            ->postJson("/api/administracion/usuarios/{$contexto['camarero']->id}/restablecer-pin")
             ->assertOk()
             ->assertJsonPath('data.configurado', false);
+        $this->assertSame(
+            $contexto['supervisor']->id,
+            $contexto['camarero']->refresh()->pin_operacional_restablecido_por_user_id,
+        );
 
         $this->iniciar($contexto, ['confirmacion_folio' => '5871', 'pin' => '2580'])
             ->assertUnprocessable()
             ->assertJsonPath('errors.pin.0', 'Crea tu PIN operacional antes de confirmar.');
+
+        $this->actingAs($administrador, 'sanctum')
+            ->postJson("/api/administracion/usuarios/{$otroSupervisor->id}/restablecer-pin")
+            ->assertOk();
     }
 
     /** @return array<string, mixed> */

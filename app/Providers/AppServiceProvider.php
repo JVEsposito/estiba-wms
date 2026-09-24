@@ -441,6 +441,14 @@ class AppServiceProvider extends ServiceProvider
                 || $alcance->puedeCorregirEntregasFrutaProceso($usuario),
         );
         Gate::define(
+            'gestionar-pines-operadores',
+            fn (User $usuario): bool => $alcance->puedeGestionarPinesOperadores($usuario),
+        );
+        Gate::define(
+            'restablecer-pin-operacional',
+            fn (User $usuario, User $objetivo): bool => $alcance->puedeRestablecerPinOperacional($usuario, $objetivo),
+        );
+        Gate::define(
             'consultar-oficina-consultas',
             fn (User $usuario): bool => $alcance->puedeConsultarOficinaConsultas($usuario),
         );

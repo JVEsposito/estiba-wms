@@ -286,8 +286,14 @@ Cada línea de la composición del bulto puede informar, además del CSG y sus c
 
 - Un mismo CSG puede repetirse cuando aporta cajas de lotes o procesos distintos; la
   combinación CSG + lote + proceso no puede repetirse.
-- Ambos campos son opcionales y se normalizan en mayúsculas. Si no vienen, el hash del
-  payload no cambia, por lo que las PDA anteriores conservan su idempotencia.
+- Ambos campos se normalizan en mayúsculas. La PDA actual los exige en cada línea, salvo
+  en un rechazo (la etiqueta puede faltar o ser ilegible). El servidor los exige cuando
+  `WMS_VALIDACION_EXIGE_LOTE_PROCESO=true`; se activa después de instalar ese APK en todas
+  las PDA, porque las versiones anteriores no los envían y serían rechazadas con `422`.
+- Si no vienen, el hash del payload no cambia, por lo que las PDA anteriores conservan su
+  idempotencia mientras la exigencia esté desactivada.
+- El proceso de packing es el **número de orden** de Fruta a Proceso: la consulta muestra
+  qué lotes MP se entregaron a esa orden en la temporada.
 - La composición guarda solo el número impreso. El vínculo con un lote digitado en
   Materia Prima se calcula en la proyección y solo se afirma cuando coinciden número,
   temporada de origen y **cliente** (el cliente global del origen validado frente al del

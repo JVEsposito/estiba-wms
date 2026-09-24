@@ -2,6 +2,7 @@
 
 namespace App\Services\Consultas;
 
+use App\Models\EntregaFrutaProceso;
 use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
 use App\Models\Temporada;
@@ -56,6 +57,7 @@ class ServicioTrazabilidadLotes
                 ->map(fn (Temporada $opcion): array => $this->temporada($opcion))
                 ->all(),
             'lotes' => $lotesConsultados->map(fn (LoteMateriaPrima $lote): array => $this->lote($lote))->all(),
+            'entregas_proceso' => $this->entregasProceso($codigo, $temporada),
             'folios' => $folios->map(fn (Folio $folio): array => $this->folio(
                 $folio,
                 $lineas->get($folio->id, collect()),
@@ -252,6 +254,35 @@ class ServicioTrazabilidadLotes
             'fecha_cosecha' => $lote->fecha_cosecha?->toDateString(),
             'kilos_netos' => (float) $lote->kilos_netos_confirmados,
         ];
+    }
+
+    /**
+     * El proceso de packing impreso en el pallet es el número de orden de Fruta a Proceso:
+     * lotes MP entregados a esa orden en la temporada, sin las entregas anuladas.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function entregasProceso(string $codigo, Temporada $temporada): array
+    {
+        return EntregaFrutaProceso::query()
+            ->whereRaw('UPPER(TRIM(numero_orden)) = ?', [$codigo])
+            ->whereNull('anulado_at')
+            ->whereHas('lote', fn (Builder $lote) => $lote->where('temporada_id', $temporada->id))
+            ->with(['lote.recepcion', 'lote.cliente'])
+            ->orderBy('entregado_at')
+            ->get()
+            ->map(fn (EntregaFrutaProceso $entrega): array => [
+                'numero_orden' => $entrega->numero_orden,
+                'entregado_at' => $entrega->entregado_at?->toAtomString(),
+                'linea_proceso' => $entrega->linea_proceso,
+                'turno' => $entrega->turno,
+                'lote' => $entrega->lote?->numero_lote,
+                'cliente' => $entrega->lote?->cliente?->nombre,
+                'recepcion' => $entrega->lote?->recepcion?->numero_recepcion,
+                'envases' => $entrega->cantidad_envases,
+                'kilos' => $entrega->kilos_enviados !== null ? (float) $entrega->kilos_enviados : null,
+            ])
+            ->all();
     }
 
     /** @return array{id: string, codigo: string, nombre: ?string, activa: bool} */

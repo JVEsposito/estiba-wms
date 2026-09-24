@@ -512,6 +512,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/administracion/temporadas', [AdministracionTemporadaController::class, 'index']);
         Route::get('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'administracion']);
     });
+    Route::get('/operacion/pines-operadores', [PinOperacionalController::class, 'operadores'])
+        ->middleware('can:gestionar-pines-operadores');
+    Route::post('/administracion/usuarios/{usuario}/restablecer-pin', [PinOperacionalController::class, 'restablecer'])
+        ->middleware('can:restablecer-pin-operacional,usuario');
     Route::middleware('can:administrar-accesos')->group(function () {
         Route::get('/administracion/sesiones-acceso', [SesionesAccesoAdministracionController::class, 'index']);
         Route::delete('/administracion/sesiones-acceso/{sesionAcceso}', [SesionesAccesoAdministracionController::class, 'destroy']);
@@ -519,7 +523,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/administracion/perfiles-acceso/{perfilAcceso}', [PerfilAccesoController::class, 'update']);
         Route::post('/administracion/usuarios', [AdministracionAccesoController::class, 'crearUsuario']);
         Route::put('/administracion/usuarios/{usuario}', [AdministracionAccesoController::class, 'actualizarUsuario']);
-        Route::post('/administracion/usuarios/{usuario}/restablecer-pin', [PinOperacionalController::class, 'restablecer']);
         Route::post('/administracion/dispositivos', [AdministracionAccesoController::class, 'crearDispositivo']);
         Route::post('/administracion/clientes', [ClienteGlobalController::class, 'store']);
         Route::put('/administracion/clientes/{cliente}', [ClienteGlobalController::class, 'update']);

@@ -5,6 +5,7 @@ namespace App\Services\Autenticacion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -97,14 +98,21 @@ class ServicioPinOperacional
         }
     }
 
-    public function restablecer(User $usuario): void
+    /** Deja al usuario sin PIN; lo vuelve a crear en la tablet. Se registra quién lo restableció. */
+    public function restablecer(User $usuario, ?User $actor = null): void
     {
         $usuario->forceFill([
             'pin_operacional_hash' => null,
             'pin_operacional_actualizado_at' => now(),
             'pin_operacional_intentos_fallidos' => 0,
             'pin_operacional_bloqueado_hasta' => null,
+            'pin_operacional_restablecido_por_user_id' => $actor?->id,
         ])->save();
+
+        Log::notice('PIN operacional restablecido.', [
+            'usuario_id' => $usuario->id,
+            'restablecido_por_user_id' => $actor?->id,
+        ]);
     }
 
     private function validarFormato(string $pin): void

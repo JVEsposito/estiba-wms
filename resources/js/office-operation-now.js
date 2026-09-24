@@ -1331,6 +1331,55 @@ elements.refresh.addEventListener('click', async () => {
     if (success && !state.poller) startPolling();
 });
 
+// PIN de operadores: el supervisor de frío restablece el PIN de camareros, operadores de
+// Prefrío y validadores (el administrador también lo hace desde Accesos).
+const pinElements = {
+    open: byId('operationPinsOpen'),
+    dialog: byId('operationPinsDialog'),
+    close: byId('operationPinsClose'),
+    content: byId('operationPinsContent'),
+};
+
+function pinStatusLabel(pin) {
+    if (pin?.bloqueado_hasta) return `Bloqueado hasta ${new Date(pin.bloqueado_hasta).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`;
+    return pin?.configurado ? 'PIN creado' : 'Sin PIN';
+}
+
+async function loadOperatorPins() {
+    pinElements.content.innerHTML = '<div class="operation-now-empty">Cargando operadores…</div>';
+    try {
+        const operators = (await api('/api/operacion/pines-operadores')).data || [];
+        pinElements.content.innerHTML = operators.length ? `<table class="operation-pin-table"><thead><tr><th>Operador</th><th>Rol</th><th>Estado</th><th><span class="office-visually-hidden">Acción</span></th></tr></thead><tbody>${operators.map((operator) => `<tr>
+            <td><strong>${escapeHtml(operator.nombre)}</strong></td>
+            <td>${escapeHtml(humanize(operator.rol))}</td>
+            <td><span data-pin-state="${operator.pin?.bloqueado_hasta ? 'bloqueado' : (operator.pin?.configurado ? 'creado' : 'sin')}">${escapeHtml(pinStatusLabel(operator.pin))}</span></td>
+            <td><button type="button" data-reset-pin="${escapeHtml(operator.id)}" data-operator-name="${escapeHtml(operator.nombre)}" ${operator.pin?.configurado || operator.pin?.bloqueado_hasta ? '' : 'disabled'}>Restablecer</button></td>
+        </tr>`).join('')}</tbody></table>` : '<div class="operation-now-empty">No hay operadores de frío activos.</div>';
+    } catch (error) {
+        pinElements.content.innerHTML = `<div class="operation-now-empty">${escapeHtml(error.message)}</div>`;
+    }
+}
+
+pinElements.open?.addEventListener('click', () => {
+    pinElements.dialog.showModal();
+    void loadOperatorPins();
+});
+pinElements.close?.addEventListener('click', () => pinElements.dialog.close());
+pinElements.content?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-reset-pin]');
+    if (!button || button.disabled) return;
+    if (!window.confirm(`¿Restablecer el PIN de ${button.dataset.operatorName}? Deberá crear uno nuevo en la tablet.`)) return;
+    button.disabled = true;
+    try {
+        await api(`/api/administracion/usuarios/${encodeURIComponent(button.dataset.resetPin)}/restablecer-pin`, { method: 'POST' });
+        toast(`PIN de ${button.dataset.operatorName} restablecido.`);
+        await loadOperatorPins();
+    } catch (error) {
+        toast(error.message, true);
+        button.disabled = false;
+    }
+});
+
 async function boot() {
     if (!state.token || !state.identity || !can('puede_consultar_panel_gerencial') || !hasModule('gerencia.panel')) {
         window.location.replace('/oficina/accesos');
@@ -1343,6 +1392,7 @@ async function boot() {
     setText('officeInitials', name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase());
     byId('officeLogoutButton')?.addEventListener('click', () => void logout());
     elements.app.classList.remove('is-hidden');
+    if (pinElements.open) pinElements.open.hidden = !can('puede_gestionar_pines_operadores');
 
     if (!navigator.onLine) showConnectionIssue(new ApiError('El equipo no tiene conexión de red.'));
     const success = await load({ blocking: true, silent: true });

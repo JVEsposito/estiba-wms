@@ -550,12 +550,13 @@ function renderTraceSeasons(seasons = [], current = null) {
 
 function renderTraceLots(payload) {
     const { resumen, lotes, folios, termino, paginacion, temporada, temporadas } = payload;
+    const deliveries = payload.entregas_proceso || [];
     state.traceTerm = termino;
     state.traceSeason = temporada?.id ?? '';
     renderTraceSeasons(temporadas, temporada);
     const seasonLabel = temporada ? `temporada ${temporada.codigo}` : 'la temporada';
-    if (!folios.length && !lotes.length) {
-        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios ni lotes registrados para ${escapeHtml(termino)} en ${escapeHtml(seasonLabel)}.</div>`;
+    if (!folios.length && !lotes.length && !deliveries.length) {
+        elements.traceLotsResults.innerHTML = `<div class="query-empty">No hay folios, lotes ni entregas a proceso para ${escapeHtml(termino)} en ${escapeHtml(seasonLabel)}.</div>`;
         return;
     }
     const summary = `<div class="trace-lots-summary">
@@ -567,6 +568,10 @@ function renderTraceLots(payload) {
     const lots = lotes.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Lotes de materia prima</caption>
         <thead><tr><th>Lote MP</th><th>Recepción</th><th>Cliente</th><th>CSG / predio</th><th>Variedad</th><th>Cosecha</th><th>Kilos netos</th><th>Estado</th></tr></thead>
         <tbody>${lotes.map((lote) => `<tr><td><strong>${escapeHtml(lote.numero)}</strong></td><td>${escapeHtml(lote.recepcion ?? '—')}<br><small>${escapeHtml(lote.guia ?? '')}</small></td><td>${escapeHtml(lote.cliente ?? '—')}</td><td>${escapeHtml(lote.csg)}<br><small>${escapeHtml(lote.predio ?? '')}</small></td><td>${escapeHtml(lote.variedad ?? '—')}</td><td>${escapeHtml(lote.fecha_cosecha ?? '—')}</td><td>${escapeHtml(Number(lote.kilos_netos).toLocaleString('es-CL'))}</td><td>${escapeHtml(label(lote.estado))}</td></tr>`).join('')}</tbody></table>` : '';
+    // El proceso de packing es la orden de Fruta a Proceso: qué lotes MP recibió.
+    const processDeliveries = deliveries.length ? `<table class="trace-lots-table"><caption class="trace-lots-caption">Proceso ${escapeHtml(termino)}: lotes MP entregados por Fruta a Proceso</caption>
+        <thead><tr><th>Entrega</th><th>Lote MP</th><th>Cliente</th><th>Recepción</th><th>Línea / turno</th><th>Envases</th><th>Kilos</th></tr></thead>
+        <tbody>${deliveries.map((delivery) => `<tr><td>${escapeHtml(delivery.entregado_at ? new Date(delivery.entregado_at).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—')}</td><td><strong>${escapeHtml(delivery.lote ?? '—')}</strong></td><td>${escapeHtml(delivery.cliente ?? '—')}</td><td>${escapeHtml(delivery.recepcion ?? '—')}</td><td>${escapeHtml([delivery.linea_proceso, delivery.turno].filter(Boolean).join(' · ') || '—')}</td><td>${escapeHtml(delivery.envases ?? '—')}</td><td>${delivery.kilos === null ? '—' : escapeHtml(Number(delivery.kilos).toLocaleString('es-CL'))}</td></tr>`).join('')}</tbody></table>` : '';
     const rows = folios.map((folio) => `<tr data-inactive="${folio.activo ? 'false' : 'true'}">
         <td><strong>${escapeHtml(folio.numero)}</strong><br><small>${escapeHtml(label(folio.estado))}${folio.activo ? '' : ' · inactivo'}</small></td>
         <td>${escapeHtml(folio.exportadora ?? '—')}<br><small>${escapeHtml([folio.variedad, folio.calibre].filter(Boolean).join(' · '))}</small></td>
@@ -581,8 +586,8 @@ function renderTraceLots(payload) {
     </nav>` : '';
     const table = folios.length ? `<table class="trace-lots-table"><caption class="office-visually-hidden">Folios relacionados</caption>
         <thead><tr><th>Folio</th><th>Cliente / producto</th><th>Ubicación</th><th>Carga</th><th>Composición (cajas · CSG · lote · proceso)</th></tr></thead>
-        <tbody>${rows}</tbody></table>` : '<div class="query-empty">El lote existe, pero ningún folio lo informa todavía.</div>';
-    elements.traceLotsResults.innerHTML = summary + lots + table + pages;
+        <tbody>${rows}</tbody></table>` : '<div class="query-empty">Ningún folio informa todavía este lote o proceso.</div>';
+    elements.traceLotsResults.innerHTML = summary + lots + processDeliveries + table + pages;
 }
 
 async function loadTraceLots(term, page = 1, season = '') {

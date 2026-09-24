@@ -765,9 +765,38 @@ class AlcanceOperacionalUsuario
         return $this->rolActivoEnModulo($usuario, [
             RolUsuario::Administrador,
             RolUsuario::SupervisorFrio,
+            RolUsuario::Despachador,
             RolUsuario::DigitadorMateriaPrima,
             RolUsuario::Consulta,
         ], ['consultas.busqueda', 'consultas.sag', 'consultas.productores']);
+    }
+
+    /** Roles de operación de frío cuyo PIN puede restablecer un supervisor de frío. */
+    public const ROLES_PIN_SUPERVISADOS = [
+        RolUsuario::CamareroFrio,
+        RolUsuario::OperadorPrefrio,
+        RolUsuario::Validador,
+    ];
+
+    public function puedeGestionarPinesOperadores(User $usuario): bool
+    {
+        return $this->puedeAdministrarAccesos($usuario)
+            || $this->rolActivoEnModulo($usuario, [RolUsuario::SupervisorFrio], 'frigorifico.camaras');
+    }
+
+    /**
+     * El administrador restablece cualquier PIN. El supervisor de frío solo el de los
+     * operadores de frío, nunca el propio ni el de otro supervisor.
+     */
+    public function puedeRestablecerPinOperacional(User $actor, User $objetivo): bool
+    {
+        if ($this->puedeAdministrarAccesos($actor)) {
+            return true;
+        }
+
+        return $actor->id !== $objetivo->id
+            && $this->puedeGestionarPinesOperadores($actor)
+            && in_array($objetivo->rol, self::ROLES_PIN_SUPERVISADOS, true);
     }
 
     public function puedeConsultarSag(User $usuario): bool
@@ -871,6 +900,7 @@ class AlcanceOperacionalUsuario
             'puede_entregar_fruta_proceso' => $this->puedeEntregarFrutaProceso($usuario),
             'puede_corregir_entregas_fruta_proceso' => $this->puedeCorregirEntregasFrutaProceso($usuario),
             'puede_consultar_oficina_consultas' => $this->puedeConsultarOficinaConsultas($usuario),
+            'puede_gestionar_pines_operadores' => $this->puedeGestionarPinesOperadores($usuario),
             'puede_consultar_sag' => $this->puedeConsultarSag($usuario),
             'puede_asociar_productores_csg' => $this->puedeAsociarProductoresCsg($usuario),
             'puede_consultar_cargas' => $this->puedeConsultarCargas($usuario),

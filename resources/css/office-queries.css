@@ -135,6 +135,7 @@
 .trace-lots-pages button:disabled { opacity: .45; cursor: default; }
 .trace-lots-summary strong { font-size: 1.05rem; }
 .trace-lots-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.trace-lots-caption { caption-side: top; padding: 0 0 6px; text-align: left; font-size: .74rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .trace-lots-table :where(th, td) { padding: 7px 9px; border-bottom: 1px solid var(--corporate-border, var(--line)); text-align: left; vertical-align: top; }
 .trace-lots-table tr[data-inactive="true"] { opacity: .6; }
 .trace-lots-lines { display: grid; gap: 3px; }

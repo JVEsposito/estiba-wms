@@ -43,7 +43,7 @@ class RegistrarValidacionPalletRequest extends FormRequest
             // Compatibilidad: las PDA anteriores continúan enviando solo origen_validacion_id.
             // Las nuevas envían el detalle completo y una única fecha por bulto.
             'fecha_embalaje' => ['nullable', 'date_format:Y-m-d'],
-            'composicion' => ['nullable', 'array', 'min:1', 'max:20'],
+            'composicion' => [$this->exigeLoteYProceso() ? 'required' : 'nullable', 'array', 'min:1', 'max:20'],
             // Un mismo CSG puede repetirse cuando aporta cajas de lotes o procesos distintos;
             // la combinación CSG + lote + proceso se valida como única en withValidator().
             'composicion.*.origen_validacion_id' => [
@@ -57,14 +57,38 @@ class RegistrarValidacionPalletRequest extends FormRequest
                 'min:1',
             ],
             // Lote de materia prima y proceso de packing impresos en la etiqueta del pallet.
-            'composicion.*.lote_materia_prima' => ['nullable', 'string', 'max:80'],
-            'composicion.*.proceso_packing' => ['nullable', 'string', 'max:80'],
+            // Obligatorios cuando la planta lo activa (config/validacion.php), salvo rechazos.
+            'composicion.*.lote_materia_prima' => [
+                $this->exigeLoteYProceso() ? 'required' : 'nullable',
+                'string',
+                'max:80',
+            ],
+            'composicion.*.proceso_packing' => [
+                $this->exigeLoteYProceso() ? 'required' : 'nullable',
+                'string',
+                'max:80',
+            ],
             'categoria_validacion_id' => ['required', 'uuid', 'exists:categorias_validacion,id'],
             'resultado' => ['required', Rule::enum(ResultadoValidacionPallet::class)],
             'motivo' => ['nullable', Rule::enum(MotivoValidacionPallet::class), 'required_unless:resultado,aprobado'],
             'observacion' => ['nullable', 'string', 'max:2000', 'required_if:motivo,otro'],
             'generado_dispositivo_at' => ['required', 'date'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'composicion.required' => 'Actualiza la aplicación de la PDA: la validación exige informar lote de materia prima y proceso de packing.',
+            'composicion.*.lote_materia_prima.required' => 'Ingresa el lote de materia prima impreso en la etiqueta.',
+            'composicion.*.proceso_packing.required' => 'Ingresa el proceso de packing impreso en la etiqueta.',
+        ];
+    }
+
+    private function exigeLoteYProceso(): bool
+    {
+        return (bool) config('validacion.exigir_lote_proceso')
+            && $this->input('resultado') !== ResultadoValidacionPallet::Rechazado->value;
     }
 
     public function withValidator(Validator $validator): void

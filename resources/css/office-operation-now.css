@@ -215,6 +215,26 @@
     cursor: pointer;
 }
 
+.operation-now-command__actions { display: grid; gap: 6px; justify-items: stretch; }
+.operation-now-pin-button {
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid var(--corporate-border);
+    border-radius: 2px;
+    background: transparent;
+    color: var(--text-strong);
+    font-size: .78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+.operation-now-pin-button:hover { background: var(--surface-hover); }
+.operation-pin-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.operation-pin-table :where(th, td) { padding: 9px 10px; border-bottom: 1px solid var(--corporate-border); text-align: left; }
+.operation-pin-table th { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.operation-pin-table [data-pin-state="bloqueado"] { color: var(--danger, #b42318); font-weight: 800; }
+.operation-pin-table [data-pin-state="sin"] { color: var(--muted); }
+.operation-pin-table button { min-height: 40px; padding: 6px 12px; border: 1px solid var(--corporate-border); border-radius: 2px; background: var(--corporate-card); color: var(--text-strong); font-weight: 700; cursor: pointer; }
+.operation-pin-table button:disabled { opacity: .45; cursor: default; }
 .operation-now-refresh:hover { background: var(--surface-hover); border-color: var(--text-strong); }
 .operation-now-refresh:disabled { cursor: wait; opacity: .65; }
 
