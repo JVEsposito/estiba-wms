@@ -193,6 +193,7 @@ La oficina incorpora un fallback UUID v4 basado en `crypto.getRandomValues()` pa
 GET  /api/envases/cuenta-corriente/catalogos
 GET  /api/envases/cuenta-corriente/movimientos
 POST /api/envases/cuenta-corriente/movimientos/{movimiento}/revisar
+POST /api/envases/cuenta-corriente/movimientos/{movimiento}/corregir-propiedad
 ```
 
 ### Guías de despacho
@@ -211,6 +212,12 @@ POST /api/envases/guias-despacho/{guia}/anular
 ```
 
 Todas las rutas requieren `auth:sanctum` y el Gate específico de consulta, revisión o gestión.
+
+### Corrección de propiedad después de Validación MP
+
+En **Cuenta Envases → Movimientos**, el administrador puede abrir **Corregir propiedad** en un ingreso de `solo_envases` validado durante la temporada activa. Indica `concepto_envases` (`arriendo` o `compra`) y un `motivo` de 10 a 2000 caracteres. La operación modifica el concepto de la recepción y crea, por cada tipo de envase validado, un asiento que deja en cero el ingreso original y un ingreso con la propiedad correcta. La cantidad física total no cambia. El ingreso original y la trazabilidad (motivo, usuario, fecha e identificador de origen) permanecen en el kardex.
+
+Se rechaza la corrección si alguna línea de esa recepción figura en una guía, incluso si la guía se canceló o anuló; también se bloquea ante salidas propias históricas sin origen trazable. No se puede corregir dos veces la misma recepción. Si la recepción contiene varios tipos de envase, se corrigen todos juntos, porque Romana guarda un único concepto de propiedad para toda ella. La corrección no requiere una migración nueva ni reconstruir los movimientos anteriores. Tras desplegarla, cierra sesión y vuelve a entrar para actualizar las capacidades de la cuenta administrativa.
 
 ## Auditoría
 
