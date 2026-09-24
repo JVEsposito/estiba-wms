@@ -5,7 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthSession, LoginPayload, TabletModule } from './src/domain/estiba';
-import { isDemoRuntime } from './src/config/appVariant';
+import { PDA_MODULES, isDemoRuntime, isPdaBuild } from './src/config/appVariant';
 import { initializeDemoDatabase } from './src/demo/demoDatabase';
 import { DemoDataScreen } from './src/screens/DemoDataScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -48,7 +48,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const orientation = activeModule === 'validacion' || activeModule === 'validacion_mp' || activeModule === 'fruta_proceso'
+    // La PDA es un equipo de mano: siempre vertical, incluso en el login.
+    const orientation = isPdaBuild || activeModule === 'validacion' || activeModule === 'validacion_mp' || activeModule === 'fruta_proceso'
       ? ScreenOrientation.OrientationLock.PORTRAIT_UP
       : activeModule
         ? ScreenOrientation.OrientationLock.LANDSCAPE
@@ -116,10 +117,10 @@ export default function App() {
         ) : auth ? (
           <View style={styles.workspace}>
             {modules.length > 1 && activeModule ? (
-              <View style={styles.moduleStrip}>
-                <Text style={styles.moduleStripText}>Módulo activo: {moduleLabel(activeModule)}</Text>
+              <View style={[styles.moduleStrip, isPdaBuild && styles.moduleStripPda]}>
+                <Text numberOfLines={1} style={styles.moduleStripText}>{isPdaBuild ? moduleLabel(activeModule) : `Módulo activo: ${moduleLabel(activeModule)}`}</Text>
                 <Pressable onPress={() => setActiveModule(null)} style={styles.changeModule}>
-                  <Text style={styles.changeModuleText}>Cambiar módulo</Text>
+                  <Text style={styles.changeModuleText}>{isPdaBuild ? 'Cambiar' : 'Cambiar módulo'}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -183,7 +184,9 @@ function availableModules(auth: AuthSession): MobileModule[] {
     'prefrio',
   ];
 
-  return supported.filter((module) => auth.usuario.modulos_tablet?.includes(module));
+  return supported
+    .filter((module) => !isPdaBuild || (PDA_MODULES as readonly string[]).includes(module))
+    .filter((module) => auth.usuario.modulos_tablet?.includes(module));
 }
 
 function defaultModule(auth: AuthSession): MobileModule | null {
@@ -211,69 +214,75 @@ function moduleLabel(module: MobileModule) {
 
 function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModule[]; onSelect: (module: MobileModule) => void; userName: string }) {
   return (
-    <View style={styles.selector}>
+    <View style={[styles.selector, isPdaBuild && styles.selectorPda]}>
       <Text style={styles.selectorEyebrow}>FoliOS · TURNO</Text>
-      <Text style={styles.selectorTitle}>Selecciona el área de trabajo</Text>
+      <Text style={[styles.selectorTitle, isPdaBuild && styles.selectorTitlePda]}>Selecciona el área de trabajo</Text>
       <Text style={styles.selectorCopy}>{userName}, tu perfil posee acceso a más de un módulo.</Text>
-      <View style={styles.selectorCards}>
+      <View style={[styles.selectorCards, isPdaBuild && styles.selectorCardsPda]}>
         {modules.includes('demo_administracion') ? (
-          <Pressable onPress={() => onSelect('demo_administracion')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('demo_administracion')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>◎</Text>
             <Text style={styles.selectorCardTitle}>Administración Demo</Text>
             <Text style={styles.selectorCardCopy}>Gestionar maestros, clientes, folios y cargas CAR locales; preparar y restaurar escenarios.</Text>
           </Pressable>
         ) : null}
         {modules.includes('validacion') ? (
-          <Pressable onPress={() => onSelect('validacion')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('validacion')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>✓</Text>
             <Text style={styles.selectorCardTitle}>Validación</Text>
             <Text style={styles.selectorCardCopy}>Escanear pallets, aprobar, observar y sincronizar capturas.</Text>
           </Pressable>
         ) : null}
         {modules.includes('validacion_mp') ? (
-          <Pressable onPress={() => onSelect('validacion_mp')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('validacion_mp')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>⌁</Text>
             <Text style={styles.selectorCardTitle}>Validación MP</Text>
             <Text style={styles.selectorCardCopy}>Recibir correlativos de Romana, contar envases y preparar segregaciones.</Text>
           </Pressable>
         ) : null}
         {modules.includes('fruta_proceso') ? (
-          <Pressable onPress={() => onSelect('fruta_proceso')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('fruta_proceso')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>→</Text>
             <Text style={styles.selectorCardTitle}>Fruta a proceso</Text>
             <Text style={styles.selectorCardCopy}>Entregar bins por viaje físico desde cámara hacia Packing.</Text>
           </Pressable>
         ) : null}
         {modules.includes('prefrio') ? (
-          <Pressable onPress={() => onSelect('prefrio')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('prefrio')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>◫</Text>
             <Text style={styles.selectorCardTitle}>Prefrío</Text>
             <Text style={styles.selectorCardCopy}>Consultar folios pendientes, cargarlos a túneles y operar procesos térmicos.</Text>
           </Pressable>
         ) : null}
         {modules.includes('operacion_materiales') ? (
-          <Pressable onPress={() => onSelect('operacion_materiales')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('operacion_materiales')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>▦</Text>
             <Text style={styles.selectorCardTitle}>Cámara de materiales</Text>
             <Text style={styles.selectorCardCopy}>Consultar y operar cámaras, posiciones y movimientos de materiales.</Text>
           </Pressable>
         ) : null}
         {modules.includes('recepcion_materiales') ? (
-          <Pressable onPress={() => onSelect('recepcion_materiales')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('recepcion_materiales')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>▦</Text>
             <Text style={styles.selectorCardTitle}>Recepción materiales</Text>
             <Text style={styles.selectorCardCopy}>Registrar guías, separar bultos, confirmar folios y revisar pendientes.</Text>
           </Pressable>
         ) : null}
         {modules.includes('operacion') ? (
-          <Pressable onPress={() => onSelect('operacion')} style={styles.selectorCard}>
+          <Pressable onPress={() => onSelect('operacion')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
             <Text style={styles.selectorIcon}>❄</Text>
             <Text style={styles.selectorCardTitle}>Operación frigorífico</Text>
             <Text style={styles.selectorCardCopy}>Cámaras de producto terminado, cargas y despachos.</Text>
           </Pressable>
         ) : null}
       </View>
-      {!modules.length ? <Text style={styles.noModule}>El perfil no posee un módulo móvil habilitado.</Text> : null}
+      {!modules.length ? (
+        <Text style={styles.noModule}>
+          {isPdaBuild
+            ? 'Esta PDA solo opera Validación PT y Validación MP, y tu perfil no tiene ninguna de ellas. Usa la tablet para los demás módulos.'
+            : 'El perfil no posee un módulo móvil habilitado.'}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -296,5 +305,10 @@ const styles = StyleSheet.create({
   selectorIcon: { color: colors.cyan, fontSize: 34, fontWeight: '900' },
   selectorCardTitle: { color: colors.text, fontSize: 21, fontWeight: '900', marginTop: 14 },
   selectorCardCopy: { color: colors.muted, lineHeight: 20, marginTop: 7 },
-  noModule: { color: colors.red, marginTop: 24, fontWeight: '800' },
+  noModule: { color: colors.red, marginTop: 24, fontWeight: '800', textAlign: 'center' },
+  moduleStripPda: { paddingHorizontal: 10, paddingVertical: 5 },
+  selectorPda: { justifyContent: 'flex-start', padding: 14, paddingTop: 24 },
+  selectorTitlePda: { fontSize: 21 },
+  selectorCardsPda: { flexDirection: 'column', gap: 10, marginTop: 18 },
+  selectorCardPda: { flexBasis: 'auto', flexGrow: 0, maxWidth: '100%', minHeight: 0, padding: 16, borderRadius: 14 },
 });

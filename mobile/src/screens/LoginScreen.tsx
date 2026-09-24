@@ -16,6 +16,7 @@ import {
 
 import { ApiMode, LoginPayload } from '../domain/estiba';
 import { colors } from '../theme/colors';
+import { deviceNoun, isPdaBuild } from '../config/appVariant';
 
 type LoginScreenProps = {
   baseUrl: string | null;
@@ -91,7 +92,7 @@ export function LoginScreen({
             source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
             style={[styles.brandLogo, narrow && styles.brandLogoNarrow]}
           />
-          <Text style={styles.eyebrow}>OPERACIÓN EN FRÍO</Text>
+          <Text style={styles.eyebrow}>{isPdaBuild ? 'PDA · VALIDACIÓN PT Y MP' : 'OPERACIÓN EN FRÍO'}</Text>
           {narrow ? null : (
             <>
               <Text style={styles.brandCopy}>
@@ -133,13 +134,13 @@ export function LoginScreen({
                 }}
                 style={({ pressed }) => [styles.serverButton, pressed && styles.pressed]}
               >
-                <Text style={styles.serverButtonText}>⚙ Configurar servidor</Text>
+                <Text style={styles.serverButtonText}>{isPdaBuild ? '⚙ Servidor' : '⚙ Configurar servidor'}</Text>
               </Pressable>
             ) : null}
           </View>
-          <Text style={styles.formTitle}>Iniciar turno</Text>
+          <Text style={[styles.formTitle, isPdaBuild && styles.formTitlePda]}>{isPdaBuild ? 'Validación en terreno' : 'Iniciar turno'}</Text>
           <Text style={styles.formIntro}>
-            Usa tus credenciales y el código asignado a esta tablet.
+            Usa tus credenciales y el código asignado a esta {deviceNoun}.
           </Text>
 
           <Field
@@ -160,9 +161,9 @@ export function LoginScreen({
           />
           <Field
             autoCapitalize="characters"
-            label="Código de tablet"
+            label={`Código de ${deviceNoun}`}
             onChangeText={setDeviceCode}
-            placeholder="TABLET-01"
+            placeholder={isPdaBuild ? 'PDA-01' : 'TABLET-01'}
             value={deviceCode}
           />
 
@@ -185,7 +186,7 @@ export function LoginScreen({
           >
             {busy ? <ActivityIndicator color={colors.accentText} /> : (
               <>
-                <Text style={styles.submitText}>Acceder al plano</Text>
+                <Text style={styles.submitText}>{isPdaBuild ? 'Iniciar turno' : 'Acceder al plano'}</Text>
                 <Text style={styles.submitArrow}>→</Text>
               </>
             )}
@@ -193,10 +194,10 @@ export function LoginScreen({
 
           <Text style={styles.help}>
             {mode === 'demo'
-              ? 'No necesita Laravel ni internet. Los datos se guardan en la memoria interna de esta tablet.'
+              ? `No necesita Laravel ni internet. Los datos se guardan en la memoria interna de esta ${deviceNoun}.`
               : unconfigured
                 ? 'Configura la IP del equipo que ejecuta Laravel para habilitar el acceso.'
-                : 'La dirección queda guardada en esta tablet y puede cambiarse sin reinstalar la APK.'}
+                : `La dirección queda guardada en esta ${deviceNoun} y puede cambiarse sin reinstalar la APK.`}
           </Text>
         </View>
       </ScrollView>
@@ -305,7 +306,7 @@ const styles = StyleSheet.create({
   page: { flexGrow: 1, flexDirection: 'row' },
   pageNarrow: { flexDirection: 'column' },
   serverRowNarrow: { flexWrap: 'wrap' },
-  brandPanelNarrow: { flex: 0, minHeight: 0, paddingHorizontal: 20, paddingVertical: 22 },
+  brandPanelNarrow: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, paddingHorizontal: 20, paddingVertical: 22 },
   brandLogoNarrow: { width: 200, height: 48, marginBottom: 10 },
   formPanelNarrow: { flex: 1, minHeight: 0, paddingHorizontal: 20, paddingVertical: 20, justifyContent: 'flex-start' },
   brandPanel: {
@@ -366,6 +367,7 @@ const styles = StyleSheet.create({
   },
   serverButtonText: { color: colors.cyan, fontSize: 13, fontWeight: '900' },
   formTitle: { color: colors.text, fontSize: 30, fontWeight: '900' },
+  formTitlePda: { fontSize: 22 },
   formIntro: { marginTop: 7, marginBottom: 17, color: colors.muted, fontSize: 12 },
   field: { marginTop: 11, gap: 6 },
   label: { color: colors.text, fontSize: 14, fontWeight: '800' },
