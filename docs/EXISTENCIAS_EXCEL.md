@@ -2,11 +2,12 @@
 
 ## Alcance
 
-La oficina `/oficina/existencias` entrega tres inventarios independientes:
+La oficina `/oficina/existencias` entrega tres inventarios independientes y un historial de despachos:
 
 1. **Producto terminado:** una fila por folio activo de pallet o saldo.
 2. **Materiales:** una fila por folio material, conservando cantidad inicial, actual, reservada, disponible y unidad de medida.
 3. **Materia prima:** una fila por lote vigente, con trazabilidad, pesos, hidrocooler y cámara asignada.
+4. **Despachos de producto terminado:** una fila por folio despachado en cargas cerradas, filtrable por cliente y período (ver más abajo).
 
 El servidor define qué registros constituyen existencia. Excel no reconstruye estados ni suma unidades incompatibles.
 
@@ -56,6 +57,7 @@ El token se guarda cifrado mediante hash SHA-256; el servidor no conserva el tok
 ## Permisos
 
 - Producto terminado: perfiles autorizados para producto, cargas, Prefrío o consulta gerencial.
+- Despachos de producto terminado: perfiles con consulta de cargas.
 - Materiales: perfiles con consulta de inventario y despachos de materiales.
 - Materia prima: perfiles con consulta de lotes de materia prima.
 
@@ -74,6 +76,7 @@ Tipos válidos:
 - `producto-terminado`
 - `materiales`
 - `materia-prima`
+- `despachos-producto-terminado`
 
 ## Despachos de producto terminado por cliente
 
