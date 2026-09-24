@@ -573,6 +573,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sesiones/{sesion}/cerrar-forzosamente', [SesionEstibaController::class, 'cerrarForzosamente']);
     Route::get('/movimientos/recientes', [MovimientoController::class, 'recientes']);
     Route::get('/movimientos/consultar-folio', [MovimientoController::class, 'consultarFolio']);
+    Route::get('/movimientos/folios-materiales-disponibles', [MovimientoController::class, 'buscarFoliosMateriales']);
     Route::post('/movimientos/ubicar', [MovimientoController::class, 'ubicar']);
     Route::post('/movimientos/mover', [MovimientoController::class, 'mover']);
 

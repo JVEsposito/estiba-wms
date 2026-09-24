@@ -202,6 +202,12 @@ export type FolioLookup = {
   } | null;
 };
 
+export type AvailableMaterialFolio = {
+  numero_folio: string;
+  codigo_item: string;
+  item: string;
+};
+
 export type MaterialSeason = {
   id: string;
   codigo: string;

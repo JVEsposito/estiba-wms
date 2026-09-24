@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { bandNumberingLabel, cameraDisplayName, orderBandsForCamera } from '../domain/cameras';
 import {
+  AvailableMaterialFolio,
   CameraPlan,
   CameraSummary,
   FolioLookup,
@@ -48,6 +49,7 @@ type LocateModalProps = {
   onCancel: () => void;
   onConfirm: (value: LocateFormValue) => Promise<void>;
   onLookup: (folioNumber: string) => Promise<FolioLookup>;
+  onSearchMaterialFolios: (prefix: string) => Promise<AvailableMaterialFolio[]>;
   plan: CameraPlan | null;
   position: Position | null;
   visible: boolean;
@@ -62,6 +64,7 @@ export function LocateModal({
   onCancel,
   onConfirm,
   onLookup,
+  onSearchMaterialFolios,
   plan,
   position,
   visible,
@@ -88,6 +91,9 @@ export function LocateModal({
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMessage, setLookupMessage] = useState('');
   const [lookupTone, setLookupTone] = useState<'success' | 'warning' | 'neutral'>('neutral');
+  const [suggestions, setSuggestions] = useState<AvailableMaterialFolio[]>([]);
+  const [suggestionsBusy, setSuggestionsBusy] = useState(false);
+  const selectedFolio = useRef('');
   const lookupSequence = useRef(0);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const materialClients = [...new Map(materialItems.map((item) => [item.cliente.id, item.cliente])).values()];
@@ -125,6 +131,9 @@ export function LocateModal({
     setLookupBusy(false);
     setLookupMessage('');
     setLookupTone('neutral');
+    setSuggestions([]);
+    setSuggestionsBusy(false);
+    selectedFolio.current = '';
   }, [visible, isMaterial, sharedMaterialClient?.id]);
 
   useEffect(() => {
@@ -135,13 +144,48 @@ export function LocateModal({
     if (!normalized) return;
 
     lookupTimer.current = setTimeout(() => {
-      void lookupFolio(normalized);
+      if (isMaterial) {
+        if (normalized.length >= 2 && selectedFolio.current !== normalized) {
+          void searchMaterialFolios(normalized);
+        }
+      } else {
+        void lookupFolio(normalized);
+      }
     }, 300);
 
     return () => {
       if (lookupTimer.current) clearTimeout(lookupTimer.current);
     };
-  }, [folio, visible]);
+  }, [folio, visible, isMaterial]);
+
+  async function searchMaterialFolios(prefix: string) {
+    const sequence = ++lookupSequence.current;
+    setSuggestionsBusy(true);
+    try {
+      const results = await onSearchMaterialFolios(prefix);
+      if (sequence !== lookupSequence.current) return;
+      setSuggestions(results);
+      if (!results.length) {
+        setLookupMessage('No hay folios disponibles que comiencen con ese texto.');
+        setLookupTone('neutral');
+      }
+    } catch (reason) {
+      if (sequence !== lookupSequence.current) return;
+      setLookupMessage(reason instanceof Error ? reason.message : 'No fue posible buscar folios. Revisa la conexión.');
+      setLookupTone('warning');
+    } finally {
+      if (sequence === lookupSequence.current) setSuggestionsBusy(false);
+    }
+  }
+
+  function selectSuggestion(number: string) {
+    lookupSequence.current += 1;
+    selectedFolio.current = number;
+    setFolio(number);
+    setSuggestions([]);
+    setSuggestionsBusy(false);
+    void lookupFolio(number);
+  }
 
   function clearDetails() {
     setType(isMaterial ? 'material' : 'pallet');
@@ -161,6 +205,9 @@ export function LocateModal({
 
   function changeFolio(value: string) {
     lookupSequence.current += 1;
+    selectedFolio.current = '';
+    setSuggestions([]);
+    setSuggestionsBusy(false);
     if (lookup) clearDetails();
     setLookup(null);
     setLookupBusy(false);
@@ -225,6 +272,7 @@ export function LocateModal({
     const normalized = value.trim().toUpperCase();
     if (!normalized) return null;
     if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    setSuggestions([]);
 
     const sequence = ++lookupSequence.current;
     setLookupBusy(true);
@@ -321,12 +369,35 @@ export function LocateModal({
               autoCapitalize="characters"
               label="Número de folio *"
               onChangeText={changeFolio}
-              onSubmitEditing={() => void lookupFolio(folio)}
+              onSubmitEditing={() => {
+                selectedFolio.current = folio.trim().toUpperCase();
+                void lookupFolio(folio);
+              }}
               placeholder="Escribe o pistolea el folio"
               returnKeyType="done"
               value={folio}
               wide
             />
+
+            {isMaterial && (suggestionsBusy || suggestions.length > 0) ? (
+              <View style={styles.suggestionList}>
+                <Text style={styles.suggestionTitle}>FOLIOS DISPONIBLES</Text>
+                {suggestionsBusy ? <ActivityIndicator color={colors.cyan} size="small" /> : null}
+                {suggestions.map((suggestion) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={suggestion.numero_folio}
+                    onPress={() => selectSuggestion(suggestion.numero_folio)}
+                    style={styles.suggestionRow}
+                  >
+                    <Text style={styles.suggestionNumber}>{suggestion.numero_folio}</Text>
+                    <Text style={styles.suggestionItem} numberOfLines={1}>
+                      {suggestion.codigo_item} · {suggestion.item}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
 
             {(lookupBusy || lookupMessage) ? (
               <View
@@ -1103,6 +1174,11 @@ const styles = StyleSheet.create({
   lookupStatusText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 17 },
   lookupStatusTextSuccess: { color: '#B8F0CC' },
   lookupStatusTextWarning: { color: '#FFB7B7' },
+  suggestionList: { width: '100%', borderWidth: 1, borderColor: colors.border, borderRadius: 10, backgroundColor: colors.panel, padding: 8, gap: 4 },
+  suggestionTitle: { color: colors.muted, fontSize: 11, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 3 },
+  suggestionRow: { borderRadius: 7, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: colors.panelStrong },
+  suggestionNumber: { color: colors.cyan, fontSize: 14, fontWeight: '800' },
+  suggestionItem: { color: colors.muted, fontSize: 12, marginTop: 2 },
   choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
     minHeight: 38,

@@ -315,6 +315,10 @@ export class DemoEstibaApi implements EstibaApi {
     return lookupDemoFolio(folioNumber);
   }
 
+  async searchAvailableMaterialFolios() {
+    return [];
+  }
+
   async locate(_token: string, payload: LocatePayload) {
     return locateDemoFolio(payload);
   }

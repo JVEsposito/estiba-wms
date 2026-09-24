@@ -3,6 +3,7 @@ import {
   ApiList,
   ApiMode,
   AuthSession,
+  AvailableMaterialFolio,
   CameraPlan,
   CameraSummary,
   CreateMaterialDispatchPayload,
@@ -64,6 +65,7 @@ export interface EstibaApi {
   openSession(token: string, cameraId: string): Promise<OpenedSession>;
   closeSession(token: string, sessionId: string): Promise<void>;
   lookupFolio(token: string, folioNumber: string, cameraId?: string): Promise<FolioLookup>;
+  searchAvailableMaterialFolios(token: string, prefix: string, cameraId: string, cameraOnly: boolean): Promise<AvailableMaterialFolio[]>;
   locate(token: string, payload: LocatePayload): Promise<void>;
   move(token: string, payload: MovePayload): Promise<void>;
   getMaterialCatalog(token: string): Promise<MaterialCatalog>;
@@ -348,6 +350,14 @@ class HttpEstibaApi implements EstibaApi {
     const camera = cameraId ? `&camara_id=${encodeURIComponent(cameraId)}` : '';
     const path = `/api/movimientos/consultar-folio?numero_folio=${encodeURIComponent(folioNumber)}${camera}`;
     return (await this.request<ApiItem<FolioLookup>>(path, token)).data;
+  }
+
+  async searchAvailableMaterialFolios(token: string, prefix: string, cameraId: string, cameraOnly: boolean) {
+    const params = new URLSearchParams({ prefijo: prefix, camara_id: cameraId, solo_camara: cameraOnly ? '1' : '0' });
+    return (await this.request<ApiItem<AvailableMaterialFolio[]>>(
+      `/api/movimientos/folios-materiales-disponibles?${params.toString()}`,
+      token,
+    )).data;
   }
 
   async locate(token: string, payload: LocatePayload) {
@@ -706,6 +716,7 @@ function createUnavailableApi(message: string): EstibaApi {
     openSession: unavailable,
     closeSession: unavailable,
     lookupFolio: unavailable,
+    searchAvailableMaterialFolios: unavailable,
     locate: unavailable,
     move: unavailable,
     getMaterialCatalog: unavailable,
