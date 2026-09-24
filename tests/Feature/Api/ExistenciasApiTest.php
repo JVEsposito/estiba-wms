@@ -24,6 +24,7 @@ use App\Models\User;
 use App\Services\Existencias\ServicioExistencias;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -388,6 +389,94 @@ class ExistenciasApiTest extends TestCase
     }
 
     /** @return array{User, string} */
+    public function test_existencia_pt_tolera_folios_sin_condicion_termica_ni_habilitacion(): void
+    {
+        [$administrador] = $this->acceso(RolUsuario::Administrador);
+        $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'TEMP-EX-NULOS',
+            'nombre' => 'Temporada con folios sin condición',
+            'activa' => true,
+        ], usuarioId: $administrador->id);
+        Folio::create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => 'PAL-SIN-CONDICION',
+            'tipo_bulto' => TipoBulto::Pallet,
+            'estado_operacional' => EstadoOperacionalFolio::Disponible,
+            'fecha_ingreso' => now(),
+            'activo' => true,
+        ]);
+
+        $fila = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::PRODUCTO_TERMINADO)
+            ->firstWhere('folio', 'PAL-SIN-CONDICION');
+
+        $this->assertNotNull($fila);
+        $this->assertNull($fila['condicion_termica']);
+        $this->assertNull($fila['habilitacion_almacenamiento']);
+    }
+
+    public function test_despachos_pt_se_recorren_completos_por_bloques_aun_con_salidas_simultaneas(): void
+    {
+        [$administrador] = $this->acceso(RolUsuario::Administrador);
+        $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'TEMP-EX-BLOQUES',
+            'nombre' => 'Temporada bloques',
+            'activa' => true,
+        ], usuarioId: $administrador->id);
+        $carga = Carga::create([
+            'temporada_id' => $temporada->id,
+            'codigo' => 'CAR-EX-BLOQUES',
+            'estado' => EstadoCarga::Cerrada,
+            'prioridad' => PrioridadCarga::Normal,
+            'creada_por_user_id' => $administrador->id,
+            'actualizada_por_user_id' => $administrador->id,
+        ]);
+        // 1.003 despachos con solo dos horas de salida: el corte entre bloques de 500 cae
+        // dentro de filas con la misma fecha y no debe repetir ni omitir ninguna.
+        $folios = [];
+        $asignaciones = [];
+        foreach (range(1, 1003) as $numero) {
+            $folioId = (string) Str::uuid();
+            $folios[] = [
+                'id' => $folioId,
+                'temporada_id' => $temporada->id,
+                'numero_folio' => sprintf('PAL-BLQ-%04d', $numero),
+                'tipo_bulto' => TipoBulto::Pallet->value,
+                'estado_operacional' => EstadoOperacionalFolio::Despachado->value,
+                'fecha_ingreso' => now(),
+                'activo' => false,
+                'exportadora' => 'Exportadora Norte',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+            $asignaciones[] = [
+                'id' => (string) Str::uuid(),
+                'carga_id' => $carga->id,
+                'folio_id' => $folioId,
+                'estado' => EstadoCargaFolio::EnAnden->value,
+                'asignado_por_user_id' => $administrador->id,
+                'asignado_at' => '2026-09-01 08:00:00',
+                'finalizado_at' => $numero % 2 === 0 ? '2026-09-20 14:00:00' : '2026-09-20 15:00:00',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+        foreach (array_chunk($folios, 250) as $bloque) {
+            DB::table('folios')->insert($bloque);
+        }
+        foreach (array_chunk($asignaciones, 250) as $bloque) {
+            DB::table('carga_folios')->insert($bloque);
+        }
+
+        $filas = app(ServicioExistencias::class)
+            ->filas(ServicioExistencias::DESPACHOS_PRODUCTO_TERMINADO, ['cliente' => 'EXPORTADORA NORTE'])
+            ->pluck('folio')
+            ->all();
+
+        $this->assertCount(1003, $filas);
+        $this->assertCount(1003, array_unique($filas));
+    }
+
     private function acceso(RolUsuario $rol): array
     {
         $usuario = User::factory()->create(['rol' => $rol]);

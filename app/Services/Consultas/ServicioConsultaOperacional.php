@@ -6,6 +6,8 @@ use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
 use App\Models\ProductorCsg;
 use App\Models\RecepcionRomana;
+use App\Models\Temporada;
+use App\Models\TrazabilidadFolioOrigen;
 use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -23,7 +25,7 @@ class ServicioConsultaOperacional
             'termino' => trim($termino),
             'limite_por_categoria' => self::LIMITE_POR_CATEGORIA,
             'folios' => in_array($tipo, ['todos', 'folios'], true)
-                ? $this->buscarFolios($patron)
+                ? $this->buscarFolios($termino)
                 : [],
             'lotes' => in_array($tipo, ['todos', 'lotes'], true)
                 ? $this->buscarLotes($patron)
@@ -37,19 +39,39 @@ class ServicioConsultaOperacional
         ];
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function buscarFolios(string $patron): array
+    /**
+     * Folios por número exacto (cualquier temporada), por fragmento del número (por ejemplo
+     * los últimos dígitos) en la temporada activa, o por lote MP / proceso de packing de su
+     * composición. Cada criterio usa un índice: con cientos de miles de folios por temporada
+     * no se recorre la tabla ni se busca dentro del JSON de datos externos.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buscarFolios(string $termino): array
     {
+        $termino = trim($termino);
+        $temporadaActiva = Temporada::query()->where('activa', true)->value('id');
+        $ids = Folio::query()->where('numero_folio', $termino)->pluck('id');
+
+        if ($temporadaActiva !== null) {
+            $ids = $ids
+                ->merge(Folio::query()
+                    ->where('temporada_id', $temporadaActiva)
+                    ->where('numero_folio', 'like', '%'.$termino.'%')
+                    ->orderByDesc('fecha_ingreso')
+                    ->limit(self::LIMITE_POR_CATEGORIA)
+                    ->pluck('id'))
+                ->merge(TrazabilidadFolioOrigen::query()
+                    ->where('temporada_id', $temporadaActiva)
+                    ->where(fn (Builder $consulta) => $consulta
+                        ->where('numero_lote_materia_prima', mb_strtoupper($termino))
+                        ->orWhere('numero_proceso_packing', mb_strtoupper($termino)))
+                    ->limit(self::LIMITE_POR_CATEGORIA)
+                    ->pluck('folio_id'));
+        }
+
         return Folio::query()
-            ->where(function (Builder $consulta) use ($patron): void {
-                $consulta->where('numero_folio', 'like', $patron)
-                    ->orWhere('variedad', 'like', $patron)
-                    ->orWhere('calibre', 'like', $patron)
-                    ->orWhere('marca', 'like', $patron)
-                    ->orWhere('exportadora', 'like', $patron)
-                    ->orWhere('identificador_externo', 'like', $patron)
-                    ->orWhere('datos_externos', 'like', $patron);
-            })
+            ->whereIn('id', $ids->unique()->values()->all())
             ->with(['temporada', 'ubicacionActual.posicion.camara'])
             ->latest('fecha_ingreso')
             ->limit(self::LIMITE_POR_CATEGORIA)

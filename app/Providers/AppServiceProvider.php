@@ -255,7 +255,7 @@ class AppServiceProvider extends ServiceProvider
         );
         Gate::define(
             'administrar-catalogos-materiales',
-            fn (User $usuario): bool => $alcance->puedeAdministrarAccesos($usuario),
+            fn (User $usuario): bool => $alcance->puedeAdministrarCatalogosMateriales($usuario),
         );
         Gate::define(
             'gestionar-despachos-materiales',

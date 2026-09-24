@@ -21,6 +21,9 @@ class ServicioTrazabilidadLotes
 {
     public const POR_PAGINA = 50;
 
+    /** @var array<string, array<int, string>> */
+    private array $idsAfectados = [];
+
     /**
      * El resumen cuenta todos los folios y cajas afectados; el listado se pagina. Para un
      * retiro de mercado se usa la exportación, que incluye todos los folios sin límite.
@@ -162,12 +165,28 @@ class ServicioTrazabilidadLotes
      */
     private function foliosAfectados(string $codigo, Temporada $temporada): Builder
     {
-        return Folio::query()
-            ->where(fn (Builder $consulta) => $consulta
-                ->whereIn('id', $this->lineasCoincidentes($codigo, $temporada)->select('folio_id'))
-                ->orWhere(fn (Builder $porNumero) => $porNumero
-                    ->where('numero_folio', $codigo)
-                    ->where('temporada_id', $temporada->id)));
+        return Folio::query()->whereIn('id', $this->idsFoliosAfectados($codigo, $temporada));
+    }
+
+    /**
+     * Los IDs se resuelven primero con los índices de la trazabilidad y del número de folio.
+     * Un «id IN (subconsulta) OR numero_folio = ?» obliga a MySQL a recorrer todos los folios
+     * (segundos con 150.000 folios por temporada); se calculan una vez por consulta.
+     *
+     * @return array<int, string>
+     */
+    private function idsFoliosAfectados(string $codigo, Temporada $temporada): array
+    {
+        return $this->idsAfectados[$temporada->id.'|'.$codigo] ??= $this->lineasCoincidentes($codigo, $temporada)
+            ->distinct()
+            ->pluck('folio_id')
+            ->merge(Folio::query()
+                ->where('numero_folio', $codigo)
+                ->where('temporada_id', $temporada->id)
+                ->pluck('id'))
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function lineasCoincidentes(string $codigo, Temporada $temporada): Builder
