@@ -18,16 +18,21 @@ class ExistenciaController extends Controller
     public function index(Request $request, ServicioExistencias $servicio): JsonResponse
     {
         $usuario = $request->user();
-        $tipo = trim((string) $request->query('tipo', ''));
+        // Una oficina puede agrupar tipos relacionados, por ejemplo existencias y despachos PT.
+        $tiposSolicitados = collect(explode(',', (string) $request->query('tipo', '')))
+            ->map(fn (string $valor): string => trim($valor))
+            ->filter()
+            ->values();
 
-        if ($tipo !== '') {
-            $servicio->definicion($tipo);
-            abort_unless($servicio->puedeConsultar($usuario, $tipo), Response::HTTP_FORBIDDEN);
+        foreach ($tiposSolicitados as $tipoSolicitado) {
+            $servicio->definicion($tipoSolicitado);
+            abort_unless($servicio->puedeConsultar($usuario, $tipoSolicitado), Response::HTTP_FORBIDDEN);
         }
+        $tipo = $tiposSolicitados->isEmpty() ? '' : 'filtrado';
 
         $conexionesActivas = ConexionExistencia::query()
             ->where('user_id', $usuario->id)
-            ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
+            ->when($tipo !== '', fn ($consulta) => $consulta->whereIn('tipo', $tiposSolicitados))
             ->whereNull('revocado_at')
             ->where(function ($consulta): void {
                 $consulta->whereNull('expira_at')->orWhere('expira_at', '>', now());
@@ -36,7 +41,7 @@ class ExistenciaController extends Controller
             ->groupBy('tipo');
         $historial = ConexionExistencia::query()
             ->where('user_id', $usuario->id)
-            ->when($tipo !== '', fn ($consulta) => $consulta->where('tipo', $tipo))
+            ->when($tipo !== '', fn ($consulta) => $consulta->whereIn('tipo', $tiposSolicitados))
             ->latest()
             ->limit(30)
             ->get();
@@ -44,7 +49,7 @@ class ExistenciaController extends Controller
         $tipos = collect($servicio->disponiblesPara($usuario))
             ->when(
                 $tipo !== '',
-                fn ($definiciones) => $definiciones->where('tipo', $tipo),
+                fn ($definiciones) => $definiciones->whereIn('tipo', $tiposSolicitados),
             )
             ->map(function (array $definicion) use ($conexionesActivas): array {
                 unset($definicion['columnas']);
@@ -56,8 +61,15 @@ class ExistenciaController extends Controller
             })
             ->values();
 
+        $consultaProductoTerminado = $tipos->contains(fn (array $definicion): bool => in_array(
+            $definicion['tipo'],
+            [ServicioExistencias::PRODUCTO_TERMINADO, ServicioExistencias::DESPACHOS_PRODUCTO_TERMINADO],
+            true,
+        ));
+
         return response()->json([
             'data' => $tipos,
+            'clientes' => $consultaProductoTerminado ? $servicio->clientesProductoTerminado() : [],
             'conexiones' => $historial
                 ->map(fn (ConexionExistencia $conexion): array => $this->serializarConexion($conexion))
                 ->values(),
@@ -74,7 +86,12 @@ class ExistenciaController extends Controller
         abort_unless($servicio->puedeConsultar($usuario, $tipo), Response::HTTP_FORBIDDEN);
 
         $definicion = $servicio->definicion($tipo);
-        $filas = $servicio->filas($tipo);
+        $filtros = $request->validate([
+            'cliente' => ['nullable', 'string', 'max:150'],
+            'desde' => ['nullable', 'date_format:Y-m-d'],
+            'hasta' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:desde'],
+        ]);
+        $filas = $servicio->filas($tipo, $filtros);
         $ruta = $generador->generar(
             $definicion['titulo'],
             $this->columnasExcel($definicion['columnas']),
@@ -83,9 +100,16 @@ class ExistenciaController extends Controller
                 'fecha_corte' => now()->toAtomString(),
                 'usuario' => $usuario->name,
                 'temporada' => $servicio->temporadaActiva() ?? 'Temporada activa',
+                'cliente' => $filtros['cliente'] ?? null,
+                'periodo' => filled($filtros['desde'] ?? null) || filled($filtros['hasta'] ?? null)
+                    ? trim(($filtros['desde'] ?? '…').' a '.($filtros['hasta'] ?? '…'))
+                    : null,
             ],
         );
-        $archivo = $definicion['archivo'].'_'.now()->format('Y-m-d_Hi').'.xlsx';
+        $sufijoCliente = filled($filtros['cliente'] ?? null)
+            ? '_'.Str::slug((string) $filtros['cliente'], '_')
+            : '';
+        $archivo = $definicion['archivo'].$sufijoCliente.'_'.now()->format('Y-m-d_Hi').'.xlsx';
 
         return response()->download(
             $ruta,

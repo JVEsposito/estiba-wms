@@ -14,14 +14,15 @@ El servidor define qué registros constituyen existencia. Excel no reconstruye e
 
 ### Corte estático XLSX
 
-Genera un libro con:
+Genera un libro en formato de base de datos, listo para filtrar, cruzar o cargar en otro
+sistema:
 
-- fecha y hora de corte;
-- usuario que realizó la descarga;
-- temporada consultada;
-- encabezados congelados;
-- autofiltros;
-- valores numéricos almacenados como números.
+- hoja de datos con los **encabezados en la fila 1** y una fila por registro, sin títulos
+  ni celdas combinadas;
+- encabezados congelados y autofiltros;
+- valores numéricos y fechas almacenados como tales;
+- hoja **Corte** con reporte, fecha y hora de corte, usuario, temporada, cantidad de
+  registros y, si se aplicaron, cliente y período.
 
 El archivo no cambia después de descargarlo y sirve como evidencia histórica.
 
@@ -73,3 +74,23 @@ Tipos válidos:
 - `producto-terminado`
 - `materiales`
 - `materia-prima`
+
+## Despachos de producto terminado por cliente
+
+La oficina **Frigorífico → Existencias PT** agrupa dos archivos:
+
+- **Existencia de producto terminado**: folios activos de la temporada.
+- **Despachos de producto terminado**: una fila por folio despachado en cargas cerradas,
+  con fecha de salida, carga, orden de embarque, patente, conductor, cliente, producto,
+  CSG, fecha de embalaje, lotes de materia prima y procesos de packing.
+
+La barra de filtros permite elegir un **cliente** (aplica a ambos archivos) y un
+**período de salida** (solo despachos). Así se genera un archivo por cliente para enviarlo
+sin exponer información de otros clientes:
+
+```http
+GET /api/existencias/despachos-producto-terminado/corte?cliente=Exportadora%20Norte&desde=2026-09-01&hasta=2026-09-30
+```
+
+El nombre del archivo incluye el cliente. Las conexiones autoactualizables (`.iqy`)
+entregan la temporada completa sin filtro de cliente.

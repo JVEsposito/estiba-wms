@@ -299,3 +299,9 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Filtros del corte por cliente y período. */
+.inventory-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; padding: 12px 16px; }
+.inventory-filters label { display: grid; gap: 4px; font-size: .78rem; font-weight: 700; }
+.inventory-filters select, .inventory-filters input { min-height: 38px; min-width: 200px; }
+.inventory-filters p { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .74rem; }

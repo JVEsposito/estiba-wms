@@ -27,16 +27,16 @@ class GeneradorLibroXlsx
         $rutaFilas = $this->rutaTemporal('estiba-xlsx-filas-');
         $rutaHoja = $this->rutaTemporal('estiba-xlsx-hoja-');
         $ultimaColumna = $this->nombreColumna(count($columnas));
-        $filaEncabezados = 6;
+        // Formato de base de datos: encabezados en la fila 1 y una fila por registro, sin
+        // títulos ni celdas combinadas. Los datos del corte van en la hoja "Corte".
+        $filaEncabezados = 1;
         $zip = null;
 
         try {
             $ultimaFila = $this->escribirFilas(
                 $rutaFilas,
-                $titulo,
                 $columnas,
                 $filas,
-                $metadatos,
                 $filaEncabezados,
             );
             $this->construirHoja(
@@ -59,6 +59,7 @@ class GeneradorLibroXlsx
             $zip->addFromString('docProps/app.xml', $this->appProperties());
             $zip->addFromString('docProps/core.xml', $this->coreProperties($titulo));
             $zip->addFromString('xl/workbook.xml', $this->workbook($nombreHoja));
+            $zip->addFromString('xl/worksheets/sheet2.xml', $this->hojaCorte($titulo, $metadatos, $ultimaFila - $filaEncabezados));
             $zip->addFromString('xl/_rels/workbook.xml.rels', $this->workbookRelationships());
             $zip->addFromString('xl/styles.xml', $this->styles());
             if (! $zip->addFile($rutaHoja, 'xl/worksheets/sheet1.xml')) {
@@ -92,6 +93,7 @@ class GeneradorLibroXlsx
     <Default Extension="xml" ContentType="application/xml"/>
     <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
     <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+    <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
     <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
     <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
     <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
@@ -153,7 +155,7 @@ XML;
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
     <bookViews><workbookView xWindow="0" yWindow="0" windowWidth="24000" windowHeight="12000"/></bookViews>
-    <sheets><sheet name="{$nombre}" sheetId="1" r:id="rId1"/></sheets>
+    <sheets><sheet name="{$nombre}" sheetId="1" r:id="rId1"/><sheet name="Corte" sheetId="2" r:id="rId3"/></sheets>
     <calcPr calcId="191029"/>
 </workbook>
 XML;
@@ -166,6 +168,7 @@ XML;
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
     <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+    <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 </Relationships>
 XML;
     }
@@ -226,16 +229,52 @@ XML;
     }
 
     /**
+     * @param  array<string, string|null>  $metadatos
+     */
+    private function hojaCorte(string $titulo, array $metadatos, int $registros): string
+    {
+        $filas = [
+            ['Reporte', $titulo],
+            ['Fecha de corte', $metadatos['fecha_corte'] ?? null],
+            ['Generado por', $metadatos['usuario'] ?? null],
+            ['Temporada', $metadatos['temporada'] ?? 'Temporada activa'],
+            ['Registros', (string) $registros],
+        ];
+        foreach (['cliente' => 'Cliente', 'periodo' => 'Período'] as $clave => $etiqueta) {
+            if (filled($metadatos[$clave] ?? null)) {
+                $filas[] = [$etiqueta, $metadatos[$clave]];
+            }
+        }
+        $xml = '';
+        foreach ($filas as $indice => [$etiqueta, $valor]) {
+            $numero = $indice + 1;
+            $xml .= $this->fila($numero, [
+                $this->celdaTexto("A{$numero}", $etiqueta, 2),
+                $this->celdaTexto("B{$numero}", $valor, 3),
+            ]);
+        }
+
+        $ultima = count($filas);
+
+        return <<<XML
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    <dimension ref="A1:B{$ultima}"/>
+    <sheetFormatPr defaultRowHeight="15"/>
+    <cols><col min="1" max="1" width="20" customWidth="1"/><col min="2" max="2" width="48" customWidth="1"/></cols>
+    <sheetData>{$xml}</sheetData>
+</worksheet>
+XML;
+    }
+
+    /**
      * @param  array<int, array{clave:string,titulo:string,ancho?:int,tipo?:string}>  $columnas
      * @param  iterable<int, array<string, mixed>>  $filas
-     * @param  array<string, string|null>  $metadatos
      */
     private function escribirFilas(
         string $rutaFilas,
-        string $titulo,
         array $columnas,
         iterable $filas,
-        array $metadatos,
         int $filaEncabezados,
     ): int {
         $archivo = fopen($rutaFilas, 'wb');
@@ -244,22 +283,6 @@ XML;
         }
 
         try {
-            $this->escribir($archivo, $this->fila(1, [
-                $this->celdaTexto('A1', $titulo, 1),
-            ], 28));
-            $this->escribir($archivo, $this->fila(2, [
-                $this->celdaTexto('A2', 'Fecha de corte'),
-                $this->celdaTexto('B2', $metadatos['fecha_corte'] ?? null),
-            ]));
-            $this->escribir($archivo, $this->fila(3, [
-                $this->celdaTexto('A3', 'Generado por'),
-                $this->celdaTexto('B3', $metadatos['usuario'] ?? null),
-            ]));
-            $this->escribir($archivo, $this->fila(4, [
-                $this->celdaTexto('A4', 'Temporada'),
-                $this->celdaTexto('B4', $metadatos['temporada'] ?? 'Temporada activa'),
-            ]));
-
             $encabezados = [];
             foreach ($columnas as $indice => $columna) {
                 $encabezados[] = $this->celdaTexto(
@@ -308,6 +331,7 @@ XML;
         int $ultimaFila,
     ): void {
         $filtroFinal = max($filaEncabezados, $ultimaFila);
+        $primeraFilaDatos = $filaEncabezados + 1;
         $tituloEscapado = $this->escapar($titulo);
         $columnasXml = $this->columnasXml($columnas);
         $hoja = fopen($rutaHoja, 'wb');
@@ -331,8 +355,8 @@ XML;
     <dimension ref="A1:{$ultimaColumna}{$filtroFinal}"/>
     <sheetViews>
         <sheetView workbookViewId="0">
-            <pane ySplit="6" topLeftCell="A7" activePane="bottomLeft" state="frozen"/>
-            <selection pane="bottomLeft" activeCell="A7" sqref="A7"/>
+            <pane ySplit="{$filaEncabezados}" topLeftCell="A{$primeraFilaDatos}" activePane="bottomLeft" state="frozen"/>
+            <selection pane="bottomLeft" activeCell="A{$primeraFilaDatos}" sqref="A{$primeraFilaDatos}"/>
         </sheetView>
     </sheetViews>
     <sheetFormatPr defaultRowHeight="15"/>

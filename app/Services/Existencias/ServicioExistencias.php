@@ -5,18 +5,22 @@ namespace App\Services\Existencias;
 use App\Enums\CondicionTermicaFolio;
 use App\Enums\ContenidoCamara;
 use App\Enums\EstadoCamara;
+use App\Enums\EstadoCarga;
+use App\Enums\EstadoCargaFolio;
 use App\Enums\EstadoFolioProcesoPrefrio;
 use App\Enums\EstadoOperacionalFolio;
 use App\Enums\EstadoPosicion;
 use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Models\AlmacenMaterial;
 use App\Models\BinRetornoPacking;
+use App\Models\CargaFolio;
 use App\Models\Folio;
 use App\Models\LoteMateriaPrima;
 use App\Models\SaldoMaterialAlmacen;
 use App\Models\Temporada;
 use App\Models\User;
 use App\Services\InspeccionSag\ServicioEstadoSagFolio;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\LazyCollection;
 
@@ -29,6 +33,8 @@ class ServicioExistencias
     public const MATERIALES = 'materiales';
 
     public const MATERIA_PRIMA = 'materia-prima';
+
+    public const DESPACHOS_PRODUCTO_TERMINADO = 'despachos-producto-terminado';
 
     /** @return array<string, array<string, mixed>> */
     public function definiciones(): array
@@ -105,6 +111,34 @@ class ServicioExistencias
                     ['clave' => 'fecha_vencimiento', 'titulo' => 'Fecha de vencimiento', 'ancho' => 20],
                 ],
             ],
+            self::DESPACHOS_PRODUCTO_TERMINADO => [
+                'tipo' => self::DESPACHOS_PRODUCTO_TERMINADO,
+                'titulo' => 'Despachos de producto terminado',
+                'descripcion' => 'Una fila por folio despachado en cargas cerradas, con lotes de materia prima y procesos de packing.',
+                'archivo' => 'Despachos_Producto_Terminado',
+                'columnas' => [
+                    ['clave' => 'temporada', 'titulo' => 'Temporada', 'ancho' => 16],
+                    ['clave' => 'fecha_salida', 'titulo' => 'Fecha de salida', 'ancho' => 20, 'tipo' => 'fecha_hora'],
+                    ['clave' => 'carga', 'titulo' => 'Carga', 'ancho' => 16],
+                    ['clave' => 'orden_embarque', 'titulo' => 'Orden de embarque', 'ancho' => 20],
+                    ['clave' => 'patente', 'titulo' => 'Patente', 'ancho' => 12],
+                    ['clave' => 'conductor', 'titulo' => 'Conductor', 'ancho' => 22],
+                    ['clave' => 'cliente', 'titulo' => 'Cliente', 'ancho' => 22],
+                    ['clave' => 'folio', 'titulo' => 'Folio', 'ancho' => 22],
+                    ['clave' => 'tipo_bulto', 'titulo' => 'Tipo de bulto', 'ancho' => 14],
+                    ['clave' => 'cantidad_cajas', 'titulo' => 'Cantidad de cajas', 'ancho' => 16, 'tipo' => 'numero'],
+                    ['clave' => 'marca', 'titulo' => 'Marca', 'ancho' => 16],
+                    ['clave' => 'especie', 'titulo' => 'Especie', 'ancho' => 14],
+                    ['clave' => 'variedad', 'titulo' => 'Variedad', 'ancho' => 16],
+                    ['clave' => 'calibre', 'titulo' => 'Calibre', 'ancho' => 12],
+                    ['clave' => 'envase', 'titulo' => 'Envase', 'ancho' => 18],
+                    ['clave' => 'categoria', 'titulo' => 'Categoría', 'ancho' => 16],
+                    ['clave' => 'csg', 'titulo' => 'CSG', 'ancho' => 14],
+                    ['clave' => 'fecha_embalaje', 'titulo' => 'Fecha de embalaje', 'ancho' => 16, 'tipo' => 'fecha'],
+                    ['clave' => 'lotes_materia_prima', 'titulo' => 'Lotes de materia prima', 'ancho' => 26],
+                    ['clave' => 'procesos_packing', 'titulo' => 'Procesos de packing', 'ancho' => 22],
+                ],
+            ],
             self::MATERIA_PRIMA => [
                 'tipo' => self::MATERIA_PRIMA,
                 'titulo' => 'Existencia de materia prima',
@@ -176,7 +210,8 @@ class ServicioExistencias
     public function puedeConsultar(User $usuario, string $tipo): bool
     {
         return match ($tipo) {
-            self::PRODUCTO_TERMINADO => $usuario->can('consultar-catalogo-cargas'),
+            self::PRODUCTO_TERMINADO,
+            self::DESPACHOS_PRODUCTO_TERMINADO => $usuario->can('consultar-catalogo-cargas'),
             self::MATERIALES => $usuario->can('consultar-despachos-materiales'),
             self::MATERIA_PRIMA => $usuario->can('consultar-materia-prima'),
             default => false,
@@ -190,15 +225,91 @@ class ServicioExistencias
             ?? throw new DomainException('El tipo de existencia solicitado no existe.');
     }
 
-    /** @return LazyCollection<int, array<string, mixed>> */
-    public function filas(string $tipo): LazyCollection
+    /**
+     * @param  array{cliente?: ?string, desde?: ?string, hasta?: ?string}  $filtros
+     * @return LazyCollection<int, array<string, mixed>>
+     */
+    public function filas(string $tipo, array $filtros = []): LazyCollection
     {
-        return match ($tipo) {
+        $filas = match ($tipo) {
             self::PRODUCTO_TERMINADO => $this->productoTerminado(),
+            self::DESPACHOS_PRODUCTO_TERMINADO => $this->despachosProductoTerminado(
+                $filtros['desde'] ?? null,
+                $filtros['hasta'] ?? null,
+            ),
             self::MATERIALES => $this->materiales(),
             self::MATERIA_PRIMA => $this->materiaPrima(),
             default => throw new DomainException('El tipo de existencia solicitado no existe.'),
         };
+        $cliente = filled($filtros['cliente'] ?? null)
+            ? mb_strtoupper(trim((string) $filtros['cliente']))
+            : null;
+
+        // Un archivo por cliente: la planta envía a cada cliente solo sus propios registros.
+        return $cliente === null
+            ? $filas
+            : $filas->filter(fn (array $fila): bool => mb_strtoupper(trim((string) ($fila['cliente'] ?? ''))) === $cliente);
+    }
+
+    /** @return array<int, string> */
+    public function clientesProductoTerminado(): array
+    {
+        return Folio::query()
+            ->whereHas('temporada', fn ($consulta) => $consulta->where('activa', true))
+            ->whereDoesntHave('material')
+            ->whereNotNull('exportadora')
+            ->distinct()
+            ->orderBy('exportadora')
+            ->pluck('exportadora')
+            ->all();
+    }
+
+    /** @return LazyCollection<int, array<string, mixed>> */
+    private function despachosProductoTerminado(?string $desde, ?string $hasta): LazyCollection
+    {
+        $zona = config('app.operational_timezone', config('app.timezone'));
+
+        return CargaFolio::query()
+            ->with(['carga.temporada', 'folio'])
+            ->where('estado', EstadoCargaFolio::EnAnden->value)
+            ->whereNotNull('finalizado_at')
+            ->whereHas('carga', fn ($consulta) => $consulta
+                ->where('estado', EstadoCarga::Cerrada->value)
+                ->whereHas('temporada', fn ($temporada) => $temporada->where('activa', true)))
+            ->when($desde, fn ($consulta) => $consulta->where('finalizado_at', '>=', CarbonImmutable::parse($desde, $zona)->startOfDay()->utc()))
+            ->when($hasta, fn ($consulta) => $consulta->where('finalizado_at', '<=', CarbonImmutable::parse($hasta, $zona)->endOfDay()->utc()))
+            ->orderBy('finalizado_at')
+            ->orderBy('id')
+            ->lazy(200)
+            ->map(function (CargaFolio $asignacion): array {
+                $folio = $asignacion->folio;
+                $carga = $asignacion->carga;
+                $datos = $folio?->datos_externos ?? [];
+                $composicion = collect($datos['composicion'] ?? []);
+
+                return [
+                    'temporada' => $carga?->temporada?->codigo,
+                    'fecha_salida' => $asignacion->finalizado_at?->toAtomString(),
+                    'carga' => $carga?->codigo,
+                    'orden_embarque' => $carga?->numero_orden_externa,
+                    'patente' => $carga?->patente,
+                    'conductor' => $carga?->conductor,
+                    'cliente' => $folio?->exportadora,
+                    'folio' => $folio?->numero_folio,
+                    'tipo_bulto' => $folio ? $this->humanizar($folio->tipo_bulto->value) : null,
+                    'cantidad_cajas' => isset($datos['cantidad_cajas']) ? (int) $datos['cantidad_cajas'] : null,
+                    'marca' => $folio?->marca,
+                    'especie' => $datos['especie'] ?? null,
+                    'variedad' => $folio?->variedad,
+                    'calibre' => $folio?->calibre,
+                    'envase' => $datos['envase'] ?? null,
+                    'categoria' => $datos['categoria'] ?? null,
+                    'csg' => $datos['csg'] ?? null,
+                    'fecha_embalaje' => $datos['fecha_embalaje'] ?? null,
+                    'lotes_materia_prima' => $this->valoresUnicos($composicion->pluck('lote_materia_prima')),
+                    'procesos_packing' => $this->valoresUnicos($composicion->pluck('proceso_packing')),
+                ];
+            });
     }
 
     public function temporadaActiva(): ?string
