@@ -115,6 +115,85 @@ class ValidacionPalletApiTest extends TestCase
         $this->assertSame([70, 50], collect($folio->datos_externos['composicion'])->pluck('cantidad_cajas')->all());
     }
 
+    public function test_registra_varios_lotes_y_procesos_por_pallet_y_los_hace_trazables(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-LOTES');
+        $payload = [
+            ...$this->payload($catalogo, 'PAL-LOTES-01'),
+            'composicion' => [
+                [
+                    'origen_validacion_id' => $catalogo['origen_validacion_id'],
+                    'cantidad_cajas' => 80,
+                    'lote_materia_prima' => ' l-2401 ',
+                    'proceso_packing' => 'p-77',
+                ],
+                [
+                    'origen_validacion_id' => $catalogo['origen_validacion_id'],
+                    'cantidad_cajas' => 40,
+                    'lote_materia_prima' => 'L-2402',
+                    'proceso_packing' => 'P-77',
+                ],
+            ],
+        ];
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.catalogo.composicion.0.lote_materia_prima', 'L-2401')
+            ->assertJsonPath('data.catalogo.composicion.1.proceso_packing', 'P-77');
+
+        // Reintento idéntico: sigue siendo idempotente con los campos nuevos.
+        $this->conToken($token)->postJson('/api/validacion/pallets', $payload)->assertOk();
+
+        $folio = Folio::query()->where('numero_folio', 'PAL-LOTES-01')->firstOrFail();
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $folio->id,
+            'numero_lote_materia_prima' => 'L-2401',
+            'numero_proceso_packing' => 'P-77',
+            'cantidad_cajas' => 80,
+        ]);
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $folio->id,
+            'numero_lote_materia_prima' => 'L-2402',
+            'cantidad_cajas' => 40,
+        ]);
+
+        $consulta = User::factory()->create(['rol' => RolUsuario::Administrador, 'activo' => true]);
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/consultas/trazabilidad?q=l-2402&temporada_id='.$folio->temporada_id)
+            ->assertOk()
+            ->assertJsonPath('data.termino', 'L-2402')
+            ->assertJsonPath('data.resumen.folios', 1)
+            ->assertJsonPath('data.resumen.cajas_coincidentes', 40)
+            ->assertJsonPath('data.folios.0.numero', 'PAL-LOTES-01')
+            ->assertJsonCount(2, 'data.folios.0.lineas');
+
+        $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/consultas/trazabilidad?q=P-77&temporada_id='.$folio->temporada_id)
+            ->assertOk()
+            ->assertJsonPath('data.resumen.cajas_coincidentes', 120);
+    }
+
+    public function test_rechaza_repetir_la_misma_combinacion_de_csg_lote_y_proceso(): void
+    {
+        [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-LOTES-DUP');
+        $linea = [
+            'origen_validacion_id' => $catalogo['origen_validacion_id'],
+            'cantidad_cajas' => 60,
+            'lote_materia_prima' => 'L-1',
+            'proceso_packing' => 'P-1',
+        ];
+
+        $this->conToken($token)
+            ->postJson('/api/validacion/pallets', [
+                ...$this->payload($catalogo, 'PAL-LOTES-DUP'),
+                'composicion' => [$linea, [...$linea, 'lote_materia_prima' => ' l-1 ']],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['composicion']);
+    }
+
     public function test_observa_sin_crear_folio_y_la_aprobacion_posterior_es_otro_intento(): void
     {
         [$catalogo, $token] = $this->contexto(RolUsuario::Validador, 'VAL-02');

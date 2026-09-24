@@ -6,6 +6,7 @@ use App\Enums\EstadoLoteMateriaPrima;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoProductoMateriaPrima;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -60,6 +61,18 @@ class LoteMateriaPrima extends Model
     use HasUuids, ImpideEliminacionFisica;
 
     protected $table = 'lotes_materia_prima';
+
+    protected static function booted(): void
+    {
+        // Los pallets pueden validarse antes de que su lote se digite: al registrar o
+        // modificar el lote se concilian los vínculos de trazabilidad pendientes.
+        static::saved(function (LoteMateriaPrima $lote): void {
+            if ($lote->wasRecentlyCreated
+                || $lote->wasChanged(['numero_lote', 'cliente_id', 'temporada_id', 'estado'])) {
+                app(ProyeccionTrazabilidadFolio::class)->conciliarLote($lote);
+            }
+        });
+    }
 
     public function segmento(): BelongsTo
     {

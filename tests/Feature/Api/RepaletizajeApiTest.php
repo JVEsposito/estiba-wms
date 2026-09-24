@@ -391,6 +391,63 @@ class RepaletizajeApiTest extends TestCase
         $this->assertFalse(Folio::query()->where('numero_folio', 'SAL-DIV-B')->firstOrFail()->activo);
     }
 
+    public function test_la_division_conserva_lote_y_proceso_de_packing_en_los_resultados(): void
+    {
+        [$token, $temporada] = $this->contexto();
+        $origen = $this->folio($temporada, 'PAL-DIV-LOTES', 60, tipo: TipoBulto::Pallet);
+        $datos = $origen->datos_externos;
+        // Mismo CSG y fecha, dos lotes: no deben fusionarse en una sola línea.
+        $datos['composicion'] = [
+            ['csg' => '111', 'predio' => 'Predio', 'fecha_embalaje' => '2026-08-10', 'cantidad_cajas' => 40, 'lote_materia_prima' => 'L-10', 'proceso_packing' => 'P-5'],
+            ['csg' => '111', 'predio' => 'Predio', 'fecha_embalaje' => '2026-08-10', 'cantidad_cajas' => 20, 'lote_materia_prima' => 'L-11', 'proceso_packing' => 'P-5'],
+        ];
+        $origen->update(['datos_externos' => $datos]);
+        $lineas = collect($this->withToken($token)
+            ->getJson('/api/validacion/repaletizajes/folios/PAL-DIV-LOTES')
+            ->assertOk()->json('composicion'));
+        $this->assertCount(2, $lineas);
+
+        $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'operacion_id' => (string) Str::uuid(),
+            'modalidad' => 'division',
+            'origenes' => [['folio_id' => $origen->id, 'cantidad_aportada' => 60]],
+            'resultados' => [
+                [
+                    'numero_folio' => 'SAL-LOTE-A',
+                    'tipo_resultado' => 'saldo',
+                    'cantidad_objetivo' => 120,
+                    'cantidad_resultante' => 30,
+                    'composicion' => $lineas->map(fn (array $linea): array => [
+                        'clave' => $linea['clave'],
+                        'cantidad_cajas' => $linea['lote_materia_prima'] === 'L-10' ? 20 : 10,
+                    ])->all(),
+                ],
+                [
+                    'numero_folio' => 'SAL-LOTE-B',
+                    'tipo_resultado' => 'saldo',
+                    'cantidad_objetivo' => 120,
+                    'cantidad_resultante' => 30,
+                    'composicion' => $lineas->map(fn (array $linea): array => [
+                        'clave' => $linea['clave'],
+                        'cantidad_cajas' => $linea['lote_materia_prima'] === 'L-10' ? 20 : 10,
+                    ])->all(),
+                ],
+            ],
+        ])->assertOk();
+
+        $resultado = Folio::query()->where('numero_folio', 'SAL-LOTE-A')->firstOrFail();
+        $this->assertEqualsCanonicalizing(
+            ['L-10' => 20, 'L-11' => 10],
+            collect($resultado->datos_externos['composicion'])->pluck('cantidad_cajas', 'lote_materia_prima')->all(),
+        );
+        $this->assertDatabaseHas('trazabilidad_folio_origenes', [
+            'folio_id' => $resultado->id,
+            'numero_lote_materia_prima' => 'L-11',
+            'numero_proceso_packing' => 'P-5',
+            'cantidad_cajas' => 10,
+        ]);
+    }
+
     public function test_distribuye_un_saldo_mixto_por_csg_y_fecha_sin_perder_el_residual(): void
     {
         [$token, $temporada] = $this->contexto();

@@ -127,6 +127,10 @@ Route::view('/oficina/consultas/sag', 'office.queries', [
     'navigationOffice' => 'sag',
     'queriesSection' => 'sag',
 ]);
+Route::view('/oficina/consultas/trazabilidad', 'office.queries', [
+    'navigationOffice' => 'trazabilidad',
+    'queriesSection' => 'trazabilidad',
+]);
 Route::view('/oficina/consultas/productores', 'office.queries', [
     'navigationOffice' => 'productores',
     'queriesSection' => 'productores',

@@ -285,11 +285,7 @@ class RepaletizajeController extends Controller
         }
 
         return $lineas->map(function (array $linea): array {
-            $linea['clave'] = hash('sha256', implode('|', [
-                mb_strtoupper(trim((string) ($linea['csg'] ?? ''))),
-                mb_strtoupper(trim((string) ($linea['predio'] ?? ''))),
-                (string) ($linea['fecha_embalaje'] ?? ''),
-            ]));
+            $linea['clave'] = ServicioRepaletizaje::claveComposicion($linea);
             $linea['cantidad_cajas'] = (int) $linea['cantidad_cajas'];
 
             return $linea;
