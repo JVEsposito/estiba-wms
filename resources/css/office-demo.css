@@ -29,7 +29,8 @@
     width: min(760px, 100%);
     border: 1px solid var(--line);
     border-radius: 20px;
-    background: rgba(14, 27, 37, .96);
+    /* Superficie del tema vigente: el texto de la tarjeta usa las mismas variables. */
+    background: var(--corporate-card);
     box-shadow: 0 28px 80px rgba(0, 0, 0, .38);
     padding: clamp(28px, 5vw, 54px);
 }
@@ -122,7 +123,9 @@
 .demo-brand, .demo-session-identity { display: flex; align-items: center; gap: 12px; }
 .demo-brand > span { color: var(--cyan-light); font-size: 1.45rem; }
 .demo-brand > div { display: grid; gap: 1px; }
-.demo-brand small { color: var(--muted); font-size: .58rem; letter-spacing: .14em; }
+/* La barra superior es oscura en ambos temas; su texto no depende del tema. */
+.demo-brand strong { color: #ffffff; }
+.demo-brand small { color: #b8cad5; font-size: .58rem; letter-spacing: .14em; }
 .demo-brand > b {
     border: 1px solid rgba(224, 173, 77, .4);
     border-radius: 999px;
@@ -133,8 +136,8 @@
     letter-spacing: .08em;
 }
 
-.demo-session-identity > span { font-size: .78rem; font-weight: 900; }
-.demo-session-identity > small { color: var(--muted); font-size: .68rem; }
+.demo-session-identity > span { color: #ffffff; font-size: .78rem; font-weight: 900; }
+.demo-session-identity > small { color: #b8cad5; font-size: .68rem; }
 .demo-session-identity button {
     min-height: 36px;
     border: 1px solid var(--line);

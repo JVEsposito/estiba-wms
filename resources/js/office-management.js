@@ -331,12 +331,20 @@ function clampPercentage(value) {
     return Math.max(0, Math.min(100, Number(value || 0)));
 }
 
+// Omite el código cuando el nombre ya lo contiene ("Temporada cerezas 2026–2027" · "2026-2027").
+function seasonLabel(season) {
+    const normalize = (value) => String(value ?? '').replace(/[\u2012-\u2015]/g, '-');
+    return normalize(season.nombre).includes(normalize(season.codigo))
+        ? season.nombre
+        : `${season.nombre} · ${season.codigo}`;
+}
+
 function renderSeasonOptions(data) {
     const selected = data.temporada;
     const seasons = data.temporadas || [];
     state.seasonId = selected?.id || null;
     elements.seasonSelect.innerHTML = seasons.length
-        ? seasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(season.nombre)} · ${escapeHtml(season.codigo)}${season.activa ? ' (activa)' : ''}</option>`).join('')
+        ? seasons.map((season) => `<option value="${escapeHtml(season.id)}">${escapeHtml(seasonLabel(season))}${season.activa ? ' (activa)' : ''}</option>`).join('')
         : '<option value="">Sin temporadas configuradas</option>';
     elements.seasonSelect.value = state.seasonId || '';
     elements.seasonStatus.textContent = selected?.activa

@@ -91,3 +91,20 @@ test('Operación ahora mantiene contraste con filas alternas y superficies de ca
         }
     }
 });
+
+test('los títulos de superficies navy superan a la regla transversal de títulos en tema claro', () => {
+    // Regresión: .office-app :is(h1, h2, h3, h4):not([data-office-shell] *) aplica
+    // --text-strong con !important y, por especificidad, oscurecía los h2 de las
+    // cabeceras navy de Cámaras PT en tema claro (navy sobre navy).
+    const transversal = '.office-app :is(h1, h2, h3, h4):not([data-office-shell] *) { color: var(--text-strong) !important; }';
+    const navy = '.office-app [data-estiba-contrast="navy"] :is(h1, h2, h3, h4):not([data-office-shell] *)';
+    const transversalIndex = css.indexOf(transversal);
+    const navyIndex = css.lastIndexOf(navy);
+
+    assert.notEqual(transversalIndex, -1, 'No se encontró la regla transversal de títulos');
+    assert.notEqual(navyIndex, -1, 'La superficie navy no declara un selector de títulos más específico');
+
+    // El selector navy es la regla transversal más un atributo: siempre la supera.
+    const block = css.slice(navyIndex, css.indexOf('}', navyIndex));
+    assert.match(block, /color:\s*#ffffff\s*!important/);
+});
