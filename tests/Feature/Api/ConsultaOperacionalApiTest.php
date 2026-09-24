@@ -7,6 +7,7 @@ use App\Models\Cliente;
 use App\Models\ClienteValidacion;
 use App\Models\CsgValidacion;
 use App\Models\EspecieValidacion;
+use App\Models\Folio;
 use App\Models\MarcaValidacion;
 use App\Models\OrigenValidacion;
 use App\Models\ProductorCsg;
@@ -246,6 +247,41 @@ class ConsultaOperacionalApiTest extends TestCase
             'tipo' => 'codigo_sag',
             'valor' => '105410',
         ])->assertForbidden();
+    }
+
+    public function test_busca_folios_por_numero_exacto_ultimos_digitos_y_lote_sin_mezclar_temporadas(): void
+    {
+        $activa = Temporada::query()->where('activa', true)->firstOrFail();
+        $anterior = Temporada::query()->create(['codigo' => 'HIST-2025', 'nombre' => 'Histórica', 'activa' => false]);
+        $crear = fn (string $numero, Temporada $temporada, array $datos = []) => Folio::query()->create([
+            'temporada_id' => $temporada->id,
+            'numero_folio' => $numero,
+            'tipo_bulto' => 'pallet',
+            'estado_operacional' => 'disponible',
+            'fecha_ingreso' => now(),
+            'activo' => true,
+            'datos_externos' => $datos,
+        ]);
+        $crear('PT-2026-0045871', $activa, ['composicion' => [[
+            'csg' => '105410', 'cantidad_cajas' => 10, 'lote_materia_prima' => 'L-9001', 'proceso_packing' => 'P-31',
+        ]]]);
+        $crear('PT-2025-0045871', $anterior);
+        $crear('PT-2026-0000001', $activa, ['nota' => 'SOLO-EN-JSON']);
+        $consulta = User::factory()->create(['rol' => RolUsuario::Administrador, 'activo' => true]);
+        $folios = fn (string $termino): array => collect($this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/consultas/buscar?tipo=folios&q='.$termino)
+            ->assertOk()
+            ->json('folios'))->pluck('numero')->sort()->values()->all();
+
+        // Número exacto: cualquier temporada.
+        $this->assertSame(['PT-2025-0045871'], $folios('PT-2025-0045871'));
+        // Fragmento (últimos dígitos): solo la temporada activa.
+        $this->assertSame(['PT-2026-0045871'], $folios('45871'));
+        // Lote MP y proceso de packing, desde la trazabilidad.
+        $this->assertSame(['PT-2026-0045871'], $folios('l-9001'));
+        $this->assertSame(['PT-2026-0045871'], $folios('P-31'));
+        // El JSON de datos externos ya no se recorre.
+        $this->assertSame([], $folios('SOLO-EN-JSON'));
     }
 
     public function test_el_despachador_usa_la_busqueda_global_pero_no_administra_productores(): void
