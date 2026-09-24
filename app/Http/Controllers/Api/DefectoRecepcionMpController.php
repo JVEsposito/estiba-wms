@@ -150,8 +150,7 @@ class DefectoRecepcionMpController extends Controller
         string $formato,
         GeneradorLibroXlsx $excel,
         RegistroDefectosRecepcionPdf $pdf,
-    ): BinaryFileResponse|Response
-    {
+    ): BinaryFileResponse|Response {
         abort_unless(in_array($formato, ['xlsx', 'pdf', 'zip'], true), 404);
         $filtros = $this->filtros($request);
         $consulta = $this->consulta($filtros);
@@ -301,6 +300,7 @@ class DefectoRecepcionMpController extends Controller
                 ->orWhere('numero_guia_snapshot', 'like', $buscar)
                 ->orWhere('cliente_nombre_snapshot', 'like', $buscar));
         }
+
         return $consulta;
     }
 
