@@ -252,7 +252,7 @@ document.addEventListener('click', async (event) => {
         elements.propertyForm.reset();
         elements.propertyForm.elements.movimiento_id.value = movement.id;
         elements.propertyForm.elements.concepto_envases.value = movement.propiedad === 'propia' ? 'arriendo' : 'compra';
-        elements.propertySummary.textContent = `${movement.numero_documento} · ${movement.cliente?.nombre || ''} · ${label(movement.propiedad)} → ${movement.propiedad === 'propia' ? 'Arrendada' : 'Propia'}`;
+        updatePropertySummary(movement);
         elements.propertyError.textContent = '';
         elements.propertyDialog.showModal();
     }
@@ -266,6 +266,14 @@ document.addEventListener('click', async (event) => {
             toast(error.message, true);
         }
     }
+});
+function updatePropertySummary(movement) {
+    const target = elements.propertyForm.elements.concepto_envases.value === 'arriendo' ? 'Arrendada' : 'Propia';
+    elements.propertySummary.textContent = `${movement.numero_documento} · ${movement.cliente?.nombre || ''} · ${label(movement.propiedad)} → ${target}`;
+}
+elements.propertyForm.elements.concepto_envases.addEventListener('change', () => {
+    const movement = state.movements.find((item) => item.id === elements.propertyForm.elements.movimiento_id.value);
+    if (movement) updatePropertySummary(movement);
 });
 elements.propertyCancel.addEventListener('click', () => elements.propertyDialog.close());
 elements.propertyForm.addEventListener('submit', async (event) => {
