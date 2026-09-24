@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TipoBulto;
 use App\Enums\ContenidoCamara;
+use App\Enums\TipoBulto;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ConsultarFolioUbicacionRequest;
 use App\Http\Requests\BuscarFoliosMaterialUbicacionRequest;
+use App\Http\Requests\ConsultarFolioUbicacionRequest;
 use App\Http\Requests\MoverFolioRequest;
 use App\Http\Requests\MovimientosRecientesRequest;
 use App\Http\Requests\UbicarFolioRequest;
@@ -54,7 +54,7 @@ class MovimientoController extends Controller
                     ->where('activa', true)))
             ->where(function (Builder $consulta) use ($camara, $datos): void {
                 $consulta->whereDoesntHave('ubicacionActual');
-                if (! ($datos['solo_camara'] ?? false)) {
+                if (empty($datos['solo_camara'])) {
                     $consulta->orWhereHas('ubicacionActual', fn (Builder $ubicacion) => $ubicacion
                         ->where('camara_id', $camara->id)
                         ->whereNull('posicion_id'));
