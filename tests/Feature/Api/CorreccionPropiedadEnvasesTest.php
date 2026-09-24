@@ -51,8 +51,10 @@ class CorreccionPropiedadEnvasesTest extends TestCase
         $inventario = app(ServicioGuiaDespachoEnvases::class)->inventario($temporada);
         $this->assertSame(0, collect($inventario['origenes'])->where('propiedad', 'propia')->sum('fisico'));
         $this->assertSame(50, collect($inventario['origenes'])->where('propiedad', 'arrendada')->sum('fisico'));
-        $this->getJson('/api/envases/cuenta-corriente/movimientos?cliente_id='.$cliente->id)
-            ->assertOk()->assertJsonPath('balances.0.saldo', 50);
+        $balances = $this->getJson('/api/envases/cuenta-corriente/movimientos?cliente_id='.$cliente->id)
+            ->assertOk()->json('balances');
+        $this->assertCount(2, $balances);
+        $this->assertSame(50, collect($balances)->sum('saldo'));
 
         $this->postJson($ruta, [
             'concepto_envases' => 'arriendo', 'motivo' => 'Reintento de la misma corrección.',
