@@ -182,32 +182,108 @@
 }
 
 .review-dialog {
-    width: min(520px, calc(100vw - 32px));
+    position: fixed;
+    inset: 0;
+    width: min(560px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    padding: 0;
+    overflow-y: auto;
     border: 1px solid var(--line);
-    border-radius: 16px;
+    border-radius: var(--radius);
     background: var(--panel);
     color: var(--text);
 }
 
 .review-dialog form {
     display: grid;
-    gap: 14px;
+    gap: 18px;
+    padding: clamp(20px, 3vw, 28px);
+}
+
+.review-dialog__header {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.review-dialog__header h2 {
+    margin: 4px 0 0;
+    font-size: clamp(1.25rem, 3vw, 1.5rem);
+    line-height: 1.25;
+}
+
+.review-dialog label {
+    display: block;
+    min-width: 0;
 }
 
 .review-dialog label span {
     display: block;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: .85rem;
     font-weight: 800;
 }
 
 .review-dialog textarea {
-    min-height: 110px;
+    min-height: 104px;
+    resize: vertical;
+}
+
+.review-dialog .form-error:empty {
+    display: none;
+}
+
+.property-dialog__context {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--corporate-blue);
+    border-radius: var(--radius);
+    background: var(--surface-muted);
+}
+
+.property-dialog__context span {
+    color: var(--text-secondary);
+    font-size: .68rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.property-dialog__context strong {
+    color: var(--text-strong);
+    font-size: .95rem;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.property-dialog__help {
+    margin: -6px 0 0;
+    color: var(--text-secondary);
+    font-size: .83rem;
+    line-height: 1.5;
 }
 
 .dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.dialog-actions button {
+    min-height: 44px;
+}
+
+@media (max-width: 560px) {
+    .review-dialog { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+    .dialog-actions { flex-direction: column-reverse; }
+    .dialog-actions button { width: 100%; }
 }
 
 @media (max-width: 1200px) {

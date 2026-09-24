@@ -44,8 +44,34 @@
                 <section class="panel movements-panel" id="container-accounts-panel-movements" data-office-panel-group="container-accounts" data-office-panel-id="movements" role="tabpanel" aria-labelledby="container-accounts-tab-movements"><div class="panel-heading"><div><p class="eyebrow">KARDEX DOCUMENTAL</p><h2>Movimientos confirmados</h2></div><small>Ingreso y salida conservan fecha y hora exactas.</small></div><div class="accounts-table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Cliente / documento</th><th>Envase</th><th>Cuenta</th><th>Propiedad</th><th>Revisión</th><th>Acción</th></tr></thead><tbody id="movementsBody"></tbody></table></div></section>
             </section>
         </main>
-        <dialog class="review-dialog" id="reviewDialog"><form id="reviewForm" method="dialog"><input name="movimiento_id" type="hidden"><div><p class="eyebrow">CHEQUEO DOCUMENTAL</p><h2>Revisar movimiento</h2></div><label><span>Resultado</span><select name="estado" required><option value="revisado">Revisado</option><option value="observado">Observado</option></select></label><label><span>Nota</span><textarea name="nota" maxlength="2000"></textarea></label><p class="form-error" id="reviewError"></p><div class="dialog-actions"><button class="secondary-button" value="cancel">Cancelar</button><button class="primary-button" value="default">Guardar chequeo</button></div></form></dialog>
-        <dialog class="review-dialog" id="propertyDialog"><form id="propertyForm" method="dialog"><input name="movimiento_id" type="hidden"><div><p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p><h2>Corregir propiedad de la recepción</h2><p id="propertySummary"></p><small>Se corregirán todos los tipos de envase de esta recepción. El ingreso original quedará visible junto con los asientos de ajuste.</small></div><label><span>Propiedad correcta</span><select name="concepto_envases" required><option value="arriendo">Arrendada</option><option value="compra">Propia</option></select></label><label><span>Motivo de la corrección</span><textarea name="motivo" minlength="10" maxlength="2000" required placeholder="Describe por qué se ingresó una propiedad equivocada"></textarea></label><p class="form-error" id="propertyError"></p><div class="dialog-actions"><button class="secondary-button" type="button" id="propertyCancel">Cancelar</button><button class="primary-button" type="submit">Confirmar corrección</button></div></form></dialog>
+        <dialog class="review-dialog" id="reviewDialog" aria-labelledby="reviewDialogTitle">
+            <form id="reviewForm" method="dialog">
+                <input name="movimiento_id" type="hidden">
+                <header class="review-dialog__header"><p class="eyebrow">CHEQUEO DOCUMENTAL</p><h2 id="reviewDialogTitle">Revisar movimiento</h2></header>
+                <label><span>Resultado</span><select name="estado" required><option value="revisado">Revisado</option><option value="observado">Observado</option></select></label>
+                <label><span>Nota</span><textarea name="nota" maxlength="2000"></textarea></label>
+                <p class="form-error" id="reviewError" role="alert"></p>
+                <div class="dialog-actions"><button class="secondary-button" value="cancel">Cancelar</button><button class="primary-button" value="default">Guardar chequeo</button></div>
+            </form>
+        </dialog>
+        <dialog class="review-dialog property-dialog" id="propertyDialog" aria-labelledby="propertyDialogTitle" aria-describedby="propertyHelp">
+            <form id="propertyForm" method="dialog">
+                <input name="movimiento_id" type="hidden">
+                <header class="review-dialog__header">
+                    <p class="eyebrow">CORRECCIÓN ADMINISTRATIVA</p>
+                    <h2 id="propertyDialogTitle">Corregir propiedad de la recepción</h2>
+                </header>
+                <div class="property-dialog__context">
+                    <span>RECEPCIÓN Y CAMBIO PROPUESTO</span>
+                    <strong id="propertySummary"></strong>
+                </div>
+                <p class="property-dialog__help" id="propertyHelp">La corrección se aplicará a todos los envases de esta recepción. El ingreso original y los ajustes quedarán visibles en el historial.</p>
+                <label><span>Propiedad correcta</span><select name="concepto_envases" required><option value="arriendo">Arrendada</option><option value="compra">Propia</option></select></label>
+                <label><span>Motivo de la corrección</span><textarea name="motivo" minlength="10" maxlength="2000" required placeholder="Explica por qué se ingresó una propiedad equivocada"></textarea></label>
+                <p class="form-error" id="propertyError" role="alert"></p>
+                <div class="dialog-actions"><button class="secondary-button" type="button" id="propertyCancel">Cancelar</button><button class="primary-button" type="submit">Confirmar corrección</button></div>
+            </form>
+        </dialog>
         <div class="loading is-hidden" id="officeLoading"><span></span><strong id="officeLoadingText">Procesando…</strong></div><div class="toast-region" id="officeToasts"></div>
     </body>
 </html>
