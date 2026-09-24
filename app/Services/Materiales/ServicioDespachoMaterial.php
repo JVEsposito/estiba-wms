@@ -13,8 +13,8 @@ use App\Enums\OrigenDespachoMaterial;
 use App\Enums\TipoMovimientoInventarioMaterial;
 use App\Exceptions\ConflictoOperacion;
 use App\Exceptions\OperacionNoAutorizada;
-use App\Models\BloqueoCamara;
 use App\Models\AsignacionDespachoMaterial;
+use App\Models\BloqueoCamara;
 use App\Models\DespachoMaterial;
 use App\Models\DestinoMaterial;
 use App\Models\DetalleDespachoMaterial;
@@ -728,7 +728,7 @@ class ServicioDespachoMaterial
 
                 return ! $anteriorPendiente && $cubierto;
             }
-            $anteriorPendiente ||= $reserva['cantidad'] > 0.0001;
+            $anteriorPendiente = $anteriorPendiente || $reserva['cantidad'] > 0.0001;
         }
 
         return false;
