@@ -25,6 +25,7 @@ class ServicioPlanoPlanta
 
     /** Categorías de áreas dibujadas; repa y recepcion_mp muestran indicadores vivos. */
     public const CATEGORIAS_ZONA = [
+        'no_operativo',
         'repa',
         'recepcion_mp',
         'materiales',
@@ -37,8 +38,14 @@ class ServicioPlanoPlanta
         'otro',
     ];
 
+    /** Grosor mínimo de un pasillo y tamaño mínimo de cualquier otro elemento. */
+    public const GROSOR_MINIMO_PASILLO = 100;
+
+    public const TAMANO_MINIMO_ELEMENTO = 300;
+
     public function __construct(
         private readonly ServicioPrioridadBufferRepaletizaje $bufferRepaletizaje,
+        private readonly ServicioRedPlanta $red,
     ) {}
 
     /**
@@ -58,6 +65,8 @@ class ServicioPlanoPlanta
             'actualizado_at' => $plano?->updated_at?->toAtomString(),
             'puede_editar' => $puedeEditar,
             'elementos' => $plano?->elementos ?? [],
+            'conexiones' => $plano?->conexiones ?? [],
+            'red' => $this->red->resumen($plano?->elementos ?? [], $plano?->conexiones ?? []),
             'catalogo' => $catalogo,
             'indicadores' => $this->indicadores($temporada),
         ];
@@ -104,9 +113,14 @@ class ServicioPlanoPlanta
      */
     public function guardar(array $datos, User $usuario): PlanoPlanta
     {
+        $conexiones = array_values($datos['conexiones'] ?? []);
         $this->validarElementos($datos['elementos']);
+        $erroresRed = $this->red->validar($datos['elementos'], $conexiones);
+        if ($erroresRed !== []) {
+            throw ValidationException::withMessages($erroresRed);
+        }
 
-        return DB::transaction(function () use ($datos, $usuario): PlanoPlanta {
+        return DB::transaction(function () use ($datos, $usuario, $conexiones): PlanoPlanta {
             $plano = PlanoPlanta::query()
                 ->where('codigo', self::CODIGO_PRINCIPAL)
                 ->lockForUpdate()
@@ -121,6 +135,7 @@ class ServicioPlanoPlanta
                 'nombre' => trim($datos['nombre']),
                 'version' => $versionActual + 1,
                 'elementos' => array_values($datos['elementos']),
+                'conexiones' => $conexiones,
                 'actualizado_por_user_id' => $usuario->id,
             ];
 
@@ -143,7 +158,7 @@ class ServicioPlanoPlanta
     private function validarElementos(array $elementos): void
     {
         $referencias = collect($elementos)
-            ->reject(fn (array $elemento): bool => $elemento['tipo'] === 'zona')
+            ->reject(fn (array $elemento): bool => in_array($elemento['tipo'], ['zona', 'pasillo'], true))
             ->groupBy('tipo');
         $errores = [];
 
@@ -185,8 +200,17 @@ class ServicioPlanoPlanta
             if ($elemento['tipo'] === 'zona' && $categoriaValida === false) {
                 $errores["elementos.$indice.categoria"][] = 'La categoría de la zona no es válida.';
             }
-            if ($elemento['tipo'] === 'zona' && $elemento['referencia_id'] !== null) {
+            if (in_array($elemento['tipo'], ['zona', 'pasillo'], true) && $elemento['referencia_id'] !== null) {
                 $errores["elementos.$indice.referencia_id"][] = 'Las áreas dibujadas no deben referenciar un recinto del catálogo.';
+            }
+            $menor = min($elemento['ancho'], $elemento['alto']);
+            $mayor = max($elemento['ancho'], $elemento['alto']);
+            if ($elemento['tipo'] === 'pasillo'
+                && ($menor < self::GROSOR_MINIMO_PASILLO || $mayor < self::TAMANO_MINIMO_ELEMENTO)) {
+                $errores["elementos.$indice"][] = 'Un pasillo requiere al menos 100 de grosor y 300 de largo.';
+            }
+            if ($elemento['tipo'] !== 'pasillo' && $menor < self::TAMANO_MINIMO_ELEMENTO) {
+                $errores["elementos.$indice"][] = 'Solo los pasillos pueden tener menos de 300 de ancho o alto.';
             }
         }
 

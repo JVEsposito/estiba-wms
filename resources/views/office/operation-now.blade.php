@@ -189,6 +189,9 @@
                                 <span data-legend="repa">REPA</span>
                                 <span data-legend="recepcion_mp">Recepción MP</span>
                                 <span data-legend="materiales">Materiales</span>
+                                <span data-legend="pasillo">Pasillo</span>
+                                <span data-legend="no_operativo">No operativo</span>
+                                <span data-legend="acceso">Acceso / puerta</span>
                                 <strong>En la cámara</strong>
                                 <span data-legend="equipo">Equipo móvil</span>
                                 <span data-legend="personal">Personal</span>
@@ -276,10 +279,11 @@
                             <form class="operation-map-zone-form" id="operationMapZoneForm">
                                 <strong>DIBUJAR ÁREA</strong>
                                 <label>Nombre<input id="operationMapZoneName" maxlength="100" placeholder="Ej. Patio de recepción" required></label>
-                                <label>Tipo<select id="operationMapZoneType"><option value="repa">REPA (buffer en vivo)</option><option value="recepcion_mp">Recepción MP (en vivo)</option><option value="materiales">Materiales</option><option value="packing">Packing</option><option value="bodega">Bodega</option><option value="pasillo">Pasillo</option><option value="patio">Patio</option><option value="oficina">Oficina</option><option value="muelle">Muelle</option><option value="otro">Otro</option></select></label>
+                                <label>Tipo<select id="operationMapZoneType"><option value="repa">REPA (buffer en vivo)</option><option value="recepcion_mp">Recepción MP (en vivo)</option><option value="materiales">Materiales</option><option value="packing">Packing</option><option value="bodega">Bodega</option><option value="pasillo">Pasillo (circulación)</option><option value="no_operativo">No operativo (sin tránsito)</option><option value="patio">Patio</option><option value="oficina">Oficina</option><option value="muelle">Muelle</option><option value="otro">Otro</option></select></label>
                                 <button type="submit">Agregar área</button>
                             </form>
-                            <div class="operation-map-help"><strong>Cómo editar</strong><span>Arrastra para mover. Usa la esquina inferior para redimensionar. Selecciona un recinto para rotarlo o quitarlo.</span></div>
+                            <div class="operation-map-network" id="operationMapNetworkSummary" data-tone="neutral"><strong>RED DE LA PLANTA</strong><span>Sin conexiones</span></div>
+                            <div class="operation-map-help"><strong>Cómo editar</strong><span>Arrastra para mover. Usa la esquina inferior para redimensionar. Selecciona un recinto para rotarlo o quitarlo.</span><strong>Conexiones</strong><span>Selecciona un recinto o pasillo, pulsa «Conectar con…» y elige el elemento vecino. Ambos deben compartir un borde: la puerta se dibuja en ese borde.</span></div>
                         </aside>
                         <main class="operation-map-dialog__viewport" id="operationEditorViewport">
                             <div class="operation-now-map-stage operation-now-map-stage--editor plant-stage" id="operationEditorStage"></div>
@@ -288,6 +292,9 @@
                             <strong>ELEMENTO SELECCIONADO</strong>
                             <span id="operationMapSelectionName">Ninguno</span>
                             <div><button id="operationMapRotate" type="button">Rotar 90°</button><button id="operationMapRemove" type="button">Quitar</button></div>
+                            <button class="operation-map-inspector__connect" id="operationMapConnect" type="button" aria-pressed="false">Conectar con…</button>
+                            <strong>CONEXIONES</strong>
+                            <ul class="operation-map-inspector__connections" id="operationMapConnectionList"></ul>
                         </aside>
                     </div>
                 </div>

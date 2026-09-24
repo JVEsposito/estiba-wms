@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['codigo', 'nombre', 'version', 'elementos', 'actualizado_por_user_id'])]
+#[Fillable(['codigo', 'nombre', 'version', 'elementos', 'conexiones', 'actualizado_por_user_id'])]
 class PlanoPlanta extends Model
 {
     use HasUuids;
@@ -24,6 +24,7 @@ class PlanoPlanta extends Model
         return [
             'version' => 'integer',
             'elementos' => 'array',
+            'conexiones' => 'array',
         ];
     }
 }

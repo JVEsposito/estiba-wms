@@ -18,6 +18,7 @@ export const TUNNEL_STATE_LABELS = {
 const OUT_OF_SERVICE_TUNNEL = ['mantenimiento', 'fuera_servicio', 'inactivo'];
 
 export const ZONE_LABELS = {
+    no_operativo: 'No operativo',
     repa: 'REPA',
     recepcion_mp: 'Recepción MP',
     materiales: 'Materiales',
@@ -36,6 +37,7 @@ export const KIND_LABELS = {
     anden: 'Andén',
     almacen: 'Bodega',
     zona: 'Área',
+    pasillo: 'Pasillo',
 };
 
 export function tunnelStateLabel(tunnel) {
@@ -207,6 +209,15 @@ function zoneModel(element, index) {
     if (model.zone === 'repa') return repaModel(model, index.indicators.repa);
     if (model.zone === 'recepcion_mp') return rawMaterialModel(model, index.indicators.recepcion_mp);
     if (model.zone === 'materiales') model.glyph = 'racks';
+    if (model.zone === 'no_operativo') model.state = 'no_operativo';
+    return model;
+}
+
+function corridorModel(element) {
+    const model = base(element, null, 'pasillo');
+    model.code = element.nombre;
+    model.name = element.nombre;
+    model.state = 'circulacion';
     return model;
 }
 
@@ -232,6 +243,7 @@ export function plantNodeModel(element, index) {
         case 'tunel': return tunnelModel(element, catalogItem, index);
         case 'anden': return dockModel(element, catalogItem);
         case 'almacen': return warehouseModel(element, catalogItem);
+        case 'pasillo': return corridorModel(element);
         default: return zoneModel(element, index);
     }
 }

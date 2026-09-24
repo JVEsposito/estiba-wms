@@ -822,6 +822,13 @@
     --plant-dock: #243847;
     --plant-legend: #183442;
     --plant-legend-ink: #e6eef3;
+    --plant-corridor: #e3e9ee;
+    --plant-corridor-border: #c3ced6;
+    --plant-corridor-line: rgba(83, 103, 119, .45);
+    --plant-blocked: #dde3e8;
+    --plant-blocked-alt: #cfd7de;
+    --plant-blocked-border: #aab7c1;
+    --plant-door: #1f7a8c;
 }
 
 :root[data-office-theme="dark-industrial"] :is(.plant-view, .operation-map-dialog) {
@@ -851,6 +858,13 @@
     --plant-dock: #0b161d;
     --plant-legend: #0e1a22;
     --plant-legend-ink: #d8e3ea;
+    --plant-corridor: #1b2e39;
+    --plant-corridor-border: #3a505e;
+    --plant-corridor-line: rgba(159, 177, 189, .45);
+    --plant-blocked: #1a2830;
+    --plant-blocked-alt: #22333d;
+    --plant-blocked-border: #3a4c57;
+    --plant-door: #5fc4d6;
 }
 
 .operation-now-facility.plant-view {
@@ -895,6 +909,9 @@
 .plant-legend [data-legend="repa"]::before { border-color: #f29a5c; background: #f29a5c; }
 .plant-legend [data-legend="recepcion_mp"]::before { border-color: #7dbdf0; background: transparent; border-style: dashed; }
 .plant-legend [data-legend="materiales"]::before { border-color: #d3b27d; background: repeating-linear-gradient(0deg, transparent 0 2px, #d3b27d 2px 3px); }
+.plant-legend [data-legend="pasillo"]::before { height: 5px; border-width: 1px; border-color: #9fb5c3; background: #33505f; }
+.plant-legend [data-legend="no_operativo"]::before { border-color: #7d8f9b; background: repeating-linear-gradient(135deg, #52646f 0 2px, #2c3d47 2px 4px); }
+.plant-legend [data-legend="acceso"]::before { border-radius: 50%; border-color: #ffffff; background: #5fc4d6; }
 .plant-legend [data-legend="equipo"]::before { border-radius: 50%; border-color: #f0bf62; background: #f0bf62; }
 .plant-legend [data-legend="personal"]::before { border-radius: 50%; border-color: #7dbdf0; background: #7dbdf0; }
 .plant-legend [data-legend="success"]::before { border-color: #78d6a2; background: #78d6a2; }
@@ -1118,6 +1135,100 @@
 .plant-node__crew-item[data-crew="equipo"] { background: var(--plant-warning-soft); color: var(--plant-warning); }
 .plant-node__crew-item svg { width: 11px; height: 11px; fill: currentColor; stroke: none; }
 .plant-node__crew-item[data-crew="equipo"] svg { fill: none; stroke: currentColor; stroke-width: 2; }
+
+/* Pasillos: piso de circulación con eje central; pueden ser angostos. */
+.operation-map-node.plant-node[data-type="pasillo"] {
+    z-index: 1;
+    min-width: 8px;
+    min-height: 8px;
+    padding: 0 6px;
+    border: 1px solid var(--plant-corridor-border);
+    border-radius: 1px;
+    background:
+        linear-gradient(var(--plant-corridor-line), var(--plant-corridor-line)) center / 100% 1px no-repeat,
+        var(--plant-corridor);
+    box-shadow: none;
+}
+.plant-node[data-type="pasillo"][data-rotation="90"],
+.plant-node[data-type="pasillo"][data-rotation="270"] {
+    background:
+        linear-gradient(var(--plant-corridor-line), var(--plant-corridor-line)) center / 1px 100% no-repeat,
+        var(--plant-corridor);
+}
+.operation-map-node.plant-node[data-type="pasillo"] { align-items: flex-start; }
+.operation-map-node.plant-node[data-type="pasillo"]:is([data-rotation="90"], [data-rotation="270"]) { align-items: center; justify-content: flex-start; padding: 6px 0; }
+.office-app .plant-node[data-type="pasillo"]:is([data-rotation="90"], [data-rotation="270"]) .plant-node__code { writing-mode: vertical-rl; padding: 5px 0; }
+.office-app .plant-node[data-type="pasillo"] .plant-node__tag { display: none; }
+.office-app .plant-node[data-type="pasillo"] .plant-node__code {
+    padding: 0 5px;
+    background: var(--plant-corridor);
+    color: var(--plant-muted) !important;
+    font-size: clamp(.5rem, min(9cqw, 55cqh), .72rem);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+/* No operativo: existe físicamente pero no admite tránsito. */
+.plant-node[data-state="no_operativo"] {
+    border: 1.5px solid var(--plant-blocked-border);
+    background: repeating-linear-gradient(135deg, var(--plant-blocked) 0 5px, var(--plant-blocked-alt) 5px 10px);
+}
+.office-app .plant-node[data-state="no_operativo"] .plant-node__code { color: var(--plant-muted) !important; }
+
+/* Accesos: puerta ubicada en el borde compartido de dos elementos. */
+.plant-door {
+    position: absolute;
+    z-index: 5;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--plant-node);
+    border-radius: 50%;
+    background: var(--plant-door);
+    box-shadow: 0 0 0 1px var(--plant-door);
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
+}
+.plant-door.is-invalid {
+    border-style: dashed;
+    background: var(--plant-critical);
+    box-shadow: 0 0 0 1px var(--plant-critical);
+}
+.plant-node__access {
+    position: absolute;
+    bottom: 4px;
+    left: 5px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: var(--plant-warning-soft);
+    color: var(--plant-warning);
+    font-size: .58rem;
+    font-weight: 800;
+}
+.plant-stage.is-connecting .plant-node { cursor: crosshair; }
+.plant-node.is-connecting { z-index: 4; outline: 3px dashed var(--plant-door); outline-offset: 2px; }
+
+.operation-map-network {
+    display: grid;
+    gap: 3px;
+    margin: 0 12px 10px;
+    padding: 9px 10px;
+    border-left: 3px solid #6799c1;
+    background: #eef4f8;
+    color: #46616e;
+    font-size: .7rem;
+    line-height: 1.35;
+}
+.operation-map-network > strong { color: #17394b; font-size: .66rem; letter-spacing: .08em; }
+.operation-map-network[data-tone="success"] { border-left-color: #19633f; }
+.operation-map-network[data-tone="warning"] { border-left-color: #be923d; background: #fff8e8; }
+.operation-map-network[data-tone="critical"] { border-left-color: #ad2332; background: #fdeff0; color: #7d1a25; }
+.operation-map-inspector__connect { width: 100%; }
+.operation-map-inspector__connect[aria-pressed="true"] { border-color: #1f7a8c !important; background: #e3f3f6 !important; }
+.operation-map-inspector__connections { display: grid; gap: 4px; max-height: 180px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.operation-map-inspector__connections li { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: .72rem; }
+.operation-map-inspector__connections li.is-invalid { color: #ad2332; font-weight: 700; }
+.operation-map-inspector__connections li.is-empty { color: #5b7481; }
+.operation-map-inspector__connections button { min-height: 26px !important; padding: 2px 6px !important; font-size: .68rem; }
 
 /* Recintos pequeños: primero se sacrifica el nombre, luego el detalle. */
 @container plant-node (max-height: 5.5rem) {
