@@ -121,7 +121,7 @@ class DefectoRecepcionMpApiTest extends TestCase
             ->assertOk()->assertDownload();
         $pdf = $this->getJson($base.'/exportaciones/pdf'.$filtro)
             ->assertOk()->assertHeader('Content-Type', 'application/pdf');
-        $this->assertSame(2, substr_count($pdf->getContent(), '/Subtype /Image'));
+        $this->assertSame(2, substr_count($pdf->baseResponse->getContent(), '/Subtype /Image'));
         $respuesta = $this->get($base.'/exportaciones/zip'.$filtro)->assertOk()->assertDownload();
         $zip = new ZipArchive;
         $this->assertSame(true, $zip->open($respuesta->baseResponse->getFile()->getPathname()));
@@ -200,7 +200,7 @@ class DefectoRecepcionMpApiTest extends TestCase
     /** @return array<string, mixed> */
     private function entrada(string $operacion, string $descripcion = 'Dos bins rotos al descargar'): array
     {
-        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==');
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==');
 
         return [
             'operacion_id' => $operacion,
