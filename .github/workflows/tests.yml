@@ -48,7 +48,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, pdo_mysql, zip
+          extensions: mbstring, pdo_mysql, zip, gd
           coverage: none
           github-token: ${{ github.token }}
 
@@ -107,7 +107,7 @@ jobs:
           retention-days: 14
 
       - name: Validar estilo
-        run: vendor/bin/pint --test
+        run: vendor/bin/pint --test || (vendor/bin/pint && git diff --exit-code)
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force
