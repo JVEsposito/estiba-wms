@@ -262,6 +262,7 @@ export type MaterialDispatchItem = {
   cantidad_pendiente: string;
   cantidad_reservada: string;
   unidad_medida: string;
+  reservas_fifo?: Array<{ numero_folio: string; cantidad: string; estado: string; orden_fifo: number; reservado_at: string }>;
   sugerencias_fifo: Array<{
     folio_id: string;
     numero_folio: string;

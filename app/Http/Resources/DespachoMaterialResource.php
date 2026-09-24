@@ -85,6 +85,15 @@ class DespachoMaterialResource extends JsonResource
                         ), 3, '.', ''),
                         'cantidad_reservada' => number_format($reservado, 3, '.', ''),
                         'unidad_medida' => $detalle->unidad_medida,
+                        'reservas_fifo' => $detalle->relationLoaded('historialReservas')
+                            ? $detalle->historialReservas->map(fn ($reserva) => [
+                                'numero_folio' => $reserva->folioMaterial->folio->numero_folio,
+                                'cantidad' => $reserva->cantidad,
+                                'estado' => $reserva->estado->value,
+                                'orden_fifo' => $reserva->orden_fifo,
+                                'reservado_at' => $reserva->created_at?->toAtomString(),
+                            ])->values()
+                            : [],
                         'sugerencias_fifo' => $detalle->relationLoaded('reservas')
                             ? $detalle->reservas->map(function ($reserva): array {
                                 $folio = $reserva->folioMaterial->folio;

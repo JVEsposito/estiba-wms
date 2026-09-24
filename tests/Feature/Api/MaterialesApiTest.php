@@ -620,6 +620,7 @@ class MaterialesApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.modalidad', 'directo')
             ->assertJsonPath('data.items.0.retiros.0.siguio_fifo', false)
+            ->assertJsonPath('data.items.0.reservas_fifo.0.numero_folio', 'FIFO-ANTIGUO')
             ->assertJsonPath('data.items.0.retiros.0.motivo_excepcion_fifo', $payload['motivo_excepcion_fifo']);
         $this->assertSame('5.000', FolioMaterial::findOrFail($folioAntiguo)->cantidad_actual);
 
