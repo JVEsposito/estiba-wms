@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\EstadoGuiaDespachoEnvase;
 use App\Enums\EstadoRevisionMovimientoEnvase;
 use App\Enums\EstadoValidacionMp;
-use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\TipoMovimientoEnvase;
 use App\Enums\TipoEnvaseRomana;
 use App\Http\Controllers\Controller;
@@ -15,8 +15,8 @@ use App\Models\DetalleGuiaDespachoEnvase;
 use App\Models\MovimientoEnvase;
 use App\Models\RevisionMovimientoEnvase;
 use App\Models\Temporada;
-use App\Services\Temporadas\ServicioTemporadaActiva;
 use App\Services\Envases\ServicioCorreccionPropiedadEnvases;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -315,7 +315,7 @@ class CuentaCorrienteEnvaseController extends Controller
                 && $movimiento->temporada?->activa
                 && $movimiento->recepcion_romana_id !== null
                 && in_array($movimiento->tipo_movimiento, [TipoMovimientoEnvase::RecepcionCompra, TipoMovimientoEnvase::RecepcionArriendo], true)
-                && ! isset($movimiento->datos['correccion_propiedad']),
+                && empty($movimiento->datos['correccion_propiedad']),
             'correccion_propiedad' => $movimiento->datos['correccion_propiedad'] ?? null,
             'documento_tipo' => $movimiento->documento_tipo,
             'documento_id' => $movimiento->documento_id,
