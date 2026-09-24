@@ -119,8 +119,9 @@ class DefectoRecepcionMpApiTest extends TestCase
         $this->getJson($base.$filtro)->assertOk()->assertJsonPath('total', 1);
         $this->getJson($base.'/exportaciones/xlsx?temporada_id='.$defecto['temporada_id'].'&categoria=otro')
             ->assertOk()->assertDownload();
-        $this->getJson($base.'/exportaciones/pdf'.$filtro)
+        $pdf = $this->getJson($base.'/exportaciones/pdf'.$filtro)
             ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertSame(2, substr_count($pdf->getContent(), '/Subtype /Image'));
         $respuesta = $this->get($base.'/exportaciones/zip'.$filtro)->assertOk()->assertDownload();
         $zip = new ZipArchive;
         $this->assertSame(true, $zip->open($respuesta->baseResponse->getFile()->getPathname()));
