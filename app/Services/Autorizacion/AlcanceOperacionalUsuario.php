@@ -156,6 +156,15 @@ class AlcanceOperacionalUsuario
         );
     }
 
+    public function puedeAdministrarCatalogosMateriales(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador],
+            'materiales.catalogos',
+        );
+    }
+
     public function puedeConsultarAccesos(User $usuario): bool
     {
         return $this->rolActivoEnModulo(
