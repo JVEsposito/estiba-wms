@@ -344,11 +344,11 @@ class CuentaCorrienteEnvaseController extends Controller
             'propiedad' => $movimiento->propiedad->value,
             'corregido' => $corregido,
             'cantidad_corregida' => $cantidadCorregida,
-            'puede_corregir_cantidad' => ! $corregido && ! $cantidadCorregida && ! $conVinculos
+            'puede_corregir_cantidad' => $corregido === false && $cantidadCorregida === false && $conVinculos === false
                 && $movimiento->temporada?->activa
                 && $movimiento->recepcion?->tipo_recepcion === TipoRecepcionRomana::SoloEnvases
                 && in_array($movimiento->tipo_movimiento, [TipoMovimientoEnvase::RecepcionCompra, TipoMovimientoEnvase::RecepcionArriendo], true)
-                && ! isset($movimiento->datos['correccion_propiedad']),
+                && empty($movimiento->datos['correccion_propiedad']),
             'puede_corregir_propiedad' => $corregido === false
                 && $movimiento->temporada?->activa
                 && $movimiento->recepcion_romana_id !== null
