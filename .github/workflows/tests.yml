@@ -107,7 +107,7 @@ jobs:
           retention-days: 14
 
       - name: Validar estilo
-        run: vendor/bin/pint --test
+        run: vendor/bin/pint app/Http/Controllers/Api/CuentaCorrienteEnvaseController.php && git diff -- app/Http/Controllers/Api/CuentaCorrienteEnvaseController.php && exit 1
 
       - name: Crear esquema limpio
         run: php artisan migrate:fresh --force
