@@ -39,6 +39,7 @@ class GuiaDespachoEnvasesApiTest extends TestCase
             'envases' => [['tipo_envase' => 'bins', 'cantidad' => 100]],
             'numero_guia_despacho' => 'ARR-GD-100',
             'patente_camion' => 'ABCD12',
+            'tipo_camion' => 'termo',
             'rut_conductor' => '12.345.678-5',
             'nombre_conductor' => 'Transportista Uno',
             'peso_bruto' => 16000,

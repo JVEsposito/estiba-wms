@@ -104,6 +104,7 @@ class CorreccionPropiedadEnvasesTest extends TestCase
             ],
             'numero_guia_despacho' => 'GUIA-CORR-001',
             'patente_camion' => 'ABCD12',
+            'tipo_camion' => 'plano',
             'rut_conductor' => '12.345.678-5',
             'nombre_conductor' => 'Conductor Prueba',
         ])->assertCreated()->json('data');

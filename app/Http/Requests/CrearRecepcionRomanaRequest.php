@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ConceptoEnvasesRomana;
+use App\Enums\TipoCamionRomana;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
@@ -65,6 +66,7 @@ class CrearRecepcionRomanaRequest extends FormRequest
             ],
             'numero_guia_despacho' => ['required', 'string', 'max:80'],
             'patente_camion' => ['required', 'regex:/^[A-Z0-9]{5,8}$/'],
+            'tipo_camion' => ['required', Rule::enum(TipoCamionRomana::class)],
             'patente_carro' => ['nullable', 'regex:/^[A-Z0-9]{5,8}$/'],
             'rut_conductor' => ['required', new RutChileno],
             'nombre_conductor' => ['required', 'string', 'max:150'],
@@ -103,6 +105,8 @@ class CrearRecepcionRomanaRequest extends FormRequest
             'numero_guia_despacho.required' => 'Ingresa el número de guía de despacho.',
             'patente_camion.required' => 'Ingresa la patente del camión.',
             'patente_camion.regex' => 'Ingresa una patente de camión válida, sin puntos ni guiones.',
+            'tipo_camion.required' => 'Selecciona el tipo de camión.',
+            'tipo_camion' => 'Selecciona camión termo o camión plano.',
             'patente_carro.regex' => 'Ingresa una patente de carro válida, sin puntos ni guiones.',
             'nombre_conductor.required' => 'Ingresa el nombre del conductor.',
             'peso_bruto.required' => 'Ingresa el peso bruto capturado por la romana.',

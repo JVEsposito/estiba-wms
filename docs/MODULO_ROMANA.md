@@ -47,6 +47,8 @@ La recepción se relaciona con el maestro global `clientes`.
 
 Romana puede recibir cualquier cliente operacional activo. Al crear la recepción conserva código y nombre como snapshot contractual, por lo que una modificación posterior del maestro no altera el expediente ni el Aviso de Recibo.
 
+El ingreso exige seleccionar el tipo de camión (`termo` o `plano`). Se muestra en el expediente y en el Aviso de Recibo, y las correcciones administrativas conservan el valor anterior y el posterior. Las recepciones anteriores a la incorporación de este dato quedan sin tipo informado; se exige al editarlas o corregirlas.
+
 ## Correlativo
 
 El número de recepción se asigna al crear el expediente, dentro de la misma transacción que registra el peso bruto tradicional, la configuración inicial del pesaje acumulativo o el ingreso documental exclusivo de envases.
@@ -91,6 +93,7 @@ La recepción registra:
 - cliente y snapshots;
 - fecha y hora de ingreso;
 - patente de camión;
+- tipo de camión (termo o plano, obligatorio en ingresos nuevos);
 - patente opcional de carro;
 - RUT y nombre del conductor;
 - tipo de servicio;
