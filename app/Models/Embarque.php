@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\EstadoEmbarque;
 use App\Enums\ModalidadEmbarque;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -22,9 +24,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'confirmado_por_user_id', 'confirmado_at', 'cancelado_por_user_id',
     'cancelacion_motivo', 'cancelado_at',
 ])]
-class Embarque extends Model
+class Embarque extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     public function temporada(): BelongsTo
     {

@@ -71,6 +71,19 @@ function tunnelAlerts(tunnels = []) {
             });
         }
 
+        if (tunnel.estado_operacional === 'bloqueado_otra_temporada') {
+            const foreign = tunnel.proceso_otra_temporada;
+            alerts.push({
+                area: tunnel.codigo,
+                severity: 'critical',
+                condition: 'Túnel bloqueado por proceso anterior',
+                evidence: foreign
+                    ? `${foreign.codigo} · ${foreign.temporada_codigo || 'temporada anterior'}`
+                    : 'Proceso anterior sin cerrar',
+                action: 'Se resuelve en el cierre de temporada',
+            });
+        }
+
         if (process?.objetivo_excedido) {
             alerts.push({
                 area: tunnel.codigo,

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AccionResolucionDiscrepancia;
 use App\Enums\EstadoDiscrepanciaManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -25,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'accion_resolucion',
     'resolucion',
 ])]
-class DiscrepanciaManiobra extends Model
+class DiscrepanciaManiobra extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -69,5 +70,11 @@ class DiscrepanciaManiobra extends Model
             'reportada_at' => 'datetime',
             'resuelta_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la de la maniobra. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->maniobraOperacional?->temporadaOperacionalId();
     }
 }

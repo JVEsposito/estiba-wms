@@ -150,6 +150,7 @@ class ServicioRecepcionRomana
             }
 
             $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
+            $this->asegurarMismaTemporada($recepcion, $temporada);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
             $this->asegurarGuiaUnica(
                 $temporada->id,
@@ -282,6 +283,7 @@ class ServicioRecepcionRomana
             }
 
             $temporada = $this->temporadaActiva((string) $payload['temporada_id']);
+            $this->asegurarMismaTemporada($recepcion, $temporada);
             $cliente = $this->clienteActivo((string) $payload['cliente_id']);
             $this->asegurarGuiaUnica(
                 $temporada->id,
@@ -1219,6 +1221,19 @@ class ServicioRecepcionRomana
             $recepcion->detallesEnvases()->updateOrCreate(
                 ['tipo_envase' => $envase['tipo_envase']],
                 ['cantidad_declarada' => $envase['cantidad']],
+            );
+        }
+    }
+
+    /**
+     * Editar o corregir una recepción nunca la cambia de temporada: antes, el
+     * formulario enviaba la temporada activa y la recepción quedaba trasladada.
+     */
+    private function asegurarMismaTemporada(RecepcionRomana $recepcion, Temporada $temporada): void
+    {
+        if ($recepcion->temporada_id !== null && $recepcion->temporada_id !== $temporada->id) {
+            throw new ConflictoOperacion(
+                "La recepción {$recepcion->numero_recepcion} pertenece a otra temporada y no puede trasladarse a {$temporada->codigo}.",
             );
         }
     }

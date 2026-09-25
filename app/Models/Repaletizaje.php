@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'anulado_at',
     'motivo_anulacion',
 ])]
-class Repaletizaje extends Model
+class Repaletizaje extends Model implements PerteneceATemporada
 {
     use HasUuids;
 
@@ -81,5 +82,11 @@ class Repaletizaje extends Model
             'confirmado_at' => 'datetime',
             'anulado_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la del folio resultante o, si no existe, la del folio conservado. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return ($this->folioResultante ?? $this->folioConservado)?->temporadaOperacionalId();
     }
 }

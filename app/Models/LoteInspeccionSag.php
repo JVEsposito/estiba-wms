@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\EstadoLoteInspeccionSag;
 use App\Enums\TipoLoteInspeccionSag;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -19,9 +21,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'iniciado_por_user_id', 'finalizado_por_user_id', 'cancelado_por_user_id',
     'iniciado_at', 'finalizado_at', 'cancelado_at',
 ])]
-class LoteInspeccionSag extends Model
+class LoteInspeccionSag extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'lotes_inspeccion_sag';
 

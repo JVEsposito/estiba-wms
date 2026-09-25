@@ -6,6 +6,8 @@ use App\Enums\EstadoCarga;
 use App\Enums\ModalidadSalidaCarga;
 use App\Enums\PrioridadCarga;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use App\Observers\ReplanificarConcentracionCargaObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -43,9 +45,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'cerrada_at',
     'cierre_registrado_at',
 ])]
-class Carga extends Model
+class Carga extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     /** @var array<string, mixed> */
     protected $attributes = [

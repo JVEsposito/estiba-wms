@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ResultadoInspeccionSag;
 use App\Enums\TipoAprobacionSag;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'lote_inspeccion_sag_folio_id', 'destino_lote_inspeccion_sag_id', 'resultado',
     'tipo_aprobacion', 'observacion', 'resuelto_por_user_id', 'resuelto_at',
 ])]
-class ResultadoDestinoInspeccionSag extends Model
+class ResultadoDestinoInspeccionSag extends Model implements PerteneceATemporada
 {
     use HasUuids;
 
@@ -36,5 +37,11 @@ class ResultadoDestinoInspeccionSag extends Model
             'tipo_aprobacion' => TipoAprobacionSag::class,
             'resuelto_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la del lote SAG al que pertenece el folio. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->asignacion?->lote?->temporadaOperacionalId();
     }
 }

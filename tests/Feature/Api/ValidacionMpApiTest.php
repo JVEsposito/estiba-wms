@@ -324,7 +324,7 @@ class ValidacionMpApiTest extends TestCase
             ->assertJsonPath('balances.0.saldo', 15);
         $this->postJson('/api/envases/cuenta-corriente/movimientos/'.$movimientoAnterior->id.'/revisar', [
             'estado' => 'revisado',
-        ])->assertNotFound();
+        ])->assertConflict()->assertJsonPath('codigo', 'temporada_no_activa');
     }
 
     public function test_validacion_mp_oculta_y_rechaza_recepciones_de_temporadas_anteriores(): void
@@ -355,10 +355,13 @@ class ValidacionMpApiTest extends TestCase
             ->assertJsonCount(0, 'data');
         $this->getJson('/api/validacion-mp/recepciones/buscar/'.$recepcion['numero_recepcion'])->assertNotFound();
         $this->getJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/catalogos')->assertNotFound();
+        // Las consultas siguen respondiendo 404; las escrituras, 409 con el control central.
         $this->postJson('/api/validacion-mp/recepciones/'.$recepcion['id'].'/tomar', [
             'operacion_id' => (string) Str::uuid(),
-        ])->assertNotFound();
-        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [])->assertNotFound();
+        ])->assertConflict()->assertJsonPath('codigo', 'temporada_no_activa');
+        $this->postJson('/api/validacion-mp/validaciones/'.$validacion['id'].'/confirmar', [])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
     }
 
     public function test_pesaje_acumulativo_mantiene_la_recepcion_visible_y_bloquea_confirmacion_hasta_cerrar_romana(): void

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TipoEnvaseRomana;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'anulado_por_user_id',
     'motivo_anulacion',
 ])]
-class PesajeEnvaseRecepcionRomana extends Model
+class PesajeEnvaseRecepcionRomana extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -62,5 +63,11 @@ class PesajeEnvaseRecepcionRomana extends Model
             'pesado_at' => 'datetime',
             'anulado_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la de la recepción de Romana. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->recepcion?->temporadaOperacionalId();
     }
 }

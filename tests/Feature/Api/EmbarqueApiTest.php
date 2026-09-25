@@ -10,6 +10,7 @@ use App\Models\Pais;
 use App\Models\Puerto;
 use App\Models\Temporada;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -241,6 +242,33 @@ class EmbarqueApiTest extends TestCase
                 'activa' => true,
             ])->assertOk()
             ->assertJsonPath('data.intervalo_embarques_minutos', 30);
+    }
+
+    public function test_no_confirma_un_embarque_de_temporada_inactiva_ni_crea_su_carga(): void
+    {
+        $despachador = $this->usuario(RolUsuario::Despachador);
+        $cliente = $this->cliente($despachador, 'GT');
+        $embarqueId = $this->actingAs($despachador, 'sanctum')->postJson('/api/embarques', [
+            'cliente_id' => $cliente->id,
+            'fecha_programada' => '2026-08-14',
+            'hora_programada' => '10:00',
+            'modalidad' => 'maritimo',
+            'instructivos' => [['numero_externo' => 'T-1', 'cantidad_pallets' => 20]],
+        ])->assertCreated()->json('data.id');
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'EMB-NUEVA',
+            'nombre' => 'Temporada nueva de embarques',
+            'activa' => true,
+        ], usuarioId: $despachador->id);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/embarques/{$embarqueId}/confirmar", ['version_esperada' => 1])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
+
+        $this->assertDatabaseHas('embarques', ['id' => $embarqueId, 'estado' => 'tentativo', 'carga_id' => null]);
+        $this->assertSame(0, Carga::query()->count());
     }
 
     private function usuario(RolUsuario $rol): User

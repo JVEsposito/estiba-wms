@@ -21,6 +21,7 @@ use App\Models\RecepcionRomana;
 use App\Models\SegmentoValidacionMp;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Temporadas\GuardiaTemporadaActiva;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,8 @@ use JsonException;
 
 class ServicioLoteMateriaPrima
 {
+    public function __construct(private readonly GuardiaTemporadaActiva $guardiaTemporada) {}
+
     /** @param array<string, mixed> $datos */
     public function crear(array $datos, User $usuario): LoteMateriaPrima
     {
@@ -787,6 +790,8 @@ class ServicioLoteMateriaPrima
             ->with('detallesEnvases')
             ->lockForUpdate()
             ->findOrFail($validacion->recepcion_romana_id);
+        // El lote nace en la temporada de su recepción; esa temporada debe estar activa.
+        $this->guardiaTemporada->asegurar($recepcion);
         Cliente::query()->lockForUpdate()->findOrFail($recepcion->cliente_id);
         if ($validacion->estado !== EstadoValidacionMp::Validada) {
             throw new ConflictoOperacion(

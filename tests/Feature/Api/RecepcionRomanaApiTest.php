@@ -855,6 +855,40 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonValidationErrors('tipo_envase_pesaje');
     }
 
+    public function test_no_edita_una_recepcion_de_temporada_inactiva_ni_la_traslada_a_la_activa(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $cliente = $this->cliente();
+        $datos = $this->datosIngreso($cliente);
+        $temporadaOriginal = $datos['temporada_id'];
+        $id = $this->actingAs($operador, 'sanctum')
+            ->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->json('data.id');
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'ROM-NUEVA',
+            'nombre' => 'Temporada nueva de Romana',
+            'activa' => true,
+        ], usuarioId: $operador->id);
+
+        // El formulario envía la temporada activa: antes, eso trasladaba la recepción.
+        $edicion = $datos;
+        $edicion['operacion_id'] = (string) Str::uuid();
+        $edicion['temporada_id'] = Temporada::query()->where('activa', true)->value('id');
+        $edicion['peso_bruto'] = 29500;
+        $this->actingAs($operador, 'sanctum')
+            ->putJson('/api/romana/recepciones/'.$id, $edicion)
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
+
+        $this->assertDatabaseHas('recepciones_romana', [
+            'id' => $id,
+            'temporada_id' => $temporadaOriginal,
+            'version' => 1,
+        ]);
+    }
+
     private function cliente(bool $activo = true): Cliente
     {
         return Cliente::create([

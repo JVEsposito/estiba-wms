@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EstadoSubloteRetornoPacking;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'ubicado_at',
     'observacion_ubicacion',
 ])]
-class SubloteRetornoPacking extends Model
+class SubloteRetornoPacking extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -63,5 +64,11 @@ class SubloteRetornoPacking extends Model
             'estado' => EstadoSubloteRetornoPacking::class,
             'ubicado_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la del retorno de packing. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->retorno?->temporadaOperacionalId();
     }
 }

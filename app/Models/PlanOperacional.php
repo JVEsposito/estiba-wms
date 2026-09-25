@@ -6,6 +6,8 @@ use App\Enums\EstadoPlanOperacional;
 use App\Enums\PrioridadOperacional;
 use App\Enums\TipoPlanOperacional;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -36,9 +38,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'motivo_cancelacion',
     'version',
 ])]
-class PlanOperacional extends Model
+class PlanOperacional extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'planes_operacionales';
 

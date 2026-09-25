@@ -6,6 +6,7 @@ use App\Enums\EstadoIncidenciaCarga;
 use App\Enums\TipoIncidenciaCarga;
 use App\Enums\TipoResolucionIncidenciaCarga;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'resuelta_at',
     'carga_folio_reemplazo_id',
 ])]
-class IncidenciaCargaFolio extends Model
+class IncidenciaCargaFolio extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -87,5 +88,11 @@ class IncidenciaCargaFolio extends Model
             'reportada_at' => 'datetime',
             'resuelta_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la de la asignación a carga. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->asignacion?->temporadaOperacionalId();
     }
 }

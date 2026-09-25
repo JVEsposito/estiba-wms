@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\EstadoValidacionMp;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -15,9 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'estado', 'validador_user_id', 'dispositivo_id', 'tarjas_verificadas',
     'requiere_segregacion', 'tomada_at', 'validada_at', 'observacion',
 ])]
-class ValidacionMp extends Model
+class ValidacionMp extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'validaciones_mp';
 

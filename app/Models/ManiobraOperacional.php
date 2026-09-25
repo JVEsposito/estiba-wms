@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\EstadoManiobraOperacional;
 use App\Enums\PrioridadOperacional;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -36,7 +37,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'motivo_cancelacion',
     'version',
 ])]
-class ManiobraOperacional extends Model
+class ManiobraOperacional extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -119,5 +120,11 @@ class ManiobraOperacional extends Model
             'cancelada_at' => 'datetime',
             'version' => 'integer',
         ];
+    }
+
+    /** La temporada es la del plan operacional. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->planOperacional?->temporadaOperacionalId();
     }
 }

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\AnularValidacionPalletRequest;
 use App\Models\AnulacionValidacionPallet;
 use App\Models\ValidacionPallet;
+use App\Services\Temporadas\ServicioTemporadaActiva;
 use App\Services\Validacion\ServicioAnulacionValidacionPallet;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class AnulacionValidacionPalletController extends Controller
     public function index(
         Request $request,
         ServicioAnulacionValidacionPallet $servicio,
+        ServicioTemporadaActiva $temporadaActiva,
     ): JsonResponse {
         $filtros = $request->validate([
             'folio' => ['nullable', 'string', 'max:80'],
@@ -52,7 +54,15 @@ class AnulacionValidacionPalletController extends Controller
             ->map(fn (ValidacionPallet $validacion): array => $this->recursoCandidata($validacion))
             ->values();
 
-        $anulaciones = AnulacionValidacionPallet::query()
+        // El historial y los contadores muestran solo la temporada activa. Sin
+        // temporada activa no se mezclan temporadas: la lista queda vacía.
+        $temporadaId = $temporadaActiva->buscar()?->id;
+        $deLaTemporada = fn (): Builder => AnulacionValidacionPallet::query()
+            ->whereHas('validacion', fn (Builder $consulta): Builder => $temporadaId === null
+                ? $consulta->whereRaw('1 = 0')
+                : $consulta->where('temporada_id', $temporadaId));
+
+        $anulaciones = $deLaTemporada()
             ->when($folio !== '', fn (Builder $consulta): Builder => $consulta
                 ->where('numero_folio', 'like', "%{$folio}%"))
             ->when($categoria !== '', fn (Builder $consulta): Builder => $consulta
@@ -71,7 +81,7 @@ class AnulacionValidacionPalletController extends Controller
         $zona = config('app.operational_timezone');
         $inicioHoy = now($zona)->startOfDay()->utc();
         $finHoy = now($zona)->addDay()->startOfDay()->utc();
-        $porCategoria = AnulacionValidacionPallet::query()
+        $porCategoria = $deLaTemporada()
             ->selectRaw('motivo_categoria, COUNT(*) as total')
             ->groupBy('motivo_categoria')
             ->orderByDesc('total')
@@ -82,8 +92,8 @@ class AnulacionValidacionPalletController extends Controller
             'candidatas' => $candidatas,
             'anulaciones' => $anulaciones,
             'resumen' => [
-                'total' => AnulacionValidacionPallet::query()->count(),
-                'hoy' => AnulacionValidacionPallet::query()
+                'total' => $deLaTemporada()->count(),
+                'hoy' => $deLaTemporada()
                     ->where('anulado_at', '>=', $inicioHoy)
                     ->where('anulado_at', '<', $finHoy)
                     ->count(),
