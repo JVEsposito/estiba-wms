@@ -163,6 +163,10 @@ export type Folio = {
   exportadora: string | null;
   material: FolioMaterial | null;
   ubicado_at: string | null;
+  /** Folio PT de otra temporada que nadie cerró; se regulariza en Cierre de temporada. */
+  registro_sin_cerrar?: {
+    temporada: { id: string; codigo: string | null; tipo: 'productiva' | 'prueba' | null };
+  } | null;
   carga_actual?: {
     id: string;
     codigo: string;
@@ -435,7 +439,7 @@ export type ExtractionPlan = {
 
 export type OperationalNotification = {
   id: string;
-  tipo: 'carga_publicada' | 'despacho_material_creado' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta';
+  tipo: 'carga_publicada' | 'despacho_material_creado' | 'prioridad_carga_cambiada' | 'incidencia_carga_reportada' | 'incidencia_carga_resuelta' | 'recepcion_romana_creada' | 'cierre_temporada_pendiente';
   severidad: 'informativa' | 'advertencia' | 'critica' | 'exito';
   titulo: string;
   mensaje: string;

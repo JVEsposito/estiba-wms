@@ -53,6 +53,23 @@ const elements = {
     archiveEligibility: byId('seasonArchiveEligibility'),
     archiveList: byId('seasonArchiveList'),
     archiveCreate: byId('createSeasonArchive'),
+    closingDialog: byId('seasonClosingDialog'),
+    closingTitle: byId('seasonClosingTitle'),
+    closingDescription: byId('seasonClosingDescription'),
+    closingStatus: byId('seasonClosingStatus'),
+    closingSummary: byId('seasonClosingSummary'),
+    closingDetail: byId('seasonClosingDetail'),
+    closingDetailTitle: byId('seasonClosingDetailTitle'),
+    closingHowTo: byId('seasonClosingHowTo'),
+    closingBlock: byId('seasonClosingBlock'),
+    closingItems: byId('seasonClosingItems'),
+    closingSelectAll: byId('seasonClosingSelectAll'),
+    closingForm: byId('seasonClosingForm'),
+    closingEffect: byId('seasonClosingEffect'),
+    closingError: byId('seasonClosingError'),
+    closingSubmit: byId('seasonClosingSubmit'),
+    closingHistoryList: byId('seasonClosingHistoryList'),
+    closingNotify: byId('notifySeasonClosing'),
     resetDialog: byId('operationalResetDialog'),
     resetForm: byId('operationalResetForm'),
     resetDescription: byId('operationalResetDescription'),
@@ -395,14 +412,15 @@ function seasonTypeBadge(season) {
 }
 
 function seasonActions(season) {
+    const closing = `<button data-closing-season="${season.id}" type="button">Cierre</button>`;
     if (season.activa) {
-        return `<button data-edit-season="${season.id}" type="button">Editar</button><button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>`;
+        return `<button data-edit-season="${season.id}" type="button">Editar</button>${closing}<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>`;
     }
     const archive = state.identity?.rol === 'administrador' ? `<button data-archive-season="${season.id}" type="button">Archivo</button>` : '';
     if (season.tipo === 'prueba') {
-        return `<button data-edit-season="${season.id}" type="button">Editar</button><button data-classify-season="${season.id}" data-classify-type="productiva" type="button">Declarar productiva</button>${archive}`;
+        return `<button data-edit-season="${season.id}" type="button">Editar</button>${closing}<button data-classify-season="${season.id}" data-classify-type="productiva" type="button">Declarar productiva</button>${archive}`;
     }
-    return `<button data-edit-season="${season.id}" type="button">Editar</button><button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button><button data-classify-season="${season.id}" data-classify-type="prueba" type="button">Declarar prueba</button>${archive}`;
+    return `<button data-edit-season="${season.id}" type="button">Editar</button><button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>${closing}<button data-classify-season="${season.id}" data-classify-type="prueba" type="button">Declarar prueba</button>${archive}`;
 }
 
 function openMigrationForm(destinationId) {
@@ -444,6 +462,231 @@ function renderSeasons() {
         </tr>
     `).join('');
 }
+
+// Una activación rechazada por pendientes abre el cierre de la temporada que los tiene.
+function openClosingForPending(error) {
+    if (error?.data?.codigo !== 'temporada_con_pendientes') return;
+    const seasonId = error.data.pendientes?.[0]?.temporada?.id;
+    if (seasonId) void openSeasonClosing(seasonId, error.message);
+}
+
+// Cierre de temporada: diagnóstico de pendientes, regularización auditada y aviso a responsables.
+const closingState = { seasonId: null, payload: null, category: null, selected: new Set(), notice: null };
+
+function closingDate(value) {
+    if (!value) return '—';
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function closingCategory() {
+    return closingState.payload?.categorias?.find((category) => category.categoria === closingState.category) || null;
+}
+
+function renderClosingSummary() {
+    const payload = closingState.payload;
+    const categories = payload?.categorias || [];
+    const total = Number(payload?.total || 0);
+    const active = Boolean(payload?.temporada?.activa);
+    const located = Number(payload?.folios_en_camaras || 0);
+    elements.closingStatus.textContent = !total
+        ? 'No quedan registros sin cerrar en esta temporada.'
+        : active
+            ? `Quedan ${total.toLocaleString('es-CL')} registros sin cerrar. Mientras existan, no se puede activar otra temporada.`
+            : `Quedan ${total.toLocaleString('es-CL')} registros sin cerrar.${located ? ` ${located.toLocaleString('es-CL')} folios PT todavía figuran en cámaras e impiden activar otra temporada.` : ' La temporada está inactiva, así que no bloquean la activación.'}`;
+    if (closingState.notice) elements.closingStatus.textContent = closingState.notice;
+    elements.closingStatus.dataset.tone = total ? 'warning' : 'success';
+    elements.closingNotify.disabled = !total;
+    elements.closingSummary.innerHTML = categories.map((category) => {
+        const pending = Number(category.total || 0);
+        const regularized = Number(category.regularizados || 0);
+        const note = !category.aplica
+            ? 'Solo en la temporada activa'
+            : regularized ? `${regularized.toLocaleString('es-CL')} regularizados` : 'Sin regularizaciones';
+        return `<button type="button" data-closing-category="${escapeHtml(category.categoria)}" data-pending="${pending > 0}" aria-pressed="${category.categoria === closingState.category}"${pending ? '' : ' disabled'}>
+            <span>${escapeHtml(category.etiqueta)}</span><strong>${pending.toLocaleString('es-CL')}</strong><small>${escapeHtml(note)}</small>
+        </button>`;
+    }).join('');
+}
+
+function renderClosingDetail() {
+    const category = closingCategory();
+    if (!category || !Number(category.total)) {
+        elements.closingDetail.classList.add('is-hidden');
+        return;
+    }
+    const items = category.items || [];
+    elements.closingDetail.classList.remove('is-hidden');
+    elements.closingDetailTitle.textContent = `${category.etiqueta} · ${Number(category.total).toLocaleString('es-CL')}`;
+    elements.closingHowTo.textContent = `Cierre normal: ${category.como_cerrar}${items.length < Number(category.total) ? ` Se muestran los ${items.length} más antiguos.` : ''}`;
+    elements.closingBlock.hidden = !category.bloqueo_regularizacion;
+    elements.closingBlock.textContent = category.bloqueo_regularizacion || '';
+    elements.closingEffect.textContent = `Al regularizar: ${category.efecto_regularizacion} Queda registrado con tu usuario, el motivo y una fotografía del registro.`;
+    elements.closingItems.innerHTML = items.map((item) => `<tr>
+        <td><input type="checkbox" data-closing-item="${escapeHtml(item.id)}" aria-label="Seleccionar ${escapeHtml(item.referencia)}"${closingState.selected.has(item.id) ? ' checked' : ''}${category.bloqueo_regularizacion ? ' disabled' : ''}></td>
+        <td><strong>${escapeHtml(item.referencia)}</strong></td>
+        <td>${escapeHtml(item.detalle || '—')}</td>
+        <td>${escapeHtml(item.responsable?.nombre || 'Sin responsable')}</td>
+        <td>${escapeHtml(closingDate(item.fecha))}</td>
+    </tr>`).join('');
+    elements.closingSelectAll.checked = items.length > 0 && items.every((item) => closingState.selected.has(item.id));
+    elements.closingSelectAll.disabled = Boolean(category.bloqueo_regularizacion);
+    updateClosingSubmit();
+}
+
+function updateClosingSubmit() {
+    const category = closingCategory();
+    const count = closingState.selected.size;
+    elements.closingSubmit.disabled = !count || Boolean(category?.bloqueo_regularizacion);
+    elements.closingSubmit.textContent = count ? `Regularizar ${count} ${count === 1 ? 'registro' : 'registros'}` : 'Regularizar seleccionados';
+}
+
+function renderClosingHistory() {
+    const history = closingState.payload?.regularizaciones_recientes || [];
+    elements.closingHistoryList.innerHTML = history.length ? `<table class="admin-archive-table"><thead><tr><th>Registro</th><th>Motivo</th><th>Por</th><th>Fecha</th></tr></thead><tbody>${history.map((entry) => `<tr>
+        <td><strong>${escapeHtml(entry.referencia)}</strong><small>${escapeHtml(entry.etiqueta_categoria)} · estaba ${escapeHtml(statusText(entry.estado_anterior || '—'))}</small></td>
+        <td>${escapeHtml(entry.etiqueta_motivo)}<small>${escapeHtml(entry.motivo)}</small></td>
+        <td>${escapeHtml(entry.regularizado_por || '—')}</td>
+        <td>${escapeHtml(closingDate(entry.regularizado_at))}</td>
+    </tr>`).join('')}</tbody></table>` : '<p>Sin regularizaciones.</p>';
+}
+
+async function loadSeasonClosing() {
+    if (!closingState.seasonId) return;
+    try {
+        const payload = (await api(`/api/administracion/temporadas/${closingState.seasonId}/cierre`)).data;
+        closingState.payload = payload;
+        const select = elements.closingForm.elements.motivo_categoria;
+        const current = select.value;
+        select.innerHTML = `<option value="">Selecciona…</option>${(payload.motivos || []).map((reason) => `<option value="${escapeHtml(reason.valor)}">${escapeHtml(reason.etiqueta)}</option>`).join('')}`;
+        select.value = current;
+        const pendingCategories = (payload.categorias || []).filter((category) => Number(category.total) > 0);
+        if (!pendingCategories.some((category) => category.categoria === closingState.category)) {
+            closingState.category = pendingCategories[0]?.categoria || null;
+            closingState.selected.clear();
+        }
+        const visible = new Set((closingCategory()?.items || []).map((item) => item.id));
+        for (const id of [...closingState.selected]) if (!visible.has(id)) closingState.selected.delete(id);
+        renderClosingSummary();
+        renderClosingDetail();
+        renderClosingHistory();
+    } catch (error) {
+        elements.closingSummary.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+        elements.closingDetail.classList.add('is-hidden');
+    }
+}
+
+async function openSeasonClosing(seasonId, notice = null) {
+    const season = state.seasons.find((candidate) => candidate.id === seasonId);
+    if (!season) return;
+    Object.assign(closingState, { seasonId: season.id, payload: null, category: null, notice });
+    closingState.selected.clear();
+    elements.closingTitle.textContent = `Cierre de ${season.codigo}`;
+    elements.closingDescription.textContent = `${season.nombre}${season.tipo === 'prueba' ? ' · temporada de prueba' : ''}${season.activa ? ' · activa' : ''}. Lo que la temporada deja abierto: ciérralo en su módulo o, si ya no corresponde, regularízalo con motivo. Materiales no participa.`;
+    elements.closingSummary.innerHTML = '<p>Cargando diagnóstico…</p>';
+    elements.closingStatus.textContent = '';
+    elements.closingDetail.classList.add('is-hidden');
+    elements.closingForm.reset();
+    elements.closingError.textContent = '';
+    elements.closingDialog.showModal();
+    await loadSeasonClosing();
+}
+
+function closeSeasonClosing() {
+    closingState.seasonId = null;
+    elements.closingDialog.close();
+}
+
+byId('closeSeasonClosing')?.addEventListener('click', closeSeasonClosing);
+byId('cancelSeasonClosing')?.addEventListener('click', closeSeasonClosing);
+byId('refreshSeasonClosing')?.addEventListener('click', () => {
+    closingState.notice = null;
+    void loadSeasonClosing();
+});
+elements.closingSummary?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-closing-category]');
+    if (!button || button.disabled) return;
+    closingState.category = button.dataset.closingCategory;
+    closingState.selected.clear();
+    elements.closingError.textContent = '';
+    renderClosingSummary();
+    renderClosingDetail();
+});
+elements.closingItems?.addEventListener('change', (event) => {
+    const checkbox = event.target.closest('[data-closing-item]');
+    if (!checkbox) return;
+    if (checkbox.checked) closingState.selected.add(checkbox.dataset.closingItem);
+    else closingState.selected.delete(checkbox.dataset.closingItem);
+    const items = closingCategory()?.items || [];
+    elements.closingSelectAll.checked = items.length > 0 && items.every((item) => closingState.selected.has(item.id));
+    updateClosingSubmit();
+});
+elements.closingSelectAll?.addEventListener('change', () => {
+    for (const item of closingCategory()?.items || []) {
+        if (elements.closingSelectAll.checked) closingState.selected.add(item.id);
+        else closingState.selected.delete(item.id);
+    }
+    renderClosingDetail();
+});
+elements.closingForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.closingError.textContent = '';
+    const category = closingCategory();
+    const form = elements.closingForm.elements;
+    const reason = form.motivo.value.trim();
+    if (!category || !closingState.selected.size) {
+        elements.closingError.textContent = 'Selecciona al menos un registro.';
+        return;
+    }
+    if (!form.motivo_categoria.value) {
+        elements.closingError.textContent = 'Elige la categoría del motivo.';
+        return;
+    }
+    if (reason.length < 10) {
+        elements.closingError.textContent = 'Describe el motivo con al menos 10 caracteres.';
+        return;
+    }
+    const count = closingState.selected.size;
+    if (!window.confirm(`¿Regularizar ${count} ${count === 1 ? 'registro' : 'registros'} de ${category.etiqueta.charAt(0).toLowerCase()}${category.etiqueta.slice(1)}? ${category.efecto_regularizacion} No se puede deshacer.`)) return;
+    setBusy(true, 'Regularizando registros…');
+    try {
+        const result = (await api(`/api/administracion/temporadas/${closingState.seasonId}/cierre/regularizar`, {
+            method: 'POST',
+            body: JSON.stringify({
+                categoria: category.categoria,
+                ids: [...closingState.selected],
+                motivo_categoria: form.motivo_categoria.value,
+                motivo: reason,
+            }),
+        })).data;
+        closingState.selected.clear();
+        closingState.notice = null;
+        form.motivo.value = '';
+        toast(`${result.regularizados} ${result.regularizados === 1 ? 'registro regularizado' : 'registros regularizados'}.`);
+        await loadSeasonClosing();
+    } catch (error) {
+        elements.closingError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
+elements.closingNotify?.addEventListener('click', async () => {
+    if (!closingState.seasonId) return;
+    elements.closingNotify.disabled = true;
+    try {
+        const result = (await api(`/api/administracion/temporadas/${closingState.seasonId}/cierre/avisar`, { method: 'POST' })).data;
+        const notified = result.avisados || [];
+        const fresh = notified.filter((entry) => entry.nuevo).length;
+        const orphan = Number(result.sin_responsable || 0);
+        toast(notified.length
+            ? `Aviso enviado a ${notified.length} ${notified.length === 1 ? 'responsable' : 'responsables'}${fresh < notified.length ? ` (${notified.length - fresh} ya tenían este aviso)` : ''}.${orphan ? ` ${orphan} sin responsable identificado.` : ''}`
+            : `No hay responsables identificados${orphan ? ` para ${orphan} registros` : ''}.`);
+    } catch (error) {
+        toast(error.message, true);
+    } finally {
+        elements.closingNotify.disabled = !Number(closingState.payload?.total || 0);
+    }
+});
 
 // Archivo de temporada: solo administradores y solo temporadas cerradas hace más de 60 días.
 const archiveState = { seasonId: null, timer: null };
@@ -776,6 +1019,7 @@ elements.seasonForm.addEventListener('submit', async (event) => {
         toast('La temporada quedó disponible para todas las oficinas.');
     } catch (error) {
         elements.seasonError.textContent = error.message;
+        openClosingForPending(error);
     } finally {
         setBusy(false);
     }
@@ -831,6 +1075,8 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
     const reset = event.target.closest('[data-reset-season]');
     const archive = event.target.closest('[data-archive-season]');
     const classify = event.target.closest('[data-classify-season]');
+    const closing = event.target.closest('[data-closing-season]');
+    if (closing) await openSeasonClosing(closing.dataset.closingSeason);
     if (archive) await openSeasonArchive(archive.dataset.archiveSeason);
     if (classify) openClassificationForm(classify.dataset.classifySeason, classify.dataset.classifyType);
     if (edit) {
@@ -857,6 +1103,7 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
             toast('Temporada global activada.');
         } catch (error) {
             toast(error.message, true);
+            openClosingForPending(error);
         } finally {
             setBusy(false);
         }
@@ -944,6 +1191,7 @@ elements.migrationForm.addEventListener('submit', async (event) => {
         toast(`Migración completada: ${inventory.folios} folios de bodega trasladados.`);
     } catch (error) {
         elements.migrationError.textContent = error.message;
+        openClosingForPending(error);
     } finally {
         setBusy(false);
     }

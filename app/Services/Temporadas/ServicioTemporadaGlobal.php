@@ -120,7 +120,7 @@ class ServicioTemporadaGlobal
         }
     }
 
-    private function asegurarActivable(Temporada $temporada): void
+    public function asegurarActivable(Temporada $temporada): void
     {
         if ($temporada->esPrueba()) {
             throw new DomainException(

@@ -358,6 +358,52 @@
             </div>
         </dialog>
 
+        <dialog class="admin-reset-dialog admin-archive-dialog admin-closing-dialog" id="seasonClosingDialog" aria-labelledby="seasonClosingTitle">
+            <div class="admin-reset-dialog__shell">
+                <header>
+                    <div>
+                        <p class="eyebrow">CIERRE DE TEMPORADA</p>
+                        <h2 id="seasonClosingTitle">Registros sin cerrar</h2>
+                        <p id="seasonClosingDescription">Lo que la temporada deja abierto. Ciérralo en su módulo o, si ya no corresponde, regularízalo con motivo. Materiales no participa.</p>
+                    </div>
+                    <button class="admin-reset-dialog__close" id="closeSeasonClosing" type="button" aria-label="Cerrar">×</button>
+                </header>
+                <div class="admin-archive-dialog__body">
+                    <p class="admin-archive-dialog__eligibility" id="seasonClosingStatus" role="status"></p>
+                    <div class="admin-closing-summary" id="seasonClosingSummary"><p>Cargando diagnóstico…</p></div>
+                    <section class="admin-closing-detail is-hidden" id="seasonClosingDetail" aria-labelledby="seasonClosingDetailTitle">
+                        <div class="admin-closing-detail__heading">
+                            <div><h3 id="seasonClosingDetailTitle">Categoría</h3><p id="seasonClosingHowTo"></p></div>
+                            <label class="admin-closing-select-all"><input id="seasonClosingSelectAll" type="checkbox"><span>Seleccionar visibles</span></label>
+                        </div>
+                        <p class="admin-closing-detail__block" id="seasonClosingBlock" hidden></p>
+                        <div class="admin-table-scroll">
+                            <table class="admin-archive-table admin-closing-table">
+                                <thead><tr><th><span class="office-visually-hidden">Seleccionar</span></th><th>Registro</th><th>Detalle</th><th>Responsable</th><th>Fecha</th></tr></thead>
+                                <tbody id="seasonClosingItems"></tbody>
+                            </table>
+                        </div>
+                        <form class="admin-closing-form" id="seasonClosingForm" novalidate>
+                            <p class="admin-form__hint" id="seasonClosingEffect"></p>
+                            <label class="field"><span>Categoría del motivo *</span><select name="motivo_categoria" required></select></label>
+                            <label class="field field--wide"><span>Motivo *</span><textarea name="motivo" minlength="10" maxlength="500" rows="2" required placeholder="Ej. Pallets despachados en marzo sin cerrar la carga; confirmado con guías físicas."></textarea></label>
+                            <p class="form-error" id="seasonClosingError" role="alert"></p>
+                            <div class="admin-form__actions"><button class="danger-button" id="seasonClosingSubmit" type="submit" disabled>Regularizar seleccionados</button></div>
+                        </form>
+                    </section>
+                    <details class="admin-closing-history" id="seasonClosingHistory">
+                        <summary>Regularizaciones registradas</summary>
+                        <div id="seasonClosingHistoryList"><p>Sin regularizaciones.</p></div>
+                    </details>
+                </div>
+                <footer>
+                    <button class="secondary-button" id="notifySeasonClosing" type="button">Avisar a responsables</button>
+                    <button class="secondary-button" id="refreshSeasonClosing" type="button">Actualizar</button>
+                    <button class="secondary-button" id="cancelSeasonClosing" type="button">Cerrar</button>
+                </footer>
+            </div>
+        </dialog>
+
         <dialog class="admin-reset-dialog" id="operationalResetDialog" aria-labelledby="operationalResetTitle">
             <form class="admin-reset-dialog__shell" id="operationalResetForm" novalidate>
                 <header>

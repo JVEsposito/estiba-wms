@@ -6,4 +6,5 @@ enum EstadoHidrocoolerMateriaPrima: string
 {
     case EnCurso = 'en_curso';
     case Completado = 'completado';
+    case Cancelado = 'cancelado';
 }

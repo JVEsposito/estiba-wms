@@ -37,6 +37,7 @@ class FolioSinPosicionResource extends JsonResource
             'calibre' => $folio->calibre,
             'marca' => $folio->marca,
             'exportadora' => $folio->exportadora,
+            'registro_sin_cerrar' => PosicionPlanoResource::registroSinCerrar($folio, $request),
             'material' => $folio->material ? [
                 'item' => [
                     'id' => $folio->material->item->id,

@@ -6,6 +6,7 @@ use App\Exceptions\FoliosCargaInvalidos;
 use App\Exceptions\OperacionNoAutorizada;
 use App\Exceptions\RegistroFueraDeTemporadaActiva;
 use App\Exceptions\ServicioSagNoDisponible;
+use App\Exceptions\TemporadaConPendientesDeCierre;
 use App\Http\Middleware\AsegurarTemporadaActivaDelRegistro;
 use App\Http\Middleware\ExigirCambioPasswordTablet;
 use Illuminate\Foundation\Application;
@@ -87,6 +88,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 'codigo' => 'temporada_no_activa',
                 'temporada_registro' => $exception->temporadaRegistro,
                 'temporada_activa' => $exception->temporadaActiva,
+            ], 409);
+        });
+
+        $exceptions->render(function (
+            TemporadaConPendientesDeCierre $exception,
+            Request $request,
+        ) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'codigo' => 'temporada_con_pendientes',
+                'pendientes' => $exception->pendientes,
             ], 409);
         });
 
