@@ -147,6 +147,17 @@ function tunnelModel(element, catalogItem, index) {
         return outOfService(model, tunnelStateLabel(tunnel));
     }
 
+    const foreign = tunnel.proceso_otra_temporada;
+    if (foreign) {
+        model.value = 'Bloqueado';
+        model.valueLabel = 'sin cerrar';
+        model.tone = 'critical';
+        model.fill = true;
+        model.detail = tunnelStateLabel(tunnel);
+        model.alerts.push(`Proceso ${foreign.codigo} de la temporada ${foreign.temporada_codigo || 'anterior'} sin cerrar`);
+        return model;
+    }
+
     const percentValue = roundPercent(tunnel.ocupacion_porcentaje);
     const process = tunnel.proceso_activo;
     model.value = `${percentValue}%`;
@@ -159,10 +170,6 @@ function tunnelModel(element, catalogItem, index) {
         ? `${tunnelStateLabel(tunnel)} · ciclo ${roundPercent(progress)}%`
         : tunnelStateLabel(tunnel);
     if (process?.objetivo_excedido) model.alerts.push('Ciclo sobre el tiempo objetivo');
-    const foreign = tunnel.proceso_otra_temporada;
-    if (foreign) {
-        model.alerts.push(`Proceso ${foreign.codigo} de la temporada ${foreign.temporada_codigo || 'anterior'} sin cerrar`);
-    }
     return model;
 }
 

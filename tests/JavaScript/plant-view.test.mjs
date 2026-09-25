@@ -163,6 +163,8 @@ test('un túnel ocupado por un proceso de otra temporada se marca como crítico 
     const model = plantNodeModel(element('tunel', 't1'), index);
 
     assert.equal(model.tone, 'critical');
+    assert.equal(model.value, 'Bloqueado');
+    assert.equal(model.meter, null);
     assert.equal(model.detail, 'Temporada anterior');
     assert.deepEqual(model.alerts, ['Proceso PF-2026-000031 de la temporada 2025-2026 sin cerrar']);
 });

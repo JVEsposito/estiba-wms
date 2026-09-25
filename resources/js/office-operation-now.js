@@ -847,7 +847,9 @@ function renderAlerts(data) {
         <div class="operation-now-alert__heading"><span class="operation-now-code">${escapeHtml(alert.area)}</span>${signal(alert.severity === 'critical' ? 'Alta' : 'Media', alert.severity)}</div>
         <strong>${escapeHtml(alert.condition)}</strong>
         <p>${escapeHtml(alert.evidence)}</p>
-        <a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a>
+        ${alert.href
+            ? `<a class="operation-now-action" href="${escapeHtml(alert.href)}">${escapeHtml(alert.action)} <span aria-hidden="true">→</span></a>`
+            : `<span class="operation-now-alert__guidance">${escapeHtml(alert.action)}</span>`}
     </article>`).join('');
 }
 
@@ -908,7 +910,9 @@ function renderTunnels(tunnels = []) {
     }
 
     elements.tunnelList.innerHTML = tunnels.map((tunnel) => `<tr>
-        <td><span class="operation-now-code">${escapeHtml(tunnel.codigo)}</span><span class="operation-now-subtext">${number(tunnel.posiciones_ocupadas)} de ${number(tunnel.capacidad_posiciones)} posiciones</span></td>
+        <td><span class="operation-now-code">${escapeHtml(tunnel.codigo)}</span><span class="operation-now-subtext">${tunnel.proceso_otra_temporada
+            ? `${number(tunnel.posiciones_sin_cerrar)} posiciones registradas sin cerrar`
+            : `${number(tunnel.posiciones_ocupadas)} de ${number(tunnel.capacidad_posiciones)} posiciones`}</span></td>
         <td>${signal(tunnelStateLabel(tunnel), tunnelStateTone(tunnel))}</td>
         <td>${tunnelProgress(tunnel)}</td>
         <td>${tunnelProduct(tunnel.proceso_activo)}</td>

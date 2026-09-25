@@ -1034,12 +1034,15 @@ class PrefrioApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.prefrio.resumen.tuneles_bloqueados_otra_temporada', 1)
             ->assertJsonPath('data.prefrio.resumen.posiciones_ocupadas', 1)
-            ->assertJsonPath('data.prefrio.resumen.folios_en_tunel', 1);
+            ->assertJsonPath('data.prefrio.resumen.posiciones_sin_cerrar', 1)
+            ->assertJsonPath('data.prefrio.resumen.folios_en_tunel', 1)
+            ->assertJsonPath('data.prefrio.resumen.folios_sin_cerrar', 1);
         $tunelEnPuesto = collect($puesto->json('data.prefrio.tuneles'))
             ->firstWhere('id', $tunel->id);
 
         $this->assertSame('bloqueado_otra_temporada', $tunelEnPuesto['estado_operacional']);
         $this->assertSame(1, $tunelEnPuesto['posiciones_ocupadas']);
+        $this->assertSame(1, $tunelEnPuesto['posiciones_sin_cerrar']);
         $this->assertSame(0, $tunelEnPuesto['posiciones_disponibles']);
         $this->assertSame($proceso['codigo'], $tunelEnPuesto['proceso_otra_temporada']['codigo']);
         $this->assertNull($tunelEnPuesto['proceso_activo']);

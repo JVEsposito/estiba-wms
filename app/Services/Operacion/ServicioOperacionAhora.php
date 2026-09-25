@@ -509,8 +509,9 @@ class ServicioOperacionAhora
                 $operable = $tunel->estado_administrativo === EstadoAdministrativoTunelPrefrio::Activo
                     && $tunel->estado_tecnico === EstadoTecnicoTunelPrefrio::Operativo;
                 $capacidad = (int) $tunel->posiciones_activas_count;
-                // La ocupación es física, aunque la operación de ese proceso
-                // ya no pertenezca a la temporada activa.
+                // El registro mantiene estas posiciones asignadas hasta que
+                // el proceso anterior se cierre o regularice. No confirma
+                // dónde se encuentra físicamente la fruta.
                 $folios = $proceso?->folios ?? $procesoAjeno?->folios ?? collect();
                 $ocupadas = min(
                     $capacidad,
@@ -534,6 +535,7 @@ class ServicioOperacionAhora
                     'operable' => $operable,
                     'capacidad_posiciones' => $capacidad,
                     'posiciones_ocupadas' => $ocupadas,
+                    'posiciones_sin_cerrar' => $procesoAjeno ? $ocupadas : 0,
                     'posiciones_disponibles' => $admiteCarga
                         ? max(0, $capacidad - $ocupadas)
                         : 0,
@@ -570,8 +572,10 @@ class ServicioOperacionAhora
                     ->count(),
                 'folios_en_tunel' => $procesos->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count())
                     + $procesosOtraTemporada->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count()),
+                'folios_sin_cerrar' => $procesosOtraTemporada->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count()),
                 'capacidad_operativa' => $capacidad,
                 'posiciones_ocupadas' => $ocupadas,
+                'posiciones_sin_cerrar' => (int) $tunelesOperables->sum('posiciones_sin_cerrar'),
                 'ocupacion_porcentaje' => $this->porcentaje($ocupadas, $capacidad),
             ],
             'tuneles' => $tuneles->values()->all(),

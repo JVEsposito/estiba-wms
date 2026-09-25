@@ -76,12 +76,11 @@ function tunnelAlerts(tunnels = []) {
             alerts.push({
                 area: tunnel.codigo,
                 severity: 'critical',
-                condition: 'Túnel ocupado por temporada anterior',
+                condition: 'Túnel bloqueado por proceso anterior',
                 evidence: foreign
                     ? `${foreign.codigo} · ${foreign.temporada_codigo || 'temporada anterior'}`
                     : 'Proceso anterior sin cerrar',
-                href: '/oficina/prefrio',
-                action: 'Revisar proceso',
+                action: 'Se resuelve en el cierre de temporada',
             });
         }
 

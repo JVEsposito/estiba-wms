@@ -100,7 +100,9 @@ test('alerta del proceso anterior que mantiene ocupado un túnel', () => {
         },
     });
 
-    assert.equal(alert.condition, 'Túnel ocupado por temporada anterior');
+    assert.equal(alert.condition, 'Túnel bloqueado por proceso anterior');
     assert.equal(alert.severity, 'critical');
     assert.match(alert.evidence, /PF-2026-31 · 2025-2026/);
+    assert.equal(alert.href, undefined);
+    assert.equal(alert.action, 'Se resuelve en el cierre de temporada');
 });

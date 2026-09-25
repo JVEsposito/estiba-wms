@@ -66,10 +66,14 @@ listas hace fallar esa prueba.
 - Editar o corregir una recepción de Romana ya no la traslada a la temporada activa.
 - El historial y los contadores de anulaciones de pallets muestran solo la temporada activa.
 - Operación ahora y el plano marcan como `bloqueado_otra_temporada` un túnel
-  ocupado por un proceso activo de otra temporada. Antes figuraba «disponible»
-  aunque el prefrío no admitía otro proceso en él. Las posiciones y los folios
-  que siguen físicamente dentro cuentan en la ocupación; Operación ahora
-  presenta una alerta para revisar el proceso anterior.
+  bloqueado por un proceso sin cerrar de otra temporada. Antes figuraba «disponible»
+  aunque el prefrío no admitía otro proceso en él. El sistema mantiene las
+  posiciones y folios de ese registro en la ocupación operativa hasta cerrar o
+  regularizar el proceso; esto no acredita la presencia física de fruta. Los
+  contadores `posiciones_sin_cerrar` y `folios_sin_cerrar` los distinguen de
+  la operación corriente. El plano muestra el bloqueo sin representar un
+  porcentaje de carga, y Operación ahora indica que se resolverá en el cierre
+  de temporada, sin enlazar a acciones que hoy responden 409.
 
 ## Pendiente de los siguientes PR
 
