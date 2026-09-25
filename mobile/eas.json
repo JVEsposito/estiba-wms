@@ -29,6 +29,17 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "apk-pda": {
+      "distribution": "internal",
+      "channel": "pda",
+      "env": {
+        "ESTIBA_APP_VARIANT": "pda",
+        "EXPO_PUBLIC_APP_VARIANT": "pda"
+      },
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }

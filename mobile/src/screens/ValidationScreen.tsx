@@ -47,6 +47,8 @@ import {
   saveValidationWorkContext,
 } from '../services/validationOfflineStore';
 import { colors } from '../theme/colors';
+import { isPdaBuild } from '../config/appVariant';
+import { ScanInput, ScanInputHandle } from '../components/ui/ScanInput';
 
 type ValidationScreenProps = {
   auth: AuthSession;
@@ -74,7 +76,11 @@ type OriginDraft = { key: string; originId: string; boxes: string; lot: string; 
 export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenProps) {
   const { height, width } = useWindowDimensions();
   const compact = width < 700 || width < height;
-  const folioInput = useRef<TextInput>(null);
+  // PDA de mano (≈360 dp de ancho): se condensan encabezados y el contexto de
+  // jornada para que el folio y la decisión queden a pocos desplazamientos.
+  const tight = isPdaBuild || width < 420;
+  const [editingContext, setEditingContext] = useState(false);
+  const folioInput = useRef<ScanInputHandle>(null);
   const flushing = useRef(false);
   const synchronizing = useRef(false);
   const [catalog, setCatalog] = useState<ValidationCatalog | null>(null);
@@ -640,6 +646,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   async function updateWorkContext(nextLine: ValidationLine | null, nextShift: ValidationShift | null) {
     setLine(nextLine);
     setShift(nextShift);
+    if (nextLine && nextShift) setEditingContext(false);
     if (nextLine && nextShift) {
       await saveValidationWorkContext(userId, deviceId, {
         linea_proceso: nextLine,
@@ -670,9 +677,9 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.page, compact && styles.pageCompact]} keyboardShouldPersistTaps="handled">
-        <View style={[styles.topbar, compact && styles.topbarCompact]}>
-          <View><Text style={styles.eyebrow}>FoliOS · TERRENO</Text><Text style={[styles.title, compact && styles.titleCompact]}>Validación de pallets</Text></View>
-          <View style={[styles.topbarRight, compact && styles.topbarRightCompact]}>
+        <View style={[styles.topbar, compact && styles.topbarCompact, tight && styles.topbarTight]}>
+          <View>{tight ? null : <Text style={styles.eyebrow}>FoliOS · TERRENO</Text>}<Text style={[styles.title, compact && styles.titleCompact, tight && styles.titleTight]}>{tight ? 'Validación PT' : 'Validación de pallets'}</Text></View>
+          <View style={[styles.topbarRight, compact && styles.topbarRightCompact, tight && styles.topbarRightTight]}>
             <View style={[styles.connection, online ? styles.connectionOnline : styles.connectionOffline]}><Text style={styles.connectionText}>{online ? 'API conectada' : 'Modo desconectado'}</Text></View>
             <Pressable onPress={logout} style={styles.logout}><Text style={styles.logoutText}>Salir</Text></Pressable>
           </View>
@@ -680,8 +687,8 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
         <View style={[styles.statusStrip, compact && styles.statusStripCompact]}>
           <View style={styles.statusCopy}>
-            <Text style={styles.statusText}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
-            <Text style={styles.statusText}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {pendingSessionOutbox.length} pendientes de esta sesión · {lastSync ? `última sincronización ${formatTime(lastSync)}` : 'sin sincronización reciente'}</Text>
+            <Text numberOfLines={tight ? 1 : undefined} style={[styles.statusText, tight && styles.statusTextTight]}>{catalog ? `${catalog.temporada.nombre} · catálogo v${catalog.temporada.version_catalogo}` : 'Sin catálogo'}</Text>
+            <Text numberOfLines={tight ? 2 : undefined} style={[styles.statusText, tight && styles.statusTextTight]}>{line && shift ? `Línea ${line} · Turno ${shift}` : 'Jornada sin configurar'} · {pendingSessionOutbox.length} {tight ? 'pendientes' : 'pendientes de esta sesión'} · {lastSync ? `${tight ? 'sync' : 'última sincronización'} ${formatTime(lastSync)}` : (tight ? 'sin sync' : 'sin sincronización reciente')}</Text>
           </View>
           <Pressable
             disabled={syncing}
@@ -697,13 +704,19 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
 
         <View style={[styles.mainGrid, compact && styles.mainGridCompact]}>
           <View style={[styles.formPanel, compact && styles.panelCompact]}>
-            <Text style={styles.sectionEyebrow}>CAPTURA RÁPIDA</Text>
-            <Text style={styles.sectionTitle}>Escanea y valida</Text>
+            {tight ? null : <><Text style={styles.sectionEyebrow}>CAPTURA RÁPIDA</Text>
+            <Text style={styles.sectionTitle}>Escanea y valida</Text></>}
 
-            <View style={styles.workContext}>
+            {tight && line && shift && !editingContext ? (
+              <Pressable accessibilityLabel="Cambiar línea y turno" onPress={() => setEditingContext(true)} style={styles.workContextSummary}>
+                <Text style={styles.workContextSummaryText}>Línea {line} · Turno {shift}</Text>
+                <Text style={styles.workContextSummaryAction}>Cambiar</Text>
+              </Pressable>
+            ) : (
+            <View style={[styles.workContext, tight && styles.workContextTight]}>
               <View style={styles.workContextHeader}>
                 <View><Text style={styles.sectionEyebrow}>CONTEXTO DE JORNADA</Text><Text style={styles.workContextTitle}>Selecciona dónde estás validando</Text></View>
-                <Text style={styles.workContextHint}>Se conserva para los siguientes pallets</Text>
+                {tight ? null : <Text style={styles.workContextHint}>Se conserva para los siguientes pallets</Text>}
               </View>
               <View style={[styles.workContextGrid, compact && styles.workContextGridCompact]}>
                 <View style={styles.workContextGroup}>
@@ -721,25 +734,19 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
               </View>
             </View>
 
+            )}
+
             <Text style={styles.label}>Folio *</Text>
-            <View style={[styles.folioRow, compact && styles.folioRowCompact]}>
-              <TextInput
-                ref={folioInput}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                onChangeText={handleFolioChange}
-                onSubmitEditing={() => void inspectFolio()}
-                placeholder="Escanear código de barras"
-                placeholderTextColor={colors.muted}
-                returnKeyType="search"
-                selectTextOnFocus
-                style={styles.folioInput}
-                value={folio}
-              />
-              <Pressable disabled={busy || !folio.trim()} onPress={() => void inspectFolio()} style={[styles.lookupButton, (busy || !folio.trim()) && styles.disabled]}>
-                <Text style={styles.lookupButtonText}>CONSULTAR</Text>
-              </Pressable>
-            </View>
+            <ScanInput
+              ref={folioInput}
+              autoFocus={isPdaBuild}
+              disabled={busy}
+              onChangeText={handleFolioChange}
+              onSubmit={(code) => void inspectFolio(code)}
+              placeholder={tight ? 'Pistolea el folio' : 'Escanear código de barras'}
+              submitLabel={tight ? 'OK' : 'CONSULTAR'}
+              value={folio}
+            />
 
             {folioReview ? <FolioReviewCard review={folioReview} /> : null}
 
@@ -758,17 +765,17 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
 
             <Text style={styles.groupTitle}>Artículo</Text>
-            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <SelectField compact={compact} disabled={terminalDecision} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={terminalDecision || !species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={terminalDecision || !variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
-              <SelectField compact={compact} disabled={terminalDecision || !caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
+            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact, tight && styles.fieldGridPair]}>
+              <SelectField compact={compact} half={tight} disabled={terminalDecision} label="Especie" options={speciesOptions} value={species} onChange={(value) => { setSpecies(value); setVariety(''); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} half={tight} disabled={terminalDecision || !species} label="Variedad" options={varietyOptions} value={variety} onChange={(value) => { setVariety(value); setCaliber(''); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} half={tight} disabled={terminalDecision || !variety} label="Calibre" options={caliberOptions} value={caliber} onChange={(value) => { setCaliber(value); setPackageName(''); clearOrigin(); }} />
+              <SelectField compact={compact} half={tight} disabled={terminalDecision || !caliber} label="Envase" options={packageOptions} value={packageName} onChange={(value) => { setPackageName(value); clearOrigin(); }} />
             </View>
 
             <Text style={styles.groupTitle}>Origen comercial</Text>
-            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact]}>
-              <SelectField compact={compact} disabled={terminalDecision || !selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setOriginDrafts([newOriginDraft()]); }} />
-              <SelectField compact={compact} disabled={terminalDecision || !client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setOriginDrafts([newOriginDraft()]); }} />
+            <View style={[styles.fieldGrid, compact && styles.fieldGridCompact, tight && styles.fieldGridPair]}>
+              <SelectField compact={compact} half={tight} disabled={terminalDecision || !selectedArticle} label="Cliente" options={clientOptions} value={client} onChange={(value) => { setClient(value); setBrand(''); setOriginDrafts([newOriginDraft()]); }} />
+              <SelectField compact={compact} half={tight} disabled={terminalDecision || !client} label="Marca" options={brandOptions} value={brand} onChange={(value) => { setBrand(value); setOriginDrafts([newOriginDraft()]); }} />
               <View style={styles.packingDateField}>
                 <Text style={styles.label}>Fecha de embalaje *</Text>
                 <TextInput
@@ -784,7 +791,7 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
 
             <View style={styles.compositionHeader}>
-              <View><Text style={styles.label}>Composición por CSG *</Text><Text style={styles.fieldHint}>La suma debe coincidir con las cajas del bulto.</Text></View>
+              <View style={styles.compositionHeaderCopy}><Text style={styles.label}>Composición por CSG *</Text><Text style={styles.fieldHint}>La suma debe coincidir con las cajas del bulto.</Text></View>
               <Text style={[styles.compositionTotal, compositionBoxes === Number(boxes) ? styles.compositionTotalOk : styles.compositionTotalPending]}>{compositionBoxes}/{boxes || 0} cajas</Text>
             </View>
             {originDrafts.map((draft, index) => (
@@ -827,13 +834,13 @@ export function ValidationScreen({ auth, baseUrl, onLogout }: ValidationScreenPr
             </View>
 
             <View style={styles.sessionMetrics}>
-              <SessionMetric label="Folios" value={validationSession?.resumen.folios_trabajados ?? 0} />
-              <SessionMetric label="Intentos" value={validationSession?.resumen.registros_realizados ?? 0} />
-              <SessionMetric label="Aprobados" value={validationSession?.resumen.aprobados ?? 0} tone="positive" />
-              <SessionMetric label="Observados" value={validationSession?.resumen.observados ?? 0} tone="warning" />
-              <SessionMetric label="Rechazados" value={validationSession?.resumen.rechazados ?? 0} tone="critical" />
-              <SessionMetric label="Conflictos" value={validationSession?.resumen.conflictos ?? 0} tone="critical" />
-              <SessionMetric label="Pendientes PDA" value={pendingSessionOutbox.length} tone="warning" />
+              <SessionMetric label="Folios" value={validationSession?.resumen.folios_trabajados ?? 0} tight={tight} />
+              <SessionMetric label="Intentos" value={validationSession?.resumen.registros_realizados ?? 0} tight={tight} />
+              <SessionMetric label="Aprobados" value={validationSession?.resumen.aprobados ?? 0} tone="positive" tight={tight} />
+              <SessionMetric label="Observados" value={validationSession?.resumen.observados ?? 0} tone="warning" tight={tight} />
+              <SessionMetric label="Rechazados" value={validationSession?.resumen.rechazados ?? 0} tone="critical" tight={tight} />
+              <SessionMetric label="Conflictos" value={validationSession?.resumen.conflictos ?? 0} tone="critical" tight={tight} />
+              <SessionMetric label="Pendientes PDA" value={pendingSessionOutbox.length} tone="warning" tight={tight} />
             </View>
 
             <View style={styles.sessionBalance}>
@@ -941,20 +948,23 @@ function SessionMetric({
   label,
   value,
   tone = 'neutral',
+  tight = false,
 }: {
   label: string;
   value: number;
   tone?: 'neutral' | 'positive' | 'warning' | 'critical';
+  tight?: boolean;
 }) {
   return (
     <View style={[
       styles.sessionMetric,
+      tight && styles.sessionMetricTight,
       tone === 'positive' && styles.sessionMetricPositive,
       tone === 'warning' && styles.sessionMetricWarning,
       tone === 'critical' && styles.sessionMetricCritical,
     ]}>
-      <Text style={styles.sessionMetricLabel}>{label}</Text>
-      <Text style={styles.sessionMetricValue}>{value}</Text>
+      <Text numberOfLines={1} style={[styles.sessionMetricLabel, tight && styles.sessionMetricLabelTight]}>{label}</Text>
+      <Text style={[styles.sessionMetricValue, tight && styles.sessionMetricValueTight]}>{value}</Text>
     </View>
   );
 }
@@ -990,14 +1000,14 @@ function FolioReviewCard({ review }: { review: FolioReview }) {
   );
 }
 
-function SelectField({ label, options, value, onChange, compact = false, disabled = false, searchable = false }: { label: string; options: Option[]; value: string; onChange: (value: string) => void; compact?: boolean; disabled?: boolean; searchable?: boolean }) {
+function SelectField({ label, options, value, onChange, compact = false, half = false, disabled = false, searchable = false }: { label: string; options: Option[]; value: string; onChange: (value: string) => void; compact?: boolean; half?: boolean; disabled?: boolean; searchable?: boolean }) {
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
   const selected = options.find((option) => option.value === value);
   const filtered = options.filter((option) => `${option.label} ${option.search ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   return <>
-    <View style={[styles.selectField, compact && styles.selectFieldCompact]}><Text style={styles.label}>{label} *</Text><Pressable disabled={disabled} onPress={() => setVisible(true)} style={[styles.selectButton, disabled && styles.disabled]}><Text numberOfLines={1} style={[styles.selectText, !selected && styles.placeholder]}>{selected?.label ?? 'Seleccionar'}</Text><Text style={styles.chevron}>⌄</Text></Pressable></View>
+    <View style={[styles.selectField, compact && styles.selectFieldCompact, half && styles.selectFieldHalf]}><Text numberOfLines={1} style={styles.label}>{label} *</Text><Pressable disabled={disabled} onPress={() => setVisible(true)} style={[styles.selectButton, disabled && styles.disabled]}><Text numberOfLines={1} style={[styles.selectText, !selected && styles.placeholder]}>{selected?.label ?? 'Seleccionar'}</Text><Text style={styles.chevron}>⌄</Text></Pressable></View>
     <Modal animationType="fade" transparent visible={visible} onRequestClose={() => setVisible(false)}>
       <View style={styles.modalBackdrop}><View style={styles.selectorModal}><View style={styles.modalHeader}><Text style={styles.modalTitle}>{label}</Text><Pressable onPress={() => setVisible(false)}><Text style={styles.modalClose}>×</Text></Pressable></View>{searchable || options.length > 8 ? <TextInput autoFocus onChangeText={setQuery} placeholder={`Buscar ${label.toLowerCase()}`} placeholderTextColor={colors.muted} style={styles.searchInput} value={query} /> : null}<ScrollView keyboardShouldPersistTaps="handled" style={styles.optionList}>{filtered.map((option) => <Pressable key={option.value} onPress={() => { onChange(option.value); setQuery(''); setVisible(false); }} style={[styles.option, option.value === value && styles.optionSelected]}><Text style={styles.optionText}>{option.label}</Text></Pressable>)}{!filtered.length ? <Text style={styles.empty}>Sin opciones coincidentes.</Text> : null}</ScrollView></View></View>
     </Modal>
@@ -1109,8 +1119,17 @@ const styles = StyleSheet.create({
   groupTitle: { color: colors.text, fontSize: 15, fontWeight: '900', marginTop: 20, marginBottom: 9 },
   fieldHint: { color: colors.muted, fontSize: 13, marginTop: 4 },
   packingDateField: { flex: 1, minWidth: 190 },
-  compositionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
-  compositionTotal: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden', fontSize: 14, fontWeight: '900' },
+  compositionHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, marginBottom: 8 },
+  compositionHeaderCopy: { flexShrink: 1, flexBasis: 180, flexGrow: 1 },
+  compositionTotal: { flexShrink: 0, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, overflow: 'hidden', fontSize: 14, fontWeight: '900' },
+  titleTight: { fontSize: 18, marginTop: 0 },
+  topbarTight: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 12 },
+  topbarRightTight: { gap: 6 },
+  statusTextTight: { fontSize: 11 },
+  workContextTight: { marginBottom: 12, padding: 10 },
+  workContextSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.cyanDark, backgroundColor: colors.selected },
+  workContextSummaryText: { color: colors.text, fontSize: 14, fontWeight: '900' },
+  workContextSummaryAction: { color: colors.cyan, fontSize: 12, fontWeight: '900' },
   compositionTotalOk: { color: colors.green, backgroundColor: colors.greenDark },
   compositionTotalPending: { color: colors.amber, backgroundColor: colors.amberDark },
   originCompositionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 9, marginBottom: 8, padding: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 11, backgroundColor: colors.backgroundDeep },
@@ -1127,6 +1146,8 @@ const styles = StyleSheet.create({
   fieldGridCompact: { flexDirection: 'column', flexWrap: 'nowrap' },
   selectField: { flex: 1, minWidth: 145 },
   selectFieldCompact: { width: '100%', flexGrow: 0, flexBasis: 'auto' },
+  selectFieldHalf: { width: 'auto', flexGrow: 1, flexBasis: '45%', minWidth: 0 },
+  fieldGridPair: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   wideField: { flexBasis: '100%' },
   selectButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
   selectText: { flex: 1, color: colors.text, fontWeight: '800' },
@@ -1153,6 +1174,9 @@ const styles = StyleSheet.create({
   sessionToggleText: { color: colors.cyan, fontSize: 14, fontWeight: '900' },
   sessionMetrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   sessionMetric: { flexGrow: 1, flexBasis: '29%', minWidth: 88, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.backgroundDeep },
+  sessionMetricTight: { flexBasis: '46%', minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 9 },
+  sessionMetricLabelTight: { flexShrink: 1, fontSize: 11, letterSpacing: .2, marginRight: 6 },
+  sessionMetricValueTight: { fontSize: 17, marginTop: 0 },
   sessionMetricPositive: { borderColor: colors.green, backgroundColor: colors.greenDark },
   sessionMetricWarning: { borderColor: colors.amber, backgroundColor: colors.amberDark },
   sessionMetricCritical: { borderColor: colors.red, backgroundColor: colors.blocked },

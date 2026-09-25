@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { colors } from '../theme/colors';
+import { deviceNoun } from '../config/appVariant';
 
 type Props = {
   userName: string;
@@ -50,7 +51,7 @@ export function FirstPasswordChangeScreen({ userName, onChangePassword, onLogout
         <Text style={styles.eyebrow}>FoliOS · PRIMER ACCESO</Text>
         <Text style={styles.title}>Crea tu contraseña</Text>
         <Text style={styles.description}>
-          {userName}, tu contraseña actual es temporal. Cámbiala para comenzar a trabajar en la tablet.
+          {userName}, tu contraseña actual es temporal. Cámbiala para comenzar a trabajar en la {deviceNoun}.
         </Text>
         <Text style={styles.label}>Contraseña temporal</Text>
         <TextInput

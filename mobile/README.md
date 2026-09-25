@@ -70,6 +70,44 @@ Cambios nativos —por ejemplo instalar otra biblioteca nativa, modificar permis
 
 La impresión directa de etiquetas utiliza un módulo Android local que abre una conexión RAW TCP con la impresora configurada (puerto `9100` por defecto). Por eso debe probarse con la APK `1.2.0` o superior: Expo Go y una APK anterior muestran la interfaz, pero no pueden abrir el socket de impresión.
 
+## Dos APK: tablet y PDA
+
+El mismo código genera dos aplicaciones Android que pueden convivir en un mismo equipo:
+
+| | Tablet | PDA |
+| --- | --- | --- |
+| Nombre | FoliOS | FoliOS PDA |
+| Paquete Android | `cl.estiba.wms.camaras` | `cl.estiba.wms.pda` |
+| Perfil EAS | `apk-camaras` | `apk-pda` |
+| Canal de actualizaciones | `production` | `pda` |
+| Módulos | todos los del perfil | solo Validación PT y Validación MP |
+| Orientación | según módulo | siempre vertical |
+
+La PDA de referencia es la **Unitech EA520** (5", 1280×720, Android 11, lector SE4710): unos 360×568 dp útiles. En esa variante Validación PT y MP usan una cabecera compacta, el contexto de línea y turno se contrae después de elegirlo, los selectores se ordenan de a dos por fila y las métricas de sesión caben de a dos. Aunque el perfil del usuario tenga más módulos, la PDA solo ofrece los dos de validación. Si no tiene ninguno, indica que debe usar la tablet.
+
+```bash
+npm run build:apk        # tablet (perfil apk-camaras)
+npm run build:apk:pda    # PDA (perfil apk-pda)
+
+npm run update:production -- --message "..."   # solo tablets
+npm run update:pda -- --message "..."          # solo PDA
+
+npm run start:pda        # Metro con la variante PDA para probar en Expo Go o en un build de desarrollo
+```
+
+La variante se decide por el canal grabado en la APK instalada. Por eso una actualización publicada en el canal equivocado no convierte una tablet en PDA ni al revés. Sin canal (Expo Go, `expo start`) se usa `EXPO_PUBLIC_APP_VARIANT`. Un cambio que deba llegar a ambos equipos se publica en los dos canales. Cambios nativos requieren generar e instalar las dos APK.
+
+### Lector integrado de la PDA
+
+Los campos de folio (PT) y de correlativo REC (MP) esperan el lector en modo teclado. El campo no abre el teclado en pantalla al recibir el foco y conserva el foco después de cada lectura. El botón ⌨ habilita el teclado para digitar a mano una etiqueta ilegible. El código leído se normaliza: se quitan saltos de línea, tabulaciones y espacios, y se pasa a mayúsculas.
+
+Configuración en la EA520, en **Ajustes → Scanner Settings** (el nombre puede variar según el firmware):
+
+1. Salida de datos: **Keyboard emulation / Keystroke** (no Intent ni portapapeles).
+2. Sufijo: **Enter** (`CR` o `LF`); con eso cada lectura dispara la consulta.
+3. Sin prefijo, y el formato GS1 o el code set de la etiqueta de folio habilitado.
+4. Opcional: desactivar el sonido del sistema si el lector ya emite su propio pitido.
+
 ## Modo demostración explícito
 
 El simulador local de desarrollo sigue disponible, pero debe habilitarse deliberadamente:

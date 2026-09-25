@@ -140,3 +140,6 @@ jobs:
 
       - name: Validar bundle Android
         run: npm run export:android
+
+      - name: Validar bundle PDA
+        run: npm run export:pda

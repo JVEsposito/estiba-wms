@@ -24,6 +24,7 @@
   "scripts": {
     "start": "expo start",
     "start:demo": "cross-env ESTIBA_APP_VARIANT=demo EXPO_PUBLIC_DEMO_MODE=true EXPO_PUBLIC_DEMO_ONLY=true EXPO_PUBLIC_API_URL= expo start --clear",
+    "start:pda": "cross-env ESTIBA_APP_VARIANT=pda EXPO_PUBLIC_APP_VARIANT=pda expo start --clear",
     "start:clear": "expo start --clear",
     "start:tunnel": "expo start --tunnel",
     "android": "expo start --android",
@@ -31,11 +32,14 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "export:android": "expo export --clear --platform android --output-dir dist",
+    "export:pda": "cross-env ESTIBA_APP_VARIANT=pda EXPO_PUBLIC_APP_VARIANT=pda expo export --clear --platform android --output-dir dist-pda",
     "export:demo": "cross-env ESTIBA_APP_VARIANT=demo EXPO_PUBLIC_DEMO_MODE=true EXPO_PUBLIC_DEMO_ONLY=true EXPO_PUBLIC_API_URL= expo export --clear --platform android --output-dir dist-demo",
     "eas:configure": "npx eas-cli@latest update:configure",
     "build:apk": "npx eas-cli@latest build -p android --profile apk-camaras",
     "build:apk:demo": "npx eas-cli@latest build -p android --profile apk-demo",
-    "update:production": "npx eas-cli@latest update --channel production --environment production"
+    "build:apk:pda": "npx eas-cli@latest build -p android --profile apk-pda",
+    "update:production": "npx eas-cli@latest update --channel production --environment production",
+    "update:pda": "cross-env ESTIBA_APP_VARIANT=pda EXPO_PUBLIC_APP_VARIANT=pda npx eas-cli@latest update --channel pda --environment production"
   },
   "private": true
 }
