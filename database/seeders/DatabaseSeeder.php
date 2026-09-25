@@ -162,6 +162,7 @@ class DatabaseSeeder extends Seeder
                 'nombre' => 'Temporada cerezas 2026–2027',
                 'fecha_inicio' => '2026-10-01',
                 'fecha_fin' => '2027-02-28',
+                'prefijo_documental' => 'T27',
                 'activa' => true,
             ],
             Temporada::query()->where('codigo', '2026-2027')->first(),

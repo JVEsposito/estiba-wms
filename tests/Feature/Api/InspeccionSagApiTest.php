@@ -581,6 +581,7 @@ class InspeccionSagApiTest extends TestCase
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-SAG',
             'nombre' => 'Temporada SAG',
             'activa' => true,

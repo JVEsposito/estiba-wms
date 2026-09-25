@@ -43,6 +43,11 @@ const elements = {
     migrationTitle: byId('seasonMigrationTitle'),
     migrationError: byId('seasonMigrationError'),
     migrationCancel: byId('cancelSeasonMigration'),
+    classificationForm: byId('seasonClassificationForm'),
+    classificationTitle: byId('seasonClassificationTitle'),
+    classificationHint: byId('seasonClassificationHint'),
+    classificationError: byId('seasonClassificationError'),
+    classificationCancel: byId('cancelSeasonClassification'),
     archiveDialog: byId('seasonArchiveDialog'),
     archiveDescription: byId('seasonArchiveDescription'),
     archiveEligibility: byId('seasonArchiveEligibility'),
@@ -331,8 +336,24 @@ function resetSeasonForm() {
     elements.seasonForm.reset();
     elements.seasonForm.elements.id.value = '';
     elements.seasonForm.elements.intervalo_embarques_minutos.value = '60';
+    elements.seasonForm.elements.tipo.disabled = false;
+    updateSeasonTypeForm();
     elements.seasonError.textContent = '';
     elements.seasonCancel.classList.add('is-hidden');
+}
+
+function updateSeasonTypeForm() {
+    const form = elements.seasonForm.elements;
+    const isTest = form.tipo.value === 'prueba';
+    form.fecha_inicio.required = !isTest;
+    form.fecha_fin.required = !isTest;
+    byId('seasonStartLabel').textContent = isTest ? 'Inicio' : 'Inicio *';
+    byId('seasonEndLabel').textContent = isTest ? 'Término' : 'Término *';
+    form.activa.disabled = isTest;
+    if (isTest) form.activa.checked = false;
+    byId('seasonTypeHint').textContent = form.tipo.disabled
+        ? 'El tipo solo cambia con «Declarar prueba» o «Declarar productiva» y un motivo.'
+        : 'Las temporadas de prueba no se activan ni aparecen en reportes operacionales.';
 }
 
 function resetMigrationForm() {
@@ -340,6 +361,48 @@ function resetMigrationForm() {
     elements.migrationForm.elements.temporada_destino_id.value = '';
     elements.migrationError.textContent = '';
     elements.migrationForm.classList.add('is-hidden');
+}
+
+function resetClassificationForm() {
+    elements.classificationForm.reset();
+    elements.classificationError.textContent = '';
+    elements.classificationForm.classList.add('is-hidden');
+}
+
+function openClassificationForm(seasonId, type) {
+    const season = state.seasons.find((candidate) => candidate.id === seasonId);
+    if (!season) return;
+    resetMigrationForm();
+    elements.classificationForm.reset();
+    elements.classificationForm.elements.temporada_id.value = seasonId;
+    elements.classificationForm.elements.tipo.value = type;
+    elements.classificationTitle.textContent = type === 'prueba'
+        ? `Declarar ${season.codigo} como temporada de prueba`
+        : `Declarar ${season.codigo} como temporada productiva`;
+    elements.classificationHint.textContent = type === 'prueba'
+        ? 'Solo cambia el tipo de esta temporada: deja de ofrecerse en reportes y selectores y no podrá activarse. No mueve ni borra datos de la temporada activa ni de Materiales.'
+        : 'La temporada vuelve a los reportes. Requiere fechas que no se crucen con otra temporada productiva.';
+    elements.classificationError.textContent = '';
+    elements.classificationForm.classList.remove('is-hidden');
+    elements.classificationForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    elements.classificationForm.elements.motivo.focus();
+}
+
+function seasonTypeBadge(season) {
+    return season.tipo === 'prueba'
+        ? '<span class="access-status access-status--test" title="No se activa ni aparece en reportes">Prueba</span>'
+        : '';
+}
+
+function seasonActions(season) {
+    if (season.activa) {
+        return `<button data-edit-season="${season.id}" type="button">Editar</button><button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>`;
+    }
+    const archive = state.identity?.rol === 'administrador' ? `<button data-archive-season="${season.id}" type="button">Archivo</button>` : '';
+    if (season.tipo === 'prueba') {
+        return `<button data-edit-season="${season.id}" type="button">Editar</button><button data-classify-season="${season.id}" data-classify-type="productiva" type="button">Declarar productiva</button>${archive}`;
+    }
+    return `<button data-edit-season="${season.id}" type="button">Editar</button><button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button><button data-classify-season="${season.id}" data-classify-type="prueba" type="button">Declarar prueba</button>${archive}`;
 }
 
 function openMigrationForm(destinationId) {
@@ -350,7 +413,7 @@ function openMigrationForm(destinationId) {
     elements.migrationForm.elements.temporada_destino_id.value = destinationId;
     elements.migrationTitle.textContent = `Migrar datos hacia ${destination.codigo}`;
     elements.migrationForm.elements.temporada_origen_id.innerHTML = sources.map((season) =>
-        `<option value="${season.id}"${season.activa ? ' selected' : ''}>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}${season.activa ? ' (activa)' : ''}</option>`,
+        `<option value="${season.id}"${season.activa ? ' selected' : ''}>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}${season.activa ? ' (activa)' : ''}${season.tipo === 'prueba' ? ' (prueba)' : ''}</option>`,
     ).join('');
     elements.migrationForm.elements.copiar_catalogo_validacion.checked = true;
     elements.migrationForm.elements.copiar_catalogo_materiales.checked = true;
@@ -373,11 +436,11 @@ function renderSeasons() {
 
     elements.seasonsTableBody.innerHTML = state.seasons.map((season) => `
         <tr>
-            <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>Versión de catálogo ${Number(season.version_catalogo || 1)} · ${Number(season.migraciones_recibidas || 0)} migraciones recibidas</small></td>
+            <td><strong>${escapeHtml(season.codigo)} · ${escapeHtml(season.nombre)}</strong><small>${season.prefijo_documental ? `Prefijo ${escapeHtml(season.prefijo_documental)}` : 'Sin prefijo documental'} · Versión de catálogo ${Number(season.version_catalogo || 1)} · ${Number(season.migraciones_recibidas || 0)} migraciones recibidas</small>${season.clasificacion ? `<small title="${escapeHtml(season.clasificacion.motivo || '')}">Declarada ${season.clasificacion.tipo_nuevo === 'prueba' ? 'de prueba' : 'productiva'} por ${escapeHtml(season.clasificacion.clasificado_por || '—')}</small>` : ''}</td>
             <td>${escapeHtml(dateOnly(season.fecha_inicio))} → ${escapeHtml(dateOnly(season.fecha_fin))}</td>
             <td><strong>${Number(season.intervalo_embarques_minutos || 60)} min</strong><small>24 horas · flujo global</small></td>
-            <td>${statusBadge(season.activa)}</td>
-            <td><div class="admin-season-actions"><button data-edit-season="${season.id}" type="button">Editar</button>${season.activa ? `<button class="admin-season-reset" data-reset-season="${season.id}" type="button">Reiniciar PT + MP</button>` : `<button data-migrate-season="${season.id}" type="button">Migrar datos</button><button data-activate-season="${season.id}" type="button">Activar</button>${state.identity?.rol === 'administrador' ? `<button data-archive-season="${season.id}" type="button">Archivo</button>` : ''}`}</div></td>
+            <td>${statusBadge(season.activa)}${seasonTypeBadge(season)}</td>
+            <td><div class="admin-season-actions">${seasonActions(season)}</div></td>
         </tr>
     `).join('');
 }
@@ -767,14 +830,19 @@ elements.seasonsTableBody.addEventListener('click', async (event) => {
     const migrate = event.target.closest('[data-migrate-season]');
     const reset = event.target.closest('[data-reset-season]');
     const archive = event.target.closest('[data-archive-season]');
+    const classify = event.target.closest('[data-classify-season]');
     if (archive) await openSeasonArchive(archive.dataset.archiveSeason);
+    if (classify) openClassificationForm(classify.dataset.classifySeason, classify.dataset.classifyType);
     if (edit) {
         const season = state.seasons.find((candidate) => candidate.id === edit.dataset.editSeason);
         if (!season) return;
-        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin', 'intervalo_embarques_minutos']) {
+        for (const field of ['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin', 'prefijo_documental', 'intervalo_embarques_minutos']) {
             elements.seasonForm.elements[field].value = season[field] || '';
         }
+        elements.seasonForm.elements.tipo.value = season.tipo;
+        elements.seasonForm.elements.tipo.disabled = true;
         elements.seasonForm.elements.activa.checked = season.activa;
+        updateSeasonTypeForm();
         elements.seasonCancel.classList.remove('is-hidden');
         elements.seasonForm.elements.codigo.focus();
     }
@@ -882,8 +950,36 @@ elements.migrationForm.addEventListener('submit', async (event) => {
 });
 
 elements.migrationCancel.addEventListener('click', resetMigrationForm);
+elements.classificationCancel.addEventListener('click', resetClassificationForm);
+elements.seasonForm.elements.prefijo_documental.addEventListener('input', (event) => {
+    event.target.value = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+});
+
+elements.classificationForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    elements.classificationError.textContent = '';
+    const form = elements.classificationForm.elements;
+    const type = form.tipo.value;
+    const action = type === 'prueba' ? 'declarar-prueba' : 'declarar-productiva';
+    setBusy(true, 'Actualizando el tipo de temporada…');
+    try {
+        await api(`/api/administracion/temporadas/${form.temporada_id.value}/${action}`, {
+            method: 'POST',
+            body: JSON.stringify({ motivo: form.motivo.value }),
+        });
+        resetClassificationForm();
+        await loadAccesses();
+        toast(type === 'prueba' ? 'La temporada quedó declarada de prueba.' : 'La temporada volvió a ser productiva.');
+    } catch (error) {
+        elements.classificationError.textContent = error.message;
+    } finally {
+        setBusy(false);
+    }
+});
 
 elements.seasonCancel.addEventListener('click', resetSeasonForm);
+elements.seasonForm.elements.tipo.addEventListener('change', updateSeasonTypeForm);
+updateSeasonTypeForm();
 elements.clientCancel.addEventListener('click', resetClientForm);
 
 elements.reload.addEventListener('click', async () => {

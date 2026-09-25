@@ -591,6 +591,7 @@ class ValidacionPalletApiTest extends TestCase
             ->assertCreated();
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-NUEVA',
             'nombre' => 'Temporada nueva',
             'activa' => true,

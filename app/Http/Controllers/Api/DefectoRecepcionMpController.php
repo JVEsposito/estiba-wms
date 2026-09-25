@@ -140,8 +140,11 @@ class DefectoRecepcionMpController extends Controller
     public function temporadas(): JsonResponse
     {
         return response()->json(['data' => Temporada::query()->select('id', 'codigo', 'nombre', 'activa')
-            ->whereIn('id', DefectoRecepcionMp::query()->select('temporada_id'))
-            ->orWhere('activa', true)->orderByDesc('activa')->orderByDesc('codigo')->get()])
+            ->productivas()
+            ->where(fn ($consulta) => $consulta
+                ->whereIn('id', DefectoRecepcionMp::query()->select('temporada_id'))
+                ->orWhere('activa', true))
+            ->orderByDesc('activa')->orderByDesc('codigo')->get()])
             ->header('Cache-Control', 'no-store, private');
     }
 

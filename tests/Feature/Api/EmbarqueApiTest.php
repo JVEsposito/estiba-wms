@@ -235,10 +235,10 @@ class EmbarqueApiTest extends TestCase
 
         $this->actingAs($administrador, 'sanctum')
             ->putJson("/api/administracion/temporadas/{$temporada->id}", [
+                // Editar una temporada productiva exige su vigencia y su prefijo.
+                ...$this->vigenciaProductiva(),
                 'codigo' => $temporada->codigo,
                 'nombre' => $temporada->nombre,
-                'fecha_inicio' => $temporada->fecha_inicio?->toDateString(),
-                'fecha_fin' => $temporada->fecha_fin?->toDateString(),
                 'activa' => true,
             ])->assertOk()
             ->assertJsonPath('data.intervalo_embarques_minutos', 30);
@@ -257,6 +257,7 @@ class EmbarqueApiTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'EMB-NUEVA',
             'nombre' => 'Temporada nueva de embarques',
             'activa' => true,

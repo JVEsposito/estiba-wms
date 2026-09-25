@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\TipoTemporada;
 use App\Models\Concerns\ImpideEliminacionFisica;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,12 +17,42 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'fecha_inicio',
     'fecha_fin',
     'activa',
+    'prefijo_documental',
     'version_catalogo',
     'intervalo_embarques_minutos',
 ])]
 class Temporada extends Model
 {
     use HasUuids, ImpideEliminacionFisica;
+
+    /** @var array<string, mixed> */
+    protected $attributes = [
+        'tipo' => 'productiva',
+    ];
+
+    /**
+     * Temporadas que se ofrecen en selectores y reportes operacionales. Las de
+     * prueba siguen consultables en Accesos y en Materiales.
+     */
+    public function scopeProductivas(Builder $consulta): Builder
+    {
+        return $consulta->where('tipo', TipoTemporada::Productiva->value);
+    }
+
+    public function esPrueba(): bool
+    {
+        return $this->tipo === TipoTemporada::Prueba;
+    }
+
+    public function clasificaciones(): HasMany
+    {
+        return $this->hasMany(ClasificacionTemporada::class);
+    }
+
+    public function ultimaClasificacion(): HasOne
+    {
+        return $this->hasOne(ClasificacionTemporada::class)->ofMany(['clasificado_at' => 'max', 'id' => 'max']);
+    }
 
     public function configuracionMaterial(): HasOne
     {
@@ -103,6 +135,7 @@ class Temporada extends Model
             'fecha_inicio' => 'date',
             'fecha_fin' => 'date',
             'activa' => 'boolean',
+            'tipo' => TipoTemporada::class,
             'version_catalogo' => 'integer',
             'intervalo_embarques_minutos' => 'integer',
         ];

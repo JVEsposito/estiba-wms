@@ -114,6 +114,7 @@ class ServicioPanelGerencial
             'actualizacion_segundos' => 30,
             'temporada' => $this->temporada($temporada),
             'temporadas' => Temporada::query()
+                ->productivas()
                 ->orderByDesc('activa')
                 ->orderByDesc('fecha_inicio')
                 ->orderByDesc('created_at')

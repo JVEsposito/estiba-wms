@@ -309,6 +309,7 @@ class MovimientoApiTest extends TestCase
             ->assertJsonCount(0, 'data');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'MOV-NUEVA',
             'nombre' => 'Temporada de movimientos nueva',
             'activa' => true,

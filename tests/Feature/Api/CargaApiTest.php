@@ -194,6 +194,7 @@ class CargaApiTest extends TestCase
         $cargaAnterior->update(['estado' => 'pendiente']);
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'CARGA-NUEVA',
             'nombre' => 'Temporada nueva de cargas',
             'activa' => true,
@@ -552,6 +553,7 @@ class CargaApiTest extends TestCase
         $carga = $this->crearCarga($despachador);
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'CARGA-CERRADA',
             'nombre' => 'Temporada que reemplaza a la de la carga',
             'activa' => true,

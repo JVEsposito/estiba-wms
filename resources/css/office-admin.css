@@ -698,6 +698,17 @@
     color: var(--muted);
 }
 
+/* Temporada declarada de prueba: no se activa ni aparece en reportes. */
+.access-status--test {
+    border-color: var(--line);
+    border-style: dashed;
+    color: var(--muted);
+}
+
+.access-status + .access-status {
+    margin-left: 6px;
+}
+
 .role-badge {
     color: var(--cyan-light);
 }

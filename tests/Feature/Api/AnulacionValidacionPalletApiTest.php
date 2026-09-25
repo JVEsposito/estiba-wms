@@ -427,6 +427,7 @@ class AnulacionValidacionPalletApiTest extends TestCase
     private function activarTemporadaNueva(string $codigo): void
     {
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => $codigo,
             'nombre' => "Temporada {$codigo}",
             'activa' => true,

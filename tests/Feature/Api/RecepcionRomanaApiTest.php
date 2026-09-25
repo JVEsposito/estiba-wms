@@ -495,6 +495,7 @@ class RecepcionRomanaApiTest extends TestCase
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $temporadaId = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada 2026-2027',
                 'activa' => true,
@@ -532,6 +533,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertCreated();
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'ROM-NUEVA',
             'nombre' => 'Temporada nueva de romana',
             'activa' => true,
@@ -675,6 +677,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonCount(1, 'data');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'NOT-NUEVA',
             'nombre' => 'Temporada nueva de notificaciones',
             'activa' => true,
@@ -900,6 +903,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->json('data.id');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'ROM-NUEVA',
             'nombre' => 'Temporada nueva de Romana',
             'activa' => true,

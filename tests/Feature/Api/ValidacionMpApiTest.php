@@ -308,6 +308,7 @@ class ValidacionMpApiTest extends TestCase
             'creado_por_user_id' => $operador->id,
         ]);
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'CTA-NUEVA',
             'nombre' => 'Temporada nueva de cuenta corriente',
             'activa' => true,
@@ -345,6 +346,7 @@ class ValidacionMpApiTest extends TestCase
             ->json('data');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'VAL-MP-NUEVA',
             'nombre' => 'Temporada nueva de Validación MP',
             'activa' => true,
