@@ -143,3 +143,26 @@ test('sin indicadores las áreas vivas se dibujan sin valores inventados', () =>
     assert.equal(repa.value, null);
     assert.equal(repa.meter, null);
 });
+
+test('un túnel ocupado por un proceso de otra temporada se marca como crítico y explica la causa', () => {
+    const index = buildPlantIndex(snapshot({
+        prefrio: {
+            tuneles: [
+                {
+                    id: 't1',
+                    codigo: 'TUN-01',
+                    estado_operacional: 'bloqueado_otra_temporada',
+                    operable: true,
+                    ocupacion_porcentaje: 0,
+                    proceso_activo: null,
+                    proceso_otra_temporada: { id: 'p-old', codigo: 'PF-2026-000031', temporada_codigo: '2025-2026' },
+                },
+            ],
+        },
+    }));
+    const model = plantNodeModel(element('tunel', 't1'), index);
+
+    assert.equal(model.tone, 'critical');
+    assert.equal(model.detail, 'Temporada anterior');
+    assert.deepEqual(model.alerts, ['Proceso PF-2026-000031 de la temporada 2025-2026 sin cerrar']);
+});

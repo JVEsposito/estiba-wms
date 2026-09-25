@@ -10,6 +10,7 @@ export const TUNNEL_STATE_LABELS = {
     en_proceso: 'En ciclo',
     pendiente_verificacion: 'Verificación',
     disponible: 'En espera',
+    bloqueado_otra_temporada: 'Temporada anterior',
     mantenimiento: 'Mantención',
     fuera_servicio: 'Fuera de servicio',
     inactivo: 'Inactivo',
@@ -47,6 +48,7 @@ export function tunnelStateLabel(tunnel) {
 
 export function tunnelStateTone(tunnel) {
     if (!tunnel?.operable || OUT_OF_SERVICE_TUNNEL.includes(tunnel.estado_operacional)) return 'neutral';
+    if (tunnel.estado_operacional === 'bloqueado_otra_temporada') return 'critical';
     if (tunnel.proceso_activo?.objetivo_excedido) return 'critical';
     if (tunnel.estado_operacional === 'pendiente_verificacion') return 'warning';
     if (tunnel.estado_operacional === 'en_proceso') return 'success';
@@ -157,6 +159,10 @@ function tunnelModel(element, catalogItem, index) {
         ? `${tunnelStateLabel(tunnel)} · ciclo ${roundPercent(progress)}%`
         : tunnelStateLabel(tunnel);
     if (process?.objetivo_excedido) model.alerts.push('Ciclo sobre el tiempo objetivo');
+    const foreign = tunnel.proceso_otra_temporada;
+    if (foreign) {
+        model.alerts.push(`Proceso ${foreign.codigo} de la temporada ${foreign.temporada_codigo || 'anterior'} sin cerrar`);
+    }
     return model;
 }
 

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\EstadoProcesoPrefrio;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -30,9 +32,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'finalizado_at',
     'observacion',
 ])]
-class ProcesoPrefrio extends Model
+class ProcesoPrefrio extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'procesos_prefrio';
 

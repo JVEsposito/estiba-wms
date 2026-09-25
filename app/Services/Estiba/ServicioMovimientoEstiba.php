@@ -24,6 +24,7 @@ use App\Models\UbicacionActual;
 use App\Models\User;
 use App\Services\Cargas\ServicioPlanDespachoDirecto;
 use App\Services\Cargas\ServicioTareasCarga;
+use App\Services\Temporadas\GuardiaTemporadaActiva;
 use App\Services\Transiciones\ComandoTransicionOperacional;
 use App\Services\Transiciones\MotorTransicionesOperacionales;
 use BackedEnum;
@@ -58,6 +59,7 @@ class ServicioMovimientoEstiba
         private readonly MotorTransicionesOperacionales $motorTransiciones,
         private readonly ServicioReservasTareasMovimiento $reservasTareas,
         private readonly ServicioPlanDespachoDirecto $planificadorDespachoDirecto,
+        private readonly GuardiaTemporadaActiva $guardiaTemporada,
     ) {}
 
     /**
@@ -155,6 +157,7 @@ class ServicioMovimientoEstiba
         array $advertenciasConfirmadas = [],
         ?TareaMovimiento $tareaMovimiento = null,
     ): Movimiento {
+        $this->guardiaTemporada->asegurar($folio);
         $tipo = $sesionOrigen->camara_id === $posicionDestino->camara_id
             ? TipoMovimiento::Reubicacion
             : TipoMovimiento::TrasladoEntreCamaras;
@@ -542,6 +545,8 @@ class ServicioMovimientoEstiba
             && ! FolioMaterial::query()->whereKey($folio->id)->exists()) {
             throw new DomainException('El folio de material no posee una ficha de inventario válida.');
         }
+        // El número se busca en todas las temporadas: un pallet de otra temporada no se ubica.
+        $this->guardiaTemporada->asegurar($folio);
 
         $this->validarVersion($camara, $versionDestinoConocida, 'destino');
         $ubicacion = UbicacionActual::query()

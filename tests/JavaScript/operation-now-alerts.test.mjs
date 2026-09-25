@@ -86,3 +86,21 @@ test('expone el estado real de un túnel no operable', () => {
     assert.equal(alert.evidence, 'fuera servicio');
     assert.equal(alert.action, 'Revisar túnel');
 });
+
+test('alerta del proceso anterior que mantiene ocupado un túnel', () => {
+    const [alert] = buildOperationalAlerts({
+        prefrio: {
+            tuneles: [{
+                codigo: 'T7',
+                operable: true,
+                estado_operacional: 'bloqueado_otra_temporada',
+                proceso_activo: null,
+                proceso_otra_temporada: { codigo: 'PF-2026-31', temporada_codigo: '2025-2026' },
+            }],
+        },
+    });
+
+    assert.equal(alert.condition, 'Túnel ocupado por temporada anterior');
+    assert.equal(alert.severity, 'critical');
+    assert.match(alert.evidence, /PF-2026-31 · 2025-2026/);
+});

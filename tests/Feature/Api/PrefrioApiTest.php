@@ -998,6 +998,53 @@ class PrefrioApiTest extends TestCase
         $this->assertStringContainsString('revisions:', $pendientes);
     }
 
+    public function test_proceso_de_otra_temporada_bloquea_el_tunel_y_no_admite_acciones(): void
+    {
+        [$tunel, $posicion, $token] = $this->contexto();
+        $proceso = $this->crearProceso($token, $tunel);
+        $folio = $this->folioPendiente('PAL-PF-TEMP-ANTERIOR');
+        $this->accion($token, "/api/prefrio/procesos/{$proceso['id']}/folios", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => 0,
+            'folio_id' => $folio->id,
+            'posicion_tunel_prefrio_id' => $posicion->id,
+            'temperatura_inicial' => 9.2,
+            'ocurrido_at' => now()->toAtomString(),
+        ]);
+        ProcesoPrefrio::query()->findOrFail($proceso['id'])->update(['estado' => 'en_proceso']);
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'PF-SIGUIENTE',
+            'nombre' => 'Temporada siguiente de prefrío',
+            'activa' => true,
+        ]);
+
+        $this->conToken($token)
+            ->postJson("/api/prefrio/procesos/{$proceso['id']}/cancelar", [
+                ...$this->payloadAccion(0),
+                'motivo' => 'Cierre fuera de la temporada activa.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
+
+        // Antes el túnel figuraba «disponible» aunque el proceso lo seguía ocupando.
+        $consulta = User::factory()->create(['rol' => RolUsuario::Consulta]);
+        $puesto = $this->actingAs($consulta, 'sanctum')
+            ->getJson('/api/operacion-ahora')
+            ->assertOk()
+            ->assertJsonPath('data.prefrio.resumen.tuneles_bloqueados_otra_temporada', 1)
+            ->assertJsonPath('data.prefrio.resumen.posiciones_ocupadas', 1)
+            ->assertJsonPath('data.prefrio.resumen.folios_en_tunel', 1);
+        $tunelEnPuesto = collect($puesto->json('data.prefrio.tuneles'))
+            ->firstWhere('id', $tunel->id);
+
+        $this->assertSame('bloqueado_otra_temporada', $tunelEnPuesto['estado_operacional']);
+        $this->assertSame(1, $tunelEnPuesto['posiciones_ocupadas']);
+        $this->assertSame(0, $tunelEnPuesto['posiciones_disponibles']);
+        $this->assertSame($proceso['codigo'], $tunelEnPuesto['proceso_otra_temporada']['codigo']);
+        $this->assertNull($tunelEnPuesto['proceso_activo']);
+    }
+
     /**
      * @return array{TunelPrefrio, PosicionTunelPrefrio, string}
      */

@@ -71,6 +71,20 @@ function tunnelAlerts(tunnels = []) {
             });
         }
 
+        if (tunnel.estado_operacional === 'bloqueado_otra_temporada') {
+            const foreign = tunnel.proceso_otra_temporada;
+            alerts.push({
+                area: tunnel.codigo,
+                severity: 'critical',
+                condition: 'Túnel ocupado por temporada anterior',
+                evidence: foreign
+                    ? `${foreign.codigo} · ${foreign.temporada_codigo || 'temporada anterior'}`
+                    : 'Proceso anterior sin cerrar',
+                href: '/oficina/prefrio',
+                action: 'Revisar proceso',
+            });
+        }
+
         if (process?.objetivo_excedido) {
             alerts.push({
                 area: tunnel.codigo,

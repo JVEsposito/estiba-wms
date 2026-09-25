@@ -11,6 +11,7 @@ use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\ResultadoValidacionPallet;
 use App\Enums\TipoBulto;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use DomainException;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -44,7 +45,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'sincronizado_at',
     'datos_externos',
 ])]
-class Folio extends Model
+class Folio extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -177,5 +178,18 @@ class Folio extends Model
             'datos_externos' => 'array',
             'estado_integracion' => EstadoIntegracionFolio::class,
         ];
+    }
+
+    /**
+     * Los folios de Materiales quedan fuera del control: su inventario cambia de
+     * temporada con la migración auditada de Materiales.
+     */
+    public function temporadaOperacionalId(): ?string
+    {
+        if ($this->tipo_bulto === TipoBulto::Material || $this->temporada_id === null) {
+            return null;
+        }
+
+        return (string) $this->temporada_id;
     }
 }

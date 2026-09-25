@@ -6,6 +6,8 @@ use App\Enums\EstadoValidacionPallet;
 use App\Enums\MotivoValidacionPallet;
 use App\Enums\ResultadoValidacionPallet;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -20,9 +22,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'user_id', 'dispositivo_id', 'folio_id', 'validacion_conflicto_id',
     'generado_dispositivo_at', 'recibido_servidor_at',
 ])]
-class ValidacionPallet extends Model
+class ValidacionPallet extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'validaciones_pallet';
 

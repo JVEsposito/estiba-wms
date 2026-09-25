@@ -6,6 +6,8 @@ use App\Enums\EstadoLoteMateriaPrima;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoProductoMateriaPrima;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use App\Services\Validacion\ProyeccionTrazabilidadFolio;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -56,9 +58,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'anulado_at',
     'motivo_anulacion',
 ])]
-class LoteMateriaPrima extends Model
+class LoteMateriaPrima extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'lotes_materia_prima';
 

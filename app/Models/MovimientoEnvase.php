@@ -7,6 +7,8 @@ use App\Enums\PropiedadEnvase;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoMovimientoEnvase;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Concerns\TemporadaPorColumna;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -35,9 +37,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'creado_por_user_id',
     'datos',
 ])]
-class MovimientoEnvase extends Model
+class MovimientoEnvase extends Model implements PerteneceATemporada
 {
-    use HasUuids, ImpideEliminacionFisica;
+    use HasUuids, ImpideEliminacionFisica, TemporadaPorColumna;
 
     protected $table = 'movimientos_envases';
 

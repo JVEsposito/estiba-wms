@@ -227,7 +227,10 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         $this->getJson('/api/envases/guias-despacho')
             ->assertOk()
             ->assertJsonCount(0, 'data');
-        $this->postJson("/api/envases/guias-despacho/{$guiaAnterior['id']}/confirmar")->assertNotFound();
+        // Escribir sobre otra temporada responde 409 con el control central.
+        $this->postJson("/api/envases/guias-despacho/{$guiaAnterior['id']}/confirmar")
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
         $this->getJson("/api/envases/guias-despacho?temporada_id={$temporadaAnterior->id}")
             ->assertOk()
             ->assertJsonPath('data.0.id', $guiaAnterior['id']);

@@ -853,6 +853,14 @@ function renderAlerts(data) {
 
 function tunnelProgress(tunnel) {
     const process = tunnel.proceso_activo;
+    const foreign = tunnel.proceso_otra_temporada;
+    if (!process && foreign) {
+        return `<div class="operation-now-tunnel-progress">
+            <strong>—</strong>
+            <span class="operation-now-meter" data-tone="critical" style="--operation-progress:100%"><i></i></span>
+            <small>${escapeHtml(`${foreign.codigo} de ${foreign.temporada_codigo || 'otra temporada'} sin cerrar`)}</small>
+        </div>`;
+    }
     if (!process) {
         return `<div class="operation-now-tunnel-progress">
             <strong>0 %</strong>

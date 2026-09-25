@@ -546,6 +546,36 @@ class CargaApiTest extends TestCase
         }
     }
 
+    public function test_no_modifica_ni_cancela_una_carga_de_temporada_inactiva(): void
+    {
+        $despachador = $this->despachador();
+        $carga = $this->crearCarga($despachador);
+
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => 'CARGA-CERRADA',
+            'nombre' => 'Temporada que reemplaza a la de la carga',
+            'activa' => true,
+        ], usuarioId: $despachador->id);
+
+        $this->actingAs($despachador, 'sanctum')
+            ->putJson("/api/cargas/{$carga->id}", [
+                'version_esperada' => 1,
+                'prioridad' => 'alta',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
+
+        $this->actingAs($despachador, 'sanctum')
+            ->postJson("/api/cargas/{$carga->id}/cancelar", [
+                'version_esperada' => 1,
+                'motivo' => 'Cancelación fuera de la temporada activa.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa');
+
+        $this->assertDatabaseHas('cargas', ['id' => $carga->id, 'version' => 1, 'estado' => $carga->estado->value]);
+    }
+
     private function despachador(): User
     {
         return User::factory()->create([

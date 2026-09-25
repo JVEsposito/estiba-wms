@@ -7,6 +7,7 @@ use App\Enums\PrioridadOperacional;
 use App\Enums\TipoMovimiento;
 use App\Enums\TipoPasoManiobra;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use App\Observers\CerrarRecepcionTunelObserver;
 use App\Observers\RecalcularPrioridadBufferRepaletizajeObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -48,7 +49,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'motivo_cancelacion',
     'version',
 ])]
-class TareaMovimiento extends Model
+class TareaMovimiento extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -140,5 +141,11 @@ class TareaMovimiento extends Model
             'cancelada_at' => 'datetime',
             'version' => 'integer',
         ];
+    }
+
+    /** La temporada es la del plan operacional. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->planOperacional?->temporadaOperacionalId();
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -31,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
     'anulado_at',
     'motivo_anulacion',
 ])]
-class EntregaFrutaProceso extends Model
+class EntregaFrutaProceso extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -90,5 +91,11 @@ class EntregaFrutaProceso extends Model
             'entregado_at' => 'datetime',
             'anulado_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la del lote de materia prima. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->lote?->temporadaOperacionalId();
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\EstadoCargaFolio;
 use App\Models\Concerns\ImpideEliminacionFisica;
+use App\Models\Contracts\PerteneceATemporada;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'finalizado_at',
     'motivo_finalizacion',
 ])]
-class CargaFolio extends Model
+class CargaFolio extends Model implements PerteneceATemporada
 {
     use HasUuids, ImpideEliminacionFisica;
 
@@ -95,5 +96,11 @@ class CargaFolio extends Model
             'enviado_anden_at' => 'datetime',
             'finalizado_at' => 'datetime',
         ];
+    }
+
+    /** La temporada es la de la carga. */
+    public function temporadaOperacionalId(): ?string
+    {
+        return $this->carga?->temporadaOperacionalId();
     }
 }

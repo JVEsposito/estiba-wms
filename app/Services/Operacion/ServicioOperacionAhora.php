@@ -477,6 +477,23 @@ class ServicioOperacionAhora
             ->get()
             ->unique('tunel_prefrio_id')
             ->keyBy('tunel_prefrio_id');
+        // Un proceso activo de otra temporada sigue ocupando el túnel: el
+        // prefrío no admite un segundo proceso aunque la vista lo filtre.
+        $procesosOtraTemporada = ProcesoPrefrio::query()
+            ->where('temporada_id', '!=', $temporada->id)
+            ->whereIn('estado', $estadosActivos)
+            ->with([
+                'temporada:id,codigo',
+                'folios' => fn (HasMany $consulta): HasMany => $consulta
+                    ->whereNotIn('estado', [
+                        EstadoFolioProcesoPrefrio::Retirado->value,
+                        EstadoFolioProcesoPrefrio::Cancelado->value,
+                    ]),
+            ])
+            ->latest('created_at')
+            ->get(['id', 'codigo', 'tunel_prefrio_id', 'temporada_id', 'created_at'])
+            ->unique('tunel_prefrio_id')
+            ->keyBy('tunel_prefrio_id');
         $tuneles = TunelPrefrio::query()
             ->withCount([
                 'posiciones as posiciones_activas_count' => fn (Builder $consulta): Builder => $consulta
@@ -484,18 +501,22 @@ class ServicioOperacionAhora
             ])
             ->orderBy('codigo')
             ->get()
-            ->map(function (TunelPrefrio $tunel) use ($procesos, $ahora): array {
+            ->map(function (TunelPrefrio $tunel) use ($procesos, $procesosOtraTemporada, $ahora): array {
                 /** @var ProcesoPrefrio|null $proceso */
                 $proceso = $procesos->get($tunel->id);
+                /** @var ProcesoPrefrio|null $procesoAjeno */
+                $procesoAjeno = $proceso === null ? $procesosOtraTemporada->get($tunel->id) : null;
                 $operable = $tunel->estado_administrativo === EstadoAdministrativoTunelPrefrio::Activo
                     && $tunel->estado_tecnico === EstadoTecnicoTunelPrefrio::Operativo;
                 $capacidad = (int) $tunel->posiciones_activas_count;
-                $folios = $proceso?->folios ?? collect();
+                // La ocupación es física, aunque la operación de ese proceso
+                // ya no pertenezca a la temporada activa.
+                $folios = $proceso?->folios ?? $procesoAjeno?->folios ?? collect();
                 $ocupadas = min(
                     $capacidad,
                     $folios->pluck('posicion_tunel_prefrio_id')->unique()->count(),
                 );
-                $admiteCarga = $operable && ($proceso === null || in_array($proceso->estado, [
+                $admiteCarga = $operable && $procesoAjeno === null && ($proceso === null || in_array($proceso->estado, [
                     EstadoProcesoPrefrio::Borrador,
                     EstadoProcesoPrefrio::Cargando,
                     EstadoProcesoPrefrio::ListoParaIniciar,
@@ -507,7 +528,9 @@ class ServicioOperacionAhora
                     'nombre' => $tunel->nombre,
                     'estado_administrativo' => $tunel->estado_administrativo->value,
                     'estado_tecnico' => $tunel->estado_tecnico->value,
-                    'estado_operacional' => $this->estadoOperacionalTunel($tunel, $proceso),
+                    'estado_operacional' => $procesoAjeno && $operable
+                        ? 'bloqueado_otra_temporada'
+                        : $this->estadoOperacionalTunel($tunel, $proceso),
                     'operable' => $operable,
                     'capacidad_posiciones' => $capacidad,
                     'posiciones_ocupadas' => $ocupadas,
@@ -518,6 +541,11 @@ class ServicioOperacionAhora
                     'proceso_activo' => $proceso
                         ? $this->serializarProcesoPrefrio($proceso, $ahora, $ocupadas)
                         : null,
+                    'proceso_otra_temporada' => $procesoAjeno ? [
+                        'id' => $procesoAjeno->id,
+                        'codigo' => $procesoAjeno->codigo,
+                        'temporada_codigo' => $procesoAjeno->temporada?->codigo,
+                    ] : null,
                 ];
             });
         $tunelesOperables = $tuneles->where('operable', true);
@@ -531,13 +559,17 @@ class ServicioOperacionAhora
                 'tuneles_disponibles' => $tuneles
                     ->where('estado_operacional', 'disponible')
                     ->count(),
+                'tuneles_bloqueados_otra_temporada' => $tuneles
+                    ->where('estado_operacional', 'bloqueado_otra_temporada')
+                    ->count(),
                 'procesos_activos' => $procesos->count(),
                 'procesos_fuera_objetivo' => $tuneles
                     ->filter(fn (array $tunel): bool => (bool) (
                         $tunel['proceso_activo']['objetivo_excedido'] ?? false
                     ))
                     ->count(),
-                'folios_en_tunel' => $procesos->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count()),
+                'folios_en_tunel' => $procesos->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count())
+                    + $procesosOtraTemporada->sum(fn (ProcesoPrefrio $proceso): int => $proceso->folios->count()),
                 'capacidad_operativa' => $capacidad,
                 'posiciones_ocupadas' => $ocupadas,
                 'ocupacion_porcentaje' => $this->porcentaje($ocupadas, $capacidad),

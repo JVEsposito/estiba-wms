@@ -6,6 +6,7 @@ use App\Enums\RolUsuario;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\User;
+use App\Services\Temporadas\ServicioTemporadaGlobal;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -242,6 +243,59 @@ class AnulacionValidacionPalletApiTest extends TestCase
             ->assertJsonPath('anulaciones.0.folio.estado_operacional', 'anulado');
     }
 
+    public function test_no_anula_una_validacion_de_una_temporada_inactiva(): void
+    {
+        [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-TEMP');
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-TEMP');
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-TEMP');
+        $this->activarTemporadaNueva('ANU-NUEVA');
+
+        $this->conToken($tokenSupervisor)
+            ->postJson("/api/validacion/pallets/{$validacionId}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo_categoria' => 'otro',
+                'motivo' => 'Intento sobre una validación de la temporada anterior.',
+            ])
+            ->assertConflict()
+            ->assertJsonPath('codigo', 'temporada_no_activa')
+            ->assertJsonPath('temporada_activa', 'ANU-NUEVA');
+
+        $this->assertDatabaseMissing('anulaciones_validacion_pallet', [
+            'validacion_pallet_id' => $validacionId,
+        ]);
+        $this->assertDatabaseHas('validaciones_pallet', ['id' => $validacionId, 'estado' => 'aceptada']);
+    }
+
+    public function test_historial_y_contadores_de_anulaciones_muestran_solo_la_temporada_activa(): void
+    {
+        [$catalogo, $tokenValidador] = $this->contexto(RolUsuario::Validador, 'VAL-ANU-HIST');
+        [, $tokenSupervisor] = $this->acceso(RolUsuario::SupervisorFrio, 'SUP-ANU-HIST');
+        $validacionId = $this->crearValidacion($tokenValidador, $catalogo, 'PAL-ANU-HIST');
+        $this->conToken($tokenSupervisor)
+            ->postJson("/api/validacion/pallets/{$validacionId}/anular", [
+                'operacion_id' => (string) Str::uuid(),
+                'motivo_categoria' => 'folio_incorrecto',
+                'motivo' => 'Anulación registrada antes del cambio de temporada.',
+            ])
+            ->assertOk();
+
+        $this->conToken($tokenSupervisor)
+            ->getJson('/api/validacion/anulaciones')
+            ->assertOk()
+            ->assertJsonCount(1, 'anulaciones')
+            ->assertJsonPath('resumen.total', 1);
+
+        $this->activarTemporadaNueva('ANU-HIST-NUEVA');
+
+        $this->conToken($tokenSupervisor)
+            ->getJson('/api/validacion/anulaciones')
+            ->assertOk()
+            ->assertJsonCount(0, 'anulaciones')
+            ->assertJsonPath('resumen.total', 0)
+            ->assertJsonPath('resumen.hoy', 0)
+            ->assertJsonCount(0, 'resumen.por_categoria');
+    }
+
     /**
      * @return array{array<string, string|int>, string}
      */
@@ -368,5 +422,14 @@ class AnulacionValidacionPalletApiTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
+    }
+
+    private function activarTemporadaNueva(string $codigo): void
+    {
+        app(ServicioTemporadaGlobal::class)->guardar([
+            'codigo' => $codigo,
+            'nombre' => "Temporada {$codigo}",
+            'activa' => true,
+        ]);
     }
 }

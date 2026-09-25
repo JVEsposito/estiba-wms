@@ -16,6 +16,7 @@ use App\Models\Temporada;
 use App\Models\User;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Cargas\ServicioCarga;
+use App\Services\Temporadas\GuardiaTemporadaActiva;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -27,6 +28,7 @@ class ServicioCalendarioEmbarques
         private readonly ServicioCorrelativoEmbarque $correlativos,
         private readonly ServicioCarga $cargas,
         private readonly AlcanceOperacionalUsuario $alcance,
+        private readonly GuardiaTemporadaActiva $guardiaTemporada,
     ) {}
 
     /** @param array<string, mixed> $datos */
@@ -177,6 +179,8 @@ class ServicioCalendarioEmbarques
             $versionEsperada,
         ): Embarque {
             $embarque = Embarque::query()->lockForUpdate()->findOrFail($embarque->id);
+            // La carga se crea en la temporada activa: el embarque debe ser de esa misma temporada.
+            $this->guardiaTemporada->asegurar($embarque);
             $this->asegurarVersion($embarque, $versionEsperada);
 
             if ($embarque->estado !== EstadoEmbarque::Tentativo) {
