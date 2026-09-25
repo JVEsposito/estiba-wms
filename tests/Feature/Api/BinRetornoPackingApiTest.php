@@ -855,6 +855,7 @@ class BinRetornoPackingApiTest extends TestCase
                 ],
                 'numero_guia_despacho' => "GD-{$sufijo}",
                 'patente_camion' => 'ABCD12',
+                'tipo_camion' => 'plano',
                 'rut_conductor' => '12.345.678-5',
                 'nombre_conductor' => 'Transportista MP',
                 'peso_bruto' => 28000,
