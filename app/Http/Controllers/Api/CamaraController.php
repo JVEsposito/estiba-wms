@@ -9,6 +9,7 @@ use App\Http\Resources\CamaraPlanoResource;
 use App\Http\Resources\CamaraResumenResource;
 use App\Models\Camara;
 use App\Models\PersonalAccessToken;
+use App\Models\Temporada;
 use App\Services\Autorizacion\AlcanceOperacionalUsuario;
 use App\Services\Camaras\ServicioBandasOperacionales;
 use App\Services\Estiba\ServicioReservasTareasMovimiento;
@@ -92,6 +93,7 @@ class CamaraController extends Controller
             'ubicacionesSinPosicion' => fn ($consulta) => $consulta
                 ->with([
                     'folio.condicionSag',
+                    'folio.temporada:id,codigo,tipo',
                     'folio.material.item.cliente.temporada',
                     'folio.asignacionCargaActual.carga',
                 ])
@@ -100,6 +102,7 @@ class CamaraController extends Controller
             'posiciones' => fn ($consulta) => $consulta
                 ->with([
                     'ubicacionesActuales.folio.condicionSag',
+                    'ubicacionesActuales.folio.temporada:id,codigo,tipo',
                     'ubicacionesActuales.folio.material.item.cliente.temporada',
                     'ubicacionesActuales.folio.asignacionCargaActual.carga',
                     'reservaTareaActiva' => fn ($reservas) => $reservas
@@ -187,6 +190,8 @@ class CamaraController extends Controller
             'sesion_estado' => $sesion?->estado?->value,
             'sesion_ultima_actividad_at' => $sesion?->ultima_actividad_at?->toAtomString(),
             'revision_reservas' => $camara->revision_reservas,
+            // Al cambiar la temporada activa cambia qué folios son registros sin cerrar.
+            'temporada_activa_id' => Temporada::query()->where('activa', true)->value('id'),
         ], JSON_THROW_ON_ERROR);
 
         return 'plano-'.hash('sha256', $huella);

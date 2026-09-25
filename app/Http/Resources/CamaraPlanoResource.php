@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\UbicacionActual;
 use Illuminate\Http\Request;
 
 class CamaraPlanoResource extends CamaraResumenResource
@@ -22,6 +23,22 @@ class CamaraPlanoResource extends CamaraResumenResource
             'posiciones' => PosicionPlanoResource::collection(
                 $this->whenLoaded('posiciones'),
             ),
+            'registros_sin_cerrar' => $this->when(
+                $this->resource->relationLoaded('posiciones'),
+                fn (): int => $this->contarSinCerrar($request),
+            ),
         ];
+    }
+
+    private function contarSinCerrar(Request $request): int
+    {
+        $ubicaciones = $this->posiciones
+            ->flatMap(fn ($posicion) => $posicion->relationLoaded('ubicacionesActuales') ? $posicion->ubicacionesActuales : [])
+            ->merge($this->resource->relationLoaded('ubicacionesSinPosicion') ? $this->ubicacionesSinPosicion : []);
+
+        return $ubicaciones
+            ->filter(fn (UbicacionActual $ubicacion): bool => $ubicacion->folio !== null
+                && PosicionPlanoResource::registroSinCerrar($ubicacion->folio, $request) !== null)
+            ->count();
     }
 }

@@ -633,7 +633,8 @@ function renderSelectedOperationalCamera() {
     elements.cameraOpsEmpty.classList.add('is-hidden');
     elements.cameraOpsWorkspace.classList.remove('is-hidden');
     elements.cameraOpsName.textContent = cameraDisplayName(plan);
-    elements.cameraOpsMeta.textContent = `${statusText(plan.tipo)} · ${statusText(plan.contenido)} · versión de plano ${plan.version_plano}`;
+    const unclosed = Number(plan.registros_sin_cerrar || 0);
+    elements.cameraOpsMeta.textContent = `${statusText(plan.tipo)} · ${statusText(plan.contenido)} · versión de plano ${plan.version_plano}${unclosed ? ` · ${formatNumber(unclosed)} ${unclosed === 1 ? 'registro' : 'registros'} sin cerrar de otra temporada` : ''}`;
     elements.cameraOpsAccess.textContent = access.text;
     elements.cameraOpsAccess.dataset.tone = access.tone;
     renderOperationalSummary(plan);

@@ -10,6 +10,7 @@ use App\Http\Requests\MigrarTemporadaRequest;
 use App\Models\ClasificacionTemporada;
 use App\Models\MigracionTemporada;
 use App\Models\Temporada;
+use App\Services\Temporadas\Cierre\ServicioDiagnosticoCierreTemporada;
 use App\Services\Temporadas\ServicioClasificacionTemporada;
 use App\Services\Temporadas\ServicioMigracionTemporada;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
@@ -42,7 +43,15 @@ class AdministracionTemporadaController extends Controller
     public function store(
         GuardarTemporadaGlobalRequest $request,
         ServicioTemporadaGlobal $servicio,
+        ServicioDiagnosticoCierreTemporada $cierre,
     ): JsonResponse {
+        if ($request->boolean('activa')) {
+            $cierre->asegurarPuedeActivarse(
+                new Temporada(['codigo' => mb_strtoupper(trim((string) $request->validated('codigo')))]),
+                validarDestino: false,
+            );
+        }
+
         $temporada = $servicio->guardar(
             $request->validated(),
             usuarioId: $request->user()->id,
@@ -57,6 +66,7 @@ class AdministracionTemporadaController extends Controller
         GuardarTemporadaGlobalRequest $request,
         Temporada $temporada,
         ServicioTemporadaGlobal $servicio,
+        ServicioDiagnosticoCierreTemporada $cierre,
     ): JsonResponse {
         $datos = $request->validated();
         $datos['activa'] = array_key_exists('activa', $datos)
@@ -67,6 +77,9 @@ class AdministracionTemporadaController extends Controller
             Response::HTTP_UNPROCESSABLE_ENTITY,
             'Activa otra temporada para reemplazar la vigente.',
         );
+        if ($datos['activa'] && ! $temporada->activa) {
+            $cierre->asegurarPuedeActivarse($temporada, validarDestino: false);
+        }
 
         $temporada = $servicio->guardar(
             $datos,
@@ -83,8 +96,12 @@ class AdministracionTemporadaController extends Controller
         Request $request,
         Temporada $temporada,
         ServicioTemporadaGlobal $servicio,
+        ServicioDiagnosticoCierreTemporada $cierre,
     ): JsonResponse {
         Gate::authorize('administrar-accesos');
+        if (! $temporada->activa) {
+            $cierre->asegurarPuedeActivarse($temporada);
+        }
         $temporada = $servicio->activar($temporada, $request->user()->id);
 
         return response()->json([

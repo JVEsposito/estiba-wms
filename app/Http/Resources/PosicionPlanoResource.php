@@ -3,6 +3,9 @@
 namespace App\Http\Resources;
 
 use App\Enums\EstadoCarga;
+use App\Enums\TipoBulto;
+use App\Models\Folio;
+use App\Models\Temporada;
 use App\Models\UbicacionActual;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -56,6 +59,42 @@ class PosicionPlanoResource extends JsonResource
             // Se conserva `folio` durante la transición para clientes anteriores de la API.
             'folio' => $folios->first(),
             'folios' => $folios->all(),
+        ];
+    }
+
+    /**
+     * Un folio PT de otra temporada que todavía figura en la cámara es un
+     * registro que nadie cerró: la fruta ya no está, pero ocupa la posición
+     * hasta que se regularice en Cierre de temporada.
+     *
+     * @return array{temporada: array{id: string, codigo: string|null, tipo: string|null}}|null
+     */
+    public static function registroSinCerrar(Folio $folio, Request $request): ?array
+    {
+        if ($folio->tipo_bulto === TipoBulto::Material || $folio->temporada_id === null) {
+            return null;
+        }
+
+        if (! $request->attributes->has('plano.temporada_activa_id')) {
+            $request->attributes->set(
+                'plano.temporada_activa_id',
+                Temporada::query()->where('activa', true)->value('id'),
+            );
+        }
+        $activa = $request->attributes->get('plano.temporada_activa_id');
+
+        if ($activa === null || (string) $folio->temporada_id === (string) $activa) {
+            return null;
+        }
+
+        $temporada = $folio->relationLoaded('temporada') ? $folio->temporada : null;
+
+        return [
+            'temporada' => [
+                'id' => (string) $folio->temporada_id,
+                'codigo' => $temporada?->codigo,
+                'tipo' => $temporada?->tipo?->value,
+            ],
         ];
     }
 
@@ -130,6 +169,7 @@ class PosicionPlanoResource extends JsonResource
                 'observacion' => $folio->material->observacion,
             ] : null,
             'ubicado_at' => $ubicacion->ubicado_at?->toAtomString(),
+            'registro_sin_cerrar' => self::registroSinCerrar($folio, request()),
             'carga_actual' => $carga ? [
                 'id' => $carga->id,
                 'codigo' => $carga->codigo,

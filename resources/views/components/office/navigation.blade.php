@@ -121,6 +121,8 @@
             <button id="officeLogoutButton" type="button">Cerrar sesión</button>
         </div>
     </header>
+    {{-- Avisos de cierre de temporada dirigidos al usuario (office-shell.js). --}}
+    <div class="estiba-office-notices" data-office-notices role="status" aria-live="polite" hidden></div>
 
     <aside class="estiba-office-sidebar" id="officeSidebar" aria-label="Navegación de Oficina">
         {{-- Búsqueda global: folio, lote, recepción, CSG o guía desde cualquier oficina. --}}

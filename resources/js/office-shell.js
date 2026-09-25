@@ -53,6 +53,7 @@ async function loadContext() {
         if (currentGeneration !== generation || currentToken !== token()) return;
         text('plant', data.planta || 'Sin configurar');
         text('season', data.temporada?.codigo || 'Sin temporada activa');
+        renderNotices(Array.isArray(data.avisos_cierre) ? data.avisos_cierre : []);
         contextState(
             'Contexto verificado',
             `Actualizado ${new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`,
@@ -73,6 +74,41 @@ async function loadContext() {
     }
 }
 
+function escapeText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[character]);
+}
+
+// Avisos de cierre de temporada: el administrador los envía desde Accesos.
+function renderNotices(notices) {
+    const region = field('notices');
+    if (!region) return;
+    region.innerHTML = notices.map((notice) => `
+        <div class="estiba-office-notice" data-notice-id="${escapeText(notice.id)}">
+            <strong>${escapeText(notice.titulo)}</strong>
+            <p>${escapeText(notice.mensaje)}</p>
+            <button type="button" data-read-notice="${escapeText(notice.id)}">Entendido</button>
+        </div>`).join('');
+    region.hidden = notices.length === 0;
+}
+
+async function readNotice(id) {
+    const currentToken = token();
+    if (!currentToken) return;
+    const notice = field('notices')?.querySelector(`[data-notice-id="${CSS.escape(id)}"]`);
+    try {
+        const response = await fetch(`/api/notificaciones-operacionales/${encodeURIComponent(id)}/leer`, {
+            method: 'POST',
+            headers: { Accept: 'application/json', Authorization: `Bearer ${currentToken}` },
+        });
+        if (!response.ok) return;
+        notice?.remove();
+        const region = field('notices');
+        if (region && !region.children.length) region.hidden = true;
+    } catch { /* Se reintenta al actualizar el contexto. */ }
+}
+
 export function refreshOfficeShell(identity, hasSession) {
     if (!shell()) return;
     const readonly = field('readonly');
@@ -84,6 +120,7 @@ export function refreshOfficeShell(identity, hasSession) {
         controller?.abort();
         text('plant', 'Sin consultar');
         text('season', 'Sin consultar');
+        renderNotices([]);
         contextState('Contexto sin consultar', 'Inicia sesión para verificarlo', 'neutral');
         field('context-refresh').disabled = true;
     } else if (contextToken !== currentToken) {
@@ -157,6 +194,10 @@ export function initializeOfficeShell() {
     new ResizeObserver(size).observe(header);
     size();
     field('context-refresh').addEventListener('click', () => void loadContext());
+    field('notices')?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-read-notice]');
+        if (button) void readNotice(button.dataset.readNotice);
+    });
     window.addEventListener('offline', () => contextState('Sin conexión', 'El contexto puede estar desactualizado', 'critical'));
     window.addEventListener('online', () => contextState('Conexión recuperada', 'Actualiza para verificar el contexto', 'neutral'));
 }

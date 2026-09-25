@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoJerarquicoValidacionController;
 use App\Http\Controllers\Api\CatalogoMaterialController;
 use App\Http\Controllers\Api\CatalogoValidacionController;
+use App\Http\Controllers\Api\CierreTemporadaController;
 use App\Http\Controllers\Api\ClienteGlobalController;
 use App\Http\Controllers\Api\ComparacionCiclosPlanificadorController;
 use App\Http\Controllers\Api\CondicionSagController;
@@ -543,6 +544,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/administracion/temporadas/{temporada}/declarar-prueba', [AdministracionTemporadaController::class, 'declararPrueba']);
         Route::post('/administracion/temporadas/{temporada}/declarar-productiva', [AdministracionTemporadaController::class, 'declararProductiva']);
         Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
+        Route::get('/administracion/temporadas/{temporada}/cierre', [CierreTemporadaController::class, 'diagnostico']);
+        Route::post('/administracion/temporadas/{temporada}/cierre/regularizar', [CierreTemporadaController::class, 'regularizar']);
+        Route::post('/administracion/temporadas/{temporada}/cierre/avisar', [CierreTemporadaController::class, 'avisar']);
         Route::get('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'preview']);
         Route::post('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'store']);
         Route::post('/administracion/etiquetas/materiales/perfiles', [PerfilImpresionEtiquetaController::class, 'store']);

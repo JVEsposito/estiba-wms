@@ -444,3 +444,34 @@
     font-size: 16px;
     cursor: pointer;
 }
+
+/* Avisos de cierre de temporada: franja bajo la cabecera, fuera del menú lateral. */
+.estiba-office-notices {
+    display: grid;
+    gap: 1px;
+    padding-inline-start: var(--office-sidebar-width);
+    background: #8a6420;
+}
+.estiba-office-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 7px 16px;
+    background: #fbefd5;
+    color: #3d2a06;
+    font-size: 13px;
+}
+.estiba-office-notice strong { font-weight: 700; }
+.estiba-office-notice p { flex: 1 1 320px; margin: 0; }
+.estiba-office-shell .estiba-office-notice button {
+    padding: 4px 10px;
+    border: 1px solid #8a6420;
+    border-radius: 4px;
+    background: transparent;
+    color: #3d2a06;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.estiba-office-shell .estiba-office-notice button:focus-visible { outline: 3px solid #3d2a06; outline-offset: 1px; }

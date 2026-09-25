@@ -12,6 +12,7 @@ use App\Models\MigracionTemporadaFolio;
 use App\Models\Temporada;
 use App\Models\TemporadaMaterial;
 use App\Models\User;
+use App\Services\Temporadas\Cierre\ServicioDiagnosticoCierreTemporada;
 use App\Services\Validacion\ServicioCopiaCatalogoValidacion;
 use App\Services\Validacion\ServicioProyeccionCatalogoValidacion;
 use DomainException;
@@ -24,6 +25,7 @@ class ServicioMigracionTemporada
         private readonly ServicioCopiaCatalogoValidacion $copiaValidacion,
         private readonly ServicioProyeccionCatalogoValidacion $proyeccionValidacion,
         private readonly ServicioTemporadaGlobal $temporadas,
+        private readonly ServicioDiagnosticoCierreTemporada $cierre,
     ) {}
 
     /**
@@ -64,6 +66,12 @@ class ServicioMigracionTemporada
                 throw new DomainException(
                     'Para migrar inventario, la temporada de destino debe quedar activa en la misma operación.',
                 );
+            }
+
+            // Activar el destino cierra la temporada vigente: no debe quedar
+            // nada abierto en ella (ver docs/CIERRE_DE_TEMPORADA.md).
+            if ($activarDestino && ! $destino->activa) {
+                $this->cierre->asegurarPuedeActivarse($destino);
             }
 
             $resumen = [

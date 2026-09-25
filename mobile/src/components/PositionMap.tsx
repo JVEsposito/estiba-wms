@@ -188,10 +188,11 @@ function Band({
         const selected = position.id === selectedPositionId;
         const loadFolio = Boolean(position.folio && highlightedFolioIds?.includes(position.folio.id));
         const suggested = position.folio?.id === suggestedFolioId;
+        const unclosed = position.folio?.registro_sin_cerrar ?? null;
 
         return (
           <Pressable
-            accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : reserved ? 'reservada' : 'libre')}`}
+            accessibilityLabel={`${position.etiqueta}, ${position.folio?.numero_folio ?? (blocked ? 'bloqueada' : reserved ? 'reservada' : 'libre')}${unclosed ? `, registro sin cerrar de ${unclosed.temporada.codigo ?? 'otra temporada'}` : ''}`}
             accessibilityRole="button"
             key={position.id}
             onPress={() => onSelectPosition(position)}
@@ -203,6 +204,7 @@ function Band({
               blocked && styles.blocked,
               loadFolio && styles.loadFolio,
               suggested && styles.suggested,
+              unclosed && styles.unclosed,
               selected && styles.selected,
               pressed && styles.pressed,
             ]}
@@ -216,21 +218,23 @@ function Band({
                 ? `${position.folios?.length} ítems · ${position.folio?.material?.item.cliente.nombre ?? ''}`
                 : position.folio?.numero_folio ?? (blocked ? 'NO DISP.' : reserved ? 'RESERVADA' : 'LIBRE')}
             </Text>
-            {position.folio?.carga_actual ? (
+            {position.folio?.carga_actual && !unclosed ? (
               <Text numberOfLines={1} style={styles.loadCode}>
                 {position.folio.carga_actual.codigo}
               </Text>
             ) : null}
             <View style={styles.cellMetaRow}>
-              <Text numberOfLines={1} style={styles.cellMeta}>
-                {position.folio?.material
-                  ? `${position.folio.material.item.cliente.temporada.codigo}/${position.folio.material.item.cliente.codigo}/${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
-                  : position.folio?.variedad
-                    ?? (blocked
-                      ? position.estado
-                      : reserved
-                        ? position.reserva_operacional?.responsable?.nombre ?? 'Tarea en ejecución'
-                        : 'Disponible')}
+              <Text numberOfLines={1} style={[styles.cellMeta, unclosed && styles.unclosedMeta]}>
+                {unclosed
+                  ? `Sin cerrar · ${unclosed.temporada.codigo ?? 'otra temporada'}`
+                  : position.folio?.material
+                    ? `${position.folio.material.item.cliente.temporada.codigo}/${position.folio.material.item.cliente.codigo}/${position.folio.material.item.codigo} · ${position.folio.material.cantidad_actual} ${position.folio.material.unidad_medida}`
+                    : position.folio?.variedad
+                      ?? (blocked
+                        ? position.estado
+                        : reserved
+                          ? position.reserva_operacional?.responsable?.nombre ?? 'Tarea en ejecución'
+                          : 'Disponible')}
               </Text>
               <Text style={styles.cellKind}>{occupied ? (saldo ? 'S' : 'P') : reserved ? 'R' : '○'}</Text>
             </View>
@@ -419,6 +423,8 @@ const styles = StyleSheet.create({
     fontSize: 6,
     fontWeight: '900',
   },
+  unclosedMeta: { color: colors.amber, fontWeight: '900' },
+  unclosed: { borderStyle: 'dashed', borderWidth: 2, borderColor: colors.amber, opacity: 0.78 },
   occupied: { borderColor: colors.palletBorder, backgroundColor: colors.pallet },
   reserved: { borderColor: colors.amber, backgroundColor: colors.amberDark },
   saldo: { borderColor: colors.saldoBorder, backgroundColor: colors.saldo },

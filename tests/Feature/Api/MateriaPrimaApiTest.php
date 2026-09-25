@@ -3,6 +3,8 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\ContenidoCamara;
+use App\Enums\CategoriaPendienteCierre;
+use App\Enums\MotivoRegularizacionCierre;
 use App\Enums\RolUsuario;
 use App\Models\CalibreValidacion;
 use App\Models\Camara;
@@ -14,6 +16,7 @@ use App\Models\Temporada;
 use App\Models\TipoResultadoPacking;
 use App\Models\User;
 use App\Models\VariedadValidacion;
+use App\Services\Temporadas\Cierre\ServicioRegularizacionCierreTemporada;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,54 @@ use ZipArchive;
 class MateriaPrimaApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_cancelar_hidrocooler_en_cierre_libera_equipo_sin_inventar_mediciones(): void
+    {
+        $contexto = $this->prepararRecepcionValidada();
+        $digitador = User::factory()->create(['rol' => RolUsuario::DigitadorMateriaPrima]);
+        $lote = $this->actingAs($digitador, 'sanctum')
+            ->postJson('/api/materia-prima/lotes', $this->payloadLote($contexto, ['requiere_hidrocooler' => true]))
+            ->assertCreated()
+            ->json('data');
+        $lote = $this->postJson("/api/materia-prima/lotes/{$lote['id']}/confirmar", [
+            'operacion_id' => (string) Str::uuid(),
+            'version_conocida' => $lote['version'],
+        ])->assertOk()->json('data');
+        $this->postJson("/api/materia-prima/lotes/{$lote['id']}/hidrocooler/iniciar", [
+            'operacion_id' => (string) Str::uuid(),
+            'equipo' => 'HIDRO-CIERRE',
+            'turno' => 'A',
+            'cantidad_bombas_funcionando' => 3,
+            'inicio_at' => now()->subMinutes(30)->toAtomString(),
+            'temperatura_inicial_c' => 18,
+            'temperatura_objetivo_c' => 4,
+            'cloro_libre_ppm' => 95,
+            'ph_agua' => 6.5,
+            'control_inicial_conforme' => true,
+            'condicion_visual_agua' => 'conforme',
+            'dosificador_operativo' => true,
+            'manejo_agua' => 'sin_novedad',
+        ])->assertOk()->assertJsonPath('data.estado', 'hidrocooler_en_curso');
+
+        $proceso = DB::table('procesos_hidrocooler_materia_prima')->where('lote_materia_prima_id', $lote['id'])->first();
+        $this->assertNotNull($proceso->equipo_activo_clave);
+        $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
+        app(ServicioRegularizacionCierreTemporada::class)->regularizar(
+            $contexto['temporada'],
+            CategoriaPendienteCierre::Hidrocooler,
+            [$proceso->id],
+            MotivoRegularizacionCierre::DatoPrueba,
+            'Ciclo de ensayo sin fruta real al cerrar temporada.',
+            $administrador,
+        );
+
+        $this->assertDatabaseHas('procesos_hidrocooler_materia_prima', [
+            'id' => $proceso->id, 'estado' => 'cancelado', 'equipo_activo_clave' => null,
+            'temperatura_c' => null, 'completado_por_user_id' => null,
+        ]);
+        $this->assertDatabaseHas('lotes_materia_prima', ['id' => $lote['id'], 'estado' => 'pendiente_hidrocooler']);
+        $this->assertDatabaseHas('regularizaciones_cierre_temporada', ['entidad_id' => $proceso->id]);
+    }
 
     public function test_lotes_y_resumen_no_muestran_temporadas_anteriores_ni_operacion_sin_temporada_activa(): void
     {

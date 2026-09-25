@@ -581,8 +581,15 @@ class ServicioProcesoPrefrio
         array $datos,
         User $usuario,
         ?Dispositivo $dispositivo = null,
+        bool $desdeCierreTemporada = false,
     ): ProcesoPrefrio {
-        $this->asegurarSupervision($usuario);
+        if ($desdeCierreTemporada) {
+            if (! $usuario->can('administrar-accesos')) {
+                throw new OperacionNoAutorizada('El cierre administrativo de prefrío requiere permiso para administrar accesos.');
+            }
+        } else {
+            $this->asegurarSupervision($usuario);
+        }
         $motivo = trim((string) $datos['motivo']);
 
         return $this->ejecutarEvento(
