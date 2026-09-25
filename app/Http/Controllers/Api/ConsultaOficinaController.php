@@ -107,7 +107,7 @@ class ConsultaOficinaController extends Controller
         return $temporadaId !== null
             ? Temporada::query()->findOrFail($temporadaId)
             : Temporada::query()->where('activa', true)->first()
-                ?? Temporada::query()->orderByDesc('codigo')->firstOrFail();
+                ?? Temporada::query()->productivas()->orderByDesc('codigo')->firstOrFail();
     }
 
     public function buscar(

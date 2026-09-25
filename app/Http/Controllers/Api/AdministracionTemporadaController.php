@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\TipoTemporada;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ClasificarTemporadaRequest;
 use App\Http\Requests\GuardarTemporadaGlobalRequest;
 use App\Http\Requests\MigrarTemporadaRequest;
+use App\Models\ClasificacionTemporada;
 use App\Models\MigracionTemporada;
 use App\Models\Temporada;
+use App\Services\Temporadas\ServicioClasificacionTemporada;
 use App\Services\Temporadas\ServicioMigracionTemporada;
 use App\Services\Temporadas\ServicioTemporadaGlobal;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +26,10 @@ class AdministracionTemporadaController extends Controller
 
         return response()->json([
             'data' => Temporada::query()
-                ->with('configuracionMaterial:id,temporada_id')
+                ->with([
+                    'configuracionMaterial:id,temporada_id',
+                    'ultimaClasificacion.clasificadoPor:id,name',
+                ])
                 ->withCount('migracionesRecibidas')
                 ->orderByDesc('activa')
                 ->orderByDesc('fecha_inicio')
@@ -42,7 +49,7 @@ class AdministracionTemporadaController extends Controller
         );
 
         return response()->json([
-            'data' => $this->temporada($temporada->load('configuracionMaterial:id,temporada_id')),
+            'data' => $this->temporada($temporada->load(['configuracionMaterial:id,temporada_id', 'ultimaClasificacion.clasificadoPor:id,name'])),
         ], Response::HTTP_CREATED);
     }
 
@@ -68,7 +75,7 @@ class AdministracionTemporadaController extends Controller
         );
 
         return response()->json([
-            'data' => $this->temporada($temporada->load('configuracionMaterial:id,temporada_id')),
+            'data' => $this->temporada($temporada->load(['configuracionMaterial:id,temporada_id', 'ultimaClasificacion.clasificadoPor:id,name'])),
         ]);
     }
 
@@ -81,7 +88,44 @@ class AdministracionTemporadaController extends Controller
         $temporada = $servicio->activar($temporada, $request->user()->id);
 
         return response()->json([
-            'data' => $this->temporada($temporada->load('configuracionMaterial:id,temporada_id')),
+            'data' => $this->temporada($temporada->load(['configuracionMaterial:id,temporada_id', 'ultimaClasificacion.clasificadoPor:id,name'])),
+        ]);
+    }
+
+    public function declararPrueba(
+        ClasificarTemporadaRequest $request,
+        Temporada $temporada,
+        ServicioClasificacionTemporada $servicio,
+    ): JsonResponse {
+        return $this->clasificar($request, $temporada, $servicio, TipoTemporada::Prueba);
+    }
+
+    public function declararProductiva(
+        ClasificarTemporadaRequest $request,
+        Temporada $temporada,
+        ServicioClasificacionTemporada $servicio,
+    ): JsonResponse {
+        return $this->clasificar($request, $temporada, $servicio, TipoTemporada::Productiva);
+    }
+
+    private function clasificar(
+        ClasificarTemporadaRequest $request,
+        Temporada $temporada,
+        ServicioClasificacionTemporada $servicio,
+        TipoTemporada $tipo,
+    ): JsonResponse {
+        $temporada = $servicio->clasificar(
+            $temporada,
+            $tipo,
+            (string) $request->validated('motivo'),
+            $request->user(),
+        );
+
+        return response()->json([
+            'data' => $this->temporada($temporada->load([
+                'configuracionMaterial:id,temporada_id',
+                'ultimaClasificacion.clasificadoPor:id,name',
+            ])),
         ]);
     }
 
@@ -113,11 +157,30 @@ class AdministracionTemporadaController extends Controller
             'fecha_inicio' => $temporada->fecha_inicio?->toDateString(),
             'fecha_fin' => $temporada->fecha_fin?->toDateString(),
             'activa' => $temporada->activa,
+            'tipo' => $temporada->tipo->value,
+            'prefijo_documental' => $temporada->prefijo_documental,
+            'clasificacion' => $this->clasificacion($temporada->ultimaClasificacion),
             'version_catalogo' => $temporada->version_catalogo,
             'intervalo_embarques_minutos' => $temporada->intervalo_embarques_minutos,
             'migraciones_recibidas' => (int) ($temporada->migraciones_recibidas_count ?? 0),
             'created_at' => $temporada->created_at?->toAtomString(),
             'updated_at' => $temporada->updated_at?->toAtomString(),
+        ];
+    }
+
+    /** @return array<string, mixed>|null */
+    private function clasificacion(?ClasificacionTemporada $clasificacion): ?array
+    {
+        if ($clasificacion === null) {
+            return null;
+        }
+
+        return [
+            'tipo_anterior' => $clasificacion->tipo_anterior->value,
+            'tipo_nuevo' => $clasificacion->tipo_nuevo->value,
+            'motivo' => $clasificacion->motivo,
+            'clasificado_por' => $clasificacion->clasificadoPor?->name,
+            'clasificado_at' => $clasificacion->clasificado_at?->toAtomString(),
         ];
     }
 

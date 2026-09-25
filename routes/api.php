@@ -540,6 +540,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/administracion/temporadas', [AdministracionTemporadaController::class, 'store']);
         Route::put('/administracion/temporadas/{temporada}', [AdministracionTemporadaController::class, 'update']);
         Route::post('/administracion/temporadas/{temporada}/activar', [AdministracionTemporadaController::class, 'activar']);
+        Route::post('/administracion/temporadas/{temporada}/declarar-prueba', [AdministracionTemporadaController::class, 'declararPrueba']);
+        Route::post('/administracion/temporadas/{temporada}/declarar-productiva', [AdministracionTemporadaController::class, 'declararProductiva']);
         Route::post('/administracion/temporadas/{temporada}/migrar', [AdministracionTemporadaController::class, 'migrar']);
         Route::get('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'preview']);
         Route::post('/administracion/temporadas/{temporada}/reinicio-operacional', [ReinicioOperacionalController::class, 'store']);

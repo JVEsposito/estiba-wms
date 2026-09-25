@@ -54,6 +54,7 @@ class ServicioTrazabilidadLotes
             'termino' => $codigo,
             'temporada' => $this->temporada($temporada),
             'temporadas' => Temporada::query()
+                ->productivas()
                 ->orderByDesc('activa')
                 ->orderByDesc('codigo')
                 ->get()

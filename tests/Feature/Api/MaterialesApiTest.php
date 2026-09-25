@@ -34,6 +34,7 @@ class MaterialesApiTest extends TestCase
 
         $temporadaId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => ' 2026-2027 ',
                 'nombre' => ' Temporada materiales 2026-2027 ',
                 'fecha_inicio' => '2026-07-01',
@@ -159,6 +160,7 @@ class MaterialesApiTest extends TestCase
         $temporadaAnteriorId = $clienteGeneralAnterior->temporada_material_id;
         $temporadaNuevaId = $this->conToken($tokenOficina)
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2027-2028',
                 'nombre' => 'Temporada materiales 2027-2028',
                 'activa' => true,
@@ -211,6 +213,7 @@ class MaterialesApiTest extends TestCase
 
         $this->conToken($tokenOficina)
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2028-2029',
                 'nombre' => 'Temporada materiales 2028-2029',
                 'activa' => true,
@@ -254,6 +257,7 @@ class MaterialesApiTest extends TestCase
         $despachoId = $this->crearDespacho($tokenOficina, $item, $destino, 5);
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'MAT-NUEVA',
             'nombre' => 'Temporada nueva de materiales',
             'activa' => true,

@@ -29,6 +29,7 @@ class AdministracionValidacionApiTest extends TestCase
 
         $temporadaId = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => ' 2026-2027 ',
                 'nombre' => ' Temporada cerezas ',
                 'activa' => true,
@@ -107,6 +108,7 @@ class AdministracionValidacionApiTest extends TestCase
 
         $nuevaId = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada nueva',
                 'activa' => true,

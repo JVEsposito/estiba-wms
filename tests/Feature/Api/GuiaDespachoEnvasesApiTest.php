@@ -217,6 +217,7 @@ class GuiaDespachoEnvasesApiTest extends TestCase
         ))->assertCreated()->json('data');
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'ENV-NUEVA',
             'nombre' => 'Temporada nueva de envases',
             'activa' => true,

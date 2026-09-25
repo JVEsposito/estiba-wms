@@ -32,7 +32,7 @@ class CuentaCorrienteEnvaseController extends Controller
 
         return response()->json([
             'clientes' => Cliente::query()->where('activo', true)->orderBy('nombre')->get(['id', 'codigo', 'nombre']),
-            'temporadas' => Temporada::query()->orderByDesc('fecha_inicio')->get(['id', 'codigo', 'nombre', 'activa']),
+            'temporadas' => Temporada::query()->productivas()->orderByDesc('fecha_inicio')->get(['id', 'codigo', 'nombre', 'activa']),
             'tipos_envase' => array_map(
                 fn (TipoEnvaseRomana $tipo): array => ['codigo' => $tipo->value, 'nombre' => ucfirst($tipo->value)],
                 TipoEnvaseRomana::cases(),

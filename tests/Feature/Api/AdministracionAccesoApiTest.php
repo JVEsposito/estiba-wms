@@ -272,6 +272,7 @@ class AdministracionAccesoApiTest extends TestCase
 
         $temporada = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => ' 2026-2027 ',
                 'nombre' => ' Temporada cerezas 2026-2027 ',
                 'fecha_inicio' => '2026-10-01',
@@ -291,6 +292,7 @@ class AdministracionAccesoApiTest extends TestCase
         ]);
 
         $nuevaId = $this->postJson('/api/administracion/temporadas', [
+            ...$this->vigenciaProductiva(),
             'codigo' => '2027-2028',
             'nombre' => 'Temporada cerezas 2027-2028',
             'activa' => false,
@@ -340,6 +342,7 @@ class AdministracionAccesoApiTest extends TestCase
 
         $this->actingAs($supervisor, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2026-2027',
                 'nombre' => 'Temporada no autorizada',
             ])
@@ -419,6 +422,7 @@ class AdministracionAccesoApiTest extends TestCase
 
         $destino = $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/administracion/temporadas', [
+                ...$this->vigenciaProductiva(),
                 'codigo' => '2027-2028',
                 'nombre' => 'Temporada 2027-2028',
                 'activa' => false,

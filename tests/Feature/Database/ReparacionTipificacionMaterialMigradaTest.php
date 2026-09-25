@@ -42,6 +42,7 @@ class ReparacionTipificacionMaterialMigradaTest extends TestCase
         );
 
         $destino = app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-DESTINO-REPARACION',
             'nombre' => 'Temporada destino reparación',
             'activa' => true,

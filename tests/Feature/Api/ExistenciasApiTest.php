@@ -81,6 +81,7 @@ class ExistenciasApiTest extends TestCase
     {
         $administrador = User::factory()->create(['rol' => RolUsuario::Administrador]);
         $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-EX-PF',
             'nombre' => 'Temporada existencias Prefrío',
             'activa' => true,
@@ -306,6 +307,7 @@ class ExistenciasApiTest extends TestCase
     {
         [$administrador, $token] = $this->acceso(RolUsuario::Administrador);
         $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-EX-DESP',
             'nombre' => 'Temporada despachos',
             'activa' => true,
@@ -393,6 +395,7 @@ class ExistenciasApiTest extends TestCase
     {
         [$administrador] = $this->acceso(RolUsuario::Administrador);
         $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-EX-NULOS',
             'nombre' => 'Temporada con folios sin condición',
             'activa' => true,
@@ -419,6 +422,7 @@ class ExistenciasApiTest extends TestCase
     {
         [$administrador] = $this->acceso(RolUsuario::Administrador);
         $temporada = app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'TEMP-EX-BLOQUES',
             'nombre' => 'Temporada bloques',
             'activa' => true,

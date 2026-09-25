@@ -97,8 +97,10 @@
                         <div class="admin-form__grid admin-form__grid--season">
                             <label class="field"><span>Código *</span><input name="codigo" maxlength="30" placeholder="2026-2027" required></label>
                             <label class="field"><span>Nombre *</span><input name="nombre" maxlength="100" placeholder="Temporada cerezas 2026–2027" required></label>
-                            <label class="field"><span>Inicio</span><input name="fecha_inicio" type="date"></label>
-                            <label class="field"><span>Término</span><input name="fecha_fin" type="date"></label>
+                            <label class="field"><span>Tipo al crear *</span><select name="tipo" id="seasonType"><option value="productiva">Productiva</option><option value="prueba">Prueba</option></select><small id="seasonTypeHint">Las temporadas de prueba no se activan ni aparecen en reportes operacionales.</small></label>
+                            <label class="field"><span id="seasonStartLabel">Inicio *</span><input name="fecha_inicio" type="date"><small>Obligatoria en temporadas productivas.</small></label>
+                            <label class="field"><span id="seasonEndLabel">Término *</span><input name="fecha_fin" type="date"><small>No puede cruzarse con otra temporada productiva.</small></label>
+                            <label class="field"><span>Prefijo documental</span><input name="prefijo_documental" maxlength="6" placeholder="T27" autocomplete="off"><small>2 a 6 letras o números. Identificará la temporada en sus documentos; se exige para activarla.</small></label>
                             <label class="field"><span>Intervalo global de embarques *</span><input name="intervalo_embarques_minutos" type="number" min="15" max="240" step="5" value="60" list="shipmentIntervals" required><small>Minutos entre inicios de carga; aplica durante las 24 horas.</small></label>
                             <datalist id="shipmentIntervals"><option value="30"></option><option value="45"></option><option value="60"></option></datalist>
                         </div>
@@ -117,6 +119,19 @@
                             <tbody id="seasonsTableBody"></tbody>
                         </table>
                     </div>
+
+                    <form class="admin-form admin-migration-form is-hidden" id="seasonClassificationForm" novalidate>
+                        <input name="temporada_id" type="hidden">
+                        <input name="tipo" type="hidden">
+                        <div class="admin-panel__heading admin-migration-heading">
+                            <div><p class="eyebrow">TIPO DE TEMPORADA</p><h3 id="seasonClassificationTitle">Declarar temporada de prueba</h3></div>
+                            <button class="secondary-button" id="cancelSeasonClassification" type="button">Cerrar</button>
+                        </div>
+                        <p class="admin-form__hint" id="seasonClassificationHint">Solo cambia el tipo de esta temporada. No mueve ni borra datos de la temporada activa ni de Materiales.</p>
+                        <label class="field field--wide"><span>Motivo *</span><textarea name="motivo" maxlength="500" minlength="10" rows="3" required placeholder="Temporada creada para ensayos del sistema."></textarea></label>
+                        <p class="form-error" id="seasonClassificationError" role="alert"></p>
+                        <div class="admin-form__actions"><button class="primary-button" id="seasonClassificationSubmit" type="submit">Confirmar <span>→</span></button></div>
+                    </form>
 
                     <form class="admin-form admin-migration-form is-hidden" id="seasonMigrationForm" novalidate>
                         <input name="temporada_destino_id" type="hidden">

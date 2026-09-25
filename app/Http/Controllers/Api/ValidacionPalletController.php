@@ -131,6 +131,7 @@ class ValidacionPalletController extends Controller
     public function opciones(ConsultarOpcionesRegistroValidacionRequest $request): JsonResponse
     {
         $temporadas = Temporada::query()
+            ->productivas()
             ->orderByDesc('activa')
             ->orderByDesc('created_at')
             ->get(['id', 'codigo', 'nombre', 'activa']);

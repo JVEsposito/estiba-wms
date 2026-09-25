@@ -355,6 +355,7 @@ class PrefrioApiTest extends TestCase
         ]);
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'PF-NUEVA',
             'nombre' => 'Temporada nueva de prefrío',
             'activa' => true,
@@ -1014,6 +1015,7 @@ class PrefrioApiTest extends TestCase
         ProcesoPrefrio::query()->findOrFail($proceso['id'])->update(['estado' => 'en_proceso']);
 
         app(ServicioTemporadaGlobal::class)->guardar([
+            ...$this->vigenciaProductiva(),
             'codigo' => 'PF-SIGUIENTE',
             'nombre' => 'Temporada siguiente de prefrío',
             'activa' => true,

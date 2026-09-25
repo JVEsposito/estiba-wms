@@ -37,6 +37,7 @@ class RecepcionRomanaController extends Controller
 
         return response()->json([
             'temporadas' => Temporada::query()
+                ->productivas()
                 ->orderByDesc('activa')
                 ->orderByDesc('fecha_inicio')
                 ->get(['id', 'codigo', 'nombre', 'fecha_inicio', 'fecha_fin', 'activa']),
