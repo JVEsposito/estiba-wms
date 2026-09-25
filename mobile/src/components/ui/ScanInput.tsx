@@ -57,7 +57,7 @@ export const ScanInput = forwardRef<ScanInputHandle, Props>(function ScanInput(
     if (disabledRef.current || pendingSelection.current === null) return;
     const code = pendingSelection.current;
     input.current?.focus();
-    input.current?.setSelection(0, code.length);
+    input.current?.setSelection?.(0, code.length);
     pendingSelection.current = null;
   }
 

@@ -30,6 +30,7 @@ class RepaletizajeApiTest extends TestCase
         $origen = $this->folio($temporada, 'SAL-CAMBIO', 60);
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'cambio_folio',
             'origenes' => [[
@@ -90,6 +91,7 @@ class RepaletizajeApiTest extends TestCase
         ]);
 
         $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'cambio_folio',
             'origenes' => [[
@@ -242,6 +244,7 @@ class RepaletizajeApiTest extends TestCase
             ->assertJsonPath('composicion.0.fecha_embalaje', '2026-08-08');
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'cambio_folio',
             'origenes' => [[
@@ -303,6 +306,7 @@ class RepaletizajeApiTest extends TestCase
         $origen = $this->folio($temporada, 'SAL-CAMBIO-INVALIDO', 60);
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'cambio_folio',
             'origenes' => [[
@@ -342,6 +346,7 @@ class RepaletizajeApiTest extends TestCase
             ->assertOk()->json('composicion'));
 
         $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'division',
             'origenes' => [[
@@ -408,6 +413,7 @@ class RepaletizajeApiTest extends TestCase
         $this->assertCount(2, $lineas);
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'modalidad' => 'division',
             'origenes' => [['folio_id' => $origen->id, 'cantidad_aportada' => 60]],
@@ -466,6 +472,7 @@ class RepaletizajeApiTest extends TestCase
             ->json('composicion');
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'saldo',
             'estrategia_folio' => 'nuevo',
@@ -482,6 +489,7 @@ class RepaletizajeApiTest extends TestCase
             );
 
         $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'saldo',
             'estrategia_folio' => 'nuevo',
@@ -516,6 +524,7 @@ class RepaletizajeApiTest extends TestCase
         $segundo = $this->folio($temporada, 'SAL-002', 40, calibre: '3J', csg: '222');
 
         $respuesta = $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'pallet',
             'estrategia_folio' => 'nuevo',
@@ -565,6 +574,7 @@ class RepaletizajeApiTest extends TestCase
         );
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'saldo',
             'estrategia_folio' => 'conservar',
@@ -614,6 +624,7 @@ class RepaletizajeApiTest extends TestCase
         $operacion = (string) Str::uuid();
         $payload = [
             'operacion_id' => $operacion,
+            'turno' => 'A',
             'tipo_resultado' => 'pallet',
             'estrategia_folio' => 'conservar',
             'numero_folio_resultante' => 'SAL-R1',
@@ -754,6 +765,7 @@ class RepaletizajeApiTest extends TestCase
             ->assertJsonPath('existe', false);
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'saldo',
             'estrategia_folio' => 'nuevo',
@@ -783,6 +795,7 @@ class RepaletizajeApiTest extends TestCase
 
         $primeraRespuesta = $this->withToken($token)
             ->postJson('/api/validacion/repaletizajes', [
+                'turno' => 'A',
                 'operacion_id' => (string) Str::uuid(),
                 'tipo_resultado' => 'saldo',
                 'estrategia_folio' => 'nuevo',
@@ -798,6 +811,7 @@ class RepaletizajeApiTest extends TestCase
 
         $this->withToken($token)
             ->postJson('/api/validacion/repaletizajes', [
+                'turno' => 'A',
                 'operacion_id' => (string) Str::uuid(),
                 'tipo_resultado' => 'saldo',
                 'estrategia_folio' => 'nuevo',
@@ -848,6 +862,7 @@ class RepaletizajeApiTest extends TestCase
         );
 
         $this->withToken($token)->postJson('/api/validacion/repaletizajes', [
+            'turno' => 'A',
             'operacion_id' => (string) Str::uuid(),
             'tipo_resultado' => 'saldo',
             'estrategia_folio' => 'nuevo',

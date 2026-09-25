@@ -41,6 +41,8 @@ return new class extends Migration
             'camarero_materiales' => 'Camarero de materiales',
             'validador' => 'Validador de pallets',
             'validador_mp' => 'Validador MP',
+            // Roles incorporados después de esta migración: permiten migrar una base nueva.
+            'tarjador' => 'Tarjador',
             'consulta' => 'Solo consulta',
         ];
         $ahora = now();

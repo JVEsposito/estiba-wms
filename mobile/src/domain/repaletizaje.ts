@@ -18,6 +18,10 @@ export type RepalletizingFolio = {
   predio: string | null;
   cuartel: string | null;
   composicion: RepalletizingComposition[];
+  ubicacion?: {
+    camara: { id: string; codigo: string; nombre: string } | null;
+    posicion: { id: string; etiqueta: string } | null;
+  } | null;
 };
 
 export type RepalletizingComposition = {
@@ -50,6 +54,8 @@ export type CreateRepalletizing = {
     composicion: Array<{ clave: string; cantidad_cajas: number }>;
   }>;
   observacion: string | null;
+  turno: 'A' | 'B';
+  fecha_operacional?: string | null;
 };
 
 export type Repalletizing = {
@@ -62,6 +68,8 @@ export type Repalletizing = {
   cantidad_resultante: number;
   condicion_termica: string;
   estado: string;
+  turno?: 'A' | 'B' | null;
+  fecha_operacional?: string | null;
   campos_mix: string[];
   advertencias: Array<{ campo: string; mensaje: string }>;
   folio_resultante: {

@@ -13,6 +13,7 @@ export type TabletModule =
   | 'recepcion_materiales'
   | 'validacion'
   | 'validacion_mp'
+  | 'repaletizaje'
   | 'fruta_proceso'
   | 'prefrio'
   | 'operacion_materiales';
@@ -60,6 +61,9 @@ export type UserCapabilities = {
   puede_validar_mp?: boolean;
   puede_rechazar_pallets: boolean;
   puede_consultar_validaciones_pallet: boolean;
+  puede_registrar_repaletizajes?: boolean;
+  puede_anular_repaletizajes?: boolean;
+  puede_consultar_repaletizajes?: boolean;
   puede_administrar_catalogos_validacion?: boolean;
   puede_consultar_prefrio?: boolean;
   puede_operar_prefrio?: boolean;

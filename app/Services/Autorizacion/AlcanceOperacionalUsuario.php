@@ -35,7 +35,8 @@ class AlcanceOperacionalUsuario
             RolUsuario::OperadorPrefrio,
             RolUsuario::OperadorRomana,
             RolUsuario::Validador,
-            RolUsuario::ValidadorMp => [],
+            RolUsuario::ValidadorMp,
+            RolUsuario::Tarjador => [],
         };
 
         return array_values(array_filter(
@@ -548,6 +549,44 @@ class AlcanceOperacionalUsuario
         ], 'frigorifico.validacion');
     }
 
+    /**
+     * Repaletizaje: se conserva el acceso histórico desde Validación PT y se suma
+     * el módulo propio del tarjador. Desde una PDA o tablet, el token debe traer
+     * alguno de los dos espacios móviles.
+     */
+    public function puedeRegistrarRepaletizajes(User $usuario): bool
+    {
+        return $this->permiteAlgunModuloTablet($usuario, [
+            CatalogoModulosAcceso::TABLET_REPALETIZAJE,
+            CatalogoModulosAcceso::TABLET_VALIDACION_PT,
+        ]) && $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Validador,
+            RolUsuario::Tarjador,
+        ], ['frigorifico.validacion', CatalogoModulosAcceso::OFICINA_REPALETIZAJE]);
+    }
+
+    public function puedeAnularRepaletizajes(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo(
+            $usuario,
+            [RolUsuario::Administrador, RolUsuario::SupervisorFrio],
+            ['frigorifico.validacion', CatalogoModulosAcceso::OFICINA_REPALETIZAJE],
+        );
+    }
+
+    public function puedeConsultarRepaletizajes(User $usuario): bool
+    {
+        return $this->rolActivoEnModulo($usuario, [
+            RolUsuario::Administrador,
+            RolUsuario::SupervisorFrio,
+            RolUsuario::Validador,
+            RolUsuario::Tarjador,
+            RolUsuario::Consulta,
+        ], ['frigorifico.validacion', CatalogoModulosAcceso::OFICINA_REPALETIZAJE]);
+    }
+
     public function puedeConsultarCatalogosValidacion(User $usuario): bool
     {
         return $this->rolActivoEnModulo(
@@ -942,6 +981,9 @@ class AlcanceOperacionalUsuario
             'puede_validar_pallets' => $this->puedeValidarPallets($usuario),
             'puede_rechazar_pallets' => $this->puedeRechazarPallets($usuario),
             'puede_consultar_validaciones_pallet' => $this->puedeConsultarValidacionesPallet($usuario),
+            'puede_registrar_repaletizajes' => $this->puedeRegistrarRepaletizajes($usuario),
+            'puede_anular_repaletizajes' => $this->puedeAnularRepaletizajes($usuario),
+            'puede_consultar_repaletizajes' => $this->puedeConsultarRepaletizajes($usuario),
             'puede_corregir_validaciones_pallet' => $this->puedeCorregirValidacionesPallet($usuario),
             'puede_administrar_catalogos_validacion' => $this->puedeAdministrarCatalogosValidacion($usuario),
             'puede_consultar_catalogos_validacion' => $this->puedeConsultarCatalogosValidacion($usuario),
@@ -1024,6 +1066,18 @@ class AlcanceOperacionalUsuario
         return $this->esSoloConsulta($usuario)
             ? RolUsuario::Consulta
             : $usuario->rol;
+    }
+
+    /** @param  array<int, string>  $modulos */
+    private function permiteAlgunModuloTablet(User $usuario, array $modulos): bool
+    {
+        foreach ($modulos as $modulo) {
+            if ($this->permiteModuloTablet($usuario, $modulo)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function permiteModuloTablet(User $usuario, string $modulo): bool

@@ -171,6 +171,7 @@ const roleHomes = {
     camarero_materiales: '/oficina/materiales',
     validador: '/oficina/validacion',
     camarero_frio: '/oficina/frigorifico/camaras',
+    tarjador: '/oficina/validacion/repaletizajes',
     consulta: '/oficina/consultas',
 };
 

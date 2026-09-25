@@ -29,7 +29,25 @@ body {
 .repa-heading p:last-child { margin: 6px 0 0; color: var(--muted); }
 .repa-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .75fr); gap: 15px; }
 .repa-builder,
-.repa-history { padding: 20px; }
+.repa-history,
+.repa-register { padding: 20px; }
+.repa-side { display: grid; gap: 15px; align-content: start; min-width: 0; }
+.repa-register__hint { margin: 0 0 12px; color: var(--muted); font-size: .72rem; }
+.repa-register-list { display: grid; gap: 8px; }
+.repa-register-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--deep);
+    padding: 10px 12px;
+}
+.repa-register-row strong { display: block; font-size: .85rem; }
+.repa-register-row span { color: var(--muted); font-size: .68rem; }
+.repa-register-row button { min-height: 34px; white-space: nowrap; }
+.repa-register-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .repa-panel-heading { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 15px; }
 .repa-panel-heading h2 { margin: 0; }
 .repa-panel-heading > span { color: var(--repa-green); font-weight: 900; }

@@ -83,7 +83,9 @@ El mismo código genera dos aplicaciones Android que pueden convivir en un mismo
 | Módulos | todos los del perfil | solo Validación PT y Validación MP |
 | Orientación | según módulo | siempre vertical |
 
-La PDA de referencia es la **Unitech EA520** (5", 1280×720, Android 11, lector SE4710): unos 360×568 dp útiles. En esa variante Validación PT y MP usan una cabecera compacta, el contexto de línea y turno se contrae después de elegirlo, los selectores se ordenan de a dos por fila y las métricas de sesión caben de a dos. Aunque el perfil del usuario tenga más módulos, la PDA solo ofrece los dos de validación. Si no tiene ninguno, indica que debe usar la tablet.
+La PDA de referencia es la **Unitech EA520** (5", 1280×720, Android 11, lector SE4710): unos 360×568 dp útiles. En esa variante Validación PT y MP usan una cabecera compacta, el contexto de línea y turno se contrae después de elegirlo, los selectores se ordenan de a dos por fila y las métricas de sesión caben de a dos. Aunque el perfil del usuario tenga más módulos, la PDA solo ofrece Validación PT, Validación MP y Repaletizaje. Si no tiene ninguno, indica que debe usar la tablet.
+
+**Repaletizaje (tarjador):** el rol `Tarjador` entra directo a Repaletizaje. La pantalla pide el turno (A/B) una vez por equipo y lo recuerda; el lector agrega saldos y muestra en qué cámara y posición está cada uno. Cada repa confirmada llena el registro RRPL-01, que la oficina descarga en Frigorífico → Repaletizajes. Requiere conexión: la repa se confirma en el servidor en el momento.
 
 ```bash
 npm run build:apk        # tablet (perfil apk-camaras)

@@ -10,7 +10,17 @@ class RegistrarRepaletizajeRequest extends FormRequest
 {
     protected function prepareForValidation(): void
     {
-        $this->merge(['modalidad' => $this->input('modalidad', 'consolidacion')]);
+        $zona = config('app.operational_timezone');
+        $fecha = $this->input('fecha_operacional');
+        $this->merge([
+            'modalidad' => $this->input('modalidad', 'consolidacion'),
+            'turno' => mb_strtoupper(trim((string) $this->input('turno'))),
+            'fecha_operacional' => match ($fecha) {
+                'hoy' => now($zona)->toDateString(),
+                'ayer' => now($zona)->subDay()->toDateString(),
+                default => $fecha,
+            },
+        ]);
     }
 
     public function authorize(): bool
@@ -21,6 +31,8 @@ class RegistrarRepaletizajeRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $hoy = now(config('app.operational_timezone'));
+
         return [
             'operacion_id' => ['required', 'uuid'],
             'modalidad' => ['required', Rule::in(['consolidacion', 'cambio_folio', 'division'])],
@@ -69,6 +81,15 @@ class RegistrarRepaletizajeRequest extends FormRequest
             'resultados.*.composicion.*.clave' => ['required_with:resultados.*.composicion', 'string', 'max:500'],
             'resultados.*.composicion.*.cantidad_cajas' => ['required_with:resultados.*.composicion', 'integer', 'min:1', 'max:100000'],
             'observacion' => ['nullable', 'string', 'max:2000'],
+            // El registro RRPL-01 agrupa por fecha operacional, turno y tarjador.
+            'turno' => ['required', 'string', Rule::in(['A', 'B'])],
+            // Solo el turno de noche puede declarar la fecha del día anterior.
+            'fecha_operacional' => [
+                'nullable',
+                'date_format:Y-m-d',
+                'after_or_equal:'.($this->input('turno') === 'B' ? $hoy->copy()->subDay()->toDateString() : $hoy->toDateString()),
+                'before_or_equal:'.$hoy->toDateString(),
+            ],
         ];
     }
 
@@ -78,6 +99,10 @@ class RegistrarRepaletizajeRequest extends FormRequest
         return [
             'origenes.*.composicion.min' => 'La composición de cada origen debe incluir al menos una línea.',
             'resultados.*.composicion.min' => 'La composición de cada resultado debe incluir al menos una línea.',
+            'turno.required' => 'Indica el turno del repaletizaje.',
+            'turno.in' => 'El turno debe ser A o B.',
+            'fecha_operacional.after_or_equal' => 'La fecha debe ser hoy; solo el turno B puede registrar ayer.',
+            'fecha_operacional.before_or_equal' => 'La fecha operacional no puede ser futura.',
         ];
     }
 

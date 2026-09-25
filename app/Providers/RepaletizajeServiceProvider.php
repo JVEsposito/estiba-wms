@@ -20,8 +20,11 @@ class RepaletizajeServiceProvider extends ServiceProvider
         Route::middleware(['api', 'auth:sanctum'])
             ->prefix('api/validacion/repaletizajes')
             ->group(function (): void {
-                Route::middleware('can:consultar-validaciones-pallet')->group(function (): void {
+                Route::middleware('can:consultar-repaletizajes')->group(function (): void {
                     Route::get('/', [RepaletizajeController::class, 'index']);
+                    Route::get('/registro/rrpl-01/planillas', [RepaletizajeController::class, 'planillasRegistro']);
+                    Route::get('/registro/rrpl-01/en-blanco', [RepaletizajeController::class, 'registroEnBlanco']);
+                    Route::get('/registro/rrpl-01', [RepaletizajeController::class, 'registro']);
                     Route::get(
                         '/folios/{numeroFolio}',
                         [RepaletizajeController::class, 'buscarFolio'],
@@ -33,11 +36,11 @@ class RepaletizajeServiceProvider extends ServiceProvider
                 });
 
                 Route::post('/', [RepaletizajeController::class, 'store'])
-                    ->middleware('can:validar-pallets');
+                    ->middleware('can:registrar-repaletizajes');
                 Route::post(
                     '/{repaletizaje}/anular',
                     [RepaletizajeController::class, 'anular'],
-                )->middleware('can:rechazar-pallets');
+                )->middleware('can:anular-repaletizajes');
             });
     }
 }
