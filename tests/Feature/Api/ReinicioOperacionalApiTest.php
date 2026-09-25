@@ -291,6 +291,7 @@ class ReinicioOperacionalApiTest extends TestCase
                 ],
                 'numero_guia_despacho' => 'GUIA-RESET-MP',
                 'patente_camion' => 'ABCD12',
+                'tipo_camion' => 'termo',
                 'rut_conductor' => '12.345.678-5',
                 'nombre_conductor' => 'Transportista de prueba',
                 'peso_bruto' => 28000,

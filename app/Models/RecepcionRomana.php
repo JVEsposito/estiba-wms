@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ConceptoEnvasesRomana;
 use App\Enums\EstadoRecepcionRomana;
 use App\Enums\EstadoValidacionMp;
+use App\Enums\TipoCamionRomana;
 use App\Enums\TipoEnvaseRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Enums\TipoServicioRomana;
@@ -34,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tipo_envase_declarado',
     'numero_guia_despacho',
     'patente_camion',
+    'tipo_camion',
     'patente_carro',
     'rut_conductor',
     'nombre_conductor',
@@ -133,6 +135,7 @@ class RecepcionRomana extends Model implements PerteneceATemporada
     {
         return [
             'tipo_servicio' => TipoServicioRomana::class,
+            'tipo_camion' => TipoCamionRomana::class,
             'tipo_recepcion' => TipoRecepcionRomana::class,
             'concepto_envases' => ConceptoEnvasesRomana::class,
             'tipo_envase_declarado' => TipoEnvaseRomana::class,

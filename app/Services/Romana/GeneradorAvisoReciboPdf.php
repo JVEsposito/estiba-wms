@@ -3,6 +3,7 @@
 namespace App\Services\Romana;
 
 use App\Enums\EstadoRecepcionRomana;
+use App\Enums\TipoCamionRomana;
 use App\Enums\TipoRecepcionRomana;
 use App\Models\RecepcionRomana;
 use DomainException;
@@ -55,6 +56,11 @@ class GeneradorAvisoReciboPdf
             ['Guía de despacho', $recepcion->numero_guia_despacho],
             ['Envases declarados', $envases],
             ['Patente camión', $recepcion->patente_camion],
+            ['Tipo de camión', match ($recepcion->tipo_camion) {
+                TipoCamionRomana::Termo => 'Camión termo',
+                TipoCamionRomana::Plano => 'Camión plano',
+                null => 'No informado',
+            }],
             ['Patente carro', $recepcion->patente_carro ?: 'No informada'],
             ['Conductor', $recepcion->nombre_conductor],
             ['RUT conductor', $recepcion->rut_conductor],
@@ -98,7 +104,7 @@ class GeneradorAvisoReciboPdf
             $color = $indice === $indiceNeto ? '1 1 1' : '0.15 0.20 0.23';
             $contenido .= $this->texto(48, $y, 9, (string) $etiqueta, $indice === $indiceNeto, $color);
             $contenido .= $this->texto(235, $y, $indice === $indiceNeto ? 13 : 10, (string) $valor, true, $color);
-            $y -= $indice >= $inicioPesos ? 35 : 27;
+            $y -= $indice >= $inicioPesos ? 35 : 25;
         }
 
         $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);
@@ -126,6 +132,7 @@ class GeneradorAvisoReciboPdf
             'Guía de despacho',
             'Envases declarados',
             'Patente camión',
+            'Tipo de camión',
             'Patente carro',
             'Conductor',
             'RUT conductor',
@@ -151,7 +158,7 @@ class GeneradorAvisoReciboPdf
             $color = $indice === $indiceNeto ? '1 1 1' : '0.15 0.20 0.23';
             $contenido .= $this->texto(48, $y, 9, $etiqueta, $indice === $indiceNeto, $color);
             $contenido .= $color.' RG 235 '.($y - 3).' m 545 '.($y - 3)." l S\n";
-            $y -= $indice >= $inicioPesos ? 35 : 27;
+            $y -= $indice >= $inicioPesos ? 35 : 25;
         }
 
         $contenido .= $this->texto(42, 222, 9, 'Observación de ingreso', true);

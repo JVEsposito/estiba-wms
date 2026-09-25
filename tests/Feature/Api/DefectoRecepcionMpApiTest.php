@@ -182,6 +182,7 @@ class DefectoRecepcionMpApiTest extends TestCase
             'envases' => [['tipo_envase' => 'bins', 'cantidad' => 10]],
             'numero_guia_despacho' => 'GD-DEF-001',
             'patente_camion' => 'ABCD12',
+            'tipo_camion' => 'termo',
             'rut_conductor' => '12.345.678-5',
             'nombre_conductor' => 'Conductor',
             'peso_bruto' => 28000,

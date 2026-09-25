@@ -20,6 +20,28 @@ class RecepcionRomanaApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_exige_elegir_un_tipo_de_camion_valido_al_registrar_el_ingreso(): void
+    {
+        $operador = User::factory()->create(['rol' => RolUsuario::OperadorRomana]);
+        $datos = $this->datosIngreso($this->cliente());
+        $this->actingAs($operador, 'sanctum');
+
+        unset($datos['tipo_camion']);
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tipo_camion');
+
+        $datos['tipo_camion'] = 'otro';
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('tipo_camion');
+
+        $datos['tipo_camion'] = 'plano';
+        $this->postJson('/api/romana/recepciones', $datos)
+            ->assertCreated()
+            ->assertJsonPath('data.tipo_camion', 'plano');
+    }
+
     public function test_completa_el_pesaje_en_dos_tiempos_y_emite_el_aviso_de_recibo(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-07-21 10:45:00'));
@@ -35,6 +57,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertJsonPath('data.temporada.id', $datos['temporada_id'])
             ->assertJsonPath('data.cliente.nombre', 'Exportadora Los Andes')
             ->assertJsonPath('data.peso_bruto', 28540)
+            ->assertJsonPath('data.tipo_camion', 'termo')
             ->assertJsonPath('data.envases.0.tipo_envase', 'bins')
             ->assertJsonPath('data.envases.0.cantidad_declarada', 48)
             ->json('data');
@@ -77,6 +100,7 @@ class RecepcionRomanaApiTest extends TestCase
         $this->assertDatabaseHas('recepciones_romana', [
             'id' => $creada['id'],
             'numero_recepcion' => 'REC-2607-0001',
+            'tipo_camion' => 'termo',
             'peso_neto' => 18000,
             'estado' => EstadoRecepcionRomana::Cerrado->value,
         ]);
@@ -103,6 +127,7 @@ class RecepcionRomanaApiTest extends TestCase
         $this->assertStringContainsString('(VERSION)', $contenidoPdf);
         $this->assertStringContainsString('(0)', $contenidoPdf);
         $this->assertStringContainsString('(21-07-2026)', $contenidoPdf);
+        $this->assertStringContainsString('(Tipo de cami', $contenidoPdf);
         $this->assertStringNotContainsString('(Temporada)', $contenidoPdf);
 
         $gerencia = User::factory()->create(['rol' => RolUsuario::Consulta]);
@@ -135,6 +160,7 @@ class RecepcionRomanaApiTest extends TestCase
         $this->assertStringContainsString('(REGISTRO DE PESAJE)', $contenidoPdf);
         $this->assertStringContainsString('(ROMANA)', $contenidoPdf);
         $this->assertStringContainsString('(Peso bruto)', $contenidoPdf);
+        $this->assertStringContainsString('(Tipo de cam', $contenidoPdf);
         $this->assertStringContainsString('(Tara cam', $contenidoPdf);
         $this->assertStringContainsString('(PESO NETO)', $contenidoPdf);
         $this->assertStringContainsString(
@@ -157,9 +183,11 @@ class RecepcionRomanaApiTest extends TestCase
         $edicionValida = $datos;
         $edicionValida['operacion_id'] = (string) Str::uuid();
         $edicionValida['peso_bruto'] = 29000;
+        $edicionValida['tipo_camion'] = 'plano';
         $this->putJson('/api/romana/recepciones/'.$id, $edicionValida)
             ->assertOk()
             ->assertJsonPath('data.peso_bruto', 29000)
+            ->assertJsonPath('data.tipo_camion', 'plano')
             ->assertJsonPath('data.version', 2);
 
         $this->postJson('/api/romana/recepciones/'.$id.'/cerrar', [
@@ -295,6 +323,7 @@ class RecepcionRomanaApiTest extends TestCase
         $correccion['version_conocida'] = $cerrada['version'];
         $correccion['motivo_correccion'] = 'Peso bruto y cantidad de bins digitados incorrectamente.';
         $correccion['peso_bruto'] = 30000;
+        $correccion['tipo_camion'] = 'plano';
         $correccion['peso_tara'] = 10000;
         $correccion['tipo_envase_calculo_neto'] = 'bins';
         $correccion['envases'] = [
@@ -310,6 +339,7 @@ class RecepcionRomanaApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.estado', EstadoRecepcionRomana::Cerrado->value)
             ->assertJsonPath('data.peso_bruto', 30000)
+            ->assertJsonPath('data.tipo_camion', 'plano')
             ->assertJsonPath('data.peso_tara', 10000)
             ->assertJsonPath('data.peso_neto', 20000)
             ->assertJsonPath('data.cantidad_envase_calculo_neto', 60)
@@ -331,9 +361,12 @@ class RecepcionRomanaApiTest extends TestCase
             ->where('tipo', 'correccion_administrativa')
             ->firstOrFail();
         $this->assertSame(28540.0, (float) $evento->datos['anterior']['peso_bruto']);
+        $this->assertSame('termo', $evento->datos['anterior']['tipo_camion']);
+        $this->assertSame('plano', $evento->datos['posterior']['tipo_camion']);
         $this->assertSame(30000.0, (float) $evento->datos['posterior']['peso_bruto']);
         $this->assertDatabaseHas('recepciones_romana', [
             'id' => $corregida['id'],
+            'tipo_camion' => 'plano',
             'peso_bruto' => 30000,
             'peso_tara' => 10000,
             'peso_neto' => 20000,
@@ -914,6 +947,7 @@ class RecepcionRomanaApiTest extends TestCase
             ],
             'numero_guia_despacho' => 'GD-77881',
             'patente_camion' => 'ABCD12',
+            'tipo_camion' => 'termo',
             'patente_carro' => 'WXYZ34',
             'rut_conductor' => '12.345.678-5',
             'nombre_conductor' => 'María González',

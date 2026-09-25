@@ -326,6 +326,7 @@ class RecepcionRomanaController extends Controller
             ])->values(),
             'numero_guia_despacho' => $recepcion->numero_guia_despacho,
             'patente_camion' => $recepcion->patente_camion,
+            'tipo_camion' => $recepcion->tipo_camion?->value,
             'patente_carro' => $recepcion->patente_carro,
             'rut_conductor' => $recepcion->rut_conductor,
             'nombre_conductor' => $recepcion->nombre_conductor,

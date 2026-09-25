@@ -460,6 +460,7 @@ class ValidacionMpApiTest extends TestCase
             ],
             'numero_guia_despacho' => 'GD-MP-001',
             'patente_camion' => 'ABCD12',
+            'tipo_camion' => 'termo',
             'rut_conductor' => '12.345.678-5',
             'nombre_conductor' => 'Conductor MP',
             'peso_bruto' => 28000,
