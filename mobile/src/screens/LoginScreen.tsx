@@ -92,7 +92,7 @@ export function LoginScreen({
             source={require('../../assets/folios-lockup-horizontal-on-dark.png')}
             style={[styles.brandLogo, narrow && styles.brandLogoNarrow]}
           />
-          <Text style={styles.eyebrow}>{isPdaBuild ? 'PDA · VALIDACIÓN PT Y MP' : 'OPERACIÓN EN FRÍO'}</Text>
+          <Text style={styles.eyebrow}>{isPdaBuild ? 'PDA · VALIDACIÓN Y REPALETIZAJE' : 'OPERACIÓN EN FRÍO'}</Text>
           {narrow ? null : (
             <>
               <Text style={styles.brandCopy}>

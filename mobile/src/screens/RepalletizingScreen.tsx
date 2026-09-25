@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -7,9 +8,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
+import { ScanInput, ScanInputHandle } from '../components/ui/ScanInput';
+import { isPdaBuild } from '../config/appVariant';
 import { AuthSession } from '../domain/estiba';
 import { Repalletizing, RepalletizingFolio } from '../domain/repaletizaje';
 import {
@@ -23,7 +27,11 @@ type Props = {
   auth: AuthSession;
   baseUrl: string;
   onLogout: () => void;
+  /** Módulo propio del tarjador; dentro de Validación se muestra como pestaña. */
+  standalone?: boolean;
 };
+
+type Shift = 'A' | 'B';
 
 type Source = Omit<RepalletizingFolio, 'composicion'> & {
   composicion: Array<RepalletizingFolio['composicion'][number] & { aporte: string }>;
@@ -50,7 +58,13 @@ const MIX_FIELDS: Array<{ key: MixField; label: string }> = [
   { key: 'cuartel', label: 'cuartel' },
 ];
 
-export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
+export function RepalletizingScreen({ auth, baseUrl, onLogout, standalone = false }: Props) {
+  const { width } = useWindowDimensions();
+  const tight = isPdaBuild || width < 420;
+  const lookupInput = useRef<ScanInputHandle>(null);
+  const shiftKey = `estiba_repa_turno:${auth.usuario.id}:${auth.dispositivo?.id ?? 'sin-dispositivo'}`;
+  const [shift, setShift] = useState<Shift | null>(null);
+  const [operationalDay, setOperationalDay] = useState<'hoy' | 'ayer'>('hoy');
   const [resultType, setResultType] = useState<ResultType>('pallet');
   const [strategy, setStrategy] = useState<FolioStrategy>('conservar');
   const [capacity, setCapacity] = useState('120');
@@ -66,7 +80,19 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
 
   useEffect(() => {
     void reloadHistory();
-  }, []);
+    // El turno se elige una vez por equipo y se recuerda entre repas.
+    AsyncStorage.getItem(shiftKey)
+      .then((stored) => {
+        if (stored === 'A' || stored === 'B') setShift(stored);
+      })
+      .catch(() => undefined);
+  }, [shiftKey]);
+
+  function chooseShift(value: Shift) {
+    setShift(value);
+    if (value === 'A') setOperationalDay('hoy');
+    void AsyncStorage.setItem(shiftKey, value).catch(() => undefined);
+  }
 
   const total = useMemo(
     () => sources.reduce((sum, source) => sum + sourceTotal(source), 0),
@@ -99,8 +125,8 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
     }
   }
 
-  async function addSource() {
-    const number = lookup.trim().toUpperCase();
+  async function addSource(scanned?: string) {
+    const number = (scanned ?? lookup).trim().toUpperCase();
     setError('');
     setMessage('');
     if (!number) {
@@ -179,6 +205,10 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
     setMessage('');
     const target = numeric(capacity);
 
+    if (!shift) {
+      setError('Indica el turno antes de confirmar la repa.');
+      return;
+    }
     if (sources.length < 2) {
       setError('Agrega al menos dos saldos.');
       return;
@@ -236,9 +266,12 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
             })),
         })),
         observacion: null,
+        turno: shift,
+        fecha_operacional: shift === 'B' ? operationalDay : 'hoy',
       });
       setMessage(`${result.codigo}: ${result.folio_resultante.numero_folio} confirmado.`);
       clearForm();
+      lookupInput.current?.focus();
       await reloadHistory();
     } catch (reason) {
       setError(messageOf(reason));
@@ -249,13 +282,19 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, tight && styles.headerTight]}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>VALIDACIÓN · REPALETIZAJES</Text>
-          <Text style={styles.title}>Consolidar saldos</Text>
-          <Text style={styles.subtitle}>
-            Cliente, especie, marca y estado térmico nunca se mezclan.
+          {tight ? null : (
+            <Text style={styles.eyebrow}>{standalone ? 'CÁMARAS · REPALETIZAJE' : 'VALIDACIÓN · REPALETIZAJES'}</Text>
+          )}
+          <Text numberOfLines={1} style={[styles.title, tight && styles.titleTight]}>
+            {tight ? 'Repaletizaje' : 'Consolidar saldos'}
           </Text>
+          {tight ? null : (
+            <Text style={styles.subtitle}>
+              Cliente, especie, marca y estado térmico nunca se mezclan.
+            </Text>
+          )}
         </View>
         <View style={styles.headerActions}>
           <Pressable disabled={loadingHistory} onPress={() => void reloadHistory()} style={styles.secondary}>
@@ -267,7 +306,27 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, tight && styles.contentTight]} keyboardShouldPersistTaps="handled">
+        <View style={styles.shiftRow}>
+          <Text style={styles.fieldLabel}>Turno RRPL-01</Text>
+          <View style={styles.shiftOptions}>
+            <Toggle active={shift === 'A'} label="A" onPress={() => chooseShift('A')} />
+            <Toggle active={shift === 'B'} label="B" onPress={() => chooseShift('B')} />
+          </View>
+        </View>
+        {!shift ? <Text style={styles.shiftHint}>Elige el turno: identifica tu planilla de repaletizaje.</Text> : null}
+        {shift === 'B' ? (
+          <View style={styles.shiftRow}>
+            <Text style={styles.fieldLabel}>Fecha RRPL-01</Text>
+            <View style={styles.shiftOptions}>
+              <Toggle active={operationalDay === 'hoy'} label="Hoy" onPress={() => setOperationalDay('hoy')} />
+              <Toggle active={operationalDay === 'ayer'} label="Ayer" onPress={() => setOperationalDay('ayer')} />
+            </View>
+          </View>
+        ) : null}
+        {shift === 'B' && operationalDay === 'ayer' ? (
+          <Text style={styles.shiftHint}>Esta repa se anotará en la planilla del día anterior.</Text>
+        ) : null}
         <View style={styles.options}>
           <Toggle active={resultType === 'pallet'} label="Pallet completo" onPress={() => setResultType('pallet')} />
           <Toggle active={resultType === 'saldo'} label="Saldo consolidado" onPress={() => setResultType('saldo')} />
@@ -287,32 +346,31 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
         </Field>
         {strategy === 'nuevo' ? (
           <Field label="Folio resultante">
-            <TextInput
-              autoCapitalize="characters"
+            <ScanInput
               onChangeText={setResultNumber}
-              placeholder="Escanear o escribir"
-              placeholderTextColor={colors.muted}
-              style={styles.input}
+              onSubmit={(code) => {
+                setResultNumber(code);
+                lookupInput.current?.focus();
+              }}
+              placeholder={tight ? 'Pistolea el folio nuevo' : 'Escanear o escribir'}
+              submitLabel="OK"
               value={resultNumber}
             />
           </Field>
         ) : null}
 
-        <View style={styles.addRow}>
-          <TextInput
-            autoCapitalize="characters"
+        <Field label="Saldo de origen">
+          <ScanInput
+            autoFocus={isPdaBuild}
+            disabled={busy}
             onChangeText={setLookup}
-            onSubmitEditing={() => void addSource()}
-            placeholder="Escanear o escribir saldo"
-            placeholderTextColor={colors.muted}
-            returnKeyType="done"
-            style={[styles.input, styles.addInput]}
+            onSubmit={(code) => void addSource(code)}
+            placeholder={tight ? 'Pistolea el saldo' : 'Escanear o escribir saldo'}
+            ref={lookupInput}
+            submitLabel="Agregar"
             value={lookup}
           />
-          <Pressable disabled={busy} onPress={() => void addSource()} style={styles.primary}>
-            <Text style={styles.primaryText}>Agregar</Text>
-          </Pressable>
-        </View>
+        </Field>
 
         {hardMismatches.length ? (
           <Text style={styles.blocked}>
@@ -348,6 +406,11 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
               </Text>
               <Text style={styles.sourceMeta}>
                 {source.marca} · {source.calibre} · {source.condicion_termica}
+              </Text>
+              <Text style={styles.sourceLocation}>
+                {source.ubicacion?.camara
+                  ? `${source.ubicacion.camara.codigo}${source.ubicacion.posicion ? ` · ${source.ubicacion.posicion.etiqueta}` : ''}`
+                  : 'Sin ubicación en cámara'}
               </Text>
             </View>
             {source.composicion.map((line) => (
@@ -413,6 +476,9 @@ export function RepalletizingScreen({ auth, baseUrl, onLogout }: Props) {
             <Text style={styles.sourceNumber}>
               {repa.codigo} · {repa.folio_resultante.numero_folio}
             </Text>
+            {repa.turno ? (
+              <Text style={styles.sourceMeta}>Turno {repa.turno}{repa.estado === 'anulado' ? ' · ANULADA' : ''}</Text>
+            ) : null}
             <Text style={styles.sourceMeta}>
               {repa.tipo_resultado === 'pallet' ? 'Pallet completo' : (repa.tipo_resultado === 'division' ? 'División' : 'Saldo')} · {repa.cantidad_resultante} cajas · {repa.condicion_termica}
             </Text>
@@ -521,6 +587,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  headerTight: { paddingHorizontal: 12, paddingVertical: 10 },
+  titleTight: { fontSize: 20, marginTop: 0 },
+  contentTight: { padding: 12, gap: 10 },
+  shiftRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  shiftOptions: { flexDirection: 'row', gap: 8, width: 150 },
+  shiftHint: { color: colors.amber, fontSize: 13, fontWeight: '800' },
+  sourceLocation: { color: colors.cyan, fontSize: 13, fontWeight: '800', marginTop: 3 },
   headerCopy: { flex: 1 },
   headerActions: { flexDirection: 'row', gap: 8 },
   eyebrow: { color: colors.cyan, fontSize: 14, fontWeight: '900', letterSpacing: 1.2 },
@@ -551,16 +624,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.panel,
     color: colors.text,
     paddingHorizontal: 12,
-  },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  addInput: { flex: 1 },
-  primary: {
-    minHeight: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: colors.cyan,
-    paddingHorizontal: 18,
   },
   primaryText: { color: colors.accentText, fontWeight: '900' },
   secondary: {

@@ -223,6 +223,7 @@ class CorreccionProcesoPrefrioApiTest extends TestCase
 
         $this->actingAs($administrador, 'sanctum')
             ->postJson('/api/validacion/repaletizajes', [
+                'turno' => 'A',
                 'operacion_id' => (string) Str::uuid(),
                 'modalidad' => 'consolidacion',
                 'tipo_resultado' => 'saldo',

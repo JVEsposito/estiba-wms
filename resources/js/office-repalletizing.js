@@ -16,6 +16,9 @@ const elements = {
     secondNumber: byId('secondResultNumberField'), secondType: byId('secondResultTypeField'),
     secondTarget: byId('secondResultTargetField'), divisionEditor: byId('divisionEditor'),
     sourceInputLabel: byId('sourceInputLabel'),
+    registerDate: byId('registerDate'), registerList: byId('registerList'),
+    registerBlank: byId('registerBlank'), registerDay: byId('registerDay'),
+    operationalDate: byId('operationalDateField'),
 };
 const keys = { token: 'estiba_wms_office_token', identity: 'estiba_wms_office_identity' };
 const state = {
@@ -81,6 +84,24 @@ async function api(path, options = {}) {
     }
     return data;
 }
+async function download(path) {
+    const headers = new Headers({ Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    if (state.token) headers.set('Authorization', `Bearer ${state.token}`);
+    let response;
+    try { response = await fetch(path, { headers }); } catch { throw new ApiError('No fue posible conectar con Laravel.'); }
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) clearSession();
+        throw new ApiError(errorMessage(data, 'No fue posible generar el registro RRPL-01.'), response.status);
+    }
+    const blob = await response.blob();
+    const match = (response.headers.get('Content-Disposition') || '').match(/filename="?([^";]+)"?/i);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = match?.[1] || 'RRPL-01.xlsx';
+    document.body.append(anchor); anchor.click(); anchor.remove();
+    URL.revokeObjectURL(url);
+}
 function persist(payload) {
     state.token = payload.token; state.identity = payload.usuario;
     localStorage.setItem(keys.token, payload.token);
@@ -95,17 +116,22 @@ function can(key) {
     return state.identity?.[key] === true || state.identity?.capacidades?.[key] === true;
 }
 function showApp() {
-    if (!can('puede_consultar_validaciones_pallet')) return false;
+    if (!can('puede_consultar_repaletizajes')) return false;
     elements.access.classList.add('is-hidden'); elements.app.classList.remove('is-hidden');
     const name = state.identity?.nombre || 'Usuario';
     elements.userName.textContent = name;
     elements.userRole.textContent = String(state.identity?.rol || 'Oficina').replaceAll('_', ' ');
     elements.initials.textContent = name.split(/\s+/).filter(Boolean).slice(0, 2)
         .map((part) => part[0]).join('').toUpperCase();
-    elements.form.querySelector('button[type="submit"]').disabled = !can('puede_validar_pallets');
+    elements.form.querySelector('button[type="submit"]').disabled = !can('puede_registrar_repaletizajes');
     return true;
 }
 function formValue(name) { return elements.form.elements[name]?.value ?? ''; }
+function updateOperationalDate() {
+    const nightShift = formValue('turno') === 'B';
+    elements.operationalDate.classList.toggle('is-hidden', !nightShift);
+    if (!nightShift) elements.form.elements.fecha_operacional.value = 'hoy';
+}
 function mode() { return formValue('modalidad') || 'consolidacion'; }
 function normalized(value) { return String(value ?? '').trim().toLocaleUpperCase('es-CL'); }
 function common(field) {
@@ -222,6 +248,7 @@ function refreshDivisionTotals() {
     elements.previewQuantity.textContent = `${divisionTotal(source, 1)} + ${divisionTotal(source, 2)} cajas`;
 }
 function render() {
+    updateOperationalDate();
     const sourceScrollTop = elements.sourceList.scrollTop;
     const activeComposition = document.activeElement?.matches('[data-composition-source]') ? {
         source: document.activeElement.dataset.compositionSource,
@@ -388,8 +415,14 @@ async function addSource() {
     finally { setBusy(false); }
 }
 function reset() {
+    const shift = formValue('turno');
+    const day = formValue('fecha_operacional');
     state.sources = []; state.expandedSources.clear(); elements.form.reset();
     elements.form.elements.cantidad_objetivo.value = 120;
+    // El turno se mantiene entre repas consecutivas.
+    if (shift) elements.form.elements.turno.value = shift;
+    if (shift === 'B') elements.form.elements.fecha_operacional.value = day;
+    updateOperationalDate();
     elements.sourceError.textContent = ''; elements.repaError.textContent = '';
     render();
 }
@@ -439,6 +472,8 @@ async function submit() {
                     })),
                 })),
                 observacion: String(formValue('observacion') || '').trim() || null,
+                turno: formValue('turno') || 'A',
+                fecha_operacional: formValue('turno') === 'B' ? formValue('fecha_operacional') : 'hoy',
             }),
         });
         toast(`${response.data.codigo}: ${response.data.folio_resultante.numero_folio} confirmado.`);
@@ -494,6 +529,8 @@ async function submitTransformation(modality) {
                 origenes: [{ folio_id: source.id, cantidad_aportada: source.cantidad_cajas }],
                 resultados: results,
                 observacion: String(formValue('observacion') || '').trim() || null,
+                turno: formValue('turno') || 'A',
+                fecha_operacional: formValue('turno') === 'B' ? formValue('fecha_operacional') : 'hoy',
             }),
         });
         const folios = response.data.resultados.map((result) => result.folio.numero_folio).join(' + ');
@@ -512,15 +549,44 @@ function renderHistory() {
                 ${repa.origenes.map((origin) => `<div class="repa-origin"><span>${escapeHtml(origin.folio.numero_folio)}</span><strong>${origin.cajas_aportadas} cajas</strong></div>`).join('')}
                 ${(repa.folio_resultante?.composicion || []).map((line) => `<div class="repa-origin"><span>CSG ${escapeHtml(line.csg)} · ${escapeHtml(line.fecha_embalaje || 'Sin fecha')}</span><strong>${line.cantidad_cajas} cajas</strong></div>`).join('')}
             </details>
-            ${can('puede_rechazar_pallets') && repa.puede_anular ? `<button data-annul="${escapeHtml(repa.id)}" type="button">Anular repa</button>` : ''}
+            ${can('puede_anular_repaletizajes') && repa.puede_anular ? `<button data-annul="${escapeHtml(repa.id)}" type="button">Anular repa</button>` : ''}
         </article>`
     )).join('') : '<p class="empty-copy">No existen repaletizajes para esta selección.</p>';
+}
+function registerDate() {
+    return elements.registerDate.value;
+}
+function renderRegisters(sheets) {
+    elements.registerDay.disabled = !sheets.length;
+    elements.registerList.innerHTML = sheets.length ? sheets.map((sheet) => {
+        const params = new URLSearchParams({ fecha: sheet.fecha });
+        if (sheet.turno) params.set('turno', sheet.turno);
+        if (sheet.tarjador?.id) params.set('user_id', String(sheet.tarjador.id));
+        const voided = sheet.anuladas ? ` · ${sheet.anuladas} ${sheet.anuladas === 1 ? 'anulada' : 'anuladas'}` : '';
+        return `<div class="repa-register-row">
+            <div><strong>Turno ${escapeHtml(sheet.turno || '—')} · ${escapeHtml(sheet.tarjador?.nombre || 'Sin usuario')}</strong><span>${sheet.repas} ${sheet.repas === 1 ? 'repa' : 'repas'}${voided}</span></div>
+            <button class="secondary-button" data-register="${escapeHtml(params.toString())}" type="button">Descargar</button>
+        </div>`;
+    }).join('') : '<p class="empty-copy">No existen repas registradas para esta fecha.</p>';
+}
+async function loadRegisters() {
+    const date = registerDate();
+    const response = await api(`/api/validacion/repaletizajes/registro/rrpl-01/planillas${date ? `?fecha=${encodeURIComponent(date)}` : ''}`);
+    if (!date) elements.registerDate.value = response.fecha;
+    renderRegisters(response.data || []);
+}
+async function downloadRegister(query) {
+    setBusy(true, 'Generando registro RRPL-01…');
+    try { await download(`/api/validacion/repaletizajes/registro/rrpl-01?${query}`); }
+    catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
 }
 async function loadHistory() {
     const query = new URLSearchParams({ per_page: '50' });
     if (elements.historyFilter.value.trim()) query.set('folio', elements.historyFilter.value.trim());
     const response = await api(`/api/validacion/repaletizajes?${query}`);
     state.history = response.data || []; renderHistory();
+    await loadRegisters().catch((error) => toast(error.message, true));
 }
 async function annul(id) {
     const reason = window.prompt('Motivo de anulación (mínimo 5 caracteres):');
@@ -610,6 +676,18 @@ elements.form.addEventListener('submit', (event) => { event.preventDefault(); vo
 elements.clear.addEventListener('click', reset);
 elements.reload.addEventListener('click', () => void loadHistory());
 elements.historyFilter.addEventListener('change', () => void loadHistory());
+elements.registerDate.addEventListener('change', () => void loadRegisters().catch((error) => toast(error.message, true)));
+elements.registerList.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-register]');
+    if (button) void downloadRegister(button.dataset.register);
+});
+elements.registerDay.addEventListener('click', () => void downloadRegister(new URLSearchParams({ fecha: registerDate() }).toString()));
+elements.registerBlank.addEventListener('click', async () => {
+    setBusy(true, 'Preparando RRPL-01 en blanco…');
+    try { await download('/api/validacion/repaletizajes/registro/rrpl-01/en-blanco'); }
+    catch (error) { toast(error.message, true); }
+    finally { setBusy(false); }
+});
 elements.history.addEventListener('click', (event) => {
     const button = event.target.closest('[data-annul]'); if (button) void annul(button.dataset.annul);
 });

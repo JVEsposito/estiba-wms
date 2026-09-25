@@ -58,6 +58,22 @@
                                     </select>
                                     <small>El cambio y la división consumen completamente el folio original.</small>
                                 </label>
+                                <label>
+                                    <span>Turno *</span>
+                                    <select name="turno">
+                                        <option value="A">Turno A</option>
+                                        <option value="B">Turno B</option>
+                                    </select>
+                                    <small>Agrupa la repa en su registro RRPL-01.</small>
+                                </label>
+                                <label class="is-hidden" id="operationalDateField">
+                                    <span>Fecha RRPL-01 *</span>
+                                    <select name="fecha_operacional">
+                                        <option value="hoy">Hoy</option>
+                                        <option value="ayer">Ayer (turno B)</option>
+                                    </select>
+                                    <small>Si el turno B cruzó la medianoche, selecciona ayer.</small>
+                                </label>
                             </div>
                             <div class="repa-grid" id="consolidationFields">
                                 <label>
@@ -155,13 +171,28 @@
                         </form>
                     </section>
 
-                    <section class="panel repa-history">
-                        <div class="repa-panel-heading">
-                            <div><p class="eyebrow">TRAZABILIDAD</p><h2>Repas recientes</h2></div>
-                            <input id="historyFilter" maxlength="80" placeholder="Buscar folio">
-                        </div>
-                        <div class="repa-history-list" id="historyList"></div>
-                    </section>
+                    <div class="repa-side">
+                        <section class="panel repa-register" aria-labelledby="registerTitle">
+                            <div class="repa-panel-heading">
+                                <div><p class="eyebrow">DOCUMENTO TRAZABLE</p><h2 id="registerTitle">Registro RRPL-01</h2></div>
+                                <input id="registerDate" type="date" aria-label="Fecha del registro">
+                            </div>
+                            <p class="repa-register__hint">Se llena solo con cada repa, por turno y tarjador. Las anuladas quedan marcadas; nunca se pierde un número REPA.</p>
+                            <div class="repa-register-list" id="registerList"></div>
+                            <div class="repa-register-actions">
+                                <button class="secondary-button" id="registerBlank" type="button">Formulario en blanco</button>
+                                <button class="primary-button" id="registerDay" type="button" disabled>Descargar el día</button>
+                            </div>
+                        </section>
+
+                        <section class="panel repa-history">
+                            <div class="repa-panel-heading">
+                                <div><p class="eyebrow">TRAZABILIDAD</p><h2>Repas recientes</h2></div>
+                                <input id="historyFilter" maxlength="80" placeholder="Buscar folio">
+                            </div>
+                            <div class="repa-history-list" id="historyList"></div>
+                        </section>
+                    </div>
                 </div>
             </section>
         </main>

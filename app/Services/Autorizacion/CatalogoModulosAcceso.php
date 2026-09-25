@@ -19,6 +19,10 @@ class CatalogoModulosAcceso
 
     public const TABLET_VALIDACION_PT = 'validacion';
 
+    public const TABLET_REPALETIZAJE = 'repaletizaje';
+
+    public const OFICINA_REPALETIZAJE = 'frigorifico.repaletizaje';
+
     public const TABLET_VALIDACION_MP = 'validacion_mp';
 
     public const TABLET_FRUTA_PROCESO = 'fruta_proceso';
@@ -58,6 +62,7 @@ class CatalogoModulosAcceso
                 'descripcion' => 'Validación, prefrío, cámaras y despacho de producto terminado.',
                 'modulos' => [
                     $this->modulo('frigorifico.validacion', 'Validación PT', 'Validación y observación de pallets.'),
+                    $this->modulo(self::OFICINA_REPALETIZAJE, 'Repaletizaje', 'Repas desde cámaras y registro RRPL-01.'),
                     $this->modulo('frigorifico.inspeccion-sag', 'Inspección SAG', 'Muestreos, inspecciones, fumigaciones y cambios de mercado.'),
                     $this->modulo('frigorifico.prefrio', 'Prefrío', 'Túneles, procesos y verificaciones de prefrío.'),
                     $this->modulo('frigorifico.camaras', 'Cámaras PT', 'Plano, movimientos y sesiones de producto terminado.'),
@@ -168,6 +173,12 @@ class CatalogoModulosAcceso
                         'Validación PT',
                         'Validación y observación de pallets.',
                         ['frigorifico.validacion'],
+                    ),
+                    $this->moduloTablet(
+                        self::TABLET_REPALETIZAJE,
+                        'Repaletizaje',
+                        'Consolidar saldos desde las cámaras; llena el registro RRPL-01.',
+                        [self::OFICINA_REPALETIZAJE],
                     ),
                     $this->moduloTablet(
                         self::TABLET_PREFRIO,
@@ -294,6 +305,7 @@ class CatalogoModulosAcceso
                 'materia-prima.hidrocooler',
                 'materia-prima.fruta-proceso',
                 'frigorifico.validacion',
+                self::OFICINA_REPALETIZAJE,
                 'frigorifico.inspeccion-sag',
                 'frigorifico.prefrio',
                 'frigorifico.camaras',
@@ -366,6 +378,9 @@ class CatalogoModulosAcceso
             ],
             RolUsuario::ValidadorMp => [
                 'materia-prima.validacion-mp',
+            ],
+            RolUsuario::Tarjador => [
+                self::OFICINA_REPALETIZAJE,
             ],
             RolUsuario::Consulta => [
                 'gerencia.panel',

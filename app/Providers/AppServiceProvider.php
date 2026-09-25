@@ -334,6 +334,18 @@ class AppServiceProvider extends ServiceProvider
             fn (User $usuario): bool => $alcance->puedeRechazarPallets($usuario),
         );
         Gate::define(
+            'registrar-repaletizajes',
+            fn (User $usuario): bool => $alcance->puedeRegistrarRepaletizajes($usuario),
+        );
+        Gate::define(
+            'anular-repaletizajes',
+            fn (User $usuario): bool => $alcance->puedeAnularRepaletizajes($usuario),
+        );
+        Gate::define(
+            'consultar-repaletizajes',
+            fn (User $usuario): bool => $alcance->puedeConsultarRepaletizajes($usuario),
+        );
+        Gate::define(
             'consultar-validaciones-pallet',
             fn (User $usuario): bool => $alcance->puedeConsultarValidacionesPallet($usuario),
         );

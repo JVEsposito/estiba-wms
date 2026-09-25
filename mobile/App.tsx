@@ -14,6 +14,7 @@ import { MaterialReceptionScreen } from './src/screens/MaterialReceptionScreen';
 import { FrutaProcesoScreen } from './src/screens/FrutaProcesoScreen';
 import { OperationalWorkspaceScreen } from './src/screens/OperationalWorkspaceScreen';
 import { PrefrioWorkspaceScreen } from './src/screens/PrefrioWorkspaceScreen';
+import { RepalletizingScreen } from './src/screens/RepalletizingScreen';
 import { ValidationWorkspaceScreen } from './src/screens/ValidationWorkspaceScreen';
 import { ValidationMpScreen } from './src/screens/ValidationMpScreen';
 import { loadApiBaseUrl, saveApiBaseUrl } from './src/services/apiConfiguration';
@@ -49,7 +50,7 @@ export default function App() {
 
   useEffect(() => {
     // La PDA es un equipo de mano: siempre vertical, incluso en el login.
-    const orientation = isPdaBuild || activeModule === 'validacion' || activeModule === 'validacion_mp' || activeModule === 'fruta_proceso'
+    const orientation = isPdaBuild || activeModule === 'validacion' || activeModule === 'validacion_mp' || activeModule === 'repaletizaje' || activeModule === 'fruta_proceso'
       ? ScreenOrientation.OrientationLock.PORTRAIT_UP
       : activeModule
         ? ScreenOrientation.OrientationLock.LANDSCAPE
@@ -146,6 +147,14 @@ export default function App() {
               />
             ) : activeModule === 'validacion_mp' ? (
               <ValidationMpScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
+            ) : activeModule === 'repaletizaje' ? (
+              api.baseUrl ? (
+                <RepalletizingScreen auth={auth} baseUrl={api.baseUrl} onLogout={() => void logoutPersistentModule()} standalone />
+              ) : (
+                <View style={styles.boot}>
+                  <Text style={styles.bootText}>Repaletizaje requiere conexión con el servidor.</Text>
+                </View>
+              )
             ) : activeModule === 'fruta_proceso' ? (
               <FrutaProcesoScreen auth={auth} baseUrl={api.baseUrl ?? ''} onLogout={() => void logoutPersistentModule()} />
             ) : activeModule === 'recepcion_materiales' ? (
@@ -180,6 +189,7 @@ function availableModules(auth: AuthSession): MobileModule[] {
     'recepcion_materiales',
     'validacion',
     'validacion_mp',
+    'repaletizaje',
     'fruta_proceso',
     'prefrio',
   ];
@@ -201,6 +211,8 @@ function moduleLabel(module: MobileModule) {
     ? 'Validación'
     : module === 'validacion_mp'
       ? 'Validación MP'
+      : module === 'repaletizaje'
+        ? 'Repaletizaje'
       : module === 'fruta_proceso'
         ? 'Fruta a proceso'
       : module === 'prefrio'
@@ -238,6 +250,13 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
             <Text style={styles.selectorIcon}>⌁</Text>
             <Text style={styles.selectorCardTitle}>Validación MP</Text>
             <Text style={styles.selectorCardCopy}>Recibir correlativos de Romana, contar envases y preparar segregaciones.</Text>
+          </Pressable>
+        ) : null}
+        {modules.includes('repaletizaje') ? (
+          <Pressable onPress={() => onSelect('repaletizaje')} style={[styles.selectorCard, isPdaBuild && styles.selectorCardPda]}>
+            <Text style={styles.selectorIcon}>⇄</Text>
+            <Text style={styles.selectorCardTitle}>Repaletizaje</Text>
+            <Text style={styles.selectorCardCopy}>Consolidar saldos en cámara; cada repa llena el registro RRPL-01.</Text>
           </Pressable>
         ) : null}
         {modules.includes('fruta_proceso') ? (
@@ -279,7 +298,7 @@ function ModuleSelection({ modules, onSelect, userName }: { modules: MobileModul
       {!modules.length ? (
         <Text style={styles.noModule}>
           {isPdaBuild
-            ? 'Esta PDA solo opera Validación PT y Validación MP, y tu perfil no tiene ninguna de ellas. Usa la tablet para los demás módulos.'
+            ? 'Esta PDA solo opera Validación PT, Validación MP y Repaletizaje, y tu perfil no tiene ninguno de ellos. Usa la tablet para los demás módulos.'
             : 'El perfil no posee un módulo móvil habilitado.'}
         </Text>
       ) : null}

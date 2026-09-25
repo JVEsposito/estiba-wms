@@ -69,9 +69,38 @@ asumida. Menos de ocho conserva prioridad normal, desde ocho usa alta y al llega
 al máximo práctico de diez usa urgente. La categoría crítica permanece reservada
 para restricciones superiores como emergencias, retenciones y camión en andén.
 
+## Tarjador y PDA
+
+- Rol `tarjador`: su perfil predeterminado solo tiene el módulo de oficina `frigorifico.repaletizaje` y el módulo móvil `repaletizaje`. En la PDA entra directo a Repaletizaje.
+- Validador, Supervisor de frío y Administrador conservan el acceso desde Validación. La anulación sigue reservada a supervisión y administración.
+- Permisos: `registrar-repaletizajes`, `anular-repaletizajes` y `consultar-repaletizajes`. Desde una PDA o tablet, el token debe traer el módulo `repaletizaje` o `validacion`.
+- Cada repa exige el **turno** (A o B). La fecha operacional es hoy; solo el turno B puede seleccionar ayer al cruzar la medianoche. El servidor calcula hoy y ayer con la zona horaria operacional, incluso si el reloj del dispositivo difiere.
+- La pantalla usa el lector integrado (sin teclado en pantalla), recuerda el turno por equipo y muestra la cámara y posición de cada saldo.
+- Al confirmar o anular, las cámaras involucradas suben su versión de plano para que tablets y oficina vean el cambio.
+
+## Registro RRPL-01
+
+Se llena solo con las repas guardadas de la temporada activa, sobre la plantilla oficial `resources/templates/repaletizaje/rrpl-01.xlsx`:
+
+- una hoja por fecha operacional, turno y tarjador, con cuatro bloques por hoja;
+- cada bloque es un folio resultante: variedad, etiqueta (marca), embalaje (envase), N° REPA, estado del pallet (completo o S/A) y hasta ocho líneas de origen con folio, fecha de embalaje, calibre, CSG y cajas;
+- una repa con más de ocho líneas continúa en el bloque siguiente (`REPA-… (1/2)`), y el total va en el último;
+- una división genera un bloque por cada folio resultante;
+- una repa anulada conserva su bloque con la marca ANULADA y el motivo: el documento nunca pierde un número REPA;
+- la firma del jefe de frigorífico se hace sobre la impresión.
+
+Oficina: Frigorífico → Repaletizajes → **Registro RRPL-01**, por fecha, con descarga por turno y tarjador, del día completo o del formulario en blanco.
+
+API:
+
+- `GET /api/validacion/repaletizajes/registro/rrpl-01/planillas?fecha=AAAA-MM-DD`
+- `GET /api/validacion/repaletizajes/registro/rrpl-01?fecha=…&turno=…&user_id=…`
+- `GET /api/validacion/repaletizajes/registro/rrpl-01/en-blanco`
+
 ## Interfaces
 
 - **Oficina:** `/oficina/validacion/repaletizajes`
-- **PDA:** `Validación → Repaletizajes`
+- **PDA del tarjador:** módulo Repaletizaje
+- **PDA de validación:** `Validación → Repaletizajes`
 
 La confirmación requiere conexión al servidor porque actualiza varios folios en una única transacción.

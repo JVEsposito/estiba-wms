@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'snapshot',
     'estado',
     'observacion',
+    'turno',
+    'fecha_operacional',
     'user_id',
     'dispositivo_id',
     'confirmado_at',
@@ -80,6 +82,7 @@ class Repaletizaje extends Model implements PerteneceATemporada
             'campos_mix' => 'array',
             'snapshot' => 'array',
             'confirmado_at' => 'datetime',
+            'fecha_operacional' => 'date',
             'anulado_at' => 'datetime',
         ];
     }

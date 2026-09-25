@@ -10,6 +10,7 @@ use App\Enums\HabilitacionAlmacenamientoFolio;
 use App\Enums\TipoBulto;
 use App\Exceptions\ConflictoOperacion;
 use App\Models\AutorizacionSagFolio;
+use App\Models\Camara;
 use App\Models\Dispositivo;
 use App\Models\Folio;
 use App\Models\Repaletizaje;
@@ -294,6 +295,8 @@ class ServicioRepaletizaje
                 'snapshot' => $snapshotResultado,
                 'estado' => 'confirmado',
                 'observacion' => $payload['observacion'],
+                'turno' => $payload['turno'],
+                'fecha_operacional' => $this->fechaOperacional($payload),
                 'user_id' => $usuario->id,
                 'dispositivo_id' => $dispositivo?->id,
                 'confirmado_at' => now(),
@@ -390,6 +393,8 @@ class ServicioRepaletizaje
             }
 
             $this->generadorRecepcion->generar($repa, $usuario);
+
+            $this->refrescarPlanos($repa);
 
             return $this->cargar($repa->refresh());
         };
@@ -567,6 +572,8 @@ class ServicioRepaletizaje
             'snapshot' => $snapshotRepa,
             'estado' => 'confirmado',
             'observacion' => $payload['observacion'],
+            'turno' => $payload['turno'],
+            'fecha_operacional' => $this->fechaOperacional($payload),
             'user_id' => $usuario->id,
             'dispositivo_id' => $dispositivo?->id,
             'confirmado_at' => now(),
@@ -619,6 +626,8 @@ class ServicioRepaletizaje
         ]);
 
         $this->generadorRecepcion->generar($repa, $usuario);
+
+        $this->refrescarPlanos($repa);
 
         return $this->cargar($repa->refresh());
     }
@@ -757,6 +766,8 @@ class ServicioRepaletizaje
                 'motivo_anulacion' => trim($motivo),
             ]);
 
+            $this->refrescarPlanos($repa);
+
             return $this->cargar($repa->refresh());
         };
 
@@ -817,7 +828,25 @@ class ServicioRepaletizaje
             'observacion' => filled($datos['observacion'] ?? null)
                 ? trim((string) $datos['observacion'])
                 : null,
+            'turno' => filled($datos['turno'] ?? null)
+                ? mb_strtoupper(trim((string) $datos['turno']))
+                : null,
+            // Solo lo que envía el cliente forma parte del hash; la fecha por
+            // defecto se calcula al crear, para que un reintento no cambie de hash.
+            'fecha_operacional' => $datos['fecha_operacional'] ?? null,
         ];
+    }
+
+    /**
+     * Fecha del registro RRPL-01: la declarada por el turno o, si no, el día
+     * operacional en curso.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function fechaOperacional(array $payload): string
+    {
+        return $payload['fecha_operacional']
+            ?? now(config('app.operational_timezone'))->toDateString();
     }
 
     /** @param array<string, mixed> $payload */
@@ -1319,6 +1348,30 @@ class ServicioRepaletizaje
                 'aprobado_at' => $autorizacion->aprobado_at,
             ]),
         );
+    }
+
+    /**
+     * Una repa cambia qué folio ocupa cada posición: las cámaras involucradas
+     * suben su versión de plano para que tablets y oficina lo vuelvan a leer.
+     */
+    private function refrescarPlanos(Repaletizaje $repa): void
+    {
+        $repa->loadMissing(['detalles', 'resultados']);
+        $folioIds = $repa->detalles->pluck('folio_origen_id')
+            ->merge($repa->resultados->pluck('folio_id'))
+            ->push($repa->folio_resultante_id)
+            ->filter()
+            ->unique();
+        $camaraIds = $repa->detalles
+            ->map(fn (RepaletizajeDetalle $detalle): ?string => $detalle->snapshot_antes['ubicacion']['camara_id'] ?? null)
+            ->merge(UbicacionActual::query()->whereIn('folio_id', $folioIds)->pluck('camara_id'))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($camaraIds->isNotEmpty()) {
+            Camara::query()->whereKey($camaraIds->all())->increment('version_plano');
+        }
     }
 
     private function snapshotFolio(Folio $folio): array

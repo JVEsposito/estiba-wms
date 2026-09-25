@@ -11,9 +11,12 @@ use App\Models\PersonalAccessToken;
 use App\Models\Repaletizaje;
 use App\Models\RepaletizajeDetalle;
 use App\Models\Temporada;
+use App\Services\Validacion\ServicioRegistroRepaletizaje;
 use App\Services\Validacion\ServicioRepaletizaje;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class RepaletizajeController extends Controller
 {
@@ -55,6 +58,89 @@ class RepaletizajeController extends Controller
                 'total' => $paginacion->total(),
             ],
         ]);
+    }
+
+    /**
+     * Planillas RRPL-01 de un día: una por turno y tarjador, con sus repas
+     * vigentes y anuladas.
+     */
+    public function planillasRegistro(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'fecha' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+        $fecha = $datos['fecha'] ?? now(config('app.operational_timezone'))->toDateString();
+
+        $planillas = Repaletizaje::query()
+            ->whereDate('fecha_operacional', $fecha)
+            ->whereHas('folioResultante', fn ($folios) => $folios
+                ->where('temporada_id', Temporada::query()->where('activa', true)->value('id')))
+            ->with('usuario:id,name')
+            ->get(['id', 'turno', 'user_id', 'estado', 'fecha_operacional'])
+            ->groupBy(fn (Repaletizaje $repa): string => ($repa->turno ?? '').'|'.$repa->user_id)
+            ->map(function ($grupo) use ($fecha): array {
+                /** @var Repaletizaje $primera */
+                $primera = $grupo->first();
+
+                return [
+                    'fecha' => $fecha,
+                    'turno' => $primera->turno,
+                    'tarjador' => [
+                        'id' => $primera->user_id,
+                        'nombre' => $primera->usuario?->name,
+                    ],
+                    'repas' => $grupo->count(),
+                    'anuladas' => $grupo->where('estado', 'anulado')->count(),
+                ];
+            })
+            ->sortBy(fn (array $planilla): string => ($planilla['turno'] ?? '').'|'.($planilla['tarjador']['nombre'] ?? ''))
+            ->values();
+
+        return response()->json(['data' => $planillas, 'fecha' => $fecha])
+            ->header('Cache-Control', 'no-store, private');
+    }
+
+    public function registro(
+        Request $request,
+        ServicioRegistroRepaletizaje $registro,
+    ): BinaryFileResponse {
+        $datos = $request->validate([
+            'fecha' => ['required', 'date_format:Y-m-d'],
+            'turno' => ['nullable', Rule::in(['A', 'B'])],
+            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+        ]);
+
+        $repas = Repaletizaje::query()
+            ->whereDate('fecha_operacional', $datos['fecha'])
+            ->whereHas('folioResultante', fn ($folios) => $folios
+                ->where('temporada_id', Temporada::query()->where('activa', true)->value('id')))
+            ->when($datos['turno'] ?? null, fn ($consulta, string $turno) => $consulta->where('turno', $turno))
+            ->when($datos['user_id'] ?? null, fn ($consulta, int $usuario) => $consulta->where('user_id', $usuario))
+            ->with([...$this->relaciones(), 'resultados'])
+            ->get();
+
+        $nombre = sprintf(
+            'RRPL-01_%s%s.xlsx',
+            str_replace('-', '', $datos['fecha']),
+            isset($datos['turno']) ? '_T'.$datos['turno'] : '',
+        );
+
+        return response()
+            ->download($registro->generar($repas), $nombre, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'no-store, private',
+            ])
+            ->deleteFileAfterSend();
+    }
+
+    public function registroEnBlanco(ServicioRegistroRepaletizaje $registro): BinaryFileResponse
+    {
+        return response()
+            ->download($registro->generarEnBlanco(), 'RRPL-01_en_blanco.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Cache-Control' => 'no-store, private',
+            ])
+            ->deleteFileAfterSend();
     }
 
     public function show(
@@ -248,6 +334,8 @@ class RepaletizajeController extends Controller
                 'nombre' => $repa->dispositivo->nombre,
             ] : null,
             'observacion' => $repa->observacion,
+            'turno' => $repa->turno,
+            'fecha_operacional' => $repa->fecha_operacional?->toDateString(),
             'confirmado_at' => $repa->confirmado_at?->toAtomString(),
             'anulado_at' => $repa->anulado_at?->toAtomString(),
             'motivo_anulacion' => $repa->motivo_anulacion,

@@ -152,6 +152,7 @@ class PerfilAccesoController extends Controller
             RolUsuario::CamareroMateriales => 'Camarero de materiales',
             RolUsuario::Validador => 'Validador de pallets',
             RolUsuario::ValidadorMp => 'Validador MP',
+            RolUsuario::Tarjador => 'Tarjador',
             RolUsuario::Consulta => 'Solo consulta',
         };
     }
