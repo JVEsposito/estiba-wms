@@ -148,7 +148,7 @@ final class ServicioRegularizacionCierreTemporada
      * puede ocultar un pendiente si aún bloquea un andén, folio, posición o
      * tarea que debe quedar disponible para la temporada siguiente.
      *
-     * @param list<string> $ids
+     * @param  list<string>  $ids
      */
     private function asegurarSinRecursosOperacionales(CategoriaPendienteCierre $categoria, array $ids): void
     {

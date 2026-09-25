@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Api;
 
-use App\Enums\ContenidoCamara;
 use App\Enums\CategoriaPendienteCierre;
+use App\Enums\ContenidoCamara;
 use App\Enums\MotivoRegularizacionCierre;
 use App\Enums\RolUsuario;
 use App\Models\CalibreValidacion;
