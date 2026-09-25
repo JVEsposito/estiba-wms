@@ -33,6 +33,9 @@ export const ScanInput = forwardRef<ScanInputHandle, Props>(function ScanInput(
 ) {
   const input = useRef<TextInput>(null);
   const initialFocusDone = useRef(false);
+  const pendingSelection = useRef<string | null>(null);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
   const [manualKeyboard, setManualKeyboard] = useState(!isPdaBuild);
   useImperativeHandle(ref, () => ({ focus: () => input.current?.focus() }));
 
@@ -43,19 +46,32 @@ export const ScanInput = forwardRef<ScanInputHandle, Props>(function ScanInput(
     }
   }, [autoFocus, disabled]);
 
+  useEffect(() => {
+    if (!isPdaBuild || disabled || pendingSelection.current === null) return;
+    // Android no devuelve el foco mientras el TextInput está deshabilitado.
+    const timer = setTimeout(restoreScannerFocus, 60);
+    return () => clearTimeout(timer);
+  }, [disabled]);
+
+  function restoreScannerFocus() {
+    if (disabledRef.current || pendingSelection.current === null) return;
+    const code = pendingSelection.current;
+    input.current?.focus();
+    input.current?.setSelection(0, code.length);
+    pendingSelection.current = null;
+  }
+
   function submit(rawValue = value) {
     if (disabled) return;
     const code = normalizeScannedCode(rawValue);
     if (!code) return;
     if (code !== value) onChangeText(code);
+    if (isPdaBuild) pendingSelection.current = code;
     onSubmit(code);
     if (isPdaBuild) {
-      // Enter no quita el foco: seleccionar el código permite que el siguiente
-      // disparo del lector lo reemplace en lugar de concatenarlo.
-      setTimeout(() => {
-        input.current?.focus();
-        input.current?.setNativeProps({ selection: { start: 0, end: code.length } });
-      }, 120);
+      // Si la consulta ya terminó, prepara la próxima lectura. Si sigue
+      // ocupada, el efecto lo hará al volver a habilitar el campo.
+      setTimeout(restoreScannerFocus, 120);
     }
   }
 
