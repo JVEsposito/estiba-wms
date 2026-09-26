@@ -55,7 +55,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
 
         $this->assertSame(0, Artisan::call('planificador:conciliar-pallets', [
             '--aplicar' => true,
-            '--usuario' => $usuario->id,
+            '--usuario' => (string) $usuario->id,
         ]));
         $this->assertStringContainsString('0 para revisión manual', Artisan::output());
         $this->assertDatabaseCount('planes_operacionales', 1);
@@ -104,7 +104,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
 
         $this->assertSame(0, Artisan::call('planificador:conciliar-pallets', [
             '--aplicar' => true,
-            '--usuario' => $usuario->id,
+            '--usuario' => (string) $usuario->id,
         ]));
         $this->assertDatabaseCount('planes_operacionales', 1);
         $this->assertDatabaseMissing('tareas_movimiento', ['folio_id' => $sinPrefrio->id]);
@@ -117,7 +117,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
         config(['planificador.mode' => 'off']);
         $this->assertSame(1, Artisan::call('planificador:conciliar-pallets', [
             '--aplicar' => true,
-            '--usuario' => $usuario->id,
+            '--usuario' => (string) $usuario->id,
         ]));
 
         $this->habilitarPlanificador();
@@ -135,7 +135,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
 
         $this->assertSame(0, Artisan::call('planificador:conciliar-pallets', [
             '--aplicar' => true,
-            '--usuario' => $usuario->id,
+            '--usuario' => (string) $usuario->id,
         ]));
         $tarea = PlanOperacional::query()->firstOrFail()->tareas()->firstOrFail();
         $this->assertTrue(app(ServicioConfirmacionInicioTarea::class)->exigida($tarea));
@@ -149,7 +149,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
 
         $this->assertSame(0, Artisan::call('planificador:conciliar-pallets', [
             '--aplicar' => true,
-            '--usuario' => $usuario->id,
+            '--usuario' => (string) $usuario->id,
         ]));
         $this->assertDatabaseHas('tareas_movimiento', ['folio_id' => $folio->id]);
     }
