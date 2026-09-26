@@ -29,7 +29,10 @@ final class ConciliarPalletsHistoricosPlanificador extends Command
 
         $limite = min(1000, max(1, (int) $this->option('limite')));
         $diagnostico = $conciliador->diagnosticar($temporada);
-        $this->components->info("Temporada {$temporada->codigo}: {$diagnostico['total']} pallets históricos elegibles.");
+        $this->components->info(
+            "Temporada {$temporada->codigo}: {$diagnostico['sin_objetivo']} pallets sin ubicación ni objetivo; "
+            ."{$diagnostico['total']} elegibles y {$diagnostico['requieren_revision']} para revisión manual.",
+        );
         foreach ($diagnostico['folios'] as $folio) {
             $this->line($folio);
         }

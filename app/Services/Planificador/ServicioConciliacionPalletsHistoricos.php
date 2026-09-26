@@ -32,7 +32,7 @@ final class ServicioConciliacionPalletsHistoricos
     public function __construct(private readonly ServicioPlanesOperacionales $planes) {}
 
     /** @return Builder<Folio> */
-    public function candidatos(Temporada $temporada): Builder
+    private function sinObjetivo(Temporada $temporada): Builder
     {
         return Folio::query()
             ->where('temporada_id', $temporada->id)
@@ -42,10 +42,16 @@ final class ServicioConciliacionPalletsHistoricos
                 EstadoOperacionalFolio::PendienteUbicacion->value,
                 EstadoOperacionalFolio::Disponible->value,
             ])
+            ->whereDoesntHave('ubicacionActual')
+            ->whereDoesntHave('tareasMovimiento');
+    }
+
+    /** @return Builder<Folio> */
+    public function candidatos(Temporada $temporada): Builder
+    {
+        return $this->sinObjetivo($temporada)
             ->where('condicion_termica', CondicionTermicaFolio::PrefrioAprobado->value)
             ->where('habilitacion_almacenamiento', HabilitacionAlmacenamientoFolio::Habilitado->value)
-            ->whereDoesntHave('ubicacionActual')
-            ->whereDoesntHave('tareasMovimiento')
             ->whereDoesntHave('asignacionCargaActual')
             ->whereDoesntHave('retencionOperacionalActiva')
             ->whereHas('procesosPrefrio', fn (Builder $consulta) => $consulta
@@ -55,17 +61,25 @@ final class ServicioConciliacionPalletsHistoricos
                     ->where('estado', EstadoProcesoPrefrio::Aprobado->value)))
             ->whereDoesntHave('procesosPrefrio', fn (Builder $consulta) => $consulta
                 ->whereHas('proceso', fn (Builder $proceso) => $proceso
-                    ->whereNotIn('estado', [
-                        EstadoProcesoPrefrio::Aprobado->value,
-                        EstadoProcesoPrefrio::Cancelado->value,
+                    ->whereIn('estado', [
+                        EstadoProcesoPrefrio::Borrador->value,
+                        EstadoProcesoPrefrio::Cargando->value,
+                        EstadoProcesoPrefrio::ListoParaIniciar->value,
+                        EstadoProcesoPrefrio::EnProceso->value,
+                        EstadoProcesoPrefrio::PendienteVerificacion->value,
                     ])));
     }
 
-    /** @return array{total: int, folios: array<int, string>} */
+    /** @return array{sin_objetivo: int, total: int, requieren_revision: int, folios: array<int, string>} */
     public function diagnosticar(Temporada $temporada, int $limite = 20): array
     {
+        $sinObjetivo = $this->sinObjetivo($temporada)->count();
+        $elegibles = $this->candidatos($temporada)->count();
+
         return [
-            'total' => $this->candidatos($temporada)->count(),
+            'sin_objetivo' => $sinObjetivo,
+            'total' => $elegibles,
+            'requieren_revision' => $sinObjetivo - $elegibles,
             'folios' => $this->candidatos($temporada)
                 ->orderBy('id')
                 ->limit(max(0, $limite))

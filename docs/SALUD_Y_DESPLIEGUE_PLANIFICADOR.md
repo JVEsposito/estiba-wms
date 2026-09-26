@@ -54,7 +54,9 @@ El comando admite administradores o supervisores de frío activos, registra
 usuario/temporada/cantidad en el log y se puede repetir sin duplicar objetivos.
 Solo incorpora pallets completos de la temporada activa, con Prefrío aprobado,
 habilitación térmica, sin ubicación, asignación de carga, retención ni tarea
-histórica. Los demás requieren revisar su expediente y regularizar su estado.
+histórica. El diagnóstico distingue los pallets sin ubicación ni objetivo que
+cumplen esos requisitos de los que requieren revisar su expediente y regularizar
+su estado.
 Cada nuevo objetivo es `almacenamiento_pallet` rolling y conserva el ID de su
 proceso, pero **no presume que el pallet siga dentro del túnel**: el camarero
 debe encontrarlo y confirmar folio y PIN antes de iniciar, incluso si se apagó

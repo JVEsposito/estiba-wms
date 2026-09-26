@@ -57,6 +57,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
             '--aplicar' => true,
             '--usuario' => $usuario->id,
         ]));
+        $this->assertStringContainsString('0 para revisión manual', Artisan::output());
         $this->assertDatabaseCount('planes_operacionales', 1);
         $this->assertDatabaseCount('tareas_movimiento', 1);
     }
@@ -80,7 +81,7 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
             'temporada_id' => $elegible->temporada_id,
             'numero_folio' => 'PAL-PENDIENTE',
             'tipo_bulto' => TipoBulto::Pallet,
-            'estado_operacional' => EstadoOperacionalFolio::PendientePrefrio,
+            'estado_operacional' => EstadoOperacionalFolio::PendienteUbicacion,
             'condicion_termica' => CondicionTermicaFolio::PendientePrefrio,
             'habilitacion_almacenamiento' => HabilitacionAlmacenamientoFolio::NoHabilitado,
             'activo' => true,
@@ -97,6 +98,8 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
             'folio_id' => $bloqueado->id,
             'posicion_tunel_prefrio_id' => $otraPosicion->id,
             'estado' => EstadoFolioProcesoPrefrio::Aprobado,
+            'cargado_at' => now()->subDay(),
+            'cargado_por_user_id' => $usuario->id,
         ]);
 
         $this->assertSame(0, Artisan::call('planificador:conciliar-pallets', [
@@ -209,6 +212,8 @@ class ConciliacionPalletsHistoricosPlanificadorTest extends TestCase
             'folio_id' => $folio->id,
             'posicion_tunel_prefrio_id' => $posicion->id,
             'estado' => EstadoFolioProcesoPrefrio::Aprobado,
+            'cargado_at' => now()->subDay(),
+            'cargado_por_user_id' => $usuario->id,
             'retirado_at' => now()->subDay(),
         ]);
 
